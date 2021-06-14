@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210613"
+__revision__ = "210614"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3726,6 +3726,7 @@ class UtilMgr(object):
 
     curTime = 0
     progressCnt = 0
+    progressStr = 0
     progressChar = {
         0: '|',
         1: '/',
@@ -5113,8 +5114,8 @@ class UtilMgr(object):
 
             mod = UtilMgr.progressCnt
 
-            sys.stdout.write('.... %s%s' % \
-                (UtilMgr.progressChar[mod], '\b' * 6))
+            progressStr = '.... %s%s' % \
+                (UtilMgr.progressChar[mod], '\b' * 6)
         else:
             try:
                 div = round((current / float(dest)) * 100, 1)
@@ -5127,11 +5128,16 @@ class UtilMgr(object):
 
             mod = percent & 3
 
-            sys.stdout.write('%3d%% %s%s' % \
-                (percent, UtilMgr.progressChar[mod], '\b' * 6))
+            progressStr = '%3d%% %s%s' % \
+                (percent, UtilMgr.progressChar[mod], '\b' * 6)
 
         # handle reentrant call exception #
         try:
+            if progressStr == UtilMgr.progressStr:
+                return
+
+            UtilMgr.progressStr = progressStr
+            sys.stdout.write(progressStr)
             sys.stdout.flush()
         except SystemExit:
             sys.exit(0)
@@ -15950,11 +15956,6 @@ class FileAnalyzer(object):
 
 
 
-    def makeReadaheadList(self):
-        pass
-
-
-
     @staticmethod
     def isValidFile(fileName, special=False):
         # skip non-files #
@@ -17742,6 +17743,7 @@ class SysMgr(object):
     commFdCache = {}
     fdCache = {}
     libCache = {}
+    rawFdCache = {}
     netAddrCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
@@ -17768,6 +17770,7 @@ class SysMgr(object):
     libdemangleObj = None
     libLLVMObj = None
     demangleFunc = None
+    readaheadFunc = None
     matplotlibVersion = long(0)
     matplotlibDpi = 500
     sigsetObj = None
@@ -21378,6 +21381,7 @@ class SysMgr(object):
                 'printsig': 'Signal',
                 'printsvc': 'systemd',
                 'pstree': 'Process',
+                'readahead': 'File',
                 'readelf': 'File',
                 'remote': 'Command',
                 'req': 'URL',
@@ -22043,6 +22047,13 @@ Examples:
     - report analysis results for specific threads to ./guider.out after converting all target inodes to names
         # {0:1} guider.data -o . -q CONVINODE
         # {0:1} guider.data -o . -q CONVINODE:/data
+
+    - report analysis results for specific threads to ./guider.out and make the readahead list to readahead.list
+        # {0:1} guider.data -o . -q MKRALIST
+        # {0:1} guider.data -o . -q MKRALIST:readahead2.list
+        # {0:1} guider.data -o . -q MKRALIST:readahead2.list, CONVINODE:/data
+        # {0:1} guider.data -o . -q MKRALIST:readahead2.list, RAMIN:4097
+        # {0:1} guider.data -o . -q MKRALIST:readahead2.list, RAMERGE
 
     - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
         # {0:1} guider.dat -o . -P -g 1234, 4567 -a
@@ -24202,6 +24213,29 @@ Examples:
 
     - Make ELF caches for /usr/bin/yes
         # {0:1} {1:1} /usr/bin/yes
+                    '''.format(cmd, mode)
+
+                # readahead #
+                elif SysMgr.checkMode('readahead'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE|COMM|PID> -g <OFFSET> [OPTIONS] [--help]
+
+Description:
+    Initiate file readahead into page cache
+
+Options:
+    -I  <FILE>                  set input path
+    -W  <SEC>                   wait for input
+    -Y  <POLICY:PRIO|TIME       set sched
+         {{:TID|COMM:CONT}}>
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Initiate file readahead into page cache
+        # {0:1} {1:1} readahead.list
                     '''.format(cmd, mode)
 
                 # sym2addr#
@@ -31695,6 +31729,19 @@ Copyright:
         elif SysMgr.checkMode('mkcache'):
             SysMgr.doMkCache()
 
+        # READAHEAD MODE #
+        elif SysMgr.checkMode('readahead'):
+            # get list path #
+            if SysMgr.hasMainArg():
+                path = SysMgr.getMainArg(path=True)
+            elif SysMgr.inputParam:
+                path = SysMgr.inputParam
+            else:
+                SysMgr.printErr('no input for readahead list')
+                sys.exit(0)
+
+            SysMgr.doReadahead(path)
+
         # PRINTEXT MODE #
         elif SysMgr.checkMode('printext'):
             SysMgr.doPrintExt()
@@ -32780,6 +32827,167 @@ Copyright:
                 continue
 
             return list(set(pidList))
+
+
+
+    @staticmethod
+    def readahead(path, offset, size=0, closeFd=False):
+        # pylint: disable=not-callable
+        if not SysMgr.readaheadFunc:
+            # load libc #
+            SysMgr.loadLibcObj()
+
+            # check readahead #
+            if not hasattr(SysMgr.libcObj, 'readahead'):
+                SysMgr.printErr('no readahead function in libc')
+                sys.exit(0)
+
+            # define readahead #
+            SysMgr.readaheadFunc = \
+                getattr(SysMgr.libcObj, 'readahead')
+            SysMgr.readaheadFunc.argtypes = [c_int, c_int64, c_int]
+            SysMgr.readaheadFunc.restype = c_int
+
+        # get fd #
+        try:
+            fd = SysMgr.rawFdCache[path]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                fd = os.open(path, os.O_RDONLY)
+                SysMgr.rawFdCache[path] = fd
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(path)
+                return False
+
+        # change size 0 to total #
+        if not size:
+            try:
+                size = os.stat(path).st_size
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to get file size for '%s'" % path, True)
+                return False
+
+        # split readahead chunks by 1MB #
+        remain = size
+        chunk = 1 << 20
+        coffset = offset
+
+        # readahead chunks #
+        while 1:
+            if remain < chunk:
+                csize = remain
+            else:
+                csize = chunk
+
+            # readahead a chunk #
+            os.lseek(fd, coffset, 0)
+            SysMgr.readaheadFunc(
+                c_int(fd), c_int64(coffset), c_int(csize))
+
+            # check break condition #
+            if csize < chunk:
+                break
+
+            coffset += chunk
+            remain -= chunk
+
+        # close fd #
+        if closeFd:
+            try:
+                os.close(fd)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # remove cache #
+            SysMgr.rawFdCache.pop(path, None)
+
+        return True
+
+
+
+    @staticmethod
+    def doReadahead(path):
+        # get absolute path #
+        path = os.path.abspath(path)
+        SysMgr.printInfo(
+            "start readahead from '%s'" % path)
+        startTime = time.time()
+
+        # open list #
+        try:
+            raData = open(path, 'rb').read()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(path)
+            sys.exit(0)
+
+        # get name list size #
+        try:
+            pos = 4
+            chunkSize = 20
+            nameListSize = struct.unpack('I', raData[:pos])[0]
+        except:
+            SysMgr.printErr(
+                'fail to get name list size for readahead', True)
+            sys.exit(0)
+
+        # get file list #
+        try:
+            nameList = raData[pos:pos+nameListSize]
+            nameList = nameList.decode('latin-1').split('#')
+            pos = pos+nameListSize
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to get name list for readahead', True)
+
+        # do readahead #
+        totalSize = 0
+        while 1:
+            try:
+                # check break condition #
+                nextPos = pos+chunkSize
+                if len(raData) < nextPos:
+                    break
+
+                # get a chunk #
+                fid, offset, size = struct.unpack('HQI', raData[pos:nextPos])
+
+                # update values #
+                pos = nextPos
+                fname = nameList[fid]
+
+                # print worload #
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn(
+                        'readahead %s|%s|%s' % (fname, offset, size))
+
+                # readahead a chunk #
+                SysMgr.readahead(fname, offset, size)
+
+                totalSize += size
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "fail to readahead chunk", True, True)
+
+        # print result #
+        elapsed = time.time() - startTime
+        SysMgr.printInfo(
+            "finished readahead a total of %s data for %.3f sec" % \
+                (UtilMgr.convSize2Unit(totalSize), elapsed))
 
 
 
@@ -72433,8 +72641,50 @@ class TaskAnalyzer(object):
 
 
     def printFsInfo(self):
+        # get path for readahead list #
+        if 'MKRALIST' in SysMgr.environList:
+            # set list file #
+            raPath = SysMgr.environList['MKRALIST'][0]
+            if raPath == 'SET':
+                raPath = 'readahead.list'
+
+            # backup #
+            SysMgr.backupFile(raPath)
+
+            # open file for readahead list #
+            try:
+                raFd = open(raPath, 'wb')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(raPath)
+                sys.exit(0)
+
+            # set inode scan flag #
+            if not 'CONVINODE' in SysMgr.environList:
+                SysMgr.environList['CONVINODE'] = ['SET']
+
+            # set minimum size #
+            raMin = 0
+            if 'RAMIN' in SysMgr.environList:
+                try:
+                    raMin = SysMgr.environList['RAMIN'][0]
+                    raMin = long(raMin)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr((
+                        "fail to set the minimum size to '%s'"
+                        "for readahead chunk") % raMin, True)
+        else:
+            raFd = None
+            raMin = 0
+
         # check fs data #
         if not self.fsTable or not self.fsTable[0]:
+            if raFd:
+                SysMgr.printWarn(
+                    'no filesystem data for readahead list', True)
             return
 
         # print menu #
@@ -72451,7 +72701,11 @@ class TaskAnalyzer(object):
         inodeList = {}
         if self.fsTable[0]:
             for value in self.fsTable[0].values():
-                inodeList.update(value)
+                for dev, inodes in value.items():
+                    if dev in inodeList:
+                        inodeList[dev].update(inodes)
+                    else:
+                        inodeList[dev] = inodes
 
         # make target inode filter #
         fileInfo = {}
@@ -72472,7 +72726,7 @@ class TaskAnalyzer(object):
                 # check dir #
                 if not os.path.isdir(targetDir):
                     SysMgr.printErr(
-                        "wrong dir path '%s'" % targetDir)
+                        "wrong dir path '%s' for inode scan" % targetDir)
                     sys.exit(0)
             else:
                 targetDir = '/'
@@ -72633,10 +72887,17 @@ class TaskAnalyzer(object):
                 SysMgr.printPipe(devStr)
             SysMgr.printPipe(oneLine)
 
-        if not SysMgr.showAll:
+        # check return condition #
+        if raFd and self.fsData[0]:
+            pass
+        elif not SysMgr.showAll:
             return
         elif not self.fsData[0] and not self.fsData[1]:
             return
+
+        # define readahead list #
+        pathConvList = {}
+        readaheadList = []
 
         # print menu #
         SysMgr.printPipe('\n[Thread FS History] (Type: Read) (Unit: Byte)')
@@ -72665,7 +72926,96 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(
                 "{0:>8} {1:>25} {2:>7} {3:>10} {4:>16} {5:>12} {6:<1}".\
                 format(atime, taskInfo, dev, inode, offset, size, path))
+
+            # check readahead list #
+            if raFd and path.strip():
+                if path in pathConvList:
+                    path, idx = pathConvList[path]
+                # skip implicit files #
+                elif '|' in path:
+                    continue
+                else:
+                    origPath = path
+                    pathConvList[origPath] = \
+                        [path[:path.rfind('[')], len(pathConvList)]
+                    path, idx = pathConvList[origPath]
+
+                # add to readahead list #
+                readaheadList.append([idx, offset, size])
+
         SysMgr.printPipe(oneLine)
+
+        # check readahead list #
+        if not readaheadList:
+            return
+
+        # merge readahead chunks #
+        if 'RAMERGE' in  SysMgr.environList:
+            SysMgr.printInfo(
+                'merge continuous readahead chunks')
+
+            prevChunk = None
+            origRaList = readaheadList
+            readaheadList = []
+            for chunk in origRaList:
+                fid, offset, size = chunk
+                if not prevChunk:
+                    prevChunk = [fid, offset, size]
+                    readaheadList.append(prevChunk)
+                    continue
+
+                # merge chunks #
+                if fid == prevChunk[0] and \
+                    offset == prevChunk[1] + prevChunk[2]:
+                    prevChunk[2] += size
+                    readaheadList[-1] = prevChunk
+                    continue
+
+                # add original chunk to list #
+                prevChunk = [fid, offset, size]
+                readaheadList.append(prevChunk)
+
+        # write readahead list to file #
+        try:
+            # encode file list #
+            fileList = '#'.join(
+                [value[0] for path, value in sorted(
+                    pathConvList.items(),
+                    key=lambda e: e[1][1])])
+            fileList = fileList.encode('latin-1')
+
+            # write file list size #
+            raFd.write(struct.pack('I', len(fileList)))
+
+            # write file list #
+            raFd.write(fileList)
+
+            # write readahead chunks #
+            for chunk in readaheadList:
+                # skip chunks lesser than minimum size #
+                if raMin > chunk[2]:
+                    continue
+
+                # write chunks #
+                raFd.write(struct.pack('HQI', chunk[0], chunk[1], chunk[2]))
+
+            raFd.close()
+
+            # print file size #
+            fsize = UtilMgr.getFileSize(raFd.name)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
+
+            SysMgr.printInfo(
+                "saved the readahead list to '%s'%s successfuly" % \
+                    (raFd.name, fsize))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to save the readahead list to '%s'" % raFd.name, True)
 
 
 
@@ -86149,6 +86499,7 @@ def main(args=None):
             outputPath = UtilMgr.prepareForImageFile(
                 SysMgr.inputFile, 'timeline')
 
+            # check absolute timeline option #
             if 'ABSTIME' in SysMgr.environList:
                 start = SysMgr.startTime
             else:
