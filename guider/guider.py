@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210614"
+__revision__ = "210616"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3307,6 +3307,22 @@ class ConfigMgr(object):
         'N', # 4: NONE #
         'I', # 5: IDLE #
         'D', # 6: DEADLINE #
+    ]
+
+    # io sched class #
+    IOSCHED_CLASS = [
+        'NONE',
+        'IOPRIO_CLASS_RT',
+        'IOPRIO_CLASS_BE',
+        'IOPRIO_CLASS_IDLE',
+    ]
+
+    # io sched target #
+    IOSCHED_TARGET = [
+        'NONE',
+        'IOPRIO_WHO_PROCESS',
+        'IOPRIO_WHO_PGRP',
+        'IOPRIO_WHO_USER',
     ]
 
     # statm fields #
@@ -7460,7 +7476,7 @@ class Timeline(object):
 
 
 
-    def _draw_time_axis(self, dwg, start=None):
+    def _draw_time_axis(self, dwg, start=0):
         dwg.add(dwg.rect(
             (0, self.config.HEIGHT),
             (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT), fill='black'))
@@ -7469,10 +7485,7 @@ class Timeline(object):
         ratio = 1 / self.ratio
 
         # set time delta #
-        if start:
-            start = float(start) / self.time_factor
-        else:
-            start = 0
+        start = float(start) / self.time_factor
 
         for x_tick_time in range(0, self.config.WIDTH, self.config.TICKS):
             abs_x_tick_time = (x_tick_time * ratio) + start
@@ -7507,15 +7520,19 @@ class Timeline(object):
 
 
 
-    def _draw_segments(self, dwg):
-        for idx, segment in enumerate(self.segments):
+    def _draw_segments(self, dwg, start=0):
+        # set time delta #
+        start = float(start) / self.time_factor
+
+        for idx, segment in enumerate(
+            sorted(self.segments, key=lambda e: len(e.state))):
             UtilMgr.printProgress(idx, len(self.segments))
-            self._draw_segment(segment, dwg)
+            self._draw_segment(segment, dwg, start)
         UtilMgr.deleteProgress()
 
 
 
-    def _draw_segment(self, segment, dwg):
+    def _draw_segment(self, segment, dwg, start=0):
         x0 = float(segment.time_start - self.time_start) * self.ratio
         x1 = float(segment.time_end - self.time_start) * self.ratio
         group_idx = self.group_list.index(segment.group)
@@ -7525,6 +7542,7 @@ class Timeline(object):
         scaled_top_height = y0 + (self.scaled_height / 7)
         scaled_bottom_height = y1 - (self.scaled_height * 0.25)
         duration = segment.time_end - segment.time_start
+        time_end = segment.time_end + start
 
         # get color id #
         if segment.color:
@@ -7570,7 +7588,8 @@ class Timeline(object):
 
         # create the drawing group #
         g = dwg.add(dwg.g())
-        g.set_desc(segment.text)
+        g.set_desc('%s | ~%s %s' % \
+            (segment.text, UtilMgr.convNum(time_end), self.time_unit))
 
         # draw line for block_read status #
         if segment.state == 'RD':
@@ -7712,12 +7731,12 @@ class Timeline(object):
 
 
 
-    def draw(self, dwg, start=None):
+    def draw(self, dwg, start=0):
         self._draw_background(dwg)
         self._draw_grid(dwg)
         self._draw_group_axis(dwg)
         self._draw_time_axis(dwg, start)
-        self._draw_segments(dwg)
+        self._draw_segments(dwg, start)
 
 
 
@@ -17634,6 +17653,7 @@ class SysMgr(object):
     masterPid = long(0)
     parentPid = long(0)
     prio = None
+    ioprio = None
     funcDepth = long(0)
     maxPid = 32768
     maxRdCnt = 1024
@@ -18305,8 +18325,8 @@ class SysMgr(object):
         # update record status #
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
 
-        # change the scheduling priority for process #
-        if not SysMgr.prio:
+        # change the CPU scheduling priority for process #
+        if SysMgr.prio is None:
             SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
         SysMgr.parseRecordOption()
@@ -18358,19 +18378,20 @@ class SysMgr(object):
             SysMgr.applyLaunchOption()
 
             # check data type #
-            if SysMgr.isThreadMode():
-                pass
-            elif SysMgr.isFuncMode():
+            if SysMgr.isFuncMode():
                 SysMgr.printErr(
                     "fail to draw because this data is for function")
                 sys.exit(0)
-            elif SysMgr.forceEnable:
+            elif SysMgr.isThreadMode() or \
+                not SysMgr.systemInfoBuffer or \
+                SysMgr.forceEnable:
                 pass
             else:
                 SysMgr.printErr(
                     "fail to draw because this data is not supported")
                 sys.exit(0)
 
+            # set input path #
             SysMgr.inputFile = sys.argv[1] = sys.argv[2]
             SysMgr.intervalEnable = 1
             if not SysMgr.outPath:
@@ -21493,6 +21514,8 @@ Usage:
     -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
+        <CLASS:{{WHICH:}}PRIO
+         :TID|COMM>
     -v                          verbose
                 '''
 
@@ -21598,10 +21621,10 @@ Examples:
     - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
-    - Monitor status and change the scheduling priority for all {2:2} every second
+    - Monitor status and change the CPU scheduling priority for all {2:2} every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - Monitor status and change the scheduling priority for specific {2:2} having name including a.out every second
+    - Monitor status and change the CPU scheduling priority for specific {2:2} having name including a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
     - Monitor status of the fixed list for {2:2} to save CPU resource for monitoring
@@ -22044,6 +22067,10 @@ Examples:
     - report analysis results including preemption info for specific threads to ./guider.out
         # {0:1} guider.dat -o . -p 1234, 4567
 
+    - report analysis results for specific threads to ./guider.out within specific interval range in second unit
+        # {0:1} guider.dat -o . -q TRIM:2:9
+        # {0:1} guider.dat -o . -q TRIM:2:
+
     - report analysis results for specific threads to ./guider.out after converting all target inodes to names
         # {0:1} guider.data -o . -q CONVINODE
         # {0:1} guider.data -o . -q CONVINODE:/data
@@ -22051,9 +22078,12 @@ Examples:
     - report analysis results for specific threads to ./guider.out and make the readahead list to readahead.list
         # {0:1} guider.data -o . -q MKRALIST
         # {0:1} guider.data -o . -q MKRALIST:readahead2.list
-        # {0:1} guider.data -o . -q MKRALIST:readahead2.list, CONVINODE:/data
-        # {0:1} guider.data -o . -q MKRALIST:readahead2.list, RAMIN:4097
-        # {0:1} guider.data -o . -q MKRALIST:readahead2.list, RAMERGE
+        # {0:1} guider.data -o . -q MKRALIST, CONVINODE:/data
+        # {0:1} guider.data -o . -q MKRALIST, RAMIN:4097
+        # {0:1} guider.data -o . -q MKRALIST, RAMERGE
+        # {0:1} guider.data -o . -q MKRALIST, TRIM:2:
+        # {0:1} guider.data -o . -q MKRALIST, RAALLOWLIST:allow.list
+        # {0:1} guider.data -o . -q MKRALIST, RADENYLIST:deny.list
 
     - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
         # {0:1} guider.dat -o . -P -g 1234, 4567 -a
@@ -22163,6 +22193,8 @@ Options:
     -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
+        <CLASS:{{WHICH:}}PRIO
+         :TID|COMM>
     -v                          verbose
                     '''
 
@@ -22430,6 +22462,8 @@ Options:
     -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
+        <CLASS:{{WHICH:}}PRIO
+         :TID|COMM>
     -v                          verbose
                     '''
 
@@ -24229,6 +24263,8 @@ Options:
     -W  <SEC>                   wait for input
     -Y  <POLICY:PRIO|TIME       set sched
          {{:TID|COMM:CONT}}>
+        <CLASS:{{WHICH:}}PRIO
+         :TID|COMM>
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -24236,6 +24272,9 @@ Options:
 Examples:
     - Initiate file readahead into page cache
         # {0:1} {1:1} readahead.list
+
+    - Initiate file readahead into page cache after setting the scheduling priority
+        # {0:1} {1:1} -Y "c:10, idle:1:0"
                     '''.format(cmd, mode)
 
                 # sym2addr#
@@ -24963,60 +25002,78 @@ Examples:
                 elif SysMgr.checkMode('setsched'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <POLICY:PRIO|TIME:TID|COMM> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <CLASS:WHICH:PRIO:TID|COMM> [OPTIONS] [--help]
 
 Description:
-    Set CPU scheduler policy and priority for tasks
+    Set the scheduler policy and priority for tasks
 
-Policy:
+Policy(CPU):
     c: CFS [default]
     f: FIFO(RT)
     r: RR(RT)
-    B: BATCH
-    I: IDLE
+    b: BATCH
+    i: IDLE
     d: DEADLINE
 
+Class(I/O):
+    rt:   IOPRIO_CLASS_RT
+    be:   IOPRIO_CLASS_BE
+    idle: IOPRIO_CLASS_IDLE
+
+Who(I/O):
+    process: IOPRIO_WHO_PROCESS
+    pgrp:    IOPRIO_WHO_PGRP
+    user:    IOPRIO_WHO_USER
+
 Options:
-    -g <POLICY:PRIORITY|TIME:TID|COMM> set value
-    -P                                 group threads in a same process
-    -i  <SEC>                          set interval
-    -W  <SEC>                          wait for input
-    -q  <NAME{{:VALUE}}>                 set environment variables
-    -v                                 verbose
+    -g <POLICY:PRIO|TIME:TID|COMM>  set value for CPU scheduling
+    -g <CLASS:WHO:PRIO:TID|COMM>    set value for I/O scheduling
+    -P                              group threads in a same process
+    -i  <SEC>                       set interval
+    -W  <SEC>                       wait for input
+    -q  <NAME{{:VALUE}}>              set environment variables
+    -v                              verbose
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Set CPU scheduler policy(CFS), priority(-20) for specific threads
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "-20:a*"
         # {0:1} {1:1} "-20:1234, 10:a.out, 15:test"
 
-    - Set CPU scheduler policy(CFS), priority(-20) for specific processes
+    - Set the I/O scheduler for specific threads
+        # {0:1} {1:1} "rt:process:1:a.out"
+        # {0:1} {1:1} "idle:process:1:a.out"
+        # {0:1} {1:1} "be:5:a.out"
+        # {0:1} {1:1} "rt:process:1:0"
+
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific processes
         # {0:1} {1:1} "-20:a.out" -q PROCSEARCH
 
-    - Set CPU scheduler policy(CFS), priority(-20) for all sibling threads of specific processes
+    - Set the CPU scheduler policy(CFS), priority(-20) for all sibling threads of specific processes
         # {0:1} {1:1} "-20:a.out" -q PROCSEARCH -P (save CPU resource for searching tasks)
 
-    - Set CPU scheduler policy(CFS), priority(-20) for specific threads (wait for new target if no task)
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads (wait for new target if no task)
         # {0:1} {1:1} "-20:a.out" -q WAITTASK
         # {0:1} {1:1} "-20:a.out" -q WAITTASK:1
 
-    - Set CPU scheduler policy(CFS), priority(-20) for specific threads after 5 seconds
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads after 5 seconds
         # {0:1} {1:1} "-20:a.out" -W 5s
 
-    - Set CPU scheduler policy(CFS), priority(-20) for specific threads every 2 seconds
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads every 2 seconds
         # {0:1} {1:1} "-20:a.out" -i 2
 
-    - Set CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
+    - Set the CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
         # {0:1} {1:1} "-20:a.out -P"
 
-    - Set CPU scheduler policy(FIFO), priority(90) for specific threads
+    - Set the CPU scheduler policy(FIFO), priority(90) for specific threads
         # {0:1} {1:1} "f:90:a.out"
 
-    - Set CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for specific threads
+    - Set the CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for specific threads
         # {0:1} {1:1} "d:1000000/10000000/10000000:a.out"
                     '''.format(cmd, mode)
 
@@ -25715,6 +25772,7 @@ Copyright:
             if not SysMgr.loadLibcObj():
                 raise Exception('no libc')
 
+            # check syscall #
             if UtilMgr.isNumber(syscall):
                 nrSyscall = long(syscall)
                 nmSyscall = ConfigMgr.sysList[nrSyscall]
@@ -29147,7 +29205,7 @@ Copyright:
     @staticmethod
     def drawTimeline(
         inputPath=None, inputData=None, outputPath=None,
-        configPath=None, configData=None, taskList=None, start=None):
+        configPath=None, configData=None, taskList=None, start=0):
 
         def _addUserEvent(inputData):
             if not inputData or \
@@ -30445,7 +30503,7 @@ Copyright:
 
             elif option == 'Y':
                 SysMgr.checkOptVal(option, value)
-                if not SysMgr.prio:
+                if SysMgr.prio is None:
                     SysMgr.applyPriority(value)
 
             elif option == 'J':
@@ -31737,8 +31795,7 @@ Copyright:
             elif SysMgr.inputParam:
                 path = SysMgr.inputParam
             else:
-                SysMgr.printErr('no input for readahead list')
-                sys.exit(0)
+                path = 'readahead.list'
 
             SysMgr.doReadahead(path)
 
@@ -31870,8 +31927,8 @@ Copyright:
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
-            # change the scheduling priority for tasks #
-            if not SysMgr.prio:
+            # change the CPU scheduling priority for tasks #
+            if SysMgr.prio is None:
                 SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
             # get argument #
@@ -32930,6 +32987,14 @@ Copyright:
         except:
             SysMgr.printOpenErr(path)
             sys.exit(0)
+
+        # set CPU priority #
+        if SysMgr.prio is None:
+            SysMgr.setPriority(SysMgr.pid, 'C', 10)
+
+        # set I/O priority #
+        if SysMgr.ioprio is None:
+            SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE')
 
         # get name list size #
         try:
@@ -36411,7 +36476,7 @@ Copyright:
                 sys.exit(0)
 
         # set priority #
-        if not SysMgr.prio:
+        if SysMgr.prio is None:
             SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
         # create event memory #
@@ -37079,7 +37144,7 @@ Copyright:
         # print start directory #
         abspath = os.path.abspath(path)
         SysMgr.printStat(
-            r"start traversing dirs from [%s]..." % abspath)
+            r"start traversing dirs from '%s'..." % abspath)
 
         # print start path #
         if SysMgr.jsonEnable:
@@ -37228,7 +37293,7 @@ Copyright:
 
         for path in inputArg:
             SysMgr.printStat(
-                r"start traversing ext4 filesystem from [%s]..." % path)
+                r"start traversing ext4 filesystem from '%s'..." % path)
 
             # make an ext4 object #
             try:
@@ -40882,6 +40947,72 @@ Copyright:
             schedSet = item.split(':')
 
             try:
+                # check io sched #
+                ioclass = None
+                if schedSet[0] in ConfigMgr.IOSCHED_CLASS:
+                    # set class #
+                    ioclass = ConfigMgr.IOSCHED_CLASS.index(schedSet[0])
+                else:
+                    nmClass = 'IOPRIO_CLASS_%s' % schedSet[0].upper()
+                    if nmClass in ConfigMgr.IOSCHED_CLASS:
+                        ioclass = ConfigMgr.IOSCHED_CLASS.index(nmClass)
+
+                # apply io sched #
+                if ioclass:
+                    # set who #
+                    if len(schedSet) == 4:
+                        if schedSet[1] in ConfigMgr.IOSCHED_TARGET:
+                            who = ConfigMgr.IOSCHED_TARGET.index(schedSet[1])
+                        else:
+                            nmWho = 'IOPRIO_WHO_%s' % schedSet[1].upper()
+                            who = ConfigMgr.IOSCHED_TARGET.index(nmWho)
+                        pri = long(schedSet[2])
+                        task = schedSet[3]
+                    else:
+                        who = 1
+                        pri = long(schedSet[1])
+                        task = schedSet[2]
+
+                    # get thread list #
+                    sibling = SysMgr.groupProcEnable
+                    if task == '0':
+                        targetList = [SysMgr.pid]
+                        SysMgr.ioprio = pri
+                    elif procSearch:
+                        targetList = []
+                        pidList = SysMgr.getTids(task, isThread=False)
+                        if sibling:
+                            for pid in pidList:
+                                siblingList = SysMgr.getThreadList(pid)
+                                if siblingList:
+                                    targetList += siblingList
+                        else:
+                            targetList = pidList
+                    else:
+                        targetList = SysMgr.getTids(task, sibling=sibling)
+
+                    # convert thread list #
+                    targetList = list(map(long, list(set(targetList))))
+                    if not targetList:
+                        SysMgr.printWarn(
+                            "no thread related to '%s'" % task)
+
+                    # change the CPU scheduling priority for tasks #
+                    for task in sorted(targetList):
+                        SysMgr.setIoPriority(task, ioclass, pri, who)
+
+                    continue
+            except SystemExit:
+                sys.exit(0)
+            except:
+                err = map(str, sys.exc_info()[1].args)
+                SysMgr.printErr((
+                    "wrong value '%s' to apply new priority because %s, "
+                    "input in the format CLASS:WHO:PRI:TID|COMM") % \
+                    (item, ' '.join(list(err))))
+                sys.exit(0)
+
+            try:
                 # policy and priority #
                 try:
                     pri = long(schedSet[0])
@@ -40935,7 +41066,7 @@ Copyright:
                     SysMgr.printWarn(
                         "no thread related to '%s'" % task)
 
-                # change the scheduling priority for tasks #
+                # change the CPU scheduling priority for tasks #
                 for task in sorted(targetList):
                     if schedSet[0].upper() == 'D':
                         # parse deadline arguments #
@@ -40980,7 +41111,7 @@ Copyright:
             # check whether kernel version is higher than 3.14 #
             if ver < 3.14:
                 SysMgr.printErr((
-                    "fail to set the scheduling priority for %s(%s) "
+                    "fail to set the CPU scheduling priority for %s(%s) "
                     "because kernel version %g is lesser than 3.14") % \
                     (comm, pid, ver))
                 return -1
@@ -41042,7 +41173,7 @@ Copyright:
         # check deadline and period #
         if deadline == period == 0:
             SysMgr.printErr((
-                "fail to set the scheduling priority for %s(%s) "
+                "fail to set the CPU scheduling priority for %s(%s) "
                 "to runtime(ns)/deadline(ns)/period(ns)[D]") % (comm, pid))
             return -1
         elif deadline == 0:
@@ -41061,12 +41192,12 @@ Copyright:
         # check return value #
         if ret == 0:
             SysMgr.printInfo((
-                "changed the scheduling priority for %s(%s) to "
+                "changed the CPU scheduling priority for %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
         else:
             SysMgr.printErr((
-                "fail to set the scheduling priority for %s(%s) to "
+                "fail to set the CPU scheduling priority for %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
 
@@ -41112,6 +41243,59 @@ Copyright:
             return dlist
         else:
             return elist
+
+
+
+    @staticmethod
+    def setIoPriority(pid=0, ioclass=2, pri=0, who=1, verb=True):
+        # define attributes #
+        IOPRIO_CLASS_SHIFT = 13
+
+        try:
+            nmWho = nmClass = None
+
+            # get pri #
+            pri = long(pri)
+
+            # set pid #
+            pid = long(pid)
+            if pid == 0:
+                pid = os.getpid()
+
+            # set comm #
+            comm = SysMgr.getComm(pid)
+
+            # set group (default: IOPRIO_WHO_PROCESS) #
+            if not UtilMgr.isNumber(who):
+                who = ConfigMgr.IOSCHED_TARGET.index(who)
+            nmWho = ConfigMgr.IOSCHED_TARGET[who]
+
+            # set io class (default: IOPRIO_CLASS_BE) #
+            if not UtilMgr.isNumber(ioclass):
+                ioclass = ConfigMgr.IOSCHED_CLASS.index(ioclass)
+            nmClass = ConfigMgr.IOSCHED_CLASS[ioclass]
+
+            # set priority value #
+            iopri = (((ioclass) << IOPRIO_CLASS_SHIFT) | pri)
+
+            # call syscall #
+            ret = SysMgr.syscall(
+                'ioprio_set', c_int(who), c_int(pid), c_int(iopri))
+            if ret < 0:
+                raise Exception('error return')
+
+            SysMgr.printInfo((
+                'changed the I/O scheduling priority '
+                'for %s(%s) to %s(%s)[%s]') % \
+                    (comm, pid, nmClass, pri, nmWho))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr((
+                'fail to set the I/O schedling priority '
+                'for %s(%s) to %s(%s)[%s]') % \
+                    (comm, pid, ioclass, pri, nmWho), True)
+            sys.exit(0)
 
 
 
@@ -41171,14 +41355,16 @@ Copyright:
 
             # print result #
             if verb:
-                SysMgr.printInfo(
-                    'changed the scheduling priority for %s(%s) to %d[%s]' % \
+                SysMgr.printInfo((
+                    'changed the CPU scheduling priority '
+                    'for %s(%s) to %d[%s]') % \
                         (comm, pid, pri, upolicy))
         except SystemExit:
             sys.exit(0)
         except:
-            err = "fail to set the scheduling priority for %s(%s) to %s[%s]" % \
-                (comm, pid, pri, upolicy)
+            err = ("fail to set the CPU scheduling priority "
+                "for %s(%s) to %s[%s]") % \
+                    (comm, pid, pri, upolicy)
             SysMgr.printWarn(err, always=True, reason=True)
             return
 
@@ -72641,24 +72827,12 @@ class TaskAnalyzer(object):
 
 
     def printFsInfo(self):
-        # get path for readahead list #
+        # get readahead list path #
         if 'MKRALIST' in SysMgr.environList:
             # set list file #
             raPath = SysMgr.environList['MKRALIST'][0]
             if raPath == 'SET':
                 raPath = 'readahead.list'
-
-            # backup #
-            SysMgr.backupFile(raPath)
-
-            # open file for readahead list #
-            try:
-                raFd = open(raPath, 'wb')
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(raPath)
-                sys.exit(0)
 
             # set inode scan flag #
             if not 'CONVINODE' in SysMgr.environList:
@@ -72677,12 +72851,52 @@ class TaskAnalyzer(object):
                         "fail to set the minimum size to '%s'"
                         "for readahead chunk") % raMin, True)
         else:
-            raFd = None
+            raPath = None
             raMin = 0
+
+        # get readahead allow list path #
+        raAllowList = []
+        if 'RAALLOWLIST' in SysMgr.environList:
+            # get list file #
+            try:
+                fname = SysMgr.environList['RAALLOWLIST'][0]
+
+                SysMgr.printInfo(
+                    "apply readahead target list from '%s'" % fname)
+
+                with open(fname, 'r') as fd:
+                    raAllowList = fd.readlines()
+                    raAllowList = \
+                        list(map(lambda x: x.rstrip(), raAllowList))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
+        # get readahead deny list path #
+        raDenyList = []
+        if 'RADENYLIST' in SysMgr.environList:
+            # get list file #
+            try:
+                fname = SysMgr.environList['RADENYLIST'][0]
+
+                SysMgr.printInfo(
+                    "apply readahead exception list from '%s'" % fname)
+
+                with open(fname, 'r') as fd:
+                    raDenyList = fd.readlines()
+                    raDenyList = \
+                        list(map(lambda x: x.rstrip(), raDenyList))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
 
         # check fs data #
         if not self.fsTable or not self.fsTable[0]:
-            if raFd:
+            if raPath:
                 SysMgr.printWarn(
                     'no filesystem data for readahead list', True)
             return
@@ -72732,7 +72946,7 @@ class TaskAnalyzer(object):
                 targetDir = '/'
 
             SysMgr.printStat(
-                r"start traversing inodes from [%s]..." % targetDir)
+                r"start traversing inodes from '%s'..." % targetDir)
 
             # get inode info #
             inodeInfo = UtilMgr.getInodes(
@@ -72888,7 +73102,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # check return condition #
-        if raFd and self.fsData[0]:
+        if raPath and self.fsData[0]:
             pass
         elif not SysMgr.showAll:
             return
@@ -72928,7 +73142,7 @@ class TaskAnalyzer(object):
                 format(atime, taskInfo, dev, inode, offset, size, path))
 
             # check readahead list #
-            if raFd and path.strip():
+            if raPath and path.strip():
                 if path in pathConvList:
                     path, idx = pathConvList[path]
                 # skip implicit files #
@@ -72940,6 +73154,15 @@ class TaskAnalyzer(object):
                         [path[:path.rfind('[')], len(pathConvList)]
                     path, idx = pathConvList[origPath]
 
+                # check allow list #
+                if raAllowList and \
+                    not UtilMgr.isValidStr(path, raAllowList, inc=False):
+                    continue
+                # check deny list #
+                elif raDenyList and \
+                    UtilMgr.isValidStr(path, raDenyList, inc=False):
+                    continue
+
                 # add to readahead list #
                 readaheadList.append([idx, offset, size])
 
@@ -72947,7 +73170,20 @@ class TaskAnalyzer(object):
 
         # check readahead list #
         if not readaheadList:
+            SysMgr.printWarn('no readahead item', True)
             return
+
+        # backup exist readahead list #
+        SysMgr.backupFile(raPath)
+
+        # create a new file for readahead list #
+        try:
+            raFd = open(raPath, 'wb')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(raPath)
+            sys.exit(0)
 
         # merge readahead chunks #
         if 'RAMERGE' in  SysMgr.environList:
@@ -72977,18 +73213,19 @@ class TaskAnalyzer(object):
 
         # write readahead list to file #
         try:
+            raSummary = {}
+
             # encode file list #
-            fileList = '#'.join(
-                [value[0] for path, value in sorted(
-                    pathConvList.items(),
-                    key=lambda e: e[1][1])])
-            fileList = fileList.encode('latin-1')
+            fileList = [value[0] for path, value in sorted(
+                    pathConvList.items(), key=lambda e: e[1][1])]
+            fileStr = '#'.join(fileList)
+            fileStr = fileStr.encode('latin-1')
 
             # write file list size #
-            raFd.write(struct.pack('I', len(fileList)))
+            raFd.write(struct.pack('I', len(fileStr)))
 
             # write file list #
-            raFd.write(fileList)
+            raFd.write(fileStr)
 
             # write readahead chunks #
             for chunk in readaheadList:
@@ -72996,8 +73233,16 @@ class TaskAnalyzer(object):
                 if raMin > chunk[2]:
                     continue
 
+                fid, offset, size = chunk
+
                 # write chunks #
-                raFd.write(struct.pack('HQI', chunk[0], chunk[1], chunk[2]))
+                raFd.write(struct.pack('HQI', fid, offset, size))
+
+                # save readahead stat #
+                fname = fileList[fid]
+                raSummary.setdefault(fname, dict({'count': 0, 'size': 0}))
+                raSummary[fname]['count'] += 1
+                raSummary[fname]['size'] += size
 
             raFd.close()
 
@@ -73016,6 +73261,25 @@ class TaskAnalyzer(object):
         except:
             SysMgr.printErr(
                 "fail to save the readahead list to '%s'" % raFd.name, True)
+
+        # print readahead stat #
+        SysMgr.printPipe('\n[Thread Readahead Info] (Unit: Byte)')
+        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:>12} {1:>12} {2:>1}".format('Size', 'Count', 'Path'))
+        SysMgr.printPipe(twoLine)
+
+        for fname, stat in sorted(raSummary.items(),
+            key=lambda e: e[1]['size'], reverse=True):
+            SysMgr.printPipe(
+                "{0:>12} {1:>12} {2:>1}".format(
+                    UtilMgr.convSize2Unit(stat['size']),
+                    UtilMgr.convNum(stat['count']),
+                    fname))
+
+        if not raSummary:
+            SysMgr.printPipe('\tNone\n')
+        SysMgr.printPipe(oneLine)
 
 
 
@@ -77141,10 +77405,11 @@ class TaskAnalyzer(object):
         SysMgr.logSize += len(string)
 
         # check trim range #
-        if hasattr(self, 'trimStart'):
-            if self.trimStart > 0 and allTime < self.trimStart:
+        if hasattr(self, 'trimStart') and \
+            self.trimStart > 0 and allTime < self.trimStart:
                 return time
-            elif self.trimStop > 0 and allTime > self.trimStop:
+        elif hasattr(self, 'trimStop') and \
+            self.trimStop > 0 and allTime > self.trimStop:
                 return time
 
         # check skip condition #
@@ -77359,7 +77624,7 @@ class TaskAnalyzer(object):
             next_start = self.threadData[next_id]['start']
             next_stop = self.threadData[next_id]['stop']
 
-            # update the scheduling priority for thread to highest one #
+            # update the CPU scheduling priority for thread to highest one #
             if self.threadData[prev_id]['pri'] == '?' or \
                 long(self.threadData[prev_id]['pri']) > long(d['prev_prio']):
                 self.threadData[prev_id]['pri'] = d['prev_prio']
@@ -78803,7 +79068,7 @@ class TaskAnalyzer(object):
             self.fsTable[2][thread] += 1
 
             # add history #
-            if SysMgr.showAll:
+            if SysMgr.showAll or 'MKRALIST' in SysMgr.environList:
                 access = '%.3f' % allTime
 
                 # merge with previous event #
@@ -86501,9 +86766,9 @@ def main(args=None):
 
             # check absolute timeline option #
             if 'ABSTIME' in SysMgr.environList:
-                start = SysMgr.startTime
+                start = float(SysMgr.startTime)
             else:
-                start = None
+                start = 0
 
             # draw timeline segment #
             SysMgr.drawTimeline(

@@ -635,7 +635,7 @@ Output
 
 >>>
 
-    # guider/guider.py cpulimit -g 22371:50
+    # guider/guider.py limitcpu -g 22371:50
 
     [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
 
@@ -1272,11 +1272,13 @@ COMMAND:
                     printdbussub      <D-Bus>
                     printdir          <Dir>
                     printenv          <Env>
+                    printext          <Ext4>
                     printinfo         <System>
                     printns           <Namespace>
                     printsig          <Signal>
                     printsvc          <systemd>
                     pstree            <Process>
+                    readahead         <File>
                     readelf           <File>
                     remote            <Command>
                     req               <URL>
