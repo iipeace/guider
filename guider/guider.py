@@ -29967,28 +29967,31 @@ Copyright:
 
 
     @staticmethod
-    def printInfo(line, prefix=True, suffix=True, notitle=False):
+    def printInfo(line, prefix=True, suffix=True, title=True):
         if not SysMgr.logEnable:
             return
 
-        if notitle:
-            title = ''
-        else:
+        # title and task #
+        if title:
             title = '[INFO] '
+            proc = SysMgr.getProcInfo()
+        else:
+            title = ''
+            proc = ''
 
+        # prefix #
         if prefix:
             prefix = '\n'
         else:
             prefix = ''
 
-        # apply color #
+        # color #
         if SysMgr.colorEnable:
             color = ConfigMgr.BOLD
             colorl = ConfigMgr.ENDC
         else:
             color = colorl = ''
 
-        proc = SysMgr.getProcInfo()
         log = '%s%s%s%s%s%s' % \
             (prefix, color, title, proc, line, colorl)
 
@@ -38284,7 +38287,7 @@ Copyright:
                             'start flushing system cache... ', suffix=False)
                     ret = fd.write('3')
                     if verb:
-                        SysMgr.printInfo("[Done]", prefix=False, notitle=True)
+                        SysMgr.printInfo("[Done]", prefix=False, title=False)
             except:
                 SysMgr.printWarn(
                     'fali to flush system cache', reason=True)
@@ -42272,7 +42275,7 @@ Copyright:
         SysMgr.printInfo(
             r'clear trace buffer... ', suffix=False)
         SysMgr.writeCmd("../trace", '')
-        SysMgr.printInfo("[done]", prefix=False, notitle=True)
+        SysMgr.printInfo("[done]", prefix=False, title=False)
 
 
 
@@ -61583,7 +61586,7 @@ class ElfAnalyzer(object):
 
             # return a exceptional file object #
             if fobj:
-                SysMgr.printInfo("[done]", prefix=False, notitle=True)
+                SysMgr.printInfo("[done]", prefix=False, title=False)
                 return fobj
 
             # try to load a object from cache #
@@ -61596,7 +61599,7 @@ class ElfAnalyzer(object):
                 else:
                     ElfAnalyzer.cachedFiles[path] = fobj
                     ElfAnalyzer.cachedFiles[path].saved = True
-                    SysMgr.printInfo("[cached]", prefix=False, notitle=True)
+                    SysMgr.printInfo("[cached]", prefix=False, title=False)
                     return fobj
 
             # create a new object #
@@ -61609,14 +61612,14 @@ class ElfAnalyzer(object):
                     raise Exception('no ELF format')
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
-                SysMgr.printInfo("[done]", prefix=False, notitle=True)
+                SysMgr.printInfo("[done]", prefix=False, title=False)
             except SystemExit:
                 sys.exit(0)
             except:
                 ElfAnalyzer.failedFiles[path] = True
 
                 failLog = UtilMgr.convColor("[fail]", 'RED')
-                SysMgr.printInfo(failLog, prefix=False, notitle=True)
+                SysMgr.printInfo(failLog, prefix=False, title=False)
 
                 SysMgr.printWarn(
                     "fail to load %s as an ELF object" % path, reason=True)
