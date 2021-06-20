@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210616"
+__revision__ = "210620"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7227,6 +7227,8 @@ class NetworkMgr(object):
 
 
 class Timeline(object):
+    """ SVG viewer for timeline segments """
+
     class Segment(object):
         def __init__(self, group, time_start, time_end, extra):
             self.group = group
@@ -7842,6 +7844,7 @@ class Timeline(object):
 
 
 class Ext4Analyzer(object):
+    """ Analyzer for ext4 """
 
     FILE_TYPE = {
         0 : "unkn",
@@ -11102,7 +11105,7 @@ class FunctionAnalyzer(object):
                         break
 
                 # New stack related to this symbol #
-                if found == False:
+                if found is False:
                     tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
                     tempList[eventIndex] = eventCnt
                     tempList[subStackIndex] = stack
@@ -11138,7 +11141,7 @@ class FunctionAnalyzer(object):
                         break
 
                 # New stack related to this symbol #
-                if found == False:
+                if found is False:
                     tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
                     tempList[eventIndex] = eventCnt
                     tempList[subStackIndex] = kernelStack
@@ -17632,8 +17635,11 @@ class SysMgr(object):
     else:
         pyCallFunc = '_PyEval_EvalFrameDefault'
 
-    startTime = long(0)
-    startRunTime = long(0)
+    startInitTime = long(0) # init time for Guider #
+    startTime = long(0)     # start time for Guider #
+    startRecTime = long(0)  # start time for Recording #
+    startRunTime = long(0)  # start time for Process #
+
     blockSize = 512
     bufferSize = -1
     termGetId = None
@@ -18001,11 +18007,9 @@ class SysMgr(object):
 
 
 
-    def __init__(self):
+    def __init__(self, onlyInstance=False):
         if not SysMgr.isLinux:
             return
-
-        SysMgr.sysInstance = self
 
         self.cpuInfo = {}
         self.cpuCacheInfo = {}
@@ -18040,17 +18044,14 @@ class SysMgr(object):
         self.openFileData = {}
         self.limitData = []
 
-        # update starttime #
-        SysMgr.updateUptime()
-        if SysMgr.startTime == 0:
-            SysMgr.startTime = \
-                SysMgr.startRunTime = \
-                    SysMgr.uptime
-
         # resource update time #
         self.netUpdate = None
         self.storageUpdate = None
         self.ipcUpdate = None
+
+        SysMgr.sysInstance = self
+        if onlyInstance:
+            return
 
         # save system info first #
         self.saveSysStat(False)
@@ -18254,11 +18255,18 @@ class SysMgr(object):
         SysMgr.printStat(
             r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
+        # wait for interval #
+        if SysMgr.repeatInterval > 0:
+            try:
+                time.sleep(SysMgr.repeatInterval)
+            except:
+                pass
         # wait for user input #
-        SysMgr.waitEvent()
+        else:
+            SysMgr.waitEvent()
 
         # save system info #
-        SysMgr.sysInstance.saveSysStat()
+        SysMgr.saveSysStats()
 
         # get and remove process tree from data file #
         SysMgr.getProcTreeInfo()
@@ -18305,18 +18313,23 @@ class SysMgr(object):
 
     @staticmethod
     def setRecordAttr():
-        # function #
-        if SysMgr.checkMode('funcrec'):
-            SysMgr.functionEnable = True
+        # iorec #
+        if SysMgr.checkMode('iorec'):
+            SysMgr.blockEnable = True
+            SysMgr.cpuEnable = False
 
-        # file #
-        elif SysMgr.checkMode('filerec'):
-            SysMgr.fileEnable = True
+        # function #
+        elif SysMgr.checkMode('funcrec'):
+            SysMgr.functionEnable = True
 
         # syscall #
         elif SysMgr.checkMode('sysrec'):
             SysMgr.sysEnable = True
             SysMgr.cpuEnable = False
+
+        # file #
+        elif SysMgr.checkMode('filerec'):
+            SysMgr.fileEnable = True
 
         # general #
         elif SysMgr.checkMode('genrec'):
@@ -18461,7 +18474,7 @@ class SysMgr(object):
             sys.exit(0)
 
         # save system info #
-        SysMgr.sysInstance.saveSysStat()
+        SysMgr.saveSysStats()
 
         # get and remove process tree from data file #
         SysMgr.getProcTreeInfo()
@@ -18554,14 +18567,15 @@ class SysMgr(object):
                 sys.exit(0)
 
             # save system info #
-            SysMgr.sysInstance.saveSysStat()
+            SysMgr.saveSysStats()
 
 
 
     @staticmethod
     def execTopCmd():
         # check background processes #
-        SysMgr.checkBgProcs()
+        if not 'FASTINIT' in SysMgr.environList:
+            SysMgr.checkBgProcs()
 
         # set tty setting automatically #
         if not SysMgr.ttyEnable:
@@ -20170,9 +20184,8 @@ class SysMgr(object):
 
     @staticmethod
     def getTracerId(pid):
-        statusPath = \
-            '%s/%s/status' % (SysMgr.procPath, pid)
         try:
+            statusPath = '%s/%s/status' % (SysMgr.procPath, pid)
             with open(statusPath, 'r') as fd:
                 for line in fd.readlines():
                     if line.startswith('TracerPid'):
@@ -20903,7 +20916,7 @@ class SysMgr(object):
 
     @staticmethod
     def backupFile(origFile):
-        if not os.path.isfile(origFile):
+        if not origFile or not os.path.isfile(origFile):
             return
 
         try:
@@ -21351,6 +21364,7 @@ class SysMgr(object):
                 'filerec': 'File',
                 'funcrec': 'Function',
                 'genrec': 'System',
+                'iorec': 'I/O',
                 'mem': 'Page',
                 'rec': 'Thread',
                 'report': 'Report',
@@ -21618,6 +21632,9 @@ Examples:
         # {0:1} {1:1} -S e
         # {0:1} {1:1} -S e:2h
 
+    - Monitor status of {2:2} with fastest initialization
+        # {0:1} {1:1} -q FASTINIT
+
     - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
@@ -21666,7 +21683,7 @@ Examples:
     - Monitor status of all {2:2} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - Monitor status of {2:2} involved in a same process group with specific {2:2} having name including system
+    - Monitor status of {2:2} having the name including system and their siblings
         # {0:1} {1:1} -g system -P
 
     - Monitor status of {2:2} and print stats if only system resource usage exceeds specific threshold
@@ -21768,6 +21785,7 @@ Examples:
     - Draw resource graph within specific interval range in second unit
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
+        # {0:1} {1:1} guider.out -q TRIM:11.9:13.5, ABSTIME
 
     - Draw resource graph on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
@@ -22057,41 +22075,6 @@ Examples:
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
                 '''.format(cmd, mode)
 
-                reportStr = '''
-    - report all analysis results for specific threads having TID 1234 or COMM including a.out to ./guider.out
-        # {0:1} guider.dat -o . -g "1234, a.out" -a
-
-    - report all analysis results including interval information for all threads to ./guider.out
-        # {0:1} guider.dat -o . -a -i
-
-    - report analysis results including preemption info for specific threads to ./guider.out
-        # {0:1} guider.dat -o . -p 1234, 4567
-
-    - report analysis results for specific threads to ./guider.out within specific interval range in second unit
-        # {0:1} guider.dat -o . -q TRIM:2:9
-        # {0:1} guider.dat -o . -q TRIM:2:
-
-    - report analysis results for specific threads to ./guider.out after converting all target inodes to names
-        # {0:1} guider.data -o . -q CONVINODE
-        # {0:1} guider.data -o . -q CONVINODE:/data
-
-    - report analysis results for specific threads to ./guider.out and make the readahead list to readahead.list
-        # {0:1} guider.data -o . -q MKRALIST
-        # {0:1} guider.data -o . -q MKRALIST:readahead2.list
-        # {0:1} guider.data -o . -q MKRALIST, CONVINODE:/data
-        # {0:1} guider.data -o . -q MKRALIST, RAMIN:4097
-        # {0:1} guider.data -o . -q MKRALIST, RAMERGE
-        # {0:1} guider.data -o . -q MKRALIST, TRIM:2:
-        # {0:1} guider.data -o . -q MKRALIST, RAALLOWLIST:allow.list
-        # {0:1} guider.data -o . -q MKRALIST, RADENYLIST:deny.list
-
-    - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
-        # {0:1} guider.dat -o . -P -g 1234, 4567 -a
-
-    - report all function analysis result with maximum 3-depth for specific thread having TID 1234 or COMM including 1234 to ./guider.out
-        # {0:1} guider.dat -o . -g 1234 -H 3
-                '''.format(cmd)
-
                 logCommonStr = '''
 Usage:
     # {0:1} {1:1} -I <MESSAGE>
@@ -22235,9 +22218,10 @@ Examples:
 
     - record all kernel function calls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -e g
-                    '''.format(cmd, mode)
 
-                    helpStr += reportStr
+    - report the results of analyzing the recorded data
+        => See report command
+                    '''.format(cmd, mode)
 
                 # file record #
                 elif SysMgr.checkMode('filerec'):
@@ -22246,7 +22230,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Record on-memory file status
+    Report the size of the files loaded on memory
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -22273,60 +22257,21 @@ Options:
 
                     helpStr += '''
 Examples:
-    - report all analysis results of on-memory files for all processes to ./guider.out
+    - report the analysis result of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -a
 
-    - report all analysis results of on-memory files for specific threads
+    - report the analysis result of on-memory files for specific threads
         # {0:1} {1:1} -g a.out
 
-    - report all analysis results of specific on-memory files
+    - report the analysis result of specific on-memory files
         # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
         # {0:1} {1:1} -c "/home/test/*"
 
-    - report all analysis results of specific on-memory files from specific directories recursively
+    - report the analysis result of specific on-memory files from specific directories recursively
         # {0:1} {1:1} -c "/usr/share" -r
 
-    - report analysis result on each intervals of on-memory files for all processes to ./guider.out
+    - report the analysis result on each intervals of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -i
-                    '''.format(cmd, mode)
-
-                # syscall record #
-                elif SysMgr.checkMode('sysrec'):
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
-
-Description:
-    Record syscall events
-                        '''.format(cmd, mode)
-
-                    helpStr += '''
-Options:
-    -e  <CHARACTER>             enable options
-          [ p:pipe | e:encode ]
-    -d  <CHARACTER>             disable options
-          [ e:encode | g:genearlInfo ]
-    -s  <DIR|FILE>              save trace data
-    -u                          run in the background
-    -b  <SIZE:KB>               set buffer size
-    -t  <SYSCALL>               trace syscall
-    -W  <SEC>                   wait for input
-    -w  <TIME:FILE{:VALUE}>     set additional command
-    -o  <DIR|FILE>              set output path
-    -m  <ROWS:COLS:SYSTEM>      set terminal size
-    -a                          show all stats and events
-    -g  <COMM|TID{:FILE}>       set task filter
-    -E  <DIR>                   set cache dir path
-    -v                          verbose
-                    '''
-
-                    helpStr += '''
-Examples:
-    - record all syscall events of all threads to ./guider.dat
-        # {0:1} {1:1} -s .
-
-    - report analysis result of specific syscalls to ./guider.out
-        # {0:1} guider.dat -o . -t read, write
                     '''.format(cmd, mode)
 
                 # report #
@@ -22336,7 +22281,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Report analysis result based on guider.dat
+    Report the results of analyzing the recorded data
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -22360,14 +22305,50 @@ Examples:
     - report analysis result based on guider.dat to ./guider.out
         # {0:1} {1:1}
 
-    - report all analysis result based on guider.dat for a specific thread to ./guider.out
-        # {0:1} {1:1} -g 1234 -a
+    - report analysis result based on trace.dat
+        # {0:1} {1:1} trace.dat
+
+    - report all the analysis result for specific threads having TID 1234 or COMM including a.out to ./guider.out
+        # {0:1} {1:1} -o . -g "1234, a.out" -a
 
     - report analysis result based on guider.dat to ./guider.out with high time resolution
         # {0:1} {1:1} -q PRECISE
-                    '''.format(cmd, mode)
 
-                    helpStr += reportStr
+    - convert compressed recording data to original one
+        # {0:1} {1:1} guider.dat -s .
+
+    - report all the analysis result including interval information for all threads to ./guider.out
+        # {0:1} {1:1} -o . -a -i
+
+    - report the analysis result including preemption info for specific threads to ./guider.out
+        # {0:1} {1:1} -o . -p 1234, 4567
+
+    - report the analysis result for specific threads to ./guider.out within specific interval range in second unit
+        # {0:1} {1:1} -o . -q TRIM:2:9
+        # {0:1} {1:1} -o . -q TRIM::9
+        # {0:1} {1:1} -o . -q TRIM:2:
+
+    - report the analysis result for specific threads to ./guider.out after converting all target inodes to paths from specific directory
+        # {0:1} {1:1} -o . -q CONVINODE
+        # {0:1} {1:1} -o . -q CONVINODE:/data
+
+    - report the analysis result for specific threads to ./guider.out and make the readahead list to readahead.list
+        # {0:1} {1:1} -o . -q RALIST
+        # {0:1} {1:1} -o . -q RALIST:readahead2.list
+        # {0:1} {1:1} -o . -q RALIST, CONVINODE:/data
+        # {0:1} {1:1} -o . -q RALIST, RAMIN:4097
+        # {0:1} {1:1} -o . -q RALIST, RAMERGE
+        # {0:1} {1:1} -o . -q RALIST, TRIM:2:
+        # {0:1} {1:1} -o . -q RALIST, RAALLOWLIST:allow.list
+        # {0:1} {1:1} -o . -q RALIST, RADENYLIST:deny.list
+        # {0:1} {1:1} -o . -q RALIST, RAADDLIST:add.list
+
+    - report the analysis result for specific threads and their siblings to ./guider.out
+        # {0:1} {1:1} -o . -P -g 1234, 4567 -a
+
+    - report the function analysis result with maximum 3-depth for specific thread to ./guider.out
+        # {0:1} {1:1} -o . -g 1234 -H 3
+                    '''.format(cmd, mode)
 
                 # general record #
                 elif SysMgr.checkMode('genrec'):
@@ -22392,24 +22373,51 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
     -q  <NAME{:VALUE}>          set environment variables
+    -R  <INTERVAL:TIME:TERM>    set repeat count
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
 
                     helpStr += '''
 Examples:
-    - report analysis results of system to ./guider.out
+    - report the analysis result of system to ./guider.out
         # {0:1} {1:1} -o .
+
+    - report the analysis result of system to ./guider.out for 3 seconds
+        # {0:1} {1:1} -o . -R 3s
                     '''.format(cmd, mode)
 
-                # thread record #
-                elif SysMgr.checkMode('rec'):
-                    helpStr = '''
+                # record #
+                elif SysMgr.checkMode('rec') or \
+                    SysMgr.checkMode('iorec') or \
+                    SysMgr.checkMode('sysrec'):
+
+                    # thread #
+                    if SysMgr.checkMode('rec'):
+                        helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
     Record thread events
+                        '''.format(cmd, mode)
+                    # syscall #
+                    elif SysMgr.checkMode('sysrec'):
+                        helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Record syscall events
+                        '''.format(cmd, mode)
+                    # I/O #
+                    else:
+                        helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Record I/O events
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -22484,6 +22492,9 @@ Examples:
     - record default events of all threads to ./guider.dat every 3 seconds continuously
         # {0:1} {1:1} -s . -R 3:1:1
 
+    - record default events of all threads to ./guider.dat with fastest initialization
+        # {0:1} {1:1} -s . -q FASTINIT
+
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
 
@@ -22512,14 +22523,9 @@ Examples:
     - record default events of all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - report analysis result for all threads to ./guider.out
-        # {0:1} guider.dat -o .
-
-    - convert event data compressed to original one
-        # {0:1} guider.dat -s .
+    - report the results of analyzing the recorded data
+        => See report command
                     '''.format(cmd, mode)
-
-                    helpStr += reportStr
 
                 # file top #
                 elif SysMgr.checkMode('ftop'):
@@ -24266,6 +24272,16 @@ Options:
         <CLASS:{{WHICH:}}PRIO
          :TID|COMM>
     -v                          verbose
+
+Spec:
+    - The specification for readahead list
+        1. The size for file name list: 4 Bytes
+        2. The string for File name list: SIZE bytes
+            - File names are splitted by '#'
+        3. Data for readahead chunk: IDX|OFFSET|SIZE
+            - IDX for file index in file name list: 2 Bytes
+            - OFFSET for file offset: 8 Bytes
+            - SIZE for readahead size: 4 Bytes
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28037,7 +28053,7 @@ Copyright:
                 SysMgr.printLogo(absolute=True, big=True)
 
                 # save system info #
-                SysMgr.sysInstance.saveSysStat()
+                SysMgr.saveSysStats()
                 SysMgr.printInfoBuffer()
 
                 # submit summarized report and details #
@@ -28124,7 +28140,7 @@ Copyright:
             SysMgr.printLogo(absolute=True, big=True)
 
             # save system info #
-            SysMgr.sysInstance.saveSysStat()
+            SysMgr.saveSysStats()
             SysMgr.printInfoBuffer()
 
             # submit summarized report and details #
@@ -28229,7 +28245,7 @@ Copyright:
             SysMgr.stopRecording()
 
             # save system info #
-            SysMgr.sysInstance.saveSysStat()
+            SysMgr.saveSysStats()
 
             # read trace data #
             try:
@@ -29648,6 +29664,9 @@ Copyright:
                         #defopt = '-FRSXMQi'
                         defopt = '-FRXMQi'
 
+                        # set SIGCHLD #
+                        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
                         # verify pager option support #
                         ret = os.popen(
                             'echo | less %s 2>&1' % defopt, 'r').read()
@@ -30367,22 +30386,22 @@ Copyright:
     @staticmethod
     def applySaveOption(value=None):
         # apply default path #
-        if value == '':
+        if not value:
             value = '.'
 
         # change output path #
         try:
-            if SysMgr.isWritable(value):
-                if os.path.isdir(value):
-                    SysMgr.outputFile = \
-                        '%s/guider.dat' % value
-                else:
-                    SysMgr.outputFile = value
-            else:
+            if not SysMgr.isWritable(value):
                 raise Exception('not writable')
+
+            if os.path.isdir(value):
+                SysMgr.outputFile = '%s/guider.dat' % value
+            else:
+                SysMgr.outputFile = value
+        except SystemExit:
+            sys.exit(0)
         except:
-            SysMgr.printErr(
-                "wrong path '%s' because of permission" % value)
+            SysMgr.printErr("wrong path '%s'" % value, True)
             sys.exit(0)
 
         # remove double slashs #
@@ -31079,10 +31098,8 @@ Copyright:
 
         elif option == 'q':
             SysMgr.checkOptVal(option, value)
-            if not SysMgr.environList:
-                itemList = UtilMgr.splitString(value)
-                SysMgr.environList = \
-                    UtilMgr.convList2Dict(itemList, cap=True)
+
+            # already parsed in SysMgr.initEnvironment() #
 
             # apply environ variables #
             SysMgr.applyEnvironVars()
@@ -31464,8 +31481,9 @@ Copyright:
     def isRecordMode():
         if SysMgr.checkMode('rec') or \
             SysMgr.checkMode('funcrec') or \
-            SysMgr.checkMode('filerec') or \
+            SysMgr.checkMode('iorec') or \
             SysMgr.checkMode('sysrec') or \
+            SysMgr.checkMode('filerec') or \
             SysMgr.checkMode('genrec'):
             return True
         else:
@@ -32271,7 +32289,7 @@ Copyright:
             reportPath = tmpPath
 
         # directory path #
-        if os.path.isdir(reportPath) == False:
+        if not os.path.isdir(reportPath):
             upDirPos = reportPath.rfind('/')
             if upDirPos > 0 and \
                 not os.path.isdir(reportPath[:upDirPos]):
@@ -32408,9 +32426,10 @@ Copyright:
 
         # mount debugfs #
         SysMgr.mountCmd =\
-            "mount -t debugfs nodev %s" % mp
+            "mount -t debugfs nodev %s 2> /dev/null" % mp
         os.system(SysMgr.mountCmd)
 
+        # check debugfs #
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printErr(
@@ -32592,12 +32611,28 @@ Copyright:
 
 
     @staticmethod
-    def getRuntime(isSec=False):
-        uptime = long(SysMgr.getUptime())
-        runtime = uptime - long(SysMgr.startRunTime)
-        if isSec:
+    def getRuntime(sec=False):
+        # init start time #
+        if SysMgr.startRunTime == 0:
+            try:
+                statPath = "%s/self/stat" % (SysMgr.procPath)
+                with open(statPath, 'r') as fd:
+                    stat = fd.read().split()
+                    runtimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+                    SysMgr.startRunTime = float(stat[runtimeIdx]) / 100
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn('fail to get runtime', True, True)
+
+        # calculate runtime #
+        runtime = SysMgr.getUptime() - SysMgr.startRunTime
+
+        # return runtime #
+        if sec:
             return runtime
-        return UtilMgr.convTime(runtime)
+        else:
+            return UtilMgr.convTime(long(runtime))
 
 
 
@@ -32621,8 +32656,7 @@ Copyright:
     def updateUptime():
         SysMgr.prevUptime = SysMgr.uptime
         SysMgr.uptime = SysMgr.getUptime()
-        SysMgr.uptimeDiff = \
-            SysMgr.uptime - SysMgr.prevUptime
+        SysMgr.uptimeDiff = SysMgr.uptime - SysMgr.prevUptime
         return SysMgr.uptime
 
 
@@ -33001,6 +33035,8 @@ Copyright:
             pos = 4
             chunkSize = 20
             nameListSize = struct.unpack('I', raData[:pos])[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 'fail to get name list size for readahead', True)
@@ -33009,7 +33045,7 @@ Copyright:
         # get file list #
         try:
             nameList = raData[pos:pos+nameListSize]
-            nameList = nameList.decode('latin-1').split('#')
+            nameList = nameList.decode().split('#')
             pos = pos+nameListSize
         except SystemExit:
             sys.exit(0)
@@ -33033,7 +33069,7 @@ Copyright:
                 pos = nextPos
                 fname = nameList[fid]
 
-                # print worload #
+                # print workload #
                 if SysMgr.warnEnable:
                     SysMgr.printWarn(
                         'readahead %s|%s|%s' % (fname, offset, size))
@@ -33593,6 +33629,9 @@ Copyright:
 
     @staticmethod
     def initEnvironment():
+        # update start time #
+        SysMgr.startInitTime = SysMgr.startTime = SysMgr.updateUptime()
+
         # save original args #
         SysMgr.origArgs = deepcopy(sys.argv)
 
@@ -33646,6 +33685,13 @@ Copyright:
 
         # shrink heap #
         SysMgr.shrinkHeap()
+
+        # get environment variables #
+        value = SysMgr.getOption('q')
+        if value:
+            itemList = UtilMgr.splitString(value)
+            SysMgr.environList = \
+                UtilMgr.convList2Dict(itemList, cap=True)
 
 
 
@@ -36165,8 +36211,8 @@ Copyright:
     def doPrintInfo():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        SysMgr()
-        SysMgr.sysInstance.saveSysStat()
+        # save system info #
+        SysMgr.saveSysStats()
 
         if SysMgr.jsonEnable:
             # convert dict data to JSON-type string #
@@ -41586,7 +41632,16 @@ Copyright:
 
 
 
+    @staticmethod
+    def saveSysStats():
+        if not SysMgr.sysInstance:
+            SysMgr()
+        SysMgr.sysInstance.saveSysStat()
+
+
+
     def saveSysStat(self, initialized=True):
+        # update time #
         SysMgr.updateUptime()
 
         # update resource usage #
@@ -41966,7 +42021,7 @@ Copyright:
                 fd.close()
 
                 # save system info #
-                SysMgr.sysInstance.saveSysStat()
+                SysMgr.saveSysStats()
 
                 path = SysMgr.outputFile
 
@@ -42119,7 +42174,10 @@ Copyright:
         # call functions registered #
         for func, args in SysMgr.exitFuncList:
             try:
-                func(*args)
+                if args:
+                    func(*args)
+                else:
+                    func()
             except SystemExit:
                 sys.exit(0)
             except OSError:
@@ -42212,7 +42270,7 @@ Copyright:
     @staticmethod
     def clearTraceBuffer():
         SysMgr.printInfo(
-            r'clear trace buffer... ', suffix=False, prefix=False)
+            r'clear trace buffer... ', suffix=False)
         SysMgr.writeCmd("../trace", '')
         SysMgr.printInfo("[done]", prefix=False, notitle=True)
 
@@ -42388,7 +42446,11 @@ Copyright:
                     "another Guider is already running")
                 os._exit(0)
 
-        # clean up ring buffer for tracing #
+        # check fast init condition #
+        if 'FASTINIT' in SysMgr.environList:
+            return
+
+        # clean up trace buffer #
         SysMgr.clearTraceBuffer()
 
         # clear trace filter #
@@ -42403,8 +42465,16 @@ Copyright:
         # write start event #
         SysMgr.writeEvent("EVENT_START", False)
 
+        # update start recording time #
+        SysMgr.startRecTime = SysMgr.getUptime()
+
         # update status #
         SysMgr.recordStatus = True
+
+        # register cleanup callback #
+        if 'FASTINIT' in SysMgr.environList:
+            SysMgr.addExitFunc(SysMgr.clearTraceBuffer)
+            SysMgr.addExitFunc(SysMgr.clearTraceFilter)
 
 
 
@@ -42954,11 +43024,14 @@ Copyright:
         SysMgr.writeCmd('../tracing_on', '0')
         SysMgr.recordStatus = False
 
-        # disable all ftrace options registered #
+        SysMgr.printStat(
+            r'finished recording for %.3f sec' % \
+                (SysMgr.getUptime() - SysMgr.startRecTime))
+
+        # disable all ftrace options #
         for idx, val in SysMgr.cmdList.items():
-            if val:
-                if SysMgr.writeCmd(str(idx) + '/enable', '0') >= 0:
-                    SysMgr.writeCmd(str(idx) + '/filter', '0')
+            if val and SysMgr.writeCmd(str(idx) + '/enable', '0') >= 0:
+                SysMgr.writeCmd(str(idx) + '/filter', '0')
 
         if not SysMgr.graphEnable and SysMgr.customCmd:
             for cmd in SysMgr.customCmd:
@@ -42966,10 +43039,10 @@ Copyright:
                 SysMgr.writeCmd(event + '/enable', '0')
                 SysMgr.writeCmd(event + '/filter', '0')
 
+        # reset stacktrace options #
         if SysMgr.isFuncMode():
             SysMgr.writeCmd('../options/stacktrace', '0')
             SysMgr.writeCmd('../trace_options', 'nouserstacktrace')
-            SysMgr.writeCmd('../tracing_on', '0')
 
         # write command #
         if SysMgr.cmdEnable is not False and SysMgr.cmdFd:
@@ -42978,6 +43051,8 @@ Copyright:
             # remove exist file #
             try:
                 SysMgr.cmdFd.write('rm -f %s 2> /dev/null\n' % outputPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -43294,14 +43369,40 @@ Copyright:
 
         # Guider runtime #
         try:
-            runtime = \
-                long(SysMgr.uptime) - long(SysMgr.startRunTime)
+            runtime = SysMgr.getRuntime(sec=True)
+            runtimeSec = UtilMgr.convNum(runtime)
             runtime = UtilMgr.convTime(runtime)
+            runtimeStr = '%s (%s sec)' % (runtime, runtimeSec)
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Runtime', runtime))
+                "{0:20} {1:<100}".format('Runtime', runtimeStr))
 
             if SysMgr.jsonEnable:
                 jsonData['runtime'] = runtime
+        except:
+            pass
+
+        # python overhead #
+        try:
+            overhead = '%.3f sec' % \
+                (SysMgr.startInitTime - SysMgr.startRunTime)
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<100}".format('Overhead(Py)', overhead))
+
+            if SysMgr.jsonEnable:
+                jsonData['pyOverhead'] = overhead
+        except:
+            pass
+
+        # recording overhead #
+        try:
+            if SysMgr.startRecTime > 0:
+                overhead = '%.3f sec' % \
+                    (SysMgr.startRecTime - SysMgr.startInitTime)
+                SysMgr.infoBufferPrint(
+                    "{0:20} {1:<100}".format('Overhead(Rec)', overhead))
+
+                if SysMgr.jsonEnable:
+                    jsonData['recOverhead'] = overhead
         except:
             pass
 
@@ -44412,13 +44513,13 @@ Copyright:
         SysMgr.infoBufferPrint('\n[System SHM Info]')
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^70} | {1:^24} | {2:^15} | {3:^36} ".format(
+            "{0:^66} | {1:^24} | {2:^15} | {3:^36} ".format(
             "ID", "Segment", "Attr", "Time"))
         SysMgr.infoBufferPrint(oneLine)
         SysMgr.infoBufferPrint((
-            "{0:^26}   {1:^14}   {2:^24} | "
-            "{3:^6}   {4:^6}   {5:^6} | "
-            "{6:^6}   {7:^6} | {8:^10}   {9:^10}   {10:^10}".format(
+            "{0:^26}   {1:^8}   {2:^26} | "
+            "{3:>6}   {4:>6}   {5:>6} | "
+            "{6:>6}   {7:>6} | {8:>11}   {9:>11}   {10:>11}".format(
                 "OWNER", "SHM", "USER", "SIZE", "RSS",
                 "SWAP", "REF", "PERM", "ATIME", "DTIME", "CTIME")))
         SysMgr.infoBufferPrint(twoLine)
@@ -44463,7 +44564,7 @@ Copyright:
                     if not comm:
                         raise Exception('no comm')
 
-                    owner = '%s(%s)' % (comm, pid)
+                    owner = '%s(%s)' % (comm[:16], pid)
                 else:
                     owner = ''
             except:
@@ -44484,7 +44585,7 @@ Copyright:
                     SysMgr.infoBufferPrint(oneLine)
 
                 totalStat = '[ TOTAL: %s ]' % ownerData[pid]['count']
-                space = 70 - len(owner) - len(totalStat)
+                space = 66 - len(owner) - len(totalStat)
                 totalStr = '%s%s%s' % (owner, ' ' * space, totalStat)
                 SysMgr.infoBufferPrint(
                     "{0:>40}   {1:>6}   {2:>6}   {3:>6}   {4:>15}".format(
@@ -44496,7 +44597,9 @@ Copyright:
             except:
                 pass
 
-            owner = ''
+            # key #
+            key = hex(long(stats['key']))
+            shmids = '%s(%s)' % (key, shmid)
 
             try:
                 pid = stats['lpid']
@@ -44504,7 +44607,7 @@ Copyright:
                 if not comm:
                     raise Exception('no comm')
 
-                access = '%s (%s)' % (comm, pid)
+                access = '%s (%s)' % (comm[:16], pid)
             except:
                 access = '? (%s)' % stats['lpid']
 
@@ -44522,10 +44625,10 @@ Copyright:
             # print stats #
             try:
                 SysMgr.infoBufferPrint((
-                    "{0:>26}   {1:>14}   {2:>24}   {3:>6}   {4:>6}   "
-                    "{5:>6}   {6:>6}   {7:>6}   {8:>10}   {9:>10}   "
-                    "{10:>10}").format(
-                        owner, shmid, access,
+                    "{0:>37}   {1:>26}   {2:>6}   {3:>6}   "
+                    "{4:>6}   {5:>6}   {6:>6}   {7:>11}   {8:>11}   "
+                    "{9:>11}").format(
+                        shmids, access,
                         convertSizeFunc(stats['size'], True),
                         convertSizeFunc(stats['rss'], True),
                         convertSizeFunc(stats['swap'], True),
@@ -53570,7 +53673,7 @@ struct cmsghdr {
             return
 
         # set flag value #
-        if flag == True:
+        if flag is True:
             value = 1
         else:
             value = 0
@@ -53601,7 +53704,7 @@ struct cmsghdr {
             return
 
         # set flag value #
-        if flag == True:
+        if flag is True:
             value = 1
         else:
             value = 0
@@ -55780,28 +55883,30 @@ struct cmsghdr {
             if not found:
                 return
 
-        # get diff time #
-        diff = self.vdiff
-
+        # get task info #
         if taskinfo or self.multi:
             tinfo = '%s(%s) ' % (self.comm, self.pid)
         else:
             tinfo = ''
 
-        # signal name #
+        # get signal name #
         try:
             name = ConfigMgr.SIG_LIST[sig]
-            signame = UtilMgr.convColor(name, 'GREEN')
+            signame = UtilMgr.convColor(name, 'GREEN', 7, 'left')
         except SystemExit:
             sys.exit(0)
         except:
             name = sig
             signame = 'UNKNOWN(%s)' % sig
 
+        # get diff time #
+        diff = self.vdiff
         if diff > 0:
-            callString = '%3.6f %s[%s]' % (diff, tinfo, signame)
+            callString = '%3.6f %s[%s]' % \
+                (diff, tinfo, '{0:<7}'.format(signame))
         else:
-            callString = '%s[%s]' % (tinfo, signame)
+            callString = '%s[%s]' % \
+                (tinfo, '{0:<7}'.format(signame))
 
         # get signal info #
         ret = self.getSigInfo()
@@ -58391,8 +58496,8 @@ struct cmsghdr {
     @staticmethod
     def printSummary(instance):
         def _printSystemStat():
-            SysMgr()
-            SysMgr.sysInstance.saveSysStat()
+            # save system info #
+            SysMgr.saveSysStats()
             SysMgr.printInfoBuffer()
 
         # check realtime mode #
@@ -59444,7 +59549,7 @@ class EventAnalyzer(object):
 
 
 class MemoryFile(object):
-    """ File for memory region """
+    """ File object for memory region """
 
     def __init__(self, addr=0, size=4096, name=None):
         self.pos = 0
@@ -65953,9 +66058,10 @@ class TaskAnalyzer(object):
                 'task': None}
 
             self.finishTime = '0'
-            self.lastTidPerCore = {}
             self.lastCore = '0'
+            self.lastTidPerCore = {}
             self.lastEvent = '0'
+            self.backupData = {}
             self.timelineData = {"time_unit": "ns", "segments": list()}
 
         # top mode #
@@ -66146,7 +66252,7 @@ class TaskAnalyzer(object):
             # print system general info in advance #
             if SysMgr.outPath and SysMgr.pipeEnable and SysMgr.exitFlag:
                 SysMgr.printLogo(big=True)
-                SysMgr.sysInstance.saveSysStat()
+                SysMgr.saveSysStats()
                 SysMgr.printInfoBuffer()
                 SysMgr.printPipe('\n')
 
@@ -66205,6 +66311,13 @@ class TaskAnalyzer(object):
         SysMgr.totalLine = len(lines)
 
         for idx, log in enumerate(lines):
+            if self.stopFlag:
+                # accumulated data #
+                if 'EVENT_START' in log:
+                    self.stopFlag = False
+                else:
+                    continue
+
             time = self.parse(log)
             UtilMgr.printProgress(idx, SysMgr.totalLine)
 
@@ -66213,9 +66326,6 @@ class TaskAnalyzer(object):
 
             self.lastJob[self.lastCore]['job'] = self.lastEvent
             self.lastJob[self.lastCore]['time'] = self.finishTime
-
-            if self.stopFlag:
-                break
 
         # update finish time #
         if self.finishTime == '0':
@@ -67434,10 +67544,21 @@ class TaskAnalyzer(object):
             try:
                 if len(trim) == 1:
                     condMin = long(trim[0])
-                    condMax = sys.maxsize
+                    condMax = SysMgr.maxSize
                 elif len(trim) >= 2:
-                    condMin = long(trim[0])
-                    condMax = long(trim[1])
+                    # first tick #
+                    if trim[0].strip():
+                        condMin = long(trim[0])
+                    else:
+                        condMin = long(0)
+
+                    # last tick #
+                    if trim[1].strip():
+                        condMax = long(trim[1])
+                    else:
+                        condMax = long(SysMgr.maxSize)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(
                     "fail to recognize %s as START:END time" % \
@@ -70990,13 +71111,13 @@ class TaskAnalyzer(object):
 
 
     def printUsage(self):
-        # print thread usage #
+        # print system resource usage #
         self.printResourceUsage()
 
-        # print communication usage #
+        # print communication info #
         self.printComInfo()
 
-        # print event usage #
+        # print event info #
         self.printEventInfo()
 
         # print page info #
@@ -71011,16 +71132,16 @@ class TaskAnalyzer(object):
         # print open history #
         self.printOpenInfo()
 
-        # print resource usage of threads on timeline #
+        # print resource usage for threads on timeline #
         self.printIntervalInfo()
 
         # print kernel module info #
         self.printModuleInfo()
 
-        # print dependency of threads #
+        # print dependency info #
         self.printDepInfo()
 
-        # print futex and flock of threads #
+        # print lock usage #
         self.printFutexInfo()
         self.printFlockInfo()
 
@@ -72828,9 +72949,9 @@ class TaskAnalyzer(object):
 
     def printFsInfo(self):
         # get readahead list path #
-        if 'MKRALIST' in SysMgr.environList:
+        if 'RALIST' in SysMgr.environList:
             # set list file #
-            raPath = SysMgr.environList['MKRALIST'][0]
+            raPath = SysMgr.environList['RALIST'][0]
             if raPath == 'SET':
                 raPath = 'readahead.list'
 
@@ -72894,8 +73015,30 @@ class TaskAnalyzer(object):
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
 
+        # get readahead add list path #
+        raAddList = []
+        if 'RAADDLIST' in SysMgr.environList:
+            # get list file #
+            try:
+                fname = SysMgr.environList['RAADDLIST'][0]
+
+                SysMgr.printInfo(
+                    "apply readahead add list from '%s'" % fname)
+
+                with open(fname, 'r') as fd:
+                    raAddList = fd.readlines()
+                    raAddList = \
+                        list(map(lambda x: x.rstrip(), raAddList))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
         # check fs data #
-        if not self.fsTable or not self.fsTable[0]:
+        if raAddList:
+            pass
+        elif not self.fsTable or not self.fsTable[0]:
             if raPath:
                 SysMgr.printWarn(
                     'no filesystem data for readahead list', True)
@@ -72932,7 +73075,7 @@ class TaskAnalyzer(object):
         inodeFilter = list(set(inodeFilter))
 
         # get target inode info #
-        if 'CONVINODE' in SysMgr.environList:
+        if inodeFilter and 'CONVINODE' in SysMgr.environList:
             # get scan dir #
             if SysMgr.environList['CONVINODE'][0] != 'SET':
                 targetDir = os.path.abspath(
@@ -72953,6 +73096,7 @@ class TaskAnalyzer(object):
                 targetDir, inodeFilter=inodeFilter, fileAttr=fileInfo)
 
         # TOTAL #
+        idstr = 'TOTAL'
         for op, data in sorted(self.fsTable[0].items(),
             key=lambda e:str(e[1]), reverse=True):
             opSize = 0
@@ -73030,11 +73174,16 @@ class TaskAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
-                    'TOTAL', op, ' ', ' ', convSize(opSize)))
+                    idstr, op, ' ', ' ', convSize(opSize)))
             SysMgr.printPipe(devStr)
+            idstr = ''
+
+        if not self.fsTable or not self.fsTable[0]:
+            SysMgr.printPipe('\tNone\n')
         SysMgr.printPipe(oneLine)
 
         # THREAD #
+        previnfo = ''
         for tid, size in sorted(self.fsTable[2].items(),
             key=lambda e:e[1], reverse=True):
             # check thread data #
@@ -73095,6 +73244,11 @@ class TaskAnalyzer(object):
                             '', '', did, '', convSize(totalSize), fs, dev)))
                     devStr = '%s%s' % (devStr, inodeStr)
 
+                # update previous thread info #
+                if previnfo == tinfo:
+                    tinfo = ''
+                previnfo = tinfo
+
                 SysMgr.printPipe(
                     "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
                         tinfo, op, ' ', ' ', convSize(opSize)))
@@ -73103,6 +73257,8 @@ class TaskAnalyzer(object):
 
         # check return condition #
         if raPath and self.fsData[0]:
+            pass
+        elif raAddList:
             pass
         elif not SysMgr.showAll:
             return
@@ -73121,6 +73277,7 @@ class TaskAnalyzer(object):
             format('Time', 'Task', 'Dev', 'Inode', 'Offset', 'Size', 'Path'))
         SysMgr.printPipe(twoLine)
 
+        skipFiles = {}
         for item in self.fsData[0]:
             tid, atime, dev, inode, offset, size = item
 
@@ -73157,19 +73314,90 @@ class TaskAnalyzer(object):
                 # check allow list #
                 if raAllowList and \
                     not UtilMgr.isValidStr(path, raAllowList, inc=False):
-                    continue
+                    skip = True
                 # check deny list #
                 elif raDenyList and \
                     UtilMgr.isValidStr(path, raDenyList, inc=False):
+                    skip = True
+                else:
+                    skip = False
+
+                # check skip condition #
+                if skip:
+                    skipFiles.setdefault(path, None)
                     continue
 
                 # add to readahead list #
                 readaheadList.append([idx, offset, size])
 
+        if not self.fsData[0]:
+            SysMgr.printPipe('\tNone\n')
         SysMgr.printPipe(oneLine)
 
+        # print skip files #
+        for path in sorted(list(skipFiles.keys())):
+            SysMgr.printWarn(
+                "skipped adding '%s' to readahead list" % path)
+
+        # apply add list #
+        for item in raAddList:
+            # parse file info #
+            finfo = item.split(':')
+            try:
+                if len(finfo) == 1:
+                    item = finfo[0]
+                    offset = 0
+                    size = 0
+                elif len(finfo) == 2:
+                    item = finfo[0]
+                    offset = 0
+                    if finfo[1]:
+                        size = UtilMgr.convUnit2Size(finfo[1])
+                    else:
+                        size = 0
+                else:
+                    item = finfo[0]
+                    offset = UtilMgr.convUnit2Size(finfo[1])
+                    if finfo[2]:
+                        size = UtilMgr.convUnit2Size(finfo[2])
+                    else:
+                        size = 0
+            except SystemExit:
+                sys.exit(0)
+            except:
+                fpath = SysMgr.environList['RAADDLIST'][0]
+                SysMgr.printErr(
+                    "fail to apply readahead add list from '%s'" % fpath, True)
+                sys.exit(0)
+
+            # get full path #
+            fpath = os.path.abspath(item)
+            if not os.path.exists(fpath):
+                SysMgr.printWarn((
+                    "skipped adding '%s' to readahead list "
+                    "because not exists") % fpath, True)
+                continue
+
+            # get file size #
+            fsize = UtilMgr.getFileSize(fpath, False)
+            fsizeStr = UtilMgr.getFileSize(fpath)
+            finfo = '%s[%s]' % (fpath, fsizeStr)
+
+            if size == 0:
+                size = fsize
+
+            if finfo in pathConvList:
+                idx = pathConvList[finfo][1]
+            else:
+                idx = len(pathConvList)
+                pathConvList.setdefault(finfo, [fpath, idx])
+
+            readaheadList.append([idx, offset, size])
+
         # check readahead list #
-        if not readaheadList:
+        if not raPath:
+            return
+        elif not readaheadList:
             SysMgr.printWarn('no readahead item', True)
             return
 
@@ -73219,7 +73447,7 @@ class TaskAnalyzer(object):
             fileList = [value[0] for path, value in sorted(
                     pathConvList.items(), key=lambda e: e[1][1])]
             fileStr = '#'.join(fileList)
-            fileStr = fileStr.encode('latin-1')
+            fileStr = fileStr.encode()
 
             # write file list size #
             raFd.write(struct.pack('I', len(fileStr)))
@@ -73262,8 +73490,12 @@ class TaskAnalyzer(object):
             SysMgr.printErr(
                 "fail to save the readahead list to '%s'" % raFd.name, True)
 
+        convNum = UtilMgr.convNum
+
         # print readahead stat #
-        SysMgr.printPipe('\n[Thread Readahead Info] (Unit: Byte)')
+        SysMgr.printPipe(
+            '\n[Thread Readahead Info] (NrFiles: %s) (NrChunks: %s)' % \
+                (convNum(len(raSummary)), convNum(len(readaheadList))))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:>12} {1:>12} {2:>1}".format('Size', 'Count', 'Path'))
@@ -73274,8 +73506,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(
                 "{0:>12} {1:>12} {2:>1}".format(
                     UtilMgr.convSize2Unit(stat['size']),
-                    UtilMgr.convNum(stat['count']),
-                    fname))
+                    convNum(stat['count']), fname))
 
         if not raSummary:
             SysMgr.printPipe('\tNone\n')
@@ -77287,20 +77518,29 @@ class TaskAnalyzer(object):
         self.nrNewTask = long(0)
         self.thisInterval = long(0)
 
-        # set customized interval #
-        if 'TRIM' in SysMgr.environList:
-            try:
-                start, end = SysMgr.environList['TRIM'][0].split(':')
-                if start.strip():
-                    self.trimStart = float(start.strip())
-                if end.strip():
-                    self.trimStop = float(end.strip())
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    'fail to parse TRIM variable', True)
-                sys.exit(0)
+        self.finishTime = '0'
+        self.lastCore = '0'
+        self.lastTidPerCore = {}
+        self.lastEvent = '0'
+
+        # check custom interval #
+        if not 'TRIM' in SysMgr.environList or \
+            hasattr(self, 'trimStart') or hasattr(self, 'trimStop'):
+            return
+
+        # set custom interval #
+        try:
+            start, end = SysMgr.environList['TRIM'][0].split(':')
+            if start.strip():
+                self.trimStart = float(start.strip())
+            if end.strip():
+                self.trimStop = float(end.strip())
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to parse TRIM variable', True)
+            sys.exit(0)
 
 
 
@@ -77312,10 +77552,9 @@ class TaskAnalyzer(object):
             SysMgr.startTime = time
 
             # initialize preempt thread list #
-            if SysMgr.preemptGroup:
-                for index in SysMgr.preemptGroup:
-                    self.preemptData.append(
-                        [False, {}, float(0), 0, float(0)])
+            for index in SysMgr.preemptGroup:
+                self.preemptData.append(
+                    [False, {}, float(0), 0, float(0)])
         # finish data processing #
         elif event == 'STOP':
             SysMgr.totalLine = SysMgr.curLine
@@ -77323,27 +77562,20 @@ class TaskAnalyzer(object):
             self.stopFlag = True
         # restart data processing #
         elif event == 'RESTART':
-            self.threadDataOld = self.threadData
-            self.irqDataOld = self.irqData
-            self.ioDataOld = self.ioData
-            self.reclaimDataOld = self.reclaimData
-            self.pageTableOld = self.pageTable
-            self.kmemTableOld = self.kmemTable
-            self.blockTableOld = self.blockTable
-            self.moduleDataOld = self.moduleData
-            self.intDataOld = self.intData
-            self.depDataOld = self.depData
-            self.sigDataOld = self.sigData
-            self.lockTableOld = self.lockTable
-            self.flockDataOld = self.flockData
-            self.customEventDataOld = self.customEventData
-            self.userEventDataOld = self.userEventData
-            self.kernelEventDataOld = self.kernelEventData
-            self.syscallDataOld = self.syscallData
-            self.preemptDataOld = self.preemptData
-            self.suspendDataOld = self.suspendData
-            self.markDataOld = self.markData
-            self.consoleDataOld = self.consoleData
+            # backup data #
+            for item in dir(self):
+                # skip some objects #
+                if item.startswith('_') or \
+                    item.startswith('init_') or \
+                    item.startswith('backupData'):
+                    continue
+
+                # skip callable objects #
+                obj = getattr(self, item)
+                if hasattr(obj, '__call__'):
+                    continue
+
+                self.backupData[item] = obj
 
             self.totalTimeOld = \
                 round(float(time) - float(SysMgr.startTime), 7)
@@ -77404,12 +77636,18 @@ class TaskAnalyzer(object):
 
         SysMgr.logSize += len(string)
 
+        # set time for trim #
+        if 'ABSTIME' in SysMgr.environList:
+            checkTime = ftime
+        else:
+            checkTime = allTime
+
         # check trim range #
         if hasattr(self, 'trimStart') and \
-            self.trimStart > 0 and allTime < self.trimStart:
+            self.trimStart > 0 and checkTime < self.trimStart:
                 return time
         elif hasattr(self, 'trimStop') and \
-            self.trimStop > 0 and allTime > self.trimStop:
+            self.trimStop > 0 and checkTime > self.trimStop:
                 return time
 
         # check skip condition #
@@ -79068,7 +79306,7 @@ class TaskAnalyzer(object):
             self.fsTable[2][thread] += 1
 
             # add history #
-            if SysMgr.showAll or 'MKRALIST' in SysMgr.environList:
+            if SysMgr.showAll or 'RALIST' in SysMgr.environList:
                 access = '%.3f' % allTime
 
                 # merge with previous event #
@@ -80093,24 +80331,10 @@ class TaskAnalyzer(object):
 
 
     def compareThreadData(self):
+        # TODO: compare stats with items in self.backupData #
         for key, value in sorted(self.threadData.items(),
             key=lambda e: e[1]['usage'], reverse=True):
-
-            per = float(value['usage']) / float(self.totalTime)
-            newPercent = round(per, 7) * 100
-
-            try:
-                self.threadDataOld[key]
-            except:
-                if long(newPercent) < 1:
-                    del self.threadData[key]
-                continue
-
-            oldPercent = \
-                round(float(self.threadDataOld[key]['usage']) / \
-                float(self.totalTimeOld), 7) * 100
-            if long(oldPercent) >= long(newPercent) or long(newPercent) < 1:
-                del self.threadData[key]
+            pass
 
 
 
@@ -86658,15 +86882,18 @@ def main(args=None):
             args = list(map(lambda x: x.encode(), args))
         sys.argv = [__module__] + list(args)
 
-    # initialize envirnoment #
+    # init envirnoment #
     SysMgr.initEnvironment()
 
-    # check commands #
+    # launch commands #
     if not SysMgr.isRecordMode():
         SysMgr.checkCmdMode()
 
-    # snapshot system info #
-    SysMgr()
+    # init system context #
+    if 'FASTINIT' in SysMgr.environList:
+        SysMgr(onlyInstance=True)
+    else:
+        SysMgr()
 
     #==================== RECORD PART ====================#
 
