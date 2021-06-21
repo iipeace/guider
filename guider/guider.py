@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210620"
+__revision__ = "210621"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17635,10 +17635,11 @@ class SysMgr(object):
     else:
         pyCallFunc = '_PyEval_EvalFrameDefault'
 
-    startInitTime = long(0) # init time for Guider #
-    startTime = long(0)     # start time for Guider #
-    startRecTime = long(0)  # start time for Recording #
-    startRunTime = long(0)  # start time for Process #
+    startInitTime = long(0)      # init time for Guider #
+    startTime = long(0)          # start time for Guider #
+    startRecTime = long(0)       # start time for Recording #
+    startRunTime = long(0)       # start time for Process #
+    startOverheadTime = long(0)  # start overhead time for Process #
 
     blockSize = 512
     bufferSize = -1
@@ -24718,6 +24719,10 @@ Options:
 Examples:
     - Print the tree of processes
         # {0:1} {1:1}
+
+    - Print the tree of specific processes
+        # {0:1} {1:1} a.out
+        # {0:1} {1:1} "a.out, yes"
 
     - Print the tree of threads
         # {0:1} {1:1} -e t
@@ -31966,7 +31971,13 @@ Copyright:
 
         # PSTREE MODE #
         elif SysMgr.checkMode('pstree'):
-            SysMgr.doPstree()
+            # get target #
+            if SysMgr.hasMainArg():
+                targets = SysMgr.getMainArgs()
+            else:
+                targets = None
+
+            SysMgr.doPstree(targets=targets)
 
         # COMP MODE #
         elif SysMgr.checkMode('comp'):
@@ -32644,11 +32655,15 @@ Copyright:
         try:
             SysMgr.uptimeFd.seek(0)
             return float(SysMgr.uptimeFd.readlines()[0].split()[0])
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 uptimePath = "%s/%s" % (SysMgr.procPath, 'uptime')
                 SysMgr.uptimeFd = open(uptimePath, 'r')
                 return float(SysMgr.uptimeFd.readlines()[0].split()[0])
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(uptimePath)
                 return -1
@@ -33631,9 +33646,18 @@ Copyright:
 
 
     @staticmethod
-    def initEnvironment():
+    def initTimes():
         # update start time #
         SysMgr.startInitTime = SysMgr.startTime = SysMgr.updateUptime()
+        startRecTime = long(0)  # start time for Recording #
+        startRunTime = long(0)  # start time for Process #
+
+
+
+    @staticmethod
+    def initEnvironment():
+        # init times #
+        SysMgr.initTimes()
 
         # save original args #
         SysMgr.origArgs = deepcopy(sys.argv)
@@ -34087,6 +34111,13 @@ Copyright:
         if SysMgr.bgStatus:
             return
 
+        # update start overhead time #
+        if SysMgr.startOverheadTime == 0:
+            SysMgr.getRuntime()
+            SysMgr.startOverheadTime = \
+                SysMgr.startInitTime - SysMgr.startRunTime
+
+        # create a new process #
         pid = SysMgr.createProcess(isDaemon=True)
 
         if pid > 0:
@@ -34097,6 +34128,9 @@ Copyright:
             sys.exit(0)
         else:
             SysMgr.bgStatus = True
+
+            # init times #
+            SysMgr.initTimes()
 
             # continue child process #
             SysMgr.printStat(
@@ -40178,14 +40212,14 @@ Copyright:
 
 
     @staticmethod
-    def doPstree(isProcess=True):
+    def doPstree(targets):
         SysMgr.printLogo(big=True, onlyFile=True)
 
         obj = TaskAnalyzer(onlyInstance=True)
 
         obj.saveSystemStat()
 
-        TaskAnalyzer.printProcTree(obj.procData, title=True)
+        TaskAnalyzer.printProcTree(obj.procData, title=True, targets=targets)
 
 
 
@@ -42540,6 +42574,7 @@ Copyright:
                         "for function graph tracing") % pid)
                     sys.exit(0)
 
+            # set function_graph options #
             optPath = '../trace_options'
             SysMgr.writeCmd(optPath, 'nofuncgraph-proc')
             SysMgr.writeCmd(optPath, 'funcgraph-abstime')
@@ -43386,8 +43421,11 @@ Copyright:
 
         # python overhead #
         try:
-            overhead = '%.3f sec' % \
-                (SysMgr.startInitTime - SysMgr.startRunTime)
+            if SysMgr.startOverheadTime == 0:
+                overhead = SysMgr.startInitTime - SysMgr.startRunTime
+            else:
+                overhead = SysMgr.startOverheadTime
+            overhead = '%.3f sec' % overhead
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<100}".format('Overhead(Py)', overhead))
 
@@ -52567,7 +52605,7 @@ struct cmsghdr {
                     errMsg = \
                         'fail to continue %s(%s) because it is terminated' % \
                             (self.comm, pid)
-                    SysMgr.printErr(errMsg)
+                    SysMgr.printWarn(errMsg)
                     return -1
 
         # continue target thread #
@@ -76456,7 +76494,9 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
-    def printProcTree(instance=None, title=False, printFunc=None):
+    def printProcTree(
+        instance=None, title=False, printFunc=None, targets=None):
+
         if not instance and SysMgr.procInstance:
             instance = SysMgr.procInstance
 
@@ -76494,14 +76534,16 @@ class TaskAnalyzer(object):
                     'RUNTIME', 'SUB', oneLine))
 
         # print nodes in tree #
-        def _printTreeNodes(root, depth):
+        def _printTreeNodes(root, depth, targets, enable):
             treestr = ''
 
             # check depth #
             if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
                 return treestr
 
+            initStatus = enable
             for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
+                enable = initStatus
                 indent = ''
 
                 # get comm #
@@ -76510,8 +76552,19 @@ class TaskAnalyzer(object):
                     if SysMgr.filterGroup and \
                         UtilMgr.isValidStr(comm, inc=True, ignCap=True):
                         comm = UtilMgr.convColor(comm, 'RED')
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     comm = '?'
+
+                if not enable and targets:
+                    if not str(pid) in targets and \
+                        not UtilMgr.isValidStr(comm, targets):
+                        treestr += _printTreeNodes(
+                            childs, depth+1, targets, enable)
+                        continue
+                    else:
+                        enable = True
 
                 # get runtime #
                 try:
@@ -76571,12 +76624,18 @@ class TaskAnalyzer(object):
 
                 treestr += '\n'
 
-                treestr += _printTreeNodes(childs, depth + 1)
+                treestr += _printTreeNodes(childs, depth+1, targets, enable)
 
             return treestr
 
+        # set initial switch #
+        if targets:
+            enable = False
+        else:
+            enable = True
+
         # get string for tree #
-        finalstr = _printTreeNodes(procTree, 0)
+        finalstr = _printTreeNodes(procTree, 0, targets, enable)
 
         # print tree #
         printFunc(finalstr.strip('\n'))
@@ -82520,6 +82579,11 @@ class TaskAnalyzer(object):
         else:
             availMemStr = UtilMgr.convColor(availMemStr, 'YELLOW')
 
+        # convert color for block #
+        ioUsageStr = r'%3s' % ioUsage
+        if ioUsage > 0:
+            ioUsageStr = UtilMgr.convColor(ioUsageStr, 'RED')
+
         # convert color for swap usage #
         swapUsageStr = r'%5s' % swapUsage
         if swapUsagePer == 0:
@@ -82548,12 +82612,12 @@ class TaskAnalyzer(object):
 
         # make total stat string #
         totalCoreStat = \
-            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
+            ("{0:<7}|{1:>5}({2:>3}/{3:>3}/{4:>3}/{5:>3})|"
             "{6:>6}({7:>3}/{8:>6}/{9:>6}/{10:>5})|"
             "{11:>5}({12:>4}/{13:>3}/{14:>3})|{15:^11}|{16:^7}|"
             "{17:^7}|{18:^3}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("Total", totalUsageStr, userUsage, kerUsage,
-            ioUsage, irqUsage, availMemStr, availMemPer, totalAnonMem,
+            ioUsageStr, irqUsage, availMemStr, availMemPer, totalAnonMem,
             totalCacheMem, totalKernelMem, swapUsageStr, swapUsagePer,
             swapInMem, swapOutMem, pgRclmStr, pgIOMemDiffStr,
             '%5s' % nrMajFault, nrBlocked, '%6s' % nrSoftIrq,
