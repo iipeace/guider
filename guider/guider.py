@@ -19308,12 +19308,10 @@ class SysMgr(object):
             return maxVal
 
         def _checkResource(item):
-            try:
-                if item['apply'] == 'true':
-                    return True
-            except:
-                pass
+            if 'apply' in item and item['apply'] == 'true':
+                return True
 
+            # check type #
             if type(item) is list:
                 for value in item:
                     if _checkResource(value):
@@ -19321,6 +19319,22 @@ class SysMgr(object):
             elif type(item) is dict:
                 for key, value in item.items():
                     if _checkResource(value):
+                        return True
+
+            return False
+
+        def _checkTask(item):
+            if not type(item) is dict:
+                return True
+
+            for res, cond in item.items():
+                if res == 'storage' or res == 'net':
+                    continue
+
+                for target, value in cond.items():
+                    if target != 'SYSTEM' and \
+                        'apply' in value and \
+                        value ['apply'] == 'true':
                         return True
 
             return False
@@ -19342,36 +19356,64 @@ class SysMgr(object):
                 for key, value in item.items():
                     _checkPerm(value)
 
+        # check threshold #
         if not 'threshold' in ConfigMgr.confData:
             return
 
+        # get threshold dict #
         confData = SysMgr.getConfigDict('threshold')
-        if not confData:
+        if not confData or type(confData) is not dict:
             return
 
-        if type(confData) is not dict:
-            return
-
+        # set report table #
         SysMgr.reportEnable = True
         SysMgr.rankProcEnable = False
         SysMgr.thresholdData = confData
 
         # check permission #
-        _checkPerm(SysMgr.thresholdData)
+        _checkPerm(confData)
 
-        # check storage option #
+        # check block #
         try:
-            if _checkResource(SysMgr.thresholdData['storage']):
+            if not 'block' in confData:
+                raise Exception('no block')
+
+            for kind, cond in confData['block'].items():
+                if kind == 'SYSTEM':
+                    continue
+                elif _checkResource(cond):
+                    SysMgr.blockEnable = True
+                    SysMgr.sort = 'b'
+                    break
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check storage #
+        try:
+            if _checkResource(confData['storage']):
                 SysMgr.diskEnable = True
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check network option #
+        # check network #
         try:
-            if _checkResource(SysMgr.thresholdData['net']):
+            if _checkResource(confData['net']):
                 SysMgr.networkEnable = True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check task #
+        try:
+            SysMgr.taskEnable = _checkTask(confData)
+            if not SysMgr.taskEnable:
+                SysMgr.printWarn(
+                    'disabled monitoring tasks because of no threshold', True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -19385,7 +19427,9 @@ class SysMgr(object):
         SysMgr.printInfo(
             "applied for thresholds from %s" % SysMgr.confFileName)
 
-        SysMgr.printWarn(UtilMgr.convDict2Str(confData))
+        # print thresholds #
+        if SysMgr.warnEnable:
+            SysMgr.printWarn(UtilMgr.convDict2Str(confData))
 
 
 
@@ -21338,7 +21382,7 @@ class SysMgr(object):
     def getCmdList():
         return {
             'monitor': {
-                'atop': 'System',
+                'atop': 'All',
                 'bgtop': 'Background',
                 'btop': 'Function',
                 'ctop': 'Threshold',
@@ -21647,7 +21691,7 @@ Examples:
     - Monitor status and change the CPU scheduling priority for all {2:2} every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - Monitor status and change the CPU scheduling priority for specific {2:2} having name including a.out every second
+    - Monitor status of {2:2} and change the CPU scheduling priority for specific {2:2} having name including a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
     - Monitor status of the fixed list for {2:2} to save CPU resource for monitoring
@@ -21723,7 +21767,7 @@ Examples:
     - Monitor status of {2:2} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
-    - Monitor status of {2:2} with index
+    - Monitor status of {2:2} with the number in front of the name
         # {0:1} {1:1} -c index
 
     - Monitor status of {2:2} after setting hot commands in advance
@@ -21740,6 +21784,9 @@ Examples:
     - Monitor status of {2:2} with no encoding for output
         # {0:1} {1:1} -d e
         # NOENCODE=1 {0:1} {1:1} -d e
+
+    - Monitor status of system only
+        # {0:1} {1:1} -d T
                 '''.format(cmd, mode, target)
 
                 drawExamStr = '''
@@ -33822,6 +33869,17 @@ Copyright:
             # disable pager, print output both to file and to stdout #
             if stream:
                 SysMgr.setStream()
+
+            # init resource variables #
+            SysMgr.taskEnable = True
+            SysMgr.cpuEnable = True
+            SysMgr.memEnable = True
+            SysMgr.blockEnable = False
+            SysMgr.diskEnable = False
+            SysMgr.reportEnable = False
+            SysMgr.networkEnable = False
+
+            # init print variables #
             SysMgr.inputFile = None
             SysMgr.outPath = None
             SysMgr.printFd = None
@@ -33829,7 +33887,7 @@ Copyright:
             SysMgr.encodeEnable = False
             SysMgr.reportEnable = SysMgr.jsonEnable = False
 
-            # inherit enable and disable option value #
+            # inherit options #
             disOptVal = SysMgr.getOption('d')
             enOptVal = SysMgr.getOption('e')
             if disOptVal or enOptVal:
@@ -37438,6 +37496,14 @@ Copyright:
     def doMkCache():
         SysMgr.printLogo(big=True, onlyFile=True)
 
+        # set CPU priority #
+        if SysMgr.prio is None:
+            SysMgr.setPriority(SysMgr.pid, 'C', 10)
+
+        # set I/O priority #
+        if SysMgr.ioprio is None:
+            SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE')
+
         # set dwarf flag #
         SysMgr.setDwarfFlag()
 
@@ -38076,10 +38142,12 @@ Copyright:
                     SysMgr.printStat(
                         r'start monitoring... [ STOP(Ctrl+c) ]')
 
-                    ret = 0
-                    ret = _waitAndKill(tobj, pid, comm, sys.maxsize, 0, 'stop')
+                    ret = _waitAndKill(
+                        tobj, pid, comm, sys.maxsize, 0, 'stop')
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    pass
+                    ret = 0
 
                 if ret < 0:
                     sys.exit(0)
@@ -81998,6 +82066,7 @@ class TaskAnalyzer(object):
     def updateNamespace(self, path, tid):
         nsPath = "%s/%s" % (path, 'ns')
         try:
+            self.procData[tid]['ns'] = ''
             for items in os.walk(nsPath):
                 for node in items[2]:
                     value = os.readlink(
@@ -82005,15 +82074,14 @@ class TaskAnalyzer(object):
                     if not value:
                         continue
 
+                    # update global info #
                     value = value[1:-1]
+                    self.nsData.setdefault(node, dict())
+                    self.nsData[node].setdefault(value, dict())
+                    self.nsData[node][value].setdefault(tid, 0)
 
-                    if not node in self.nsData:
-                        self.nsData[node] = {}
-
-                    if not value in self.nsData[node]:
-                        self.nsData[node][value] = {tid: 0}
-                    else:
-                        self.nsData[node][value][tid] = 0
+                    # update task info #
+                    self.procData[tid]['ns'] += '%s:%s/' % (node, value)
         except SystemExit:
             sys.exit(0)
         except:
@@ -82761,7 +82829,7 @@ class TaskAnalyzer(object):
         # print CPU stats #
         if SysMgr.cpuEnable or SysMgr.reportEnable or SysMgr.jsonEnable:
             shortCoreStats = ''
-            percoreStats = {}
+            perCoreStats = {}
             lenCoreStat = 0
 
             if self.cpuData:
@@ -82779,7 +82847,7 @@ class TaskAnalyzer(object):
             for idx in list(self.cpuData.keys()):
                 try:
                     curCore = long(idx)
-                    percoreStats[curCore] = dict()
+                    perCoreStats[curCore] = dict()
 
                     if SysMgr.checkCutCond():
                         return
@@ -82808,12 +82876,12 @@ class TaskAnalyzer(object):
                             kerCoreUsage = 100
 
                     # set percore stats #
-                    percoreStats[idx]['user'] = userCoreUsage
-                    percoreStats[idx]['kernel'] = kerCoreUsage
-                    percoreStats[idx]['iowait'] = ioCoreUsage
-                    percoreStats[idx]['irq'] = irqCoreUsage
-                    percoreStats[idx]['idle'] = idleCoreUsage
-                    percoreStats[idx]['total'] = totalCoreUsage
+                    perCoreStats[idx]['user'] = userCoreUsage
+                    perCoreStats[idx]['kernel'] = kerCoreUsage
+                    perCoreStats[idx]['iowait'] = ioCoreUsage
+                    perCoreStats[idx]['irq'] = irqCoreUsage
+                    perCoreStats[idx]['idle'] = idleCoreUsage
+                    perCoreStats[idx]['total'] = totalCoreUsage
 
                     # apply color #
                     if totalCoreUsage == 0:
@@ -82846,7 +82914,7 @@ class TaskAnalyzer(object):
                     curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
                     self.cpuData[idx]['curFd'] = \
                         self.prevCpuData[idx]['curFd']
-                    percoreStats[idx]['curFreq'] = curFreq
+                    perCoreStats[idx]['curFreq'] = curFreq
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -82863,7 +82931,7 @@ class TaskAnalyzer(object):
                     try:
                         self.cpuData[idx]['curFd'] = open(curPath, 'r')
                         curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
-                        percoreStats[idx]['curFreq'] = curFreq
+                        perCoreStats[idx]['curFreq'] = curFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -82875,7 +82943,7 @@ class TaskAnalyzer(object):
                     minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
                     self.cpuData[idx]['minFd'] = \
                         self.prevCpuData[idx]['minFd']
-                    percoreStats[idx]['minFreq'] = minFreq
+                    perCoreStats[idx]['minFreq'] = minFreq
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -82892,7 +82960,7 @@ class TaskAnalyzer(object):
                     try:
                         self.cpuData[idx]['minFd'] = open(minPath, 'r')
                         minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
-                        percoreStats[idx]['minFreq'] = minFreq
+                        perCoreStats[idx]['minFreq'] = minFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -82904,7 +82972,7 @@ class TaskAnalyzer(object):
                     maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
                     self.cpuData[idx]['maxFd'] = \
                         self.prevCpuData[idx]['maxFd']
-                    percoreStats[idx]['maxFreq'] = maxFreq
+                    perCoreStats[idx]['maxFreq'] = maxFreq
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -82921,7 +82989,7 @@ class TaskAnalyzer(object):
                     try:
                         self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
                         maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
-                        percoreStats[idx]['maxFreq'] = maxFreq
+                        perCoreStats[idx]['maxFreq'] = maxFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -82933,7 +83001,7 @@ class TaskAnalyzer(object):
                     gov = self.prevCpuData[idx]['govFd'].readline()[:-1]
                     self.cpuData[idx]['govFd'] = \
                         self.prevCpuData[idx]['govFd']
-                    percoreStats[idx]['governor'] = gov
+                    perCoreStats[idx]['governor'] = gov
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -82942,7 +83010,7 @@ class TaskAnalyzer(object):
                     try:
                         self.cpuData[idx]['govFd'] = open(govPath, 'r')
                         gov = self.cpuData[idx]['govFd'].readline()[:-1]
-                        percoreStats[idx]['governor'] = gov
+                        perCoreStats[idx]['governor'] = gov
                     except:
                         gov = None
 
@@ -82985,12 +83053,12 @@ class TaskAnalyzer(object):
                         phyId = '?'
 
                     cid = '%s-%s' % (phyId, coreId)
-                    percoreStats[idx]['id'] = cid
+                    perCoreStats[idx]['id'] = cid
                 except SystemExit:
                     sys.exit(0)
                 except:
                     cid = None
-                    percoreStats[idx]['id'] = None
+                    perCoreStats[idx]['id'] = None
 
                 # set frequency info #
                 try:
@@ -83189,9 +83257,9 @@ class TaskAnalyzer(object):
 
         # CPU #
         try:
-            percoreStats
+            perCoreStats
         except:
-            percoreStats = None
+            perCoreStats = None
 
         self.reportData['cpu'] = {
             'total': totalUsage,
@@ -83201,7 +83269,7 @@ class TaskAnalyzer(object):
             'irq': irqUsage,
             'iowait': ioUsage,
             'nrCore': SysMgr.nrCore,
-            'percore': percoreStats
+            'percore': perCoreStats
             }
 
         # GPU #
@@ -85328,6 +85396,12 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
+            # print namespace #
+            if SysMgr.nsEnable and value['ns']:
+                SysMgr.addPrint(
+                    "{0:>39} | {1:1}\n".format(
+                        'NAMESPACE', value['ns'].rstrip('/')))
+
             # print cgroup #
             if 'cgroup' in value:
                 SysMgr.addPrint(
@@ -86334,7 +86408,7 @@ class TaskAnalyzer(object):
             intval = []
 
         # get current usage #
-        if not target:
+        if target is None:
             target = self.reportData[resource][item]
 
         # check conditions and trigger events #
@@ -86393,16 +86467,25 @@ class TaskAnalyzer(object):
             return
 
         # mapping table between thresholds and stats #
-        ilist = [
+        mapTable = [
             ['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big'],
             ['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big'],
         ]
 
+        # add block item to mapping table #
+        if SysMgr.blockEnable:
+            mapTable = [
+                ['block', 'read', 'read', 'blockInterval', 'BLOCK', 'big'],
+                ['block', 'write', 'write', 'blockInterval', 'BLOCK', 'big'],
+            ]
+
+        # set task type #
         if SysMgr.processEnable:
             mode = 'process'
         else:
             mode = 'thread'
 
+        # init variables #
         td = SysMgr.thresholdData
         exceptTaskResource = {}
 
@@ -86412,20 +86495,24 @@ class TaskAnalyzer(object):
             if data['comm'] == __module__:
                 continue
 
-            for item in ilist:
+            for item in mapTable:
                 try:
                     resource, cattr, pattr, intname, event, comp = item
 
                     if not resource in td:
                         continue
+                    elif not pattr in data:
+                        continue
 
                     value = data[pattr]
 
+                    # interval #
                     if intname in data:
                         intval = data[intname]
                     else:
                         intval = None
 
+                    # check #
                     if not value:
                         if not intval:
                             continue
