@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210621"
+__revision__ = "210623"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7478,7 +7478,7 @@ class Timeline(object):
 
 
 
-    def _draw_time_axis(self, dwg, start=0):
+    def _draw_time_axis(self, dwg, start=0, annotation=None):
         dwg.add(dwg.rect(
             (0, self.config.HEIGHT),
             (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT), fill='black'))
@@ -7489,10 +7489,15 @@ class Timeline(object):
         # set time delta #
         start = float(start) / self.time_factor
 
+        # create the drawing group #
+        g = dwg.add(dwg.g())
+        if annotation:
+            g.set_desc(annotation)
+
         for x_tick_time in range(0, self.config.WIDTH, self.config.TICKS):
             abs_x_tick_time = (x_tick_time * ratio) + start
             tick_time = "{:10}".format(long(abs_x_tick_time))
-            dwg.add(dwg.text(
+            g.add(dwg.text(
                 '%s %s' % (UtilMgr.convNum(tick_time), self.time_unit),
                 (x_tick_time, y_time_tick + self.config.FONT_SIZE*5),
                 font_size=self.config.FONT_SIZE*5,
@@ -7733,11 +7738,11 @@ class Timeline(object):
 
 
 
-    def draw(self, dwg, start=0):
+    def draw(self, dwg, start=0, annotation=None):
         self._draw_background(dwg)
         self._draw_grid(dwg)
         self._draw_group_axis(dwg)
-        self._draw_time_axis(dwg, start)
+        self._draw_time_axis(dwg, start, annotation=annotation)
         self._draw_segments(dwg, start)
 
 
@@ -29225,8 +29230,8 @@ Copyright:
 
     @staticmethod
     def drawTimeline(
-        inputPath=None, inputData=None, outputPath=None,
-        configPath=None, configData=None, taskList=None, start=0):
+        inputPath=None, inputData=None, outputPath=None, configPath=None,
+        configData=None, taskList=None, start=0, annotation=None):
 
         def _addUserEvent(inputData):
             if not inputData or \
@@ -29295,7 +29300,7 @@ Copyright:
             timeline = Timeline.load(inputPath, inputData, config, taskList)
 
             # draw timeslices #
-            timeline.draw(dwg, start=start)
+            timeline.draw(dwg, start=start, annotation=annotation)
 
             dwg.save()
         except SystemExit:
@@ -32981,7 +32986,7 @@ Copyright:
             except:
                 SysMgr.printErr(
                     "fail to get file size for '%s'" % path, True)
-                return False
+                return True
 
         # split readahead chunks by 1MB #
         remain = size
@@ -33025,6 +33030,14 @@ Copyright:
 
     @staticmethod
     def doReadahead(path):
+        # set CPU priority #
+        if SysMgr.prio is None:
+            SysMgr.setPriority(SysMgr.pid, 'C', 10)
+
+        # set I/O priority #
+        if SysMgr.ioprio is None:
+            SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE')
+
         # get absolute path #
         path = os.path.abspath(path)
         SysMgr.printInfo(
@@ -33040,13 +33053,8 @@ Copyright:
             SysMgr.printOpenErr(path)
             sys.exit(0)
 
-        # set CPU priority #
-        if SysMgr.prio is None:
-            SysMgr.setPriority(SysMgr.pid, 'C', 10)
-
-        # set I/O priority #
-        if SysMgr.ioprio is None:
-            SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE')
+        # set system maximum fd number #
+        SysMgr.setMaxFd()
 
         # get name list size #
         try:
@@ -33073,6 +33081,7 @@ Copyright:
 
         # do readahead #
         totalSize = 0
+        failFileList = {}
         while 1:
             try:
                 # check break condition #
@@ -33085,6 +33094,12 @@ Copyright:
 
                 # update values #
                 pos = nextPos
+
+                # check fail list #
+                if fid in failFileList:
+                    continue
+
+                # get file name #
                 fname = nameList[fid]
 
                 # print workload #
@@ -33093,7 +33108,10 @@ Copyright:
                         'readahead %s|%s|%s' % (fname, offset, size))
 
                 # readahead a chunk #
-                SysMgr.readahead(fname, offset, size)
+                ret = SysMgr.readahead(fname, offset, size)
+                if not ret:
+                    failFileList[fid] = 0
+                    continue
 
                 totalSize += size
             except SystemExit:
@@ -33102,11 +33120,12 @@ Copyright:
                 SysMgr.printWarn(
                     "fail to readahead chunk", True, True)
 
-        # print result #
+        # print results #
         elapsed = time.time() - startTime
-        SysMgr.printInfo(
-            "finished readahead a total of %s data for %.3f sec" % \
-                (UtilMgr.convSize2Unit(totalSize), elapsed))
+        logStr = "finished readahead a total of %s data for %.3f sec" % \
+            (UtilMgr.convSize2Unit(totalSize), elapsed)
+        SysMgr.printInfo(logStr)
+        LogMgr.doLogKmsg(logStr)
 
 
 
@@ -43181,7 +43200,7 @@ Copyright:
         SysMgr.infoBufferPrint('\n[System OS Info]')
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^35} {1:100}".format("TYPE", "Information"))
+            "{0:^35} {1:100}".format("Type", "Information"))
         SysMgr.infoBufferPrint(twoLine)
 
         # save os data #
@@ -43278,13 +43297,13 @@ Copyright:
         SysMgr.infoBufferPrint('\n\n[System General Info]')
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^20} {1:100}".format("TYPE", "Information"))
+            "{0:^20} {1:<1}".format("Type", "Information"))
         SysMgr.infoBufferPrint(twoLine)
 
         # launch option #
         try:
             launchOption = '%s%s' % (' '.join(sys.argv), ' -')
-            SysMgr.infoBufferPrint("{0:20} # {1:<100}".\
+            SysMgr.infoBufferPrint("{0:20} # {1:<1}".\
                 format('Launch', launchOption))
 
             if SysMgr.jsonEnable:
@@ -43294,7 +43313,7 @@ Copyright:
 
         # version #
         try:
-            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
                 format('Version', '%s' % __version__))
 
             if SysMgr.jsonEnable:
@@ -43305,7 +43324,7 @@ Copyright:
         # python #
         try:
             pv = '.'.join(list(map(str, sys.version_info)))
-            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
                 format('Python', pv))
 
             if SysMgr.jsonEnable:
@@ -43316,7 +43335,7 @@ Copyright:
         # hostname #
         try:
             hostname = self.uname[1]
-            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
                 format('Host', hostname))
 
             if SysMgr.jsonEnable:
@@ -43327,7 +43346,7 @@ Copyright:
         # os #
         try:
             osInfo = self.uname[0]
-            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
                 format('OS', osInfo))
 
             if SysMgr.jsonEnable:
@@ -43339,7 +43358,7 @@ Copyright:
         try:
             kernelInfo = self.uname[2]
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Kernel', kernelInfo))
+                "{0:20} {1:<1}".format('Kernel', kernelInfo))
 
             if SysMgr.jsonEnable:
                 jsonData['kernel'] = kernelInfo
@@ -43350,7 +43369,7 @@ Copyright:
         try:
             releaseInfo = self.uname[3]
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Release', releaseInfo))
+                "{0:20} {1:<1}".format('Release', releaseInfo))
 
             if SysMgr.jsonEnable:
                 jsonData['release'] = releaseInfo
@@ -43359,7 +43378,7 @@ Copyright:
 
         # CPU architecture #
         try:
-            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
                 format('Arch', SysMgr.arch))
 
             if SysMgr.jsonEnable:
@@ -43372,7 +43391,7 @@ Copyright:
             timeInfo = '%s %s' % \
                 (self.systemInfo['date'], self.systemInfo['time'])
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Date', timeInfo))
+                "{0:20} {1:<1}".format('Date', timeInfo))
 
             if SysMgr.jsonEnable:
                 jsonData['date'] = self.systemInfo['date']
@@ -43385,7 +43404,7 @@ Copyright:
             uid = str(SysMgr.getUid('self'))
 
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('User', self.userData[uid]['name']))
+                "{0:20} {1:<1}".format('User', self.userData[uid]['name']))
 
             if SysMgr.jsonEnable:
                 jsonData['user'] = self.userData[uid]['name']
@@ -43398,7 +43417,7 @@ Copyright:
             uptimeSec = UtilMgr.convNum(SysMgr.uptime)
             uptimeStr = '%s (%s sec)' % (uptime, uptimeSec)
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Uptime', uptimeStr))
+                "{0:20} {1:<1}".format('Uptime', uptimeStr))
 
             if SysMgr.jsonEnable:
                 jsonData['uptime'] = uptime
@@ -43412,7 +43431,7 @@ Copyright:
             runtime = UtilMgr.convTime(runtime)
             runtimeStr = '%s (%s sec)' % (runtime, runtimeSec)
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Runtime', runtimeStr))
+                "{0:20} {1:<1}".format('Runtime', runtimeStr))
 
             if SysMgr.jsonEnable:
                 jsonData['runtime'] = runtime
@@ -43427,7 +43446,7 @@ Copyright:
                 overhead = SysMgr.startOverheadTime
             overhead = '%.3f sec' % overhead
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Overhead(Py)', overhead))
+                "{0:20} {1:<1}".format('Overhead(Py)', overhead))
 
             if SysMgr.jsonEnable:
                 jsonData['pyOverhead'] = overhead
@@ -43440,7 +43459,7 @@ Copyright:
                 overhead = '%.3f sec' % \
                     (SysMgr.startRecTime - SysMgr.startInitTime)
                 SysMgr.infoBufferPrint(
-                    "{0:20} {1:<100}".format('Overhead(Rec)', overhead))
+                    "{0:20} {1:<1}".format('Overhead(Rec)', overhead))
 
                 if SysMgr.jsonEnable:
                     jsonData['recOverhead'] = overhead
@@ -43529,7 +43548,7 @@ Copyright:
                 range(0, len(self.cmdlineData), splitLen)]
             for string in cmdlineList:
                 SysMgr.infoBufferPrint(
-                    "{0:20} {1:<100}".format(title, string))
+                    "{0:20} {1:<1}".format(title, string))
                 title = ''
 
             if SysMgr.jsonEnable:
@@ -43602,7 +43621,7 @@ Copyright:
         SysMgr.infoBufferPrint('\n[System CPU Info]')
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^20} {1:100}".format("TYPE", "Information"))
+            "{0:^20} {1:100}".format("Type", "Information"))
         SysMgr.infoBufferPrint(twoLine)
 
         try:
@@ -87042,41 +87061,48 @@ def main(args=None):
     # FUNCTION MODE #
     if SysMgr.isFuncMode():
         FunctionAnalyzer(SysMgr.inputFile).printUsage()
+    # DRAW MODE #
+    elif SysMgr.isDrawMode():
+        origInputFile = SysMgr.inputFile
+        origInterval = SysMgr.intervalEnable
+
+        # check svgwrite object #
+        svgwrite = SysMgr.getPkg('svgwrite')
+
+        # prepare for timeline segment #
+        SysMgr.graphEnable = False
+        SysMgr.intervalEnable = 0
+        tobj = TaskAnalyzer(origInputFile)
+        outputPath = UtilMgr.prepareForImageFile(
+            SysMgr.inputFile, 'timeline')
+
+        # check absolute timeline option #
+        if 'ABSTIME' in SysMgr.environList:
+            start = float(SysMgr.startTime)
+        else:
+            start = 0
+
+        # minimize system info for annotation #
+        if SysMgr.systemInfoBuffer:
+            annotation = SysMgr.systemInfoBuffer
+            annotation = annotation.replace('%s\n' % twoLine, '')
+        else:
+            annotation = None
+
+        # draw timeline segment #
+        SysMgr.drawTimeline(
+            inputData=tobj.timelineData,
+            outputPath=outputPath,
+            taskList=list(tobj.threadData.keys()),
+            start=start, annotation=annotation)
+
+        # draw resource graph #
+        SysMgr.graphEnable = True
+        SysMgr.intervalEnable = origInterval
+        TaskAnalyzer(origInputFile).printUsage()
     # THREAD MODE #
     else:
-        if SysMgr.isDrawMode():
-            origInputFile = SysMgr.inputFile
-            origInterval = SysMgr.intervalEnable
-
-            # check svgwrite object #
-            svgwrite = SysMgr.getPkg('svgwrite')
-
-            # prepare for timeline segment #
-            SysMgr.graphEnable = False
-            SysMgr.intervalEnable = 0
-            tobj = TaskAnalyzer(origInputFile)
-            outputPath = UtilMgr.prepareForImageFile(
-                SysMgr.inputFile, 'timeline')
-
-            # check absolute timeline option #
-            if 'ABSTIME' in SysMgr.environList:
-                start = float(SysMgr.startTime)
-            else:
-                start = 0
-
-            # draw timeline segment #
-            SysMgr.drawTimeline(
-                inputData=tobj.timelineData,
-                outputPath=outputPath,
-                taskList=list(tobj.threadData.keys()),
-                start=start)
-
-            # draw resource graph #
-            SysMgr.graphEnable = True
-            SysMgr.intervalEnable = origInterval
-            TaskAnalyzer(origInputFile).printUsage()
-        else:
-            TaskAnalyzer(SysMgr.inputFile).printUsage()
+        TaskAnalyzer(SysMgr.inputFile).printUsage()
 
     # print event info #
     EventAnalyzer.printEventInfo()
