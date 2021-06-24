@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210623"
+__revision__ = "210624"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -378,6 +378,49 @@ class ConfigMgr(object):
         31: "PR_TASK_PERF_EVENTS_DISABLE",
         32: "PR_TASK_PERF_EVENTS_ENABLE",
         33: "PR_MCE_KILL",
+    }
+
+    # mount flags type #
+    MOUNT_TYPE = {
+        "MS_RDONLY": 1,           # Mount read-only
+        "MS_NOSUID": 2,           # Ignore suid and sgid bits
+        "MS_NODEV": 4,            # Disallow access to device special files
+        "MS_NOEXEC": 8,           # Disallow program execution
+        "MS_SYNCHRONOUS": 16,     # Writes are synced at once
+        "MS_REMOUNT": 32,         # Alter flags of a mounted FS
+        "MS_MANDLOCK": 64,        # Allow mandatory locks on an FS
+        "S_WRITE": 128,           # Write on file/directory/symlink
+        "S_APPEND": 256,          # Append-only file
+        "S_IMMUTABLE": 512,       # Immutable file
+        "MS_NOATIME": 1024,       # Do not update access times
+        "MS_NODIRATIME": 2048,    # Do not update directory access times
+        "MS_BIND": 4096,          # Bind directory at different place
+        "MS_REC": 16384,
+        "MS_VERBOSE": 32768,      # War is peace. Verbosity is silence
+        "MS_SILENT": 32768,
+        "MS_POSIXACL": (1<<16),   # VFS does not apply the umask
+        "MS_UNBINDABLE": (1<<17), # change to unbindable
+        "MS_PRIVATE": (1<<18),	  # change to private
+        "MS_SLAVE": (1<<19),	  # change to slave
+        "MS_SHARED": (1<<20),	  # change to shared
+        "MS_RELATIME": (1<<21),	  # Update atime relative to mtime/ctime
+        "MS_KERNMOUNT": (1<<22),  # this is a kern_mount call
+        "MS_I_VERSION": (1<<23),  # Update inode I_version field
+        "MS_STRICTATIME": (1<<24),# Always perform atime updates
+        "MS_LAZYTIME": (1<<25),   # Update the on-disk [acm]times lazily
+        "MS_NOSEC": (1<<28),
+        "MS_BORN": (1<<29),
+        "MS_ACTIVE": (1<<30),
+        "MS_NOUSER": (1<<31),
+    }
+
+    # umount flags type #
+    UMOUNT_TYPE = {
+        "MNT_FORCE": 0x00000001,       # Attempt to forcibily umount
+        "MNT_DETACH": 0x00000002,      # Just detach from the tree
+        "MNT_EXPIRE": 0x00000004,      # Mark for expiry
+        "UMOUNT_NOFOLLOW": 0x00000008, # Don't follow symlink on umount
+        "UMOUNT_UNUSED": 0x80000000,   # Flag guaranteed to be unused
     }
 
     # clone flags type #
@@ -2594,6 +2637,10 @@ class ConfigMgr(object):
             ("int", "mask"),
         )),
         "umount": ("long", (
+            ("char *", "name"),
+            ("int", "flags"),
+        )),
+        "umount2": ("long", (
             ("char *", "name"),
             ("int", "flags"),
         )),
@@ -32988,6 +33035,66 @@ Copyright:
                 continue
 
             return list(set(pidList))
+
+
+
+    @staticmethod
+    def mount(source, path, fs, flags=0, data=0):
+        try:
+            if source:
+                sourcep = c_char_p(source.encode())
+            else:
+                sourcep = 0
+
+            if path:
+                pathp = c_char_p(path.encode())
+            else:
+                pathp = 0
+
+            if fs:
+                fsp = c_char_p(fs.encode())
+            else:
+                fsp = 0
+
+            # TODO: apply flags from ConfigMgr.MOUNT_TYPE #
+
+            # call mount syscall #
+            ret = SysMgr.syscall('mount', sourcep, pathp, fsp, flags, data)
+            if ret != 0:
+                SysMgr.printWarn(
+                    'fail to call mount(%s, %s, %s, %s, %s)' % \
+                        (source, path, fs, flags, data))
+            return ret
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to call mount(%s, %s, %s, %s, %s)' % \
+                    (source, path, fs, flags, data), True, True)
+
+
+
+    @staticmethod
+    def umount(target, flags=0):
+        try:
+            if target:
+                targetp = c_char_p(target.encode())
+            else:
+                targetp = 0
+
+            # TODO: apply flags from ConfigMgr.UMOUNT_TYPE #
+
+            # call umount2 syscall #
+            ret = SysMgr.syscall('umount2', targetp, flags)
+            if ret != 0:
+                SysMgr.printWarn(
+                    'fail to call umount2(%s, %s)' % (target, flags))
+            return ret
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to call umount2(%s, %s)' % (target, flags), True, True)
 
 
 
