@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210624"
+__revision__ = "210627"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -389,9 +389,9 @@ class ConfigMgr(object):
         "MS_SYNCHRONOUS": 16,     # Writes are synced at once
         "MS_REMOUNT": 32,         # Alter flags of a mounted FS
         "MS_MANDLOCK": 64,        # Allow mandatory locks on an FS
-        "S_WRITE": 128,           # Write on file/directory/symlink
-        "S_APPEND": 256,          # Append-only file
-        "S_IMMUTABLE": 512,       # Immutable file
+        "MS_WRITE": 128,           # Write on file/directory/symlink
+        "MS_APPEND": 256,          # Append-only file
+        "MS_IMMUTABLE": 512,       # Immutable file
         "MS_NOATIME": 1024,       # Do not update access times
         "MS_NODIRATIME": 2048,    # Do not update directory access times
         "MS_BIND": 4096,          # Bind directory at different place
@@ -413,6 +413,7 @@ class ConfigMgr(object):
         "MS_ACTIVE": (1<<30),
         "MS_NOUSER": (1<<31),
     }
+    MOUNT_TYPE_REVERSE = {}
 
     # umount flags type #
     UMOUNT_TYPE = {
@@ -422,6 +423,7 @@ class ConfigMgr(object):
         "UMOUNT_NOFOLLOW": 0x00000008, # Don't follow symlink on umount
         "UMOUNT_UNUSED": 0x80000000,   # Flag guaranteed to be unused
     }
+    UMOUNT_TYPE_REVERSE = {}
 
     # clone flags type #
     CLONE_TYPE = {
@@ -1540,9 +1542,9 @@ class ConfigMgr(object):
             ("unsigned long", "addr"),
         )),
         "mount": ("long", (
-            ("char *", "dev_name"),
-            ("char *", "dir_name"),
-            ("char *", "type"),
+            ("const char *", "dev_name"),
+            ("const char *", "dir_name"),
+            ("const char *", "type"),
             ("unsigned long", "flags"),
             ("void *", "data"),
         )),
@@ -17849,6 +17851,7 @@ class SysMgr(object):
     libdemangleObj = None
     libLLVMObj = None
     demangleFunc = None
+    geterrnoFunc = None
     readaheadFunc = None
     matplotlibVersion = long(0)
     matplotlibDpi = 500
@@ -19051,6 +19054,56 @@ class SysMgr(object):
 
 
     @staticmethod
+    def doMount(args=None):
+        # get argument #
+        if args:
+            value = args
+        elif SysMgr.hasMainArg():
+            value = SysMgr.getMainArgs(False, ':')
+        elif SysMgr.inputParam:
+            value = SysMgr.inputParam
+        else:
+            SysMgr.printErr(
+                ("wrong value to mount a filesystem, "
+                    "input in the format DEV:DIR:FS:FLAGS:DATA"))
+            sys.exit(0)
+
+        # backup input value #
+        origVal = deepcopy(value)
+
+        # mount a filesystem #
+        try:
+            # convert flags #
+            if len(value) >= 4:
+                flags = 0
+                for item in value[3].split(','):
+                    try:
+                        name = "MS_%s" % item.upper()
+                        flags |= ConfigMgr.MOUNT_TYPE[name]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+                # update flags #
+                value[3] = flags
+
+            # mount #
+            ret = SysMgr.mount(*value)
+            if ret != 0:
+                errReason = SysMgr.getErrReason()
+                SysMgr.printErr(
+                    "fail to mount '%s' because %s" % \
+                        (':'.join(origVal), errReason))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to mount '%s'" % ':'.join(origVal), True)
+
+
+
+    @staticmethod
     def doRlimit():
         # get argument #
         if SysMgr.hasMainArg():
@@ -19151,7 +19204,9 @@ class SysMgr(object):
         # try to get maxFd by standard library call #
         try:
             # load libc #
-            SysMgr.loadLibcObj()
+            ret = SysMgr.loadLibcObj()
+            if not ret:
+                raise Exception("no library")
 
             # create new object #
             rlim = rlimit()
@@ -21077,14 +21132,38 @@ class SysMgr(object):
 
     @staticmethod
     def getErrReason():
-        if not SysMgr.importPkgItems('ctypes', False):
-            return
+        # pylint: disable=not-callable
+        if not SysMgr.geterrnoFunc:
+            # load libc #
+            ret = SysMgr.loadLibcObj()
+            if not ret:
+                SysMgr.geterrnoFunc = -1
+                return 'N/A'
 
-        err = get_errno()
-        if err in errno.errorcode:
-            return errno.errorcode[err]
-        else:
-            return None
+            # check function #
+            if not hasattr(SysMgr.libcObj, "__errno_location"):
+                SysMgr.geterrnoFunc = -1
+                return 'N/A'
+
+            # define function #
+            SysMgr.geterrnoFunc = getattr(SysMgr.libcObj, "__errno_location")
+            SysMgr.geterrnoFunc.restype = POINTER(c_int)
+
+        # check again #
+        if SysMgr.geterrnoFunc == -1:
+            return 'N/A'
+
+        try:
+            num = SysMgr.geterrnoFunc()[0]
+            if not num in errno.errorcode:
+                raise Exception('no errorno')
+            code = errno.errorcode[num]
+            return '%s (%s)' % (code, os.strerror(num))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn('fail to get error reason')
+            return 'N/A'
 
 
 
@@ -21497,6 +21576,7 @@ class SysMgr(object):
                 'leaktrace': 'Leak',
                 'limitcpu': 'CPU',
                 'mkcache': 'Cache',
+                'mount': 'Mount',
                 'pause': 'Thread',
                 'ping': 'PING',
                 'printbind': 'Funcion',
@@ -23250,6 +23330,34 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += topSubStr + topCommonStr + topExamStr
+
+                # mount #
+                elif SysMgr.checkMode('mount'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <DEV:DIR:FS:FLAGS:DATA> [OPTIONS] [--help]
+
+Description:
+    Mount a filesystem
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -I  <DEV:DIR:FS:FLAGS:DATA> set input
+    -f                          force execution
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - Mount a filesystem
+        # {0:1} {1:1} "/dev/sda1:/data/fs:ext4"
+        # {0:1} {1:1} -I "/dev/sda1:/data/fs:ext4"
+
+    - Remount a filesystem
+        # {0:1} {1:1} "/dev/sda1:/data/fs:ext4:REMOUNT,RDONLY"
+                    '''.format(cmd, mode)
 
                 # strings #
                 elif SysMgr.checkMode('strings'):
@@ -28547,7 +28655,7 @@ Copyright:
                         'mount -t debugfs nodev %s 2>%s\n' % \
                         (SysMgr.debugfsPath, SysMgr.nullPath))
                     SysMgr.cmdFd.write(
-                        'echo "\nstart recording... [ STOP(Ctrl+c) ]\n"\n')
+                        'echo "\n[Info] start recording... [ STOP(Ctrl+c) ]\n"\n')
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -32162,6 +32270,10 @@ Copyright:
         elif SysMgr.checkMode('drawreq'):
             SysMgr.doDrawReq()
 
+        # MOUNT MODE #
+        elif SysMgr.checkMode('mount'):
+            SysMgr.doMount()
+
         # STRINGS MODE #
         elif SysMgr.checkMode('strings'):
             SysMgr.setStream(cut=False)
@@ -33041,28 +33153,32 @@ Copyright:
     @staticmethod
     def mount(source, path, fs, flags=0, data=0):
         try:
+            # get ctypes object #
+            SysMgr.importPkgItems('ctypes')
+
+            # device #
             if source:
                 sourcep = c_char_p(source.encode())
             else:
                 sourcep = 0
 
+            # path #
             if path:
                 pathp = c_char_p(path.encode())
             else:
                 pathp = 0
 
+            # filesystem #
             if fs:
                 fsp = c_char_p(fs.encode())
             else:
                 fsp = 0
 
-            # TODO: apply flags from ConfigMgr.MOUNT_TYPE #
-
             # call mount syscall #
             ret = SysMgr.syscall('mount', sourcep, pathp, fsp, flags, data)
             if ret != 0:
                 SysMgr.printWarn(
-                    'fail to call mount(%s, %s, %s, %s, %s)' % \
+                    'fail to mount(%s, %s, %s, %s, %s)' % \
                         (source, path, fs, flags, data))
             return ret
         except SystemExit:
@@ -33077,6 +33193,10 @@ Copyright:
     @staticmethod
     def umount(target, flags=0):
         try:
+            # get ctypes object #
+            SysMgr.importPkgItems('ctypes')
+
+            # path #
             if target:
                 targetp = c_char_p(target.encode())
             else:
@@ -35415,6 +35535,28 @@ Copyright:
                 return
             except:
                 pass
+
+
+
+    @staticmethod
+    def getIdleTime():
+        try:
+            cpuBuf = None
+            SysMgr.statFd.seek(0)
+            cpuBuf = SysMgr.statFd.readline()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                cpuPath = "%s/stat" % SysMgr.procPath
+                SysMgr.statFd = open(cpuPath, 'r')
+                cpuBuf = SysMgr.statFd.readline()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(cpuPath)
+
+        return long(cpuBuf.split()[4])
 
 
 
@@ -43307,7 +43449,7 @@ Copyright:
                 try:
                     SysMgr.cmdFd.write(SysMgr.saveCmd)
                     SysMgr.cmdFd.write(
-                        "echo '\nsaved commands for tracing into %s\n'\n" % \
+                        "echo '\n[Info] saved commands for tracing into %s\n'\n" % \
                             outputPath)
                     SysMgr.cmdFd.flush()
                 except SystemExit:
@@ -53575,6 +53717,14 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     return value
+        elif syscall.startswith('mount'):
+            if not ConfigMgr.MOUNT_TYPE_REVERSE:
+                for name, value in ConfigMgr.MOUNT_TYPE.items():
+                    ConfigMgr.MOUNT_TYPE_REVERSE[value] = name
+
+            if argname == 'flags':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.MOUNT_TYPE_REVERSE)
 
 
 
@@ -53591,7 +53741,9 @@ struct cmsghdr {
 
         # convert pointer to string #
         if ref and argtype == "const char *" and \
-            (argname.endswith("name") or argname.endswith("path")):
+            (argname.endswith("name") or \
+                argname.endswith("path") or \
+                argname.endswith("type")):
             addr = self.values[seq]
             # redundant call after execve #
             if addr == 0:
@@ -54089,11 +54241,13 @@ struct cmsghdr {
                     return
 
         # get resource usage for target #
-        cpuUsage = self.getCpuUsage()
+        cpuUsage = self.getCpuUsage(system=True)
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
-        cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
+        ctime = 100 - (cpuUsage[3] / diff)
+        cpuStr = '%d%%(U%d%%+S%d%%)' % (ttime, utime, stime)
+        sysCpuStr = '%d%%' % ctime
         rssStr = self.getMemUsage()
 
         # check CPU threshold #
@@ -54139,7 +54293,8 @@ struct cmsghdr {
         mrssStr = Debugger.selfInstance.getMemUsage()
 
         # add CPU time info #
-        self.cpuUsageList.append([ttime, utime, stime])
+        self.cpuUsageList.append([ttime, utime, stime, ctime])
+        self.selfCpuUsageList.append(mttime)
 
         # calculate average for CPU usage #
         if not SysMgr.showAll and SysMgr.cpuEnable:
@@ -54160,9 +54315,9 @@ struct cmsghdr {
         # print top stat #
         ret = SysMgr.addPrint((
             '[Top %s Info] [Time: %.3f] [Interval: %.3f] [Samples: %s] '
-            '[%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
+            '[CPU: %s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff,
-                convert(self.totalCall), comm, self.pid,
+                convert(self.totalCall), sysCpuStr, comm, self.pid,
                 cpuStr, rssStr, Debugger.selfInstance.comm,
                 Debugger.selfInstance.pid, mcpuStr, mrssStr,
                 sampleStr, twoLine), newline=2)
@@ -57492,24 +57647,37 @@ struct cmsghdr {
 
 
 
-    def getCpuUsage(self):
+    def getCpuUsage(self, system=False):
+        # get system CPU usage #
+        if system:
+            itime = SysMgr.getIdleTime()
+            if self.prevCpuStat and self.prevCpuStat[3]:
+                nrCore = SysMgr.getNrCore()
+                diff = itime - self.prevCpuStat[3]
+                ctime = diff / float(nrCore)
+            else:
+                ctime = 0
+        else:
+            itime = ctime = 0
+
+        # get task CPU usage #
         stat = self.getStatList(retstr=True)
         if not stat:
             SysMgr.printWarn(
                 "fail to get CPU usage for %s(%s)" % \
                     (self.comm, self.pid))
-            return [0, 0, 0]
+            return [0, 0, 0, ctime]
 
         # check stat change #
         if self.prevStat == stat:
-            return [0, 0, 0]
+            return [0, 0, 0, ctime]
 
         self.prevStat = stat
 
         # convert string to list #
         statList = stat.split(')')[1].split()
         if not statList:
-            return [0, 0, 0]
+            return [0, 0, 0, ctime]
 
         # get total CPU time #
         utime = long(statList[self.utimeIdx-2])
@@ -57520,15 +57688,17 @@ struct cmsghdr {
         prevUsage = self.prevCpuStat
 
         # update previous CPU usage #
-        self.prevCpuStat = [ttime, utime, stime]
+        self.prevCpuStat = [ttime, utime, stime, itime]
 
         # get CPU diff #
         if prevUsage == None or ttime == 0:
-            ret = [0, 0, 0]
+            ret = [0, 0, 0, ctime]
         else:
+            # return CPU times #
             ret = [ttime - prevUsage[0],
                 utime - prevUsage[1],
-                stime - prevUsage[2]]
+                stime - prevUsage[2],
+                ctime]
 
         return ret
 
@@ -57869,7 +58039,7 @@ struct cmsghdr {
 
         # update previous CPU usage #
         if hasattr(self, 'prevCpuStat'):
-            self.prevCpuStat = self.getCpuUsage()
+            self.getCpuUsage(system=True)
         else:
             self.prevCpuStat = None
 
@@ -57896,6 +58066,7 @@ struct cmsghdr {
         self.callList = list()
         self.callPrint = list()
         self.cpuUsageList = list()
+        self.selfCpuUsageList = list()
         self.syscallTime = dict()
         self.syscallStat = dict()
         self.brkcallStat = dict()
@@ -58458,7 +58629,7 @@ struct cmsghdr {
         # set tracing attribute #
         if self.isRealtime:
             # get first CPU usage #
-            self.getCpuUsage()
+            self.getCpuUsage(system=True)
             Debugger.selfInstance.getCpuUsage()
 
             # set alarm handler #
@@ -58861,28 +59032,45 @@ struct cmsghdr {
 
         # set task info #
         procInfo = '%s(%s)' % (instance.comm, instance.pid)
+        mprocInfo = '%s(%s)' % \
+            (Debugger.selfInstance.comm, Debugger.selfInstance.pid)
 
+        # average CPU usage for target #
         nrCpuUsageSample = len(instance.cpuUsageList)
         if nrCpuUsageSample > 0:
             # calculate average CPU usage #
-            ttime = utime = stime = 0
+            ttime = utime = stime = ctime = 0
             for cpustat in instance.cpuUsageList:
                 ttime += cpustat[0]
                 utime += cpustat[1]
                 stime += cpustat[2]
+                ctime += cpustat[3]
             ttime /= float(nrCpuUsageSample)
             utime /= float(nrCpuUsageSample)
             stime /= float(nrCpuUsageSample)
-            cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
-            cpuStr = '[%s: %s]' % (procInfo, cpuStr)
+            ctime /= float(nrCpuUsageSample)
+
+            sysCpuStr = '[CPU: %d%%] ' % ctime
+            cpuStr = '%d%%(U%d%%+S%d%%)' % (ttime, utime, stime)
+            cpuStr = '[%s: %s] ' % (procInfo, cpuStr)
         else:
-            cpuStr = ' [%s]' % procInfo
+            sysCpuStr = ' '
+            cpuStr = '[%s] ' % procInfo
+
+        # average CPU usage for myself #
+        if instance.selfCpuUsageList:
+            mttime = sum(instance.selfCpuUsageList)
+            mttime /= float(len(instance.selfCpuUsageList))
+            mcpuStr = '[%s: %d%%]' % (mprocInfo, mttime)
+        else:
+            mcpuStr = '[%s]' % mprocInfo
 
         # print top stat #
         SysMgr.printPipe((
-            '\n[%s %s Summary] [Elapsed: %.3f]%s%s '
+            '\n[%s %s Summary] [Elapsed: %.3f]%s%s%s%s '
             '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
-                (mtype, ctype, elapsed, samplingStr, cpuStr,
+                (mtype, ctype, elapsed, samplingStr,
+                sysCpuStr, cpuStr, mcpuStr,
                 convert(long(nrTotal)), freqStr,
                 convert(len(callTable)), suffix))
 
@@ -58959,9 +59147,10 @@ struct cmsghdr {
         # print file table #
         if fileTable:
             SysMgr.printPipe((
-                '\n[%s File Summary] [Elapsed: %.3f]%s%s '
+                '\n[%s File Summary] [Elapsed: %.3f]%s%s%s%s '
                 '[NrSamples: %s(%s%%)] [NrFiles: %s] %s') % \
-                    (mtype, elapsed, samplingStr, cpuStr,
+                    (mtype, elapsed, samplingStr,
+                    sysCpuStr, cpuStr, mcpuStr,
                     convert(long(nrTotal)), perSample,
                     convert(len(fileTable)), suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
@@ -61968,7 +62157,9 @@ class ElfAnalyzer(object):
         # try to demangle symbol #
         try:
             # load libc #
-            SysMgr.loadLibcObj()
+            ret = SysMgr.loadLibcObj()
+            if not ret:
+                return symbol
 
             # load demangle library #
             if not SysMgr.libdemangleObj:
