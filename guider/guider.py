@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210627"
+__revision__ = "210628"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17414,6 +17414,8 @@ class LogMgr(object):
         try:
             if not SysMgr.kmsgFd:
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'r')
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             sys.exit(0)
@@ -17468,9 +17470,11 @@ class LogMgr(object):
                         except:
                             pass
 
+                    # print to console #
                     if SysMgr.outPath and console:
                         print(line)
 
+                    # print #
                     SysMgr.printPipe(line)
 
             while 1:
@@ -17511,7 +17515,6 @@ class LogMgr(object):
             # parse log #
             # PRIORITY,SEQUENCE_NUM,TIMESTAMP,-;MESSAGE #
             pos = log.find(';')
-
             meta = log[:pos].split(',')
             if len(meta) > 2:
                 nrLevel = long(meta[0])
@@ -17583,11 +17586,11 @@ class LogMgr(object):
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             return -1
 
-        # print message lines #
+        # print messages #
         try:
             msgList = msg.split('\n')
             for line in msgList:
-                SysMgr.kmsgFd.write(line)
+                SysMgr.kmsgFd.write('guider: %s\n' % line)
                 SysMgr.kmsgFd.flush()
         except SystemExit:
             sys.exit(0)
@@ -21396,6 +21399,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('req') and \
                 not SysMgr.checkMode('ping') and \
                 not SysMgr.checkMode('strings') and \
+                not SysMgr.checkMode('tail') and \
                 not SysMgr.checkMode('printext') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
@@ -21579,6 +21583,7 @@ class SysMgr(object):
                 'mount': 'Mount',
                 'pause': 'Thread',
                 'ping': 'PING',
+                'print': 'File',
                 'printbind': 'Funcion',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
@@ -23389,6 +23394,44 @@ Examples:
 
     - Print specific printable characters in a specific file
         # {0:1} {1:1} -I a.out -g PEACE
+                    '''.format(cmd, mode)
+
+                # print #
+                elif SysMgr.checkMode('print'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <TARGET> [OPTIONS] [--help]
+
+Description:
+    Print files
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -I  <FILE>                  set file path
+    -a                          show position info
+    -g  <WORD>                  set filter
+    -o  <DIR|FILE>              set output path
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -Q                          print all rows in a stream
+    -q  <NAME{:VALUE}>          set environment variables
+    -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - Print the target files
+        # {0:1} {1:1} -I a.out
+        # {0:1} {1:1} "a.out, test.txt"
+
+    - Print specific lines including specific words for the target files
+        # {0:1} {1:1} "a.out, test.txt" -g "peace, best"
+
+    - Print the target files to the output file
+        # {0:1} {1:1} "a.out, test.txt" -o output.txt
+
+    - Print the last file of the target files
+        # {0:1} {1:1} "a.out, test.txt" -q tail
                     '''.format(cmd, mode)
 
                 # dump #
@@ -25881,7 +25924,7 @@ Copyright:
         for item in path:
             if not os.path.exists(item):
                 SysMgr.printWarn(
-                    "fail to access to %s" % item, verb)
+                    "fail to access to '%s'" % item, verb)
                 return False
 
         # check flags type #
@@ -27526,11 +27569,11 @@ Copyright:
             enableStat += 'DISABLE '
 
         # print options #
-        if enableStat != '':
+        if enableStat:
             SysMgr.printInfo(
                 "enabled analysis options [ %s]" % enableStat)
 
-        if disableStat != '':
+        if disableStat:
             SysMgr.printWarn(
                 "disabled analysis options [ %s]" % disableStat)
 
@@ -27846,6 +27889,11 @@ Copyright:
         else:
             disableStat += 'COMP '
 
+        if SysMgr.cpuEnable:
+            enableStat += 'CPU '
+        else:
+            disableStat += 'CPU '
+
         # check current mode #
         if SysMgr.isTopMode():
             SysMgr.printInfo("<TOP MODE>")
@@ -27857,11 +27905,6 @@ Copyright:
                     enableStat += 'PROCESS '
                 else:
                     enableStat += 'THREAD '
-
-                if SysMgr.cpuEnable:
-                    enableStat += 'CORE '
-                else:
-                    disableStat += 'CORE '
 
                 if SysMgr.gpuEnable:
                     enableStat += 'GPU '
@@ -28028,11 +28071,6 @@ Copyright:
             else:
                 disableStat += 'GRAPH '
 
-                if not SysMgr.cpuEnable:
-                    disableStat += 'CPU '
-                else:
-                    enableStat += 'CPU '
-
                 if not SysMgr.memEnable:
                     disableStat += 'MEM '
                 else:
@@ -28077,11 +28115,6 @@ Copyright:
         else:
             SysMgr.printInfo("<THREAD MODE>")
             SysMgr.threadEnable = True
-
-            if not SysMgr.cpuEnable:
-                disableStat += 'CPU '
-            else:
-                enableStat += 'CPU '
 
             if SysMgr.memEnable:
                 enableStat += 'MEM '
@@ -28158,18 +28191,32 @@ Copyright:
             else:
                 disableStat += 'FS '
 
+            if SysMgr.binderEnable:
+                enableStat += 'BINDER '
+            else:
+                disableStat += 'BINDER '
+
+            if SysMgr.i2cEnable:
+                enableStat += 'I2C '
+            else:
+                disableStat += 'I2C '
+
             if SysMgr.resetEnable:
                 enableStat += 'RESET '
+            else:
+                disableStat += 'RESET '
 
             if SysMgr.disableAll:
                 enableStat += 'DISABLE '
+            else:
+                disableStat += 'DISABLE '
 
         # print options #
-        if enableStat != '':
+        if enableStat:
             SysMgr.printInfo(
                 "enabled runtime options [ %s]" % enableStat)
 
-        if disableStat != '':
+        if disableStat:
             SysMgr.printWarn(
                 "disabled runtime options [ %s]" % disableStat)
 
@@ -32279,6 +32326,10 @@ Copyright:
             SysMgr.setStream(cut=False)
 
             SysMgr.doStrings()
+
+        # PRINT MODE #
+        elif SysMgr.checkMode('print'):
+            SysMgr.doPrintFile()
 
         # DUMP MODE #
         elif SysMgr.checkMode('dump'):
@@ -37683,6 +37734,106 @@ Copyright:
             disableList = SysMgr.getOption('d')
             if not disableList or not 'D' in disableList:
                 SysMgr.dwarfEnable = True
+
+
+
+    @staticmethod
+    def doPrintFile():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        # check input #
+        if SysMgr.hasMainArg():
+            inputArg = SysMgr.getMainArgs()
+        elif SysMgr.inputParam:
+            inputArg = str(SysMgr.inputParam).split(',')
+            inputArg = UtilMgr.cleanItem(inputArg, True)
+        else:
+            SysMgr.printErr("no input for PATH")
+            sys.exit(0)
+
+        # check tail flag #
+        if 'TAIL' in SysMgr.environList:
+            tail = True
+        else:
+            tail = False
+
+        # print files #
+        for path in inputArg:
+            SysMgr.printStat(r"start printing '%s'..." % path)
+
+            # open the target file #
+            try:
+                fd = open(path, 'r')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(path)
+                continue
+
+            # set pos to EOF #
+            pos = 0
+            if tail:
+                try:
+                    pos = fd.seek(0, 2)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # set path #
+                pathList = [
+                    path,
+                    os.path.dirname(os.path.abspath(path))
+                ]
+
+                # set flags #
+                flags = [
+                    'IN_ATTRIB', 'IN_MOVED_TO', 'IN_CREATE',
+                    'IN_DELETE', 'IN_DELETE_SELF',
+                    'IN_MODIFY', 'IN_MOVE_SELF'
+                ]
+
+            while 1:
+                if tail:
+                    # watch the file #
+                    SysMgr.inotify(pathList, flags)
+                    try:
+                        size = os.stat(path).st_size
+                        if size == pos:
+                            continue
+                        else:
+                            fd.close()
+                            fd = open(path, 'r')
+                            if size < pos:
+                                fd.seek(size-32, 0)
+                            else:
+                                fd.seek(pos, 0)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        continue
+
+                # read data #
+                data = fd.read().split('\n')
+
+                # update pos #
+                pos = fd.tell()
+
+                # handle event #
+                if not data:
+                    if tail:
+                        continue
+                    else:
+                        break
+
+                # print data #
+                for line in data:
+                    # apply filter #
+                    if SysMgr.filterGroup and not UtilMgr.isValidStr(line):
+                        continue
+
+                    # print line #
+                    SysMgr.printPipe(line)
 
 
 
@@ -66744,6 +66895,11 @@ class TaskAnalyzer(object):
                 else:
                     continue
 
+            # skip blank line #
+            if not log.strip():
+                continue
+
+            # parse a line #
             time = self.parse(log)
             UtilMgr.printProgress(idx, SysMgr.totalLine)
 
