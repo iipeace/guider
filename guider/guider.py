@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210628"
+__revision__ = "210629"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5920,6 +5920,10 @@ class NetworkMgr(object):
             self.socket.setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeval)
             '''
 
+            # convert IP #
+            if ip == '*':
+                ip = '0.0.0.0'
+
             # set IP & PORT #
             self.ip = ip
             self.port = port
@@ -7196,6 +7200,8 @@ class NetworkMgr(object):
         # remove invaild IP #
         try:
             ipList.remove('0.0.0.0')
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -17784,6 +17790,7 @@ class SysMgr(object):
     libsystemdPath = 'libsystemd'
     libglesPath = 'libGLESv2'
     ldCachePath = '/etc/ld.so.cache'
+    libcorkscrewPath = 'libcorkscrew'
     libdemanglePath = libcppPath
     libLLVMPath = 'libLLVM.so'
     environList = {}
@@ -17846,6 +17853,7 @@ class SysMgr(object):
     libcObj = None
     libgioObj = None
     libdbusObj = None
+    libcorkscrewObj = None
     libgObj = None
     libglesObj = None
     statvfsObj = None
@@ -19103,6 +19111,39 @@ class SysMgr(object):
         except:
             SysMgr.printErr(
                 "fail to mount '%s'" % ':'.join(origVal), True)
+
+
+
+    @staticmethod
+    def initLibcorkscrew():
+        if 'NOLIBCORK' in SysMgr.environList:
+            SysMgr.libcorkscrewObj = -1
+        elif SysMgr.libcorkscrewObj:
+            return
+        else:
+            SysMgr.libcorkscrewObj = SysMgr.loadLib(SysMgr.libcorkscrewPath)
+            if SysMgr.libcorkscrewObj:
+                libcc = SysMgr.libcorkscrewObj
+
+                # define load_ptrace_context #
+                libcc.load_ptrace_context.argtypes = [c_int]
+                libcc.load_ptrace_context.restype = c_void_p
+
+                # define free_ptrace_context #
+                libcc.free_ptrace_context.argtypes = [c_void_p]
+                libcc.free_ptrace_context.restype = None
+
+                # define unwind_backtrace_ptrace #
+                libcc.unwind_backtrace_ptrace.argtypes = \
+                    [c_int, c_void_p, c_void_p, c_size_t, c_size_t]
+                libcc.unwind_backtrace_ptrace.restype = c_size_t
+
+                # define get_backtrace_symbols_ptrace #
+                libcc.get_backtrace_symbols_ptrace.argtypes = \
+                    [c_void_p, c_void_p, c_size_t, c_void_p]
+                libcc.get_backtrace_symbols_ptrace.restype = None
+            else:
+                SysMgr.libcorkscrewObj = -1
 
 
 
@@ -23008,6 +23049,9 @@ Examples:
 
     - Monitor native function calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
+
+    - Monitor native function calls with backtrace (no-use-libcorkscrew) for specific threads
+        # {0:1} {1:1} -g a.out -H -q NOLIBCORK
 
     - Monitor native function calls with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
@@ -37730,10 +37774,22 @@ Copyright:
             return
 
         # enable DWARF by default except for ARM #
-        if SysMgr.arch != 'AARCH64' or SysMgr.arch != 'ARM':
-            disableList = SysMgr.getOption('d')
-            if not disableList or not 'D' in disableList:
-                SysMgr.dwarfEnable = True
+        if SysMgr.arch == 'AARCH64' or SysMgr.arch == 'ARM':
+            SysMgr.dwarfEnable = False
+        else:
+            SysMgr.dwarfEnable = True
+
+        # check disable option #
+        disableList = SysMgr.getOption('d')
+        if disableList and 'D' in disableList:
+            SysMgr.dwarfEnable = False
+            return
+
+        # init libcorkscrew #
+        SysMgr.initLibcorkscrew()
+        if SysMgr.libcorkscrewObj and SysMgr.libcorkscrewObj != -1:
+            SysMgr.dwarfEnable = False
+            return
 
 
 
@@ -49506,7 +49562,7 @@ class Debugger(object):
     gLockObj = None
     gLockPath = None
     dbgInstance = None
-    selfInstance = None
+    tracerInstance = None
     dbusEnable = False
     RETSTR = None
 
@@ -49840,6 +49896,9 @@ class Debugger(object):
         }
         self.btList = None
         self.btStr = None
+        self.csBtList = None
+        self.csBtSymList = None
+        self.csContext = None
         self.prevBtList = None
         self.prevBtStr = None
         self.startAddr = None
@@ -49963,6 +50022,44 @@ struct cmsghdr {
             )
         self.cmsghdr = cmsghdr
         self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
+
+        '''
+typedef struct {
+    uintptr_t absolute_pc;     /* absolute PC offset */
+    uintptr_t stack_top;       /* top of stack for this frame */
+    size_t stack_size;         /* size of this stack frame */
+} backtrace_frame_t;
+        '''
+        class backtrace_frame_t(Structure):
+            _fields_ = (
+                ('absolute_pc', c_uint),
+                ('stack_top', c_uint),
+                ('stack_size', c_size_t)
+            )
+        self.btframe = backtrace_frame_t
+        self.btframe_ptr = btframe_ptr = POINTER(backtrace_frame_t)
+
+        '''
+typedef struct {
+    uintptr_t relative_pc;       /* relative frame PC offset from the start of the library,
+                                    or the absolute PC if the library is unknown */
+    uintptr_t relative_symbol_addr; /* relative offset of the symbol from the start of the
+                                    library or 0 if the library is unknown */
+    char* map_name;              /* executable or library name, or NULL if unknown */
+    char* symbol_name;           /* symbol name, or NULL if unknown */
+    char* demangled_name;        /* demangled symbol name, or NULL if unknown */
+} backtrace_symbol_t;
+        '''
+        class backtrace_symbol_t(Structure):
+            _fields_ = (
+                ('relative_pc', c_uint),
+                ('relative_symbol_addr', c_uint),
+                ('map_name', c_char_p),
+                ('symbol_name', c_char_p),
+                ('demangled_name', c_char_p),
+            )
+        self.btsym = backtrace_symbol_t
+        self.btsym_ptr = btsym_ptr = POINTER(backtrace_symbol_t)
 
         # apply environment variables #
         self.applyEnviron()
@@ -54437,11 +54534,11 @@ struct cmsghdr {
         convert = UtilMgr.convNum
         convColor = UtilMgr.convColor
 
-        # get resource usage for myself #
-        cpuUsage = Debugger.selfInstance.getCpuUsage()
+        # update resource usage for myself #
+        cpuUsage = Debugger.tracerInstance.getCpuUsage()
         mttime = cpuUsage[0] / diff
         mcpuStr = '%d%%' % mttime
-        mrssStr = Debugger.selfInstance.getMemUsage()
+        mrssStr = Debugger.tracerInstance.getMemUsage()
 
         # add CPU time info #
         self.cpuUsageList.append([ttime, utime, stime, ctime])
@@ -54469,8 +54566,8 @@ struct cmsghdr {
             '[CPU: %s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff,
                 convert(self.totalCall), sysCpuStr, comm, self.pid,
-                cpuStr, rssStr, Debugger.selfInstance.comm,
-                Debugger.selfInstance.pid, mcpuStr, mrssStr,
+                cpuStr, rssStr, Debugger.tracerInstance.comm,
+                Debugger.tracerInstance.pid, mcpuStr, mrssStr,
                 sampleStr, twoLine), newline=2)
         if not ret:
             _finishPrint()
@@ -55446,9 +55543,9 @@ struct cmsghdr {
         try:
             # use backtrace cache #
             if not force and self.btList:
-                self.btList
+                return self.btList
 
-            # return language callstack #
+            # return special language callstack #
             if not native:
                 btList = None
 
@@ -55463,8 +55560,76 @@ struct cmsghdr {
 
             restored = True
 
+            # check libcorkscrew #
+            if not SysMgr.libcorkscrewObj:
+                SysMgr.initLibcorkscrew()
+
+            # unwind stack using libcorkscrew #
+            if SysMgr.libcorkscrewObj != -1:
+                # get backtrace buffer #
+                if not self.csBtList:
+                    self.csBtList = (self.btframe * limit)()
+                backtrace = self.csBtList
+
+                libcc = SysMgr.libcorkscrewObj
+
+                # get context #
+                if not self.csContext:
+                    self.csContext = libcc.load_ptrace_context(c_int(self.pid))
+                context = self.csContext
+
+                # get backtrace #
+                frames = libcc.unwind_backtrace_ptrace(
+                    c_int(self.pid), context, byref(backtrace),
+                    c_size_t(0), c_size_t(limit))
+                if frames <= 0:
+                    return []
+
+                '''
+                # pick addresses from structs #
+                btList = []
+                for idx in range(0, frames):
+                    offset = idx * sizeof(self.btframe)
+                    obj = cast(addressof(backtrace)+offset, self.btframe_ptr)
+                    addr = obj.contents.absolute_pc
+                    btList.append(addr)
+
+                # convert addresses to symbols #
+                self.btList = self.convAddrList(btList)
+                '''
+
+                # get symbol buffer #
+                if not self.csBtSymList:
+                    self.csBtSymList = (self.btsym * limit)()
+                btsyms = self.csBtSymList
+
+                # convert addresses to symbols #
+                libcc.get_backtrace_symbols_ptrace(
+                    context, byref(backtrace), c_size_t(frames), byref(btsyms))
+
+                # pick symbols from structs #
+                self.btList = []
+                for idx in range(0, frames):
+                    offset = idx * sizeof(self.btsym)
+                    obj = cast(addressof(btsyms)+offset, self.btsym_ptr).contents
+
+                    # get symbol #
+                    if obj.demangled_name:
+                        symbol = obj.demangled_name.decode()
+                    elif obj.symbol_name:
+                        symbol = obj.symbol_name.decode()
+                    else:
+                        symbol = '??'
+
+                    # get fname #
+                    if obj.map_name:
+                        fname = obj.map_name.decode()
+                    else:
+                        fname = '??'
+
+                    self.btList.append([obj.relative_pc, symbol, fname])
             # unwind stack using DWARF #
-            if SysMgr.dwarfEnable:
+            elif SysMgr.dwarfEnable:
                 # backup registers #
                 self.backupRegs(bt=True)
                 restored = False
@@ -55752,7 +55917,7 @@ struct cmsghdr {
 
 
 
-    def getBacktrace_ARM(self, limit=32, cur=False):
+    def getBacktrace_ARM(self, limit=16, cur=False):
         nextFp = self.fp
         nextLr = self.lr
 
@@ -58188,7 +58353,7 @@ struct cmsghdr {
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
         self.rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
 
-        # update previous CPU usage #
+        # update CPU usage for target #
         if hasattr(self, 'prevCpuStat'):
             self.getCpuUsage(system=True)
         else:
@@ -58262,10 +58427,13 @@ struct cmsghdr {
                 ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXIT') << 8
 
         # make object for myself #
-        if not Debugger.selfInstance or \
-            Debugger.selfInstance.pid != SysMgr.pid:
-            Debugger.selfInstance = Debugger(SysMgr.pid, attach=False)
-            Debugger.selfInstance.initValues()
+        if not Debugger.tracerInstance or \
+            Debugger.tracerInstance.pid != SysMgr.pid:
+            Debugger.tracerInstance = Debugger(SysMgr.pid, attach=False)
+            Debugger.tracerInstance.initValues()
+
+        # update CPU usage for myself #
+        Debugger.tracerInstance.getCpuUsage()
 
 
 
@@ -58779,9 +58947,9 @@ struct cmsghdr {
 
         # set tracing attribute #
         if self.isRealtime:
-            # get first CPU usage #
+            # update CPU usage #
             self.getCpuUsage(system=True)
-            Debugger.selfInstance.getCpuUsage()
+            Debugger.tracerInstance.getCpuUsage()
 
             # set alarm handler #
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
@@ -59184,7 +59352,7 @@ struct cmsghdr {
         # set task info #
         procInfo = '%s(%s)' % (instance.comm, instance.pid)
         mprocInfo = '%s(%s)' % \
-            (Debugger.selfInstance.comm, Debugger.selfInstance.pid)
+            (Debugger.tracerInstance.comm, Debugger.tracerInstance.pid)
 
         # average CPU usage for target #
         nrCpuUsageSample = len(instance.cpuUsageList)
@@ -62346,11 +62514,15 @@ class ElfAnalyzer(object):
                 SysMgr.libcObj.free.argtypes = [c_void_p]
 
             # strip llvm info #
-            if '.llvm.' in symbol:
-                symbol = symbol[:symbol.find('.llvm.')]
+            symbol = symbol.split('.llvm.')[0]
 
             # remove suffixes for rust legacy #
             symbol, isRust = ElfAnalyzer.demangleRustSymPre(symbol)
+
+            # remove optimization suffixes #
+            symbol = symbol.split('.isra.')[0]
+            symbol = symbol.split('.part.')[0]
+            symbol = symbol.split('.constprop.')[0]
 
             # check version #
             if '@' in symbol:
