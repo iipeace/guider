@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210629"
+__revision__ = "210701"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4144,7 +4144,7 @@ class UtilMgr(object):
             outputPath = UtilMgr.prepareForImageFile(
                 inputPath, 'flamegraph')
 
-        return outputPath
+        return os.path.abspath(outputPath)
 
 
 
@@ -15321,6 +15321,10 @@ class LeakAnalyzer(object):
 
 
     def printLeakage(self, runtime, profiletime):
+        # print logo #
+        SysMgr.printLogo(big=True)
+
+        # define shortcut #
         convert = UtilMgr.convSize2Unit
 
         try:
@@ -15329,24 +15333,32 @@ class LeakAnalyzer(object):
             vss = convert(long(mlist[vssIdx]) << 12)
             rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
             rss = convert(long(mlist[rssIdx]) << 12)
+        except SystemExit:
+            sys.exit(0)
         except:
             vss = rss = '?'
 
+        # task info #
         proc = '%s(%s)' % (SysMgr.getComm(self.pid), self.pid)
+
         # function leakage info #
         title = 'Function Leakage Info'
-        SysMgr.printPipe((
-            '\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] '
+        titleStr = \
+            ('\n\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] '
             '[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]') % \
                 (title, proc, runtime, profiletime, vss, rss,
                 convert(self.totalLeakSize),
-                convert(len(self.callData))))
+                convert(len(self.callData)))
+        SysMgr.printPipe(titleStr)
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
                 "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".\
                 format("Size", "Count", "Avg", "Function"))
         SysMgr.printPipe(oneLine)
+
+        # init flamegraph variable #
+        stackList = {}
 
         count = long(0)
         for sym, val in sorted(self.symData.items(),
@@ -15366,6 +15378,11 @@ class LeakAnalyzer(object):
                     "{0:>7} | {1:>7} | {2:<132} ".\
                         format('', convert(size), substack))
 
+                # register fullstack to the list for flamegraph #
+                fullStack = ' '.join(
+                    [item.strip() for item in (sym+substack).split('\n')])
+                stackList[fullStack] = size
+
             count += 1
 
             SysMgr.printPipe(oneLine)
@@ -15376,7 +15393,7 @@ class LeakAnalyzer(object):
         # file leakage info #
         title = 'File Leakage Info'
         SysMgr.printPipe((
-            '\n[%s] [Process: %s] [Runtime: %s]  [ProfileTime: %s] '
+            '\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] '
             '[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]') % \
                 (title, proc, runtime, profiletime, vss, rss,
                 convert(self.totalLeakSize),
@@ -15405,6 +15422,16 @@ class LeakAnalyzer(object):
             SysMgr.printPipe('\tNone')
         SysMgr.printPipe(oneLine)
 
+        # draw flamegraph #
+        if SysMgr.inputFile:
+            inputFile = SysMgr.inputFile
+        else:
+            inputFile = 'guider.out'
+        inputFile = os.path.abspath(inputFile)
+        SysMgr.printStat(r"start drawing flamegraph...")
+        Debugger.drawFlame(inputFile, stackList, titleStr)
+
+        # check exit condition #
         if not SysMgr.showAll or not self.callData:
             return
 
@@ -30410,14 +30437,14 @@ Copyright:
     @staticmethod
     def printOpenErr(path, reason=True):
         SysMgr.printErr(
-            'fail to open %s' % path, reason)
+            "fail to open '%s'" % os.path.abspath(path), reason)
 
 
 
     @staticmethod
     def printOpenWarn(path, always=False, reason=True):
         SysMgr.printWarn(
-            'fail to open %s' % path, always, reason)
+            "fail to open '%s'" % os.path.abspath(path), always, reason)
 
 
 
@@ -37769,12 +37796,17 @@ Copyright:
 
     @staticmethod
     def setDwarfFlag():
+        def _printDwarfStatus(stat):
+            statStr = 'enabled' if stat else 'disabled'
+            SysMgr.printInfo('%s DWARF parser' % statStr)
+
         # check DWARF requirement #
         if SysMgr.dwarfEnable:
+            _printDwarfStatus(True)
             return
 
-        # enable DWARF by default except for ARM #
-        if SysMgr.arch == 'AARCH64' or SysMgr.arch == 'ARM':
+        # enable DWARF by default for ARM #
+        if SysMgr.arch == 'aarch64' or SysMgr.arch == 'arm':
             SysMgr.dwarfEnable = False
         else:
             SysMgr.dwarfEnable = True
@@ -37783,13 +37815,17 @@ Copyright:
         disableList = SysMgr.getOption('d')
         if disableList and 'D' in disableList:
             SysMgr.dwarfEnable = False
+            _printDwarfStatus(False)
             return
 
-        # init libcorkscrew #
+        # init and check libcorkscrew #
         SysMgr.initLibcorkscrew()
         if SysMgr.libcorkscrewObj and SysMgr.libcorkscrewObj != -1:
             SysMgr.dwarfEnable = False
+            _printDwarfStatus(False)
             return
+
+        _printDwarfStatus(SysMgr.dwarfEnable)
 
 
 
@@ -38271,6 +38307,11 @@ Copyright:
             SysMgr.printErr("no input for PID or COMM")
             sys.exit(0)
 
+        # check output path #
+        if not SysMgr.outPath:
+            SysMgr.printErr("no output path")
+            sys.exit(0)
+
         # convert comm to pid #
         pid = None
         isMulti = False
@@ -38365,9 +38406,9 @@ Copyright:
                 SysMgr.printErr(
                     'fail to find libleaktracer.so on memory map '
                     'because the library is not preloaded\n'
-                    '\tIf the target process is on secure-execution mode,n'
-                    '\tlibleaktracer.so should be in standard search directories'
-                    'specified in /etc/ld.so.conf,n'
+                    '\tIf the target process is on secure-execution mode,'
+                    '\tlibleaktracer.so should be in standard search '
+                    'directories specified in /etc/ld.so.conf,n'
                     '\tAnd all slashes in it\'s preload path will be ignored.')
                 sys.exit(0)
 
@@ -38468,16 +38509,16 @@ Copyright:
             remoteCmd.insert(
                 0, 'setenv:LEAKTRACER_ONSIG_STARTALLTHREAD#"%s"' % startSig)
 
-        # add an environment for stop signal #
+        # add an environment variable for stop signal #
         if not stopSig:
             stopSig = LeakAnalyzer.stopSig
             remoteCmd.insert(
                 0, 'setenv:LEAKTRACER_ONSIG_REPORT#"%s"' % stopSig)
 
-        if remoteCmd:
-            if not libPath:
-                remoteCmd.append(
-                    'usercall:leaktracer::MemoryTrace::init_full_from_once()')
+        # add an init call for tracing #
+        if remoteCmd and not libPath:
+            remoteCmd.append(
+                'usercall:leaktracer::MemoryTrace::init_full_from_once()')
 
         # check signal handler #
         tryCnt = 0
@@ -38485,8 +38526,8 @@ Copyright:
         while 1:
             # set environment command #
             if remoteCmd:
-                rcmd = \
-                    ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
+                rcmd = ['remote', '-g%s' % pid,
+                        '-c%s' % ','.join(remoteCmd), '-I']
                 SysMgr.launchGuider(
                     rcmd, pipe=False, stderr=True, log=True, wait=True)
 
@@ -38593,21 +38634,22 @@ Copyright:
                 sys.exit(0)
         elif stopSig:
             try:
-                # wait for stop threshold #
+                # wait for stop threshold or signal #
                 try:
                     SysMgr.printStat(
                         r'start monitoring... [ STOP(Ctrl+c) ]')
 
                     ret = _waitAndKill(
                         tobj, pid, comm, sys.maxsize, 0, 'stop')
-                except SystemExit:
-                    sys.exit(0)
+                # stop profiling #
                 except:
                     ret = 0
 
+                # check exit condition #
                 if ret < 0:
                     sys.exit(0)
 
+                # send stop signal to target #
                 os.kill(long(pid), stopSig)
 
                 SysMgr.printStat(
@@ -38627,6 +38669,8 @@ Copyright:
             endTime = SysMgr.uptime
             runtime = UtilMgr.convTime(tobj.procData[pid]['runtime'])
             profiletime = UtilMgr.convTime(endTime - startTime)
+        except SystemExit:
+            sys.exit(0)
         except:
             runtime = '?'
             profiletime = '?'
@@ -42835,7 +42879,7 @@ Copyright:
 
             SysMgr.printInfo(
                 "finish saving all results into '%s'%s successfully" % \
-                (SysMgr.printFd.name, fsize))
+                (os.path.abspath(SysMgr.printFd.name), fsize))
 
             SysMgr.printFd.close()
         except SystemExit:
@@ -49816,6 +49860,7 @@ class Debugger(object):
         self.execCmd = execCmd
         self.arch = arch = SysMgr.getArch()
         self.skipInst = 5
+        self.indentLen = 20
         self.syscall = ''
         self.bufferedStr = ''
         self.mapFd = None
@@ -49880,7 +49925,7 @@ class Debugger(object):
         self.ldInjected = False
         self.libcLoaded = False
         self.dftBpFileList = {}
-        self.dftBpSymList = {\
+        self.dftBpSymList = {
             'mmap': 0,
             'mmap64': 0,
             'munmap': 0,
@@ -50398,7 +50443,8 @@ typedef struct {
                     # register link info to list #
                     linkList.setdefault(fpath, list())
                     linkList[fpath].append((
-                        convColor(sym, 'YELLOW'), attr['bind'], attr['vis'],
+                        convColor(sym, 'YELLOW'),
+                        attr['bind'], attr['vis'],
                         attr['type'], linkInfo))
 
                     continue
@@ -54128,19 +54174,27 @@ typedef struct {
 
 
     @staticmethod
-    def drawFlame(inputFile):
+    def drawFlame(inputFile=None, callList=None, title=''):
+        if not inputFile and not callList:
+            SysMgr.printErr('no input for flamegraph')
+            sys.exit(0)
+
         # set output path #
         outputPath = UtilMgr.getDrawOutputPath(inputFile, 'flamegraph')
 
-        # get list for call samples #
-        try:
-            callList, title = Debugger.getCallStatsFile(inputFile)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr(
-                "fail to get call samples from '%s'" % inputFile, True)
-            sys.exit(0)
+        if not callList:
+            # get list for call samples #
+            try:
+                callList, title = Debugger.getCallStatsFile(inputFile)
+                if not callList:
+                    SysMgr.printErr('no call sample for flamegraph')
+                    return
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to get call samples from '%s'" % inputFile, True)
+                sys.exit(0)
 
         # convert list to tree for call samples #
         try:
@@ -54847,6 +54901,7 @@ typedef struct {
         # load memory-mapped file objects #
         ret = False
         printLog = True
+        prevRss = 0
         for mfile in list(self.pmap.keys()):
             try:
                 # check file validation #
@@ -54868,6 +54923,14 @@ typedef struct {
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
                     if printLog:
                         printLog = False
+
+                continue
+
+                # print ELF object size on RAM #
+                curRss = Debugger.tracerInstance.getMemUsage(False)
+                rssDiff = UtilMgr.convSize2Unit(curRss-prevRss)
+                print(UtilMgr.convColor('[%s] %s' % (mfile, rssDiff), 'CYAN'))
+                prevRss = curRss
             except SystemExit:
                 # continue target #
                 if needStop:
@@ -55446,7 +55509,7 @@ typedef struct {
 
 
 
-    def getBacktraceStr(self, bt, default=20, maximum=0, force=False):
+    def getBacktraceStr(self, bt, indent=None, maximum=0, force=False):
         if not force and self.btStr:
             return self.btStr
         elif not bt:
@@ -55456,9 +55519,15 @@ typedef struct {
         btStr = ''
         prevSym = None
         prevFile = None
-
         cnt = 0
-        pos = default
+
+        # set default indentation #
+        if indent is None:
+            indentStr = ' ' * self.indentLen
+            pos = self.indentLen
+        else:
+            indentStr = ' ' * indent
+            pos = indent
 
         # set maximum depth #
         if maximum == 0:
@@ -55466,12 +55535,6 @@ typedef struct {
                 maximum = len(oneLine)
             else:
                 maximum = SysMgr.ttyCols
-
-        # set default indentation #
-        if default == 0:
-            indentStr = ''
-        else:
-            indentStr = ' ' * default
 
         for item in bt:
             if item[1] == item[2] == '??':
@@ -57821,8 +57884,15 @@ typedef struct {
             else:
                 diffStr = UtilMgr.convColor(diffStr, 'CYAN')
 
+            # add newline after backtrace #
+            if self.prevBtStr:
+                newline = '\n ' + (' ' * self.indentLen)
+            else:
+                newline = ''
+
             # build call string #
-            callString = '%s= %s%s%s' % (callString, retstr, err, diffStr)
+            callString = '%s%s= %s%s%s' % \
+                (callString, newline, retstr, err, diffStr)
 
             # print call string #
             if SysMgr.outPath:
@@ -57945,7 +58015,7 @@ typedef struct {
 
 
 
-    def getMemUsage(self):
+    def getMemUsage(self, unit=True):
         stat = self.getStatList(retstr=True)
         if not stat:
             SysMgr.printWarn(
@@ -57956,10 +58026,12 @@ typedef struct {
         # convert string to list #
         statList = stat.split(')')[1].split()
 
-        rss = UtilMgr.convSize2Unit(
-            long(statList[self.rssIdx-2]) << 12, True)
-
-        return rss
+        # get RSS size #
+        byteSize = long(statList[self.rssIdx-2]) << 12
+        if not unit:
+            return byteSize
+        else:
+            return UtilMgr.convSize2Unit(byteSize, True)
 
 
 
@@ -62812,9 +62884,13 @@ class ElfAnalyzer(object):
                 tempSymTable[name] = tempSymTable[addr]
             else:
                 tempSymTable[name] = {
-                    'vis': 'DEFAULT', 'bind': 'GLOBAL',
-                    'value': item['addr'], 'ndx': 0,
-                    'type': 'SECTION', 'size': item['size']}
+                    'value': item['addr'],
+                    'size': item['size'],
+                    'type': 'SECTION',
+                    'bind': 'GLOBAL',
+                    'vis': 'DEFAULT',
+                    'ndx': 0
+                }
 
         mainSym = '?'
         prevAddr = None
@@ -64313,15 +64389,17 @@ Section header string table index: %d
                     pass
 
                 # add symbol to table #
-                self.attr['dynsymTable'][symbol] = {\
-                    'value': st_value, 'size': st_size,
-                    'type': ElfAnalyzer.ST_TYPE[ \
+                self.attr['dynsymTable'][symbol] = {
+                    'value': st_value,
+                    'size': st_size,
+                    'type': ElfAnalyzer.ST_TYPE[
                         ElfAnalyzer.ELF_ST_TYPE(st_info)],
                     'bind': ElfAnalyzer.ST_BIND_TYPE[
                         ElfAnalyzer.ELF_ST_BIND(st_info)],
                     'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[
                         ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
-                    'ndx': st_shndx}
+                    'ndx': st_shndx
+                }
 
                 # add address-symbol mapping info #
                 if SysMgr.dwarfEnable:
@@ -64424,15 +64502,17 @@ Section header string table index: %d
                 if symbol:
                     symbol = ElfAnalyzer.demangleSymbol(symbol)
 
-                self.attr['symTable'][symbol] = {\
-                    'value': st_value, 'size': st_size,
+                self.attr['symTable'][symbol] = {
+                    'value': st_value,
+                    'size': st_size,
                     'type': ElfAnalyzer.ST_TYPE[
-                    ElfAnalyzer.ELF_ST_TYPE(st_info)],
+                        ElfAnalyzer.ELF_ST_TYPE(st_info)],
                     'bind': ElfAnalyzer.ST_BIND_TYPE[
-                    ElfAnalyzer.ELF_ST_BIND(st_info)],
+                        ElfAnalyzer.ELF_ST_BIND(st_info)],
                     'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[
-                    ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
-                    'ndx': st_shndx}
+                        ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
+                    'ndx': st_shndx
+                }
 
                 # add address-symbol mapping info #
                 if SysMgr.dwarfEnable:
@@ -65861,8 +65941,8 @@ Section header string table index: %d
                 # print note section title #
                 SysMgr.printPipe(
                     '\n[Note %s Section]\n%s\n%20s %16s %s\n%s' % \
-                        (hex(sh_offset).rstrip('L'), twoLine, "Owner", "Data size",\
-                            "Description", twoLine))
+                        (hex(sh_offset).rstrip('L'), twoLine, "Owner",
+                            "Data size", "Description", twoLine))
 
                 _readNoteSection(fd, sh_offset, size)
 
@@ -65882,6 +65962,10 @@ Section header string table index: %d
                             "Description", twoLine))
 
                 _readNoteSection(fd, sh_offset, sh_size)
+
+        # remove useless data #
+        del self.attr['dynsymList']
+        del self.attr['versymList']
 
         # check dynamic section #
         if e_shdynamic < 0:
@@ -73709,6 +73793,9 @@ class TaskAnalyzer(object):
             if raPath == 'SET':
                 raPath = 'readahead.list'
 
+            # convert to absolute path #
+            raPath = os.path.abspath(raPath)
+
             # set inode scan flag #
             if not 'CONVINODE' in SysMgr.environList:
                 SysMgr.environList['CONVINODE'] = ['SET']
@@ -73734,7 +73821,8 @@ class TaskAnalyzer(object):
         if 'RAALLOWLIST' in SysMgr.environList:
             # get list file #
             try:
-                fname = SysMgr.environList['RAALLOWLIST'][0]
+                fname = os.path.abspath(
+                    SysMgr.environList['RAALLOWLIST'][0])
 
                 SysMgr.printInfo(
                     "apply readahead target list from '%s'" % fname)
@@ -73754,7 +73842,8 @@ class TaskAnalyzer(object):
         if 'RADENYLIST' in SysMgr.environList:
             # get list file #
             try:
-                fname = SysMgr.environList['RADENYLIST'][0]
+                fname = os.path.abspath(
+                    SysMgr.environList['RADENYLIST'][0])
 
                 SysMgr.printInfo(
                     "apply readahead exception list from '%s'" % fname)
@@ -73774,7 +73863,8 @@ class TaskAnalyzer(object):
         if 'RAADDLIST' in SysMgr.environList:
             # get list file #
             try:
-                fname = SysMgr.environList['RAADDLIST'][0]
+                fname = os.path.abspath(
+                    SysMgr.environList['RAADDLIST'][0])
 
                 SysMgr.printInfo(
                     "apply readahead add list from '%s'" % fname)
@@ -85538,9 +85628,10 @@ class TaskAnalyzer(object):
         convTime = UtilMgr.convTime
         convColor = UtilMgr.convColor
 
-        totalStats = {\
+        totalStats = {
             'read': long(0), 'write': long(0),
-            'yld': long(0), 'prtd': long(0), 'task': long(0)}
+            'yld': long(0), 'prtd': long(0), 'task': long(0)
+        }
 
         # clear id list #
         if idIndex:
