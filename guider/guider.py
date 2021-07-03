@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210701"
+__revision__ = "210703"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16336,6 +16336,295 @@ class FileAnalyzer(object):
 
 
     @staticmethod
+    def printReadaheadList(readaheadList, raSummary, warn=False):
+        if not readaheadList:
+            SysMgr.printWarn('no readahead item', True)
+            return
+
+        # set functions #
+        convNum = UtilMgr.convNum
+        if warn:
+            printFunc = SysMgr.printWarn
+        else:
+            printFunc = SysMgr.printPipe
+
+        # print readahead stat #
+        printFunc(
+            '\n[Thread Readahead Info] (NrFiles: %s) (NrChunks: %s)\n%s' % \
+                (convNum(len(raSummary)), convNum(len(readaheadList)),
+                    twoLine))
+        printFunc(
+            "{0:>12} {1:>12} {2:>1}\n{3:1}".format(
+            'Size', 'Count', 'Path', twoLine))
+
+        for fname, stat in sorted(raSummary.items(),
+            key=lambda e: e[1]['size'], reverse=True):
+            printFunc("{0:>12} {1:>12} {2:>1}".format(
+                    UtilMgr.convSize2Unit(stat['size']),
+                    convNum(stat['count']), fname))
+
+        if not raSummary:
+            printFunc('\tNone\n')
+        printFunc(oneLine)
+
+
+
+    @staticmethod
+    def makeReadaheadFile(
+        raPath, readaheadList, pathConvList, raMin, raAddList):
+
+        # check readahead file path #
+        if not raPath:
+            return readaheadList, {}
+
+        # apply add list #
+        for item in raAddList:
+            # parse file info #
+            finfo = item.split(':')
+            try:
+                if len(finfo) == 1:
+                    item = finfo[0]
+                    offset = 0
+                    size = 0
+                elif len(finfo) == 2:
+                    item = finfo[0]
+                    offset = 0
+                    if finfo[1]:
+                        size = UtilMgr.convUnit2Size(finfo[1])
+                    else:
+                        size = 0
+                else:
+                    item = finfo[0]
+                    offset = UtilMgr.convUnit2Size(finfo[1])
+                    if finfo[2]:
+                        size = UtilMgr.convUnit2Size(finfo[2])
+                    else:
+                        size = 0
+            except SystemExit:
+                sys.exit(0)
+            except:
+                fpath = SysMgr.environList['RAADDLIST'][0]
+                SysMgr.printErr(
+                    "fail to apply readahead add list from '%s'" % fpath, True)
+                sys.exit(0)
+
+            # get full path #
+            fpath = os.path.abspath(item)
+            if not os.path.exists(fpath):
+                SysMgr.printWarn((
+                    "skipped adding '%s' to readahead list "
+                    "because not exists") % fpath, True)
+                continue
+
+            # get file size #
+            fsize = UtilMgr.getFileSize(fpath, False)
+            fsizeStr = UtilMgr.getFileSize(fpath)
+            finfo = '%s[%s]' % (fpath, fsizeStr)
+
+            if size == 0:
+                size = fsize
+
+            if finfo in pathConvList:
+                idx = pathConvList[finfo][1]
+            else:
+                idx = len(pathConvList)
+                pathConvList.setdefault(finfo, [fpath, idx])
+
+            readaheadList.append([idx, offset, size])
+
+        # backup exist readahead list #
+        SysMgr.backupFile(raPath)
+
+        # create a new file for readahead list #
+        try:
+            raFd = open(raPath, 'wb')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(raPath)
+            sys.exit(0)
+
+        # merge readahead chunks #
+        if 'RAMERGE' in  SysMgr.environList:
+            SysMgr.printInfo(
+                'merge continuous readahead chunks')
+
+            prevChunk = None
+            origRaList = readaheadList
+            readaheadList = []
+            for chunk in origRaList:
+                fid, offset, size = chunk
+                if not prevChunk:
+                    prevChunk = [fid, offset, size]
+                    readaheadList.append(prevChunk)
+                    continue
+
+                # merge chunks #
+                if fid == prevChunk[0] and \
+                    offset == prevChunk[1] + prevChunk[2]:
+                    prevChunk[2] += size
+                    readaheadList[-1] = prevChunk
+                    continue
+
+                # add original chunk to list #
+                prevChunk = [fid, offset, size]
+                readaheadList.append(prevChunk)
+
+        # write readahead list to file #
+        try:
+            raSummary = {}
+
+            # encode file list #
+            fileList = [value[0] for path, value in sorted(
+                    pathConvList.items(), key=lambda e: e[1][1])]
+            fileStr = '#'.join(fileList)
+            fileStr = fileStr.encode()
+
+            # write file list size #
+            raFd.write(struct.pack('I', len(fileStr)))
+
+            # write file list #
+            raFd.write(fileStr)
+
+            # write readahead chunks #
+            for chunk in readaheadList:
+                # skip chunks lesser than minimum size #
+                if raMin > chunk[2]:
+                    continue
+
+                fid, offset, size = chunk
+
+                # write chunks #
+                raFd.write(struct.pack('HQI', fid, offset, size))
+
+                # save readahead stat #
+                fname = fileList[fid]
+                raSummary.setdefault(fname, dict({'count': 0, 'size': 0}))
+                raSummary[fname]['count'] += 1
+                raSummary[fname]['size'] += size
+
+            raFd.close()
+
+            # print file size #
+            fsize = UtilMgr.getFileSize(raFd.name)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
+
+            SysMgr.printInfo(
+                "saved the readahead list to '%s'%s successfuly" % \
+                    (raFd.name, fsize))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to save the readahead list to '%s'" % raFd.name, True)
+
+        return readaheadList, raSummary
+
+
+
+    @staticmethod
+    def getReadaheadItems():
+        # get readahead list path #
+        if 'RALIST' in SysMgr.environList:
+            # set list file #
+            raPath = SysMgr.environList['RALIST'][0]
+            if raPath == 'SET':
+                raPath = 'readahead.list'
+
+            # convert to absolute path #
+            raPath = os.path.abspath(raPath)
+
+            # set inode scan flag #
+            if not 'CONVINODE' in SysMgr.environList:
+                SysMgr.environList['CONVINODE'] = ['SET']
+
+            # set minimum size #
+            raMin = 0
+            if 'RAMIN' in SysMgr.environList:
+                try:
+                    raMin = SysMgr.environList['RAMIN'][0]
+                    raMin = long(raMin)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr((
+                        "fail to set the minimum size to '%s'"
+                        "for readahead chunk") % raMin, True)
+        else:
+            raPath = None
+            raMin = 0
+
+        # get readahead allow list path #
+        raAllowList = []
+        if 'RAALLOWLIST' in SysMgr.environList:
+            # get list file #
+            try:
+                fname = os.path.abspath(
+                    SysMgr.environList['RAALLOWLIST'][0])
+
+                SysMgr.printInfo(
+                    "apply readahead target list from '%s'" % fname)
+
+                with open(fname, 'r') as fd:
+                    raAllowList = fd.readlines()
+                    raAllowList = \
+                        list(map(lambda x: x.rstrip(), raAllowList))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
+        # get readahead deny list path #
+        raDenyList = []
+        if 'RADENYLIST' in SysMgr.environList:
+            # get list file #
+            try:
+                fname = os.path.abspath(
+                    SysMgr.environList['RADENYLIST'][0])
+
+                SysMgr.printInfo(
+                    "apply readahead exception list from '%s'" % fname)
+
+                with open(fname, 'r') as fd:
+                    raDenyList = fd.readlines()
+                    raDenyList = \
+                        list(map(lambda x: x.rstrip(), raDenyList))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
+        # get readahead add list path #
+        raAddList = []
+        if 'RAADDLIST' in SysMgr.environList:
+            # get list file #
+            try:
+                fname = os.path.abspath(
+                    SysMgr.environList['RAADDLIST'][0])
+
+                SysMgr.printInfo(
+                    "apply readahead add list from '%s'" % fname)
+
+                with open(fname, 'r') as fd:
+                    raAddList = fd.readlines()
+                    raAddList = \
+                        list(map(lambda x: x.rstrip(), raAddList))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
+        return raPath, raMin, raAllowList, raDenyList, raAddList
+
+
+
+    @staticmethod
     def mergeMapLine(string, procMap, onlyExec=False, saveAll=False):
         d = FileAnalyzer.parseMapLine(string)
         if not d:
@@ -16756,9 +17045,24 @@ class FileAnalyzer(object):
 
 
     def getFilePageMaps(self):
+        # pylint: disable=no-member
+
         pageSize = SysMgr.pageSize
         self.profSuccessCnt = long(0)
         self.profFailedCnt = long(0)
+
+        # get ctypes object #
+        if not SysMgr.guiderObj:
+            SysMgr.importPkgItems('ctypes')
+
+        # define readahead list #
+        pathConvList = {}
+        readaheadList = []
+        skipFiles = {}
+
+        # get readahead items #
+        raPath, raMin, raAllowList, raDenyList, raAddList = \
+            FileAnalyzer.getReadaheadItems()
 
         for fileName, val in self.fileData.items():
             # check exceptional file #
@@ -16807,25 +17111,26 @@ class FileAnalyzer(object):
                         fileList = {}
                         procList = dict(val['pids'].items())
 
-                        for fileIdx, fileDevid in self.inodeData[inode].items():
+                        for fileIdx, devid in self.inodeData[inode].items():
                             # this hard-lined file was already profiled #
-                            if devid == fileDevid:
-                                found = True
+                            if devid != devid:
+                                continue
 
-                                # add file into same file list #
-                                fileList[fileName] = True
-                                fileList[fileIdx] = True
+                            found = True
 
-                                # merge process list related to this file #
-                                procList = \
-                                    dict(procList.items() + \
-                                    self.fileData[fileIdx]['pids'].items())
+                            # add file into same file list #
+                            fileList[fileName] = True
+                            fileList[fileIdx] = True
 
-                                if self.fileData[fileIdx]['isRep']:
-                                    repFile = fileIdx
+                            # merge process list related to this file #
+                            procList.update(self.fileData[fileIdx]['pids'])
+
+                            if self.fileData[fileIdx]['isRep']:
+                                repFile = fileIdx
+
+                        self.inodeData[inode][fileName] = devid
 
                         if found:
-                            self.inodeData[inode][fileName] = devid
                             self.fileData[fileName]['isRep'] = False
                             hardLinkCnt = len(fileList)
 
@@ -16839,15 +17144,12 @@ class FileAnalyzer(object):
                             self.fileData[repFile]['hardLink'] = hardLinkCnt
 
                             if self.fileData[repFile]['linkList']:
-                                linkList = self.fileData[repFile]['linkList']
-                                self.fileData[repFile]['linkList'] = \
-                                    dict(linkList.items() + fileList.items())
+                                self.fileData[repFile]['linkList'].update(
+                                    fileList)
                             else:
                                 self.fileData[repFile]['linkList'] = fileList
 
                             continue
-                        else:
-                            self.inodeData[inode][fileName] = devid
                     else:
                         self.inodeData[inode] = dict(self.init_inodeData)
                         self.inodeData[inode][fileName] = devid
@@ -16887,17 +17189,14 @@ class FileAnalyzer(object):
 
             if SysMgr.guiderObj:
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
-                mm = SysMgr.guiderObj.mmap(0, size, 0, 2, fd, offset) # pylint: disable=no-member
+                mm = SysMgr.guiderObj.mmap(0, size, 0, 2, fd, offset)
 
                 # call mincore syscall by standard libc library #
-                pagemap = SysMgr.guiderObj.mincore(mm, size) # pylint: disable=no-member
+                pagemap = SysMgr.guiderObj.mincore(mm, size)
 
                 # unmap #
-                SysMgr.guiderObj.munmap(mm, size) # pylint: disable=no-member
+                SysMgr.guiderObj.munmap(mm, size)
             else:
-                # get ctypes object #
-                SysMgr.importPkgItems('ctypes')
-
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SysMgr.libcObj.mmap(
                     POINTER(c_char)(), size, 0, 2, fd, offset)
@@ -16923,7 +17222,7 @@ class FileAnalyzer(object):
                     if SysMgr.guiderObj:
                         val['fileMap'] = \
                             [ord(pagemap[i]) for i in \
-                            range(long(size / pageSize))]
+                                range(long(size / pageSize))]
                     else:
                         val['fileMap'] = \
                             [pagemap[i] for i in range(long(size / pageSize))]
@@ -16940,24 +17239,79 @@ class FileAnalyzer(object):
                     SysMgr.printWarn('fail to access %s' % fileName)
                     val['fileMap'] = None
                     self.profFailedCnt += 1
+
+                # add filemap info to readahead list #
+                if raPath:
+                    # check allow list #
+                    if raAllowList and \
+                        not UtilMgr.isValidStr(
+                            fileName, raAllowList, inc=False):
+                        skip = True
+                    # check deny list #
+                    elif raDenyList and \
+                        UtilMgr.isValidStr(
+                            fileName, raDenyList, inc=False):
+                        skip = True
+                    else:
+                        skip = False
+
+                    # check skip condition #
+                    if skip:
+                        skipFiles.setdefault(fileName, None)
+                        continue
+
+                    fileIdx = len(pathConvList)
+                    pathConvList.setdefault(fileName, [fileName, fileIdx])
+
+                    start = -1
+                    for idx, bit in enumerate(pagemap):
+                        if start == -1:
+                            if bit:
+                                start = idx
+                            else:
+                                continue
+
+                        # check contiguous chunk #
+                        if bit and idx != len(pagemap)-1:
+                            continue
+
+                        # add contiguous chunks to readahead list #
+                        offset = start * pageSize
+                        size = (idx - start + 1) * pageSize
+                        readaheadList.append([fileIdx, offset, size])
+
+                        start = -1
             else:
                 val['fd'].close()
                 val['fd'] = None
 
-        if self.fileData:
-            SysMgr.printGood(
-                'profiled a total of %s files' % \
-                    UtilMgr.convNum(self.profSuccessCnt))
-        else:
+        if not self.fileData:
             SysMgr.printErr('fail to profile files')
             sys.exit(0)
+
+        SysMgr.printGood(
+            'profiled a total of %s files' % \
+                UtilMgr.convNum(self.profSuccessCnt))
 
         if self.profFailedCnt > 0:
             SysMgr.printWarn(
                 'fail to open a total of %s files' % \
                     UtilMgr.convNum(self.profFailedCnt))
 
+        # print skip files #
+        for path in sorted(list(skipFiles.keys())):
+            SysMgr.printWarn(
+                "skipped adding '%s' to readahead list" % path)
 
+        # make readahead list file #
+        if raPath:
+            readaheadList, raSummary = \
+                FileAnalyzer.makeReadaheadFile(
+                    raPath, readaheadList, pathConvList, raMin, raAddList)
+
+            # print readahead list info #
+            FileAnalyzer.printReadaheadList(
+                readaheadList, raSummary, warn=True)
 
 
 
@@ -22525,6 +22879,16 @@ Examples:
 
     - report the analysis result on each intervals of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -i
+
+    - report the analysis result of on-memory files for all processes to ./guider.out and make the readahead list to readahead.list
+        # {0:1} {1:1} -o . -q RALIST
+        # {0:1} {1:1} -o . -q RALIST -v
+        # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
+        # {0:1} {1:1} -o . -q RALIST, RAMIN:4097
+        # {0:1} {1:1} -o . -q RALIST, RAMERGE
+        # {0:1} {1:1} -o . -q RALIST, RAALLOWLIST:allow.list
+        # {0:1} {1:1} -o . -q RALIST, RADENYLIST:deny.list
+        # {0:1} {1:1} -o . -q RALIST, RAADDLIST:add.list
                     '''.format(cmd, mode)
 
                 # report #
@@ -22587,7 +22951,7 @@ Examples:
 
     - report the analysis result for specific threads to ./guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
-        # {0:1} {1:1} -o . -q RALIST:readahead2.list
+        # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, CONVINODE:/data
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4097
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
@@ -24604,6 +24968,8 @@ Spec:
             - IDX for file index in file name list: 2 Bytes
             - OFFSET for file offset: 8 Bytes
             - SIZE for readahead size: 4 Bytes
+    - Caution
+        - The valid size for a readahead syscall is maximum about 1MB
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -36684,7 +37050,10 @@ Copyright:
 
                 for tid in sorted(tids.keys(), key=lambda e:long(e)):
                     comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
-                    SysMgr.printPipe('%s - %s(%s)' % (indentStr, comm, tid))
+                    cmdline = SysMgr.getCmdline(tid)
+                    if cmdline: cmdline = '<%s>' % cmdline
+                    SysMgr.printPipe(
+                        '%s - %s(%s) %s' % (indentStr, comm, tid, cmdline))
 
             SysMgr.printPipe('%s\n' % oneLine)
 
@@ -73786,98 +74155,9 @@ class TaskAnalyzer(object):
 
 
     def printFsInfo(self):
-        # get readahead list path #
-        if 'RALIST' in SysMgr.environList:
-            # set list file #
-            raPath = SysMgr.environList['RALIST'][0]
-            if raPath == 'SET':
-                raPath = 'readahead.list'
-
-            # convert to absolute path #
-            raPath = os.path.abspath(raPath)
-
-            # set inode scan flag #
-            if not 'CONVINODE' in SysMgr.environList:
-                SysMgr.environList['CONVINODE'] = ['SET']
-
-            # set minimum size #
-            raMin = 0
-            if 'RAMIN' in SysMgr.environList:
-                try:
-                    raMin = SysMgr.environList['RAMIN'][0]
-                    raMin = long(raMin)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr((
-                        "fail to set the minimum size to '%s'"
-                        "for readahead chunk") % raMin, True)
-        else:
-            raPath = None
-            raMin = 0
-
-        # get readahead allow list path #
-        raAllowList = []
-        if 'RAALLOWLIST' in SysMgr.environList:
-            # get list file #
-            try:
-                fname = os.path.abspath(
-                    SysMgr.environList['RAALLOWLIST'][0])
-
-                SysMgr.printInfo(
-                    "apply readahead target list from '%s'" % fname)
-
-                with open(fname, 'r') as fd:
-                    raAllowList = fd.readlines()
-                    raAllowList = \
-                        list(map(lambda x: x.rstrip(), raAllowList))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(fname)
-                sys.exit(0)
-
-        # get readahead deny list path #
-        raDenyList = []
-        if 'RADENYLIST' in SysMgr.environList:
-            # get list file #
-            try:
-                fname = os.path.abspath(
-                    SysMgr.environList['RADENYLIST'][0])
-
-                SysMgr.printInfo(
-                    "apply readahead exception list from '%s'" % fname)
-
-                with open(fname, 'r') as fd:
-                    raDenyList = fd.readlines()
-                    raDenyList = \
-                        list(map(lambda x: x.rstrip(), raDenyList))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(fname)
-                sys.exit(0)
-
-        # get readahead add list path #
-        raAddList = []
-        if 'RAADDLIST' in SysMgr.environList:
-            # get list file #
-            try:
-                fname = os.path.abspath(
-                    SysMgr.environList['RAADDLIST'][0])
-
-                SysMgr.printInfo(
-                    "apply readahead add list from '%s'" % fname)
-
-                with open(fname, 'r') as fd:
-                    raAddList = fd.readlines()
-                    raAddList = \
-                        list(map(lambda x: x.rstrip(), raAddList))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(fname)
-                sys.exit(0)
+        # get readahead items #
+        raPath, raMin, raAllowList, raDenyList, raAddList = \
+            FileAnalyzer.getReadaheadItems()
 
         # check fs data #
         if raAddList:
@@ -74174,6 +74454,7 @@ class TaskAnalyzer(object):
                 # add to readahead list #
                 readaheadList.append([idx, offset, size])
 
+        # print no item result #
         if not self.fsData[0]:
             SysMgr.printPipe('\tNone\n')
         SysMgr.printPipe(oneLine)
@@ -74183,178 +74464,13 @@ class TaskAnalyzer(object):
             SysMgr.printWarn(
                 "skipped adding '%s' to readahead list" % path)
 
-        # apply add list #
-        for item in raAddList:
-            # parse file info #
-            finfo = item.split(':')
-            try:
-                if len(finfo) == 1:
-                    item = finfo[0]
-                    offset = 0
-                    size = 0
-                elif len(finfo) == 2:
-                    item = finfo[0]
-                    offset = 0
-                    if finfo[1]:
-                        size = UtilMgr.convUnit2Size(finfo[1])
-                    else:
-                        size = 0
-                else:
-                    item = finfo[0]
-                    offset = UtilMgr.convUnit2Size(finfo[1])
-                    if finfo[2]:
-                        size = UtilMgr.convUnit2Size(finfo[2])
-                    else:
-                        size = 0
-            except SystemExit:
-                sys.exit(0)
-            except:
-                fpath = SysMgr.environList['RAADDLIST'][0]
-                SysMgr.printErr(
-                    "fail to apply readahead add list from '%s'" % fpath, True)
-                sys.exit(0)
+        # make readahead list file #
+        readaheadList, raSummary = \
+            FileAnalyzer.makeReadaheadFile(
+                raPath, readaheadList, pathConvList, raMin, raAddList)
 
-            # get full path #
-            fpath = os.path.abspath(item)
-            if not os.path.exists(fpath):
-                SysMgr.printWarn((
-                    "skipped adding '%s' to readahead list "
-                    "because not exists") % fpath, True)
-                continue
-
-            # get file size #
-            fsize = UtilMgr.getFileSize(fpath, False)
-            fsizeStr = UtilMgr.getFileSize(fpath)
-            finfo = '%s[%s]' % (fpath, fsizeStr)
-
-            if size == 0:
-                size = fsize
-
-            if finfo in pathConvList:
-                idx = pathConvList[finfo][1]
-            else:
-                idx = len(pathConvList)
-                pathConvList.setdefault(finfo, [fpath, idx])
-
-            readaheadList.append([idx, offset, size])
-
-        # check readahead list #
-        if not raPath:
-            return
-        elif not readaheadList:
-            SysMgr.printWarn('no readahead item', True)
-            return
-
-        # backup exist readahead list #
-        SysMgr.backupFile(raPath)
-
-        # create a new file for readahead list #
-        try:
-            raFd = open(raPath, 'wb')
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(raPath)
-            sys.exit(0)
-
-        # merge readahead chunks #
-        if 'RAMERGE' in  SysMgr.environList:
-            SysMgr.printInfo(
-                'merge continuous readahead chunks')
-
-            prevChunk = None
-            origRaList = readaheadList
-            readaheadList = []
-            for chunk in origRaList:
-                fid, offset, size = chunk
-                if not prevChunk:
-                    prevChunk = [fid, offset, size]
-                    readaheadList.append(prevChunk)
-                    continue
-
-                # merge chunks #
-                if fid == prevChunk[0] and \
-                    offset == prevChunk[1] + prevChunk[2]:
-                    prevChunk[2] += size
-                    readaheadList[-1] = prevChunk
-                    continue
-
-                # add original chunk to list #
-                prevChunk = [fid, offset, size]
-                readaheadList.append(prevChunk)
-
-        # write readahead list to file #
-        try:
-            raSummary = {}
-
-            # encode file list #
-            fileList = [value[0] for path, value in sorted(
-                    pathConvList.items(), key=lambda e: e[1][1])]
-            fileStr = '#'.join(fileList)
-            fileStr = fileStr.encode()
-
-            # write file list size #
-            raFd.write(struct.pack('I', len(fileStr)))
-
-            # write file list #
-            raFd.write(fileStr)
-
-            # write readahead chunks #
-            for chunk in readaheadList:
-                # skip chunks lesser than minimum size #
-                if raMin > chunk[2]:
-                    continue
-
-                fid, offset, size = chunk
-
-                # write chunks #
-                raFd.write(struct.pack('HQI', fid, offset, size))
-
-                # save readahead stat #
-                fname = fileList[fid]
-                raSummary.setdefault(fname, dict({'count': 0, 'size': 0}))
-                raSummary[fname]['count'] += 1
-                raSummary[fname]['size'] += size
-
-            raFd.close()
-
-            # print file size #
-            fsize = UtilMgr.getFileSize(raFd.name)
-            if fsize and fsize != '0':
-                fsize = ' [%s]' % fsize
-            else:
-                fsize = ''
-
-            SysMgr.printInfo(
-                "saved the readahead list to '%s'%s successfuly" % \
-                    (raFd.name, fsize))
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr(
-                "fail to save the readahead list to '%s'" % raFd.name, True)
-
-        convNum = UtilMgr.convNum
-
-        # print readahead stat #
-        SysMgr.printPipe(
-            '\n[Thread Readahead Info] (NrFiles: %s) (NrChunks: %s)' % \
-                (convNum(len(raSummary)), convNum(len(readaheadList))))
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe(
-            "{0:>12} {1:>12} {2:>1}".format('Size', 'Count', 'Path'))
-        SysMgr.printPipe(twoLine)
-
-        for fname, stat in sorted(raSummary.items(),
-            key=lambda e: e[1]['size'], reverse=True):
-            SysMgr.printPipe(
-                "{0:>12} {1:>12} {2:>1}".format(
-                    UtilMgr.convSize2Unit(stat['size']),
-                    convNum(stat['count']), fname))
-
-        if not raSummary:
-            SysMgr.printPipe('\tNone\n')
-        SysMgr.printPipe(oneLine)
+        # print readahead list info #
+        FileAnalyzer.printReadaheadList(readaheadList, raSummary)
 
 
 
