@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210703"
+__revision__ = "210704"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15678,6 +15678,7 @@ class FileAnalyzer(object):
         self.fileData = {}
         self.inodeData = {}
         self.target = ['']
+        self.readaheadStr = ''
 
         self.procList = {}
         self.fileList = {}
@@ -16336,36 +16337,35 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def printReadaheadList(readaheadList, raSummary, warn=False):
+    def getReadaheadListStr(readaheadList, raSummary):
         if not readaheadList:
             SysMgr.printWarn('no readahead item', True)
-            return
+            return ''
 
-        # set functions #
+        # define variables #
         convNum = UtilMgr.convNum
-        if warn:
-            printFunc = SysMgr.printWarn
-        else:
-            printFunc = SysMgr.printPipe
+        printStr = ''
 
         # print readahead stat #
-        printFunc(
-            '\n[Thread Readahead Info] (NrFiles: %s) (NrChunks: %s)\n%s' % \
-                (convNum(len(raSummary)), convNum(len(readaheadList)),
-                    twoLine))
-        printFunc(
-            "{0:>12} {1:>12} {2:>1}\n{3:1}".format(
+        printStr += \
+            '\n[Thread Readahead Info] (NrFiles: %s) (NrCalls: %s)\n%s\n' % \
+                (convNum(len(raSummary)), convNum(len(readaheadList)), twoLine)
+        printStr += (
+            "{0:>12} {1:>12} {2:>1}\n{3:1}\n".format(
             'Size', 'Count', 'Path', twoLine))
 
         for fname, stat in sorted(raSummary.items(),
             key=lambda e: e[1]['size'], reverse=True):
-            printFunc("{0:>12} {1:>12} {2:>1}".format(
+            printStr += ("{0:>12} {1:>12} {2:>1}\n".format(
                     UtilMgr.convSize2Unit(stat['size']),
                     convNum(stat['count']), fname))
 
         if not raSummary:
-            printFunc('\tNone\n')
-        printFunc(oneLine)
+            printStr += '\tNone\n'
+
+        printStr += '%s\n' % oneLine
+
+        return printStr
 
 
 
@@ -16848,6 +16848,9 @@ class FileAnalyzer(object):
             SysMgr.printPipe((' ' * indentLength) + '|' + pidInfo)
             SysMgr.printPipe(oneLine)
 
+        if self.readaheadStr:
+            SysMgr.printPipe(self.readaheadStr)
+
         SysMgr.printPipe('\n\n\n')
 
 
@@ -17310,8 +17313,8 @@ class FileAnalyzer(object):
                     raPath, readaheadList, pathConvList, raMin, raAddList)
 
             # print readahead list info #
-            FileAnalyzer.printReadaheadList(
-                readaheadList, raSummary, warn=True)
+            self.readaheadStr = FileAnalyzer.getReadaheadListStr(
+                readaheadList, raSummary)
 
 
 
@@ -22882,7 +22885,6 @@ Examples:
 
     - report the analysis result of on-memory files for all processes to ./guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
-        # {0:1} {1:1} -o . -q RALIST -v
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4097
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
@@ -28989,6 +28991,7 @@ Copyright:
     def saveTraceData(lines, outputFile=None):
         if not outputFile:
             outputFile = SysMgr.outputFile
+        outputFile = os.path.abspath(outputFile)
 
         # backup file already exists #
         SysMgr.backupFile(outputFile)
@@ -30277,6 +30280,8 @@ Copyright:
         # check output path #
         if not SysMgr.inputFile:
             return
+
+        SysMgr.inputFile = os.path.abspath(SysMgr.inputFile)
 
         # append suffix to output file #
         if SysMgr.fileSuffix:
@@ -74470,7 +74475,8 @@ class TaskAnalyzer(object):
                 raPath, readaheadList, pathConvList, raMin, raAddList)
 
         # print readahead list info #
-        FileAnalyzer.printReadaheadList(readaheadList, raSummary)
+        SysMgr.printPipe(
+            FileAnalyzer.getReadaheadListStr(readaheadList, raSummary))
 
 
 
