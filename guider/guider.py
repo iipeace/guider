@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210704"
+__revision__ = "210705"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24962,7 +24962,7 @@ Options:
     -v                          verbose
 
 Spec:
-    - The specification for readahead list
+    - The format for readahead list
         1. The size for file name list: 4 Bytes
         2. The string for File name list: SIZE bytes
             - File names are splitted by '#'
@@ -31105,7 +31105,8 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("wrong path '%s'" % value, True)
+            SysMgr.printErr(
+                "wrong path '%s'" % os.path.abspath(value), True)
             sys.exit(0)
 
         # remove double slashs #
@@ -33762,6 +33763,7 @@ Copyright:
 
         # readahead chunks #
         while 1:
+            # split by chunk size #
             if remain < chunk:
                 csize = remain
             else:
@@ -33776,6 +33778,7 @@ Copyright:
             if csize < chunk:
                 break
 
+            # update offset and remain size #
             coffset += chunk
             remain -= chunk
 
@@ -33887,10 +33890,23 @@ Copyright:
                 SysMgr.printWarn(
                     "fail to readahead chunk", True, True)
 
-        # print results #
+        # get elapsed time #
         elapsed = time.time() - startTime
-        logStr = "finished readahead a total of %s data for %.3f sec" % \
-            (UtilMgr.convSize2Unit(totalSize), elapsed)
+
+        # get CPU usage #
+        try:
+            dobj = Debugger(pid=os.getpid(), attach=False)
+            dobj.initValues()
+            dobj.getCpuUsage()
+            cpu = 'using CPU %s%% ' % dobj.prevCpuStat[0]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            cpu = ''
+
+        # print results #
+        logStr = "finished readahead a total of %s data %sfor %.3f sec" % \
+            (UtilMgr.convSize2Unit(totalSize), cpu, elapsed)
         SysMgr.printInfo(logStr)
         LogMgr.doLogKmsg(logStr)
 
@@ -74463,6 +74479,9 @@ class TaskAnalyzer(object):
         if not self.fsData[0]:
             SysMgr.printPipe('\tNone\n')
         SysMgr.printPipe(oneLine)
+
+        if not raPath:
+            return
 
         # print skip files #
         for path in sorted(list(skipFiles.keys())):
