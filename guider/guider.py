@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210705"
+__revision__ = "210706"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16382,30 +16382,24 @@ class FileAnalyzer(object):
             # parse file info #
             finfo = item.split(':')
             try:
+                item = finfo[0]
+                offset = size = 0
+
                 if len(finfo) == 1:
-                    item = finfo[0]
-                    offset = 0
-                    size = 0
+                    pass
                 elif len(finfo) == 2:
-                    item = finfo[0]
-                    offset = 0
                     if finfo[1]:
                         size = UtilMgr.convUnit2Size(finfo[1])
-                    else:
-                        size = 0
                 else:
-                    item = finfo[0]
                     offset = UtilMgr.convUnit2Size(finfo[1])
                     if finfo[2]:
                         size = UtilMgr.convUnit2Size(finfo[2])
-                    else:
-                        size = 0
             except SystemExit:
                 sys.exit(0)
             except:
-                fpath = SysMgr.environList['RAADDLIST'][0]
+                fname = SysMgr.environList['RAADDLIST'][0]
                 SysMgr.printErr(
-                    "fail to apply readahead add list from '%s'" % fpath, True)
+                    "fail to apply readahead add list from '%s'" % fname, True)
                 sys.exit(0)
 
             # get full path #
@@ -16418,18 +16412,21 @@ class FileAnalyzer(object):
 
             # get file size #
             fsize = UtilMgr.getFileSize(fpath, False)
-            fsizeStr = UtilMgr.getFileSize(fpath)
+            fsizeStr = UtilMgr.convSize2Unit(fsize)
             finfo = '%s[%s]' % (fpath, fsizeStr)
 
+            # set full size #
             if size == 0:
                 size = fsize
 
+            # get path index #
             if finfo in pathConvList:
                 idx = pathConvList[finfo][1]
             else:
                 idx = len(pathConvList)
                 pathConvList.setdefault(finfo, [fpath, idx])
 
+            # add readahead list #
             readaheadList.append([idx, offset, size])
 
         # backup exist readahead list #
@@ -16540,22 +16537,21 @@ class FileAnalyzer(object):
             # set inode scan flag #
             if not 'CONVINODE' in SysMgr.environList:
                 SysMgr.environList['CONVINODE'] = ['SET']
-
-            # set minimum size #
-            raMin = 0
-            if 'RAMIN' in SysMgr.environList:
-                try:
-                    raMin = SysMgr.environList['RAMIN'][0]
-                    raMin = long(raMin)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr((
-                        "fail to set the minimum size to '%s'"
-                        "for readahead chunk") % raMin, True)
         else:
             raPath = None
-            raMin = 0
+
+        # set minimum size #
+        raMin = 0
+        if 'RAMIN' in SysMgr.environList:
+            try:
+                raMin = SysMgr.environList['RAMIN'][0]
+                raMin = long(raMin)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr((
+                    "fail to set the minimum size to '%s'"
+                    "for readahead chunk") % raMin, True)
 
         # get readahead allow list path #
         raAllowList = []
@@ -24970,8 +24966,19 @@ Spec:
             - IDX for file index in file name list: 2 Bytes
             - OFFSET for file offset: 8 Bytes
             - SIZE for readahead size: 4 Bytes
+
+    - The format for filter list
+        1. the entire file
+            - /data/test
+            - /data/test*
+            - /data/*test*
+        2. the specific area for the file
+            - /data/test:4096:100M
+            - /data/test:4096:4096
+
     - Caution
         - The valid size for a readahead syscall is maximum about 1MB
+        - Readahead chunks larger than 1MB are split into multiple chunks in Guider automatically
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -24981,6 +24988,12 @@ Examples:
 
     - Initiate file readahead into page cache after setting the scheduling priority
         # {0:1} {1:1} -Y "c:10, idle:1:0"
+
+    - Initiate file readahead into page cache using specific lists
+        # {0:1} {1:1} readahead.list -q RAMIN:4097
+        # {0:1} {1:1} readahead.list -q RAALLOWLIST:allow.list
+        # {0:1} {1:1} readahead.list -q RADENYLIST:deny.list
+        # {0:1} {1:1} readahead.list -q RAADDLIST:add.list
                     '''.format(cmd, mode)
 
                 # sym2addr#
@@ -33808,6 +33821,10 @@ Copyright:
         if SysMgr.ioprio is None:
             SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE')
 
+        # get readahead items #
+        raPath, raMin, raAllowList, raDenyList, raAddList = \
+            FileAnalyzer.getReadaheadItems()
+
         # get absolute path #
         path = os.path.abspath(path)
         SysMgr.printInfo(
@@ -33849,6 +33866,20 @@ Copyright:
             SysMgr.printErr(
                 'fail to get name list for readahead', True)
 
+        # check filter #
+        raAllowIndexList = []
+        raDenyIndexList = []
+        if raAllowList or raDenyList:
+            for idx, path in enumerate(nameList):
+                # check allow list #
+                if raAllowList and \
+                    not UtilMgr.isValidStr(path, raAllowList, inc=False):
+                    raAllowIndexList.append(idx)
+                # check deny list #
+                elif raDenyList and \
+                    UtilMgr.isValidStr(path, raDenyList, inc=False):
+                    raDenyIndexList.append(idx)
+
         # do readahead #
         totalSize = 0
         failFileList = {}
@@ -33867,6 +33898,12 @@ Copyright:
 
                 # check fail list #
                 if fid in failFileList:
+                    continue
+                elif fid in raDenyIndexList:
+                    continue
+                elif raAllowList and not index in raAllowList:
+                    continue
+                elif raMin > size:
                     continue
 
                 # get file name #
@@ -33889,6 +33926,44 @@ Copyright:
             except:
                 SysMgr.printWarn(
                     "fail to readahead chunk", True, True)
+
+        # readahead from add list #
+        for item in raAddList:
+            # parse file info #
+            finfo = item.split(':')
+            try:
+                item = finfo[0]
+                offset = size = 0
+
+                if len(finfo) == 1:
+                    pass
+                elif len(finfo) == 2:
+                    if finfo[1]:
+                        size = UtilMgr.convUnit2Size(finfo[1])
+                else:
+                    offset = UtilMgr.convUnit2Size(finfo[1])
+                    if finfo[2]:
+                        size = UtilMgr.convUnit2Size(finfo[2])
+
+                # set full size #
+                if size == 0:
+                    size = UtilMgr.getFileSize(item, False)
+
+                # print workload #
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn(
+                        'readahead %s|%s|%s' % (item, offset, size))
+
+                # readahead a chunk #
+                ret = SysMgr.readahead(item, offset, size)
+
+                totalSize += size
+            except SystemExit:
+                sys.exit(0)
+            except:
+                fname = SysMgr.environList['RAADDLIST'][0]
+                SysMgr.printErr(
+                    "fail to readahead '%s' from '%s'" % (item, fname), True)
 
         # get elapsed time #
         elapsed = time.time() - startTime
