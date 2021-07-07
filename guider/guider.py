@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210706"
+__revision__ = "210707"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18244,6 +18244,7 @@ class SysMgr(object):
     demangleFunc = None
     geterrnoFunc = None
     readaheadFunc = None
+    readaheadMaxSize = 1048576 # 1MB #
     matplotlibVersion = long(0)
     matplotlibDpi = 500
     sigsetObj = None
@@ -22882,7 +22883,7 @@ Examples:
     - report the analysis result of on-memory files for all processes to ./guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
-        # {0:1} {1:1} -o . -q RALIST, RAMIN:4097
+        # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
         # {0:1} {1:1} -o . -q RALIST, RAALLOWLIST:allow.list
         # {0:1} {1:1} -o . -q RALIST, RADENYLIST:deny.list
@@ -22951,7 +22952,7 @@ Examples:
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, CONVINODE:/data
-        # {0:1} {1:1} -o . -q RALIST, RAMIN:4097
+        # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
         # {0:1} {1:1} -o . -q RALIST, TRIM:2:
         # {0:1} {1:1} -o . -q RALIST, RAALLOWLIST:allow.list
@@ -24990,7 +24991,8 @@ Examples:
         # {0:1} {1:1} -Y "c:10, idle:1:0"
 
     - Initiate file readahead into page cache using specific lists
-        # {0:1} {1:1} readahead.list -q RAMIN:4097
+        # {0:1} {1:1} readahead.list -q RAMIN:4096
+        # {0:1} {1:1} readahead.list -q RAMAX:1048576
         # {0:1} {1:1} readahead.list -q RAALLOWLIST:allow.list
         # {0:1} {1:1} readahead.list -q RADENYLIST:deny.list
         # {0:1} {1:1} readahead.list -q RAADDLIST:add.list
@@ -33726,7 +33728,7 @@ Copyright:
 
 
     @staticmethod
-    def readahead(path, offset, size=0, closeFd=False):
+    def readahead(path, offset, size=0, closeFd=False, raMax=0):
         # pylint: disable=not-callable
         if not SysMgr.readaheadFunc:
             # load libc #
@@ -33769,9 +33771,12 @@ Copyright:
                     "fail to get file size for '%s'" % path, True)
                 return True
 
-        # split readahead chunks by 1MB #
+        # split readahead chunks #
+        if raMax:
+            chunk = raMax
+        else:
+            chunk = SysMgr.readaheadMaxSize
         remain = size
-        chunk = 1 << 20
         coffset = offset
 
         # readahead chunks #
@@ -33824,6 +33829,19 @@ Copyright:
         # get readahead items #
         raPath, raMin, raAllowList, raDenyList, raAddList = \
             FileAnalyzer.getReadaheadItems()
+
+        # get readahead max size #
+        raMax = SysMgr.readaheadMaxSize
+        if 'RAMAX' in SysMgr.environList:
+            try:
+                raMax = SysMgr.environList['RAMAX'][0]
+                raMax = long(raMax)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr((
+                    "fail to set the maximum size to '%s'"
+                    "for readahead chunk") % raMax, True)
 
         # get absolute path #
         path = os.path.abspath(path)
@@ -33912,10 +33930,10 @@ Copyright:
                 # print workload #
                 if SysMgr.warnEnable:
                     SysMgr.printWarn(
-                        'readahead %s|%s|%s' % (fname, offset, size))
+                        'try to readahead %s|%s|%s' % (fname, offset, size))
 
                 # readahead a chunk #
-                ret = SysMgr.readahead(fname, offset, size)
+                ret = SysMgr.readahead(fname, offset, size, raMax=raMax)
                 if not ret:
                     failFileList[fid] = 0
                     continue
@@ -33925,7 +33943,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printWarn(
-                    "fail to readahead chunk", True, True)
+                    "fail to readahead", True, True)
 
         # readahead from add list #
         for item in raAddList:
@@ -33952,10 +33970,10 @@ Copyright:
                 # print workload #
                 if SysMgr.warnEnable:
                     SysMgr.printWarn(
-                        'readahead %s|%s|%s' % (item, offset, size))
+                        'try to readahead %s|%s|%s' % (item, offset, size))
 
                 # readahead a chunk #
-                ret = SysMgr.readahead(item, offset, size)
+                ret = SysMgr.readahead(item, offset, size, raMax=raMax)
 
                 totalSize += size
             except SystemExit:
@@ -57097,7 +57115,7 @@ typedef struct {
 
             # print to stdout #
             if SysMgr.printStreamEnable:
-                sys.stdout.write(exitStr)
+                sys.stdout.write('%s\n' % exitStr)
         else:
             SysMgr.printPipe(exitStr, flush=True)
 
@@ -58039,8 +58057,8 @@ typedef struct {
             # convert args to string ##
             if args:
                 argText = ', '.join(\
-                    hex(arg).rstrip('L') if isinstance(arg, (int, long)) else str(arg) \
-                        for arg in args)
+                    hex(arg).rstrip('L') if isinstance(arg, (int, long)) \
+                    else str(arg) for arg in args)
             else:
                 argText = ', '.join(str(arg[2]) for arg in self.args)
 
