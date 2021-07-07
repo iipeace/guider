@@ -27759,8 +27759,10 @@ Copyright:
         else:
             printFunc = SysMgr.printErr
 
+        comm = SysMgr.getComm(tid)
+
         printFunc(
-            "fail to send %s to thread %s" % (signal, tid), reason=True)
+            "fail to send %s to %s(%s)" % (signal, comm, tid), reason=True)
 
 
 
@@ -31833,7 +31835,7 @@ Copyright:
         elif option == 'z':
             SysMgr.checkOptVal(option, value)
             SysMgr.parseAffinityOption(
-                UtilMgr.cleanItem(value.split(',')))
+                UtilMgr.cleanItem(value.split(',')), launch=True)
 
         elif option == 'A':
             SysMgr.checkOptVal(option, value)
@@ -52995,14 +52997,8 @@ typedef struct {
         if not pid:
             pid = self.pid
 
-        if self.checkPid(pid) < 0:
-            SysMgr.printWarn(
-                'fail to stop %s(%s) because of wrong pid' % \
-                    (self.comm, pid))
-            return -1
-
-        # send signal to a thread #
         try:
+            # thread #
             if thread:
                 ret = SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
                 if not check:
@@ -53013,17 +53009,13 @@ typedef struct {
                     SysMgr.waitChild(self.pid)
 
                 return ret
+            # process #
+            else:
+                os.kill(pid, signal.SIGSTOP)
+
+                return 0
         except SystemExit:
             sys.exit(0)
-        except:
-            SysMgr.printWarn(
-                "fail to stop %s(%s)" % (self.comm, pid), reason=True)
-            return -1
-
-        # send signal to a process #
-        try:
-            os.kill(pid, signal.SIGSTOP)
-            return 0
         except:
             SysMgr.printSigError(pid, 'SIGSTOP')
             return -1
@@ -53681,12 +53673,6 @@ typedef struct {
     def cont(self, pid=None, check=False, sig=0):
         if not pid:
             pid = self.pid
-
-        if self.checkPid(pid) < 0:
-            SysMgr.printWarn(
-                'fail to continue %s(%s) because of wrong pid' % \
-                    (self.comm, pid))
-            return -1
 
         # check target is running #
         try:
@@ -57517,6 +57503,7 @@ typedef struct {
         lastAddr = None
         lastName = None
         lastFile = None
+
         while 1:
             # read PyFrameObject #
             f_back, f_lineno, f_code, co_name, co_filename = \
@@ -58866,7 +58853,9 @@ typedef struct {
                 dobj.updateBpList()
 
         # continue target #
-        if dobj.mode != 'syscall' and dobj.isStopped():
+        if dobj.mode != 'syscall' and \
+            dobj.mode != 'signal' and \
+            dobj.isStopped():
             if dobj.cont(check=True):
                 sys.exit(0)
 
