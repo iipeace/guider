@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210707"
+__revision__ = "210709"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -420,8 +420,8 @@ class ConfigMgr(object):
         "MNT_FORCE": 0x00000001,       # Attempt to forcibily umount
         "MNT_DETACH": 0x00000002,      # Just detach from the tree
         "MNT_EXPIRE": 0x00000004,      # Mark for expiry
-        "UMOUNT_NOFOLLOW": 0x00000008, # Don't follow symlink on umount
-        "UMOUNT_UNUSED": 0x80000000,   # Flag guaranteed to be unused
+        "MNT_NOFOLLOW": 0x00000008,    # Don't follow symlink on umount
+        "MNT_UNUSED": 0x80000000,      # Flag guaranteed to be unused
     }
     UMOUNT_TYPE_REVERSE = {}
 
@@ -7947,7 +7947,7 @@ class Ext4Analyzer(object):
             pass
 
         class MagicError(Ext4Error):
-            # a structures magic value is wrong and ignore_magic is False
+            # a structures magic value is wrong and ignoreMagic is False
             pass
 
 
@@ -8395,51 +8395,51 @@ class Ext4Analyzer(object):
 
         class MappingEntry:
             """
-            Helper class: This class maps block_count file blocks
-            indexed by file_block_idx to the associated disk blocks indexed
-            by disk_block_idx.
+            Helper class: This class maps blkCnt file blocks
+            indexed by fileBlkIdx to the associated disk blocks indexed
+            by diskBlkIdx.
             """
-            def __init__(self, file_block_idx, disk_block_idx, block_count=1):
+            def __init__(self, fileBlkIdx, diskBlkIdx, blkCnt=1):
                 """
-                Initialize a MappingEntry instance with given file_block_idx,
-                disk_block_idx and block_count.
+                Initialize a MappingEntry instance with given fileBlkIdx,
+                diskBlkIdx and blkCnt.
                 """
-                self.file_block_idx = file_block_idx
-                self.disk_block_idx = disk_block_idx
-                self.block_count = block_count
+                self.fileBlkIdx = fileBlkIdx
+                self.diskBlkIdx = diskBlkIdx
+                self.blkCnt = blkCnt
 
             def __iter__(self):
                 """
                 Can be used to convert an MappingEntry into a tuple
-                (file_block_idx, disk_block_idx, block_count).
+                (fileBlkIdx, diskBlkIdx, blkCnt).
                 """
-                yield self.file_block_idx
-                yield self.disk_block_idx
-                yield self.block_count
+                yield self.fileBlkIdx
+                yield self.diskBlkIdx
+                yield self.blkCnt
 
             def __repr__(self):
                 return ("%s(%s, %s, %s)" % \
-                    (type(self).__name__, self.file_block_idx,
-                        self.disk_block_idx, self.block_count))
+                    (type(self).__name__, self.fileBlkIdx,
+                        self.diskBlkIdx, self.blkCnt))
 
             def copy(self):
                 return MappingEntry(
-                    self.file_block_idx, self.disk_block_idx, self.block_count)
+                    self.fileBlkIdx, self.diskBlkIdx, self.blkCnt)
 
             def create_mapping(*entries):
                 # pylint: disable=no-method-argument
                 """
                 Converts a list of 2-tuples
-                (disk_block_idx, block_count) into a list of MappingEntry instances
+                (diskBlkIdx, blkCnt) into a list of MappingEntry instances
                 """
-                file_block_idx = 0
+                fileBlkIdx = 0
                 result = [None] * len(entries)
 
                 for i, entry in enumerate(entries):
-                    disk_block_idx, block_count = entry
+                    diskBlkIdx, blkCnt = entry
                     result[i] = MappingEntry(
-                        file_block_idx, disk_block_idx, block_count)
-                    file_block_idx += block_count
+                        fileBlkIdx, diskBlkIdx, blkCnt)
+                    fileBlkIdx += blkCnt
 
                 return result
 
@@ -8450,17 +8450,17 @@ class Ext4Analyzer(object):
                 Sorts and stiches together a list of MappingEntry instances
                 """
                 entries = list(entries)
-                entries.sort(key = lambda entry: entry.file_block_idx)
+                entries.sort(key = lambda entry: entry.fileBlkIdx)
 
                 idx = 0
                 while idx < len(entries):
                     while (idx + 1 < len(entries)) and \
-                        (entries[idx].file_block_idx + entries[idx].block_count == \
-                            entries[idx + 1].file_block_idx) and \
-                        (entries[idx].disk_block_idx + entries[idx].block_count == \
-                            entries[idx + 1].disk_block_idx):
+                        (entries[idx].fileBlkIdx + entries[idx].blkCnt == \
+                            entries[idx + 1].fileBlkIdx) and \
+                        (entries[idx].diskBlkIdx + entries[idx].blkCnt == \
+                            entries[idx + 1].diskBlkIdx):
                         tmp = entries.pop(idx + 1)
-                        entries[idx].block_count += tmp.block_count
+                        entries[idx].blkCnt += tmp.blkCnt
 
                     idx += 1
 
@@ -8474,16 +8474,16 @@ class Ext4Analyzer(object):
             ROOT_INODE = 2
 
             def __init__(
-                self, stream, offset=0, ignore_flags=False, ignore_magic=False):
+                self, stream, offset=0, ignoreFlag=False, ignoreMagic=False):
                 """
                 Initializes a new ext4 reader at a given offset in stream.
-                If ignore_magic is True, no exception will be thrown,
+                If ignoreMagic is True, no exception will be thrown,
                 when a structure with wrong magic number is found.
-                Analogously passing True to ignore_flags suppresses Exception
+                Analogously passing True to ignoreFlag suppresses Exception
                 caused by wrong flags.
                 """
-                self.ignore_flags = ignore_flags
-                self.ignore_magic = ignore_magic
+                self.ignoreFlag = ignoreFlag
+                self.ignoreMagic = ignoreMagic
                 self.offset = offset
                 # Initial value needed for Volume.read_struct
                 self.platform64 = True
@@ -8495,7 +8495,7 @@ class Ext4Analyzer(object):
                     (self.superblock.s_feature_incompat & \
                         ext4_superblock.INCOMPAT_64BIT) != 0
 
-                if not ignore_magic and self.superblock.s_magic != 0xEF53:
+                if not ignoreMagic and self.superblock.s_magic != 0xEF53:
                     raise MagicError((
                         "Invalid magic value in superblock: "
                         "0x%04X (expected 0xEF53)") % \
@@ -8514,12 +8514,14 @@ class Ext4Analyzer(object):
                         group_desc_table_offset + \
                         group_desc_idx * self.superblock.s_desc_size
                     self.group_descriptors[group_desc_idx] = \
-                        self.read_struct(ext4_group_descriptor, group_desc_offset)
+                        self.read_struct(
+                            ext4_group_descriptor, group_desc_offset)
 
             def __repr__(self):
-                return ("%s(volume_name = %s, uuid = %s, last_mounted = %s)" % \
-                    (type(self).__name__, self.superblock.s_volume_name,
-                        self.uuid, self.superblock.s_last_mounted))
+                return (
+                    "%s(volume_name = %s, uuid = %s, last_mounted = %s)" % \
+                        (type(self).__name__, self.superblock.s_volume_name,
+                            self.uuid, self.superblock.s_last_mounted))
 
             @property
             def block_size(self):
@@ -8685,7 +8687,7 @@ class Ext4Analyzer(object):
                         xattr_inode = self.volume.get_inode(
                             xattr_entry.e_value_inum)
 
-                        if not self.volume.ignore_flags and \
+                        if not self.volume.ignoreFlag and \
                             (xattr_inode.inode.i_flags & \
                                 ext4_inode.EXT4_EA_INODE_FL) != 0:
                             raise Ext4Error((
@@ -8734,7 +8736,7 @@ class Ext4Analyzer(object):
                 decode_name = None
 
                 for i, part in enumerate(relative_path):
-                    if not self.volume.ignore_flags and \
+                    if not self.volume.ignoreFlag and \
                         not current_inode.is_dir:
                         current_path = "/".join(relative_path[:i])
                         raise Ext4Error(
@@ -8852,7 +8854,7 @@ class Ext4Analyzer(object):
                     #decode_name = lambda raw: raw.decode("utf8")
                     decode_name = lambda raw: raw.decode("latin-1")
 
-                if not self.volume.ignore_flags and not self.is_dir:
+                if not self.volume.ignoreFlag and not self.is_dir:
                     raise Ext4Error(
                         "Inode (%d) is not a directory (%s)" % \
                             (self.inode_idx, path))
@@ -8897,7 +8899,7 @@ class Ext4Analyzer(object):
                         header = self.volume.read_struct(
                             ext4_extent_header, header_offset)
 
-                        if not self.volume.ignore_magic and \
+                        if not self.volume.ignoreMagic and \
                             header.eh_magic != 0xF30A:
                             raise MagicError((
                                 "Invalid magic value in extent header at "
@@ -8984,7 +8986,7 @@ class Ext4Analyzer(object):
 
                     xattrs_header = \
                         ext4_xattr_header.from_buffer_copy(xattrs_block)
-                    if not self.volume.ignore_magic and \
+                    if not self.volume.ignoreMagic and \
                         xattrs_header.h_magic != 0xEA020000:
                         raise MagicError((
                             "Invalid magic value in xattrs block header at "
@@ -9022,7 +9024,7 @@ class Ext4Analyzer(object):
                 """
                 Initializes a new block reader on the specified volume.
                 mapping must be a list of MappingEntry instances. If
-                you prefer a way to use 2-tuples (disk_block_idx, block_count)
+                you prefer a way to use 2-tuples (diskBlkIdx, blkCnt)
                 with inferred file_block_index entries, see
                 MappingEntry.create_mapping.
                 """
@@ -9041,22 +9043,22 @@ class Ext4Analyzer(object):
                     (type(self).__name__, self.byte_size,
                         self.block_map, self.volume.uuid))
 
-            def get_block_mapping(self, file_block_idx):
+            def get_block_mapping(self, fileBlkIdx):
                 """
                 Returns the disk block index of the file block specified
-                by file_block_idx.
+                by fileBlkIdx.
                 """
-                disk_block_idx = None
+                diskBlkIdx = None
 
                 # Find disk block
                 for entry in self.block_map:
-                    if entry.file_block_idx <= file_block_idx < \
-                        entry.file_block_idx + entry.block_count:
-                        block_diff = file_block_idx - entry.file_block_idx
-                        disk_block_idx = entry.disk_block_idx + block_diff
+                    if entry.fileBlkIdx <= fileBlkIdx < \
+                        entry.fileBlkIdx + entry.blkCnt:
+                        block_diff = fileBlkIdx - entry.fileBlkIdx
+                        diskBlkIdx = entry.diskBlkIdx + block_diff
                         break
 
-                return disk_block_idx
+                return diskBlkIdx
 
             def read(self, byte_len = -1):
                 """
@@ -9084,10 +9086,10 @@ class Ext4Analyzer(object):
                 blocks = [self.read_block(i) for i in range(
                     start_block_idx, end_block_idx - start_block_idx + 1)]
 
-                start_offset = self.cursor % self.volume.block_size
-                if start_offset != 0: blocks[0] = blocks[0][start_offset:]
+                startOffset = self.cursor % self.volume.block_size
+                if startOffset != 0: blocks[0] = blocks[0][startOffset:]
                 byte_len = \
-                    (byte_len + start_offset - self.volume.block_size - 1) % \
+                    (byte_len + startOffset - self.volume.block_size - 1) % \
                         self.volume.block_size + 1
                 blocks[-1] = blocks[-1][:byte_len]
 
@@ -9103,16 +9105,16 @@ class Ext4Analyzer(object):
                 self.cursor += len(result)
                 return result
 
-            def read_block(self, file_block_idx):
+            def read_block(self, fileBlkIdx):
                 """
                 Reads one block from disk
                 (return a zero-block if the file block is not mapped)
                 """
-                disk_block_idx = self.get_block_mapping(file_block_idx)
+                diskBlkIdx = self.get_block_mapping(fileBlkIdx)
 
-                if disk_block_idx != None:
+                if diskBlkIdx != None:
                     return self.volume.read(
-                        disk_block_idx * self.volume.block_size,
+                        diskBlkIdx * self.volume.block_size,
                         self.volume.block_size)
                 else:
                     return bytes([0] * self.volume.block_size)
@@ -19456,7 +19458,7 @@ class SysMgr(object):
             value = SysMgr.inputParam
         else:
             SysMgr.printErr(
-                ("wrong value to mount a filesystem, "
+                ("wrong value to mount filesystem, "
                     "input in the format DEV:DIR:FS:FLAGS:DATA"))
             sys.exit(0)
 
@@ -19482,7 +19484,12 @@ class SysMgr(object):
 
             # mount #
             ret = SysMgr.mount(*value)
-            if ret != 0:
+            if ret == 0:
+                SysMgr.printInfo(
+                    "mounted '%s' on '%s' to '%s' successfuly" % (
+                        value[2], os.path.abspath(value[0]),
+                        os.path.abspath(value[1])))
+            else:
                 errReason = SysMgr.getErrReason()
                 SysMgr.printErr(
                     "fail to mount '%s' because %s" % \
@@ -19492,6 +19499,59 @@ class SysMgr(object):
         except:
             SysMgr.printErr(
                 "fail to mount '%s'" % ':'.join(origVal), True)
+
+
+
+    @staticmethod
+    def doUnmount(args=None):
+        # get argument #
+        if args:
+            value = args
+        elif SysMgr.hasMainArg():
+            value = SysMgr.getMainArgs(False, ':')
+        elif SysMgr.inputParam:
+            value = SysMgr.inputParam
+        else:
+            SysMgr.printErr(
+                ("wrong value to unmount filesystem, "
+                    "input in the format TARGET:FLAGS"))
+            sys.exit(0)
+
+        # backup input value #
+        origVal = deepcopy(value)
+
+        # mount a filesystem #
+        try:
+            # convert flags #
+            if len(value) >= 2:
+                flags = 0
+                for item in value[1].split(','):
+                    try:
+                        name = "MNT_%s" % item.upper()
+                        flags |= ConfigMgr.UMOUNT_TYPE[name]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+                # update flags #
+                value[1] = flags
+
+            # mount #
+            ret = SysMgr.umount(*value)
+            if ret == 0:
+                SysMgr.printInfo(
+                    "unmounted '%s' successfuly" % os.path.abspath(value[0]))
+            else:
+                errReason = SysMgr.getErrReason()
+                SysMgr.printErr(
+                    "fail to unmount '%s' because %s" % \
+                        (':'.join(origVal), errReason))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to unmount '%s'" % ':'.join(origVal), True)
 
 
 
@@ -21802,36 +21862,32 @@ class SysMgr(object):
         elif sys.platform.startswith('win') or \
             sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
+
             if len(sys.argv) > 1 and \
-                not SysMgr.checkMode('cli') and \
-                not SysMgr.isDrawMode() and \
-                not SysMgr.checkMode('convert') and \
-                not SysMgr.checkMode('drawreq') and \
-                not SysMgr.checkMode('readelf') and \
                 not SysMgr.checkMode('addr2sym') and \
+                not SysMgr.checkMode('cli') and \
+                not SysMgr.checkMode('comp') and \
+                not SysMgr.checkMode('convert') and \
+                not SysMgr.checkMode('decomp') and \
+                not SysMgr.checkMode('drawreq') and \
+                not SysMgr.checkMode('exec') and \
                 not SysMgr.checkMode('mkcache') and \
+                not SysMgr.checkMode('ping') and \
+                not SysMgr.checkMode('printdir') and \
+                not SysMgr.checkMode('printext') and \
+                not SysMgr.checkMode('readelf') and \
+                not SysMgr.checkMode('report') and \
+                not SysMgr.checkMode('req') and \
+                not SysMgr.checkMode('strings') and \
                 not SysMgr.checkMode('sym2addr') and \
+                not SysMgr.checkMode('tail') and \
                 not SysMgr.checkMode('topdiff') and \
                 not SysMgr.checkMode('topsum') and \
-                not SysMgr.checkMode('printdir') and \
-                not SysMgr.checkMode('report') and \
-                not SysMgr.checkMode('exec') and \
-                not SysMgr.checkMode('comp') and \
-                not SysMgr.checkMode('decomp') and \
-                not SysMgr.checkMode('req') and \
-                not SysMgr.checkMode('ping') and \
-                not SysMgr.checkMode('strings') and \
-                not SysMgr.checkMode('tail') and \
-                not SysMgr.checkMode('printext') and \
+                not SysMgr.isDrawMode() and \
                 not SysMgr.isHelpMode():
-                if len(sys.argv) == 1:
-                    arg = sys.argv[0]
-                else:
-                    arg = sys.argv[1]
-
                 SysMgr.printErr(
                     '%s command is not supported on %s platform now' % \
-                        (arg, sys.platform))
+                        (sys.argv[1], sys.platform))
                 sys.exit(0)
         else:
             SysMgr.printErr(
@@ -21840,13 +21896,14 @@ class SysMgr(object):
 
         # check locale #
         try:
-            if SysMgr.encodeEnable:
-                if 'NOENCODE' in os.environ:
+            if not SysMgr.encodeEnable:
+                pass
+            elif 'NOENCODE' in os.environ:
+                SysMgr.encodeEnable = False
+            else:
+                lang = os.getenv('LANG')
+                if not lang or not 'UTF' in lang:
                     SysMgr.encodeEnable = False
-                else:
-                    lang = os.getenv('LANG')
-                    if not lang or not 'UTF' in lang:
-                        SysMgr.encodeEnable = False
         except SystemExit:
             sys.exit(0)
         except:
@@ -21937,8 +21994,8 @@ class SysMgr(object):
                 'atop': 'All',
                 'bgtop': 'Background',
                 'btop': 'Function',
-                'ctop': 'Threshold',
                 'cgtop': 'Cgroup',
+                'ctop': 'Threshold',
                 'dbustop': 'D-Bus',
                 'disktop': 'Storage',
                 'dlttop': 'DLT',
@@ -21946,17 +22003,18 @@ class SysMgr(object):
                 'mtop': 'Memory',
                 'ntop': 'Network',
                 'ptop': 'PMU',
+                'pytop': 'Python',
                 'rtop': 'JSON',
                 'stacktop': 'Stack',
                 'systop': 'Syscall',
                 'top': 'Process',
                 'ttop': 'Thread',
                 'utop': 'Function',
-                'pytop': 'Python',
                 'wtop': 'WSS',
                 },
             'trace': {
                 'btrace': 'Breakpoint',
+                'leaktrace': 'Leak',
                 'pytrace': 'Python',
                 'sigtrace': 'Signal',
                 'strace': 'Syscall',
@@ -21993,13 +22051,13 @@ class SysMgr(object):
                 },
             'util': {
                 'addr2sym': 'Symbol',
+                'comp': 'Compress',
+                'decomp': 'Decompress',
                 'dump': 'Memory',
                 'exec': 'Command',
                 'getafnt': 'Affinity',
-                'comp': "Compress",
                 'hook': 'Function',
                 'kill/tkill': 'Signal',
-                'leaktrace': 'Leak',
                 'limitcpu': 'CPU',
                 'mkcache': 'Cache',
                 'mount': 'Mount',
@@ -22033,8 +22091,8 @@ class SysMgr(object):
                 'systat': 'Status',
                 'topdiff': 'Diff',
                 'topsum': 'Summary',
-                'decomp': 'Decompress',
-                'watch': "File",
+                'umount': 'Unmount',
+                'watch': 'File',
                 },
             'log': {
                 'logdlt': 'DLT',
@@ -22042,9 +22100,9 @@ class SysMgr(object):
                 'logkmsg': 'Kernel',
                 'logsys': 'Syslog',
                 'printdlt': 'DLT',
+                'printjrl': 'Journal',
                 'printkmsg': 'Kernel',
                 'printsys': 'Syslog',
-                'printjrl': 'Journal',
                 },
             'control': {
                 'cli': 'Client',
@@ -23777,7 +23835,7 @@ Usage:
     # {0:1} {1:1} -I <DEV:DIR:FS:FLAGS:DATA> [OPTIONS] [--help]
 
 Description:
-    Mount a filesystem
+    Mount filesystem
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -23790,12 +23848,37 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Mount a filesystem
+    - Mount filesystem
         # {0:1} {1:1} "/dev/sda1:/data/fs:ext4"
         # {0:1} {1:1} -I "/dev/sda1:/data/fs:ext4"
 
-    - Remount a filesystem
+    - Remount filesystem
         # {0:1} {1:1} "/dev/sda1:/data/fs:ext4:REMOUNT,RDONLY"
+                    '''.format(cmd, mode)
+
+                # umount #
+                elif SysMgr.checkMode('umount'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <TARGET:FLAGS> [OPTIONS] [--help]
+
+Description:
+    Unmount filesystem
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -I  <TARGET:FLAGS>          set input
+    -f                          force execution
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - Unmount filesystem
+        # {0:1} {1:1} "/dev/sda1"
+        # {0:1} {1:1} -I "/dev/sda1"
                     '''.format(cmd, mode)
 
                 # strings #
@@ -32781,6 +32864,10 @@ Copyright:
         elif SysMgr.checkMode('mount'):
             SysMgr.doMount()
 
+        # UNMOUNT MODE #
+        elif SysMgr.checkMode('umount'):
+            SysMgr.doUnmount()
+
         # STRINGS MODE #
         elif SysMgr.checkMode('strings'):
             SysMgr.setStream(cut=False)
@@ -33712,8 +33799,6 @@ Copyright:
                 targetp = c_char_p(target.encode())
             else:
                 targetp = 0
-
-            # TODO: apply flags from ConfigMgr.UMOUNT_TYPE #
 
             # call umount2 syscall #
             ret = SysMgr.syscall('umount2', targetp, flags)
@@ -38454,7 +38539,7 @@ Copyright:
                 continue
 
             # print menu #
-            SysMgr.printPipe('[Ext4 Info] [Path: %s]\n%s' % (path, twoLine))
+            SysMgr.printPipe('\n[Ext4 Info] [Path: %s]\n%s' % (path, twoLine))
             SysMgr.printPipe(
                 '{0:>12} {1:>6} {2:>1}\n{3:1}'.format(
                     'INODE', 'TYPE', 'PATH', twoLine))
