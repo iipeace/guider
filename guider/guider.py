@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210709"
+__revision__ = "210710"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -975,7 +975,7 @@ class ConfigMgr(object):
         )),
         "flistxattr": ("long", (
             ("int", "fd"),
-            ("char *", "list"),
+            ("const char *", "list"),
             ("size_t", "size"),
         )),
         "flock": ("long", (
@@ -1154,7 +1154,7 @@ class ConfigMgr(object):
             ("int", "who"),
         )),
         "getrandom": ("long", (
-            ("char *", "buf"),
+            ("void *", "buf"),
             ("size_t", "count"),
             ("unsigned int", "flags"),
         )),
@@ -1202,7 +1202,7 @@ class ConfigMgr(object):
             ("int", "fd"),
             ("int", "level"),
             ("int", "optname"),
-            ("char *", "optval"),
+            ("void *", "optval"),
             ("int *", "optlen"),
         )),
         "gettid": ("long", (
@@ -1398,12 +1398,12 @@ class ConfigMgr(object):
         )),
         "listxattr": ("long", (
             ("const char *", "path"),
-            ("char *", "list"),
+            ("char char *", "list"),
             ("size_t", "size"),
         )),
         "llistxattr": ("long", (
             ("const char *", "path"),
-            ("char *", "list"),
+            ("char char *", "list"),
             ("size_t", "size"),
         )),
         "llseek": ("long", (
@@ -1724,7 +1724,7 @@ class ConfigMgr(object):
             ("struct shmid_ds *", "buf"),
         )),
         "oldumount": ("long", (
-            ("char *", "name"),
+            ("char char *", "name"),
         )),
         "olduname": ("long", (
             ("struct oldold_utsname *", "buf"),
@@ -1852,7 +1852,7 @@ class ConfigMgr(object):
         )),
         "pread64": ("long", (
             ("unsigned int", "fd"),
-            ("char *", "buf"),
+            ("void *", "buf"),
             ("size_t", "count"),
             ("loff_t", "pos"),
         )),
@@ -1944,7 +1944,7 @@ class ConfigMgr(object):
         )),
         "read": ("long", (
             ("unsigned int", "fd"),
-            ("char *", "buf"),
+            ("void *", "buf"),
             ("size_t", "count"),
         )),
         "readahead": ("long", (
@@ -2247,7 +2247,7 @@ class ConfigMgr(object):
             ("int *", "tidptr"),
         )),
         "setdomainname": ("long", (
-            ("char *", "name"),
+            ("const char *", "name"),
             ("int", "len"),
         )),
         "setfsgid": ("long", (
@@ -2277,7 +2277,7 @@ class ConfigMgr(object):
             ("old_gid_t *", "grouplist"),
         )),
         "sethostname": ("long", (
-            ("char *", "name"),
+            ("const char *", "name"),
             ("int", "len"),
         )),
         "setitimer": ("long", (
@@ -2344,7 +2344,7 @@ class ConfigMgr(object):
             ("int", "fd"),
             ("int", "level"),
             ("int", "optname"),
-            ("char *", "optval"),
+            ("const void *", "optval"),
             ("int", "optlen"),
         )),
         "settimeofday": ("long", (
@@ -2368,7 +2368,7 @@ class ConfigMgr(object):
         )),
         "shmat": ("long", (
             ("int", "shmid"),
-            ("char *", "shmaddr"),
+            ("const void *", "shmaddr"),
             ("int", "shmflg"),
         )),
         "shmctl": ("long", (
@@ -2377,7 +2377,7 @@ class ConfigMgr(object):
             ("struct shmid_ds *", "buf"),
         )),
         "shmdt": ("long", (
-            ("char *", "shmaddr"),
+            ("const void *", "shmaddr"),
         )),
         "shmget": ("long", (
             ("key_t", "key"),
@@ -2639,11 +2639,11 @@ class ConfigMgr(object):
             ("int", "mask"),
         )),
         "umount": ("long", (
-            ("char *", "name"),
+            ("const char *", "name"),
             ("int", "flags"),
         )),
         "umount2": ("long", (
-            ("char *", "name"),
+            ("const char *", "name"),
             ("int", "flags"),
         )),
         "uname": ("long", (
@@ -2671,7 +2671,7 @@ class ConfigMgr(object):
             ("struct ustat *", "ubuf"),
         )),
         "utime": ("long", (
-            ("char *", "filename"),
+            ("const char *", "filename"),
             ("struct utimbuf *", "times"),
         )),
         "utime32": ("long", (
@@ -2691,7 +2691,7 @@ class ConfigMgr(object):
             ("int", "flags"),
         )),
         "utimes": ("long", (
-            ("char *", "filename"),
+            ("const char *", "filename"),
             ("struct old_timeval *", "utimes"),
         )),
         "utimes_time32": ("long", (
@@ -19468,8 +19468,8 @@ class SysMgr(object):
         # mount a filesystem #
         try:
             # convert flags #
+            flags = 0
             if len(value) >= 4:
-                flags = 0
                 for item in value[3].split(','):
                     try:
                         name = "MS_%s" % item.upper()
@@ -19482,13 +19482,21 @@ class SysMgr(object):
                 # update flags #
                 value[3] = flags
 
+            # get flags #
+            if flags > 0:
+                flagStr = '|'.join(UtilMgr.getFlagList(
+                    flags, ConfigMgr.MOUNT_TYPE))
+                flagStr = ' with %s' % flagStr
+            else:
+                flagStr = ''
+
             # mount #
             ret = SysMgr.mount(*value)
             if ret == 0:
                 SysMgr.printInfo(
-                    "mounted '%s' on '%s' to '%s' successfuly" % (
+                    "mounted %s on '%s' to '%s'%s successfuly" % (
                         value[2], os.path.abspath(value[0]),
-                        os.path.abspath(value[1])))
+                        os.path.abspath(value[1]), flagStr))
             else:
                 errReason = SysMgr.getErrReason()
                 SysMgr.printErr(
@@ -19523,8 +19531,8 @@ class SysMgr(object):
         # mount a filesystem #
         try:
             # convert flags #
+            flags = 0
             if len(value) >= 2:
-                flags = 0
                 for item in value[1].split(','):
                     try:
                         name = "MNT_%s" % item.upper()
@@ -19537,11 +19545,20 @@ class SysMgr(object):
                 # update flags #
                 value[1] = flags
 
+            # get flags #
+            if flags > 0:
+                flagStr = '|'.join(UtilMgr.getFlagList(
+                    flags, ConfigMgr.UMOUNT_TYPE))
+                flagStr = ' with %s' % flagStr
+            else:
+                flagStr = ''
+
             # mount #
             ret = SysMgr.umount(*value)
             if ret == 0:
                 SysMgr.printInfo(
-                    "unmounted '%s' successfuly" % os.path.abspath(value[0]))
+                    "unmounted '%s'%s successfuly" % \
+                        (os.path.abspath(value[0]), flagStr))
             else:
                 errReason = SysMgr.getErrReason()
                 SysMgr.printErr(
@@ -23844,6 +23861,9 @@ Options:
     -f                          force execution
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
+
+Flags:
+    See the man page
                     '''
 
                     helpStr += '''
@@ -23872,6 +23892,9 @@ Options:
     -f                          force execution
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
+
+Flags:
+    See the man page
                     '''
 
                     helpStr += '''
@@ -54565,16 +54588,22 @@ typedef struct {
                     sys.exit(0)
                 except:
                     return value
-        elif syscall.startswith('mount'):
-            if not ConfigMgr.MOUNT_TYPE_REVERSE:
-                for name, value in ConfigMgr.MOUNT_TYPE.items():
-                    ConfigMgr.MOUNT_TYPE_REVERSE[value] = name
-
+        elif syscall == 'mount':
             if argname == 'flags':
+                if not ConfigMgr.MOUNT_TYPE_REVERSE:
+                    for name, value in ConfigMgr.MOUNT_TYPE.items():
+                        ConfigMgr.MOUNT_TYPE_REVERSE[value] = name
+
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.MOUNT_TYPE_REVERSE)
+        elif syscall.startswith('umount'):
+            if argname == 'flags':
+                if not ConfigMgr.UMOUNT_TYPE_REVERSE:
+                    for name, value in ConfigMgr.UMOUNT_TYPE.items():
+                        ConfigMgr.UMOUNT_TYPE_REVERSE[value] = name
 
-
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.UMOUNT_TYPE_REVERSE)
 
         # convert fd to name #
         if ref and (argname == "fd" or argname == "sockfd"):
