@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210710"
+__revision__ = "210711"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -389,9 +389,9 @@ class ConfigMgr(object):
         "MS_SYNCHRONOUS": 16,     # Writes are synced at once
         "MS_REMOUNT": 32,         # Alter flags of a mounted FS
         "MS_MANDLOCK": 64,        # Allow mandatory locks on an FS
-        "MS_WRITE": 128,           # Write on file/directory/symlink
-        "MS_APPEND": 256,          # Append-only file
-        "MS_IMMUTABLE": 512,       # Immutable file
+        "MS_WRITE": 128,          # Write on file/directory/symlink
+        "MS_APPEND": 256,         # Append-only file
+        "MS_IMMUTABLE": 512,      # Immutable file
         "MS_NOATIME": 1024,       # Do not update access times
         "MS_NODIRATIME": 2048,    # Do not update directory access times
         "MS_BIND": 4096,          # Bind directory at different place
@@ -4532,6 +4532,7 @@ class UtilMgr(object):
 
     @staticmethod
     def isCompressed(fname=None, fd=None):
+        # file name #
         if fname:
             try:
                 fd = open(fname, 'rb')
@@ -4541,6 +4542,7 @@ class UtilMgr(object):
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
 
+        # file descriptor #
         if fd:
             data = fd.read(2)
             fd.seek(0, 0)
@@ -4548,8 +4550,9 @@ class UtilMgr(object):
                 return True
             else:
                 return False
-        else:
-            return False
+
+        # no value #
+        return False
 
 
 
@@ -4661,9 +4664,8 @@ class UtilMgr(object):
             SysMgr.printStat(
                 r"start %s '%s'%s..." % (job, fname, fsize))
 
-        # check gzip #
+        # open gzip file #
         try:
-            fd = None
             with open(fname, 'rb') as fd:
                 data = fd.read(2)
                 if struct.unpack('BB', data) != (0x1f, 0x8b):
@@ -4676,7 +4678,7 @@ class UtilMgr(object):
         except:
             fd = None
 
-        # open a file #
+        # open normal file #
         try:
             if not fd:
                 fd = open(fname, 'r', encoding='utf-8')
@@ -55163,8 +55165,16 @@ typedef struct {
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
-                if self.cont(check=True) == 0:
-                    needStop = True
+                try:
+                    sig = 0
+                    ret = os.waitpid(self.pid, os.WNOHANG)
+                    if ret and ret[1] > 0:
+                        sig = self.getStatus(ret[1])
+                    if sig != signal.SIGSTOP and \
+                        self.cont(check=True, sig=sig) == 0:
+                        needStop = True
+                except:
+                    pass
 
         # define variables #
         nrTotal = float(self.totalCall)
@@ -57158,7 +57168,7 @@ typedef struct {
         self.status = self.mode
 
         # interprete user function call #
-        if self.mode == 'inst' or self.mode =='sample':
+        if self.mode =='sample' or self.mode == 'inst':
             self.handleUsercall()
         elif self.isBreakMode:
             # block signal #
@@ -58154,6 +58164,8 @@ typedef struct {
                         [jsonData], True)
             return
 
+        callString = ''
+
         if not self.isRealtime or SysMgr.showAll:
             # convert args to string ##
             if args:
@@ -58213,7 +58225,7 @@ typedef struct {
                 newline=False, flush=True, trim=False)
 
         # file output #
-        if SysMgr.outPath:
+        if SysMgr.outPath and callString:
             if defer:
                 callString = '%s%s' % (self.bufferedStr, callString)
             self.callPrint.append(callString)
@@ -59921,8 +59933,16 @@ typedef struct {
 
             # continue target to prevent too long freezing #
             if instance.traceStatus and instance.isAlive():
-                if instance.cont(check=True) == 0:
-                    needStop = True
+                try:
+                    sig = 0
+                    ret = os.waitpid(instance.pid, os.WNOHANG)
+                    if ret and ret[1] > 0:
+                        sig = instance.getStatus(ret[1])
+                    if sig != signal.SIGSTOP and \
+                        instance.cont(check=True, sig=sig) == 0:
+                        needStop = True
+                except:
+                    pass
 
         if instance.isRealtime:
             mtype = 'Top'
