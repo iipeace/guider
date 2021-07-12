@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210711"
+__revision__ = "210712"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22575,7 +22575,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
     - Trace all native calls except for no symbol functions for specific threads
-        # {0:1} {1:1} -g a.out -q EXCEPTNOSYM
+        # {0:1} {1:1} -g a.out -q ONLYSYMBOL
 
     - Trace all native calls except for ld for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTLD
@@ -23340,7 +23340,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - Monitor syscalls except for no symbol functions for specific threads
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+        # {0:1} {1:1} a.out -g a.out -q ONLYSYMBOL
 
     - Monitor syscalls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
@@ -23409,7 +23409,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - Monitor python calls except for no symbol functions for specific threads
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+        # {0:1} {1:1} a.out -g a.out -q ONLYSYMBOL
 
     - Monitor python calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
@@ -23486,7 +23486,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - Monitor native function calls except for no symbol functions for specific threads
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+        # {0:1} {1:1} a.out -g a.out -q ONLYSYMBOL
 
     - Monitor native function calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
@@ -50212,7 +50212,7 @@ class Debugger(object):
     envFlags = {
         'TRACEBP': False,
         'EXCEPTWAIT': False,
-        'EXCEPTNOSYM': False,
+        'ONLYSYMBOL': False,
         'EXCEPTLD': False,
         'NOMUTE': False,
         'NOSTRIP': False,
@@ -52913,7 +52913,7 @@ typedef struct {
         procInfo = '%s(%s)' % (self.comm, self.pid)
 
         # skip no symbol function #
-        if sym and Debugger.envFlags['EXCEPTNOSYM'] and sym.startswith('0x'):
+        if sym and Debugger.envFlags['ONLYSYMBOL'] and sym.startswith('0x'):
             SysMgr.printWarn(
                 'skip injecting breakpoint for no symbol function %s' % sym)
             return False
@@ -56690,7 +56690,7 @@ typedef struct {
                     sym = res[0]
 
                 # skip no symbol function #
-                if Debugger.envFlags['EXCEPTNOSYM'] and \
+                if Debugger.envFlags['ONLYSYMBOL'] and \
                     sym and sym.startswith('0x'):
                     continue
 
@@ -57414,7 +57414,7 @@ typedef struct {
                 sys.exit(0)
 
         # remove anonymous symbol #
-        Debugger.envFlags['EXCEPTNOSYM'] = True
+        Debugger.envFlags['ONLYSYMBOL'] = True
 
         # check native function for python call #
         addr = self.getAddrBySymbol(SysMgr.pyCallFunc)
@@ -67382,7 +67382,7 @@ class TaskAnalyzer(object):
 
 
 
-    def __init__(self, fpath=None, onlyInstance=None):
+    def __init__(self, fpath=None, onlyInstance=False):
 
         # exec variable #
         if SysMgr.execEnable is None:
@@ -82134,7 +82134,7 @@ class TaskAnalyzer(object):
 
 
 
-    def saveGenSystemInfo(self):
+    def saveSystemStatGen(self):
         # get psutil object #
         psutil = SysMgr.getPkg('psutil')
 
@@ -82144,47 +82144,95 @@ class TaskAnalyzer(object):
         '''
 
         # CPU #
-        psutil.cpu_times(percpu=False)
-        psutil.cpu_percent(interval=None, percpu=False)
-        psutil.cpu_count(logical=True)
-        psutil.cpu_stats()
-        psutil.cpu_freq(percpu=False)
-        psutil.getloadavg()
+        cpuStat = psutil.cpu_times(percpu=False)
+        cpuOtherStat = psutil.cpu_stats()
+        clock = psutil.cpu_freq(percpu=True)
+        SysMgr.nrCore = psutil.cpu_count(logical=True)
 
-        # Memory #
-        psutil.virtual_memory()
-        psutil.swap_memory()
+        # load #
+        try:
+            load = psutil.getloadavg()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            load = None
 
-        # Disk #
-        psutil.disk_partitions(all=False)
-        #psutil.disk_usage(path=None)
-        psutil.disk_io_counters(perdisk=False, nowrap=True)
+        # memory #
+        try:
+            mem = psutil.virtual_memory()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            mem = None
 
-        # Network #
-        psutil.net_io_counters(pernic=False, nowrap=True)
-        psutil.net_connections(kind='inet')
-        psutil.net_if_addrs()
-        psutil.net_if_stats()
+        # swap #
+        try:
+            swap = psutil.swap_memory()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            swap = None
 
-        # ETC #
-        psutil.sensors_temperatures(fahrenheit=False)
-        psutil.sensors_fans()
-        psutil.sensors_battery()
-        psutil.users()
+        # disk #
+        partition = psutil.disk_partitions(all=SysMgr.showAll)
+        diskUsage = psutil.disk_usage(path='.')
+        diskStat = psutil.disk_io_counters(perdisk=False, nowrap=True)
 
-        # Process #
-        psutil.process_iter(attrs=None, ad_value=None)
-        psutil.pid_exists(pid=os.getpid())
-        proc = psutil.Process(pid=None)
-        procDict = proc.as_dict(attrs=None, ad_value=None)
-        procMem = proc.memory_full_info()
-        proc.is_running()
-        proc.send_signal()
-        proc.suspend()
-        proc.resume()
-        proc.terminate()
-        proc.kill()
-        proc.wait()
+        # network #
+        netStat = psutil.net_io_counters(pernic=False, nowrap=True)
+        netConn = psutil.net_connections(kind='inet')
+        netAddr = psutil.net_if_addrs()
+        nicStat = psutil.net_if_stats()
+
+        # temperature #
+        try:
+            temp = psutil.sensors_temperatures(fahrenheit=False)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            temp = None
+
+        # fan #
+        try:
+            fan = psutil.sensors_fans()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            fan = None
+
+        # battery #
+        try:
+            battery = psutil.sensors_battery()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            battery = None
+
+        # users #
+        try:
+            user = psutil.users()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            user = None
+
+        # process #
+        #psutil.Process(pid=os.getpid())
+        #psutil.pid_exists(pid=os.getpid())
+        procs = psutil.process_iter(attrs=None, ad_value=None)
+        for proc in procs:
+            procDict = proc.as_dict(attrs=None, ad_value=None)
+            #procMem = proc.memory_full_info()
+            continue
+
+            # control #
+            proc.is_running()
+            proc.send_signal(0)
+            proc.suspend()
+            proc.resume()
+            proc.terminate()
+            proc.kill()
+            proc.wait()
 
 
 
