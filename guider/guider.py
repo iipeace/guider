@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210712"
+__revision__ = "210725"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -65,6 +65,7 @@ class ConfigMgr(object):
 
     # color #
     if (sys.platform.startswith('linux') or \
+        sys.platform.startswith('darwin') or \
         sys.platform.startswith('freebsd')) and \
         not 'REMOTERUN' in os.environ:
         WARNING = '\033[95m'
@@ -3233,7 +3234,7 @@ class ConfigMgr(object):
         "x86": "eax"
     }
 
-    # signal #
+    # signal for Linux #
     SIG_LIST = [
         '0', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
         'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
@@ -3245,6 +3246,18 @@ class ConfigMgr(object):
         'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
         ['SIGRT%d' % idx for idx in range(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
+
+    # signal for macOS #
+    SIG_LIST_MACOS = [
+        '0', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
+        'SIGTRAP', 'SIGABRT', 'SIGEMT', 'SIGFPE', #8#
+        'SIGKILL', 'SIGBUS', 'SIGSEGV', 'SIGSYS', #12#
+        'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGURG', #16#
+        'SIGSTOP', 'SIGTSTP', 'SIGCONT', 'SIGCHLD', #20#
+        'SIGTTIN', 'SIGTTOU', 'SIGIO', 'SIGXCPU', #24#
+        'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
+        'SIGINFO', 'SIGUSR1', 'SIGUSR2' #31#
+    ]
 
     # SIGCHLD si_codes #
     SIGCHLD_CODE = [
@@ -3357,6 +3370,18 @@ class ConfigMgr(object):
         'I', # 5: IDLE #
         'D', # 6: DEADLINE #
     ]
+
+    # sched policy for Windows #
+    SCHED_POLICY_WINDOWS = {
+        'ABOVE_NORMAL_PRIORITY_CLASS': 'ANOR',
+        'BELOW_NORMAL_PRIORITY_CLASS': 'BNOR',
+        'HIGH_PRIORITY_CLASS': 'HIGH',
+        'IDLE_PRIORITY_CLASS': 'IDLE',
+        'NORMAL_PRIORITY_CLASS': 'NORM',
+        'PROCESS_MODE_BACKGROUND_BEGIN': 'BGBE',
+        'PROCESS_MODE_BACKGROUND_END': 'BGEN',
+        'REALTIME_PRIORITY_CLASS': 'RT',
+    }
 
     # io sched class #
     IOSCHED_CLASS = [
@@ -4841,7 +4866,8 @@ class UtilMgr(object):
     def convColor(string, color='LIGHT', size=1, align='right'):
         if not SysMgr.colorEnable or not color or \
             SysMgr.outPath or SysMgr.outputFile or \
-            not SysMgr.isLinux or SysMgr.remoteRun:
+            (not SysMgr.isLinux and not SysMgr.isDarwin) or \
+            SysMgr.remoteRun:
             return string
 
         if align == 'right':
@@ -5878,7 +5904,7 @@ class NetworkMgr(object):
                 self.socket = socket(AF_INET, SOCK_STREAM)
             elif netlink:
                 try:
-                    from socket import socket, AF_NETLINK
+                    from socket import socket, AF_NETLINK # pylint: disable=no-name-in-module
                     self.socket = socket(
                         AF_NETLINK, SOCK_RAW,
                             ConfigMgr.NETLINK_TYPE['NETLINK_GENERIC'])
@@ -7135,9 +7161,13 @@ class NetworkMgr(object):
 
     @staticmethod
     def getUsingIps():
-        connPaths = \
-            ['%s/net/udp' % SysMgr.procPath,
-            '%s/net/tcp' % SysMgr.procPath]
+        if not SysMgr.isLinux:
+            return
+
+        connPaths = [
+            '%s/net/udp' % SysMgr.procPath,
+            '%s/net/tcp' % SysMgr.procPath
+        ]
 
         effectiveList = {}
         cacheList = {}
@@ -13057,7 +13087,7 @@ class FunctionAnalyzer(object):
             threadInfo = ''
             syscallInfo = ''
 
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
 
             try:
@@ -15760,7 +15790,7 @@ class FileAnalyzer(object):
                         UtilMgr.convNum(len(targetFiles)))
             else:
                 SysMgr.printStat(
-                    "start collecting all files that mapped or opened...")
+                    "start collecting all files on memory...")
 
             targetFiles = targetFiles if targetFiles else ['']
 
@@ -16857,13 +16887,7 @@ class FileAnalyzer(object):
 
     def scanProcs(self, filterList=None):
         # get process list in proc filesystem #
-        try:
-            pids = os.listdir(SysMgr.procPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(SysMgr.procPath)
-            sys.exit(0)
+        pids = SysMgr.getPidList()
 
         # initialize proc object #
         procObj = TaskAnalyzer(onlyInstance=True)
@@ -17440,6 +17464,7 @@ class LogMgr(object):
 
     @staticmethod
     def lock(fd):
+        # pylint: disable=undefined-variable
         if not SysMgr.isLinux:
             return
 
@@ -17458,6 +17483,7 @@ class LogMgr(object):
 
     @staticmethod
     def unlock(fd):
+        # pylint: disable=undefined-variable
         if not SysMgr.isLinux:
             return
 
@@ -18056,6 +18082,8 @@ class SysMgr(object):
     origArgs = []
     kernelVersion = None
     isLinux = True
+    isDarwin = False
+    isWindows = False
     isAndroid = False
     drawMode = False
     forceColorEnable = False
@@ -18185,7 +18213,7 @@ class SysMgr(object):
     inputParam = None
     outPath = None
 
-    signalCmd = "trap 'kill $$' INT\nsleep 32767\n"
+    signalCmd = "trap 'kill $$' INT\n"
     saveCmd = None
     boundaryLine = None
     demangleEnable = True
@@ -18279,6 +18307,7 @@ class SysMgr(object):
     netstat = ''
     prevNetstat = ''
     loadavg = ''
+    battery = {}
     netInIndex = -1
 
     # log #
@@ -18352,6 +18381,7 @@ class SysMgr(object):
     eventLogFd = None
     kmsgFd = None
     syslogFd = None
+    batteryFd = None
 
     # flags #
     fixTargetEnable = False
@@ -18460,9 +18490,6 @@ class SysMgr(object):
 
 
     def __init__(self, onlyInstance=False):
-        if not SysMgr.isLinux:
-            return
-
         self.cpuInfo = {}
         self.cpuCacheInfo = {}
         self.memInfo = {}
@@ -18503,6 +18530,8 @@ class SysMgr(object):
 
         SysMgr.sysInstance = self
         if onlyInstance:
+            return
+        if not SysMgr.isLinux:
             return
 
         # save system info first #
@@ -18556,7 +18585,9 @@ class SysMgr(object):
 
     @staticmethod
     def loadLibcObj(exit=False):
-        if SysMgr.libcObj:
+        if not SysMgr.isLinux:
+            return False
+        elif SysMgr.libcObj:
             return True
 
         try:
@@ -18641,6 +18672,22 @@ class SysMgr(object):
                 SysMgr.waitEvent(forceExit=True)
             else:
                 os._exit(0)
+
+
+
+    @staticmethod
+    def getPidList():
+        try:
+            if SysMgr.isLinux:
+                pids = os.listdir(SysMgr.procPath)
+            else:
+                pids = list(map(str, SysMgr.getPkg('psutil').pids()))
+            return pids
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(SysMgr.procPath)
+            return []
 
 
 
@@ -18790,11 +18837,12 @@ class SysMgr(object):
         # update record status #
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
 
+        SysMgr.parseRecordOption()
+
         # change the CPU scheduling priority for process #
         if SysMgr.prio is None:
             SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
-        SysMgr.parseRecordOption()
         SysMgr.printProfileOption()
         SysMgr.printProfileCmd()
 
@@ -19029,10 +19077,6 @@ class SysMgr(object):
         if not 'FASTINIT' in SysMgr.environList:
             SysMgr.checkBgProcs()
 
-        # set tty setting automatically #
-        if not SysMgr.ttyEnable:
-            SysMgr.setTTYAuto(True, False)
-
         # write user command #
         SysMgr.writeTraceCmd('BEFORE')
 
@@ -19118,7 +19162,10 @@ class SysMgr(object):
 
             # ignore output #
             if not SysMgr.outPath:
-                SysMgr.outPath = SysMgr.nullPath
+                if SysMgr.isWindows:
+                    SysMgr.outPath = 'NUL'
+                else:
+                    SysMgr.outPath = SysMgr.nullPath
                 SysMgr.bufferSize = -1
 
         # DLT #
@@ -19200,6 +19247,16 @@ class SysMgr(object):
 
         # set handler for exit #
         SysMgr.setNormalSignal()
+
+        # init network resource data #
+        if SysMgr.networkEnable and \
+            not SysMgr.sysInstance.networkInfo:
+            SysMgr.sysInstance.updateNetworkInfo()
+
+        # init disk resource data #
+        if SysMgr.diskEnable and \
+            not SysMgr.sysInstance.storageData:
+            SysMgr.sysInstance.updateStorageInfo()
 
         # run process / file monitoring #
         TaskAnalyzer()
@@ -20101,6 +20158,9 @@ class SysMgr(object):
 
     @staticmethod
     def setAffinity(mask, pids, isProcess=False):
+        if not SysMgr.isLinux:
+            return
+
         # check root permission #
         if len(pids) == 1 and \
             str(pids[0]).isdigit() and \
@@ -20802,21 +20862,57 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getExeName(pid):
+    def getExeName(pid, verb=True):
+        # use psutil #
+        if not SysMgr.isLinux:
+            try:
+                psutil = SysMgr.getPkg('psutil', False)
+                if psutil:
+                    return psutil.Process(long(pid)).exe()
+                else:
+                    return None
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return None
+
         try:
             exePath = '%s/%s/exe' % (SysMgr.procPath, pid)
             return os.readlink(exePath)
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn(
-                "fail to get binary path for %s process" % pid, reason=True)
+            if verb:
+                SysMgr.printWarn(
+                    "fail to get binary path for %s process" % pid, reason=True)
             return None
 
 
 
     @staticmethod
     def getCmdline(pid, retList=False):
+        # use psutil #
+        if not SysMgr.isLinux:
+            try:
+                psutil = SysMgr.getPkg('psutil', False)
+                if not psutil:
+                    raise Exception()
+
+                cmdline = psutil.Process(long(pid)).cmdline()
+                if retList:
+                    return cmdline
+                else:
+                    return ' '.join(cmdline)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    'fail to get cmdline for task %s' % pid, reason=True)
+                if retList:
+                    return []
+                else:
+                    return ''
+
         cmdlinePath = \
             '%s/%s/cmdline' % (SysMgr.procPath, pid)
 
@@ -20934,6 +21030,9 @@ class SysMgr(object):
 
     @staticmethod
     def getFdName(pid, fd):
+        if not SysMgr.isLinux:
+            return None
+
         try:
             fdPath = '%s/%s/fd/%s' % (SysMgr.procPath, pid, fd)
             return os.readlink(fdPath)
@@ -20966,6 +21065,7 @@ class SysMgr(object):
         if pid in SysMgr.commCache:
             return SysMgr.commCache[pid]
 
+        # linux #
         try:
             if pid in SysMgr.commFdCache:
                 fd = SysMgr.commFdCache[pid]
@@ -20982,8 +21082,13 @@ class SysMgr(object):
         # use psutil #
         if not SysMgr.isLinux:
             try:
-                psutil = SysMgr.getPkg('psutil')
-                return psutil.Process(pid).name()
+                psutil = SysMgr.getPkg('psutil', False)
+                if psutil:
+                    return psutil.Process(long(pid)).name()
+                else:
+                    return None
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -21019,6 +21124,7 @@ class SysMgr(object):
 
     @staticmethod
     def getPyConfig(item='all', var=None):
+        # pylint: disable=undefined-variable
         try:
             SysMgr.importPkgItems('sysconfig')
 
@@ -21102,7 +21208,22 @@ class SysMgr(object):
     @staticmethod
     def setComm(comm):
         if not SysMgr.isLinux:
-            return
+            try:
+                setproctitle = SysMgr.getPkg('setproctitle', False)
+                if not setproctitle:
+                    raise ImportError()
+                setproctitle.setproctitle(comm)
+                return
+            except SystemExit:
+                sys.exit(0)
+            except ImportError:
+                SysMgr.printWarn(
+                    "fail to set comm to '%s' because of no python package: %s" % \
+                        (comm, 'setproctitle'), True)
+            except:
+                SysMgr.printWarn(
+                    "fail to set comm to '%s'" % comm, True, reason=True)
+                return
 
         # try to set comm using native lib #
         try:
@@ -21124,7 +21245,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                'fail to set comm', True, reason=True)
+                "fail to set comm to '%s'" % comm, True, reason=True)
 
 
 
@@ -21676,14 +21797,7 @@ class SysMgr(object):
         procTree = {}
 
         # get process list in proc filesystem #
-        try:
-            pids = os.listdir(SysMgr.procPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(SysMgr.procPath)
-            return None
-
+        pids = SysMgr.getPidList()
         for pid in pids:
             try:
                 long(pid)
@@ -21844,7 +21958,50 @@ class SysMgr(object):
 
     @staticmethod
     def checkEnv():
-        # check os #
+        def _checkMode():
+            if len(sys.argv) > 1 and \
+                not SysMgr.checkMode('addr2sym') and \
+                not SysMgr.checkMode('bgtop') and \
+                not SysMgr.checkMode('cli') and \
+                not SysMgr.checkMode('comp') and \
+                not SysMgr.checkMode('convert') and \
+                not SysMgr.checkMode('cputest') and \
+                not SysMgr.checkMode('ctop') and \
+                not SysMgr.checkMode('decomp') and \
+                not SysMgr.checkMode('disktop') and \
+                not SysMgr.checkMode('dlttop') and \
+                not SysMgr.checkMode('drawreq') and \
+                not SysMgr.checkMode('exec') and \
+                not (SysMgr.checkMode('ftop') and \
+                    (SysMgr.isLinux or SysMgr.isDarwin)) and \
+                not SysMgr.checkMode('iotest') and \
+                not (SysMgr.checkMode('kill') and \
+                    (SysMgr.isLinux or SysMgr.isDarwin)) and \
+                not SysMgr.checkMode('list') and \
+                not SysMgr.checkMode('mkcache') and \
+                not SysMgr.checkMode('ntop') and \
+                not SysMgr.checkMode('ping') and \
+                not SysMgr.checkMode('print') and \
+                not SysMgr.checkMode('printdir') and \
+                not SysMgr.checkMode('printdlt') and \
+                not SysMgr.checkMode('printext') and \
+                not SysMgr.checkMode('pstree') and \
+                not SysMgr.checkMode('readelf') and \
+                not SysMgr.checkMode('report') and \
+                not SysMgr.checkMode('req') and \
+                not SysMgr.checkMode('rtop') and \
+                not SysMgr.checkMode('strings') and \
+                not SysMgr.checkMode('sym2addr') and \
+                not SysMgr.checkMode('tail') and \
+                not SysMgr.checkMode('top') and \
+                not SysMgr.checkMode('topdiff') and \
+                not SysMgr.checkMode('topsum') and \
+                not SysMgr.isDrawMode() and \
+                not SysMgr.isHelpMode():
+                return False
+            return True
+
+        # Linux #
         if sys.platform.startswith('linux'):
             SysMgr.isLinux = True
 
@@ -21878,39 +22035,37 @@ class SysMgr(object):
                 SysMgr.libcppPath = 'libstdc++'
                 SysMgr.libdemanglePath = 'libgccdemangle'
                 SysMgr.cacheDirPath = '/data/log/guider'
-        elif sys.platform.startswith('win') or \
-            sys.platform.startswith('darwin'):
-            SysMgr.isLinux = False
 
-            if len(sys.argv) > 1 and \
-                not SysMgr.checkMode('addr2sym') and \
-                not SysMgr.checkMode('cli') and \
-                not SysMgr.checkMode('comp') and \
-                not SysMgr.checkMode('convert') and \
-                not SysMgr.checkMode('decomp') and \
-                not SysMgr.checkMode('drawreq') and \
-                not SysMgr.checkMode('exec') and \
-                not SysMgr.checkMode('mkcache') and \
-                not SysMgr.checkMode('ping') and \
-                not SysMgr.checkMode('printdir') and \
-                not SysMgr.checkMode('printext') and \
-                not SysMgr.checkMode('readelf') and \
-                not SysMgr.checkMode('report') and \
-                not SysMgr.checkMode('req') and \
-                not SysMgr.checkMode('strings') and \
-                not SysMgr.checkMode('sym2addr') and \
-                not SysMgr.checkMode('tail') and \
-                not SysMgr.checkMode('topdiff') and \
-                not SysMgr.checkMode('topsum') and \
-                not SysMgr.isDrawMode() and \
-                not SysMgr.isHelpMode():
+        # Windows #
+        elif sys.platform.startswith('win'):
+            SysMgr.isLinux = False
+            SysMgr.isWindows = True
+
+            if len(sys.argv) == 1:
+                pass
+            elif not _checkMode():
                 SysMgr.printErr(
-                    '%s command is not supported on %s platform now' % \
+                    "'%s' command is not supported on '%s' platform now" % \
                         (sys.argv[1], sys.platform))
                 sys.exit(0)
+
+        # macOS #
+        elif sys.platform.startswith('darwin'):
+            SysMgr.isLinux = False
+            SysMgr.isDarwin = True
+            ConfigMgr.SIG_LIST = ConfigMgr.SIG_LIST_MACOS
+
+            if len(sys.argv) == 1:
+                pass
+            elif not _checkMode():
+                SysMgr.printErr(
+                    "'%s' command is not supported on '%s' platform now" % \
+                        (sys.argv[1], sys.platform))
+                sys.exit(0)
+
         else:
             SysMgr.printErr(
-                '%s platform is not supported now' % sys.platform)
+                "'%s' platform is not supported now" % sys.platform)
             sys.exit(0)
 
         # check locale #
@@ -21931,8 +22086,8 @@ class SysMgr(object):
         # check python #
         if sys.version_info < (2, 6):
             SysMgr.printWarn(
-                'python version is %d.%d so that some features may not work'
-                % (sys.version_info[0], sys.version_info[1]))
+                'some features may not work on python %d.%d' % \
+                    (sys.version_info[0], sys.version_info[1]), True)
 
 
 
@@ -21997,8 +22152,9 @@ class SysMgr(object):
                 else:
                     types = ' '
 
-                cmdbuf = '%s%4s%-12s%4s%-14s%4s<%-s>\n' % \
-                    (cmdbuf, ' ', types, ' ', cmd, ' ', cvalue)
+                cmdbuf = '%s%4s%-12s%4s%-14s%4s%-15s (%-s)\n' % \
+                    (cmdbuf, ' ', types, ' ', cmd, ' ',
+                        '<%s>' % cvalue[0], cvalue[1])
                 prefix = ''
             cmdbuf = '%s\n' % cmdbuf
 
@@ -22010,132 +22166,134 @@ class SysMgr(object):
     def getCmdList():
         return {
             'monitor': {
-                'atop': 'All',
-                'bgtop': 'Background',
-                'btop': 'Function',
-                'cgtop': 'Cgroup',
-                'ctop': 'Threshold',
-                'dbustop': 'D-Bus',
-                'disktop': 'Storage',
-                'dlttop': 'DLT',
-                'ftop': 'File',
-                'mtop': 'Memory',
-                'ntop': 'Network',
-                'ptop': 'PMU',
-                'pytop': 'Python',
-                'rtop': 'JSON',
-                'stacktop': 'Stack',
-                'systop': 'Syscall',
-                'top': 'Process',
-                'ttop': 'Thread',
-                'utop': 'Function',
-                'wtop': 'WSS',
+                'atop': ('All', 'Linux'),
+                'bgtop': ('Background', 'Linux/macOS/Windows'),
+                'btop': ('Function', 'Linux'),
+                'cgtop': ('Cgroup', 'Linux'),
+                'ctop': ('Threshold', 'Linux/macOS/Windows'),
+                'dbustop': ('D-Bus', 'Linux'),
+                'disktop': ('Storage', 'Linux/macOS/Windows'),
+                'dlttop': ('DLT', 'Linux/macOS/Windows'),
+                'ftop': ('File', 'Linux/macOS'),
+                'mtop': ('Memory', 'Linux'),
+                'ntop': ('Network', 'Linux/macOS/Windows'),
+                'ptop': ('PMU', 'Linux'),
+                'pytop': ('Python', 'Linux'),
+                'rtop': ('JSON', 'Linux/macOS/Windows'),
+                'stacktop': ('Stack', 'Linux'),
+                'systop': ('Syscall', 'Linux'),
+                'top': ('Process', 'Linux/macOS/Windows'),
+                'ttop': ('Thread', 'Linux'),
+                'utop': ('Function', 'Linux'),
+                'wtop': ('WSS', 'Linux'),
                 },
             'trace': {
-                'btrace': 'Breakpoint',
-                'leaktrace': 'Leak',
-                'pytrace': 'Python',
-                'sigtrace': 'Signal',
-                'strace': 'Syscall',
-                'utrace': 'Function',
+                'btrace': ('Breakpoint', 'Linux'),
+                'leaktrace': ('Leak', 'Linux'),
+                'pytrace': ('Python', 'Linux'),
+                'sigtrace': ('Signal', 'Linux'),
+                'strace': ('Syscall', 'Linux'),
+                'utrace': ('Function', 'Linux'),
                 },
             'profile': {
-                'filerec': 'File',
-                'funcrec': 'Function',
-                'genrec': 'System',
-                'iorec': 'I/O',
-                'mem': 'Page',
-                'rec': 'Thread',
-                'report': 'Report',
-                'sysrec': 'Syscall',
+                'filerec': ('File', 'Linux'),
+                'funcrec': ('Function', 'Linux'),
+                'genrec': ('System', 'Linux'),
+                'iorec': ('I/O', 'Linux'),
+                'mem': ('Page', 'Linux'),
+                'rec': ('Thread', 'Linux'),
+                'report': ('Report', 'Linux'),
+                'sysrec': ('Syscall', 'Linux'),
                 },
             'visual': {
-                'convert': 'Text',
-                'draw': 'System',
-                'drawavg': 'Average',
-                'drawcpu': 'CPU',
-                'drawcpuavg': 'CPU',
-                'drawdelay': 'Delay',
-                'drawflame': 'Function',
-                'drawio': 'I/O',
-                'drawleak': 'Leak',
-                'drawmem': 'Memory',
-                'drawmemavg': 'Memory',
-                'drawreq': 'URL',
-                'drawrss': 'RSS',
-                'drawrssavg': 'RSS',
-                'drawtime': 'Timeline',
-                'drawvss': 'VSS',
-                'drawvssavg': 'VSS',
-                },
-            'util': {
-                'addr2sym': 'Symbol',
-                'comp': 'Compress',
-                'decomp': 'Decompress',
-                'dump': 'Memory',
-                'exec': 'Command',
-                'getafnt': 'Affinity',
-                'hook': 'Function',
-                'kill/tkill': 'Signal',
-                'limitcpu': 'CPU',
-                'mkcache': 'Cache',
-                'mount': 'Mount',
-                'pause': 'Thread',
-                'ping': 'PING',
-                'print': 'File',
-                'printbind': 'Funcion',
-                'printcg': 'Cgroup',
-                'printdbus': 'D-Bus',
-                'printdbusintro': 'D-Bus',
-                'printdbusstat': 'D-Bus',
-                'printdbussub': 'D-Bus',
-                'printdir': 'Dir',
-                'printenv': 'Env',
-                'printext': 'Ext4',
-                'printinfo': 'System',
-                'printns': 'Namespace',
-                'printsig': 'Signal',
-                'printsvc': 'systemd',
-                'pstree': 'Process',
-                'readahead': 'File',
-                'readelf': 'File',
-                'remote': 'Command',
-                'req': 'URL',
-                'rlimit': 'Resource',
-                'setafnt': 'Affinity',
-                'setcpu': 'Clock',
-                'setsched': 'Priority',
-                'strings': 'Text',
-                'sym2addr': 'Address',
-                'systat': 'Status',
-                'topdiff': 'Diff',
-                'topsum': 'Summary',
-                'umount': 'Unmount',
-                'watch': 'File',
-                },
-            'log': {
-                'logdlt': 'DLT',
-                'logjrl': 'Journal',
-                'logkmsg': 'Kernel',
-                'logsys': 'Syslog',
-                'printdlt': 'DLT',
-                'printjrl': 'Journal',
-                'printkmsg': 'Kernel',
-                'printsys': 'Syslog',
+                'convert': ('Text', 'Linux/macOS/Windows'),
+                'draw': ('System', 'Linux/macOS/Windows'),
+                'drawavg': ('Average', 'Linux/macOS/Windows'),
+                'drawcpu': ('CPU', 'Linux/macOS/Windows'),
+                'drawcpuavg': ('CPU', 'Linux/macOS/Windows'),
+                'drawdelay': ('Delay', 'Linux/macOS/Windows'),
+                'drawflame': ('Function', 'Linux/macOS/Windows'),
+                'drawio': ('I/O', 'Linux/macOS/Windows'),
+                'drawleak': ('Leak', 'Linux/macOS/Windows'),
+                'drawmem': ('Memory', 'Linux/macOS/Windows'),
+                'drawmemavg': ('Memory', 'Linux/macOS/Windows'),
+                'drawreq': ('URL', 'Linux/macOS/Windows'),
+                'drawrss': ('RSS', 'Linux/macOS/Windows'),
+                'drawrssavg': ('RSS', 'Linux/macOS/Windows'),
+                'drawtime': ('Timeline', 'Linux/macOS/Windows'),
+                'drawvss': ('VSS', 'Linux/macOS/Windows'),
+                'drawvssavg': ('VSS', 'Linux/macOS/Windows'),
                 },
             'control': {
-                'cli': 'Client',
-                'event': 'Event',
-                'list': 'List',
-                'send': 'Signal',
-                'server': 'Server',
-                'start': 'Signal',
+                'hook': ('Function', 'Linux'),
+                'kill/tkill': ('Signal', 'Linux/macOS'),
+                'limitcpu': ('CPU', 'Linux'),
+                'pause': ('Thread', 'Linux'),
+                'remote': ('Command', 'Linux'),
+                'rlimit': ('Resource', 'Linux'),
+                'setafnt': ('Affinity', 'Linux'),
+                'setcpu': ('Clock', 'Linux'),
+                'setsched': ('Priority', 'Linux'),
+                },
+            'util': {
+                'addr2sym': ('Symbol', 'Linux/macOS/Windows'),
+                'comp': ('Compress', 'Linux/macOS/Windows'),
+                'decomp': ('Decompress', 'Linux/macOS/Windows'),
+                'dump': ('Memory', 'Linux'),
+                'exec': ('Command', 'Linux/macOS/Windows'),
+                'getafnt': ('Affinity', 'Linux'),
+                'mkcache': ('Cache', 'Linux/macOS/Windows'),
+                'mount': ('Mount', 'Linux'),
+                'ping': ('PING', 'Linux/macOS/Windows'),
+                'print': ('File', 'Linux/macOS/Windows'),
+                'printbind': ('Funcion', 'Linux'),
+                'printcg': ('Cgroup', 'Linux'),
+                'printdbus': ('D-Bus', 'Linux'),
+                'printdbusintro': ('D-Bus', 'Linux'),
+                'printdbusstat': ('D-Bus', 'Linux'),
+                'printdbussub': ('D-Bus', 'Linux'),
+                'printdir': ('Dir', 'Linux/macOS/Windows'),
+                'printenv': ('Env', 'Linux'),
+                'printext': ('Ext4', 'Linux/macOS/Windows'),
+                'printinfo': ('System', 'Linux'),
+                'printns': ('Namespace', 'Linux'),
+                'printsig': ('Signal', 'Linux'),
+                'printsvc': ('systemd', 'Linux'),
+                'pstree': ('Process', 'Linux/macOS/Windows'),
+                'readahead': ('File', 'Linux'),
+                'readelf': ('File', 'Linux/macOS/Windows'),
+                'req': ('URL', 'Linux/macOS/Windows'),
+                'strings': ('Text', 'Linux/macOS/Windows'),
+                'sym2addr': ('Address', 'Linux/macOS/Windows'),
+                'systat': ('Status', 'Linux'),
+                'topdiff': ('Diff', 'Linux/macOS/Windows'),
+                'topsum': ('Summary', 'Linux/macOS/Windows'),
+                'umount': ('Unmount', 'Linux'),
+                'watch': ('File', 'Linux'),
+                },
+            'log': {
+                'logdlt': ('DLT', 'Linux'),
+                'logjrl': ('Journal', 'Linux'),
+                'logkmsg': ('Kernel', 'Linux'),
+                'logsys': ('Syslog', 'Linux'),
+                'printdlt': ('DLT', 'Linux/macOS/Windows'),
+                'printjrl': ('Journal', 'Linux'),
+                'printkmsg': ('Kernel', 'Linux'),
+                'printsys': ('Syslog', 'Linux'),
+                },
+            'network': {
+                'cli': ('Client', 'Linux/macOS/Windows'),
+                'event': ('Event', 'Linux'),
+                'list': ('List', 'Linux/macOS/Windows'),
+                'send': ('Signal', 'Linux'),
+                'server': ('Server', 'Linux'),
+                'start': ('Signal', 'Linux'),
                 },
             'test': {
-                'cputest': 'CPU',
-                'iotest ': 'Storage',
-                'memtest': 'Memory',
-                'nettest ': 'Network',
+                'cputest': ('CPU', 'Linux/macOS/Windows'),
+                'iotest ': ('Storage', 'Linux/macOS/Windows'),
+                'memtest': ('Memory', 'Linux/macOS/Windows'),
+                'nettest ': ('Network', 'Linux'),
                 },
             }
 
@@ -22474,6 +22632,9 @@ Examples:
     - Draw resource graph on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
 
+    - Draw flame graph only for backtrace stacks
+        # {0:1} {1:1} guider.out -q ONLYBTSTACK
+
     - Draw resource graph within specific interval range in index unit
         # {0:1} {1:1} guider.out -q TRIMIDX:0:3
 
@@ -22504,7 +22665,7 @@ Examples:
         # {0:1} {1:1} "guider*.out" worstcase.out -a -g TOTAL
                 '''.format(cmd, mode)
 
-                brkExamStr = '''
+                cmdListStr = '''
 Commands:
     acc      print accumulation stat [NAME:VAR|REG|VAL]
     check    check values [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
@@ -22539,7 +22700,9 @@ Commands:
     thread   create a new thread
     usercall call a specific function [FUNC#ARGS]
     wrmem    change specific memory or register [VAR|ADDR|REG:VAL:SIZE]
+                '''
 
+                brkExamStr = '''{2:1}
 Examples:
     - Trace all native calls for specific thread
         # {0:1} {1:1} -g 1234
@@ -22575,12 +22738,15 @@ Examples:
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
     - Trace all native calls except for no symbol functions for specific threads
-        # {0:1} {1:1} -g a.out -q ONLYSYMBOL
+        # {0:1} {1:1} -g a.out -q ONLYSYM
+
+    - Trace all native calls except for arguments for specific threads
+        # {0:1} {1:1} -g a.out -q NOARG
 
     - Trace all native calls except for ld for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
-    - Trace all native calls and injection info for specific threads
+    - Trace all native calls and their injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEBP
 
     - Trace all native calls for 4th new threads in each new processes from a specific binary
@@ -22757,7 +22923,7 @@ Examples:
     - Trace all native calls and execute specific commands
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
-                '''.format(cmd, mode)
+                '''.format(cmd, mode, cmdListStr)
 
                 logCommonStr = '''
 Usage:
@@ -23324,26 +23490,26 @@ Examples:
         # {0:1} {1:1} -o .
 
     - Monitor syscalls for specific threads (wait for new target if no task)
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
 
     - Monitor syscalls for specific threads even if the master tracer is terminated
-        # {0:1} {1:1} a.out -g a.out -q CONTALONE
+        # {0:1} {1:1} -g a.out -q CONTALONE
 
     - Monitor syscalls except for wait status for specific threads
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
     - Monitor syscalls except for register info for specific threads
-        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOCONTEXT
 
     - Monitor syscalls for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Monitor syscalls except for no symbol functions for specific threads
-        # {0:1} {1:1} a.out -g a.out -q ONLYSYMBOL
+    - Monitor syscalls except for no symbol backtraces for specific threads
+        # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
     - Monitor syscalls for specific threads after loading all symbols in stop status
-        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+        # {0:1} {1:1} -g a.out -q STOPTARGET
 
     - Monitor syscalls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
@@ -23409,7 +23575,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - Monitor python calls except for no symbol functions for specific threads
-        # {0:1} {1:1} a.out -g a.out -q ONLYSYMBOL
+        # {0:1} {1:1} a.out -g a.out -q ONLYSYM
 
     - Monitor python calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
@@ -23486,7 +23652,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - Monitor native function calls except for no symbol functions for specific threads
-        # {0:1} {1:1} a.out -g a.out -q ONLYSYMBOL
+        # {0:1} {1:1} a.out -g a.out -q ONLYSYM
 
     - Monitor native function calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
@@ -23929,6 +24095,7 @@ Options:
                     helpStr += '''
 Examples:
     - Print printable characters in a specific file
+        # {0:1} {1:1} a.out
         # {0:1} {1:1} -I a.out
 
     - Print the sequences of printable characters in a specific file
@@ -24079,6 +24246,12 @@ Examples:
 
     - Trace all write syscalls with specific command with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
+
+    - Trace all syscalls except for no symbol backtraces for specific threads
+        # {0:1} {1:1} -g a.out -H -q ONLYSYM
+
+    - Trace all syscalls except for arguments for specific threads
+        # {0:1} {1:1} -g a.out -q NOARG
 
     - Trace all syscalls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -24328,11 +24501,71 @@ Options:
                     '''
 
                     remoteExamStr = '''
-    - print context repeatedly 5 times
+    - Print the context for the target repeatedly 5 times
         # {0:1} {1:1} -g a.out -c print -i 5
-                    '''
 
-                    helpStr += brkExamStr + remoteExamStr
+    - Control the target to sleep for 0.1 second
+        # {0:1} {1:1} -g a.out -c "sleep:0.1"
+
+    - Control the target to be terminated
+        # {0:1} {1:1} -g a.out -c "kill"
+
+    - Control the target to modify its memory
+        # {0:1} {1:1} -g a.out -c "wrmem:0x1234:aaaa:4"
+
+    - Control the target to print 10-length string from the specific memory address
+        # {0:1} {1:1} -g a.out -c "rdmem:0x1234:10"
+
+    - Control the target to return from the current function with a specific value immediately
+        # {0:1} {1:1} -g a.out -c "ret:3"
+
+    - Control the target to dump stack to a file
+        # {0:1} {1:1} -g a.out -c "dump:stack:stack.out"
+
+    - Control the target to dump specific memory range to a file
+        # {0:1} {1:1} -g a.out -c "dump:0x1234-0x4567:dump.out"
+
+    - Check specific register value for the target
+        # {0:1} {1:1} -g a.out -c "check:2:EQ:4096"
+        # {0:1} {1:1} -g a.out -c "check:2:BT:0x1000"
+        # {0:1} {1:1} -g a.out -c "check:*1:EQ:HELLO"
+        # {0:1} {1:1} -g a.out -c "check:*1:INC:HE"
+
+    - Print 1st and 2nd arguments (registers)
+        # {0:1} {1:1} -g a.out -c "getarg:0:1"
+
+    - Control the target to be terminated
+        # {0:1} {1:1} -g a.out -c "exit"
+
+    - Control the target to call the specific function
+        # {0:1} {1:1} -g a.out -c "usercall:sleep#3"
+        # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE"
+        # {0:1} {1:1} -g a.out -c "usercall:printf#12345"
+        # {0:1} {1:1} -g a.out -c "usercall:getenv#PATH"
+
+    - Control the target to call the specific syscall
+        # {0:1} {1:1} -g a.out -c "syscall:getpid"
+        # {0:1} {1:1} -g a.out -c "syscall:open#test.out#1"
+
+    - Control the target to load the specific library
+        # {0:1} {1:1} -g a.out -c "load:/usr/lib/preload.so"
+
+    - Control the target to create a thread
+        # {0:1} {1:1} -g a.out -c "thread"
+
+    - Control the target to execute python code
+        # {0:1} {1:1} -g a.out -c "pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
+        # {0:1} {1:1} -g a.out -c "pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
+
+    - Control the target to jump to the specific function with specific arguments
+        # {0:1} {1:1} -g a.out -c "jump:sleep#5"
+
+    - Control the target to execute specific commands
+        # {0:1} {1:1} -g a.out -c "exec:ls -lha:sleep 1"
+        # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
+                    '''.format(cmd, mode)
+
+                    helpStr += remoteExamStr
 
                 # hook #
                 elif SysMgr.checkMode('hook'):
@@ -26392,15 +26625,22 @@ Copyright:
             return SysMgr.arch
 
         try:
-            arch = os.uname()[4]
+            if SysMgr.isWindows:
+                arch = os.environ["PROCESSOR_ARCHITECTURE"]
+            else:
+                arch = os.uname()[4]
 
             if arch.startswith('arm'):
                 SysMgr.arch = 'arm'
             elif arch.startswith('aarch64'):
                 SysMgr.arch = 'aarch64'
-            elif arch.startswith('x86_64') or arch.startswith('ia64'):
+            elif arch.startswith('x86_64') or \
+                arch.startswith('ia64') or \
+                arch == 'AMD64':
                 SysMgr.arch = 'x64'
-            elif arch.startswith('i386') or arch.startswith('i686'):
+            elif arch.startswith('i386') or \
+                arch.startswith('i686') or \
+                arch == 'x86':
                 SysMgr.arch = 'x86'
             else:
                 SysMgr.arch = arch
@@ -26693,7 +26933,7 @@ Copyright:
 
     @staticmethod
     def isRoot():
-        if SysMgr.isLinux and os.geteuid() == 0:
+        if (SysMgr.isLinux or SysMgr.isDarwin) and os.geteuid() == 0:
             return True
         else:
             return False
@@ -29198,7 +29438,9 @@ Copyright:
 
     @staticmethod
     def writeTraceCmd(time):
-        if SysMgr.rcmdList == {}:
+        if not SysMgr.isLinux:
+            return
+        elif SysMgr.rcmdList == {}:
             return
 
         for cmd in SysMgr.rcmdList[time]:
@@ -29463,7 +29705,7 @@ Copyright:
         if not SysMgr.printEnable or SysMgr.pipeForPager:
             return
 
-        if SysMgr.isLinux and \
+        if (SysMgr.isLinux or SysMgr.isDarwin) and \
             not 'REMOTERUN' in os.environ:
             sys.stdout.write("\x1b[2J\x1b[H")
         elif sys.platform.startswith('win'):
@@ -30139,6 +30381,8 @@ Copyright:
 
     @staticmethod
     def drawText(lines):
+        # pylint: disable=import-error
+
         imageType = None
 
         # get textwrap object #
@@ -30485,7 +30729,7 @@ Copyright:
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
             try:
-                if SysMgr.isLinux:
+                if SysMgr.isLinux or SysMgr.isDarwin:
                     if UtilMgr.which('less'):
                         #defopt = '-FRSXMQi'
                         defopt = '-FRXMQi'
@@ -30508,6 +30752,8 @@ Copyright:
                 elif sys.platform.startswith('win'):
                     try:
                         SysMgr.pipeForPager = os.popen('more', 'w')
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
                 else:
@@ -31126,17 +31372,19 @@ Copyright:
             sys.exit(0)
 
         # change too big interval to prevent overflow #
-        if SysMgr.intervalEnable == sys.maxsize:
-            try:
-                # just use maximum value for 32-bit system #
+        try:
+            # just use maximum value for 32-bit system #
+            if SysMgr.intervalEnable == sys.maxsize:
                 SysMgr.intervalEnable = SysMgr.maxSize
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr((
-                    "wrong value for interval option because %s, "
-                    "input integer value") % SysMgr.getErrMsg())
-                sys.exit(0)
+            if SysMgr.repeatInterval == sys.maxsize:
+                SysMgr.repeatInterval = SysMgr.maxSize
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr((
+                "wrong value for interval option because %s, "
+                "input integer value") % SysMgr.getErrMsg())
+            sys.exit(0)
 
         # get termination flag #
         if SysMgr.checkMode('req'):
@@ -31161,6 +31409,7 @@ Copyright:
 
     @staticmethod
     def reloadFileBuffer(path=None):
+        # pylint: disable=no-member
         if path:
             try:
                 fd = open(path, 'r')
@@ -32446,6 +32695,10 @@ Copyright:
         # parse options #
         SysMgr.parseAnalOption()
 
+        # set tty setting automatically #
+        if not SysMgr.ttyEnable:
+            SysMgr.setTTYAuto(True, False, False)
+
         # wait for input #
         if SysMgr.waitEnable:
             SysMgr.waitUserInput(
@@ -33172,7 +33425,7 @@ Copyright:
         SysMgr.reportEnable = True
 
         SysMgr.printInfo(
-            "start writing JSON format report to %s" % reportPath)
+            "start writing report in JSON format to '%s'" % reportPath)
 
         return True
 
@@ -33198,14 +33451,15 @@ Copyright:
             return True
 
         procPath = SysMgr.procPath
-        if not SysMgr.isRoot():
+        if SysMgr.isLinux and not SysMgr.isRoot():
             SysMgr.printErr(
-                "fail to get root permission to analyze block I/O")
-            return False
-        elif not os.path.isfile('%s/self/io' % procPath):
+                "fail to get root permission to analyze block I/O for tasks")
+            return True
+        elif SysMgr.isLinux and not os.path.isfile('%s/self/io' % procPath):
             SysMgr.printErr(
-                "fail to use bio event, please check kernel config")
-            return False
+                "fail to use bio event to analyze block I/O for tasks, "
+                "please check kernel config")
+            return True
         else:
             return True
 
@@ -33436,10 +33690,13 @@ Copyright:
 
     @staticmethod
     def getProcPids(name):
+        if not SysMgr.isLinux:
+            return None
+
         pidList = []
         myPid = str(SysMgr.pid)
 
-        pids = os.listdir(SysMgr.procPath)
+        pids = SysMgr.getPidList()
         for pid in pids:
             if myPid == pid:
                 continue
@@ -33486,6 +33743,13 @@ Copyright:
 
     @staticmethod
     def getUptime():
+        if not SysMgr.isLinux:
+            # get psutil object #
+            psutil = SysMgr.getPkg('psutil', False)
+            if not psutil:
+                return -1
+            return time.time() - psutil.boot_time()
+
         try:
             SysMgr.uptimeFd.seek(0)
             return float(SysMgr.uptimeFd.readlines()[0].split()[0])
@@ -33593,11 +33857,10 @@ Copyright:
 
     @staticmethod
     def checkBgProcs():
-        if not SysMgr.isLinux:
-            return
-
+        # scan background tasks #
         SysMgr.updateBgProcs()
 
+        # ignore my siblings #
         if SysMgr.bgProcList:
             ppid = os.getppid()
             myComm = SysMgr.getComm(SysMgr.pid)
@@ -33622,7 +33885,6 @@ Copyright:
     @staticmethod
     def getBgProcCount(cache=False):
         SysMgr.updateBgProcs(cache)
-
         return SysMgr.bgProcList.count('\n')
 
 
@@ -33654,10 +33916,7 @@ Copyright:
             return
 
         SysMgr.updateBgProcs(cache)
-
-        procList = SysMgr.bgProcList
-
-        if procList == '':
+        if not SysMgr.bgProcList:
             SysMgr.printPipe(
                 "\nno running process in the background\n", pager=False)
         else:
@@ -33695,6 +33954,27 @@ Copyright:
         pidList = []
         prevTargetList = []
 
+        if not SysMgr.isLinux:
+            try:
+                psutil = SysMgr.getPkg('psutil')
+                procs = psutil.process_iter(
+                    attrs=['pid', 'name'], ad_value=None)
+                for proc in procs:
+                    pid = proc.info['pid']
+                    comm = proc.info['name']
+                    if name == pid:
+                        pidList.append(pid)
+                    elif UtilMgr.isValidStr(comm, [name]):
+                        pidList.append(pid)
+
+                return pidList
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "fail to find tasks related to '%s'" % name, reason=True)
+                return pidList
+
         while 1:
             # tid #
             if UtilMgr.isNumber(name) and \
@@ -33719,7 +33999,7 @@ Copyright:
             nameList = [name]
 
             # set check list #
-            targetList = os.listdir(SysMgr.procPath)
+            targetList = SysMgr.getPidList()
             curList = set(targetList) - set(prevTargetList)
             prevTargetList = targetList
 
@@ -34031,7 +34311,7 @@ Copyright:
                     continue
                 elif fid in raDenyIndexList:
                     continue
-                elif raAllowList and not index in raAllowList:
+                elif raAllowList and not fid in raAllowIndexList:
                     continue
                 elif raMin > size:
                     continue
@@ -34128,15 +34408,21 @@ Copyright:
         # update uptime #
         SysMgr.updateUptime()
 
-        # get my comm #
+        # get my info #
         myComm = SysMgr.getComm(SysMgr.pid)
-
-        # get my cmdline #
         myCmdline = SysMgr.getCmdline(SysMgr.pid, True)
+        myExeName = SysMgr.getExeName(SysMgr.pid)
 
-        pids = os.listdir(SysMgr.procPath)
+        # get pid list #
+        pids = SysMgr.getPidList()
+
         for pid in pids:
-            if myPid == pid or not pid.isdigit():
+            if not pid.isdigit() or myPid == pid:
+                continue
+
+            # ignore tasks except for python #
+            exeName = SysMgr.getExeName(pid, verb=False)
+            if myExeName != exeName:
                 continue
 
             # check comm #
@@ -34152,8 +34438,19 @@ Copyright:
 
             runtime = '?'
 
-            # comm #
+            # info #
             try:
+                # other OS #
+                if not SysMgr.isLinux:
+                    psutil = SysMgr.getPkg('psutil', False)
+                    proc = psutil.Process(long(pid))
+                    ppid = proc.ppid()
+                    runtime = long(time.time() - proc.create_time())
+                    cmdline = SysMgr.getCmdline(pid)
+                    state = proc.status()
+                    rss = UtilMgr.convSize2Unit(proc.memory_info()[0], True)
+                    raise Exception()
+
                 statPath = "%s/%s/stat" % (SysMgr.procPath, pid)
                 with open(statPath, 'r') as fd:
                     statList = fd.read().split()
@@ -34172,12 +34469,16 @@ Copyright:
                 try:
                     state = ConfigMgr.PROC_STAT_TYPE[
                         statList[gstatList.index("STATE")]]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     state = 'N/A'
 
                 # rss #
                 rss = long(statList[gstatList.index("RSS")])
                 rss = UtilMgr.convSize2Unit(rss << 12, True)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -34187,6 +34488,9 @@ Copyright:
 
             # socket #
             try:
+                if not SysMgr.isLinux:
+                    raise Exception()
+
                 objs = SysMgr.getProcSocketObjs(pid)
                 addrs = SysMgr.getSocketAddrList(objs)
 
@@ -34225,6 +34529,8 @@ Copyright:
             # cmdline #
             try:
                 cmdline = SysMgr.getCmdline(pid)
+            except SystemExit:
+                sys.exit(0)
             except:
                 cmdline = '?'
 
@@ -34308,11 +34614,15 @@ Copyright:
             else:
                 suffix = ''
 
-            # set fd list for input #
+            # set input list #
             if SysMgr.bgStatus:
                 inputList = []
             else:
-                inputList = [sys.stdin]
+                stdinPath = SysMgr.getFdName(SysMgr.pid, sys.stdin.fileno())
+                if stdinPath and stdinPath.startswith('/dev/null'):
+                    inputList = []
+                else:
+                    inputList = [sys.stdin]
 
             # there was user input #
             if selectObj.select(
@@ -34662,6 +34972,16 @@ Copyright:
 
 
     @staticmethod
+    def initSystemContext():
+        if not SysMgr.outPath or \
+            'FASTINIT' in SysMgr.environList:
+            SysMgr(onlyInstance=True)
+        else:
+            SysMgr()
+
+
+
+    @staticmethod
     def initEnvironment():
         # init times #
         SysMgr.initTimes()
@@ -34979,24 +35299,37 @@ Copyright:
 
 
     @staticmethod
-    def spawnProcess(func, args, cnt=1, wait=True):
+    def spawnProcess(func=None, args=[], cnt=1, wait=True):
+        # load multiprocessing #
         multiprocessing = SysMgr.getPkg('multiprocessing')
+
         plist = []
+        pidlist = []
+
         for seq in range(0, cnt):
             try:
+                # create a new process #
                 p = multiprocessing.Process(target=func, args=args)
+
+                # run a new process #
+                p.start()
+
+                # save process info #
+                plist.append(p)
+                pidlist.append(p.pid)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
                     'fail to create a new process', reason=True)
                 continue
-            p.start()
-            plist.append(p)
 
+        # sync #
         if wait:
             for p in plist:
                 p.join()
+        else:
+            return pidlist
 
 
 
@@ -35007,7 +35340,22 @@ Copyright:
         SysMgr.flushAllForPrint()
 
         # create a new process #
-        pid = os.fork()
+        try:
+            # fork #
+            pid = os.fork()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            # multiprocessing #
+            try:
+                ret = SysMgr.spawnProcess(wait=False)
+                if ret: return ret[0]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to create a new process', True)
+            return -1
 
         # parent #
         if pid > 0:
@@ -35159,7 +35507,7 @@ Copyright:
 
     @staticmethod
     def setDefaultSignal():
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -35171,7 +35519,7 @@ Copyright:
 
     @staticmethod
     def setSimpleSignal():
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         SysMgr.setCommonSignal()
@@ -35185,7 +35533,7 @@ Copyright:
 
     @staticmethod
     def setPipeHandler():
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         signal.signal(signal.SIGPIPE, SysMgr.exitHandler)
@@ -35194,7 +35542,7 @@ Copyright:
 
     @staticmethod
     def setCommonSignal():
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         signal.signal(signal.SIGCHLD, SysMgr.chldHandler)
@@ -35210,7 +35558,7 @@ Copyright:
 
     @staticmethod
     def setIgnoreSignal():
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
@@ -35302,7 +35650,7 @@ Copyright:
 
     @staticmethod
     def setNormalSignal():
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         SysMgr.setCommonSignal()
@@ -36059,9 +36407,6 @@ Copyright:
 
             selectObj = SysMgr.getPkg('select')
 
-            if not SysMgr.ttyEnable:
-                SysMgr.setTTYAuto(True)
-
             # print window size for commands #
             windowSize = long(SysMgr.ttyRows / len(cmdList))
             SysMgr.printInfo("set each window height to %s" % (windowSize+2))
@@ -36279,6 +36624,20 @@ Copyright:
         if SysMgr.nrCore > 0:
             return SysMgr.nrCore
 
+        if not SysMgr.isLinux:
+            try:
+                # get psutil object #
+                psutil = SysMgr.getPkg('psutil', False)
+                nrCore = psutil.cpu_count()
+                SysMgr.nrCore = nrCore
+                return nrCore
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    'fail to get the number of CPU', reason=True)
+                return 0
+
         try:
             cpuBuf = None
             SysMgr.statFd.seek(0)
@@ -36473,6 +36832,7 @@ Copyright:
 
                 req, times = line.split('|', 1)
 
+                # check filter #
                 if SysMgr.filterGroup:
                     if not UtilMgr.isValidStr(req):
                         continue
@@ -39722,7 +40082,7 @@ Copyright:
                     sys.exit(0)
 
                 workload.append(
-                    {'op': 'read', 'path': mountPoint})
+                    {'op': 'read', 'path': mountPoint, 'size': 0})
 
         except SystemExit:
             sys.exit(0)
@@ -40811,7 +41171,11 @@ Copyright:
                 pass
 
             # print profile #
-            tid = SysMgr.syscall('gettid')
+            if SysMgr.isLinux:
+                tid = SysMgr.syscall('gettid')
+            else:
+                tid = os.getpid()
+
             SysMgr.printWarn(
                 "started %sth %s(%s)" % \
                     (UtilMgr.convNum(idx), SysMgr.comm, tid))
@@ -40821,14 +41185,19 @@ Copyright:
                 if load == 0:
                     signal.pause()
                 else:
-                    sorted([random.random() for i in range(1<<10)])
+                    before = time.time()
+                    sorted([random.random() for i in range(1<<20)])
+                    elapsed = time.time() - before
+                    SysMgr.printWarn(
+                        "%sth %s(%s) took %.6f seconds to finish one job" % \
+                            (UtilMgr.convNum(idx), SysMgr.comm, tid, elapsed))
 
         # get the number of task and load #
         try:
             if SysMgr.hasMainArg():
                 value = SysMgr.getMainArgs(token=':')
             else:
-                value = [100*SysMgr.getNrCore()]
+                value = [100 * SysMgr.getNrCore()]
 
             # parse values #
             if len(value) > 2:
@@ -40840,7 +41209,7 @@ Copyright:
                 load = totalLoad / nrTask
             else:
                 totalLoad = long(value[0])
-                nrTask = totalLoad / 100
+                nrTask = long(totalLoad / 100)
                 modLoad = totalLoad % 100
 
                 if modLoad > 0:
@@ -40860,15 +41229,15 @@ Copyright:
 
         # check target type #
         if SysMgr.processEnable:
-            taskType = 'process'
+            if nrTask > 1:
+                taskstr = '%s processes' % UtilMgr.convNum(nrTask)
+            else:
+                taskstr = 'a process'
         else:
-            taskType = 'thread'
-
-        # check target number #
-        if nrTask > 1:
-            taskstr = '%s %s' % (UtilMgr.convNum(nrTask), taskType)
-        else:
-            taskstr = 'a %s' % taskType
+            if nrTask > 1:
+                taskstr = '%s threads' % UtilMgr.convNum(nrTask)
+            else:
+                taskstr = 'a thread'
 
         # run tasks #
         limitInfo = dict()
@@ -40911,12 +41280,18 @@ Copyright:
             for item in SysMgr.affinityFilter:
                 SysMgr.setAffinity(item[1], [pid])
 
-        # set alarm #
-        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(SysMgr.intervalEnable)
+        # set signal #
+        try:
+            # set alarm #
+            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+            signal.alarm(SysMgr.intervalEnable)
 
-        # ignore SIGCHLD #
-        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+            # ignore SIGCHLD #
+            signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         # limit CPU usage of tasks #
         SysMgr.doLimitCpu(limitInfo, verbose=False)
@@ -41399,7 +41774,10 @@ Copyright:
 
         obj = TaskAnalyzer(onlyInstance=True)
 
-        obj.saveSystemStat()
+        if SysMgr.isLinux:
+            obj.saveSystemStat()
+        else:
+            obj.saveSystemStatGen()
 
         TaskAnalyzer.printProcTree(obj.procData, title=True, targets=targets)
 
@@ -41722,18 +42100,37 @@ Copyright:
         taskList = {}
 
         def _openStatFd(tid, isProcess):
+            if not SysMgr.isLinux:
+                try:
+                    return SysMgr.getPkg('psutil').Process(long(tid))
+                except:
+                    return None
+
+            # set stat file path #
             if isProcess:
                 statPath = "%s/%s/stat" % (SysMgr.procPath, tid)
             else:
                 statPath = "%s/%s/task/%s/stat" % \
                     (SysMgr.procPath, tid, tid)
 
+            # return stat fd #
             try:
                 return open(statPath, 'r')
             except:
                 return None
 
         def _getTaskStat(fd):
+            if not SysMgr.isLinux:
+                try:
+                    stats = fd.cpu_times()
+                    usage = stats[0] + stats[1]
+                    return (fd.name(), usage * 100)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return None
+
+            # read buffer #
             try:
                 fd.seek(0)
                 statBuf = fd.read()
@@ -41777,8 +42174,13 @@ Copyright:
                     return
 
         # set alarm #
-        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(SysMgr.intervalEnable)
+        try:
+            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+            signal.alarm(SysMgr.intervalEnable)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         try:
             while 1:
@@ -41850,7 +42252,10 @@ Copyright:
                         if val['running']:
                             for tid in val['group']:
                                 try:
-                                    os.kill(tid, signal.SIGSTOP)
+                                    if SysMgr.isLinux:
+                                        os.kill(tid, signal.SIGSTOP)
+                                    else:
+                                        val['fd'].suspend()
                                 except SystemExit:
                                     raise Exception('exit')
                                 except:
@@ -41862,20 +42267,29 @@ Copyright:
                             val['running'] = True
                             for tid in val['group']:
                                 try:
-                                    os.kill(tid, signal.SIGCONT)
+                                    if SysMgr.isLinux:
+                                        os.kill(tid, signal.SIGCONT)
+                                    else:
+                                        val['fd'].resume()
                                 except SystemExit:
                                     raise Exception('exit')
                                 except:
                                     SysMgr.printSigError(tid, 'SIGCONT')
 
                 time.sleep(SLEEP_SEC)
-        except:
+        except SystemExit:
             pass
+        except:
+            SysMgr.printWarn(
+                'fail to limit CPU for tasks', reason=True)
         finally:
             for task, val in taskList.items():
                 for tid in val['group']:
                     try:
-                        os.kill(tid, signal.SIGCONT)
+                        if SysMgr.isLinux:
+                            os.kill(tid, signal.SIGCONT)
+                        else:
+                            val['fd'].resume()
                     except SystemExit:
                         pass
                     except:
@@ -41892,7 +42306,10 @@ Copyright:
 
         for pid in targetList:
             try:
-                kill(pid, sig)
+                if SysMgr.isLinux:
+                    kill(pid, sig)
+                else:
+                    SysMgr.getPkg('psutil').Process(long(pid)).terminate()
             except:
                 SysMgr.printSigError(pid, 'SIGKILL')
 
@@ -42092,9 +42509,12 @@ Copyright:
                 "fail to get my cmdline", True)
             sys.exit(0)
 
+        # get pid list #
+        pids = SysMgr.getPidList()
+
         # handle Guider processes #
         nrProc = long(0)
-        for pid in os.listdir(SysMgr.procPath):
+        for pid in pids:
             if myPid == pid or not pid.isdigit():
                 continue
 
@@ -42636,8 +43056,8 @@ Copyright:
 
 
     @staticmethod
-    def setTTYAuto(setRows=True, setCols=True):
-        if not SysMgr.isLinux:
+    def setTTYAuto(setRows=True, setCols=True, verb=True):
+        if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
 
         # update current terminal size #
@@ -42650,7 +43070,7 @@ Copyright:
             SysMgr.ttyCols = len(oneLine) + 1
 
         # set terminal size #
-        SysMgr.setTTY(SysMgr.ttyRows, SysMgr.ttyCols)
+        SysMgr.setTTY(SysMgr.ttyRows, SysMgr.ttyCols, verb)
 
         # update current terminal size #
         SysMgr.getTty()
@@ -42689,6 +43109,7 @@ Copyright:
             SysMgr.sttyEnable = True
         else:
             SysMgr.sttyEnable = False
+
         return SysMgr.sttyEnable
 
 
@@ -42714,8 +43135,9 @@ Copyright:
 
 
     @staticmethod
-    def setTTY(rows, cols):
-        if not SysMgr.isLinux or SysMgr.parentPid > 0:
+    def setTTY(rows, cols, verb=True):
+        if (not SysMgr.isLinux and not SysMgr.isDarwin) or \
+            SysMgr.parentPid > 0:
             return
 
         # set terminal size by ioctl #
@@ -42735,6 +43157,9 @@ Copyright:
 
             # update current terminal size #
             SysMgr.getTty()
+
+            if not verb:
+                return
 
             SysMgr.printInfo("set terminal size [ %sx%s ]" % \
                 (SysMgr.ttyRows, SysMgr.ttyCols))
@@ -42763,7 +43188,8 @@ Copyright:
 
     @staticmethod
     def getTty(update=False):
-        if not SysMgr.isLinux or SysMgr.parentPid > 0:
+        if (not SysMgr.isLinux and not SysMgr.isDarwin) or \
+            SysMgr.parentPid > 0:
             return
 
         if update and not SysMgr.termGetId:
@@ -42855,22 +43281,26 @@ Copyright:
     def saveSysStats():
         if not SysMgr.sysInstance:
             SysMgr()
-        SysMgr.sysInstance.saveSysStat()
+        if SysMgr.sysInstance:
+            SysMgr.sysInstance.saveSysStat()
 
 
 
     def saveSysStat(self, initialized=True):
+        if not SysMgr.isLinux:
+            return
+
         # update time #
         SysMgr.updateUptime()
 
-        # update resource usage #
+        # save resource usage #
         self.updateMemInfo()
         self.updateStorageInfo(isGeneral=True)
         self.updateNetworkInfo()
         self.updateIPCInfo()
         self.saveMacAddr()
 
-        # save system/user info #
+        # save system info #
         self.saveUnameInfo()
         self.saveUserInfo()
         self.saveOpenFileInfo()
@@ -43347,7 +43777,7 @@ Copyright:
         childs = set(map(str, childs))
         while 1:
             # get all task list #
-            tasks = set(os.listdir(SysMgr.procPath))
+            tasks = set(SysMgr.getPidList())
 
             # check terminated tasks #
             termTasks = childs - tasks
@@ -44226,6 +44656,10 @@ Copyright:
             # write signal command #
             if SysMgr.signalCmd:
                 try:
+                    if SysMgr.intervalEnable > 0:
+                        SysMgr.signalCmd += 'sleep %s\n' % SysMgr.intervalEnable
+                    else:
+                        SysMgr.signalCmd += 'sleep 32767\n'
                     SysMgr.cmdFd.write(SysMgr.signalCmd)
                     SysMgr.cmdFd.flush()
                     SysMgr.signalCmd = None
@@ -44868,7 +45302,9 @@ Copyright:
     def updateDiskInfo(self, time, data):
         self.diskInfo[time] = dict()
 
-        if not data:
+        if not SysMgr.isLinux:
+            return
+        elif not data:
             return
 
         for l in data:
@@ -44899,11 +45335,13 @@ Copyright:
 
 
     def updateMountInfo(self):
+        if not SysMgr.isLinux:
+            return
+        elif not self.mountData:
+            return
+
         class MountException(Exception):
             pass
-
-        if not self.mountData:
-            return
 
         # parse mount info #
         for l in self.mountData:
@@ -44990,6 +45428,9 @@ Copyright:
 
 
     def updateShmInfo(self):
+        if not SysMgr.isLinux:
+            return
+
         try:
             SysMgr.shmFd.seek(0)
             data = SysMgr.shmFd.readlines()[1:]
@@ -45048,6 +45489,9 @@ Copyright:
 
 
     def updateMsgqInfo(self):
+        if not SysMgr.isLinux:
+            return
+
         try:
             SysMgr.msgqFd.seek(0)
             data = SysMgr.msgqFd.readlines()[1:]
@@ -45097,6 +45541,9 @@ Copyright:
 
 
     def updateSemInfo(self):
+        if not SysMgr.isLinux:
+            return
+
         try:
             SysMgr.semFd.seek(0)
             data = SysMgr.semFd.readlines()[1:]
@@ -45141,7 +45588,9 @@ Copyright:
 
 
     def saveMacAddr(self):
-        if self.macAddr:
+        if not SysMgr.isLinux:
+            return
+        elif self.macAddr:
             return
 
         # mac address #
@@ -45153,6 +45602,9 @@ Copyright:
 
 
     def updateIPCInfo(self):
+        if not SysMgr.isLinux:
+            return
+
         # check update time #
         if self.ipcUpdate == SysMgr.uptime:
             return
@@ -45170,9 +45622,92 @@ Copyright:
 
 
 
+    def updateNetworkInfoGen(self):
+        # get psutil object #
+        psutil = SysMgr.getPkg('psutil')
+
+        try:
+            #netConn = psutil.net_connections(kind='inet')
+            #nicStat = psutil.net_if_stats()
+
+            # define new device list #
+            devList = []
+
+            # get IP address for device #
+            addrList = psutil.net_if_addrs()
+            for dev, addrItems in addrList.items():
+                for item in addrItems:
+                    if not item or not item[0] or not str(item[0]).endswith('AF_INET'):
+                        continue
+
+                    # update ip address #
+                    devList.append(dev)
+                    self.networkInfo.setdefault(dev, dict())
+                    family, addr, mask, broadcast, ptp = item
+                    self.networkInfo[dev]['ipaddr'] = addr
+
+            # remove devices #
+            for dev in list(self.networkInfo.keys()):
+                if not dev in devList:
+                    self.networkInfo.pop(dev, None)
+
+            statData = [0, 0, 0, 0, 0, 0, 0, 0]
+
+            # get stats for device #
+            statList = psutil.net_io_counters(pernic=True, nowrap=True)
+            for dev, value in statList.items():
+                if not dev in self.networkInfo:
+                    continue
+
+                tsize, rsize, tpacket, rpacket, rerr, terr, rdrop, tdrop = value
+
+                # update recv #
+                if 'recv' in self.networkInfo[dev]:
+                    rvalue = self.networkInfo[dev]['recv']
+                    self.networkInfo[dev]['rdiff'] = [
+                        rsize - rvalue[0],
+                        rpacket - rvalue[1],
+                        rerr - rvalue[2],
+                        rdrop - rvalue[3],
+                        0, 0, 0, 0,
+                    ]
+                else:
+                    self.networkInfo[dev]['rdiff'] = statData
+
+                self.networkInfo[dev]['recv'] = \
+                    [rsize, rpacket, rerr, rdrop, 0, 0, 0, 0]
+
+                # update tran #
+                if 'tran' in self.networkInfo[dev]:
+                    tvalue = self.networkInfo[dev]['tran']
+                    self.networkInfo[dev]['tdiff'] = [
+                        tsize - tvalue[0],
+                        tpacket - tvalue[1],
+                        terr - tvalue[2],
+                        tdrop - tvalue[3],
+                        0, 0, 0, 0,
+                    ]
+                else:
+                    self.networkInfo[dev]['tdiff'] = statData
+
+                self.networkInfo[dev]['tran'] = \
+                    [tsize, tpacket, terr, tdrop, 0, 0, 0, 0]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to get general network info', reason=True)
+            return
+
+
+
     def updateNetworkInfo(self):
+        if not SysMgr.isLinux:
+            return
+
         # check update time #
-        if self.netUpdate == SysMgr.uptime:
+        if self.netUpdate and \
+            SysMgr.uptime - self.netUpdate < SysMgr.intervalEnable:
             return
         else:
             self.netUpdate = SysMgr.uptime
@@ -45300,6 +45835,7 @@ Copyright:
         if self.userData or SysMgr.isAndroid:
             return
 
+        # get data #
         try:
             path = '/etc/passwd'
             with open(path, 'rb') as fd:
@@ -45323,14 +45859,108 @@ Copyright:
                     'home': home,
                     'shell': shell,
                 }
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
 
 
+    def updateStorageInfoGen(self):
+        # get psutil object #
+        psutil = SysMgr.getPkg('psutil')
+
+        self.prevStorageData = self.storageData
+        self.storageData = {}
+
+        try:
+            # mount #
+            partition = psutil.disk_partitions(all=True)
+            for item in partition:
+                dev, path, fs, opts, maxfile, maxpath = item
+                self.storageData.setdefault(dev, dict())
+                self.storageData[dev]['mount'] = {
+                    'fs': fs,
+                    'path': path,
+                    'option': opts,
+                }
+
+            # usage #
+            for dev in list(self.storageData.keys()):
+                try:
+                    target = self.storageData[dev]
+                    path = target['mount']['path']
+                    total, used, free, per = psutil.disk_usage(path=path)
+                    target['total'] = total >> 20
+                    target['free'] = free >> 20
+                    target['usagePer'] = long(per)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "fail to get disk usage for '%s'" % path, reason=True)
+
+            # stat #
+            stats = psutil.disk_io_counters(perdisk=True, nowrap=True)
+            if not stats:
+                SysMgr.printWarn(
+                    'fail to get disk stats')
+                return
+
+            # only one physical device #
+            if len(stats) == 1:
+                value = stats[list(stats.keys())[0]]
+                for dev in list(self.storageData.keys()):
+                    try:
+                        target = self.storageData[dev]
+                        target['read'] = value[2] >> 20
+                        target['write'] = value[3] >> 20
+                        target['readtime'] = value[4]
+                        target['writetime'] = value[5]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printWarn(
+                            "fail to get disk stat for '%s'" % dev,
+                            reason=True)
+            # multiple physical devices and partitions (same number) #
+            elif len(stats) == len(partition):
+                statList = list(stats.keys())
+                for idx, dev in enumerate(list(self.storageData.keys())):
+                    try:
+                        value = stats[statList[idx]]
+                        target = self.storageData[dev]
+                        target['read'] = value[2] >> 20
+                        target['write'] = value[3] >> 20
+                        target['readtime'] = value[4]
+                        target['writetime'] = value[5]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printWarn(
+                            "fail to get disk stat for '%s'" % dev,
+                            reason=True)
+            # different number for physical devices and partitions #
+            else:
+                # TODO: map disk name for physical device to logical device #
+                SysMgr.printWarn(
+                    'fail to map multiple physical storage to logical storage')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to get general storage info', reason=True)
+            return
+
+
+
     def updateStorageInfo(self, isGeneral=False):
+        if not SysMgr.isLinux:
+            return
+
         # check update time #
-        if self.storageUpdate == SysMgr.uptime:
+        if self.storageUpdate and \
+            SysMgr.uptime - self.storageUpdate < SysMgr.intervalEnable:
             return
         else:
             self.storageUpdate = SysMgr.uptime
@@ -45465,7 +46095,12 @@ Copyright:
     def getCgroupPath(self):
         if SysMgr.cgroupPath:
             return SysMgr.cgroupPath
-        elif not self.mountData:
+
+        if not self.mountData:
+            # update mount data #
+            self.mountData = SysMgr.getMountData()
+
+        if not self.mountData:
             return None
 
         # search cgroup mount point #
@@ -46047,7 +46682,7 @@ Copyright:
                     "{0:>16} {1:^21}   "
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(
-                        dev, 'DIFF',
+                        dev[-16:], 'DIFF',
                         convertFunc(rdiff[0]), convertFunc(rdiff[1]),
                         convertFunc(rdiff[2]), convertFunc(rdiff[3]),
                         convertFunc(rdiff[-1]),
@@ -47008,6 +47643,7 @@ class DbusMgr(object):
 
     @staticmethod
     def getStats(bus, request, des=None, tid=None, procStr=None):
+        # pylint: disable=no-member
         def _printWarn(procStr, line, err):
             SysMgr.printWarn((
                 'fail to parse D-Bus message for %s at %s line '
@@ -48999,6 +49635,18 @@ class DltAnalyzer(object):
         "VERBOSE": 0x06, # highest grade of information
     }
 
+    RETURNTYPE = {
+        "DLT_RETURN_LOGGING_DISABLED": -7,
+        "DLT_RETURN_USER_BUFFER_FULL": -6,
+        "DLT_RETURN_WRONG_PARAMETER": -5,
+        "DLT_RETURN_BUFFER_FULL": -4,
+        "DLT_RETURN_PIPE_FULL": -3,
+        "DLT_RETURN_PIPE_ERROR": -2,
+        "DLT_RETURN_ERROR": -1,
+        "DLT_RETURN_OK":  0,
+        "DLT_RETURN_TRUE":  1,
+    }
+
     SERVICEID = {
         "DLT_SERVICE_ID": 0x00,
         "DLT_SERVICE_ID_SET_LOG_LEVEL": 0x01,
@@ -50212,10 +50860,11 @@ class Debugger(object):
     envFlags = {
         'TRACEBP': False,
         'EXCEPTWAIT': False,
-        'ONLYSYMBOL': False,
+        'ONLYSYM': False,
         'EXCEPTLD': False,
         'NOMUTE': False,
         'NOSTRIP': False,
+        'NOARG': False,
         'CONTALONE': False,
         'INCNATIVE': False,
         'PYSTACK': False,
@@ -51316,7 +51965,7 @@ typedef struct {
 
 
 
-    def executeCmd(self, cmdList, sym=None, fname=None, args=[]):
+    def executeCmd(self, cmdList, sym=None, fname=None, args=[], force=False):
         def _flushPrint(newline=True):
             if SysMgr.outPath:
                 if SysMgr.showAll:
@@ -51420,7 +52069,7 @@ typedef struct {
             cmdstr = convColor(cmd, 'BOLD', 8)
 
             if cmd == 'print':
-                if SysMgr.showAll:
+                if SysMgr.showAll and not force:
                     pass
                 elif len(cmdset) == 1:
                     self.printContext(newline=True)
@@ -52913,7 +53562,7 @@ typedef struct {
         procInfo = '%s(%s)' % (self.comm, self.pid)
 
         # skip no symbol function #
-        if sym and Debugger.envFlags['ONLYSYMBOL'] and sym.startswith('0x'):
+        if sym and Debugger.envFlags['ONLYSYM'] and sym.startswith('0x'):
             SysMgr.printWarn(
                 'skip injecting breakpoint for no symbol function %s' % sym)
             return False
@@ -54870,6 +55519,12 @@ typedef struct {
         samples = {}
         title = None
 
+        # check backtrace stacks #
+        if 'ONLYBTSTACK' in SysMgr.environList:
+            onlybt = True
+        else:
+            onlybt = False
+
         for line in fd:
             # get start keyword #
             if line.startswith('[Top ') or line.startswith('[Trace '):
@@ -54909,7 +55564,7 @@ typedef struct {
                 # PC #
                 else:
                     # no backtrace call #
-                    if stack:
+                    if not onlybt and stack:
                         samples.setdefault(stack, 0)
                         samples[stack] += mainCnt
 
@@ -54932,7 +55587,7 @@ typedef struct {
 
             else:
                 # no backtrace call #
-                if stack:
+                if not onlybt and stack:
                     samples.setdefault(stack, 0)
                     samples[stack] += mainCnt
                     stack = ''
@@ -55430,7 +56085,7 @@ typedef struct {
     def updateProcMap(self, onlyExec=True):
         # get original map #
         try:
-            mapstr = FileAnalyzer.procMapStrCache[pid]
+            mapstr = FileAnalyzer.procMapStrCache[self.pid]
         except:
             mapstr = None
 
@@ -55440,7 +56095,7 @@ typedef struct {
 
         # check map change #
         try:
-            if mapstr == FileAnalyzer.procMapStrCache[pid]:
+            if mapstr == FileAnalyzer.procMapStrCache[self.pid]:
                 return False
         except SystemExit:
             sys.exit(0)
@@ -55458,7 +56113,7 @@ typedef struct {
 
     def loadSymbols(self, onlyFunc=True, onlyExec=True, tpath=None):
         ret = self.updateProcMap(onlyExec=onlyExec)
-        if not ret:
+        if not ret and self.fileList:
             return False
 
         # update overlayfs info #
@@ -56690,7 +57345,7 @@ typedef struct {
                     sym = res[0]
 
                 # skip no symbol function #
-                if Debugger.envFlags['ONLYSYMBOL'] and \
+                if Debugger.envFlags['ONLYSYM'] and \
                     sym and sym.startswith('0x'):
                     continue
 
@@ -56815,7 +57470,7 @@ typedef struct {
 
         # execute remote commands #
         for cmd in SysMgr.customCmd:
-            self.executeCmd([cmd], sym=None, fname=None, args=args)
+            self.executeCmd([cmd], sym=None, fname=None, args=args, force=True)
 
 
 
@@ -56843,8 +57498,11 @@ typedef struct {
             return
 
         # build arguments string #
-        argstr = '(%s)' % \
-            ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
+        if Debugger.envFlags['NOARG']:
+            argstr = ''
+        else:
+            argstr = '(%s)' % \
+                ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
 
         # top mode #
         if self.isRealtime:
@@ -56904,6 +57562,7 @@ typedef struct {
         etime = None
         cmds = None
         skip = False
+        convColor = UtilMgr.convColor
 
         # handle breakpoint for return #
         if isRetBp:
@@ -56931,9 +57590,9 @@ typedef struct {
 
                     # convert elapsed color #
                     if etime > self.retTime:
-                        elapsed = UtilMgr.convColor(elapsed, 'RED')
+                        elapsed = convColor(elapsed, 'RED')
                     else:
-                        elapsed = UtilMgr.convColor(elapsed, 'CYAN')
+                        elapsed = convColor(elapsed, 'CYAN')
 
                     # build context string #
                     callString = '\n%s %s%s%s%s%s%s' % \
@@ -56951,13 +57610,14 @@ typedef struct {
         else:
             # build current symbol string #
             callString = '\n%s %s%s%s%s/%s%s [%s]' % \
-                (diffstr, tinfo, indent, UtilMgr.convColor(sym, 'GREEN'),
-                    elapsed, hex(addr).rstrip('L'), argstr, fname)
+                (diffstr, tinfo, indent, convColor(sym, 'GREEN'),
+                    elapsed, hex(addr).rstrip('L'), argstr,
+                    convColor(fname, 'YELLOW'))
 
         if callString:
             # emphasize string #
             if hasRetFilter and not skip:
-                callString = UtilMgr.convColor(callString, 'CYAN')
+                callString = convColor(callString, 'CYAN')
 
             # add backtrace #
             if btstr:
@@ -57306,16 +57966,7 @@ typedef struct {
                 if name == 'SIGSEGV':
                     callString = ('%s si_addr=%s}') % \
                         (callString, hex(fields.pid))
-                elif name == 'SIGCHLD':
-                    # status #
-                    try:
-                        if code == "CLD_EXITED":
-                            status = fields.status
-                        else:
-                            status = ConfigMgr.SIG_LIST[fields.status]
-                    except:
-                        status = fields.status
-
+                else:
                     # pid #
                     try:
                         pid = fields.pid
@@ -57332,8 +57983,6 @@ typedef struct {
                     try:
                         uid = fields.uid
                         if SysMgr.showAll:
-                            if not SysMgr.sysInstance:
-                                SysMgr()
                             userData = SysMgr.sysInstance.userData
                             uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
                     except SystemExit:
@@ -57341,38 +57990,24 @@ typedef struct {
                     except:
                         pass
 
-                    callString = \
-                        ('%s si_pid=%s, si_uid=%s, si_status=%s '
-                            'si_utime=%s, si_stime=%s}') % \
-                                (callString, pid, uid,
-                                    status, fields.utime, fields.stime)
-                else:
-                    # pid #
-                    try:
-                        pid = fields.pid
-                        if pid > 0:
-                            comm = SysMgr.getComm(pid, cache=True)
-                            if comm:
-                                pid = '%s(%s)' % (comm, pid)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
+                    if name == 'SIGCHLD':
+                        # status #
+                        try:
+                            if code == "CLD_EXITED":
+                                status = fields.status
+                            else:
+                                status = ConfigMgr.SIG_LIST[fields.status]
+                        except:
+                            status = fields.status
 
-                    # uid #
-                    try:
-                        uid = fields.uid
-                        if not SysMgr.sysInstance:
-                            SysMgr()
-                        userData = SysMgr.sysInstance.userData
-                        uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-
-                    callString = '%s si_pid=%s, si_uid=%s}' % \
-                        (callString, pid, uid)
+                        callString = \
+                            ('%s si_pid=%s, si_uid=%s, si_status=%s '
+                                'si_utime=%s, si_stime=%s}') % \
+                                    (callString, pid, uid,
+                                        status, fields.utime, fields.stime)
+                    else:
+                        callString = '%s si_pid=%s, si_uid=%s}' % \
+                            (callString, pid, uid)
             else:
                 callString = '%s}' % callString
         else:
@@ -57414,7 +58049,7 @@ typedef struct {
                 sys.exit(0)
 
         # remove anonymous symbol #
-        Debugger.envFlags['ONLYSYMBOL'] = True
+        Debugger.envFlags['ONLYSYM'] = True
 
         # check native function for python call #
         addr = self.getAddrBySymbol(SysMgr.pyCallFunc)
@@ -58168,7 +58803,9 @@ typedef struct {
 
         if not self.isRealtime or SysMgr.showAll:
             # convert args to string ##
-            if args:
+            if Debugger.envFlags['NOARG']:
+                argText = ''
+            elif args:
                 argText = ', '.join(\
                     hex(arg).rstrip('L') if isinstance(arg, (int, long)) \
                     else str(arg) for arg in args)
@@ -63075,7 +63712,7 @@ class ElfAnalyzer(object):
 
         # remove E. suffix #
         if 'E.' in symbol:
-            symbol = symbol[:symbol.rfind('E.')+1]
+            symbol = symbol[:symbol.rfind('E.')]
 
         hash_prefix_len = 3;
         hash_len = 16;
@@ -63223,6 +63860,8 @@ class ElfAnalyzer(object):
             if origStat == 0:
                 try:
                     dmSymbol = str(retc.value.decode())
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     dmSymbol = str(retc.value)
             else:
@@ -67700,7 +68339,13 @@ class TaskAnalyzer(object):
 
             # task top mode #
             try:
-                self.runTaskTop()
+                if SysMgr.isLinux:
+                    self.runTaskTop()
+                else:
+                    self.runTaskTopGen()
+            except KeyboardInterrupt:
+                SysMgr.stopHandler()
+                sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -67947,8 +68592,9 @@ class TaskAnalyzer(object):
 
 
     def runCgTop(self):
+        # check cgroup path #
         cgroupPath = SysMgr.sysInstance.getCgroupPath()
-        if not os.path.isdir(cgroupPath):
+        if not cgroupPath or not os.path.isdir(cgroupPath):
             SysMgr.printErr("fail to access cgroup filesystem")
             sys.exit(0)
 
@@ -68023,13 +68669,19 @@ class TaskAnalyzer(object):
 
             return [procFilter, fileFilter]
 
-        # check root permission #
-        SysMgr.checkRootPerm()
+        if SysMgr.isLinux:
+            # check root permission #
+            SysMgr.checkRootPerm()
 
-        # check proc access #
-        if not os.path.isdir(SysMgr.procPath):
-            SysMgr.printErr("fail to access to proc filesystem")
-            sys.exit(0)
+            # check proc access #
+            if not os.path.isdir(SysMgr.procPath):
+                SysMgr.printErr("fail to access to proc filesystem")
+                sys.exit(0)
+
+            # initialize task stat #
+            TaskAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
+            TaskAnalyzer.dbgObj.initValues()
+            TaskAnalyzer.dbgObj.getCpuUsage()
 
         # apply for filter from 1st argument #
         if not SysMgr.filterGroup and SysMgr.hasMainArg():
@@ -68042,11 +68694,6 @@ class TaskAnalyzer(object):
             SysMgr.getPkg('select', False)
 
         prevFilter = []
-
-        # initialize task stat #
-        TaskAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
-        TaskAnalyzer.dbgObj.initValues()
-        TaskAnalyzer.dbgObj.getCpuUsage()
 
         # set initial repeat value #
         SysMgr.progressCnt = 1
@@ -68094,6 +68741,62 @@ class TaskAnalyzer(object):
 
             # wait for next tick #
             if not SysMgr.waitUserInput(waitTime, msg="Ctrl+c"):
+                time.sleep(waitTime)
+
+
+
+    def runTaskTopGen(self):
+        # apply for filter from 1st argument #
+        if not SysMgr.filterGroup and SysMgr.hasMainArg():
+            value = SysMgr.getMainArg()
+            value = UtilMgr.splitString(value)
+            SysMgr.filterGroup = UtilMgr.cleanItem(value)
+
+        # import select package in the foreground #
+        if not SysMgr.outPath:
+            SysMgr.getPkg('select', False)
+
+        # run loop #
+        while 1:
+            # collect system stats as soon as possible #
+            self.saveSystemStatGen()
+
+            # save timestamp #
+            prevTime = time.time()
+
+            # handle first tick for printing total resource #
+            if SysMgr.totalEnable and not self.prevCpuData:
+                SysMgr.progressCnt += 1
+                self.reinitStats()
+                self.saveSystemStatGen()
+
+            # print stats #
+            if self.prevCpuData:
+                # print system status #
+                self.printSystemStatGen(idIndex=True)
+
+                # report system status for elastic stack
+                if SysMgr.elasticEnable:
+                    self.reportSystemStatElastic()
+                # report system status #
+                elif SysMgr.reportEnable:
+                    self.reportSystemStat()
+
+            # check repeat count #
+            SysMgr.checkProgress()
+
+            # reset system status #
+            self.reinitStats()
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SysMgr.intervalEnable:
+                waitTime = 0.000001
+            else:
+                waitTime = SysMgr.intervalEnable - delayTime
+
+            # wait for next tick #
+            if not SysMgr.waitUserInput(waitTime):
                 time.sleep(waitTime)
 
 
@@ -68190,7 +68893,6 @@ class TaskAnalyzer(object):
 
 
     def saveProcInstance(self):
-        del self.prevProcData
         self.prevProcData = self.procData
         self.procData = {}
         SysMgr.topInstance = self
@@ -68199,7 +68901,6 @@ class TaskAnalyzer(object):
 
 
     def reinitStats(self):
-        del self.prevCpuData
         self.prevCpuData = self.cpuData
         self.nsData = {}
         self.cpuData = {}
@@ -69313,6 +70014,8 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def initDrawEnv():
+        # pylint: disable=import-error
+
         # get matplotlib object #
         matplotlib = SysMgr.getPkg('matplotlib', False)
         if not matplotlib:
@@ -69673,6 +70376,7 @@ class TaskAnalyzer(object):
 
 
     def drawBottom(self, xtype, ax, timeline, nrTask, effectProcList):
+        # pylint: disable=undefined-variable
         if xtype == 1:
             # convert tick type to integer #
             try:
@@ -69736,6 +70440,8 @@ class TaskAnalyzer(object):
 
 
     def drawUserEvent(self, mode=None):
+        # pylint: disable=undefined-variable
+
         if not 'EVENT' in SysMgr.environList:
             return
 
@@ -69786,6 +70492,8 @@ class TaskAnalyzer(object):
 
 
     def drawBoundary(self, gtype, labelList):
+        # pylint: disable=undefined-variable
+
         if not SysMgr.boundaryLine:
             return
 
@@ -72690,7 +73398,7 @@ class TaskAnalyzer(object):
             key=lambda e: TaskAnalyzer.getCoreId(e[1]['comm']),
             reverse=False):
 
-            if key[0:2] != '0[':
+            if not key.startswith('0['):
                 # convert priority #
                 try:
                     prio = long(value['pri']) - 120
@@ -72892,7 +73600,7 @@ class TaskAnalyzer(object):
         count = long(0)
         SysMgr.clearPrint()
         for key, value in sortedThreadData:
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
 
             try:
@@ -73195,22 +73903,22 @@ class TaskAnalyzer(object):
         # print normal thread info #
         if normCnt > 0:
             SysMgr.printPipe(
-                "%s# %s: %d\n%s\n%s" % \
-                    ('', 'Hot', normCnt, normThreadString, oneLine))
+                "%s# %s: %s\n%s\n%s" % \
+                    ('', 'Hot', convertNum(normCnt), normThreadString, oneLine))
         else:
             SysMgr.printPipe("\tNone\n%s" % oneLine)
 
         # print new thread info #
         if newCnt > 0:
             SysMgr.printPipe(
-                "%s# %s: %d\n%s\n%s" % \
-                    ('', 'New', newCnt, newThreadString, oneLine))
+                "%s# %s: %s\n%s\n%s" % \
+                    ('', 'New', convertNum(newCnt), newThreadString, oneLine))
 
         # print die thread info #
         if dieCnt > 0:
             SysMgr.printPipe(
-                "%s# %s: %d\n%s\n%s" % \
-                    ('', 'Die', dieCnt, dieThreadString, oneLine))
+                "%s# %s: %s\n%s\n%s" % \
+                    ('', 'Die', convertNum(dieCnt), dieThreadString, oneLine))
 
         # print thread preempted information after sorting by time of CPU usage #
         for val in SysMgr.preemptGroup:
@@ -73287,7 +73995,7 @@ class TaskAnalyzer(object):
             if not matplotlib:
                 SysMgr.printPipWarn('matplotlib', 'matplotlib')
                 sys.exit(0)
-            from matplotlib.ticker import MaxNLocator
+            from matplotlib.ticker import MaxNLocator # pylint: disable=import-error
 
             SysMgr.matplotlibVersion = \
                 float('.'.join(matplotlib.__version__.split('.')[:2]))
@@ -73489,7 +74197,7 @@ class TaskAnalyzer(object):
         for key, value in sorted(self.threadData.items(),
             key=lambda e: e[1]['ftxLockCnt'] + e[1]['ftxWaitCnt'],
             reverse=True):
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
             elif value['ftxTotal'] == 0:
                 break
@@ -73683,7 +74391,7 @@ class TaskAnalyzer(object):
         for key, value in sorted(self.threadData.items(),
             key=lambda e: e[1]['lockWait'], reverse=True):
 
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
             elif value['lockWait'] == value['lockTime'] == \
                 value['tryLockCnt'] == value['lockCnt'] == 0:
@@ -73902,7 +74610,7 @@ class TaskAnalyzer(object):
             syscallInfo = ''
 
             # skip swapper #
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
 
             try:
@@ -75014,8 +75722,7 @@ class TaskAnalyzer(object):
 
             if not SysMgr.cpuEnable:
                 break
-
-            if key[0:2] != '0[':
+            elif not key.startswith('0['):
                 continue
 
             cpuCnt += 1
@@ -75266,7 +75973,7 @@ class TaskAnalyzer(object):
             if not matplotlib:
                 SysMgr.printPipWarn('matplotlib', 'matplotlib')
                 sys.exit(0)
-            from matplotlib.ticker import MaxNLocator
+            from matplotlib.ticker import MaxNLocator # pylint: disable=import-error
 
             SysMgr.matplotlibVersion = \
                 float('.'.join(matplotlib.__version__.split('.')[:2]))
@@ -75342,7 +76049,7 @@ class TaskAnalyzer(object):
         for key, value in sorted(self.threadData.items(),
             key=lambda e: e[1]['usage'], reverse=True):
 
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
 
             timeLine = ''
@@ -75491,7 +76198,7 @@ class TaskAnalyzer(object):
             if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
                 not SysMgr.showAll:
                 break
-            elif key[0:2] == '0[':
+            elif key.startswith('0['):
                 continue
 
             timeLine = ''
@@ -75564,7 +76271,7 @@ class TaskAnalyzer(object):
                 if not SysMgr.showAll and \
                     (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1:
                     break
-                elif key[0:2] == '0[':
+                elif key.startswith('0['):
                     continue
 
                 timeLine = ''
@@ -75633,7 +76340,7 @@ class TaskAnalyzer(object):
 
                 if value['readBlock'] < 1 and not SysMgr.showAll:
                     break
-                elif key[0:2] == '0[':
+                elif key.startswith('0['):
                     continue
 
                 timeLine = ''
@@ -75703,7 +76410,7 @@ class TaskAnalyzer(object):
                 if value['reqWrBlock'] + (value['awriteBlock'] << 3) < 1 and \
                     not SysMgr.showAll:
                     break
-                elif key[0:2] == '0[':
+                elif key.startswith('0['):
                     continue
 
                 timeLine = ''
@@ -75784,6 +76491,8 @@ class TaskAnalyzer(object):
         for line in now:
             idx += 1
             if not line:
+                continue
+            elif type(line) is not str:
                 continue
             elif not line.startswith('IpExt'):
                 continue
@@ -77528,7 +78237,8 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printLeakHint():
-        if not SysMgr.isTopMode() or \
+        if not SysMgr.isLinux or \
+            not SysMgr.isTopMode() or \
             not SysMgr.topInstance:
             SysMgr.printPipe("\n\tNone")
             return
@@ -77701,6 +78411,8 @@ class TaskAnalyzer(object):
             if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
                 return treestr
 
+            current = time.time()
+
             initStatus = enable
             for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
                 enable = initStatus
@@ -77728,8 +78440,13 @@ class TaskAnalyzer(object):
 
                 # get runtime #
                 try:
-                    runtime = long(instance[pid]['stat'][startIdx]) / 100
-                    runtime = SysMgr.uptime - runtime
+                    if SysMgr.isLinux:
+                        runtime = long(instance[pid]['stat'][startIdx]) / 100
+                        runtime = SysMgr.uptime - runtime
+                    else:
+                        runtime = long(instance[pid]['starttime'])
+                        runtime = current - runtime
+
                     runtimestr = UtilMgr.convTime(runtime)
                 except SystemExit:
                     sys.exit(0)
@@ -77739,9 +78456,15 @@ class TaskAnalyzer(object):
 
                 # get CPU time #
                 try:
-                    utime = long(instance[pid]['stat'][utimeIdx])
-                    stime = long(instance[pid]['stat'][stimeIdx])
-                    ttime = (utime + stime) / 100
+                    if SysMgr.isLinux:
+                        utime = long(instance[pid]['stat'][utimeIdx])
+                        stime = long(instance[pid]['stat'][stimeIdx])
+                        ttime = (utime + stime) / 100
+                    else:
+                        utime = long(instance[pid]['utime'] * 100)
+                        stime = long(instance[pid]['stime'] * 100)
+                        ttime = utime + stime
+
                     ttimestr = UtilMgr.convTime(ttime)
                     if ttime > 0:
                         ttimestr = UtilMgr.convColor(ttimestr, 'YELLOW')
@@ -77804,7 +78527,8 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printMemAnalysis():
-        if not SysMgr.procInstance:
+        if not SysMgr.isLinux or \
+            not SysMgr.procInstance:
             return
 
         statList = ConfigMgr.STAT_ATTR
@@ -78681,7 +79405,7 @@ class TaskAnalyzer(object):
             calculate total memory usage in this interval \
             except for core(swapper) threads because its already calculated
             """
-            if key[0:2] == '0[':
+            if key.startswith('0['):
                 continue
 
             self.intData[index]['toTal']['totalMem'] += \
@@ -81567,14 +82291,17 @@ class TaskAnalyzer(object):
         convNum = UtilMgr.convNum
 
         # print cpu usage #
-        cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage()
-        diff = SysMgr.uptimeDiff
-        if diff == 0:
-            diff = 0.1
-        ttime = cpuUsage[0] / diff
-        utime = cpuUsage[1] / diff
-        stime = cpuUsage[2] / diff
-        cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+        if SysMgr.isLinux:
+            cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage()
+            diff = SysMgr.uptimeDiff
+            if diff == 0:
+                diff = 0.1
+            ttime = cpuUsage[0] / diff
+            utime = cpuUsage[1] / diff
+            stime = cpuUsage[2] / diff
+            cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+        else:
+            cpuStr = 'N/A'
 
         SysMgr.addPrint(UtilMgr.convColor((
             "[Top File Info] [Time: %7.3f] [Proc: %s] "
@@ -81601,19 +82328,26 @@ class TaskAnalyzer(object):
         # print process info #
         procCnt = long(0)
         for idx, value in sortedProcData:
-            stat = value['stat']
-            comm = stat[self.commIdx][1:-1]
-            pid = stat[self.ppidIdx]
+            if SysMgr.isLinux:
+                stat = value['stat']
+                comm = stat[self.commIdx][1:-1]
+                pid = stat[self.ppidIdx]
+                nrThread = stat[self.nrthreadIdx]
 
-            if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
-                schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
+                if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
+                else:
+                    schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
+                schedPolicy = ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])]
+                sched = schedPolicy + schedValue
             else:
-                schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
+                comm = value['comm']
+                pid = value['ppid']
+                nrThread = value['nrThread']
+                sched = str(value['nice'])
 
             procInfo = ("{0:>16} ({1:>7}/{2:>7}/{3:>4}/{4:>4})").\
-                format(comm, idx, pid, stat[self.nrthreadIdx],
-                ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                str(schedValue))
+                format(comm[:16], idx, pid, nrThread, sched)
 
             procInfoLen = len(procInfo)
 
@@ -81683,7 +82417,10 @@ class TaskAnalyzer(object):
 
                 # read pos and permission #
                 try:
-                    assert path.startswith('/')
+                    if SysMgr.isLinux:
+                        assert path.startswith('/')
+                    else:
+                        assert False
 
                     attr = ''
                     fdinfoPath = "%s/%s/fdinfo/%s" % \
@@ -81754,19 +82491,21 @@ class TaskAnalyzer(object):
             pids = SysMgr.convTaskList(
                 procFilter, isThread=True, inc=True)
             newPids = []
-            for pid in pids:
-                ret = SysMgr.getTgid(pid)
-                if ret:
-                    newPids.append(ret)
+            if SysMgr.isLinux:
+                for pid in pids:
+                    ret = SysMgr.getTgid(pid)
+                    if ret:
+                        newPids.append(ret)
+            else:
+                self.saveProcStatGen(['open_files'], list(map(str, pids)))
+                newPids += pids
             pids = list(set(newPids))
         else:
-            try:
-                pids = os.listdir(SysMgr.procPath)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(SysMgr.procPath)
-                sys.exit(0)
+            if SysMgr.isLinux:
+                pids = SysMgr.getPidList()
+            else:
+                self.saveProcStatGen(['open_files'])
+                pids = list(self.procData.keys())
 
         # remove myself info #
         try:
@@ -81776,6 +82515,12 @@ class TaskAnalyzer(object):
         except:
             pass
 
+        # get psutil object #
+        if SysMgr.isLinux:
+            psutil = None
+        else:
+            psutil = SysMgr.getPkg('psutil')
+
         # get thread list #
         for pid in pids:
             try:
@@ -81784,36 +82529,47 @@ class TaskAnalyzer(object):
             except:
                 continue
 
-            # make path of tid #
-            procPath = "%s/%s" % (SysMgr.procPath, pid)
-            fdlistPath = "%s/fd" % (procPath)
+            if SysMgr.isLinux:
+                # save stat of process #
+                procPath = "%s/%s" % (SysMgr.procPath, pid)
+                self.saveProcData(procPath, pid)
 
-            # save stat of process #
-            self.saveProcData(procPath, pid)
-
-            # save file info per process #
-            try:
-                fdlist = os.listdir(fdlistPath)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(fdlistPath)
-                continue
+                # save file info per process #
+                try:
+                    fdlistPath = "%s/fd" % (procPath)
+                    fdlist = os.listdir(fdlistPath)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printOpenWarn(fdlistPath)
+                    continue
+            else:
+                try:
+                    fdlist = self.procData[pid]['open_files']
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
 
             # save fd info of process #
             for fd in fdlist:
                 try:
-                    long(fd)
-                    self.nrFd += 1
+                    if SysMgr.isLinux:
+                        long(fd)
+                    else:
+                        filename, fd = fd
+                        fdPath = 'N/A'
                 except SystemExit:
                     sys.exit(0)
                 except:
                     continue
 
                 try:
-                    # add file info into fdList #
-                    fdPath = "%s/%s" % (fdlistPath, fd)
-                    filename = os.readlink(fdPath)
+                    if SysMgr.isLinux:
+                        # add file info into fdList #
+                        fdPath = "%s/%s" % (fdlistPath, fd)
+                        filename = os.readlink(fdPath)
+
                     self.procData[pid]['fdList'][fd] = filename
 
                     # increase reference count of file #
@@ -81835,18 +82591,19 @@ class TaskAnalyzer(object):
                         self.procData[pid]['fdInfo']['PROC'] = long(0)
 
                     # increase type count per process #
-                    if filename.startswith('anon'):
-                        self.procData[pid]['fdInfo']['EVENT'] += 1
-                    elif filename.startswith('socket'):
-                        self.procData[pid]['fdInfo']['SOCKET'] += 1
-                    elif filename.startswith('/dev'):
-                        self.procData[pid]['fdInfo']['DEVICE'] += 1
-                    elif filename.startswith('pipe'):
-                        self.procData[pid]['fdInfo']['PIPE'] += 1
-                    elif filename.startswith(SysMgr.procPath):
-                        self.procData[pid]['fdInfo']['PROC'] += 1
-                    else:
-                        self.procData[pid]['fdInfo']['NORMAL'] += 1
+                    if SysMgr.isLinux:
+                        if filename.startswith('anon'):
+                            self.procData[pid]['fdInfo']['EVENT'] += 1
+                        elif filename.startswith('socket'):
+                            self.procData[pid]['fdInfo']['SOCKET'] += 1
+                        elif filename.startswith('/dev'):
+                            self.procData[pid]['fdInfo']['DEVICE'] += 1
+                        elif filename.startswith('pipe'):
+                            self.procData[pid]['fdInfo']['PIPE'] += 1
+                        elif filename.startswith(SysMgr.procPath):
+                            self.procData[pid]['fdInfo']['PROC'] += 1
+                        else:
+                            self.procData[pid]['fdInfo']['NORMAL'] += 1
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -82037,11 +82794,7 @@ class TaskAnalyzer(object):
             pids = list(SysMgr.fixedProcList.keys())
         else:
             # get process list #
-            try:
-                pids = os.listdir(SysMgr.procPath)
-            except:
-                SysMgr.printOpenErr(SysMgr.procPath)
-                sys.exit(0)
+            pids = SysMgr.getPidList()
 
         # reset and save proc instance #
         self.saveProcInstance()
@@ -82143,86 +82896,328 @@ class TaskAnalyzer(object):
         refer to https://psutil.readthedocs.io/en/latest
         '''
 
-        # CPU #
+        # update uptime #
+        SysMgr.updateUptime()
+
+        # CPU total #
         cpuStat = psutil.cpu_times(percpu=False)
-        cpuOtherStat = psutil.cpu_stats()
-        clock = psutil.cpu_freq(percpu=True)
-        SysMgr.nrCore = psutil.cpu_count(logical=True)
+        if cpuStat:
+            self.cpuData['all'] = {
+                'user': cpuStat[0],
+                'nice': cpuStat[1],
+                'system': cpuStat[2],
+                'idle': cpuStat[3],
+                'iowait': 0,
+                'irq': 0,
+                'softirq': 0,
+            }
+
+        # CPU cores #
+        if SysMgr.nrCore == 0:
+            nrCore = psutil.cpu_count(logical=True)
+            if nrCore:
+                SysMgr.nrCore = psutil.cpu_count(logical=True)
+        cpuStat = psutil.cpu_times(percpu=True)
+        if not cpuStat:
+            cpuStat = []
+        for idx, cpu in enumerate(cpuStat):
+            self.cpuData[idx] = dict()
+            # linux #
+            if SysMgr.isLinux:
+                self.cpuData[idx]['user'] = cpu[0] * 100
+                self.cpuData[idx]['nice'] = cpu[1] * 100
+                self.cpuData[idx]['system'] = cpu[2] * 100
+                self.cpuData[idx]['idle'] = cpu[3] * 100
+                self.cpuData[idx]['iowait'] = cpu[4] * 100
+                self.cpuData[idx]['irq'] = cpu[5] * 100
+                self.cpuData[idx]['softirq'] = cpu[6] * 100
+            # macOS #
+            elif SysMgr.isDarwin:
+                self.cpuData[idx]['user'] = cpu[0] * 100
+                self.cpuData[idx]['nice'] = cpu[1] * 100
+                self.cpuData[idx]['system'] = cpu[2] * 100
+                self.cpuData[idx]['idle'] = cpu[3] * 100
+                self.cpuData[idx]['iowait'] = 0
+                self.cpuData[idx]['irq'] = 0
+                self.cpuData[idx]['softirq'] = 0
+            # windows #
+            else:
+                self.cpuData[idx]['user'] = cpu[0] * 100
+                self.cpuData[idx]['nice'] = 0
+                self.cpuData[idx]['system'] = cpu[1] * 100
+                self.cpuData[idx]['idle'] = cpu[2] * 100
+                self.cpuData[idx]['iowait'] = 0
+                self.cpuData[idx]['irq'] = cpu[3] * 100
+                self.cpuData[idx]['softirq'] = 0
+
+        # CPU events #
+        cpuEvents = psutil.cpu_stats()
+        self.cpuData['ctxt'] = {'ctxt': cpuEvents[0]}
+        self.cpuData['intr'] = {'intr': cpuEvents[1]}
+        self.cpuData['softirq'] = {'softirq': cpuEvents[2]}
+        self.cpuData['syscall'] = {'syscall': cpuEvents[3]}
 
         # load #
         try:
-            load = psutil.getloadavg()
+            SysMgr.loadavg = psutil.getloadavg()
         except SystemExit:
             sys.exit(0)
         except:
-            load = None
+            pass
 
         # memory #
         try:
+            self.prevVmData = self.vmData
+            self.vmData = {}
+            self.prevMemData = self.memData
+            self.memData = {}
+
             mem = psutil.virtual_memory()
+            self.memData['MemTotal'] = self.vmData['total'] = mem[0] >> 10
+            self.memData['MemAvailable'] = \
+                self.vmData['available'] = mem[1] >> 10
+            self.vmData['percent'] = mem[2]
+            self.vmData['used'] = mem[3]
+            self.memData['MemFree'] = self.vmData['free'] = mem[4] >> 10
+            self.vmData['active'] = mem[5]
+            self.vmData['inactive'] = mem[6]
+            self.vmData['wired'] = mem[7]
         except SystemExit:
             sys.exit(0)
         except:
-            mem = None
+            pass
 
         # swap #
         try:
             swap = psutil.swap_memory()
+            self.memData['SwapTotal'] = \
+                self.vmData['swapTotal'] = swap[0] >> 10
+            self.vmData['swapUsed'] = swap[1] >> 10
+            self.vmData['swapFree'] = swap[2] >> 10
+            self.vmData['swapPer'] = swap[3]
+            self.vmData['pswpin'] = swap[4] >> 10
+            self.vmData['pswpout'] = swap[5] >> 10
         except SystemExit:
             sys.exit(0)
         except:
-            swap = None
+            pass
 
         # disk #
-        partition = psutil.disk_partitions(all=SysMgr.showAll)
-        diskUsage = psutil.disk_usage(path='.')
-        diskStat = psutil.disk_io_counters(perdisk=False, nowrap=True)
+        if SysMgr.diskEnable:
+            SysMgr.sysInstance.updateStorageInfoGen()
 
         # network #
+        SysMgr.prevNetstat = SysMgr.netstat
         netStat = psutil.net_io_counters(pernic=False, nowrap=True)
-        netConn = psutil.net_connections(kind='inet')
-        netAddr = psutil.net_if_addrs()
-        nicStat = psutil.net_if_stats()
+        if netStat:
+            SysMgr.netstat = [netStat[1], netStat[0]]
+        if SysMgr.networkEnable:
+            SysMgr.sysInstance.updateNetworkInfoGen()
 
         # temperature #
         try:
+            raise Exception()
             temp = psutil.sensors_temperatures(fahrenheit=False)
         except SystemExit:
             sys.exit(0)
         except:
-            temp = None
+            pass
 
         # fan #
         try:
+            raise Exception()
             fan = psutil.sensors_fans()
         except SystemExit:
             sys.exit(0)
         except:
-            fan = None
+            pass
 
         # battery #
         try:
             battery = psutil.sensors_battery()
+            if battery:
+                SysMgr.battery = battery
         except SystemExit:
             sys.exit(0)
         except:
-            battery = None
+            pass
 
         # users #
         try:
+            raise Exception()
             user = psutil.users()
         except SystemExit:
             sys.exit(0)
         except:
-            user = None
+            pass
 
         # process #
+        self.saveProcStatGen()
+
+
+
+    def saveProcStatGen(self, addList=[], filterList=None):
+        # get psutil object #
+        psutil = SysMgr.getPkg('psutil')
+
+        # get the number of processes #
+        pidList = sorted(psutil.pids())
+        self.cpuData['processes'] = {'processes': 0}
+        self.cpuData['processes']['processes'] = len(pidList)
+        self.nrProcess = len(pidList)
+        SysMgr.maxPid = pidList[-1]
+
+        # get current time #
+        current = time.time()
+
+        # reset and save proc instance #
+        self.saveProcInstance()
+
+        attrs = [
+            'pid', 'name', 'ppid', 'exe', 'nice', 'num_threads',
+            'cpu_times', 'memory_info', 'num_ctx_switches', 'cmdline',
+            'create_time', 'username',
+        ] + addList
+
+        # append num_fds field #
+        if SysMgr.isLinux or SysMgr.isDarwin:
+            attrs.append('num_fds')
+
+        if filterList is None:
+            pass
+        else:
+            filterList = SysMgr.filterGroup
+
+        # define shortcut #
+        now = self.procData
+        prev = self.prevProcData
+
         #psutil.Process(pid=os.getpid())
         #psutil.pid_exists(pid=os.getpid())
-        procs = psutil.process_iter(attrs=None, ad_value=None)
+        procs = psutil.process_iter(attrs=attrs, ad_value=None)
         for proc in procs:
-            procDict = proc.as_dict(attrs=None, ad_value=None)
-            #procMem = proc.memory_full_info()
+            procInfo = proc.info
+            pid = procInfo['pid']
+            comm = procInfo['name']
+
+            # check skip condition #
+            if pid == 0:
+                continue
+            elif filterList:
+                if not str(pid) in filterList and \
+                    not UtilMgr.isValidStr(comm, filterList, inc=True):
+                    continue
+
+            # info #
+            now[pid] = dict(self.init_procData)
+            now[pid]['mainID'] = pid
+            now[pid]['comm'] = comm
+            now[pid]['ppid'] = procInfo['ppid']
+            now[pid]['exe'] = procInfo['exe']
+            now[pid]['starttime'] = procInfo['create_time']
+            now[pid]['runtime'] = current - procInfo['create_time']
+            now[pid]['fdList'] = {}
+            if procInfo['cmdline']:
+                now[pid]['cmdline'] = ' '.join(procInfo['cmdline'])
+            else:
+                now[pid]['cmdline'] = None
+
+            # priority #
+            if not procInfo['nice']:
+                now[pid]['nice'] = ' '
+            else:
+                if SysMgr.isWindows:
+                    try:
+                        pri = str(procInfo['nice']).strip('Priority.') # pylint: disable=bad-str-strip-call
+                        now[pid]['nice'] = ConfigMgr.SCHED_POLICY_WINDOWS[pri]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        now[pid]['nice'] = ' '
+                else:
+                    now[pid]['nice'] = procInfo['nice']
+
+            # thread count #
+            if 'num_threads' in procInfo and procInfo['num_threads']:
+                now[pid]['nrThread'] = procInfo['num_threads']
+            else:
+                now[pid]['nrThread'] = 1
+
+            # file count #
+            if 'num_fds' in procInfo and procInfo['num_fds']:
+                now[pid]['nrFds'] = procInfo['num_fds']
+            else:
+                now[pid]['nrFds'] = 0
+
+            # user #
+            if 'username' in procInfo:
+                now[pid]['user'] = procInfo['username']
+            else:
+                now[pid]['user'] = ''
+
+            # CPU #
+            if 'cpu_times' in procInfo and procInfo['cpu_times']:
+                utime = now[pid]['utime'] = procInfo['cpu_times'][0]
+                if not utime:
+                    utime = 0
+                stime = now[pid]['stime'] = procInfo['cpu_times'][1]
+                if not stime:
+                    stime = 0
+                ttime = now[pid]['ttime'] = utime + stime
+
+                if pid in prev:
+                    now[pid]['utimeDiff'] = utime - prev[pid]['utime']
+                    now[pid]['stimeDiff'] = stime - prev[pid]['stime']
+                    now[pid]['ttimeDiff'] = \
+                        now[pid]['utimeDiff'] + now[pid]['stimeDiff']
+                else:
+                    now[pid]['utimeDiff'] = utime
+                    now[pid]['stimeDiff'] = stime
+                    now[pid]['ttimeDiff'] = utime + stime
+            else:
+                now[pid]['utime'] = now[pid]['utimeDiff'] = 0
+                now[pid]['stime'] = now[pid]['stimeDiff'] = 0
+                now[pid]['ttime'] = now[pid]['ttimeDiff'] = 0
+
+            # Memory #
+            if 'memory_info' in procInfo and procInfo['memory_info']:
+                now[pid]['rss'] = procInfo['memory_info'][0] >> 20 # MB #
+                now[pid]['vss'] = procInfo['memory_info'][1] >> 30 # GB #
+                nrpgflt = now[pid]['nrpgflt'] = procInfo['memory_info'][2]
+                if pid in prev:
+                    now[pid]['nrpgfltDiff'] = \
+                        nrpgflt - prev[pid]['nrpgflt']
+                else:
+                    now[pid]['nrpgfltDiff'] = nrpgflt
+            else:
+                now[pid]['rss'] = 0
+                now[pid]['vss'] = 0
+                now[pid]['nrpgfltDiff'] = now[pid]['nrpgflt'] = 0
+
+            # Context switch #
+            if 'num_ctx_switches' in procInfo and \
+                procInfo['num_ctx_switches']:
+                nryield = now[pid]['yield'] = \
+                    procInfo['num_ctx_switches'][0]
+                nrpreempted = now[pid]['preempted'] = \
+                    procInfo['num_ctx_switches'][1]
+                if pid in prev:
+                    now[pid]['yieldDiff'] = \
+                        nryield - prev[pid]['yield']
+                    now[pid]['preemptedDiff'] = \
+                        nrpreempted - prev[pid]['preempted']
+                else:
+                    now[pid]['yieldDiff'] = nryield
+                    now[pid]['preemptedDiff'] = nrpreempted
+            else:
+                now[pid]['yield'] = now[pid]['yieldDiff'] = 0
+                now[pid]['preempted'] = now[pid]['preemptedDiff'] = 0
+
+            if 'open_files' in attrs and procInfo['open_files']:
+                now[pid]['open_files'] = procInfo['open_files']
+
+            # TODO: proc.io_counters() on windows #
+
             continue
 
             # control #
@@ -82441,6 +83436,28 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(loadavgPath)
 
+        # save battery #
+        try:
+            # TODO: save left percent, left second, charge status #
+            '''
+            SysMgr.batteryFd.seek(0)
+            battery = SysMgr.batteryFd.readlines()[0]
+            SysMgr.battery = {}
+            '''
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                batteryPath = "/sys/class/power_supply/?/capacity"
+                SysMgr.batteryFd = open(batteryPath, 'r')
+                battery = SysMgr.batteryFd.readlines()[0]
+                SysMgr.battery = {}
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(loadavgPath)
+
         # collect perf data #
         if SysMgr.perfEnable:
             SysMgr.collectSystemPerfData()
@@ -82487,9 +83504,12 @@ class TaskAnalyzer(object):
 
                     # add parent process ID #
                     orig = tmpid
-                    tmpid = procInstance[tmpid]['stat'][ppidIdx]
+                    if SysMgr.isLinux:
+                        tmpid = procInstance[tmpid]['stat'][ppidIdx]
+                    else:
+                        tmpid = procInstance[tmpid]['ppid']
 
-                    if tmpid == '0' or orig == tmpid:
+                    if long(tmpid) == 0 or orig == tmpid:
                         return relationList
                 except SystemExit:
                     sys.exit(0)
@@ -82507,16 +83527,27 @@ class TaskAnalyzer(object):
                 nodePointer = nodePointer[item]
 
         # make dictionary for tree #
-        startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
-        for pid, item in sorted(procInstance.items(),
-            key=lambda e: long(e[1]['stat'][startIdx])):
-            ppid = procInstance[pid]['stat'][ppidIdx]
+        if SysMgr.isLinux:
+            startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+            for pid, item in sorted(procInstance.items(),
+                key=lambda e: long(e[1]['stat'][startIdx])):
+                ppid = procInstance[pid]['stat'][ppidIdx]
 
-            if ppid == '0':
-                procTree[pid] = {}
-            else:
-                relationList = _getRelationList(pid, procInstance)
-                _addItemsToList(relationList, procTree)
+                if ppid == '0':
+                    procTree[pid] = {}
+                else:
+                    relationList = _getRelationList(pid, procInstance)
+                    _addItemsToList(relationList, procTree)
+        else:
+            for pid, item in sorted(procInstance.items(),
+                key=lambda e: long(e[1]['starttime'])):
+                ppid = procInstance[pid]['ppid']
+
+                if ppid == '0':
+                    procTree[pid] = {}
+                else:
+                    relationList = _getRelationList(pid, procInstance)
+                    _addItemsToList(relationList, procTree)
 
         return procTree
 
@@ -83185,6 +84216,9 @@ class TaskAnalyzer(object):
 
 
     def updateNamespace(self, path, tid):
+        if not SysMgr.isLinux:
+            return
+
         nsPath = "%s/%s" % (path, 'ns')
         try:
             self.procData[tid]['ns'] = ''
@@ -83214,6 +84248,9 @@ class TaskAnalyzer(object):
 
 
     def updateOOMScore(self, path, tid):
+        if not SysMgr.isLinux:
+            return
+
         # check main thread to remove redundant operation #
         if not SysMgr.processEnable:
             mainID = self.procData[tid]['mainID']
@@ -83292,6 +84329,7 @@ class TaskAnalyzer(object):
         prevVmData = self.prevVmData
         memData = self.memData
         prevMemData = self.prevMemData
+        failedStat = []
 
         # total memory #
         try:
@@ -83300,7 +84338,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             totalMem = long(0)
-            SysMgr.printWarn("fail to get totalMem")
+            failedStat.append('MemTotal')
 
         # free memory #
         try:
@@ -83310,7 +84348,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             freeMem = freeMemDiff = long(0)
-            SysMgr.printWarn("fail to get freeMem")
+            failedStat.append('MemFree')
 
         # available memory #
         try:
@@ -83349,7 +84387,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = long(0)
-            SysMgr.printWarn("fail to get anonMem")
+            failedStat.append('MemAnon')
 
         # file memory #
         try:
@@ -83362,7 +84400,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = long(0)
-            SysMgr.printWarn("fail to get fileMem")
+            failedStat.append('MemFile')
 
         # dirty memory #
         try:
@@ -83380,7 +84418,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgDirty = long(0)
-            SysMgr.printWarn("fail to get dirtyMem")
+            failedStat.append('MemDirty')
 
         # slab memory #
         try:
@@ -83401,7 +84439,7 @@ class TaskAnalyzer(object):
         except:
             slabReclm = slabUnReclm = slabReclmDiff = \
                 slabUnReclmDiff = totalSlabMem = slabMemDiff = long(0)
-            SysMgr.printWarn("fail to get slabMem")
+            failedStat.append('MemSlab')
 
         totalCacheMem = totalFileMem + totalSlabMem
 
@@ -83423,7 +84461,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             nrMajFault = nrTotalFault = nrMinFault = long(0)
-            SysMgr.printWarn("fail to get faultMem")
+            failedStat.append('MemFault')
 
         # paged in/out from/to disk #
         try:
@@ -83440,7 +84478,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgInMemDiff = pgOutMemDiff = long(0)
-            SysMgr.printWarn("fail to get pgMem")
+            failedStat.append('MemPg')
 
         # swap memory #
         try:
@@ -83462,7 +84500,7 @@ class TaskAnalyzer(object):
         except:
             swapTotal = swapUsage = swapUsageDiff = swapUsagePer = \
                 swapInMem = swapOutMem = long(0)
-            SysMgr.printWarn("fail to get swapMem")
+            failedStat.append('MemSwap')
 
         # background reclaim #
         try:
@@ -83499,7 +84537,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgRclmBg = nrBgReclaim = long(0)
-            SysMgr.printWarn("fail to get bgReclmMem", reason=True)
+            failedStat.append('MemBgReclaim')
 
         # direct reclaim #
         try:
@@ -83534,7 +84572,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgRclmFg = nrDrReclaim = long(0)
-            SysMgr.printWarn("fail to get drReclmMem", reason=True)
+            failedStat.append('MemFgReclaim')
 
 
         # mlock #
@@ -83543,14 +84581,14 @@ class TaskAnalyzer(object):
             # mappedMem = vmData['nr_mapped'] >> 8
         except:
             pgMlock = long(0)
-            SysMgr.printWarn("fail to get mlockMem")
+            failedStat.append('MemMlock')
 
         # pending #
         try:
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
         except:
             nrBlocked = long(0)
-            SysMgr.printWarn("fail to get nrBlocked")
+            failedStat.append('NrBlocked')
 
         # cma mem #
         try:
@@ -83571,7 +84609,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             cmaTotalMem = cmaFreeMem = cmaDevMem = long(0)
-            SysMgr.printWarn("fail to get cmaMem")
+            failedStat.append('MemCma')
 
         '''
         try:
@@ -83579,7 +84617,7 @@ class TaskAnalyzer(object):
             pageTableMem = vmData['nr_page_table_pages'] >> 8
             kernelStackMem = vmData['nr_kernel_stack'] * 8 >> 10
         except:
-            SysMgr.printWarn("fail to get etcMem")
+            failedStat.append('MemShm')
         '''
 
         # check available memory type #
@@ -83590,6 +84628,11 @@ class TaskAnalyzer(object):
 
         # get iowait time #
         # iowait = SysMgr.getIowaitTime()
+
+        # print failed stats #
+        if failedStat:
+            SysMgr.printWarn(
+                'fail to get %s stats' % ', '.join(failedStat))
 
         # print system status menu #
         SysMgr.addPrint(
@@ -83744,8 +84787,12 @@ class TaskAnalyzer(object):
         self.addSysInterval('cpu', totalUsage)
 
         # get network usage in bytes #
-        (netIn, netOut) = \
-            self.getNetworkUsage(SysMgr.prevNetstat, SysMgr.netstat)
+        if SysMgr.isLinux:
+            (netIn, netOut) = \
+                self.getNetworkUsage(SysMgr.prevNetstat, SysMgr.netstat)
+        else:
+            netIn = SysMgr.netstat[0] - SysMgr.prevNetstat[0]
+            netOut = SysMgr.netstat[1] - SysMgr.prevNetstat[1]
 
         # add network interval #
         self.addSysInterval('inbound', netIn)
@@ -83834,7 +84881,7 @@ class TaskAnalyzer(object):
         SysMgr.addPrint(totalCoreStat)
 
         # get temperature #
-        if SysMgr.cpuEnable or SysMgr.gpuEnable:
+        if SysMgr.isLinux and (SysMgr.cpuEnable or SysMgr.gpuEnable):
             coreTempData = {}
             tempDirList = []
             tempPath = '/sys/class/hwmon'
@@ -83948,9 +84995,9 @@ class TaskAnalyzer(object):
                     pass
 
         # print CPU stats #
+        perCoreStats = {}
         if SysMgr.cpuEnable or SysMgr.reportEnable or SysMgr.jsonEnable:
             shortCoreStats = ''
-            perCoreStats = {}
             lenCoreStat = 0
 
             if self.cpuData:
@@ -83963,6 +85010,17 @@ class TaskAnalyzer(object):
                 maxCols = len(oneLine)+1
             else:
                 maxCols = SysMgr.ttyCols
+
+            # get CPU frequency #
+            if not SysMgr.isLinux:
+                try:
+                    freqList = SysMgr.getPkg('psutil').cpu_freq(percpu=True)
+                    if freqList and len(freqList) == 1:
+                        freqList = [freqList[0]] * len(self.cpuData)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    freqList = []
 
             # traverse core files #
             for idx in list(self.cpuData.keys()):
@@ -84022,166 +85080,184 @@ class TaskAnalyzer(object):
                 except:
                     continue
 
-                # set default path #
-                defPath = '%s%s/cpufreq' % (freqPath, idx)
-
-                # get current CPU frequency #
-                '''
-                if the core has been suspended,
-                reading current frequency will take quite some time.
-                '''
-                try:
-                    self.prevCpuData[idx]['curFd'].seek(0)
-                    curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
-                    self.cpuData[idx]['curFd'] = \
-                        self.prevCpuData[idx]['curFd']
-                    perCoreStats[idx]['curFreq'] = curFreq
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    infoPath = '%s/cpuinfo_cur_freq' % defPath
-                    scalingPath = '%s/scaling_cur_freq' % defPath
-
-                    if os.path.isfile(infoPath):
-                        curPath = infoPath
-                    elif os.path.isfile(scalingPath):
-                        curPath = scalingPath
-                    else:
-                        curPath = None
-
+                # save frequency #
+                if not SysMgr.isLinux:
                     try:
-                        self.cpuData[idx]['curFd'] = open(curPath, 'r')
-                        curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
+                        cid = None
+                        curFreq = minFreq = maxFreq = None
+                        perCoreStats[idx]['id'] = None
+                        freq = freqList[idx]
+                        if len(freq) > 0:
+                            curFreq = long(freq[0]) << 10
+                        if len(freq) > 1:
+                            minFreq = long(freq[1]) << 10
+                        if len(freq) > 2:
+                            maxFreq = long(freq[2]) << 10
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+                else:
+                    # set default path #
+                    defPath = '%s%s/cpufreq' % (freqPath, idx)
+
+                    # get current CPU frequency #
+                    '''
+                    if the core has been suspended,
+                    reading current frequency will take quite some time.
+                    '''
+                    try:
+                        self.prevCpuData[idx]['curFd'].seek(0)
+                        curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
+                        self.cpuData[idx]['curFd'] = \
+                            self.prevCpuData[idx]['curFd']
                         perCoreStats[idx]['curFreq'] = curFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        curFreq = None
+                        infoPath = '%s/cpuinfo_cur_freq' % defPath
+                        scalingPath = '%s/scaling_cur_freq' % defPath
 
-                # get CPU min frequency #
-                try:
-                    self.prevCpuData[idx]['minFd'].seek(0)
-                    minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
-                    self.cpuData[idx]['minFd'] = \
-                        self.prevCpuData[idx]['minFd']
-                    perCoreStats[idx]['minFreq'] = minFreq
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    infoPath = '%s/cpuinfo_min_freq' % defPath
-                    scalingPath = '%s/scaling_min_freq' % defPath
+                        if os.path.isfile(infoPath):
+                            curPath = infoPath
+                        elif os.path.isfile(scalingPath):
+                            curPath = scalingPath
+                        else:
+                            curPath = None
 
-                    if os.path.isfile(infoPath):
-                        minPath = infoPath
-                    elif os.path.isfile(scalingPath):
-                        minPath = scalingPath
-                    else:
-                        minPath = None
+                        try:
+                            self.cpuData[idx]['curFd'] = open(curPath, 'r')
+                            curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
+                            perCoreStats[idx]['curFreq'] = curFreq
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            curFreq = None
 
+                    # get min frequency #
                     try:
-                        self.cpuData[idx]['minFd'] = open(minPath, 'r')
-                        minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
+                        self.prevCpuData[idx]['minFd'].seek(0)
+                        minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
+                        self.cpuData[idx]['minFd'] = \
+                            self.prevCpuData[idx]['minFd']
                         perCoreStats[idx]['minFreq'] = minFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        minFreq = None
+                        infoPath = '%s/cpuinfo_min_freq' % defPath
+                        scalingPath = '%s/scaling_min_freq' % defPath
 
-                # get CPU max frequency #
-                try:
-                    self.prevCpuData[idx]['maxFd'].seek(0)
-                    maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
-                    self.cpuData[idx]['maxFd'] = \
-                        self.prevCpuData[idx]['maxFd']
-                    perCoreStats[idx]['maxFreq'] = maxFreq
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    infoPath = '%s/cpuinfo_max_freq' % defPath
-                    scalingPath = '%s/scaling_max_freq' % defPath
+                        if os.path.isfile(infoPath):
+                            minPath = infoPath
+                        elif os.path.isfile(scalingPath):
+                            minPath = scalingPath
+                        else:
+                            minPath = None
 
-                    if os.path.isfile(infoPath):
-                        maxPath = infoPath
-                    elif os.path.isfile(scalingPath):
-                        maxPath = scalingPath
-                    else:
-                        maxPath = None
+                        try:
+                            self.cpuData[idx]['minFd'] = open(minPath, 'r')
+                            minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
+                            perCoreStats[idx]['minFreq'] = minFreq
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            minFreq = None
 
+                    # get max frequency #
                     try:
-                        self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
-                        maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
+                        self.prevCpuData[idx]['maxFd'].seek(0)
+                        maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
+                        self.cpuData[idx]['maxFd'] = \
+                            self.prevCpuData[idx]['maxFd']
                         perCoreStats[idx]['maxFreq'] = maxFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        maxFreq = None
+                        infoPath = '%s/cpuinfo_max_freq' % defPath
+                        scalingPath = '%s/scaling_max_freq' % defPath
 
-                # get current governor #
-                try:
-                    self.prevCpuData[idx]['govFd'].seek(0)
-                    gov = self.prevCpuData[idx]['govFd'].readline()[:-1]
-                    self.cpuData[idx]['govFd'] = \
-                        self.prevCpuData[idx]['govFd']
-                    perCoreStats[idx]['governor'] = gov
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    govPath = '%s/scaling_governor' % defPath
+                        if os.path.isfile(infoPath):
+                            maxPath = infoPath
+                        elif os.path.isfile(scalingPath):
+                            maxPath = scalingPath
+                        else:
+                            maxPath = None
 
+                        try:
+                            self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
+                            maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
+                            perCoreStats[idx]['maxFreq'] = maxFreq
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            maxFreq = None
+
+                    # get current governor #
                     try:
-                        self.cpuData[idx]['govFd'] = open(govPath, 'r')
-                        gov = self.cpuData[idx]['govFd'].readline()[:-1]
+                        self.prevCpuData[idx]['govFd'].seek(0)
+                        gov = self.prevCpuData[idx]['govFd'].readline()[:-1]
+                        self.cpuData[idx]['govFd'] = \
+                            self.prevCpuData[idx]['govFd']
                         perCoreStats[idx]['governor'] = gov
+                    except SystemExit:
+                        sys.exit(0)
                     except:
-                        gov = None
+                        govPath = '%s/scaling_governor' % defPath
 
-                # get core package id #
-                try:
-                    # get core id #
-                    if idx in self.prevCpuData and \
-                        'cidFd' in self.prevCpuData[idx]:
-                        fd = self.prevCpuData[idx]['cidFd']
-                        fd.seek(0)
-                        coreId = long(fd.readline()[:-1])
-                        self.cpuData[idx]['cidFd'] = fd
-                    else:
-                        cidPath = '%s%s/topology/core_id' % (freqPath, idx)
-
-                        self.cpuData[idx]['cidFd'] = open(cidPath, 'r')
-                        coreId = \
-                            long(self.cpuData[idx]['cidFd'].readline()[:-1])
-
-                    if coreId < 0:
-                        coreId = '?'
+                        try:
+                            self.cpuData[idx]['govFd'] = open(govPath, 'r')
+                            gov = self.cpuData[idx]['govFd'].readline()[:-1]
+                            perCoreStats[idx]['governor'] = gov
+                        except:
+                            gov = None
 
                     # get package id #
-                    if idx in self.prevCpuData and \
-                        'pidFd' in self.prevCpuData[idx]:
-                        fd = self.prevCpuData[idx]['pidFd']
-                        fd.seek(0)
-                        phyId = long(fd.readline()[:-1])
-                        self.cpuData[idx]['pidFd'] = fd
-                    else:
-                        pidPath = \
-                            '%s%s/topology/physical_package_id' % \
-                                (freqPath, idx)
+                    try:
+                        # get core id #
+                        if idx in self.prevCpuData and \
+                            'cidFd' in self.prevCpuData[idx]:
+                            fd = self.prevCpuData[idx]['cidFd']
+                            fd.seek(0)
+                            coreId = long(fd.readline()[:-1])
+                            self.cpuData[idx]['cidFd'] = fd
+                        else:
+                            cidPath = '%s%s/topology/core_id' % (freqPath, idx)
 
-                        self.cpuData[idx]['pidFd'] = open(pidPath, 'r')
-                        phyId = \
-                            long(self.cpuData[idx]['pidFd'].readline()[:-1])
+                            self.cpuData[idx]['cidFd'] = open(cidPath, 'r')
+                            coreId = \
+                                long(self.cpuData[idx]['cidFd'].readline()[:-1])
 
-                    if phyId < 0:
-                        phyId = '?'
+                        if coreId < 0:
+                            coreId = '?'
 
-                    cid = '%s-%s' % (phyId, coreId)
-                    perCoreStats[idx]['id'] = cid
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    cid = None
-                    perCoreStats[idx]['id'] = None
+                        # get package id #
+                        if idx in self.prevCpuData and \
+                            'pidFd' in self.prevCpuData[idx]:
+                            fd = self.prevCpuData[idx]['pidFd']
+                            fd.seek(0)
+                            phyId = long(fd.readline()[:-1])
+                            self.cpuData[idx]['pidFd'] = fd
+                        else:
+                            pidPath = \
+                                '%s%s/topology/physical_package_id' % \
+                                    (freqPath, idx)
 
-                # set frequency info #
+                            self.cpuData[idx]['pidFd'] = open(pidPath, 'r')
+                            phyId = \
+                                long(self.cpuData[idx]['pidFd'].readline()[:-1])
+
+                        if phyId < 0:
+                            phyId = '?'
+
+                        cid = '%s-%s' % (phyId, coreId)
+                        perCoreStats[idx]['id'] = cid
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        cid = None
+                        perCoreStats[idx]['id'] = None
+
+                # merge frequency info #
                 try:
                     coreFreq = ''
                     if curFreq:
@@ -84197,7 +85273,7 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
-                # merge core info #
+                # merge temperature info #
                 try:
                     coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                         format(cid, coreTempData[cid], coreFreq)
@@ -84262,9 +85338,8 @@ class TaskAnalyzer(object):
                     pass
 
         # print GPU stats #
-        if SysMgr.gpuEnable:
-            gpuStats = {}
-
+        gpuStats = {}
+        if SysMgr.isLinux and SysMgr.gpuEnable:
             if self.gpuData:
                 SysMgr.addPrint('%s\n' % oneLine)
 
@@ -84327,7 +85402,8 @@ class TaskAnalyzer(object):
                         else:
                             coreGraph = UtilMgr.convColor(coreGraph, 'YELLOW')
 
-                        coreGraph += (' ' * (len(coreGraph) - len(origCoreGraph)))
+                        coreGraph += (
+                            ' ' * (len(coreGraph) - len(origCoreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
 
@@ -84343,6 +85419,11 @@ class TaskAnalyzer(object):
             return
 
         # initialize report data #
+        '''
+        reportData is serializable data to be reported outside in JSON format.
+        jsonData is just data to be kept in JSON format.
+        They have different purporse.
+        '''
         self.reportData = dict()
 
         # timestamp #
@@ -84352,18 +85433,36 @@ class TaskAnalyzer(object):
             self.reportData['utctime'] = \
                 datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
+        # check uname #
+        if not SysMgr.sysInstance.uname:
+            SysMgr.sysInstance.saveUnameInfo()
+        if SysMgr.sysInstance.uname:
+            if len(SysMgr.sysInstance.uname) == 4:
+                osinfo, host, kernel, release = SysMgr.sysInstance.uname
+            elif len(SysMgr.sysInstance.uname) == 5:
+                osinfo, host, kernel, release, machine = \
+                    SysMgr.sysInstance.uname
+            else:
+                osinfo = host = kernel = release = None
+        else:
+            osinfo = host = kernel = release = None
+
         # system #
-        self.reportData['system'] = {
+        if 'system' in SysMgr.jsonData:
+            self.reportData['system'] = SysMgr.jsonData['system']
+        else:
+            self.reportData['system'] = {}
+        self.reportData['system'].update({
             'pid': SysMgr.pid,
             'uptime': SysMgr.uptime,
             'interval': interval,
             'nrIrq': nrIrq,
             'nrSoftIrq': nrSoftIrq,
-            'os': SysMgr.sysInstance.uname[0],
-            'host': SysMgr.sysInstance.uname[1],
-            'kernel': SysMgr.sysInstance.uname[2],
-            'release': SysMgr.sysInstance.uname[3],
-            }
+            'os': osinfo,
+            'host': host,
+            'kernel': kernel,
+            'release': release,
+            })
 
         # load #
         try:
@@ -84377,11 +85476,6 @@ class TaskAnalyzer(object):
             pass
 
         # CPU #
-        try:
-            perCoreStats
-        except:
-            perCoreStats = None
-
         self.reportData['cpu'] = {
             'total': totalUsage,
             'idle': idleUsage,
@@ -84390,14 +85484,11 @@ class TaskAnalyzer(object):
             'irq': irqUsage,
             'iowait': ioUsage,
             'nrCore': SysMgr.nrCore,
-            'percore': perCoreStats
+            'perCore': perCoreStats
             }
 
         # GPU #
-        try:
-            self.reportData['gpu'] = gpuStats
-        except:
-            pass
+        self.reportData['gpu'] = gpuStats
 
         # memory #
         self.reportData['mem'] = {
@@ -84524,42 +85615,56 @@ class TaskAnalyzer(object):
                 # get read size on this interval #
                 try:
                     value['read'] -= prevStorageData[dev]['read']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['read'] = long(0)
 
                 # get write size on this interval #
                 try:
                     value['write'] -= prevStorageData[dev]['write']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['write'] = long(0)
 
                 # get readtime on this interval #
                 try:
                     value['readtime'] -= prevStorageData[dev]['readtime']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['readtime'] = long(0)
 
                 # get writetime on this interval #
                 try:
                     value['writetime'] -= prevStorageData[dev]['writetime']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['writetime'] = long(0)
 
                 # get iotime on this interval #
                 try:
                     value['iotime'] -= prevStorageData[dev]['iotime']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['iotime'] = long(0)
 
                 # get iowtime on this interval #
                 try:
                     value['iowtime'] -= prevStorageData[dev]['iowtime']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['iowtime'] = long(0)
 
                 # get avq on this interval #
                 try:
                     value['avq'] = value['iowtime'] / value['iotime']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['avq'] = long(0)
         else:
@@ -84912,7 +86017,10 @@ class TaskAnalyzer(object):
             nrNewThreads = 0
 
         try:
-            loadlist = SysMgr.loadavg.split()[:3]
+            if SysMgr.isLinux:
+                loadlist = SysMgr.loadavg.split()[:3]
+            else:
+                loadlist = list(SysMgr.loadavg)
             for idx, load in enumerate(loadlist):
                 loadlist[idx] = str('%d' % float(load))
             loadavg = '/'.join(loadlist)
@@ -84973,6 +86081,29 @@ class TaskAnalyzer(object):
         except:
             swapTotal = long(0)
 
+        try:
+            battery = ''
+            if SysMgr.battery:
+                battery = ' [Power:%d%%/%s/%s]' % (
+                    SysMgr.battery[0],
+                    UtilMgr.convTime(SysMgr.battery[1]),
+                    '+' if SysMgr.battery[2] else '-'
+                )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # print stats #
+        SysMgr.addPrint(UtilMgr.convColor((
+            "%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
+            "[Life: +%d/-%d]%s[IRQ: %d] [Core: %d] [Task: %d/%d] "
+            "[Load: %s] [RAM: %s] [Swap: %s]%s\n") % \
+            (title, SysMgr.uptime, SysMgr.uptimeDiff,
+            nrCtxt, nrNewThreads, nrTermThreads, oomstr, nrIrq,
+            SysMgr.nrCore, self.nrProcess, self.nrThread, loadavg,
+            memTotal, swapTotal, battery), 'BOLD'))
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('system', dict())
@@ -84989,14 +86120,17 @@ class TaskAnalyzer(object):
             if oomstr:
                 jsonData['oomKill'] = oom_kill
 
-        SysMgr.addPrint(UtilMgr.convColor((
-            "%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
-            "[Life: +%d/-%d]%s[IRQ: %d] [Core: %d] [Task: %d/%d] "
-            "[Load: %s] [RAM: %s] [Swap: %s]\n") % \
-            (title, SysMgr.uptime, SysMgr.uptimeDiff,
-            nrCtxt, nrNewThreads, nrTermThreads, oomstr, nrIrq,
-            SysMgr.nrCore, self.nrProcess, self.nrThread, loadavg,
-            memTotal, swapTotal), 'BOLD'))
+            if battery:
+                try:
+                    jsonData['battery'] = {
+                        'per': SysMgr.battery[0],
+                        'leftsec': SysMgr.battery[1],
+                        'plugged': 'true' if SysMgr.battery[2] else 'false'
+                    }
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
 
 
@@ -85136,24 +86270,24 @@ class TaskAnalyzer(object):
             return
         elif SysMgr.uptimeDiff == 0:
             return
-        elif SysMgr.checkCutCond():
+        elif not SysMgr.sysInstance:
             return
 
         # update network usage #
         SysMgr.sysInstance.updateNetworkInfo()
 
-        SysMgr.addPrint('%s\n' % twoLine)
+        if SysMgr.checkCutCond():
+            return
 
+        SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint(
             "{0:^40} | {1:^53} | {2:^53} |\n{3:1}\n".format(
             "Network", "Receive", "Transfer", oneLine), newline=2)
-
         SysMgr.addPrint((
             "{0:^16} | {1:^21} | "
             "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} | "
             "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} |\n").format(
                 "Dev", "IP", "Size", "Packet", "Error", "Drop", "Multicast"))
-
         SysMgr.addPrint('%s\n' % twoLine)
 
         convertFunc = UtilMgr.convSize2Unit
@@ -85187,7 +86321,13 @@ class TaskAnalyzer(object):
                 totalStat['tdiff'][2] += tdiff[2]
                 totalStat['tdiff'][3] += tdiff[3]
                 totalStat['tdiff'][4] += tdiff[-1]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                rdiff = [0 for i in range(len(val['recv']))]
+                tdiff = [0 for i in range(len(val['tran']))]
 
+            try:
                 # convert color for network usage #
                 recvSize = '%8s' % convertFunc(rdiff[0])
                 if rdiff[0] > 0:
@@ -85208,7 +86348,7 @@ class TaskAnalyzer(object):
                     "{0:>16} | {1:>21} | "
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(
-                        dev, val['ipaddr'],
+                        dev[-16:], val['ipaddr'],
                         recvSize, convertFunc(rdiff[1]), recvErr,
                         convertFunc(rdiff[3]), convertFunc(rdiff[-1]),
                         tranSize, convertFunc(tdiff[1]), tranErr,
@@ -85258,13 +86398,16 @@ class TaskAnalyzer(object):
             return
         elif SysMgr.uptimeDiff == 0:
             return
-        elif SysMgr.checkCutCond():
+        elif not SysMgr.sysInstance:
             return
 
         # update storage usage #
         SysMgr.sysInstance.updateStorageInfo()
 
         convSize2Unit = UtilMgr.convSize2Unit
+
+        if SysMgr.checkCutCond():
+            return
 
         SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint((
@@ -85287,11 +86430,16 @@ class TaskAnalyzer(object):
             # skip total usage #
             if dev == 'total':
                 continue
+            elif value['total'] == 0:
+                continue
 
+            # handle fs #
             origDev = dev
-            if 'mount' in value and \
-                value['mount']['fs'] == 'tmpfs':
-                dev = value['mount']['path']
+            if 'mount' in value:
+                if value['mount']['fs'] == 'tmpfs':
+                    dev = value['mount']['path']
+                elif value['mount']['fs'] == 'devfs':
+                    continue
 
             # get readtime #
             try:
@@ -85364,12 +86512,17 @@ class TaskAnalyzer(object):
             if value['total'] > 0:
                 total = convSize2Unit(value['total'] << 20)
                 free = convSize2Unit(value['free'] << 20)
-                favail = '%7s' % convSize2Unit(value['favail'])
-                if value['favail'] == 0:
-                    favail = '%s' % UtilMgr.convColor(favail, 'RED')
-
                 fs = value['mount']['fs']
                 path = value['mount']['path']
+
+                try:
+                    favail = '%7s' % convSize2Unit(value['favail'])
+                    if value['favail'] == 0:
+                        favail = '%s' % UtilMgr.convColor(favail, 'RED')
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    favail = '%7s' % 0
             else:
                 total = free = favail = fs = path = '-'
 
@@ -85408,7 +86561,7 @@ class TaskAnalyzer(object):
 
             diskInfo = \
                 ("{0:<24}|{1:>4}|{2:>5}|{3:>7}|{4:>7}|{5:>7}({6:>7})|"
-                "{7:>5}|{8:>7}|{9:>7}|{10:^8}| {11:<52}|\n").format(
+                "{7:>5}|{8:>7}|{9:>7}|{10:>8}| {11:<52}|\n").format(
                     dev[-24:], busytime, avq, readSize, writeSize, free,
                     freeDiff, usePer, total, favail, fs, mountInfo[:51])
 
@@ -85653,6 +86806,120 @@ class TaskAnalyzer(object):
 
         SysMgr.addPrint("%s\n" % oneLine)
 
+
+
+    def printTaskUsageGen(self, idIndex=False):
+        # check return condition #
+        if SysMgr.uptimeDiff == 0 or \
+            SysMgr.checkCutCond():
+            return
+        elif not self.procData:
+            ret = SysMgr.addPrint('%s\n' % twoLine)
+            if not ret:
+                return
+            ret = SysMgr.addPrint('\tNone\n')
+            if not ret:
+                return
+            SysMgr.addPrint(oneLine)
+            return
+
+        # increase print tick #
+        self.printTick += 1
+
+        # get pid length #
+        pd = len(str(SysMgr.maxPid))
+        if pd < 5:
+            pd = 5
+
+        # print menu #
+        if not self.taskStreamEnable or self.printTick <= 1:
+            ret = SysMgr.addPrint((
+                "{24:1}\n{0:>16} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
+                "{5:>4}({6:^3}/{7:^3}/{8:^3})|"
+                "{9:>4}({10:>4}/{11:^3}/{12:^3}/{13:^3})|"
+                "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
+                "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
+                    format('Process', 'PID', 'PPID', "Nr", "Pri",
+                        "CPU", "Usr", "Ker", 'Dly',
+                        "VSS", 'RSS', "Txt", "Shr", "Swp",
+                        "Blk", "RD", "WR", "NrFlt",
+                        "Yld", "User", "FD", "LifeTime", "Parent",
+                        oneLine, twoLine, pd=pd), newline=3)
+            if not ret:
+                return
+
+        # print stats #
+        printCnt = 0
+        for pid, value in sorted(self.procData.items(),
+            key=lambda e: e[1]['ttimeDiff'], reverse=True):
+            # CPU #
+            ttime = long(value['ttimeDiff'] * 100 / SysMgr.uptimeDiff)
+            stime = long(value['stimeDiff'] * 100 / SysMgr.uptimeDiff)
+            utime = long(value['utimeDiff'] * 100 / SysMgr.uptimeDiff)
+            btime = 0
+
+            ppid = value['ppid']
+
+            # check break condition #
+            if SysMgr.filterGroup:
+                if not UtilMgr.isValidStr(value['comm']):
+                    continue
+            elif not SysMgr.showAll and ttime == 0:
+                break
+
+            printCnt += 1
+
+            # I/O #
+            read = 0
+            write = 0
+            nrpgflt = value['nrpgfltDiff']
+
+            nryield = value['yieldDiff']
+            nrpreempted = value['preemptedDiff']
+
+            # memory #
+            rss = value['rss']
+            if SysMgr.isDarwin:
+                vss = value['vss'] # GB #
+            else:
+                vss = value['vss'] # MB #
+
+            code = 0
+            shr = 0
+            swap = 0
+            pri = value['nice']
+            user = value['user'][:6]
+
+            if ppid in self.procData:
+                etc = '%s(%s)' % (self.procData[ppid]['comm'], ppid)
+            else:
+                etc = ''
+
+            # print stats of a process #
+            ret = SysMgr.addPrint(
+                ("{0:>16} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
+                "{5:>4}({6:>3}/{7:>3}/{8:>3})|"
+                "{9:>4}({10:>4}/{11:>3}/{12:>3}/{13:>3})|"
+                "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").format(
+                    value['comm'][:16], pid, ppid,
+                    value['nrThread'], pri, ttime, utime, stime, 0,
+                    vss, rss, code, shr, swap, btime, read, write, nrpgflt,
+                    nryield, user, value['nrFds'],
+                    UtilMgr.convTime(value['runtime'])[:9], etc[:21], pd=pd))
+            if not ret:
+                return
+
+            # print cmdline #
+            if SysMgr.cmdlineEnable and value['cmdline']:
+                SysMgr.addPrint(
+                    "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
+
+        if printCnt == 0:
+            ret = SysMgr.addPrint('\tNone\n')
+            if not ret:
+                return
+        SysMgr.addPrint(oneLine)
 
 
     def printTaskUsage(self, idIndex=False):
@@ -87413,7 +88680,7 @@ class TaskAnalyzer(object):
 
             # abnormal status #
             if self.reportData['task']['abnormal']:
-                dieList = list(self.reportData['task']['abnormal'].keys())
+                abnormalList = list(self.reportData['task']['abnormal'].keys())
                 target = '_'.join(abnormalList)
                 self.checkThreshold(
                     'task', 'abnormal', 'ABNORMAL', None, target)
@@ -87712,10 +88979,19 @@ class TaskAnalyzer(object):
                     evtdata[rank] = {}
                     evtdata[rank]['pid'] = pid
                     evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[rank]['total'] = data['ttime']
-                    evtdata[rank]['user'] = data['utime']
-                    evtdata[rank]['kernel'] = data['stime']
+                    evtdata[rank]['comm'] = data['comm']
+                    if 'ttimeDiff' in data:
+                        evtdata[rank]['total'] = long(data['ttimeDiff'])
+                    else:
+                        evtdata[rank]['total'] = data['ttime']
+                    if 'utimeDiff' in data:
+                        evtdata[rank]['user'] = long(data['utimeDiff'])
+                    else:
+                        evtdata[rank]['user'] = data['utime']
+                    if 'stimeDiff' in data:
+                        evtdata[rank]['kernel'] = long(data['stimeDiff'])
+                    else:
+                        evtdata[rank]['kernel'] = data['stime']
                     evtdata[rank]['runtime'] = \
                         UtilMgr.convTime(data['runtime'])
 
@@ -87726,16 +89002,21 @@ class TaskAnalyzer(object):
                 rank = 1
                 self.reportData['mem']['procs'] = {}
                 sortedProcData = sorted(self.procData.items(),
-                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+                    key=lambda e: long(e[1]['rss']), reverse=True)
 
                 for pid, data in sortedProcData:
-                    rss = long(data['stat'][self.rssIdx]) >> 8
+                    rss = data['rss']
 
                     if not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
                         break
 
-                    text = (long(data['stat'][self.ecodeIdx]) - \
-                        long(data['stat'][self.scodeIdx])) >> 20
+                    try:
+                        text = (long(data['stat'][self.ecodeIdx]) - \
+                            long(data['stat'][self.scodeIdx])) >> 20
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        text = 0
 
                     evtdata = self.reportData['mem']['procs']
 
@@ -87743,7 +89024,7 @@ class TaskAnalyzer(object):
                     evtdata[rank] = {}
                     evtdata[rank]['pid'] = pid
                     evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['comm'] = data['comm']
                     evtdata[rank]['rss'] = rss
                     evtdata[rank]['text'] = text
                     evtdata[rank]['runtime'] = \
@@ -87782,7 +89063,7 @@ class TaskAnalyzer(object):
                     evtdata[rank] = {}
                     evtdata[rank]['pid'] = long(pid)
                     evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['comm'] = data['comm']
                     evtdata[rank]['iowait'] = data['btime']
                     evtdata[rank]['runtime'] = \
                         UtilMgr.convTime(data['runtime'])
@@ -88108,6 +89389,37 @@ class TaskAnalyzer(object):
 
 
 
+    def printSystemStatGen(self, idIndex=False, target='task'):
+        title = '[Top Info]'
+        nrIndent = len(title)
+
+        if not self.taskStreamEnable:
+            # print default stats #
+            self.printDefaultUsage(title)
+
+            # print system stat #
+            self.printSystemUsage()
+
+            # print disk stat #
+            self.printDiskUsage()
+
+            # print network stat #
+            self.printNetworkUsage()
+
+        # print process stat #
+        self.printTaskUsageGen(idIndex=idIndex)
+
+        # flush print buffer #
+        if self.reportData:
+            if self.checkPrintCond():
+                SysMgr.printTopStats()
+            else:
+                SysMgr.clearPrint()
+        else:
+            SysMgr.printTopStats()
+
+
+
     def printSystemStat(self, idIndex=False, target='task'):
         title = '[Top Info]'
         nrIndent = len(title)
@@ -88185,10 +89497,7 @@ def main(args=None):
         SysMgr.checkCmdMode()
 
     # init system context #
-    if 'FASTINIT' in SysMgr.environList:
-        SysMgr(onlyInstance=True)
-    else:
-        SysMgr()
+    SysMgr.initSystemContext()
 
     #==================== RECORD PART ====================#
 

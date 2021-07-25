@@ -28,6 +28,7 @@ Even now, its functions and usability are expanding.
 The features of Guider are as follows.
 * Monitoring
 * Profiling
+* Tracing
 * Visualization
 * Control
 * Logging
@@ -35,10 +36,11 @@ The features of Guider are as follows.
 * Util
 
 Guider pursues characteristics as below.
-1. Easy to use: just run without any setting and package installation
+1. Easy to use: just run without any setting and installation
 2. Measure correctly: count, time in from us, size in from byte
-3. Provide all features: enough functions for experiment and analysis
+3. Provide all features: various functions for analysis and experiment
 4. Submit the report in detail: show as much information as possible
+5. Visualize through the browser: visualization output in svg format
 
 It supports almost all platforms based on the Linux kernel as shown below.
 * Android
@@ -156,7 +158,7 @@ Output
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
-
+           
     # guider/guider.py utop -g yes -H
 
     [Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [yes(7202): 28%(Usr/27%+Sys/0%)] [SampleTime: 0.000100]
@@ -180,7 +182,7 @@ Output
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
-
+           
     # guider/guider.py systop -g yes -H
 
     [Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [yes(7202): 5%(Usr/4%+Sys/0%)] 
@@ -195,7 +197,7 @@ Output
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
-
+           
     # guider/guider.py btop -g a.out -H
 
     [Top Breakcall Info] [Time: 4542869.660] [Interval: 1.001] [NrSamples: 994] [a.out(1219772): 7%(Usr/0%+Sys/6%)] [guider(1219775): 97%]
@@ -241,7 +243,7 @@ Output
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
-
+           
     # guider/guider.py pytop -g iotop -H
 
     [Top Pycall Info] [Time: 7469667.000] [Interval: 1.003] [NrSamples: 283] [iotop(2943070): 13%(Usr/10%+Sys/2%)] [guider(2943073): 53%] [SampleRate: 0.001]
@@ -400,7 +402,7 @@ Output
     ==========================================================================================================================================================
 
 >>>
-
+           
     # guider/guider.py disktop
     
     [Top Info] [Time: 262411.830] [Inter: 1.0] [Ctxt: 802] [Life: +0/-0] [IRQ: 10675] [Core: 40] [Task: 481/700] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
@@ -428,7 +430,7 @@ Output
     ==========================================================================================================================================================
 
 >>>
-
+           
     # guider/guider.py wtop -g yes
 
     [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
@@ -480,7 +482,7 @@ Output
     0.000493                       write@GLIBC_2.2.5/0x7ffb521991d0(0x1,0x55e322290330,0x5,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
 
 >>>
-
+           
     # guider/guider.py  btrace -g yes -H -c \|getret
 
     0.532473       0x2cf0/0x560d7fd28cf0(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
@@ -503,7 +505,7 @@ Output
     0.533194       0x2cf0[RET]=0x2000(8192)/0.000248 -> 0x2580/0x560d7fd26000 [/usr/bin/yes]
 
 >>>
-
+           
     $ guider/guider.py rtop &
     $ cat /tmp/guider.report
 
@@ -634,51 +636,53 @@ Output
     }
 
 >>>
-
-    # guider/guider.py limitcpu -g 22371:50
-
-    [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
+           
+    # guider/guider.py limitcpu -g 22371:50 -v
 
     [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
+
+    [WARN] <guider(574420)> started 1th guider(574420)
+    
+    [WARN] <guider(574420)> 1th guider(574420) took 0.421747 seconds to finish one job
 
 >>>
-
+           
     # guider/guider.py sigtrace -g a.out
 
-	[INFO] start profiling a.out(3100585)...
-
-	0.000130 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	0.000276 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	0.000287 [SIGRT1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	0.000307 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	0.000317 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	0.000326 [SIGRT2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955804 [SIGCHLD] {si_code=CLD_EXITED si_pid=3100586, si_uid=0, si_status=0 si_utime=0, si_stime=0}
-	1.955816 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955826 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955836 [SIGRT3] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955846 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955856 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955866 [SIGRT4] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955875 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955884 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955893 [SIGRT5] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955903 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955912 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955922 [SIGRT6] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955931 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955941 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955950 [SIGRT7] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955959 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955969 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955978 [SIGRT8] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955987 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.955997 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.956006 [SIGRT9] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.956015 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-	1.956025 [SIGSEGV] {si_code=SEGV_MAPERR si_addr=0x4d2}
-
-	2.191489 +++ exited a.out(3100585) with 139 +++
+    [INFO] start profiling a.out(3100585)...
+    
+    0.000130 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    0.000276 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    0.000287 [SIGRT1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    0.000307 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    0.000317 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    0.000326 [SIGRT2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955804 [SIGCHLD] {si_code=CLD_EXITED si_pid=3100586, si_uid=0, si_status=0 si_utime=0, si_stime=0}
+    1.955816 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955826 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955836 [SIGRT3] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955846 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955856 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955866 [SIGRT4] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955875 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955884 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955893 [SIGRT5] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955903 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955912 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955922 [SIGRT6] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955931 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955941 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955950 [SIGRT7] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955959 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955969 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955978 [SIGRT8] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955987 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.955997 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.956006 [SIGRT9] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.956015 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+    1.956025 [SIGSEGV] {si_code=SEGV_MAPERR si_addr=0x4d2}
+    
+    2.191489 +++ exited a.out(3100585) with 139 +++
 
 >>>
            
@@ -693,7 +697,7 @@ Output
     [usercall] write(7f94ed747140)(1, HOOK, 4) = 0x4(4)
 
 >>>
-
+           
     # guider/guider.py printenv -g systemd
 
     [ systemd(1) ]
@@ -739,10 +743,10 @@ Output
            
     # guider/guider.py kill -stop yes
 
-    [Info] sent signal SIGSTOP to yes(10594)
+    [Info] sent SIGSTOP to yes(10594)
 
 >>>
-
+           
     # guider/guider.py printbind -g yes
 
     [Function Bind Info] [Target: yes(410113)]
@@ -769,7 +773,7 @@ Output
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
-
+           
     # guider/guider.py rec -a -e m,b
 
     [Thread Info] [ Elapsed: 2.050 ] [ Start: 2849868.198 ] [ Running: 112 ] [ CtxSwc: 3357 ] [ LogSize: 4054 KB ] [ Unit: Sec/MB/NR ]
@@ -1126,13 +1130,13 @@ Output
        
     # guider/guider.py draw guider.out
 
-![guider-graph](https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png)
-![guider-chart](https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png)
-![guider-web-dashboard](https://user-images.githubusercontent.com/15862689/67160178-0024ed80-f389-11e9-9a09-6a8eb96e2785.png)
-![guider-timeline](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_timeline.png)
-![guider-flamegraph](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_flamegraph.png)
-![guider-average](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawavg.svg)
-![guider-request](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawreq.svg)
+<img alt="graph" src="https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png" width="100%" height="100%">
+<img alt="chart" src="https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png" width="100%" height="100%">
+<img alt="dashboard" src="https://user-images.githubusercontent.com/15862689/67160178-0024ed80-f389-11e9-9a09-6a8eb96e2785.png" width="100%" height="100%">
+<img alt="timeline" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_timeline.png" width="100%" height="100%">
+<img alt="flamegraph" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_flamegraph.png" width="100%" height="100%">
+<img alt="drawavg" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawavg.svg" width="100%" height="100%">
+<img alt="drawreq" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawreq.svg" width="100%" height="100%">
 
 How to use
 =======
@@ -1235,122 +1239,126 @@ Usage:
     $ ./guider.py COMMAND|FILE [OPTIONS] [--help]
                 
 COMMAND:
-    [CONTROL]       cli               <Client>
-                    event             <Event>
-                    list              <List>
-                    send              <Signal>
-                    server            <Server>
-                    start             <Signal>
+    [CONTROL]       hook              <Function>      (Linux)
+                    kill/tkill        <Signal>        (Linux/macOS)
+                    limitcpu          <CPU>           (Linux)
+                    pause             <Thread>        (Linux)
+                    remote            <Command>       (Linux)
+                    rlimit            <Resource>      (Linux)
+                    setafnt           <Affinity>      (Linux)
+                    setcpu            <Clock>         (Linux)
+                    setsched          <Priority>      (Linux)
 
-    [LOG]           logdlt            <DLT>
-                    logjrl            <Journal>
-                    logkmsg           <Kernel>
-                    logsys            <Syslog>
-                    printdlt          <DLT>
-                    printjrl          <Journal>
-                    printkmsg         <Kernel>
-                    printsys          <Syslog>
+    [LOG]           logdlt            <DLT>           (Linux)
+                    logjrl            <Journal>       (Linux)
+                    logkmsg           <Kernel>        (Linux)
+                    logsys            <Syslog>        (Linux)
+                    printdlt          <DLT>           (Linux/macOS/Windows)
+                    printjrl          <Journal>       (Linux)
+                    printkmsg         <Kernel>        (Linux)
+                    printsys          <Syslog>        (Linux)
 
-    [MONITOR]       atop              <System>
-                    bgtop             <Background>
-                    btop              <Function>
-                    cgtop             <Cgroup>
-                    ctop              <Threshold>
-                    dbustop           <D-Bus>
-                    disktop           <Storage>
-                    dlttop            <DLT>
-                    ftop              <File>
-                    mtop              <Memory>
-                    ntop              <Network>
-                    ptop              <PMU>
-                    pytop             <Python>
-                    rtop              <JSON>
-                    stacktop          <Stack>
-                    systop            <Syscall>
-                    top               <Process>
-                    ttop              <Thread>
-                    utop              <Function>
-                    wtop              <WSS>
+    [MONITOR]       atop              <All>           (Linux)
+                    bgtop             <Background>    (Linux/macOS/Windows)
+                    btop              <Function>      (Linux)
+                    cgtop             <Cgroup>        (Linux)
+                    ctop              <Threshold>     (Linux/macOS/Windows)
+                    dbustop           <D-Bus>         (Linux)
+                    disktop           <Storage>       (Linux/macOS/Windows)
+                    dlttop            <DLT>           (Linux/macOS/Windows)
+                    ftop              <File>          (Linux/macOS)
+                    mtop              <Memory>        (Linux)
+                    ntop              <Network>       (Linux/macOS/Windows)
+                    ptop              <PMU>           (Linux)
+                    pytop             <Python>        (Linux)
+                    rtop              <JSON>          (Linux/macOS/Windows)
+                    stacktop          <Stack>         (Linux)
+                    systop            <Syscall>       (Linux)
+                    top               <Process>       (Linux/macOS/Windows)
+                    ttop              <Thread>        (Linux)
+                    utop              <Function>      (Linux)
+                    wtop              <WSS>           (Linux)
 
-    [PROFILE]       filerec           <File>
-                    funcrec           <Function>
-                    genrec            <System>
-                    iorec             <I/O>
-                    mem               <Page>
-                    rec               <Thread>
-                    report            <Report>
-                    sysrec            <Syscall>
+    [NETWORK]       cli               <Client>        (Linux/macOS/Windows)
+                    event             <Event>         (Linux)
+                    list              <List>          (Linux/macOS/Windows)
+                    send              <Signal>        (Linux)
+                    server            <Server>        (Linux)
+                    start             <Signal>        (Linux)
 
-    [TEST]          cputest           <CPU>
-                    iotest            <Storage>
-                    memtest           <Memory>
-                    nettest           <Network>
+    [PROFILE]       filerec           <File>          (Linux)
+                    funcrec           <Function>      (Linux)
+                    genrec            <System>        (Linux)
+                    iorec             <I/O>           (Linux)
+                    mem               <Page>          (Linux)
+                    rec               <Thread>        (Linux)
+                    report            <Report>        (Linux)
+                    sysrec            <Syscall>       (Linux)
 
-    [TRACE]         btrace            <Breakpoint>
-                    pytrace           <Python>
-                    sigtrace          <Signal>
-                    strace            <Syscall>
-                    utrace            <Function>
+    [TEST]          cputest           <CPU>           (Linux/macOS/Windows)
+                    iotest            <Storage>       (Linux/macOS/Windows)
+                    memtest           <Memory>        (Linux/macOS/Windows)
+                    nettest           <Network>       (Linux)
 
-    [UTIL]          addr2sym          <Symbol>
-                    comp              <Compress>
-                    decomp            <Decompress>
-                    dump              <Memory>
-                    exec              <Command>
-                    getafnt           <Affinity>
-                    hook              <Function>
-                    kill/tkill        <Signal>
-                    leaktrace         <Leak>
-                    limitcpu          <CPU>
-                    mkcache           <Cache>
-                    pause             <Thread>
-                    ping              <PING>
-                    printbind         <Funcion>
-                    printcg           <Cgroup>
-                    printdbus         <D-Bus>
-                    printdbusintro    <D-Bus>
-                    printdbusstat     <D-Bus>
-                    printdbussub      <D-Bus>
-                    printdir          <Dir>
-                    printenv          <Env>
-                    printext          <Ext4>
-                    printinfo         <System>
-                    printns           <Namespace>
-                    printsig          <Signal>
-                    printsvc          <systemd>
-                    pstree            <Process>
-                    readahead         <File>
-                    readelf           <File>
-                    remote            <Command>
-                    req               <URL>
-                    rlimit            <Resource>
-                    setafnt           <Affinity>
-                    setcpu            <Clock>
-                    setsched          <Priority>
-                    strings           <Text>
-                    sym2addr          <Address>
-                    systat            <Status>
-                    topdiff           <Diff>
-                    topsum            <Summary>
-                    watch             <File>
+    [TRACE]         btrace            <Breakpoint>    (Linux)
+                    leaktrace         <Leak>          (Linux)
+                    pytrace           <Python>        (Linux)
+                    sigtrace          <Signal>        (Linux)
+                    strace            <Syscall>       (Linux)
+                    utrace            <Function>      (Linux)
 
-    [VISUAL]        convert           <Text>
-                    draw              <System>
-                    drawavg           <Average>
-                    drawcpu           <CPU>
-                    drawcpuavg        <CPU>
-                    drawdelay         <Delay>
-                    drawflame         <Function>
-                    drawio            <I/O>
-                    drawleak          <Leak>
-                    drawmem           <Memory>
-                    drawmemavg        <Memory>
-                    drawreq           <URL>
-                    drawrss           <RSS>
-                    drawrssavg        <RSS>
-                    drawtime          <Timeline>
-                    drawvss           <VSS>
-                    drawvssavg        <VSS>
+    [UTIL]          addr2sym          <Symbol>        (Linux/macOS/Windows)
+                    comp              <Compress>      (Linux/macOS/Windows)
+                    decomp            <Decompress>    (Linux/macOS/Windows)
+                    dump              <Memory>        (Linux)
+                    exec              <Command>       (Linux/macOS/Windows)
+                    getafnt           <Affinity>      (Linux)
+                    mkcache           <Cache>         (Linux/macOS/Windows)
+                    mount             <Mount>         (Linux)
+                    ping              <PING>          (Linux/macOS/Windows)
+                    print             <File>          (Linux/macOS/Windows)
+                    printbind         <Funcion>       (Linux)
+                    printcg           <Cgroup>        (Linux)
+                    printdbus         <D-Bus>         (Linux)
+                    printdbusintro    <D-Bus>         (Linux)
+                    printdbusstat     <D-Bus>         (Linux)
+                    printdbussub      <D-Bus>         (Linux)
+                    printdir          <Dir>           (Linux/macOS/Windows)
+                    printenv          <Env>           (Linux)
+                    printext          <Ext4>          (Linux/macOS/Windows)
+                    printinfo         <System>        (Linux)
+                    printns           <Namespace>     (Linux)
+                    printsig          <Signal>        (Linux)
+                    printsvc          <systemd>       (Linux)
+                    pstree            <Process>       (Linux/macOS/Windows)
+                    readahead         <File>          (Linux)
+                    readelf           <File>          (Linux/macOS/Windows)
+                    req               <URL>           (Linux/macOS/Windows)
+                    strings           <Text>          (Linux/macOS/Windows)
+                    sym2addr          <Address>       (Linux/macOS/Windows)
+                    systat            <Status>        (Linux)
+                    topdiff           <Diff>          (Linux/macOS/Windows)
+                    topsum            <Summary>       (Linux/macOS/Windows)
+                    umount            <Unmount>       (Linux)
+                    watch             <File>          (Linux)
+
+    [VISUAL]        convert           <Text>          (Linux/macOS/Windows)
+                    draw              <System>        (Linux/macOS/Windows)
+                    drawavg           <Average>       (Linux/macOS/Windows)
+                    drawcpu           <CPU>           (Linux/macOS/Windows)
+                    drawcpuavg        <CPU>           (Linux/macOS/Windows)
+                    drawdelay         <Delay>         (Linux/macOS/Windows)
+                    drawflame         <Function>      (Linux/macOS/Windows)
+                    drawio            <I/O>           (Linux/macOS/Windows)
+                    drawleak          <Leak>          (Linux/macOS/Windows)
+                    drawmem           <Memory>        (Linux/macOS/Windows)
+                    drawmemavg        <Memory>        (Linux/macOS/Windows)
+                    drawreq           <URL>           (Linux/macOS/Windows)
+                    drawrss           <RSS>           (Linux/macOS/Windows)
+                    drawrssavg        <RSS>           (Linux/macOS/Windows)
+                    drawtime          <Timeline>      (Linux/macOS/Windows)
+                    drawvss           <VSS>           (Linux/macOS/Windows)
+                    drawvssavg        <VSS>           (Linux/macOS/Windows)
 
 FILE:
     Profile file (e.g. guider.dat)

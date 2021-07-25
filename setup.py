@@ -14,6 +14,10 @@ setup(
     keywords = ['guider', 'linux', 'analyzer', 'performance', 'profile', 'trace', 'kernel'],
     scripts = ['guider/guider'],
     zip_safe=False,
+    install_requires = [
+        'setproctitle; platform_system!="Linux"',
+        'psutil; platform_system!="Linux"',
+        ],
     classifiers = [
         'Environment :: Console',
         'Programming Language :: Python',
