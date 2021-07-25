@@ -34,13 +34,13 @@ except ImportError:
     print("[ERROR] fail to import essential packages: %s" % err.args[0])
     sys.exit(0)
 
-# to convert an unsupported type #
+# convert an unsupported type #
 try:
     long
 except:
     long = int
 
-# to prevent MemoryError in python2 #
+# prevent MemoryError in python2 #
 try:
     xrange
 except:
@@ -33113,6 +33113,8 @@ Copyright:
         elif SysMgr.checkMode('req'):
             SysMgr.setStream()
 
+            SysMgr.printLogo(big=True, onlyFile=True)
+
             SysMgr.doRequest()
 
         # SETCPU MODE #
@@ -36733,10 +36735,27 @@ Copyright:
             # set xticks #
             try:
                 xtickLabel = ax.get_xticks().tolist()
-                xtickLabel = list(map(long, xtickLabel))
+
+                try:
+                    datetime = SysMgr.getPkg('datetime')
+
+                    # convert time unit #
+                    for idx, item in enumerate(xtickLabel):
+                        ms = item % 1000
+                        value = datetime.datetime.utcfromtimestamp(item/1000)
+                        xtickLabel[idx] = value.strftime('%H:%M:%S')
+                        xtickLabel[idx] = '%s.%0.3d' % (xtickLabel[idx], ms)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        'fail to convert time unit in xticks', reason=True)
+
                 xtickLabel[-1] = 'Time'
                 ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
