@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210725"
+__revision__ = "210727"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6910,9 +6910,10 @@ class NetworkMgr(object):
             SysMgr.printErr((
                 "wrong value for remote connection, "
                 "local address and remote address are same "
-                "with %s:%s") % (ip, port))
+                "(%s:%s)") % (ip, port))
             sys.exit(0)
 
+        # check request #
         if not ip or not port or \
             not SysMgr.isValidRequest(service):
             reqList = ''
@@ -18508,6 +18509,7 @@ class SysMgr(object):
         self.diskData = {}
         self.storageData = {}
         self.prevStorageData = {}
+        self.storageMapData = {}
         self.ipcData = {}
         self.prevIpcData = {}
         self.userData = {}
@@ -21048,6 +21050,18 @@ class SysMgr(object):
 
     @staticmethod
     def getPwd(pid):
+        if not SysMgr.isLinux:
+            try:
+                psutil = SysMgr.getPkg('psutil', False)
+                if psutil:
+                    return psutil.Process(long(pid)).environ()['PWD']
+                else:
+                    return None
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return None
+
         try:
             pwdPath = '%s/%s/cwd' % (SysMgr.procPath, pid)
             pwd = os.readlink(pwdPath)
@@ -21090,7 +21104,7 @@ class SysMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                pass
+                return None
 
         comm = None
         commPath = \
@@ -21990,6 +22004,8 @@ class SysMgr(object):
                 not SysMgr.checkMode('report') and \
                 not SysMgr.checkMode('req') and \
                 not SysMgr.checkMode('rtop') and \
+                not (SysMgr.checkMode('server') and \
+                    (SysMgr.isLinux or SysMgr.isDarwin)) and \
                 not SysMgr.checkMode('strings') and \
                 not SysMgr.checkMode('sym2addr') and \
                 not SysMgr.checkMode('tail') and \
@@ -22048,6 +22064,9 @@ class SysMgr(object):
                     "'%s' command is not supported on '%s' platform now" % \
                         (sys.argv[1], sys.platform))
                 sys.exit(0)
+
+            # set default SIGINT handler #
+            signal.signal(signal.SIGINT, SysMgr.stopHandler)
 
         # macOS #
         elif sys.platform.startswith('darwin'):
@@ -22286,7 +22305,7 @@ class SysMgr(object):
                 'event': ('Event', 'Linux'),
                 'list': ('List', 'Linux/macOS/Windows'),
                 'send': ('Signal', 'Linux'),
-                'server': ('Server', 'Linux'),
+                'server': ('Server', 'Linux/macOS'),
                 'start': ('Signal', 'Linux'),
                 },
             'test': {
@@ -33747,10 +33766,15 @@ Copyright:
     def getUptime():
         if not SysMgr.isLinux:
             # get psutil object #
-            psutil = SysMgr.getPkg('psutil', False)
-            if not psutil:
+            try:
+                psutil = SysMgr.getPkg('psutil', False)
+                if not psutil:
+                    return -1
+                return time.time() - psutil.boot_time()
+            except SystemExit:
+                sys.exit(0)
+            except:
                 return -1
-            return time.time() - psutil.boot_time()
 
         try:
             SysMgr.uptimeFd.seek(0)
@@ -36604,18 +36628,19 @@ Copyright:
         try:
             cpuBuf = None
             SysMgr.statFd.seek(0)
-            cpuBuf = SysMgr.statFd.readline()
+            cpuBuf = SysMgr.statFd.readlines()[0]
         except SystemExit:
             sys.exit(0)
         except:
             try:
                 cpuPath = "%s/stat" % SysMgr.procPath
                 SysMgr.statFd = open(cpuPath, 'r')
-                cpuBuf = SysMgr.statFd.readline()
+                cpuBuf = SysMgr.statFd.readlines()[0]
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printOpenWarn(cpuPath)
+                return 0
 
         return long(cpuBuf.split()[4])
 
@@ -42122,6 +42147,8 @@ Copyright:
             if not SysMgr.isLinux:
                 try:
                     return SysMgr.getPkg('psutil').Process(long(tid))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return None
 
@@ -45885,6 +45912,134 @@ Copyright:
 
 
 
+    def getStorageMapInfo(self):
+        if not SysMgr.isDarwin and not SysMgr.isWindows:
+            return {}
+
+        # get subprocess object #
+        subprocess = SysMgr.getPkg('subprocess')
+
+        if SysMgr.isDarwin:
+            command = ["diskutil", "list"]
+            shell = False
+        else:
+            # find powershell path #
+            powershellPath = None
+            for item in os.environ['PATH'].split(';'):
+                if 'WindowsPowerShell' in item:
+                    powershellPath = '%s/powershell.exe' % item
+                    break
+            if not powershellPath:
+                return
+
+            command = [powershellPath, "get-partition"]
+            shell = True
+
+        # start diskutil process #
+        try:
+            proc = subprocess.Popen(
+                command, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, bufsize=-1, shell=shell)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to execute '%s'" % ' '.join(command), reason=True)
+            sys.exit(0)
+
+        mapTable = {}
+        path = None
+        node = None
+        prev = None
+        devnum = -1
+
+        while 1:
+            try:
+                # read a line from diskutil process #
+                line = proc.stdout.readline()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to read from '%s'" % ' '.join(command), reason=True)
+                sys.exit(0)
+
+            # handle error #
+            if not line:
+                err = proc.stderr.read()
+                if err:
+                    try:
+                        proc.terminate()
+                    except:
+                        pass
+                    SysMgr.printErr(err[err.find(':') + 2:])
+                    sys.exit(0)
+                break
+
+            # decode data #
+            try:
+                line = line.decode()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # macOS #
+            if SysMgr.isDarwin:
+                # disk node #
+                if line.startswith('/'):
+                    path, attr = line.split(' ', 1)
+                    continue
+
+                line = line.strip()
+                if not line:
+                    continue
+                elif line[0].isdigit():
+                    prev = node
+                    node = '/dev/%s' % line.split()[-1]
+                    mapTable[node] = path
+                elif line.startswith('Physical Store '):
+                    # change previous map info #
+                    prevValue = mapTable[node]
+                    mapTable.pop(node, None)
+                    path = node = '/dev/%s' % line.split()[-1]
+
+                    # update new physical path #
+                    while 1:
+                        try:
+                            if path == mapTable[path]:
+                                break
+                            else:
+                                path = mapTable[path]
+                        except:
+                            break
+            # Windows #
+            else:
+                line = line.strip()
+                if not line:
+                    continue
+                elif line.startswith('PartitionNumber'):
+                    devnum += 1
+                    continue
+                elif line[0].isdigit():
+                    items = line.split()
+                    # drive #
+                    if items[1].isalpha():
+                        node = '%s:\\' % items[1]
+                        path = 'PhysicalDrive%s' % devnum
+                    else:
+                        continue
+
+            # check values #
+            if not node or not path:
+                continue
+
+            mapTable[node] = path
+
+        return mapTable
+
+
+
     def updateStorageInfoGen(self):
         # get psutil object #
         psutil = SysMgr.getPkg('psutil')
@@ -45926,44 +46081,38 @@ Copyright:
                     'fail to get disk stats')
                 return
 
-            # only one physical device #
-            if len(stats) == 1:
-                value = stats[list(stats.keys())[0]]
-                for dev in list(self.storageData.keys()):
-                    try:
-                        target = self.storageData[dev]
-                        target['read'] = value[2] >> 20
-                        target['write'] = value[3] >> 20
-                        target['readtime'] = value[4]
-                        target['writetime'] = value[5]
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            "fail to get disk stat for '%s'" % dev,
-                            reason=True)
-            # multiple physical devices and partitions (same number) #
-            elif len(stats) == len(partition):
-                statList = list(stats.keys())
-                for idx, dev in enumerate(list(self.storageData.keys())):
-                    try:
-                        value = stats[statList[idx]]
-                        target = self.storageData[dev]
-                        target['read'] = value[2] >> 20
-                        target['write'] = value[3] >> 20
-                        target['readtime'] = value[4]
-                        target['writetime'] = value[5]
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            "fail to get disk stat for '%s'" % dev,
-                            reason=True)
-            # different number for physical devices and partitions #
-            else:
-                # TODO: map disk name for physical device to logical device #
-                SysMgr.printWarn(
-                    'fail to map multiple physical storage to logical storage')
+            # get logical to physical disk map table #
+            if not self.storageMapData:
+                self.storageMapData = self.getStorageMapInfo()
+            mapTable = self.storageMapData
+
+            for dev in list(self.storageData.keys()):
+                try:
+                    # get physical device path #
+                    if dev in mapTable:
+                        if SysMgr.isWindows:
+                            rpath = mapTable[dev]
+                        else:
+                            rpath = mapTable[dev].split('/')[-1]
+                    else:
+                        continue
+
+                    # apply stat #
+                    value = stats[rpath]
+                    target = self.storageData[dev]
+                    target['read'] = value[2] >> 20
+                    target['write'] = value[3] >> 20
+                    target['readtime'] = value[4]
+                    target['writetime'] = value[5]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    # reset map table #
+                    self.storageMapData = {}
+
+                    SysMgr.printWarn(
+                        "fail to get disk stat for '%s'" % dev,
+                        reason=True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -48662,10 +48811,13 @@ class DbusMgr(object):
                         else:
                             avr = long(0)
 
+                        # check error #
                         if data['err'] > 0:
                             errstr = ', Err: %s' % data['err']
+                            color = 'RED'
                         else:
                             errstr = ''
+                            color = 'CYAN'
 
                         if data['max'] > 0:
                             name = \
@@ -48675,7 +48827,7 @@ class DbusMgr(object):
 
                         count = convertNum(value['cnt'])
                         size = convertSize(data['size'])
-                        name = convertColor(name, 'CYAN')
+                        name = convertColor(name, color)
 
                         dbusList.append(
                             "{0:>4}({1:>6}/{2:>3}%) {3:1}".format(
@@ -48739,13 +48891,16 @@ class DbusMgr(object):
             _updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
 
             if DbusMgr.dbgObj:
-                cpuUsage = DbusMgr.dbgObj.getCpuUsage()
-                ttime = cpuUsage[0] / SysMgr.uptimeDiff
-                utime = cpuUsage[1] / SysMgr.uptimeDiff
-                stime = cpuUsage[2] / SysMgr.uptimeDiff
-                cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+                cpuUsage = DbusMgr.dbgObj.getCpuUsage(system=True)
+                diff = SysMgr.uptimeDiff
+                ttime = cpuUsage[0] / diff
+                utime = cpuUsage[1] / diff
+                stime = cpuUsage[2] / diff
+                ctime = 100 - (cpuUsage[3] / diff)
+                mcpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+                sysCpuStr = '%d%%' % ctime
             else:
-                cpuStr = '?'
+                cpuStr = mcpuStr = '?'
 
             # set error #
             nrErr = prevDbusData['totalErr']
@@ -48757,9 +48912,10 @@ class DbusMgr(object):
             # print title #
             SysMgr.addPrint(
                 ("[%s] [Time: %7.3f] [Interval: %.1f] "
-                "[NrMsg: %s] [NrErr: %s] [CPU: %s]\n") % \
+                "[NrMsg: %s] [NrErr: %s] [CPU: %s] [%s(%s): %s] \n") % \
                     ('D-Bus Info', SysMgr.uptime, SysMgr.uptimeDiff,
-                    convertNum(prevDbusData['totalCnt']), nrErr, cpuStr))
+                    convertNum(prevDbusData['totalCnt']), nrErr,
+                    sysCpuStr, DbusMgr.dbgObj.comm, DbusMgr.dbgObj.pid, mcpuStr))
 
             # print resource usage of tasks #
             taskManager.printSystemUsage()
@@ -49397,7 +49553,7 @@ class DbusMgr(object):
         # initialize task stat #
         DbusMgr.dbgObj = Debugger(SysMgr.pid, attach=False)
         DbusMgr.dbgObj.initValues()
-        DbusMgr.dbgObj.getCpuUsage()
+        DbusMgr.dbgObj.getCpuUsage(system=True)
 
         # define common list #
         busList = []
@@ -49703,6 +49859,7 @@ class DltAnalyzer(object):
     pids = []
     procInfo = None
     dltData = {'cnt': long(0)}
+    dbgObj = None
 
     @staticmethod
     def printSummary():
@@ -49712,12 +49869,28 @@ class DltAnalyzer(object):
         # update uptime #
         SysMgr.updateUptime()
 
+        # update CPU usage #
+        if DltAnalyzer.dbgObj:
+            cpuUsage = DltAnalyzer.dbgObj.getCpuUsage(system=True)
+            diff = SysMgr.uptimeDiff
+            ttime = cpuUsage[0] / diff
+            utime = cpuUsage[1] / diff
+            stime = cpuUsage[2] / diff
+            ctime = 100 - (cpuUsage[3] / diff)
+            mcpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+            procInfo = '%s(%s)' % \
+                (DltAnalyzer.dbgObj.comm, DltAnalyzer.dbgObj.pid)
+            sysCpuStr = '%d%%' % ctime
+        else:
+            procInfo = cpuStr = mcpuStr = '?'
+
         # print title #
-        SysMgr.addPrint(
-            ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
-                ('DLT Info', SysMgr.uptime,
-                SysMgr.uptimeDiff,
-                convertFunc(DltAnalyzer.dltData['cnt'])))
+        SysMgr.addPrint((
+            "[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s] "
+            "[CPU: %s] [%s: %s]\n") % \
+                ('DLT Info', SysMgr.uptime, SysMgr.uptimeDiff,
+                convertFunc(DltAnalyzer.dltData['cnt']),
+                sysCpuStr, procInfo, mcpuStr))
 
         # update daemon stat #
         DltAnalyzer.procInfo.saveProcInstance()
@@ -50537,6 +50710,17 @@ class DltAnalyzer(object):
 
             DltAnalyzer.msgColorList.append(
                 UtilMgr.convColor(item, color, 5, 'left'))
+
+        # initialize task stat #
+        try:
+            DltAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
+            DltAnalyzer.dbgObj.initValues()
+            DltAnalyzer.dbgObj.getCpuUsage(system=True)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to read CPU usage', reason=True)
 
         # get log level option #
         try:
@@ -59291,7 +59475,7 @@ typedef struct {
         # get system CPU usage #
         if system:
             itime = SysMgr.getIdleTime()
-            if self.prevCpuStat and self.prevCpuStat[3]:
+            if itime and self.prevCpuStat and self.prevCpuStat[3]:
                 nrCore = SysMgr.getNrCore()
                 diff = itime - self.prevCpuStat[3]
                 ctime = diff / float(nrCore)
@@ -64035,6 +64219,8 @@ class ElfAnalyzer(object):
             proc = subprocess.Popen(
                 args, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, bufsize=-1)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 "fail to execute %s to get address from binary" % objdumpPath)
@@ -64044,6 +64230,8 @@ class ElfAnalyzer(object):
             try:
                 # read a line from objdump process #
                 line = proc.stdout.readline()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(
                     "fail to read output from objdump", True)
@@ -86903,11 +87091,17 @@ class TaskAnalyzer(object):
             else:
                 vss = value['vss'] # MB #
 
+            # user #
+            if value['user']:
+                user = value['user'][:6]
+            else:
+                user = ' '
+
+            # etc #
             code = 0
             shr = 0
             swap = 0
             pri = value['nice']
-            user = value['user'][:6]
 
             if ppid in self.procData:
                 etc = '%s(%s)' % (self.procData[ppid]['comm'], ppid)

@@ -13,7 +13,6 @@ Table of contents
    * [Guider](#Guider)
    * [Output](#Output)
    * [How to use](#How-to-use)
-   * [Requirement](#Requirement)
    * [Build & Installation](#Build--Installation)
    * [Kernel Configuration](#Kernel-Configuration)
    * [Help](#Help)
@@ -55,7 +54,7 @@ It supports almost all platforms based on the Linux kernel as shown below.
 
 Output
 =======
-    $ guider/guider.py top -a
+    $ python3 guider/guider.py top -a
 
     [Top Info] [Time: 4588832.570] [Inter: 1.0] [Ctxt: 314463] [Life: +0/-0] [IRQ: 26606] [Core: 40] [Task: 498/625] [Load: 0/0/0] [RAM: 125.7G] [Swap: 4.0G]
                [Cycle: 8.3G / Inst: 5.7G / IPC: 0.69 / CacheMiss : 13.7M(23%) / BrcMiss: 25.7M(1%) / Clk: 38.7G / MinFlt: 358 / MajFlt: 0]
@@ -99,7 +98,7 @@ Output
 
 >>>
            
-    $ guider/guider.py top -R 5 -o
+    $ python3 guider/guider.py top -R 5 -o
     $ cat guider.out
 
     [Top Summary Info]
@@ -137,7 +136,7 @@ Output
 
 >>>
            
-    $ guider/guider.py ttop 
+    $ python3 guider/guider.py ttop
 
     [Top Info] [Time: 194025.590] [Interval: 1.0] [Ctxt: 4995] [Life: +0/-0] [OOM: 0] [IRQ: 1879] [Core: 8] [Task: 333/1188] [Load: 3.1/1.9/0.9] [RAM: 62.8G]
     ==========================================================================================================================================================
@@ -159,7 +158,7 @@ Output
 
 >>>
            
-    # guider/guider.py utop -g yes -H
+    # python3 guider/guider.py utop -g yes -H
 
     [Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [yes(7202): 28%(Usr/27%+Sys/0%)] [SampleTime: 0.000100]
     ==========================================================================================================================================================
@@ -183,7 +182,7 @@ Output
 
 >>>
            
-    # guider/guider.py systop -g yes -H
+    # python3 guider/guider.py systop -g yes -H
 
     [Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [yes(7202): 5%(Usr/4%+Sys/0%)] 
     ==========================================================================================================================================================
@@ -198,7 +197,7 @@ Output
 
 >>>
            
-    # guider/guider.py btop -g a.out -H
+    # python3 guider/guider.py btop -g a.out -H
 
     [Top Breakcall Info] [Time: 4542869.660] [Interval: 1.001] [NrSamples: 994] [a.out(1219772): 7%(Usr/0%+Sys/6%)] [guider(1219775): 97%]
     ==========================================================================================================================================================
@@ -244,7 +243,7 @@ Output
 
 >>>
            
-    # guider/guider.py pytop -g iotop -H
+    # python3 guider/guider.py pytop -g iotop -H
 
     [Top Pycall Info] [Time: 7469667.000] [Interval: 1.003] [NrSamples: 283] [iotop(2943070): 13%(Usr/10%+Sys/2%)] [guider(2943073): 53%] [SampleRate: 0.001]
     ==========================================================================================================================================================
@@ -288,7 +287,7 @@ Output
 
 >>>
            
-    # guider/guider.py ftop -g nginx
+    # python3 guider/guider.py ftop -g nginx
 
     [Top File Info] [Time: 497555.620] [Proc: 41] [FD: 2,047] [File: 87] [CPU: 95%(Usr:54%/Sys:41%)] (Unit: %/MB/NR)
     ==========================================================================================================================================================
@@ -313,7 +312,7 @@ Output
 
 >>>
            
-    # guider/guider.py stacktop -g syslog
+    # python3 guider/guider.py stacktop -g syslog
 
     [Top Info] [Time: 7176163.830] [Interval: 1.0] [Ctxt: 2914] [Life: +13/-12] [IRQ: 5103] [Core: 24] [Task: 328/435] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 2G / Inst: 3G / IPC: 1.34 / CacheMiss: 6M(34%) / BranchMiss: 4M(0%) / Clock: 23G / MinFlt: 53,257 / MajFlt: 0]
@@ -339,7 +338,7 @@ Output
 
 >>>
            
-    # guider/guider.py ptop -g yes
+    # python3 guider/guider.py ptop -g yes
 
     [Top Info] [Time: 7181955.420] [Interval: 1.0] [Ctxt: 121] [Life: +0/-0] [IRQ: 1947] [Core: 24] [Task: 317/424] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
     ==========================================================================================================================================================
@@ -355,7 +354,7 @@ Output
 
 >>>
            
-    # guider/guider.py mtop
+    # python3 guider/guider.py mtop
 
     [Top Info] [Time: 1144292.910] [Inter: 1.0] [Ctxt: 739] [Life: +0/-0] [IRQ: 10740] [Core: 40] [Task: 509/725] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
                [N0-DMA     > diff:       0 / free:  15.5M / high:  32.0K / low:  20.0K / managed:  15.5M / min:   8.0K / present:  15.6M / spanned:  16.0M ]
@@ -380,7 +379,7 @@ Output
 
 >>>
            
-    # guider/guider.py ntop
+    # python3 guider/guider.py ntop
 
     [Top Info] [Time: 186473.960] [Interval: 1.0] [Ctxt: 7865] [Life: +0/-0] [OOM: 0] [IRQ: 4229] [Core: 8] [Task: 328/1171] [Load: 0.5/0.3/0.3] [RAM: 62.8G]
     ==========================================================================================================================================================
@@ -403,7 +402,7 @@ Output
 
 >>>
            
-    # guider/guider.py disktop
+    # python3 guider/guider.py disktop
     
     [Top Info] [Time: 262411.830] [Inter: 1.0] [Ctxt: 802] [Life: +0/-0] [IRQ: 10675] [Core: 40] [Task: 481/700] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
     ==========================================================================================================================================================
@@ -431,7 +430,7 @@ Output
 
 >>>
            
-    # guider/guider.py wtop -g yes
+    # python3 guider/guider.py wtop -g yes
 
     [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
@@ -455,7 +454,7 @@ Output
 
 >>>
            
-    # guider/guider.py btrace -g a.out -H
+    # python3 guider/guider.py btrace -g a.out -H
 
              _start/0x55e321d151ee [/home/peacelee/test/a.out]
                __libc_start_main/0x7ffb520af0b3 [/lib/x86_64-linux-gnu/libc-2.31.so]
@@ -483,7 +482,7 @@ Output
 
 >>>
            
-    # guider/guider.py  btrace -g yes -H -c \|getret
+    # python3 guider/guider.py  btrace -g yes -H -c \|getret
 
     0.532473       0x2cf0/0x560d7fd28cf0(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
     0.532488         0x4c40/0x560d7fd2ac40(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
@@ -506,7 +505,7 @@ Output
 
 >>>
            
-    $ guider/guider.py rtop &
+    $ python3 guider/guider.py rtop &
     $ cat /tmp/guider.report
 
     {
@@ -637,7 +636,7 @@ Output
 
 >>>
            
-    # guider/guider.py limitcpu -g 22371:50 -v
+    # python3 guider/guider.py limitcpu -g 22371:50 -v
 
     [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
 
@@ -647,7 +646,7 @@ Output
 
 >>>
            
-    # guider/guider.py sigtrace -g a.out
+    # python3 guider/guider.py sigtrace -g a.out
 
     [INFO] start profiling a.out(3100585)...
     
@@ -686,19 +685,19 @@ Output
 
 >>>
            
-    # guider/guider.py setsched r:90:22371
+    # python3 guider/guider.py setsched r:90:22371
 
     [Info] changed the priority of guider(22371) to 90[R]
 
 >>>
            
-    # guider/guider.py remote -g a.out -c usercall:write#1#HOOK#4
+    # python3 guider/guider.py remote -g a.out -c usercall:write#1#HOOK#4
 
     [usercall] write(7f94ed747140)(1, HOOK, 4) = 0x4(4)
 
 >>>
            
-    # guider/guider.py printenv -g systemd
+    # python3 guider/guider.py printenv -g systemd
 
     [ systemd(1) ]
     -----------------------------------------------------------------------------
@@ -741,13 +740,13 @@ Output
 
 >>>
            
-    # guider/guider.py kill -stop yes
+    # python3 guider/guider.py kill -stop yes
 
     [Info] sent SIGSTOP to yes(10594)
 
 >>>
            
-    # guider/guider.py printbind -g yes
+    # python3 guider/guider.py printbind -g yes
 
     [Function Bind Info] [Target: yes(410113)]
     ==========================================================================================================================================================
@@ -774,7 +773,7 @@ Output
 
 >>>
            
-    # guider/guider.py rec -a -e m,b
+    # python3 guider/guider.py rec -a -e m,b
 
     [Thread Info] [ Elapsed: 2.050 ] [ Start: 2849868.198 ] [ Running: 112 ] [ CtxSwc: 3357 ] [ LogSize: 4054 KB ] [ Unit: Sec/MB/NR ]
     ==========================================================================================================================================================
@@ -808,8 +807,8 @@ Output
        
 >>>
        
-    # guider/guider.py iorec -s
-    # guider/guider.py report -a
+    # python3 guider/guider.py iorec -s
+    # python3 guider/guider.py report -a
 
     [Thread Block Info] (Unit: NR)
     ==========================================================================================================================================================
@@ -882,9 +881,9 @@ Output
        
 >>>
        
-    # guider/guider.py iorec -s
-    # guider/guider.py report -q RALIST
-    # guider/guider.py readahead readahead.list
+    # python3 guider/guider.py iorec -s
+    # python3 guider/guider.py report -q RALIST
+    # python3 guider/guider.py readahead readahead.list
 
     [INFO] start readahead from '/home/peacelee/guider/guider/readahead.list'
 
@@ -896,7 +895,7 @@ Output
        
 >>>
        
-    # guider/guider.py sysrec 
+    # python3 guider/guider.py sysrec 
 
     [Thread Syscall Info] (Unit: Sec/NR)
     ==========================================================================================================================================================
@@ -937,7 +936,7 @@ Output
        
 >>>
        
-    # guider/guider.py rec -e L
+    # python3 guider/guider.py rec -e L
 
     [Thread Futex Lock Info] [ Elapsed : 1.225 ] (Unit: Sec/NR)
     ==========================================================================================================================================================
@@ -959,7 +958,7 @@ Output
        
 >>>
        
-    # guider/guider.py rec -s . -K openfile:getname::**string
+    # python3 guider/guider.py rec -s . -K openfile:getname::**string
 
     [Thread KERNEL Event Info]
     ==========================================================================================================================================================
@@ -1008,8 +1007,8 @@ Output
        
 >>>
        
-    # guider/guider.py funcrec -s .
-    # guider/guider.py report -a
+    # python3 guider/guider.py funcrec -s .
+    # python3 guider/guider.py report -a
     # cat guider.out
 
     [Function CPU Info] [Cnt: 394] [Interval: 8ms] (USER)
@@ -1043,8 +1042,8 @@ Output
        
 >>>
        
-    # guider/guider.py funcrec -e m -s .
-    # guider/guider.py report -a
+    # python3 guider/guider.py funcrec -e m -s .
+    # python3 guider/guider.py report -a
     # cat guider.out
 
     [Function Page Info] [Total: 11.4M] [Alloc: 11.4M(817)] [Free: 188.0K(47)] (USER)
@@ -1088,7 +1087,7 @@ Output
        
 >>>
        
-    # guider/guider.py filerec 
+    # python3 guider/guider.py filerec 
 
     [File Usage Info] [ File: 281 ] [ RAM: 78.0M ] [ Keys: Foward/Back/Save/Quit ]
     ==========================================================================================================================================================
@@ -1128,46 +1127,83 @@ Output
        
 >>>
        
-    # guider/guider.py draw guider.out
+    $ python3 guider/guider.py top -o guider.out
+    $ python3 guider/guider.py draw guider.out
+
+>>>
 
 <img alt="graph" src="https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png" width="100%" height="100%">
 <img alt="chart" src="https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png" width="100%" height="100%">
-<img alt="dashboard" src="https://user-images.githubusercontent.com/15862689/67160178-0024ed80-f389-11e9-9a09-6a8eb96e2785.png" width="100%" height="100%">
+
+>>>
+       
+    # python3 guider/guider.py rec -s guider.dat
+    # python3 guider/guider.py draw guider.dat
+
+>>>
+
 <img alt="timeline" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_timeline.png" width="100%" height="100%">
+
+>>>
+       
+    # python3 guider/guider.py utop -g testTask -H -o guider.out
+    # python3 guider/guider.py drawflame guider.out
+
+>>>
+
 <img alt="flamegraph" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_flamegraph.png" width="100%" height="100%">
+
+>>>
+       
+    $ python3 guider/guider.py top -o test1.out
+    $ python3 guider/guider.py top -o test2.out
+    $ python3 guider/guider.py top -o test3.out
+    $ python3 guider/guider.py top -o test4.out
+    $ python3 guider/guider.py top -o test5.out
+    $ python3 guider/guider.py drawavg "test1.out, test2.out, test3.out, test4.out, test5.out"
+
+>>>
+
 <img alt="drawavg" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawavg.svg" width="100%" height="100%">
+
+>>>
+       
+    $ python3 guider/guider.py req "https://www.google.com|https://www.naver.com" -R 1000 -o guider.out
+    $ python3 guider/guider.py drawreq guider.out
+
+>>>
+
 <img alt="drawreq" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawreq.svg" width="100%" height="100%">
+
+>>>
+
+    webservice
+
+>>>
+
+<img alt="dashboard" src="https://user-images.githubusercontent.com/15862689/67160178-0024ed80-f389-11e9-9a09-6a8eb96e2785.png" width="100%" height="100%">
 
 How to use
 =======
 
 ```
 Enter the following command to see all commands supported by the guider:
-    $ guider/guider.py --help
-    $ python -m guider --help
+    $ python3 guider/guider.py --help
+    $ python3 -m guider --help
     $ guider --help
 
 Enter the following command to start tracing for all threads:
-    # guider/guider.py record -a
+    # python3 guider/guider.py record -a
 
 Enter the following command to start monitoring for all processes:
-    $ guider/guider.py top -a
+    $ python3 guider/guider.py top -a
 
 Enter the command in the format shown bellow to see options and examples for each command:
-    $ guider/guider.py record -h
-    $ guider/guider.py top -h
+    $ python3 guider/guider.py record -h
+    $ python3 guider/guider.py top -h
 
 Visit the following link to see the output of guider:
     - https://github.com/iipeace/guider/wiki
-```
-
-
-Requirement
-=======
-
-```
-- Linux Kernel (>= 2.6)
-- Python (>= 2.7)
 ```
 
 
@@ -1176,14 +1212,13 @@ Build & Installation
 
 ```
 If you can run 'pip' on your system then just enter the following commands:
-    # pip install guider
     # pip3 install guider
 and just run the following commands:
-    # python -m guider
+    # python3 -m guider
     # guider
 
 Otherwise, download the source from https://github.com/iipeace/guider,
-and just run "guider/guider.py" on shell.
+and just run "python3 guider/guider.py" on shell.
 
 If you want to run guider faster and lighter after downloading the source,
 then build and install it on your system as below.
@@ -1283,7 +1318,7 @@ COMMAND:
                     event             <Event>         (Linux)
                     list              <List>          (Linux/macOS/Windows)
                     send              <Signal>        (Linux)
-                    server            <Server>        (Linux)
+                    server            <Server>        (Linux/macOS)
                     start             <Signal>        (Linux)
 
     [PROFILE]       filerec           <File>          (Linux)
