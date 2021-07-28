@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210727"
+__revision__ = "210728"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5093,7 +5093,12 @@ class UtilMgr(object):
                 if trunc:
                     fd.seek(0, 0)
                     fd.truncate()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
+            try:
                 fd.write(jsonObj)
 
                 fd.flush()
@@ -6054,16 +6059,16 @@ class NetworkMgr(object):
 
 
 
-    def timeout(self, time=3):
+    def timeout(self, sec=3):
         if 'TIMEOUT' in SysMgr.environList:
             try:
-                time = float(SysMgr.environList['TIMEOUT'][0])
+                sec = float(SysMgr.environList['TIMEOUT'][0])
             except:
                 SysMgr.printErr(
                     'fail to get TIMEOUT variable', True)
                 sys.exit(0)
 
-        self.socket.settimeout(time)
+        self.socket.settimeout(sec)
 
 
 
@@ -19224,10 +19229,12 @@ class SysMgr(object):
         elif SysMgr.checkMode('rtop'):
             SysMgr.jsonEnable = True
 
+            # check root permission #
             if SysMgr.isRoot():
                 SysMgr.diskEnable = True
                 SysMgr.networkEnable = True
 
+                # disable resources by option #
                 disableList = SysMgr.getOption('d')
                 if disableList:
                     if 'd' in disableList:
@@ -19239,6 +19246,7 @@ class SysMgr(object):
                     "fail to get stats for disk and network "
                     "because of no root permission")
 
+            # check command requirement #
             if not SysMgr.checkRepTopCond():
                 sys.exit(0)
 
@@ -20026,7 +20034,7 @@ class SysMgr(object):
             return
 
         # get threshold dict #
-        confData = SysMgr.getConfigDict('threshold')
+        confData = SysMgr.getConfigItem('threshold')
         if not confData or type(confData) is not dict:
             return
 
@@ -20764,15 +20772,27 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getConfigDict(name):
-        confData = ConfigMgr.confData[name]
-        if type(confData) is list:
-            confData = UtilMgr.convStr2Dict('\n'.join(confData), True)
-
-        if type(confData) is dict:
-            return confData
+    def getConfigItem(name, itype='dict'):
+        if name in ConfigMgr.confData:
+            confData = ConfigMgr.confData[name]
         else:
             return None
+
+        if itype == 'dict':
+            if type(confData) is list:
+                confData = UtilMgr.convStr2Dict('\n'.join(confData), True)
+
+            if type(confData) is dict:
+                return confData
+            else:
+                return None
+        elif itype == 'list':
+            if type(confData) is list:
+                return confData
+            else:
+                return None
+        else:
+            return confData
 
 
 
@@ -22207,7 +22227,7 @@ class SysMgr(object):
                 'wtop': ('WSS', 'Linux'),
                 },
             'trace': {
-                'btrace': ('Breakpoint', 'Linux'),
+                'btrace': ('Function', 'Linux'),
                 'leaktrace': ('Leak', 'Linux'),
                 'pytrace': ('Python', 'Linux'),
                 'sigtrace': ('Signal', 'Linux'),
@@ -22263,7 +22283,7 @@ class SysMgr(object):
                 'getafnt': ('Affinity', 'Linux'),
                 'mkcache': ('Cache', 'Linux/macOS/Windows'),
                 'mount': ('Mount', 'Linux'),
-                'ping': ('PING', 'Linux/macOS/Windows'),
+                'ping': ('ICMP', 'Linux/macOS/Windows'),
                 'print': ('File', 'Linux/macOS/Windows'),
                 'printbind': ('Funcion', 'Linux'),
                 'printcg': ('Cgroup', 'Linux'),
@@ -22573,7 +22593,7 @@ Examples:
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
 
     - Monitor status of {2:2} and report to 192.168.0.5:5555 in real-time
-        # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
+        # {0:1} {1:1} -e r -N REPORT@192.168.0.5:5555
 
     - Monitor status of {2:2} with the number in front of the name
         # {0:1} {1:1} -c index
@@ -33400,6 +33420,7 @@ Copyright:
         else:
             SysMgr.printEnable = False
 
+        # check stdout report option #
         if not val:
             reportPath = SysMgr.getOption('j')
         else:
@@ -33410,7 +33431,7 @@ Copyright:
             tmpPath = '/tmp'
             reportPath = tmpPath
 
-        # directory path #
+        # check report directory #
         if not os.path.isdir(reportPath):
             upDirPos = reportPath.rfind('/')
             if upDirPos > 0 and \
@@ -33419,7 +33440,7 @@ Copyright:
                     "wrong path '%s' to report stats" % \
                     reportPath)
                 return False
-        # file path #
+        # check report file #
         else:
             reportPath = '%s/guider.report' % reportPath
 
@@ -44284,7 +44305,7 @@ Copyright:
         SysMgr.writeTraceCmd('BEFORE')
 
         # set size of trace buffer per core #
-        if SysMgr.bufferSize == -1:
+        if SysMgr.bufferSize < 0:
             SysMgr.bufferSize = '40960' # 40MB #
         else:
             # Change from integer to string #
@@ -45362,7 +45383,8 @@ Copyright:
                     SysMgr.printWarn(
                         "fail to parse all diskstat because of overflow")
                     break
-                diskStat[ConfigMgr.DISKSTAT[idx]] = item
+                else:
+                    diskStat[ConfigMgr.DISKSTAT[idx]] = item
 
             self.diskInfo[time][diskStat['name']] = dict()
             diskInfoBuf = self.diskInfo[time][diskStat['name']]
@@ -52269,13 +52291,13 @@ typedef struct {
             convColor = UtilMgr.convColor
 
             # pick a command #
-            cmdstr = convColor(cmd, 'BOLD', 8)
+            cmdstr = convColor(cmd, 'PINK', 8)
 
             if cmd == 'print':
                 if SysMgr.showAll and not force:
                     pass
                 elif len(cmdset) == 1:
-                    self.printContext(newline=True)
+                    self.printContext(newline=True, regbrief=True)
                 else:
                     var = cmdset[1]
                     try:
@@ -53787,10 +53809,25 @@ typedef struct {
                             (hex(addr).rstrip('L'), sym, procInfo), True)
                     return False
 
+            # update flags #
             origWord = self.bpList[addr]['data']
             if self.bpList[addr]['reins'] != reins:
                 self.bpList[addr]['reins'] = reins
             self.bpList[addr]['set'] = True
+
+            # update command #
+            if cmd and not self.bpList[addr]['cmd']:
+                filterCmd = []
+                newCmd = list(cmd)
+                for item in list(newCmd):
+                    if item.startswith('filter'):
+                        filterCmd.append(item)
+                        newCmd.remove(item)
+                cmd = newCmd
+
+                self.bpList[addr]['cmd'] = cmd
+                self.bpList[addr]['filter'] = filterCmd
+
         # the new breakpoint #
         else:
             # read data #
@@ -56619,7 +56656,7 @@ typedef struct {
 
     def printContext(
         self, regs=True, bt=True, sig=True, deref=True,
-        args=None, newline=False):
+        args=None, newline=False, regbrief=False):
 
         # check skip condition #
         if not regs and not bt:
@@ -56657,6 +56694,8 @@ typedef struct {
             SysMgr.addPrint(
                 '\tRegister Info [%s]\n%s\n' % (taskInfo, oneLine))
 
+            regstr = ''
+            regstrline = ''
             for reg, val in sorted(self.regsDict.items()):
                 rvalue = ''
                 if deref and val:
@@ -56678,9 +56717,26 @@ typedef struct {
                 else:
                     rvalue = ''
 
-                SysMgr.addPrint(
-                    '%13s: 0x%x%s\n' % (reg, val, rvalue))
+                # print register value #
+                if regbrief:
+                    newline = '%s(0x%x%s)' % (reg, val, rvalue)
+                    if len(newline) + len(regstrline) >= SysMgr.ttyCols:
+                        if regstr:
+                            regstr = '%s\n%s' % (regstr, regstrline)
+                        else:
+                            regstr = regstrline
+                        regstrline = newline
+                    else:
+                        if regstrline:
+                            regstrline = '%s | %s' % (regstrline, newline)
+                        else:
+                            regstrline =  newline
+                else:
+                    SysMgr.addPrint(
+                        '%13s: 0x%x%s\n' % (reg, val, rvalue))
 
+            if regbrief:
+                SysMgr.addPrint('%s\n%s\n' % (regstr, regstrline))
             SysMgr.addPrint('%s\n' % twoLine)
 
         # print signal #
@@ -67508,8 +67564,8 @@ class TaskAnalyzer(object):
         'LOG',
         'EVENT',
         'PRINT',
-        'REPORT_ALWAYS',
-        'REPORT_BOUND',
+        'REPORT',
+        'THRESHOLD',
     ]
 
     init_procTotData = \
@@ -68497,7 +68553,7 @@ class TaskAnalyzer(object):
             SysMgr.applyThreshold()
 
             # set log buffer size #
-            if SysMgr.bufferSize == -1:
+            if SysMgr.bufferSize < 0:
                 # default unlimited #
                 SysMgr.bufferSize = long(0)
             else:
@@ -70349,8 +70405,8 @@ class TaskAnalyzer(object):
 
         seq = long(0)
         height = \
-            long(len(data) / 2) \
-            if len(data) % 2 == 0 else long(len(data) / 2 + 1)
+            long(len(data) / 2) if len(data) & 1 != 0 \
+            else long(len(data) / 2 + 1)
         colors = \
             ['pink', 'lightgreen', 'skyblue',
             'lightcoral', 'gold', 'yellowgreen']
@@ -70591,8 +70647,7 @@ class TaskAnalyzer(object):
                 xtickLabel = list(map(long, xtickLabel))
                 if len(str(xtickLabel[0])) > 5:
                     for idx, item in enumerate(list(xtickLabel)):
-                        if idx % 2 > 0:
-                            xtickLabel[idx] = '\n%s' % item
+                        if idx & 1: xtickLabel[idx] = '\n%s' % item
                     ax.set_xticklabels(xtickLabel)
                 if xtickLabel[0] != xtickLabel[-1]:
                     xlim([xtickLabel[0], xtickLabel[-1]])
@@ -72264,8 +72319,7 @@ class TaskAnalyzer(object):
         def _convNameLabel(fileList):
             newList = []
             for idx, name in enumerate(fileList):
-                if idx % 2 == 1:
-                    name = '\n%s' % name
+                if idx & 1: name = '\n%s' % name
                 newList.append(name)
             return newList
 
@@ -88456,9 +88510,7 @@ class TaskAnalyzer(object):
 
 
     def requestService(self):
-        if not SysMgr.remoteServObj or \
-            not SysMgr.localServObj:
-
+        if not SysMgr.remoteServObj or not SysMgr.localServObj:
             SysMgr.remoteServObj = None
             return
 
@@ -88580,7 +88632,7 @@ class TaskAnalyzer(object):
                     SysMgr.printWarn(
                         "duplicated %s:%d as remote address" % (ip, port))
 
-            elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
+            elif message == 'REPORT' or message == 'THRESHOLD':
                 if not SysMgr.reportEnable:
                     SysMgr.printWarn(
                         "ignored %s request from %s:%d because no service" % \
@@ -88744,6 +88796,14 @@ class TaskAnalyzer(object):
     def checkResourceThreshold(self):
         if not SysMgr.thresholdData:
             return
+
+        # init event item #
+        self.reportData['event'] = {}
+
+        # check image created #
+        if SysMgr.imagePath:
+            self.reportData['event']['IMAGE_CREATED'] = SysMgr.imagePath
+            SysMgr.imagePath = None
 
         # check CPU #
         try:
@@ -89167,13 +89227,7 @@ class TaskAnalyzer(object):
         NETOUT
         '''
 
-        self.reportData['event'] = {}
-
-        # check image created #
-        if SysMgr.imagePath:
-            self.reportData['event']['IMAGE_CREATED'] = SysMgr.imagePath
-            SysMgr.imagePath = None
-
+        # add per-process stats #
         if SysMgr.rankProcEnable:
             # add CPU status #
             if 'cpu' in self.reportData:
@@ -89287,7 +89341,8 @@ class TaskAnalyzer(object):
         self.checkResourceThreshold()
 
         # print system status to file if condition is met #
-        if self.reportData['event'] and \
+        if 'event' in self.reportData and \
+            self.reportData['event'] and \
             SysMgr.reportFileEnable and \
             SysMgr.outPath:
 
@@ -89295,13 +89350,12 @@ class TaskAnalyzer(object):
             TaskAnalyzer.printIntervalUsage()
 
             # sync and close output file #
-            if SysMgr.printFd:
-                try:
-                    SysMgr.printFd.close()
-                except:
-                    pass
-                finally:
-                    SysMgr.printFd = None
+            try:
+                SysMgr.printFd.close()
+            except:
+                pass
+            finally:
+                SysMgr.printFd = None
 
             # make output path #
             filePath = os.path.dirname(SysMgr.inputFile) + '/guider'
@@ -89310,6 +89364,7 @@ class TaskAnalyzer(object):
             filePath = '%s_%s.out' % \
                 (filePath, str(long(SysMgr.uptime)))
 
+            # print output info #
             try:
                 # rename output file #
                 os.rename(SysMgr.inputFile, filePath)
@@ -89556,19 +89611,18 @@ class TaskAnalyzer(object):
 
 
     def tranData(self, data):
-        # report system status to file #
+        # report to the file #
         if SysMgr.reportObject:
             UtilMgr.writeJsonObject(
                 data, fd=SysMgr.reportObject,
                 trunc=SysMgr.truncEnable)
 
-        # report system status to socket #
+        # report to sockets #
         addrlist = dict(SysMgr.addrListForReport)
         for addr, cli in addrlist.items():
-            if cli.request != 'REPORT_ALWAYS':
+            if cli.request != 'REPORT':
                 continue
-
-            if cli.status == 'SENT' and cli.ignore > 1:
+            elif cli.status == 'SENT' and cli.ignore > 1:
                 SysMgr.printInfo(
                     "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
                 del SysMgr.addrListForReport[addr]

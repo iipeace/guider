@@ -36,7 +36,7 @@ The features of Guider are as follows.
 
 Guider pursues characteristics as below.
 1. Easy to use: just run without any setting and installation
-2. Measure correctly: count, time in from us, size in from byte
+2. Measure accurately: count, time in from us, size in from byte
 3. Provide all features: various functions for analysis and experiment
 4. Submit the report in detail: show as much information as possible
 5. Visualize through the browser: visualization output in svg format
@@ -1335,7 +1335,7 @@ COMMAND:
                     memtest           <Memory>        (Linux/macOS/Windows)
                     nettest           <Network>       (Linux)
 
-    [TRACE]         btrace            <Breakpoint>    (Linux)
+    [TRACE]         btrace            <Function>      (Linux)
                     leaktrace         <Leak>          (Linux)
                     pytrace           <Python>        (Linux)
                     sigtrace          <Signal>        (Linux)
@@ -1350,7 +1350,7 @@ COMMAND:
                     getafnt           <Affinity>      (Linux)
                     mkcache           <Cache>         (Linux/macOS/Windows)
                     mount             <Mount>         (Linux)
-                    ping              <PING>          (Linux/macOS/Windows)
+                    ping              <ICMP>          (Linux/macOS/Windows)
                     print             <File>          (Linux/macOS/Windows)
                     printbind         <Funcion>       (Linux)
                     printcg           <Cgroup>        (Linux)
