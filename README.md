@@ -1213,6 +1213,7 @@ Build & Installation
 ```
 If you can run 'pip' on your system then just enter the following commands:
     # pip3 install guider
+    # pip3 install guider --no-deps
 and just run the following commands:
     # python3 -m guider
     # guider

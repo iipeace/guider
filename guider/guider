@@ -10,19 +10,11 @@
 # check python #
 if [ ! $PYTHON ]
     then
-        PYTHON=$(which python)
+        PYTHON=$(which $PYTHON || which python || which python3 || which python2)
         if [ ! $PYTHON ]
             then
-                PYTHON=$(which python3)
-		if [ ! $PYTHON ]
-                    then
-                        PYTHON=$(which python2)
-		        if [ ! $PYTHON ]
-                            then
-                                echo "[Error] fail to find python"
-                                exit
-                        fi
-                fi
+                echo "[Error] fail to find python"
+                exit
         fi
 fi
 
