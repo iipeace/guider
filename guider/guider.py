@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210728"
+__revision__ = "210808"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3763,35 +3763,6 @@ class ConfigMgr(object):
 
 
 
-    @staticmethod
-    def openConfFile(path):
-        path += '.tc'
-        if os.path.isfile(path):
-            SysMgr.printWarn(
-                "%s already exists so that make new one" % path)
-
-        try:
-            fd = open(path, 'w')
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(path)
-            return None
-
-        return fd
-
-
-
-    @staticmethod
-    def writeConfData(fd, line):
-        if not fd:
-            SysMgr.printErr("fail to get file descriptor")
-            return None
-
-        fd.write(line)
-
-
-
     def __init__(self, mode):
         pass
 
@@ -3842,6 +3813,15 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def removeColor(string):
+        if not SysMgr.ansiObj:
+            ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
+            SysMgr.ansiObj = re.compile(ansi)
+        return SysMgr.ansiObj.sub('', string)
+
+
+
+    @staticmethod
     def convStr2Bytes(string):
         # build string #
         res = ''
@@ -3860,9 +3840,13 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def printTime(name=None, update=False, verb=True):
+    def printTime(name=None, update=True, verb=True):
         # get current time #
         now = time.time()
+        if not UtilMgr.curTime and update:
+            UtilMgr.curTime = now
+            return
+
         diff = now - UtilMgr.curTime
 
         # update timestamp #
@@ -4135,12 +4119,6 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getRealTime():
-        return time.asctime(time.gmtime(time.time()))
-
-
-
-    @staticmethod
     def splitString(string):
         string = string.replace('\,', '$%')
 
@@ -4310,6 +4288,17 @@ class UtilMgr(object):
                     fileAttr[fpath] = fstat
 
         return inodeList
+
+
+
+    @staticmethod
+    def getPath(path):
+        # get file info #
+        filename = os.path.basename(path)
+        dirname = os.path.dirname(path)
+        if not dirname:
+            dirname = '.'
+        return dirname, filename
 
 
 
@@ -4855,14 +4844,6 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getRealLen(string):
-        ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
-        ansiObj = re.compile(ansi)
-        return len(ansiObj.sub('', string))
-
-
-
-    @staticmethod
     def convColor(string, color='LIGHT', size=1, align='right'):
         if not SysMgr.colorEnable or not color or \
             SysMgr.outPath or SysMgr.outputFile or \
@@ -5154,6 +5135,7 @@ class UtilMgr(object):
             else:
                 with open(path, 'wb') as fd:
                     pickle.dump(obj, fd, -1)
+            os.chmod(path, 0o777)
             return True
         except SystemExit:
             sys.exit(0)
@@ -5722,6 +5704,7 @@ function format_percent(n) {
         try:
             with open(path, 'w') as fd:
                 fd.write(finalCode)
+            os.chmod(path, 0o777)
 
             # get output size #
             fsize = UtilMgr.getFileSize(path)
@@ -5969,8 +5952,8 @@ class NetworkMgr(object):
                 # PORT #
                 if anyPort:
                     self.port = long(0)
-                elif not port:
-                    self.port = SysMgr.defaultPort
+                elif port is None:
+                    self.port = SysMgr.defaultServPort
 
                 # bind #
                 if bind:
@@ -6076,11 +6059,7 @@ class NetworkMgr(object):
     def sendFile(sock, ip, port, src, des):
         # verify path #
         target = src
-        if target.startswith('/'):
-            sdir, name = target.rsplit('/', 1)[0]
-        else:
-            sdir = '.'
-            name = target
+        sdir, name = UtilMgr.getPath(target)
 
         # get file list #
         targetList = UtilMgr.getFiles(sdir, [name])
@@ -6091,6 +6070,8 @@ class NetworkMgr(object):
             return False
 
         for target in targetList:
+            target = os.path.realpath(os.path.expanduser(target))
+
             SysMgr.printInfo(
                 "start uploading %s[%s] to %s:%s... " % \
                     (target, UtilMgr.getFileSize(target),
@@ -6180,8 +6161,12 @@ class NetworkMgr(object):
                 break
 
             # set destination path #
+            fname = os.path.basename(name)
             if des:
-                target = des
+                if os.path.isdir(des):
+                    target = os.path.join(des, fname)
+                else:
+                    target = des
             else:
                 target = name
 
@@ -6190,13 +6175,21 @@ class NetworkMgr(object):
             if dirPos >= 0 and not os.path.isdir(target[:dirPos]):
                 os.makedirs(target[:dirPos])
 
+            # convert path #
+            target = os.path.realpath(os.path.expanduser(target))
+            if os.path.isdir(target):
+                target = os.path.join(target, fname)
+
             SysMgr.printInfo(
                     "start downloading %s[%s]@%s:%s to %s..." % \
-                (target, UtilMgr.convSize2Unit(totalSize),
-                    ip, port, name), suffix=False)
+                (name, UtilMgr.convSize2Unit(totalSize),
+                    ip, port, target), suffix=False)
 
             # receive a file #
             with open(target, 'wb') as fd:
+                # change permission #
+                os.chmod(target, 0o777)
+
                 sent = 0
                 while 1:
                     selectObj.select([sock.socket], [], [], 3)
@@ -6270,10 +6263,10 @@ class NetworkMgr(object):
 
             # receive file #
             try:
-                res = False
                 res = NetworkMgr.recvFile(
                     self, self.ip, self.port, origPath, desPath)
             except:
+                res = False
                 SysMgr.printErr(
                     'fail to download %s from %s in %s:%s' % \
                         (origPath, desPath, self.ip, self.port), True)
@@ -6298,10 +6291,10 @@ class NetworkMgr(object):
 
             # transfer file #
             try:
-                res = False
                 res = NetworkMgr.sendFile(
                     self, self.ip, self.port, origPath, targetPath)
             except:
+                res = False
                 SysMgr.printErr(
                     "fail to upload %s to %s in %s:%s" % \
                         (origPath, targetPath, self.ip, self.port), True)
@@ -6316,6 +6309,14 @@ class NetworkMgr(object):
 
         def _onList(req):
             SysMgr.printInfo(req.lstrip('LIST:'))
+            return True
+
+        def _onClear(req):
+            SysMgr.printInfo(req.lstrip('CLEAR:'))
+            return True
+
+        def _onJobs(req):
+            SysMgr.printInfo(req.lstrip('JOBS:'))
             return True
 
         def _onRun(req, onlySocket):
@@ -6346,8 +6347,7 @@ class NetworkMgr(object):
             isPrint = False
             while 1:
                 try:
-                    [readSock, writeSock, errorSock] = \
-                        selectObj.select([self.socket], [], [])
+                    selectObj.select([self.socket], [], [])
 
                     # receive packet #
                     output = self.getData()
@@ -6403,6 +6403,12 @@ class NetworkMgr(object):
 
             elif reqUpper.startswith('LIST:'):
                 return _onList(req)
+
+            elif reqUpper.startswith('CLEAR'):
+                return _onClear(req)
+
+            elif reqUpper.startswith('JOBS'):
+                return _onJobs(req)
 
             elif reqUpper.startswith('ERROR'):
                 err = req.split('|', 1)[1]
@@ -6695,6 +6701,8 @@ class NetworkMgr(object):
             'NEW': None,
             'PING': None,
             'LIST': None,
+            'CLEAR': None,
+            'JOBS': None,
             'RESTART': None,
         }
 
@@ -6905,8 +6913,8 @@ class NetworkMgr(object):
         if not ip:
             ip = NetworkMgr.getPublicIp()
 
-        if not port:
-            port = SysMgr.defaultPort
+        if port is None:
+            port = SysMgr.defaultServPort
 
         # check server addresses #
         if SysMgr.localServObj and \
@@ -6966,8 +6974,8 @@ class NetworkMgr(object):
             SysMgr.printErr(errMsg)
             sys.exit(0)
 
-        if not port:
-            port = SysMgr.defaultPort
+        if port is None:
+            port = SysMgr.defaultServPort
 
         networkObject = NetworkMgr('client', ip, port)
         if not networkObject.ip:
@@ -7005,6 +7013,13 @@ class NetworkMgr(object):
         if not ip:
             ip = NetworkMgr.getPublicIp()
 
+        # set default port #
+        if port is None:
+            if SysMgr.checkMode('cli'):
+                port = SysMgr.defaultCliPort
+            else:
+                port = SysMgr.defaultServPort
+
         # print available IP list #
         try:
             iplist = sorted(NetworkMgr.getUsingIps())
@@ -7015,14 +7030,13 @@ class NetworkMgr(object):
             pass
 
         # check server setting #
-        if SysMgr.localServObj and \
-            SysMgr.localServObj.socket and \
-            SysMgr.localServObj.ip == ip and \
-            SysMgr.localServObj.port == port:
+        localObj = SysMgr.localServObj
+        if localObj and localObj.socket and \
+            localObj.ip == ip and localObj.port == port:
             if blocking:
-                SysMgr.localServObj.socket.setblocking(1)
+                localObj.socket.setblocking(1)
             else:
-                SysMgr.localServObj.socket.setblocking(0)
+                localObj.socket.setblocking(0)
             return
 
         # create a new server setting #
@@ -7035,16 +7049,16 @@ class NetworkMgr(object):
             SysMgr.printWarn("fail to set server IP")
             return
 
+        # set protocol #
         if tcp:
             proto = 'TCP'
         else:
             proto = 'UDP'
 
-        SysMgr.localServObj = networkObject
+        localObj = SysMgr.localServObj = networkObject
         SysMgr.printInfo(
             "use %s:%d(%s) as local address" % \
-            (SysMgr.localServObj.ip,
-                SysMgr.localServObj.port, proto))
+                (localObj.ip, localObj.port, proto))
 
         return networkObject
 
@@ -7279,7 +7293,19 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def getPublicIp():
+    def getHostName():
+        try:
+            return SysMgr.getPkg('socket').gethostname()
+        except:
+            return None
+
+
+
+    @staticmethod
+    def getPublicIp(force=False):
+        if SysMgr.ipAddr and not force:
+            return SysMgr.ipAddr
+
         # get socket object #
         socket = SysMgr.getPkg('socket', False)
         if not socket:
@@ -7304,6 +7330,8 @@ class NetworkMgr(object):
 
         if not ret:
             ret = NetworkMgr.getMainIp()
+
+        SysMgr.ipAddr = ret
 
         return ret
 
@@ -12248,7 +12276,7 @@ class FunctionAnalyzer(object):
             SysMgr.printWarn((
                 "fail to analyze stack data "\
                 "because of corruption (overflow) at %s line\n"\
-                "\tso report results may differ from actual") % \
+                "\tso report the results may differ from actual") % \
                 SysMgr.dbgEventLine, True)
 
 
@@ -12800,7 +12828,7 @@ class FunctionAnalyzer(object):
                 SysMgr.printWarn((
                     "fail to analyze stack data "
                     "because of corruption (underflow) at %s line\n"\
-                    "\tso report results may differ from actual") % \
+                    "\tso report the results may differ from actual") % \
                     SysMgr.dbgEventLine, True)
 
             return True
@@ -15140,7 +15168,7 @@ class FunctionAnalyzer(object):
     def getExceptionList(self):
         exceptList = {}
 
-        # do not use this function now #
+        # do not use this method now #
         return exceptList
 
         for pos, value in self.posData.items():
@@ -16475,6 +16503,7 @@ class FileAnalyzer(object):
         # create a new file for readahead list #
         try:
             raFd = open(raPath, 'wb')
+            os.chmod(raPath, 0o777)
         except SystemExit:
             sys.exit(0)
         except:
@@ -17396,6 +17425,7 @@ class LogMgr(object):
             # open #
             try:
                 self.terminal = open(target, 'w')
+                os.chmod(target, 0o777)
                 self.error = True
             except SystemExit:
                 sys.exit(0)
@@ -18150,7 +18180,8 @@ class SysMgr(object):
     stdlog = None
     stderr = sys.stderr
     packetSize = 32767
-    defaultPort = 5555
+    defaultCliPort = 5554
+    defaultServPort = 5555
     bgProcList = None
     waitDelay = 0.5
     repeatInterval = long(0)
@@ -18158,6 +18189,7 @@ class SysMgr(object):
     progressCnt = long(0)
     wordSize = 4
     maxInterval = 0
+    ipAddr = None
 
     # watermark threshold #
     cpuPerHighThreshold = 80
@@ -18287,6 +18319,7 @@ class SysMgr(object):
     matplotlibDpi = 500
     sigsetObj = None
     sigsetOldObj = None
+    ansiObj = None
 
     localServObj = None
     remoteServObj = None
@@ -18472,6 +18505,7 @@ class SysMgr(object):
     inotifyEnable = False
     dwarfEnable = False
     barGraphEnable = False
+    thresholdHandleEnable = False
 
     # Elastic Stack #
     elasticEnable = False
@@ -18492,6 +18526,20 @@ class SysMgr(object):
     perCoreDrawList = []
     childList = {}
     pidFilter = None
+
+    cliCmdStr = '''
+Commands:
+    - DOWNLOAD:RemotePath@LocalPath
+    - UPLOAD:LocalPath@RemotePath
+    - RUN:Command
+    - BROADCAST:Command
+    - PING
+    - LIST
+    - CLEAR
+    - JOBS
+    - RESTART
+    - HISTORY
+    - QUIT\n'''
 
 
 
@@ -18695,6 +18743,21 @@ class SysMgr(object):
         except:
             SysMgr.printOpenErr(SysMgr.procPath)
             return []
+
+
+
+    @staticmethod
+    def killSubprocessGroup(procObj, sig=None):
+        try:
+            if not sig:
+                sig = signal.SIGINT
+
+            pgrp = os.getpgid(procObj.pid)
+            os.killpg(pgrp, signal.SIGINT)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
 
 
@@ -19017,6 +19080,10 @@ class SysMgr(object):
             # real-time copy from pipe to file #
             if SysMgr.pipeEnable:
                 if SysMgr.outputFile:
+                    # backup #
+                    SysMgr.backupFile(SysMgr.outputFile)
+
+                    # copy #
                     SysMgr.copyPipeToFile(
                         '%s%s' % (SysMgr.inputFile, '_pipe'),
                         SysMgr.outputFile)
@@ -19173,7 +19240,17 @@ class SysMgr(object):
                     SysMgr.outPath = 'NUL'
                 else:
                     SysMgr.outPath = SysMgr.nullPath
-                SysMgr.bufferSize = -1
+
+            # check buffer size #
+            if long(SysMgr.bufferSize) <= 0:
+                SysMgr.printWarn(
+                    'buffer size is unlimited', True)
+
+            # set buffer strip #
+            SysMgr.bufferLossEnable = True
+
+            # set threshold handle flag #
+            SysMgr.thresholdHandleEnable = True
 
         # DLT #
         elif SysMgr.checkMode('dlttop'):
@@ -19997,18 +20074,62 @@ class SysMgr(object):
             return False
 
         def _checkTask(item):
+            def _checkValues(subitem, initFlag):
+                if not type(subitem) is dict:
+                    return False
+
+                for target, value in subitem.items():
+                    # update system flag #
+                    if initFlag is None:
+                        systemFlag = True if target == 'SYSTEM' else False
+                    else:
+                        systemFlag = initFlag
+
+                    # check apply in dict #
+                    if target == 'apply':
+                        if value != 'true':
+                            return False
+                        elif not systemFlag:
+                            return True
+                    # check command in dict #
+                    elif target == 'command' and type(value) is list:
+                        for cmd in value:
+                            if cmd.startswith('SAVE'):
+                                return True
+                    # check list value #
+                    elif type(value) is list:
+                        for subval in value:
+                            if _checkValues(subval, systemFlag):
+                                return True
+                    # check value type #
+                    elif type(value) is not dict:
+                        continue
+                    # check apply for dict value #
+                    elif 'apply' in value:
+                        if value ['apply'] != 'true':
+                            continue
+                        elif not systemFlag:
+                            return True
+                    # check command for dict value #
+                    elif 'command' in value and \
+                        type(value['command']) is list:
+                        for cmd in value['command']:
+                            if cmd.startswith('SAVE'):
+                                return True
+                return False
+
             if not type(item) is dict:
                 return True
 
             for res, cond in item.items():
-                if res == 'storage' or res == 'net':
+                # check exceptional items for task monitoring #
+                if res.upper() == 'COMMAND' or \
+                    res.upper() == 'STORAGE' or \
+                    res.upper() == 'NET':
                     continue
 
-                for target, value in cond.items():
-                    if target != 'SYSTEM' and \
-                        'apply' in value and \
-                        value ['apply'] == 'true':
-                        return True
+                if _checkValues(cond, None):
+                    return True
 
             return False
 
@@ -20090,7 +20211,8 @@ class SysMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            SysMgr.printWarn(
+                'fail to check task monitoring', reason=True)
 
         # update maximum interval #
         maxInterval = _getMaxInterval(confData)
@@ -20098,7 +20220,7 @@ class SysMgr(object):
             SysMgr.maxInterval = maxInterval
 
         SysMgr.printInfo(
-            "applied for thresholds from %s" % SysMgr.confFileName)
+            "applied thresholds from %s" % SysMgr.confFileName)
 
         # print thresholds #
         if SysMgr.warnEnable:
@@ -20744,7 +20866,9 @@ class SysMgr(object):
         cmd = SysMgr.getCmdline(pid, retList=True)[:2]
         if cmd[1][0] != '/':
             pwd = SysMgr.getPwd(pid)
-            cmd[1] = '%s/%s' % (pwd, cmd[1])
+            if not pwd:
+                pwd = ''
+            cmd[1] = os.path.realpath(os.path.join(pwd, cmd[1]))
         return cmd
 
 
@@ -20788,21 +20912,16 @@ class SysMgr(object):
                 return None
         elif itype == 'list':
             if type(confData) is list:
-                return confData
+                confData = ["{\"array\":"] + confData + ["}"]
+                confData = UtilMgr.convStr2Dict('\n'.join(confData), True)
+                if not confData or not 'array' in confData:
+                    return None
+                else:
+                    return confData['array']
             else:
                 return None
         else:
             return confData
-
-
-
-    @staticmethod
-    def getConfigList(name):
-        confData = ConfigMgr.confData[name]
-        if type(confData) is list:
-            return confData
-        else:
-            return None
 
 
 
@@ -21242,22 +21361,7 @@ class SysMgr(object):
     @staticmethod
     def setComm(comm):
         if not SysMgr.isLinux:
-            try:
-                setproctitle = SysMgr.getPkg('setproctitle', False)
-                if not setproctitle:
-                    raise ImportError()
-                setproctitle.setproctitle(comm)
-                return
-            except SystemExit:
-                sys.exit(0)
-            except ImportError:
-                SysMgr.printWarn(
-                    "fail to set comm to '%s' because of no python package: %s" % \
-                        (comm, 'setproctitle'), True)
-            except:
-                SysMgr.printWarn(
-                    "fail to set comm to '%s'" % comm, True, reason=True)
-                return
+            return
 
         # try to set comm using native lib #
         try:
@@ -21733,7 +21837,13 @@ class SysMgr(object):
         try:
             newFile = '%s.old' % origFile
 
+            # delete old backup file #
+            if os.path.exists(newFile):
+                os.remove(newFile)
+
+            # rename old target file #
             os.rename(origFile, newFile)
+            os.chmod(newFile, 0o777)
 
             SysMgr.printInfo(
                 "renamed '%s' to '%s' for backup" % \
@@ -21857,14 +21967,14 @@ class SysMgr(object):
 
             for tid in tids:
                 try:
-                    long(tid)
-
-                    # update comm of thread #
-                    SysMgr.getComm(tid, save=True)
-
+                    # main task #
                     if tid == pid:
                         procTree[tid] = '%s(%s)' % (pid, comm)
+                    # sibling task #
                     else:
+                        # update comm of thread #
+                        SysMgr.getComm(tid, save=True)
+
                         procTree[tid] = pid
                 except SystemExit:
                     sys.exit(0)
@@ -22418,16 +22528,17 @@ Options:
             C:compress | d:disk | D:DWARF | e:encode
             E:exec | f:float | F:wfc | G:cgroup
             h:sigHandler | H:sched | i:irq | I:elastic
-            L:cmdline | m:mem | M:min | n:net | N:namespace
-            o:oomScore | O:color | p:pipe | P:perf
-            q:quit | r:report | R:reportFile | s:stack
-            S:pss| t:thread | T:total | u:uss | w:wss
-            W:wchan | x:fixTarget | Y:delay ]
+            l:threshold | L:cmdline | m:mem | M:min
+            n:net | N:namespace | o:oomScore
+            p:pipe | P:perf | q:quit | r:report
+            R:reportFile | s:stack | S:pss| t:thread
+            T:total | u:uss | w:wss | W:wchan
+            x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:Average | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
             E:exec | g:general | G:gpu | L:log
-            p:print | t:truncate | T:task ]
+            O:color | p:print | t:truncate | T:task ]
                 '''
 
                 drawSubStr = '''
@@ -22906,7 +23017,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005"
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005" -H -a
 
-    - Trace specific native calls with specific check results
+    - Trace specific native calls with specific check the results
         # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|check:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|check:*1:EQ:HELLO"
@@ -23439,19 +23550,26 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor open files including null for all processes
+    - Monitor open files, sockets, pipes for all processes
+        # {0:1} {1:1}
+        # {0:1} {1:1} -Q
+
+    - Monitor open files, sockets, pipes including null for all processes
         # {0:1} {1:1} -g :null
 
-    - Monitor open files including 8000 or zero for specific processes including a.out or test
+    - Monitor open files, sockets, pipes including 8000 or zero for specific processes including a.out or test
         # {0:1} {1:1} -g a.out,test:8000,zero
 
-    - Monitor open files of specific processes including system
+    - Monitor open files, sockets, pipes of specific processes including system
         # {0:1} {1:1} -g system
+
+    - Monitor open files, sockets, pipes for all processes with cmdline
+        # {0:1} {1:1} -e L
 
     - Monitor all processes sorted by the number of file descriptors
         # {0:1} {1:1} -S f
 
-    - Report analysis result of open files to ./guider.out
+    - Report analysis result of open files, sockets, pipes to ./guider.out
         # {0:1} {1:1} -o .
 
     See the top COMMAND help for more examples.
@@ -23799,7 +23917,7 @@ Examples:
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
-                    helpStr += topCommonStr + examStr
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # stack top #
                 elif SysMgr.checkMode('stacktop'):
@@ -23898,6 +24016,10 @@ Examples:
 
     - Report system status in JSON format to console standard output
         # {0:1} {1:1} -Q
+
+    - Report system status including threshold events in JSON format to /tmp/guider.report
+        # {0:1} {1:1} -C ./guider.conf
+        # {0:1} {1:1} -C ./guider.conf -e l
 
     - Report system status in JSON format to ./guider.report in the background every second
         # {0:1} {1:1} -j . -u
@@ -24180,6 +24302,7 @@ Examples:
 
     - Print the last file of the target files
         # {0:1} {1:1} "a.out, test.txt" -q tail
+        # {0:1} {1:1} "a.out, test.txt" -q tail:100
                     '''.format(cmd, mode)
 
                 # dump #
@@ -25260,8 +25383,11 @@ Examples:
     - Watch the current directory
         # {0:1} {1:1}
 
+    - Watch specific files to be created and terminate after all them created
+        # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
+
     - Watch multiple directories
-        # {0:1} {1:1} "/home/iipeace/test","/home/iipeace/test/sub"
+        # {0:1} {1:1} "/home/iipeace/test, /home/iipeace/test/sub"
 
     - Watch specific events for a.out in the current directory
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out"
@@ -26492,8 +26618,12 @@ Examples:
     - Run server with specific local address
         # {0:1} {1:1} -x 127.0.0.1:5556
 
-    - Run server and register to agent node as a service node
+    - Run server and register to the agent as a service node
         # {0:1} {1:1} -X 127.0.0.1:3456
+
+    - Run server with configuration
+        # {0:1} {1:1} -C
+        # {0:1} {1:1} -C guider.conf
 
     - Run server with no timeout
         # {0:1} {1:1} -q NOTIMEOUT
@@ -26516,7 +26646,7 @@ Usage:
 
 Description:
     Execute remote command
-
+{2:2}
 Options:
     -x  <IP:PORT>               set local address
     -X  <IP:PORT>               set request address
@@ -26524,22 +26654,25 @@ Options:
     -c  <COMMAND>               set command
     -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
-                        '''.format(cmd, mode)
+                        '''.format(cmd, mode, SysMgr.cliCmdStr)
 
                     helpStr += '''
 Examples:
     - Run client with interaction menu
         # {0:1} {1:1}
 
-    - Download a.out from server to ./a.out
+    - Download a.out from the server to ./a.out
         # {0:1} {1:1} -c d:a.out@./a.out
         # {0:1} {1:1} -c download:a.out@./a.out
         # {0:1} {1:1} -c download:a.out
 
-    - Download TEST* from server to ./
+    - Download all files in test directory from the server to backup directory
+        # {0:1} {1:1} -c "download:test/*@backup/"
+
+    - Download TEST* from the server to ./
         # {0:1} {1:1} -c "d:TEST*"
 
-    - Upload ./a.out to a.out in server
+    - Upload ./a.out to a.out in the server
         # {0:1} {1:1} -c u:./a.out@a.out
         # {0:1} {1:1} -c upload:./a.out@a.out
         # {0:1} {1:1} -c upload:./a.out
@@ -26548,9 +26681,17 @@ Examples:
         # {0:1} {1:1} -c "p"
         # {0:1} {1:1} -c "ping"
 
-    - Print node list registered in server
+    - Print node list registered in the server
         # {0:1} {1:1} -c "l"
         # {0:1} {1:1} -c "list"
+
+    - Print all worker processes executed by the server
+        # {0:1} {1:1} -c "j"
+        # {0:1} {1:1} -c "jobs"
+
+    - Terminate all worker processes executed by the server
+        # {0:1} {1:1} -c "c"
+        # {0:1} {1:1} -c "clear"
 
     - Execute remote commands in parallel
         # {0:1} {1:1} -c "ls -lha", "date"
@@ -26762,11 +26903,35 @@ Copyright:
             path = [path]
 
         # check path #
+        exitFlag = False
         for item in path:
             if not os.path.exists(item):
+                # get file info #
+                dirname, filename = UtilMgr.getPath(item)
+
+                # set exit flag #
+                exitFlag = True
+
                 SysMgr.printWarn(
-                    "fail to access to '%s'" % item, verb)
-                return False
+                    "fail to access to '%s', wait for it..." % item, verb)
+
+                # wait for file creation #
+                SysMgr.waitForFile(dirname, filename)
+
+                # check result #
+                if os.path.exists(item):
+                    current = SysMgr.updateUptime()
+                    fpath = os.path.realpath(os.path.expanduser(item))
+                    SysMgr.printPipe(
+                        "[%.6f] IN_CREATE@%s" % (current, fpath))
+                else:
+                    SysMgr.printWarn(
+                        "skipped to wait '%s' to be created" % \
+                            item, True)
+
+        # check exit condition #
+        if exitFlag:
+            sys.exit(0)
 
         # check flags type #
         if type(flags) is not list:
@@ -28866,6 +29031,11 @@ Copyright:
                 else:
                     disableStat += 'DWARF '
 
+                if SysMgr.thresholdHandleEnable:
+                    enableStat += 'THRESHOLD '
+                else:
+                    disableStat += 'THRESHOLD '
+
                 if SysMgr.kmsgEnable:
                     enableStat += 'KMSG '
                 else:
@@ -29170,9 +29340,9 @@ Copyright:
                         fsize = ''
 
                     SysMgr.printInfo(
-                        "saved results based monitoring into "
+                        "saved the results based monitoring into "
                         "'%s'%s successfully" % \
-                        (SysMgr.inputFile, fsize))
+                            (SysMgr.inputFile, fsize))
 
             SysMgr.releaseResource()
 
@@ -29196,8 +29366,10 @@ Copyright:
 
         else:
             SysMgr.writeEvent("EVENT_STOP", False)
+
             if signum:
                 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
             SysMgr.stopRecording()
 
         # update record stats #
@@ -29264,7 +29436,7 @@ Copyright:
                 fsize = ''
 
             SysMgr.printInfo(
-                "saved results based monitoring into "
+                "saved the results based monitoring into "
                 "'%s'%s successfully" % \
                     (SysMgr.inputFile, fsize))
 
@@ -29436,6 +29608,7 @@ Copyright:
                     (outputFile, UtilMgr.convSize2Unit(totalSize)))
 
             f = open(outputFile, 'wb')
+            os.chmod(outputFile, 0o777)
             if compressor:
                 f = compressor.GzipFile(fileobj=f)
 
@@ -30557,7 +30730,7 @@ Copyright:
                     "start writing interval statistics because "
                     "buffer (%s) exceed %s") %
                         (UtilMgr.convSize2Unit(SysMgr.procBufferSize),
-                        UtilMgr.convSize2Unit(SysMgr.bufferSize)))
+                            UtilMgr.convSize2Unit(SysMgr.bufferSize)))
 
                 # create a new process #
                 pid = SysMgr.createProcess(isDaemon=True, chPgid=True)
@@ -30622,13 +30795,17 @@ Copyright:
     def printTopStats():
         # JSON mode #
         if SysMgr.jsonEnable:
-            # convert dict data to JSON-type string #
-            jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData, pretty=False)
-            if not jsonObj:
-                SysMgr.printWarn(
-                    "fail to convert report data to JSON type")
+            # print report in JSON format later #
+            if SysMgr.reportEnable:
+                pass
             else:
-                SysMgr.printPipe(jsonObj)
+                # convert dict data to JSON string #
+                jsonStr = UtilMgr.convDict2Str(SysMgr.jsonData, pretty=False)
+                if not jsonStr:
+                    SysMgr.printWarn(
+                        "fail to convert report data to JSON format")
+                else:
+                    SysMgr.printPipe(jsonStr)
         # realtime mode #
         elif not SysMgr.outPath:
             if not SysMgr.printStreamEnable:
@@ -30693,8 +30870,7 @@ Copyright:
 
         # append suffix to output file #
         if SysMgr.fileSuffix:
-            dirname = os.path.dirname(SysMgr.inputFile)
-            filename = os.path.basename(SysMgr.inputFile)
+            dirname, filename = UtilMgr.getPath(SysMgr.inputFile)
             name, ext = os.path.splitext(filename)
             filepath = os.path.join(dirname, name)
             SysMgr.inputFile = '%s_%s%s' % \
@@ -30863,6 +31039,7 @@ Copyright:
             try:
                 # open output file #
                 SysMgr.printFd = open(SysMgr.inputFile, 'wb')
+                os.chmod(SysMgr.inputFile, 0o777)
 
                 # apply compression to the file #
                 if SysMgr.compressEnable:
@@ -30913,8 +31090,9 @@ Copyright:
                 # trim a colorful line by terminal width #
                 elif not SysMgr.forceColorEnable and \
                     SysMgr.colorEnable and ConfigMgr.ENDC in line:
-                    ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
-                    ansiObj = re.compile(ansi)
+                    if not SysMgr.ansiObj:
+                        UtilMgr.removeColor('')
+                    ansiObj = SysMgr.ansiObj
                     line = '\n'.join(
                         [ansiObj.sub('', n)[:cols] \
                             if len(ansiObj.sub('', n)) > cols else n \
@@ -31733,6 +31911,9 @@ Copyright:
                 if 'D' in options:
                     SysMgr.dwarfEnable = True
 
+                if 'l' in options:
+                    SysMgr.thresholdHandleEnable = True
+
                 if 't' in options:
                     SysMgr.processEnable = False
 
@@ -32076,13 +32257,12 @@ Copyright:
                 SysMgr.checkOptVal(option, value)
                 try:
                     if value.isdigit():
-                        osize = bsize = long(value) << 10
+                        bsize = long(value) << 10
                     else:
-                        osize = UtilMgr.convUnit2Size(value)
-                        bsize = osize >> 10
+                        bsize = UtilMgr.convUnit2Size(value)
 
                     if bsize >= 0:
-                        SysMgr.bufferSize = str(bsize)
+                        SysMgr.bufferSize = bsize
 
                         if bsize == 0:
                             SysMgr.printInfo(
@@ -32090,7 +32270,7 @@ Copyright:
                         else:
                             SysMgr.printInfo(
                                 "set buffer size to %s" %
-                                    UtilMgr.convSize2Unit(osize))
+                                    UtilMgr.convSize2Unit(bsize))
                     else:
                         SysMgr.printErr((
                             "wrong value for buffer size, "
@@ -32270,6 +32450,13 @@ Copyright:
                     pass
                 elif not ret:
                     sys.exit(0)
+                # launch commands #
+                else:
+                    cmdList = SysMgr.getConfigItem('command')
+                    if cmdList and \
+                        'apply' in cmdList and \
+                        cmdList['apply'] == 'true':
+                        SysMgr.executeCommand(cmdList['list'])
 
         elif option == 'E':
             SysMgr.cacheDirPath = value
@@ -32330,7 +32517,7 @@ Copyright:
                         bsize = osize >> 10
 
                     if bsize > 0:
-                        SysMgr.bufferSize = str(bsize)
+                        SysMgr.bufferSize = bsize
 
                         SysMgr.printInfo(
                             "set buffer size to %s" %
@@ -33394,7 +33581,7 @@ Copyright:
             return True
 
         logPath = '/var/log'
-        tmpPath = '/tmp'
+        tmpPath = SysMgr.tmpPath
 
         if os.path.isdir(logPath) and os.access(logPath, os.W_OK):
             SysMgr.outPath = logPath
@@ -33416,53 +33603,54 @@ Copyright:
             return True
 
         if SysMgr.printStreamEnable:
-            return True
+            SysMgr.reportObject = sys.stdout
+            reportPath = SysMgr.nullPath
         else:
             SysMgr.printEnable = False
 
-        # check stdout report option #
-        if not val:
-            reportPath = SysMgr.getOption('j')
-        else:
-            reportPath = val
-
-        # check report path #
-        if not reportPath or not reportPath:
-            tmpPath = '/tmp'
-            reportPath = tmpPath
-
-        # check report directory #
-        if not os.path.isdir(reportPath):
-            upDirPos = reportPath.rfind('/')
-            if upDirPos > 0 and \
-                not os.path.isdir(reportPath[:upDirPos]):
-                SysMgr.printErr(
-                    "wrong path '%s' to report stats" % \
-                    reportPath)
-                return False
-        # check report file #
-        else:
-            reportPath = '%s/guider.report' % reportPath
-
-        # remove redundant slashes and save it as the global report path #
-        reportPath = os.path.normpath(reportPath)
-
-        # backup a exist output file #
-        SysMgr.backupFile(reportPath)
-
-        # open report file #
-        try:
-            if SysMgr.truncEnable:
-                perm = 'w'
+            # check stdout report option #
+            if not val:
+                reportPath = SysMgr.getOption('j')
             else:
-                perm = 'a'
+                reportPath = val
 
-            SysMgr.reportObject = open(reportPath, perm)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(reportPath)
-            sys.exit(0)
+            # check report path #
+            if not reportPath or not reportPath:
+                reportPath = SysMgr.tmpPath
+
+            # check report directory #
+            if not os.path.isdir(reportPath):
+                upDirPos = reportPath.rfind('/')
+                if upDirPos > 0 and \
+                    not os.path.isdir(reportPath[:upDirPos]):
+                    SysMgr.printErr(
+                        "wrong path '%s' to report stats" % \
+                        reportPath)
+                    return False
+            # check report file #
+            else:
+                reportPath = '%s/guider.report' % reportPath
+
+            # remove redundant slashes and save it as the global report path #
+            reportPath = os.path.normpath(reportPath)
+
+            # backup a exist output file #
+            SysMgr.backupFile(reportPath)
+
+            # open report file #
+            try:
+                if SysMgr.truncEnable:
+                    perm = 'w'
+                else:
+                    perm = 'a'
+
+                SysMgr.reportObject = open(reportPath, perm)
+                os.chmod(reportPath, 0o777)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(reportPath)
+                sys.exit(0)
 
         SysMgr.reportEnable = True
 
@@ -35718,6 +35906,48 @@ Copyright:
                 (message, netObj.ip, netObj.port)
             netObj.send(message)
 
+        def _updateNodeList(ret=False):
+            # close sockets for terminated connections #
+            for addr in list(nodeList.keys()):
+                ret = NetworkMgr.requestPing(addr, verb=False)
+                if not ret:
+                    try:
+                        nodeList[addr]['sock'].close()
+                    except:
+                        pass
+                    finally:
+                        nodeList.pop(addr, None)
+
+            # get network info #
+            try:
+                netinfo = ' [%s/%s]' % \
+                    (NetworkMgr.getHostName(), NetworkMgr.getPublicIp())
+            except SystemExit:
+                sys.exit(0)
+            except:
+                netinfo = ''
+
+            # print node list #
+            idx = 0
+            current = time.time()
+            listStr = '[Service Node List]%s\n%s\n' % (netinfo, twoLine)
+            listStr += '{0:^5} {1:^13} {2:^25} {3:<1} \n{4:1}\n'.format(
+                'Idx', 'Time', 'Addr', 'Host', oneLine)
+            for addr, value in sorted(
+                nodeList.items(), key=lambda e:e[1]['time']):
+                diff = current - value['time']
+                listStr += '[{0:>3}] {1:^13} {2:<25} {3:<1}\n'.format(
+                    idx, UtilMgr.convTime(diff), addr, value['host'])
+                idx += 1
+            if nodeList:
+                listStr += '%s\n' % oneLine
+            else:
+                listStr += '\tNone\n%s\n' % oneLine
+            SysMgr.printWarn(listStr, True)
+
+            if ret:
+                return listStr
+
         def _onDownload(netObj, value, response):
             # pick path #
             try:
@@ -35788,58 +36018,82 @@ Copyright:
             finally:
                 netObj.close()
 
-        def _updateNodeList(ret=False):
-            for addr in list(nodeList.keys()):
-                ret = NetworkMgr.requestPing(addr, verb=False)
-                if not ret:
-                    try:
-                        nodeList[addr]['sock'].close()
-                    except:
-                        pass
-                    finally:
-                        nodeList.pop(addr, None)
-
-            # print node list #
-            idx = 0
-            current = time.time()
-            listStr = '[Service Node List]\n%s\n' % twoLine
-            listStr += '{0:^5} {1:^25} {2:^10}\n{3:1}\n'.format(
-                'Idx', 'Addr', 'Time', oneLine)
-            for addr, value in sorted(
-                nodeList.items(), key=lambda e:e[1]['time']):
-                diff = current - value['time']
-                listStr += '[{0:>3}] {1:>25} {2:>10}\n'.format(
-                    idx, addr, UtilMgr.convTime(diff))
-                idx += 1
-            if nodeList:
-                listStr += '%s\n' % oneLine
-            else:
-                listStr += '\tNone\n%s\n' % oneLine
-            SysMgr.printWarn(listStr, True)
-
-            if ret:
-                return listStr
-
         def _onNew(connObj, value, response):
             try:
                 # reply message #
                 connObj.send('PONG')
 
+                host, addr = value.rsplit('/', 1)
+
                 # register node info #
-                if not value in nodeList or \
-                    nodeList[value]['sock'] != connObj:
-                    nodeList[value] = \
-                        {'sock': connObj, 'time': time.time()}
+                if not addr in nodeList or \
+                    nodeList[addr]['sock'] != connObj:
+                    nodeList[addr] = {
+                        'sock': connObj,
+                        'time': time.time(),
+                        'host': host,
+                    }
 
                 SysMgr.printInfo(
-                    "registered the service node(%s) successfully" %  value)
+                    "registered '%s' as a service node successfully" %  value)
 
                 # update service node list #
                 _updateNodeList()
             except:
                 SysMgr.printWarn(
-                    'fail to register the service node(%s)' % value,
+                    "fail to register '%s' as a service node" % value,
                     reason=True)
+
+        def _onClear(connObj, value, response):
+            try:
+                # send message packet #
+                connObj.send(
+                    'MSG:terminated all worker processes')
+
+                # terminate worker processes #
+                SysMgr.killChilds(sig=signal.SIGINT)
+
+                # get pstree #
+                SysMgr.doPstree(
+                    [str(SysMgr.pid)], False, SysMgr.infoBufferPrint)
+                pstree = SysMgr.systemInfoBuffer
+                SysMgr.clearInfoBuffer()
+
+                '''
+                receive an ACK packet
+                to prevent receiving two packets at once
+                '''
+                connObj.recv()
+
+                # send reply packet for command #
+                connObj.send('CLEAR:%s' % pstree)
+            except:
+                SysMgr.printWarn(
+                    'fail to terminate worker processes', reason=True)
+
+        def _onJobs(connObj, value, response):
+            try:
+                # send message packet #
+                connObj.send(
+                    'MSG:list all worker processes')
+
+                # get pstree #
+                SysMgr.doPstree(
+                    [str(SysMgr.pid)], False, SysMgr.infoBufferPrint)
+                pstree = SysMgr.systemInfoBuffer.rstrip()
+                SysMgr.clearInfoBuffer()
+
+                '''
+                receive an ACK packet
+                to prevent receiving two packets at once
+                '''
+                connObj.recv()
+
+                # send reply packet for command #
+                connObj.send('JOBS:%s' % pstree)
+            except:
+                SysMgr.printWarn(
+                    'fail to list worker processes', reason=True)
 
         def _onRestart(connObj, value, response):
             return True
@@ -35965,16 +36219,16 @@ Copyright:
                     "fail to execute '%s' from %s" % (value, addr), True)
             finally:
                 try:
-                    connObj.socket.shutdown(socket.SHUT_RDWR)
-                    connObj.close()
-
-                    # send TERM signal first #
-                    os.killpg(procObj.pid, signal.SIGINT)
+                    # kill subprocess group #
+                    SysMgr.killSubprocessGroup(procObj)
 
                     time.sleep(SysMgr.waitDelay)
 
-                    # send KILL signal #
-                    os.killpg(procObj.pid, signal.SIGKILL)
+                    # kill subprocess group #
+                    SysMgr.killSubprocessGroup(procObj, signal.SIGKILL)
+
+                    connObj.socket.shutdown(socket.SHUT_RDWR)
+                    connObj.close()
                 except:
                     pass
 
@@ -35994,7 +36248,7 @@ Copyright:
                 '''
                 connObj.recv()
 
-                # send reply  packet for command #
+                # send reply packet for command #
                 connObj.send('run|%s' % value)
             else:
                 connObj.send('NO_SERV_NODE')
@@ -36002,12 +36256,11 @@ Copyright:
 
             # execute remote commands #
             for addr in list(nodeList.keys()):
-                # create worker process #
+                # create a new worker process #
                 pid = SysMgr.createProcess()
                 if pid > 0:
                     continue
 
-                # execute a command from a remote node #
                 try:
                     SysMgr.printInfo(
                         "execute '%s' at %s for %s:%s" % \
@@ -36016,6 +36269,7 @@ Copyright:
                     # disable log #
                     SysMgr.logEnable = False
 
+                    # execute a command from a remote node #
                     rcmd = '%s|%s' % (addr, cmd)
                     SysMgr.runClientMode(rcmd, connObj)
                 except SystemExit:
@@ -36048,17 +36302,25 @@ Copyright:
                         cliObj = NetworkMgr.setRemoteServer(raddr, tcp=True)
 
                     SysMgr.printWarn(
-                        'try to connect to the agent node(%s)' % raddr)
+                        'try to connect to the agent (%s)' % raddr)
 
-                    # connect to an agent node #
+                    # connect to the agent #
                     cliObj.connect()
                     cliObj.connected = True
                     errMsg = None
                     SysMgr.printInfo(
-                        'connected to the agent node(%s)' % raddr)
+                        'connected to the agent (%s)' % raddr)
+
+                    # get host name #
+                    hostname = NetworkMgr.getHostName()
 
                     # register to another server #
-                    pipe = NetworkMgr.getCmdPipe(cliObj, 'new:%s' % caddr)
+                    ret = NetworkMgr.getCmdPipe(
+                        cliObj, 'new:%s/%s' % (hostname, caddr))
+                    if not ret:
+                        # try to connect again #
+                        time.sleep(1)
+                        continue
 
                     # monitor connection #
                     cliObj.recv()
@@ -36068,11 +36330,11 @@ Copyright:
                     # print error message #
                     curErrMsg = SysMgr.getErrMsg()
                     if errMsg != curErrMsg:
-                        SysMgr.printErr((
-                            'fail to keep connection with the agent node '
-                            'to %s') % raddr, True)
+                        SysMgr.printErr(
+                            'fail to keep connection with the agent (%s)' % \
+                                raddr, True)
                         SysMgr.printInfo(
-                            'start trying to connect to the agent node(%s)' % \
+                            'start trying to connect to the agent (%s)' % \
                                 raddr)
 
                     # update latest error message #
@@ -36082,15 +36344,145 @@ Copyright:
                     if cliObj.connected:
                         cliObj.close()
 
+                    # retry after 1 second #
                     time.sleep(1)
 
-        def _handleConn(connObj, connMan):
+        def _loadConfig():
+            initCmds = []
+
+            config = SysMgr.getConfigItem('server')
+            if config and 'INIT' in config and type(config['INIT']) is list:
+                # get command shortcut #
+                if 'COMMAND' in config and type(config['COMMAND']) is dict:
+                    cmds = config['COMMAND']
+                else:
+                    cmds = []
+
+                # get valid commands #
+                for item in config['INIT']:
+                    if not 'apply' in item or item['apply'] != 'true':
+                        continue
+                    elif not 'command' in item:
+                        continue
+
+                    # convert command shortcut to real command #
+                    if UtilMgr.isString(item['command']):
+                        pcmds = item['command'].split('->')
+                        clist = []
+
+                        for pcmd in pcmds:
+                            if pcmd in cmds:
+                                pcmd = cmds[pcmd]
+                            clist.append(pcmd)
+
+                        item['command'] = '->'.join(clist)
+                    elif type(item['command']) is list:
+                        newCmdList = []
+                        for command in item['command']:
+                            pcmds = command.split('->')
+                            clist = []
+
+                            for pcmd in pcmds:
+                                if pcmd in cmds:
+                                    pcmd = cmds[pcmd]
+                                clist.append(pcmd)
+
+                            command = '->'.join(clist)
+                            newCmdList.append(command)
+                        item['command'] = newCmdList
+                    else:
+                        continue
+
+                    # add command to list #
+                    initCmds.append(item)
+
+            if initCmds:
+                SysMgr.printInfo(
+                    "applied init commands from '%s'" % SysMgr.confFileName)
+
+                # print thresholds #
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn(UtilMgr.convDict2Str(initCmds))
+
+            return initCmds
+
+        def _runInitCmds(addr, initCmds):
+            for item in initCmds:
+                # check command #
+                if not 'command' in item:
+                    continue
+
+                # check permission #
+                if 'perm' in item and item['perm'] == 'root':
+                    SysMgr.checkRootPerm(
+                        msg="execute init command\n'%s'" % \
+                            UtilMgr.convDict2Str(item))
+
+                # set timer #
+                if 'duration' in item:
+                    sec = UtilMgr.convUnit2Time(item['duration'])
+                    signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
+                    signal.alarm(sec)
+
+                # execute init commands #
+                for cmd in item['command']:
+                    # handle piped commands #
+                    pipeCmds = cmd.split('->')
+                    if len(pipeCmds) == 1:
+                        # run remote task #
+                        try:
+                            rcmd = '%s|%s' % (addr, cmd)
+                            SysMgr.runClientMode(rcmd)
+                        except SystemExit:
+                            continue
+                        except:
+                            SysMgr.printErr(
+                                "fail to execute remote command '%s'" % rcmd,
+                                reason=True)
+                    elif len(pipeCmds) == 2:
+                        # create a pipe #
+                        rd, wr = os.pipe()
+
+                        # create a new process #
+                        pid = SysMgr.createProcess()
+                        # writer #
+                        if pid > 0:
+                            # set stdio #
+                            os.close(rd)
+                            os.dup2(wr,1)
+
+                            # run remote task #
+                            try:
+                                pcmd = pipeCmds[0]
+                                rcmd = '%s|%s' % (addr, pcmd)
+                                SysMgr.runClientMode(rcmd)
+                            except SystemExit:
+                                continue
+                            except:
+                                SysMgr.printErr(
+                                    "fail to execute remote command '%s'" % \
+                                        rcmd, reason=True)
+                        # reader #
+                        else:
+                            # set stdio #
+                            os.close(wr)
+                            os.dup2(rd,0)
+
+                            # run local task #
+                            pcmd = pipeCmds[1].split()
+                            SysMgr.executeProcess(cmd=pcmd, closeFd=False)
+                    else:
+                        SysMgr.printErr((
+                            "no support piped command set bigger than 2 "
+                            "for '%s'") % cmd)
+
+        def _handleConn(connObj, connMan, initCmds=[]):
             # read command #
             req = connObj.recvfrom()
 
             # unmarshalling #
             if type(req) is tuple:
-                # check garbage value)
+                # check garbage value #
                 if req[0] == '':
                     return
 
@@ -36138,6 +36530,8 @@ Copyright:
                 'NEW': _onNew,
                 'PING': _onPing,
                 'LIST': _onList,
+                'CLEAR': _onClear,
+                'JOBS': _onJobs,
                 'RESTART': _onRestart,
             }
 
@@ -36150,8 +36544,19 @@ Copyright:
 
                 return False
             elif request == 'NEW':
+                # register a new node #
                 requestList[request](connObj, value, None)
-                return False
+
+                if not initCmds:
+                    return False
+            elif request == 'CLEAR':
+                # terminate all worker processes #
+                requestList[request](connObj, value, None)
+                return True
+            elif request == 'JOBS':
+                # list all worker processes #
+                requestList[request](connObj, value, None)
+                return True
             elif request == 'BROADCAST':
                 # update service node list #
                 _updateNodeList()
@@ -36159,22 +36564,45 @@ Copyright:
                 SysMgr.printInfo('RESTART by %s:%s' % (ip, port))
                 SysMgr.restart()
 
-            # build response data #
-            response = '%s|%s' % (request, value)
+            cmd = None
+            if request == 'NEW':
+                # create new worker processes #
+                for item in initCmds:
+                    pid = SysMgr.createProcess()
+                    if pid == 0:
+                        cmd = item
+                        break
 
-            # create worker process #
-            pid = SysMgr.createProcess()
-            if pid > 0:
-                return True
+                # connection manager return #
+                if pid > 0:
+                    return False
+            else:
+                # create a new worker process #
+                pid = SysMgr.createProcess()
+                if pid > 0:
+                    return True
 
             # close listen socket of parent #
-            connMan.close()
+            if connMan:
+                connMan.close()
 
+            # save timestamp #
             before = time.time()
 
-            # handle request #
-            requestList[request](connObj, value, response)
+            # request init command #
+            if request == 'NEW':
+                # remove host name from address #
+                value = value.split('/', 1)[1]
 
+                _runInitCmds(value, [cmd])
+            # handle request #
+            else:
+                # build response data #
+                response = '%s|%s' % (request, value)
+
+                requestList[request](connObj, value, response)
+
+            # print elapsed time #
             elapsed = time.time() - before
             SysMgr.printInfo(
                 "elapsed %.6f for '%s' from %s:%s" % \
@@ -36186,6 +36614,36 @@ Copyright:
 
         # start server mode #
         SysMgr.printInfo("SERVER MODE")
+
+        # set default logger #
+        if not SysMgr.stdlog:
+            # get current time #
+            try:
+                datetime = SysMgr.getPkg('datetime', False)
+                now = datetime.datetime.utcfromtimestamp(time.time())
+                now = now.strftime('%y%m%dT%H%M%S')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                now = long(time.time())
+
+            # set file name #
+            value = os.path.join(
+                SysMgr.tmpPath, 'guider_server_%s_%s.log' % (SysMgr.pid, now))
+            SysMgr.printInfo("applied '%s' as the log file" % value)
+
+            # set logger #
+            SysMgr.stdlog = LogMgr(value)
+
+        # load config #
+        try:
+            initCmds = _loadConfig()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to load config', reason=True)
+            initCmds = []
 
         # import packages #
         SysMgr.getPkg('select')
@@ -36214,8 +36672,9 @@ Copyright:
             tobj.start()
 
         SysMgr.printStat(
-            "run %s(%s) as a server" % \
-                (SysMgr.getComm(SysMgr.pid), SysMgr.pid))
+            "run server(%s:%s) in %s(%s)" % \
+                (SysMgr.localServObj.ip, SysMgr.localServObj.port,
+                    SysMgr.getComm(SysMgr.pid), SysMgr.pid))
 
         # set SA_RESTART for SIGCHLD #
         signal.siginterrupt(signal.SIGCHLD, False)
@@ -36242,11 +36701,11 @@ Copyright:
                 continue
             except:
                 SysMgr.printWarn(
-                    'fail to accept to prepare for connection', reason=True)
+                    'fail to accept connection', reason=True)
                 continue
 
             SysMgr.printInfo(
-                "connected to the client(%s:%s)" % (addr[0], addr[1]))
+                "connected to the client (%s:%s)" % (addr[0], addr[1]))
 
             # create a TCP socket #
             connObj = NetworkMgr(
@@ -36258,7 +36717,7 @@ Copyright:
             connObj.socket = sock
 
             # handle request from client #
-            if _handleConn(connObj, connMan):
+            if _handleConn(connObj, connMan, initCmds):
                 connObj.close()
                 SysMgr.printBgProcs()
 
@@ -36269,19 +36728,7 @@ Copyright:
     @staticmethod
     def runClientMode(cmds=None, writer=None):
         def _printMenu():
-            sys.stdout.write(
-                '\n<Command List>\n'
-                '- DOWNLOAD:RemotePath@LocalPath\n'
-                '- UPLOAD:LocalPath@RemotePath\n'
-                '- RUN:Command\n'
-                '- BROADCAST:Command\n'
-                '- PING\n'
-                '- LIST\n'
-                '- RESTART\n'
-                '- HISTORY\n'
-                '- QUIT\n'
-                '\n'
-            )
+            sys.stdout.write('%s\n' % SysMgr.cliCmdStr)
 
         def _doPing(uinput, cmd=None):
             # get addrs from string #
@@ -36337,6 +36784,10 @@ Copyright:
                 uinput = 'ping'
             elif uinputUpper == 'L':
                 uinput = 'list'
+            elif uinputUpper == 'C':
+                uinput = 'clear'
+            elif uinputUpper == 'J':
+                uinput = 'jobs'
             elif uinputUpper == 'Q':
                 uinput = 'quit'
 
@@ -36504,7 +36955,9 @@ Copyright:
         while 1:
             if not cmdPipeList:
                 if cmdList:
-                    SysMgr.printInfo('elapsed %.6f' % (time.time()-start))
+                    SysMgr.printInfo(
+                        "elapsed %.6f for '%s'" % \
+                            (time.time()-start, ', '.join(cmdList)))
                     sys.exit(0)
                 break
 
@@ -37720,13 +38173,13 @@ Copyright:
         SysMgr.saveSysStats()
 
         if SysMgr.jsonEnable:
-            # convert dict data to JSON-type string #
-            jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData)
-            if not jsonObj:
+            # convert dict data to JSON string #
+            jsonStr = UtilMgr.convDict2Str(SysMgr.jsonData)
+            if not jsonStr:
                 SysMgr.printWarn(
-                    "fail to convert report data to JSON type")
+                    "fail to convert report data to JSON format")
             else:
-                SysMgr.printPipe(jsonObj)
+                SysMgr.printPipe(jsonStr)
         else:
             SysMgr.printInfoBuffer()
 
@@ -37754,7 +38207,9 @@ Copyright:
         # parse items #
         for item in opList:
             args = item.split(':')
-            path = args[0]
+
+            # convert path #
+            path = os.path.realpath(os.path.expanduser(args[0]))
             targetList.append(path)
 
             if len(args) > 1:
@@ -37811,9 +38266,6 @@ Copyright:
                         fpath = os.path.join(path, fname)
                     else:
                         fpath = path
-
-                    # convert path #
-                    fpath = os.path.realpath(os.path.expanduser(fpath))
 
                     SysMgr.printPipe(
                         "[%.6f] %s@%s" % \
@@ -38376,7 +38828,7 @@ Copyright:
 
     @staticmethod
     def printDirs(path='.', maxLevel=-1):
-        def _getDirs(result, parentPath, level, maxLevel):
+        def _getDirsJson(result, parentPath, level, maxLevel):
             fileList = os.listdir(parentPath)
             parentAbsPath = "%s" % (os.path.abspath(parentPath))
 
@@ -38390,6 +38842,8 @@ Copyright:
 
             # print progress #
             UtilMgr.printProgress()
+
+            blockSize = SysMgr.pageSize
 
             # sort by size #
             if SysMgr.showAll:
@@ -38412,6 +38866,7 @@ Copyright:
 
                 if os.path.isdir(fullPath):
                     totalDir += 1
+                    totalSize += blockSize
 
                     if SysMgr.showAll:
                         info = dict(subDirs=dict(), subFiles=dict())
@@ -38420,7 +38875,7 @@ Copyright:
 
                     result[parentAbsPath]['subDirs'][subAbsPath] = info
                     totalInfo = \
-                        _getDirs(result[parentAbsPath]['subDirs'],
+                        _getDirsJson(result[parentAbsPath]['subDirs'],
                             fullPath, level + 1, maxLevel)
 
                     totalSize += totalInfo[0]
@@ -38435,12 +38890,15 @@ Copyright:
 
                     totalFile += 1
                     size = os.stat(fullPath).st_size
-                    totalSize += size
+                    if size < blockSize:
+                        totalSize += blockSize
+                    else:
+                        totalSize += size
 
                     if not SysMgr.showAll:
                         continue
 
-                    # size #
+                    # check size #
                     if not _isValidSize(condop, condval, size):
                         continue
 
@@ -38482,7 +38940,7 @@ Copyright:
             else:
                 return True
 
-        def _recurse(parentPath, fileList, prefix, result, level, maxLevel):
+        def _getDirs(parentPath, fileList, prefix, result, level, maxLevel):
             totalSize = long(0)
             totalFile = long(0)
             totalDir = long(0)
@@ -38496,6 +38954,7 @@ Copyright:
 
             convSize = UtilMgr.convSize2Unit
             convColor = UtilMgr.convColor
+            blockSize = SysMgr.pageSize
 
             # sort by size #
             if SysMgr.showAll:
@@ -38522,22 +38981,23 @@ Copyright:
                 # check dir #
                 if os.path.isdir(fullPath):
                     totalDir += 1
-                    isEffective = False
+                    totalSize += blockSize
+                    isTarget = False
 
                     # apply filter #
                     if SysMgr.filterGroup:
                         if UtilMgr.isValidStr(subPath, inc=False):
-                            isEffective = True
+                            isTarget = True
                             SysMgr.printPipe(
                                 '[%s]' % convColor(fullPath, 'GREEN'))
                     else:
-                        isEffective = True
+                        isTarget = True
                         string = "%s%s[%s]" % \
                             (prefix, idc, convColor(subPath, 'GREEN'))
                         result.append(string)
 
                     # apply command #
-                    if isEffective and SysMgr.customCmd:
+                    if isTarget and SysMgr.customCmd:
                         _executeCmd(fullPath)
 
                     # update prefix #
@@ -38555,13 +39015,14 @@ Copyright:
                         continue
 
                     # traverse subdirs #
-                    rlist = _recurse(
+                    rlist = _getDirs(
                         fullPath, subdirs, tmpPrefix,
                             result, level + 1, maxLevel)
 
+                    # add to stat #
                     totalSize += rlist[0]
                     totalFile += rlist[2]
-                    if isEffective:
+                    if isTarget:
                         totalDir += rlist[1]
                 # check file #
                 elif os.path.isfile(fullPath):
@@ -38577,16 +39038,28 @@ Copyright:
                         try:
                             size = os.stat(fullPath).st_size
                             totalSize += size
-                            sizeStr = convSize(size)
-                            sizeStr = ' <%s>' % convColor(sizeStr, 'CYAN')
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            sizeStr = ''
+                            SysMgr.printWarn(
+                                "fail to get size for '%s'" % fullPath,
+                                reason=True)
+                            continue
 
                         # size #
                         if not _isValidSize(condop, condval, size):
                             continue
+
+                        # convert size to string #
+                        try:
+                            if size >= 1<<30: color = 'RED'
+                            else: color = 'CYAN'
+                            sizeStr = convSize(size)
+                            sizeStr = ' <%s>' % convColor(sizeStr, color)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            sizeStr = ''
 
                         string = '%s%s' % (fullPath, sizeStr)
                         SysMgr.printPipe(string)
@@ -38601,20 +39074,23 @@ Copyright:
                     try:
                         if not size:
                             size = os.stat(fullPath).st_size
-                            totalSize += size
-                            sizeStr = convSize(size)
-                            sizeStr = ' <%s>' % convColor(sizeStr, 'CYAN')
+                            if size < blockSize:
+                                totalSize += blockSize
+                            else:
+                                totalSize += size
                     except SystemExit:
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(
-                            'fail to get size of %s' % fullPath, reason=True)
-                        sizeStr = ''
+                            "fail to get size for '%s'" % fullPath,
+                            reason=True)
+                        continue
 
+                    # check skip condition #
                     if not SysMgr.showAll or SysMgr.filterGroup:
                         continue
 
-                    # size #
+                    # check size #
                     if not _isValidSize(condop, condval, size):
                         continue
 
@@ -38622,13 +39098,26 @@ Copyright:
                     if SysMgr.customCmd:
                         _executeCmd(fullPath)
 
+                    # convert size to string #
+                    try:
+                        if size >= 1<<30: color = 'RED'
+                        else: color = 'CYAN'
+                        sizeStr = convSize(size)
+                        sizeStr = ' <%s>' % convColor(sizeStr, color)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        sizeStr = ''
+
                     string = "%s%s%s%s" % (prefix, idc, subPath, sizeStr)
                     result.append(string)
 
             # convert total size #
             if totalSize:
+                if totalSize >= 1<<30: color = 'RED'
+                else: color = 'CYAN'
                 tsize = 'SIZE: %s, ' % \
-                        convColor(convSize(totalSize), 'CYAN')
+                    convColor(convSize(totalSize), color)
             else:
                 tsize = ''
 
@@ -38643,7 +39132,7 @@ Copyright:
                 tprefix = '%s-[%s]' % \
                           (prefix[:-2], os.path.basename(parentPath))
                 for i, val in enumerate(reversed(result)):
-                    if not val.startswith(tprefix):
+                    if not UtilMgr.removeColor(val).startswith(tprefix):
                         continue
                     result[-(i)-1] += summary
                     break
@@ -38705,7 +39194,7 @@ Copyright:
             else:
                 result[abspath] = dict(subDirs=dict())
 
-            _getDirs(result, path, 0, -1)
+            _getDirsJson(result, path, 0, -1)
             jsonResult = UtilMgr.convDict2Str(result)
             UtilMgr.deleteProgress()
             SysMgr.printPipe(jsonResult)
@@ -38722,7 +39211,7 @@ Copyright:
             abspath = "[%s]" % (abspath)
             result = [abspath]
 
-            _recurse(path, initDir, "  ", result, 0, maxLevel)
+            _getDirs(path, initDir, "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
             UtilMgr.deleteProgress()
             SysMgr.printPipe(output)
@@ -38866,8 +39355,14 @@ Copyright:
         # check tail flag #
         if 'TAIL' in SysMgr.environList:
             tail = True
+            try:
+                nrLast = long(SysMgr.environList['TAIL'][0])
+            except:
+                nrLast = 100
+            SysMgr.printStreamEnable = True
         else:
             tail = False
+            nrLast = 0
 
         # print files #
         for path in inputArg:
@@ -38910,16 +39405,14 @@ Copyright:
                     # watch the file #
                     SysMgr.inotify(pathList, flags)
                     try:
+                        # reopen the file #
+                        fd.close()
+                        fd = open(path, 'r')
                         size = os.stat(path).st_size
-                        if size == pos:
-                            continue
-                        else:
-                            fd.close()
-                            fd = open(path, 'r')
-                            if size < pos:
-                                fd.seek(size-32, 0)
-                            else:
-                                fd.seek(pos, 0)
+                        newPos = size-nrLast
+                        if newPos < 0:
+                            newPos = 0
+                        fd.seek(newPos, 0)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -38946,6 +39439,12 @@ Copyright:
 
                     # print line #
                     SysMgr.printPipe(line)
+
+                if tail:
+                    # print a line #
+                    SysMgr.printPipe(oneLine)
+                else:
+                    break
 
 
 
@@ -41106,6 +41605,10 @@ Copyright:
 
                 sys.exit(0)
 
+            # kill subprocess group #
+            SysMgr.killSubprocessGroup(procObj)
+
+            # get duration time #
             duration = time.time() - startTime
 
             SysMgr.printInfo(
@@ -41834,8 +42337,9 @@ Copyright:
 
 
     @staticmethod
-    def doPstree(targets):
-        SysMgr.printLogo(big=True, onlyFile=True)
+    def doPstree(targets, title=True, printFunc=None):
+        if title:
+            SysMgr.printLogo(big=True, onlyFile=True)
 
         obj = TaskAnalyzer(onlyInstance=True)
 
@@ -41844,7 +42348,8 @@ Copyright:
         else:
             obj.saveSystemStatGen()
 
-        TaskAnalyzer.printProcTree(obj.procData, title=True, targets=targets)
+        TaskAnalyzer.printProcTree(
+            obj.procData, title=title, printFunc=printFunc, targets=targets)
 
 
 
@@ -41902,6 +42407,7 @@ Copyright:
 
         # open output file #
         outfd = compressor.open(outfile, 'wb')
+        os.chmod(outfile, 0o777)
 
         SysMgr.printInfo(
             "start compressing %s[%s] to %s" % \
@@ -41986,6 +42492,7 @@ Copyright:
 
         # open output file #
         outfd = open(outfile, 'wb')
+        os.chmod(outfile, 0o777)
 
         SysMgr.printInfo(
             "start decompressing %s[%s] to %s" % \
@@ -43036,10 +43543,11 @@ Copyright:
             if ret < 0:
                 raise Exception('error return')
 
-            SysMgr.printInfo((
-                'changed the I/O scheduling priority '
-                'for %s(%s) to %s(%s)[%s]') % \
-                    (comm, pid, nmClass, pri, nmWho))
+            if verb:
+                SysMgr.printInfo((
+                    'changed the I/O scheduling priority '
+                    'for %s(%s) to %s(%s)[%s]') % \
+                        (comm, pid, nmClass, pri, nmWho))
         except SystemExit:
             sys.exit(0)
         except:
@@ -43281,6 +43789,8 @@ Copyright:
                 SysMgr.encodeEnable = False
 
             return
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -43293,6 +43803,8 @@ Copyright:
             pd = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
             SysMgr.ttyRows, SysMgr.ttyCols = \
                 list(map(long, pd.stdout.readline().split()))
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(
                 "fail to get terminal info", reason=True)
@@ -43348,6 +43860,7 @@ Copyright:
     def saveSysStats():
         if not SysMgr.sysInstance:
             SysMgr()
+
         if SysMgr.sysInstance:
             SysMgr.sysInstance.saveSysStat()
 
@@ -43703,6 +44216,7 @@ Copyright:
         try:
             # use os.O_DIRECT | os.O_RDWR | os.O_TRUNC | os.O_CREAT #
             fd = open(filePath, 'w')
+            os.chmod(filePath, 0o777)
         except:
             SysMgr.printOpenErr(filePath)
             sys.exit(0)
@@ -43751,6 +44265,7 @@ Copyright:
                         fd.writelines(SysMgr.systemInfoBuffer)
                         fd.writelines(SysMgr.magicStr + '\n')
                         fd.writelines(rbuf)
+                    os.chmod(path, 0o777)
 
                 SysMgr.printInfo(
                     "wrote data to '%s' [%s] successfully" % \
@@ -45007,7 +45522,42 @@ Copyright:
         except:
             pass
 
-        # os #
+        # IP #
+        try:
+            ip = NetworkMgr.getPublicIp()
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
+                format('IP', ip))
+
+            if SysMgr.jsonEnable:
+                jsonData['ip'] = ip
+        except:
+            pass
+
+        # MAC #
+        try:
+            if not self.macAddr:
+                raise Exception('no MAC')
+
+            macStr = '%s_%s' % (self.macAddr[0], self.macAddr[1])
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<10}".format('Mac', macStr))
+
+            if SysMgr.jsonEnable:
+                jsonData['mac'] = macStr
+        except:
+            pass
+
+        # CPU #
+        try:
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
+                format('Arch', SysMgr.arch))
+
+            if SysMgr.jsonEnable:
+                jsonData['arch'] = SysMgr.arch
+        except:
+            pass
+
+        # OS #
         try:
             osInfo = self.uname[0]
             SysMgr.infoBufferPrint("{0:20} {1:<1}".\
@@ -45040,17 +45590,19 @@ Copyright:
         except:
             pass
 
-        # CPU architecture #
+        # user #
         try:
-            SysMgr.infoBufferPrint("{0:20} {1:<1}".\
-                format('Arch', SysMgr.arch))
+            uid = str(SysMgr.getUid('self'))
+
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format('User', self.userData[uid]['name']))
 
             if SysMgr.jsonEnable:
-                jsonData['arch'] = SysMgr.arch
+                jsonData['user'] = self.userData[uid]['name']
         except:
             pass
 
-        # time #
+        # datetime #
         try:
             timeInfo = '%s %s' % \
                 (self.systemInfo['date'], self.systemInfo['time'])
@@ -45063,19 +45615,7 @@ Copyright:
         except:
             pass
 
-        # user name #
-        try:
-            uid = str(SysMgr.getUid('self'))
-
-            SysMgr.infoBufferPrint(
-                "{0:20} {1:<1}".format('User', self.userData[uid]['name']))
-
-            if SysMgr.jsonEnable:
-                jsonData['user'] = self.userData[uid]['name']
-        except:
-            pass
-
-        # system uptime #
+        # uptime #
         try:
             uptime = UtilMgr.convTime(SysMgr.uptime)
             uptimeSec = UtilMgr.convNum(SysMgr.uptime)
@@ -45088,7 +45628,7 @@ Copyright:
         except:
             pass
 
-        # Guider runtime #
+        # runtime #
         try:
             runtime = SysMgr.getRuntime(sec=True)
             runtimeSec = UtilMgr.convNum(runtime)
@@ -45102,7 +45642,7 @@ Copyright:
         except:
             pass
 
-        # python overhead #
+        # init overhead for python #
         try:
             if SysMgr.startOverheadTime == 0:
                 overhead = SysMgr.startInitTime - SysMgr.startRunTime
@@ -45110,10 +45650,10 @@ Copyright:
                 overhead = SysMgr.startOverheadTime
             overhead = '%.3f sec' % overhead
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<1}".format('Overhead(Py)', overhead))
+                "{0:20} {1:<1}".format('InitOverhead', overhead))
 
             if SysMgr.jsonEnable:
-                jsonData['pyOverhead'] = overhead
+                jsonData['initOverhead'] = overhead
         except:
             pass
 
@@ -45123,14 +45663,14 @@ Copyright:
                 overhead = '%.3f sec' % \
                     (SysMgr.startRecTime - SysMgr.startInitTime)
                 SysMgr.infoBufferPrint(
-                    "{0:20} {1:<1}".format('Overhead(Rec)', overhead))
+                    "{0:20} {1:<1}".format('RecOverhead', overhead))
 
                 if SysMgr.jsonEnable:
                     jsonData['recOverhead'] = overhead
         except:
             pass
 
-        # system load #
+        # load #
         try:
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load',
@@ -45186,20 +45726,6 @@ Copyright:
             if SysMgr.jsonEnable:
                 jsonData['nrCurOpenFile'] = self.openFileData['cur']
                 jsonData['nrMaxOpenFile'] = self.openFileData['max']
-        except:
-            pass
-
-        # MAC #
-        try:
-            if self.macAddr is None:
-                raise Exception('no MAC address')
-
-            macStr = '%s_%s' % (self.macAddr[0], self.macAddr[1])
-            SysMgr.infoBufferPrint(
-                "{0:20} {1:<10}".format('Mac', macStr))
-
-            if SysMgr.jsonEnable:
-                jsonData['mac'] = macStr
         except:
             pass
 
@@ -45664,6 +46190,8 @@ Copyright:
         # mac address #
         try:
             self.macAddr = NetworkMgr.getMainMacAddr()
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -45705,7 +46233,12 @@ Copyright:
             addrList = psutil.net_if_addrs()
             for dev, addrItems in addrList.items():
                 for item in addrItems:
-                    if not item or not item[0] or not str(item[0]).endswith('AF_INET'):
+                    if not item or not item[0]:
+                        continue
+                    elif len(addrItems) > 1 and \
+                        not 'AF_INET' in str(item[0]):
+                        continue
+                    elif dev in devList:
                         continue
 
                     # update ip address #
@@ -45727,7 +46260,8 @@ Copyright:
                 if not dev in self.networkInfo:
                     continue
 
-                tsize, rsize, tpacket, rpacket, rerr, terr, rdrop, tdrop = value
+                tsize, rsize, tpacket, rpacket, \
+                    rerr, terr, rdrop, tdrop = value
 
                 # update recv #
                 if 'recv' in self.networkInfo[dev]:
@@ -46024,7 +46558,9 @@ Copyright:
                     # change previous map info #
                     prevValue = mapTable[node]
                     mapTable.pop(node, None)
-                    path = node = '/dev/%s' % line.split()[-1]
+                    path = '/dev/%s' % line.split()[-1]
+                    mapTable[node] = path
+                    path = node
 
                     # update new physical path #
                     while 1:
@@ -46035,6 +46571,8 @@ Copyright:
                                 path = mapTable[path]
                         except:
                             break
+                else:
+                    continue
             # Windows #
             else:
                 line = line.strip()
@@ -50845,7 +51383,7 @@ class DltAnalyzer(object):
             if SysMgr.remoteServObj:
                 servIp = SysMgr.remoteServObj.ip
                 port = long(SysMgr.remoteServObj.port)
-                if port == SysMgr.defaultPort:
+                if port == SysMgr.defaultServPort:
                     servPort = 3490
                 else:
                     servPort = port
@@ -52032,6 +52570,7 @@ typedef struct {
 
             Debugger.gLockPath = '%s/guider_%s.lock' % (dirpath, name)
             Debugger.gLockObj = open(Debugger.gLockPath, 'w')
+            os.chmod(Debugger.gLockPath, 0o777)
 
             if size != 0:
                 Debugger.gLockObj.truncate(size)
@@ -61596,6 +62135,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # open output file #
         try:
             fd = open(output, 'wb')
+            os.chmod(output, 0o777)
         except:
             SysMgr.printOpenErr(output)
             return 0
@@ -65258,8 +65798,7 @@ class ElfAnalyzer(object):
 
         if fd is None:
             # check debug file #
-            filename = os.path.basename(path)
-            dirname = os.path.dirname(path)
+            dirname, filename = UtilMgr.getPath(path)
             debugPath = '%s/.debug/%s' % (dirname, filename)
             if not os.path.isfile(debugPath):
                 debugPath = '/usr/lib/debug%s' % path
@@ -68556,9 +69095,6 @@ class TaskAnalyzer(object):
             if SysMgr.bufferSize < 0:
                 # default unlimited #
                 SysMgr.bufferSize = long(0)
-            else:
-                # change unit from KB to Byte #
-                SysMgr.bufferSize = long(SysMgr.bufferSize) << 10
 
             if SysMgr.outPath:
                 SysMgr.printStat(
@@ -78424,6 +78960,17 @@ class TaskAnalyzer(object):
             stars = '*' * long((long(SysMgr.lineLength) - len(title)) / 2)
             SysMgr.printPipe('\n\n\n\n%s%s%s\n\n' % (stars, title, stars))
 
+        # check skip condition #
+        try:
+            if SysMgr.printFd:
+                if SysMgr.printFd.name == SysMgr.nullPath or \
+                    SysMgr.outPath == 'NUL':
+                    return
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
         if SysMgr.fileTopEnable:
             TaskAnalyzer.printFileTable()
         elif SysMgr.jsonEnable or \
@@ -78656,11 +79203,20 @@ class TaskAnalyzer(object):
         else:
             target = 'Thread'
 
+        # get network info #
+        try:
+            netinfo = ' [%s/%s]' % \
+                (NetworkMgr.getHostName(), NetworkMgr.getPublicIp())
+        except SystemExit:
+            sys.exit(0)
+        except:
+            netinfo = ''
+
         # print title #
         printFunc((
-            "\n[%s Tree Info] [Runtime: %s]\n%s\n"
-            "  %-22s %4s(%8s/%11s) <%s>\n%s") % \
-                (target, UtilMgr.convTime(SysMgr.uptime),
+            "\n[%s Tree Info] [Runtime: %s]%s\n%s\n"
+            "  %-25s %4s(%8s/%11s) <%s>\n%s") % \
+                (target, UtilMgr.convTime(SysMgr.uptime), netinfo,
                     twoLine, 'Name(ID)', 'Per', 'CPUTIME',
                     'RUNTIME', 'SUB', oneLine))
 
@@ -78782,7 +79338,7 @@ class TaskAnalyzer(object):
         finalstr = _printTreeNodes(procTree, 0, targets, enable)
 
         # print tree #
-        printFunc(finalstr.strip('\n'))
+        printFunc('%s\n%s' % (finalstr.strip('\n'), oneLine))
 
 
 
@@ -80876,8 +81432,9 @@ class TaskAnalyzer(object):
                     # check recursive entry caused by log loss #
                     if td['ftxEnter'] > 0:
                         SysMgr.printWarn((
-                            "fail to find return of %s for thread %s at %s line\n"\
-                            "\tso report results may differ from actual") % \
+                            "fail to find return of %s for thread %s "
+                            "at %s line\n\tso report the results "
+                            "may differ from actual") % \
                             (td['ftxEnt'], thread, SysMgr.curLine))
 
                     # futex operation #
@@ -82589,18 +83146,21 @@ class TaskAnalyzer(object):
         # print process info #
         procCnt = long(0)
         for idx, value in sortedProcData:
+            # linux #
             if SysMgr.isLinux:
                 stat = value['stat']
                 comm = stat[self.commIdx][1:-1]
                 pid = stat[self.ppidIdx]
                 nrThread = stat[self.nrthreadIdx]
 
+                # get sched info #
                 if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
                     schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
                 else:
                     schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
                 schedPolicy = ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])]
                 sched = schedPolicy + schedValue
+            # other OS #
             else:
                 comm = value['comm']
                 pid = value['ppid']
@@ -82612,6 +83172,7 @@ class TaskAnalyzer(object):
 
             procInfoLen = len(procInfo)
 
+            # summary info #
             if 'fdInfo' in value:
                 details = '   '.join(["%s: %s" % (fd,path) for fd, path in \
                     sorted(value['fdInfo'].items(),
@@ -82627,6 +83188,7 @@ class TaskAnalyzer(object):
             procInfo = "%s|%s\n" % \
                 (procInfo, '{0:>6}| {1:<100}|'.format(nrFd, details))
 
+            # print only per-process summary #
             fdCnt = long(0)
             if SysMgr.sort == 'f':
                 if procInfo != '':
@@ -82640,6 +83202,7 @@ class TaskAnalyzer(object):
 
                 continue
 
+            # print fd info #
             for fd, path in sorted(value['fdList'].items(),
                 key=lambda e: long(e[0]), reverse=True):
                 # get additional info #
@@ -82673,6 +83236,19 @@ class TaskAnalyzer(object):
                 if procInfo != '':
                     ret = SysMgr.addPrint(procInfo)
                     procInfo = ''
+
+                    # save cmdline #
+                    if SysMgr.isLinux:
+                        # save cmdline #
+                        self.saveCmdlineData(None, idx)
+
+                    # print cmdline #
+                    if 'cmdline' in value:
+                        # print stat #
+                        SysMgr.addPrint(
+                            ("{0:>1}|{1:>6}| {2:<100}|\n").format(
+                            ' ' * procInfoLen, 'CMD', value['cmdline']))
+
                     if not ret:
                         break
 
@@ -84148,6 +84724,9 @@ class TaskAnalyzer(object):
         if not SysMgr.cmdlineEnable:
             return
 
+        if 'cmdline' in self.procData[tid]:
+            return self.procData[tid]['cmdline']
+
         if not path:
             path = '%s/%s' % (SysMgr.procPath, tid)
 
@@ -84234,6 +84813,7 @@ class TaskAnalyzer(object):
 
         # PID/status #
         stat = 'status'
+        # no memory and context switch stats for kernel threads in process mode #
         if SysMgr.processEnable and self.isKernelThread(tid):
             pass
         elif not self.procData[tid][stat]:
@@ -84321,9 +84901,10 @@ class TaskAnalyzer(object):
         try:
             if tid in self.prevProcData and \
                 'statFd' in self.prevProcData[tid] and \
-                self.prevProcData[tid]['statFd'] is not None:
-                os.lseek(self.prevProcData[tid]['statFd'], 0, 0)
-                self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
+                self.prevProcData[tid]['statFd']:
+                prevFd = self.prevProcData[tid]['statFd']
+                os.lseek(prevFd, 0, 0)
+                self.procData[tid]['statFd'] = prevFd
                 statBuf = os.read(self.procData[tid]['statFd'], 1024)
                 self.prevProcData[tid]['alive'] = True
             else:
@@ -85563,7 +86144,7 @@ class TaskAnalyzer(object):
                 try:
                     # get real length without ansi for core stat #
                     if lenCoreStat == 0:
-                        lenCoreStat = UtilMgr.getRealLen(coreStat)
+                        lenCoreStat = len(UtilMgr.removeColor(coreStat))
 
                     # use short core stats for many-core system #
                     if not SysMgr.barGraphEnable and SysMgr.nrCore > 8:
@@ -85687,14 +86268,14 @@ class TaskAnalyzer(object):
         '''
         self.reportData = dict()
 
-        # timestamp #
+        # utctime #
         self.reportData['timestamp'] = SysMgr.uptime
         datetime = SysMgr.getPkg('datetime', False)
         if datetime:
             self.reportData['utctime'] = \
                 datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        # check uname #
+        # system info #
         if not SysMgr.sysInstance.uname:
             SysMgr.sysInstance.saveUnameInfo()
         if SysMgr.sysInstance.uname:
@@ -85816,10 +86397,15 @@ class TaskAnalyzer(object):
             'outbound': netOut
             }
 
+        # MAC #
+        if not SysMgr.sysInstance.macAddr:
+            SysMgr.sysInstance.saveMacAddr()
         if SysMgr.sysInstance.macAddr:
             macAddr = SysMgr.sysInstance.macAddr
             macStr = '%s_%s' % (macAddr[0], macAddr[1])
-            self.reportData['net']['repmac'] = macStr
+            self.reportData['net']['macip'] = macStr
+            self.reportData['net']['mac'] = macAddr[0]
+            self.reportData['net']['ip'] = macAddr[1]
 
         if SysMgr.networkEnable:
             SysMgr.sysInstance.updateNetworkInfo()
@@ -85931,6 +86517,7 @@ class TaskAnalyzer(object):
         else:
             self.reportData['storage'] = dict()
 
+        # apply report data to global data #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.update(self.reportData)
 
@@ -86609,7 +87196,7 @@ class TaskAnalyzer(object):
                     "{0:>16} | {1:>21} | "
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(
-                        dev[-16:], val['ipaddr'],
+                        dev[-16:], val['ipaddr'][:21],
                         recvSize, convertFunc(rdiff[1]), recvErr,
                         convertFunc(rdiff[3]), convertFunc(rdiff[-1]),
                         tranSize, convertFunc(tdiff[1]), tranErr,
@@ -88674,6 +89261,84 @@ class TaskAnalyzer(object):
 
 
 
+    def handleSaveCommand(self, cmd, event):
+        SysMgr.printInfo((
+            'save the previous monitoring results '
+            'by %s command for %s event') % \
+                (cmd, event))
+
+        if SysMgr.isLinux:
+            # create a new process #
+            pid = SysMgr.createProcess()
+            if pid > 0:
+                return True
+
+            # change priority #
+            SysMgr.setPriority(SysMgr.pid, 'C', 15, verb=False)
+            SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE', verb=False)
+
+            # clear threshold condition #
+            SysMgr.thresholdData = {}
+        else:
+            # close fd for output #
+            try:
+                SysMgr.printFd.close()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+            finally:
+                SysMgr.printFd = None
+
+        # change output path #
+        if SysMgr.outPath == SysMgr.nullPath:
+            SysMgr.outPath = '%s/guider_%s_%s_%s.out' % \
+                (SysMgr.tmpPath, event, cmd, long(SysMgr.uptime))
+
+        # change output path #
+        if SysMgr.isLinux:
+            # convert timer #
+            try:
+                timeunit = cmd.strip('SAVE_')
+                sec = UtilMgr.convUnit2Time(timeunit)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                sec = timeunit
+
+            # immediate #
+            if sec == timeunit:
+                os.kill(SysMgr.pid, signal.SIGINT)
+            # later #
+            else:
+                # close all shared file descriptors #
+                self.reclaimFds(sys.maxsize)
+
+                # set timer #
+                signal.signal(signal.SIGALRM, SysMgr.stopHandler)
+                signal.alarm(sec)
+
+            return False
+        else:
+            # immediate #
+            try:
+                SysMgr.termFlag = False
+                SysMgr.stopHandler()
+            except:
+                pass
+            finally:
+                SysMgr.termFlag = True
+
+            # recover output path #
+            if SysMgr.isWindows:
+                SysMgr.outPath = 'NUL'
+            else:
+                SysMgr.outPath = SysMgr.nullPath
+
+            return True
+
+
+
     def executeEventCommand(self, eventList):
         if not eventList:
             return
@@ -88697,7 +89362,15 @@ class TaskAnalyzer(object):
                 continue
 
             for cmd in value['command']:
-                if 'COMMAND' in SysMgr.thresholdData and \
+                # handle save command #
+                if cmd.startswith('SAVE'):
+                    ret = self.handleSaveCommand(cmd, event)
+                    # parent #
+                    if ret: continue
+                    # child #
+                    else: return
+                # convert command name to full command #
+                elif 'COMMAND' in SysMgr.thresholdData and \
                     cmd in SysMgr.thresholdData['COMMAND']:
                     cmd = SysMgr.thresholdData['COMMAND'][cmd]
 
@@ -88745,7 +89418,9 @@ class TaskAnalyzer(object):
 
 
     def handleThresholdEvents(self):
-        if not SysMgr.thresholdEventList and \
+        if not SysMgr.thresholdHandleEnable:
+            return
+        elif not SysMgr.thresholdEventList and \
             not self.reportData['event']:
             return
 
@@ -88991,7 +89666,8 @@ class TaskAnalyzer(object):
             if comval['interval'] > len(intval):
                 return
 
-            average = sum(intval)/len(intval)
+            intval = intval[-comval['interval']:]
+            average = sum(intval) / len(intval)
             if (comp == 'big' and comval[item] <= average) or \
                 (comp == 'less' and comval[item] >= average):
                 value = average
@@ -89377,7 +90053,7 @@ class TaskAnalyzer(object):
                     fsize = ''
 
                 SysMgr.printStat((
-                    "saved results based monitoring into "
+                    "saved the results based monitoring into "
                     "'%s'%s successfully") % \
                     (filePath, fsize))
             except SystemExit:
@@ -89387,15 +90063,17 @@ class TaskAnalyzer(object):
                     "fail to rename %s to %s" % \
                     SysMgr.inputFile, filePath)
 
-        # convert dict data to JSON-type string #
-        jsonObj = UtilMgr.convDict2Str(self.reportData, ignore=True)
-        if not jsonObj:
+        # convert dict data to JSON string #
+        pretty = not SysMgr.printStreamEnable
+        jsonStr = UtilMgr.convDict2Str(
+            self.reportData, pretty=pretty, ignore=True)
+        if not jsonStr:
             SysMgr.printWarn(
-                "fail to convert report data to JSON type")
+                "fail to convert report data to JSON format")
             return
 
         # transfer data to file or socket #
-        self.tranData(jsonObj)
+        self.tranData(jsonStr)
 
 
 
