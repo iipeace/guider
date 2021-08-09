@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210808"
+__revision__ = "210809"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -41754,7 +41754,7 @@ Copyright:
                     signal.pause()
                 else:
                     before = time.time()
-                    sorted([random.random() for i in range(1<<20)])
+                    sorted([long(random.random()) for i in range(1<<20)])
                     elapsed = time.time() - before
                     SysMgr.printWarn(
                         "%sth %s(%s) took %.6f seconds to finish one job" % \
