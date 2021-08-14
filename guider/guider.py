@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210809"
+__revision__ = "210814"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5855,6 +5855,20 @@ function format_percent(n) {
 class NetworkMgr(object):
     """ Manager for remote communication """
 
+    # define valid request list #
+    REQUEST_LIST = {
+        'DOWNLOAD': None,
+        'UPLOAD': None,
+        'RUN': None,
+        'BROADCAST': None,
+        'NEW': None,
+        'PING': None,
+        'LIST': None,
+        'CLEAR': None,
+        'JOBS': None,
+        'RESTART': None,
+    }
+
     def __init__(
         self, mode, ip, port, blocking=True, tcp=False,
         anyPort=False, bind=True, netlink=False, reuse=True):
@@ -6240,11 +6254,9 @@ class NetworkMgr(object):
         if addr is None:
             addr = (self.ip, self.port)
 
-        ret = self.socket.connect(addr)
+        self.socket.connect(addr)
 
         self.connected = True
-
-        return ret
 
 
 
@@ -6692,23 +6704,9 @@ class NetworkMgr(object):
         if not cmd:
             return None
 
-        # define valid request list #
-        requestList = {
-            'DOWNLOAD': None,
-            'UPLOAD': None,
-            'RUN': None,
-            'BROADCAST': None,
-            'NEW': None,
-            'PING': None,
-            'LIST': None,
-            'CLEAR': None,
-            'JOBS': None,
-            'RESTART': None,
-        }
-
         # add command prefix #
-        reqList = cmd.upper().split(':')
-        if reqList[0] in requestList:
+        reqCmd = cmd.split(':', 1)[0].upper()
+        if reqCmd in NetworkMgr.REQUEST_LIST:
             pass
         elif not cmd.startswith('run:'):
             cmd = 'run:%s' % cmd
@@ -6897,7 +6895,7 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def setRemoteServer(value, tcp=False):
+    def setRemoteServer(value, tcp=False, verb=True):
         # receive mode #
         if not value:
             SysMgr.remoteServObj = 'NONE'
@@ -6953,8 +6951,10 @@ class NetworkMgr(object):
         else:
             proto = 'UDP'
 
-        SysMgr.printInfo(
-            "use %s:%d(%s) as remote address" % (ip, port, proto))
+        if verb:
+            SysMgr.printInfo(
+                "use %s:%d(%s) as remote address" % \
+                    (ip, port, proto))
 
         return SysMgr.remoteServObj
 
@@ -19146,6 +19146,77 @@ Commands:
 
 
     @staticmethod
+    def execSshCmd(cmd, addr, port=22, passwd=None):
+        # get subprocess object #
+        subprocess = SysMgr.getPkg('subprocess')
+
+        # get environment variables #
+        env = SysMgr.getEnvList()
+
+        cmdList = []
+
+        if passwd:
+            # get sshpass path #
+            sshpassPath = UtilMgr.which('sshpass')
+            if not sshpassPath:
+                SysMgr.printErr('fail to get sshpass path')
+                sys.exit(0)
+            sshpassPath = sshpassPath[0]
+
+            # add sshpass command #
+            cmdList += [sshpassPath, '-p', passwd]
+
+        # get ssh path #
+        sshPath = UtilMgr.which('ssh')
+        if not sshPath:
+            SysMgr.printErr('fail to get ssh path')
+            sys.exit(0)
+        sshPath = sshPath[0]
+
+        # add ssh command #
+        cmdList += [sshPath, '-p', str(port), addr, cmd]
+
+        # save start time #
+        startTime = time.time()
+
+        # create process to communicate #
+        procObj = subprocess.Popen(
+            cmdList, stdout=subprocess.PIPE, stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE, universal_newlines=True,
+            bufsize=0, env=env)
+
+        # run mainloop #
+        try:
+            select = SysMgr.getPkg('select')
+            while 1:
+                res = select.select(
+                    [procObj.stdout, procObj.stderr], [], [], 1)
+                if not res[0]:
+                    continue
+                for item in res[0]:
+                    val = item.read()
+                    if val:
+                        print(val)
+                    else:
+                        raise Exception()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+        finally:
+            duration = time.time() - startTime
+
+        # kill subprocess group #
+        SysMgr.killSubprocessGroup(procObj)
+
+        SysMgr.printInfo(
+            "elapsed %.6f for '%s'" % (duration, cmd))
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def execTopCmd():
         # check background processes #
         if not 'FASTINIT' in SysMgr.environList:
@@ -26642,7 +26713,7 @@ Examples:
                 elif SysMgr.checkMode('cli'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} <COMMAND> [OPTIONS] [--help]
 
 Description:
     Execute remote command
@@ -26662,56 +26733,58 @@ Examples:
         # {0:1} {1:1}
 
     - Download a.out from the server to ./a.out
-        # {0:1} {1:1} -c d:a.out@./a.out
-        # {0:1} {1:1} -c download:a.out@./a.out
-        # {0:1} {1:1} -c download:a.out
+        # {0:1} {1:1} "d:a.out@./a.out"
+        # {0:1} {1:1} "download:a.out@./a.out"
+        # {0:1} {1:1} "download:a.out"
 
     - Download all files in test directory from the server to backup directory
-        # {0:1} {1:1} -c "download:test/*@backup/"
+        # {0:1} {1:1} "download:test/*@backup/"
 
     - Download TEST* from the server to ./
-        # {0:1} {1:1} -c "d:TEST*"
+        # {0:1} {1:1} "d:TEST*"
 
     - Upload ./a.out to a.out in the server
-        # {0:1} {1:1} -c u:./a.out@a.out
-        # {0:1} {1:1} -c upload:./a.out@a.out
-        # {0:1} {1:1} -c upload:./a.out
+        # {0:1} {1:1} "u:./a.out@a.out"
+        # {0:1} {1:1} "upload:./a.out@a.out"
+        # {0:1} {1:1} "upload:./a.out"
 
     - Ping to the server
-        # {0:1} {1:1} -c "p"
-        # {0:1} {1:1} -c "ping"
+        # {0:1} {1:1} p
+        # {0:1} {1:1} "ping"
 
     - Print node list registered in the server
-        # {0:1} {1:1} -c "l"
-        # {0:1} {1:1} -c "list"
+        # {0:1} {1:1} l
+        # {0:1} {1:1} "list"
 
     - Print all worker processes executed by the server
-        # {0:1} {1:1} -c "j"
-        # {0:1} {1:1} -c "jobs"
+        # {0:1} {1:1} j
+        # {0:1} {1:1} "jobs"
 
     - Terminate all worker processes executed by the server
-        # {0:1} {1:1} -c "c"
-        # {0:1} {1:1} -c "clear"
+        # {0:1} {1:1} c
+        # {0:1} {1:1} "clear"
 
     - Execute remote commands in parallel
-        # {0:1} {1:1} -c "ls -lha", "date"
-        # {0:1} {1:1} -c 192.168.0.100:5050\|"vmstat 1", 192.168.0.101:1234\|"find /"
+        # {0:1} {1:1} "ls -lha", "date"
+        # {0:1} {1:1} "192.168.0.100:5050|vmstat 1, 192.168.0.101:1234|find /"
 
     - Execute remote command by service nodes
-        # {0:1} {1:1} -c "b:ls -lha"
-        # {0:1} {1:1} -c "broadcast:ls -lha"
+        # {0:1} {1:1} "b:ls -lha"
+        # {0:1} {1:1} "broadcast:ls -lha"
+        # {0:1} {1:1} "b:restart"
+        # {0:1} {1:1} "b:download:test/*@backup/""
 
     - Execute a remote command with no timeout
-        # {0:1} {1:1} -c "ls -lha" -q NOTIMEOUT
+        # {0:1} {1:1} "ls -lha" -q NOTIMEOUT
 
     - Execute a remote command with specific timeout
-        # {0:1} {1:1} -c "ls -lha" -q TIMEOUT:1.5
+        # {0:1} {1:1} "ls -lha" -q TIMEOUT:1.5
 
     - Execute a remote command with no output
         # {0:1} {1:1} -q QUIET
 
     - Execute remote Guider commands in fixed-line-output
-        # {0:1} {1:1} -c 192.168.0.100:5050\|"GUIDER top -m 15:", 192.168.0.101:1234\|"GUIDER ttop -m 15:"
+        # {0:1} {1:1} "192.168.0.100:5050|GUIDER top -m 15:, 192.168.0.101:1234|GUIDER ttop -m 15:"
                     '''.format(cmd, mode)
 
                 # default #
@@ -34104,7 +34177,8 @@ Copyright:
                 bgList = SysMgr.bgProcList.split('\n')
                 tempBgList = list(bgList)
                 for idx, line in enumerate(tempBgList):
-                    if not line:
+                    rline = line.lstrip()
+                    if not rline or rline.startswith('('):
                         continue
                     pid = long(line.split()[0])
                     if pid == ppid:
@@ -34118,21 +34192,29 @@ Copyright:
 
 
     @staticmethod
-    def getBgProcCount(cache=False):
-        SysMgr.updateBgProcs(cache)
-        return SysMgr.bgProcList.count('\n')
+    def getBgProcCount(update=True, cache=False):
+        if update:
+            SysMgr.updateBgProcs(cache)
+
+        cnt = 0
+        for line in SysMgr.bgProcList.split('\n'):
+            rline = line.lstrip()
+            if rline and not rline.startswith('('):
+                cnt += 1
+
+        return cnt
 
 
 
     @staticmethod
     def getBgProcString():
-        if not SysMgr.bgProcList or \
-            not SysMgr.bgProcList:
+        if not SysMgr.bgProcList:
             return ''
 
         procList = SysMgr.bgProcList
+        procs = SysMgr.getBgProcCount(update=False)
 
-        bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
+        bgStr = '\n[Running Process] [TOTAL: %s]\n' % procs
         bgStr = '%s%s\n%7s %7s %7s %8s %5s %12s %s\n%s\n' % \
             (bgStr, twoLine, "PID", "PPID", "COMM",
                 "STATE", "RSS", "RUNTIME", "COMMAND", oneLine)
@@ -34781,9 +34863,19 @@ Copyright:
                     'network': network
                 }
             else:
-                printBuf = '%s%7s %7s %7s %8s %5s %12s %s %s\n' % \
-                    (printBuf, pid, ppid, comm,
-                        state, rss, runtime, cmdline, network)
+                status = '%7s %7s %7s %8s %5s %12s' % \
+                    (pid, ppid, comm, state, rss, runtime)
+                indent = len(status) * ' '
+                addline = '%s %s' % (cmdline, network)
+
+                remain = SysMgr.ttyCols - (len(status) + len(addline))
+                if remain < 0:
+                    status = '%s %s\n%s %s' % \
+                        (status, cmdline, indent, network)
+                else:
+                    status = '%s %s' % (status, addline)
+
+                printBuf = '%s%s\n' % (printBuf, status)
 
         # return result #
         if isJson:
@@ -35111,14 +35203,15 @@ Copyright:
                 continue
 
             # ignore signals and wait for child #
-            SysMgr.setIgnoreSignal()
             try:
+                SysMgr.setIgnoreSignal()
                 os.wait()
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
-            SysMgr.setNormalSignal()
+            finally:
+                SysMgr.setNormalSignal()
 
 
 
@@ -36232,8 +36325,13 @@ Copyright:
                 except:
                     pass
 
-        def _onBroadcast(connObj, value, response):
-            cmd = 'run:' + value
+        def _onBroadcast(connObj, value, response, sync=True):
+            # convert command #
+            reqCmd = value.split(':', 1)[0].upper()
+            if reqCmd in NetworkMgr.REQUEST_LIST:
+                cmd = value
+            else:
+                cmd = 'run:' + value
 
             # reply message #
             if nodeList:
@@ -36283,7 +36381,7 @@ Copyright:
                 sys.exit(0)
 
             # wait for termination for remote commands #
-            if pid > 0:
+            if pid > 0 and sync:
                 SysMgr.waitChild()
 
         def _register(connObj):
@@ -36292,24 +36390,25 @@ Copyright:
             rport = SysMgr.remoteServObj.port
             raddr = '%s:%s' % (rip, rport)
             caddr = '%s:%s' % (connObj.ip, connObj.port)
-            cliObj = NetworkMgr.setRemoteServer(raddr, tcp=True)
+            cliObj = None
             errMsg = None
 
             while 1:
                 try:
                     # create a new socket for TCP #
-                    if not cliObj.socket:
-                        cliObj = NetworkMgr.setRemoteServer(raddr, tcp=True)
+                    cliObj = NetworkMgr.setRemoteServer(
+                        raddr, tcp=True, verb=not cliObj)
 
                     SysMgr.printWarn(
                         'try to connect to the agent (%s)' % raddr)
 
                     # connect to the agent #
                     cliObj.connect()
-                    cliObj.connected = True
-                    errMsg = None
                     SysMgr.printInfo(
                         'connected to the agent (%s)' % raddr)
+
+                    # init error message #
+                    errMsg = None
 
                     # get host name #
                     hostname = NetworkMgr.getHostName()
@@ -36343,6 +36442,8 @@ Copyright:
                     # close invalid socket #
                     if cliObj.connected:
                         cliObj.close()
+
+                    cliObj.connected = False
 
                     # retry after 1 second #
                     time.sleep(1)
@@ -36504,8 +36605,8 @@ Copyright:
                         return False
 
                 SysMgr.printInfo(
-                    "received request '%s' from %s:%s" % \
-                    (message, ip, port))
+                    "received the request '%s' from %s:%s" % \
+                        (message, ip, port))
             else:
                 SysMgr.printErr(
                     "received wrong request '%s'" % req)
@@ -36546,7 +36647,6 @@ Copyright:
             elif request == 'NEW':
                 # register a new node #
                 requestList[request](connObj, value, None)
-
                 if not initCmds:
                     return False
             elif request == 'CLEAR':
@@ -36562,6 +36662,28 @@ Copyright:
                 _updateNodeList()
             elif request == 'RESTART':
                 SysMgr.printInfo('RESTART by %s:%s' % (ip, port))
+
+                # restart with all nodes connected #
+                try:
+                    _onBroadcast(connObj, request, None, sync=False)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        'fail to handle %s command for all nodes' % request,
+                        always=True, reason=True)
+
+                # close sockets #
+                try:
+                    connMan.close()
+                except:
+                    pass
+                try:
+                    connObj.close()
+                except:
+                    pass
+
+                # restart server #
                 SysMgr.restart()
 
             cmd = None
@@ -36705,7 +36827,7 @@ Copyright:
                 continue
 
             SysMgr.printInfo(
-                "connected to the client (%s:%s)" % (addr[0], addr[1]))
+                "connected to the new client (%s:%s)" % (addr[0], addr[1]))
 
             # create a TCP socket #
             connObj = NetworkMgr(
@@ -36730,13 +36852,23 @@ Copyright:
         def _printMenu():
             sys.stdout.write('%s\n' % SysMgr.cliCmdStr)
 
-        def _doPing(uinput, cmd=None):
-            # get addrs from string #
+        def _doPing(uinput, cmd=None, hasarg=False):
+            # set default command to ping #
             if not cmd:
                 cmd = 'ping'
-            addrs = uinput.strip(cmd).strip(cmd.upper())
-            if addrs and not addrs[0].isdigit():
-                addrs = addrs[1:]
+
+            # get args #
+            args = uinput.strip(cmd).strip(cmd.upper())
+            if args and not args[0].isdigit():
+                args = args[1:]
+
+            # set variable #
+            if hasarg:
+                items = args
+                addrs = None
+            else:
+                addrs = args
+                items = ''
 
             # classify IP and PORT #
             if addrs:
@@ -36748,15 +36880,30 @@ Copyright:
                 else:
                     NetworkMgr.setRemoteServer(addrs, tcp=True)
 
+            # append args to command #
+            if items:
+                cmd = '%s|%s' % (cmd, items)
+
+            # request command #
             ret = NetworkMgr.requestPing(cmd=cmd)
-            if ret:
-                SysMgr.printInfo('server is alive')
+
+            # PING #
+            ucmd = cmd.upper()
+            if ucmd.startswith('PING'):
+                if ret:
+                    SysMgr.printInfo('server is alive')
+                else:
+                    SysMgr.printInfo('server is not responding')
+            # RESTART #
+            elif ucmd.startswith('RESTART'):
+                SysMgr.printInfo('server is restarted')
 
         def _printHistory(hlist):
             print('\n<History>')
             if hlist:
                 for idx, cmd in enumerate(hlist):
-                    print('[%0d] %s' % (idx, cmd))
+                    print('[%0d] %s' % \
+                        (idx, UtilMgr.convColor(cmd, 'UNDERLINE')))
                 print('input "! + index" to execute the above commands')
             else:
                 print('no history')
@@ -36795,17 +36942,14 @@ Copyright:
 
         def _execUserCmd(uinput, addr=None, retPipe=False):
             def _unsetAlarm():
-                if not SysMgr.isLinux:
-                    return
-                signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
+                if SysMgr.isLinux:
+                    signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
 
             def _setAlarm():
-                if not SysMgr.isLinux:
-                    return
-
-                signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
-                SysMgr.intervalEnable = 1
-                SysMgr.repeatCount = sys.maxsize
+                if SysMgr.isLinux:
+                    signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
+                    SysMgr.intervalEnable = 1
+                    SysMgr.repeatCount = sys.maxsize
 
             # check short command #
             uinputUpper = uinput.upper()
@@ -36813,7 +36957,7 @@ Copyright:
                 _doPing(uinput)
                 return
             elif uinputUpper.startswith('RESTART'):
-                _doPing(uinputUpper, 'RESTART')
+                _doPing(uinputUpper, 'RESTART', hasarg=True)
                 return
 
             # launch remote command #
@@ -36822,7 +36966,8 @@ Copyright:
                 if addr:
                     addrstr = ' at %s' % addr
                 else:
-                    addrstr = ''
+                    addrstr = ', check server IP and port'
+
                 SysMgr.printErr(
                     "fail to execute '%s'%s" % (uinput, addrstr))
                 return
@@ -36907,7 +37052,8 @@ Copyright:
 
             # print window size for commands #
             windowSize = long(SysMgr.ttyRows / len(cmdList))
-            SysMgr.printInfo("set each window height to %s" % (windowSize+2))
+            SysMgr.printInfo(
+                "set each window height to %s" % (windowSize+2))
 
             # get print flag #
             printFlag = SysMgr.getPrintFlag()
@@ -41369,7 +41515,9 @@ Copyright:
                 print('\n<History>')
                 if hlist:
                     for idx, cmd in enumerate(hlist):
-                        print('[%0d] %s' % (idx, cmd))
+                        print(cmd)
+                        print('[%0d] %s' % \
+                            (idx, UtilMgr.convColor(cmd, 'UNDERLINE')))
                     print('input "! + index" to execute the above commands')
                 else:
                     print('no history')
@@ -41655,10 +41803,8 @@ Copyright:
                 key = item[0]
                 flist = UtilMgr.getFiles(item[1], incDir=True)
                 for item in flist:
-
-                    tcmd = cmd.replace(key, item)
-
                     try:
+                        tcmd = cmd.replace(key, item)
                         _iterVarCmd(tcmd, list(var))
                     except SystemExit:
                         sys.exit(0)
@@ -78684,7 +78830,7 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe('\n[Top Storage Info] (Unit: %)\n')
+        SysMgr.printPipe('\n[Top Storage Info] (Unit: %/MB)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
         # Print menu #
@@ -78756,11 +78902,11 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe('\n[Top Network Info] (Unit: %)\n')
+        SysMgr.printPipe('\n[Top Network Info] (Unit: Byte)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
         # Print menu #
-        networkInfo = "{0:>16} | {1:^21} |".format('Device', 'Read/Write')
+        networkInfo = "{0:>16} | {1:^21} |".format('Device', 'In/Out')
         networkInfoLen = len(networkInfo)
         maxLineLen = SysMgr.lineLength
         margin = 21
@@ -78862,7 +79008,8 @@ class TaskAnalyzer(object):
             return
 
         # Print CPU usage #
-        for group, val in TA.procTotData['total']['cgroup.cpu'].items():
+        for group, val in sorted(TA.procTotData['total']['cgroup.cpu'].items(),
+            key=lambda e: e[1]['usage'], reverse=True):
             total = long(val['usage'])
             minval = long(val['min'])
             maxval = long(val['max'])
@@ -78905,7 +79052,7 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe('\n[Top Cgroup.Mem Info] (Unit: %)\n')
+        SysMgr.printPipe('\n[Top Cgroup.Mem Info] (Unit: Byte)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
         # Print menu #
@@ -78922,7 +79069,8 @@ class TaskAnalyzer(object):
             return
 
         # Print Memory usage #
-        for group, val in TA.procTotData['total']['cgroup.mem'].items():
+        for group, val in sorted(TA.procTotData['total']['cgroup.mem'].items(),
+            key=lambda e: e[1]['max'], reverse=True):
             minval = convSize2Unit(val['min'])
             maxval = convSize2Unit(val['max'])
 
@@ -79214,7 +79362,7 @@ class TaskAnalyzer(object):
 
         # print title #
         printFunc((
-            "\n[%s Tree Info] [Runtime: %s]%s\n%s\n"
+            "\n[%s Tree Info] [Uptime: %s]%s\n%s\n"
             "  %-25s %4s(%8s/%11s) <%s>\n%s") % \
                 (target, UtilMgr.convTime(SysMgr.uptime), netinfo,
                     twoLine, 'Name(ID)', 'Per', 'CPUTIME',
@@ -83943,6 +84091,9 @@ class TaskAnalyzer(object):
             elif filterList:
                 if not str(pid) in filterList and \
                     not UtilMgr.isValidStr(comm, filterList, inc=True):
+                    # increase total thread count #
+                    if 'num_threads' in procInfo and procInfo['num_threads']:
+                        self.nrThread += procInfo['num_threads']
                     continue
 
             # info #
@@ -83954,6 +84105,8 @@ class TaskAnalyzer(object):
             now[pid]['starttime'] = procInfo['create_time']
             now[pid]['runtime'] = current - procInfo['create_time']
             now[pid]['fdList'] = {}
+
+            # cmdline #
             if procInfo['cmdline']:
                 now[pid]['cmdline'] = ' '.join(procInfo['cmdline'])
             else:
@@ -83977,8 +84130,10 @@ class TaskAnalyzer(object):
             # thread count #
             if 'num_threads' in procInfo and procInfo['num_threads']:
                 now[pid]['nrThread'] = procInfo['num_threads']
+                self.nrThread += procInfo['num_threads']
             else:
                 now[pid]['nrThread'] = 1
+                self.nrThread += 1
 
             # file count #
             if 'num_fds' in procInfo and procInfo['num_fds']:
@@ -85502,6 +85657,8 @@ class TaskAnalyzer(object):
             nrCtxSwc = \
                 self.cpuData['ctxt']['ctxt'] - \
                 self.prevCpuData['ctxt']['ctxt']
+            if nrCtxSwc < 0:
+                nrCtxSwc = 0
         except SystemExit:
             sys.exit(0)
         except:
@@ -85511,6 +85668,8 @@ class TaskAnalyzer(object):
             nrIrq = \
                 self.cpuData['intr']['intr'] - \
                 self.prevCpuData['intr']['intr']
+            if nrIrq < 0:
+                nrIrq = 0
         except SystemExit:
             sys.exit(0)
         except:
@@ -85520,6 +85679,8 @@ class TaskAnalyzer(object):
             nrSoftIrq = \
                 self.cpuData['softirq']['softirq'] - \
                 self.prevCpuData['softirq']['softirq']
+            if nrSoftIrq < 0:
+                nrSoftIrq = 0
         except SystemExit:
             sys.exit(0)
         except:
@@ -86892,6 +87053,8 @@ class TaskAnalyzer(object):
         try:
             nrCtxt = \
                 self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+            if nrCtxt < 0:
+                nrCtxt = 0
         except SystemExit:
             sys.exit(0)
         except:
@@ -86908,6 +87071,8 @@ class TaskAnalyzer(object):
         try:
             nrIrq = \
                 self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
+            if nrIrq < 0:
+                nrIrq = 0
         except SystemExit:
             sys.exit(0)
         except:
