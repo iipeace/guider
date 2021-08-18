@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210814"
+__revision__ = "210818"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4844,6 +4844,20 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convCpuColor(value, string=None, size=1, align='right'):
+        if string is None:
+            string = value
+
+        if value >= SysMgr.cpuPerHighThreshold:
+            return UtilMgr.convColor(string, 'RED', size, align)
+        elif value > 0:
+            return UtilMgr.convColor(string, 'YELLOW', size, align)
+        else:
+            return str(string)
+
+
+
+    @staticmethod
     def convColor(string, color='LIGHT', size=1, align='right'):
         if not SysMgr.colorEnable or not color or \
             SysMgr.outPath or SysMgr.outputFile or \
@@ -6825,6 +6839,10 @@ class NetworkMgr(object):
             if not 'NOTIMEOUT' in SysMgr.environList:
                 connObj.timeout()
 
+            # set immediately exit flag to prevent hang on connect #
+            origFlag = SysMgr.exitFlag
+            SysMgr.exitFlag = True
+
             # connect with handling CLOSE_WAIT #
             while 1:
                 try:
@@ -6836,12 +6854,16 @@ class NetworkMgr(object):
                     SysMgr.printWarn(
                         "fail to connect to %s:%s" % (ip, port),
                             reason=True, always=verb)
+
+                    # handle error #
                     et, err, to = sys.exc_info()
                     if err.args and err.args[0] == 99:
                         time.sleep(0.1)
                         continue
                     else:
                         raise Exception(err.args[0])
+                finally:
+                    SysMgr.exitFlag = origFlag
 
             return connObj
         except SystemExit:
@@ -7002,11 +7024,11 @@ class NetworkMgr(object):
     @staticmethod
     def setServerNetwork(
         ip, port, force=False, blocking=False,
-        tcp=False, anyPort=False, reuse=True, weakPort=False):
+        tcp=False, anyPort=False, reuse=True, weakPort=False, verb=False):
 
         if SysMgr.localServObj and not force:
             SysMgr.printWarn(
-                "ignored to set server network because it is already set")
+                "ignored to set server network because it is already set", verb)
             return
 
         # get internet available IP first #
@@ -7025,7 +7047,7 @@ class NetworkMgr(object):
             iplist = sorted(NetworkMgr.getUsingIps())
             if iplist:
                 SysMgr.printWarn(
-                    'available IP list [ %s ]' % ', '.join(iplist))
+                    'available IP list [ %s ]' % ', '.join(iplist), verb)
         except:
             pass
 
@@ -7046,7 +7068,7 @@ class NetworkMgr(object):
             networkObject = NetworkMgr(
                 'server', ip, port, blocking, tcp, True, reuse=reuse)
         if not networkObject.ip:
-            SysMgr.printWarn("fail to set server IP")
+            SysMgr.printWarn("fail to set server IP", verb)
             return
 
         # set protocol #
@@ -16038,10 +16060,7 @@ class FileAnalyzer(object):
             # set percentage #
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
-                if per >= SysMgr.cpuPerHighThreshold:
-                    per = UtilMgr.convColor(per, 'RED', 3)
-                elif per > 0:
-                    per = UtilMgr.convColor(per, 'YELLOW', 3)
+                per = UtilMgr.convCpuColor(per, size=3)
             else:
                 per = long(0)
 
@@ -16114,10 +16133,7 @@ class FileAnalyzer(object):
 
             if fileSize != 0:
                 per = long(long(totalMemSize) / float(fileSize) * 100)
-                if per >= SysMgr.cpuPerHighThreshold:
-                    per = UtilMgr.convColor(per, 'RED', 3)
-                else:
-                    per = UtilMgr.convColor(per, 'YELLOW', 3)
+                per = UtilMgr.convCpuColor(per, size=3)
             else:
                 per = long(0)
 
@@ -16856,10 +16872,7 @@ class FileAnalyzer(object):
 
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
-                if per >= SysMgr.cpuPerHighThreshold:
-                    per = UtilMgr.convColor(per, 'RED', 5)
-                elif per > 0:
-                    per = UtilMgr.convColor(per, 'YELLOW', 5)
+                per = UtilMgr.convCpuColor(per, size=5)
             else:
                 per = long(0)
 
@@ -19890,6 +19903,58 @@ Commands:
 
 
     @staticmethod
+    def getAvailMemInfo():
+        try:
+            # read memory stats #
+            memBuf = SysMgr.getMemInfo()
+
+            # parse lines #
+            memData = {}
+            for line in memBuf:
+                if line.startswith('Buffers'):
+                    break
+
+                memList = line.split()
+                memData[memList[0][:-1]] = long(memList[1])
+
+            # get available memory #
+            if 'MemAvailable' in memData:
+                sysMemStr = memData['MemAvailable'] << 10
+            elif 'MemFree' in memData:
+                sysMemStr = memData['MemFree'] << 10
+            else:
+                sysMemStr = 0
+
+            sysMemStr = UtilMgr.convSize2Unit(sysMemStr, True)
+        except:
+            sysMemStr = 0
+        finally:
+            return sysMemStr
+
+
+
+    @staticmethod
+    def getMemInfo():
+        try:
+            memBuf = None
+            SysMgr.memFd.seek(0)
+            memBuf = SysMgr.memFd.readlines()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
+                SysMgr.memFd = open(memPath, 'r')
+
+                memBuf = SysMgr.memFd.readlines()
+            except:
+                SysMgr.printOpenWarn(memPath)
+        finally:
+            return memBuf
+
+
+
+    @staticmethod
     def chRlimit(pid, rtype, slim, hlim):
         if rtype in ConfigMgr.RLIMIT_TYPE:
             SysMgr.printErr(
@@ -21993,6 +22058,7 @@ Commands:
         if SysMgr.geterrnoFunc == -1:
             return 'N/A'
 
+        # error code #
         try:
             num = SysMgr.geterrnoFunc()[0]
             if not num in errno.errorcode:
@@ -23073,6 +23139,9 @@ Examples:
 
     - Trace specific native calls and print details
         # {0:1} {1:1} -g a.out -c "write|print"
+
+    - Trace specific python calls and print details
+        # {0:1} {1:1} -g a.out -c "write|print" -q PYSTACK
 
     - Trace specific native calls and save specific values to specific variables
         # {0:1} {1:1} -g a.out -c "write|save:VAR1|print:VAR1|save:VAR2:123"
@@ -24798,7 +24867,7 @@ Options:
         # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
                     '''.format(cmd, mode)
 
-                    helpStr += remoteExamStr
+                    helpStr += brkExamStr + remoteExamStr
 
                 # hook #
                 elif SysMgr.checkMode('hook'):
@@ -29383,6 +29452,7 @@ Copyright:
         # write user command #
         SysMgr.writeTraceCmd('STOP')
 
+        # handle signal #
         if SysMgr.checkMode('filerec') and not SysMgr.intervalEnable:
             sys.exit(0)
 
@@ -32371,9 +32441,7 @@ Copyright:
             elif option == 'x':
                 SysMgr.checkOptVal(option, value)
                 service, ip, port = NetworkMgr.parseAddr(value)
-                SysMgr.warnEnable = True
-                ret = NetworkMgr.setServerNetwork(ip, port)
-                SysMgr.warnEnable = False
+                ret = NetworkMgr.setServerNetwork(ip, port, verb=True)
                 if not ret:
                     sys.exit(0)
 
@@ -36002,7 +36070,7 @@ Copyright:
         def _updateNodeList(ret=False):
             # close sockets for terminated connections #
             for addr in list(nodeList.keys()):
-                ret = NetworkMgr.requestPing(addr, verb=False)
+                ret = NetworkMgr.requestPing(addr, verb=SysMgr.warnEnable)
                 if not ret:
                     try:
                         nodeList[addr]['sock'].close()
@@ -40815,6 +40883,7 @@ Copyright:
                     pid = SysMgr.createProcess()
                     if pid == 0:
                         _iotask(idx, workload[idx])
+                        sys.exit(0)
                     else:
                         ioTasks[pid] = workload[idx]
                 except SystemExit:
@@ -42016,24 +42085,11 @@ Copyright:
     def doMemTest():
         def _getMeminfo():
             # save mem info #
-            try:
-                memBuf = None
-                SysMgr.memFd.seek(0)
-                memBuf = SysMgr.memFd.readlines()
-            except:
-                try:
-                    memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
-                    SysMgr.memFd = open(memPath, 'r')
-
-                    memBuf = SysMgr.memFd.readlines()
-                except:
-                    SysMgr.printOpenWarn(memPath)
-
+            memBuf = SysMgr.getMemInfo()
             if not memBuf:
                 return ''
 
             memData = {}
-
             for line in memBuf:
                 memList = line.split()
                 memData[memList[0][:-1]] = long(memList[1])
@@ -42043,6 +42099,7 @@ Copyright:
             memFree = conv(memData['MemFree'] << 10)
             memFreePer = \
                 (memData['MemFree'] / float(memData['MemTotal'])) * 100
+
             try:
                 memAvail = conv(memData['MemAvailable'] << 10)
                 memAvailPer = \
@@ -42050,6 +42107,7 @@ Copyright:
                 memAvailPer = '%.1f%%' % memAvailPer
             except:
                 memAvail = memAvailPer = '-'
+
             memCache = conv(memData['Cached'] << 10)
             swapTotal = conv(memData['SwapTotal'] << 10)
             swapFree = conv(memData['SwapFree'] << 10)
@@ -49597,16 +49655,29 @@ class DbusMgr(object):
             _updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
 
             if DbusMgr.dbgObj:
+                # get CPU usage for myself #
                 cpuUsage = DbusMgr.dbgObj.getCpuUsage(system=True)
                 diff = SysMgr.uptimeDiff
                 ttime = cpuUsage[0] / diff
                 utime = cpuUsage[1] / diff
                 stime = cpuUsage[2] / diff
+                mcpu = '%d%%' % ttime
+                mcpu = UtilMgr.convCpuColor(ttime, mcpu)
+                mcpuStr = '%s(U%d%%+S%d%%)' % (mcpu, utime, stime)
+
+                # get memory usage for myself #
+                rssStr = DbusMgr.dbgObj.getMemUsage()
+
+                # get CPU usage for system #
                 ctime = 100 - (cpuUsage[3] / diff)
-                mcpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+                ctime = ctime if ctime >= 0 else 0
                 sysCpuStr = '%d%%' % ctime
+                sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
+
+                # get available memory for system #
+                sysMemStr = SysMgr.getAvailMemInfo()
             else:
-                cpuStr = mcpuStr = '?'
+                cpuStr = mcpuStr = rssStr = sysCpuStr = sysMemStr = '?'
 
             # set error #
             nrErr = prevDbusData['totalErr']
@@ -49618,10 +49689,11 @@ class DbusMgr(object):
             # print title #
             SysMgr.addPrint(
                 ("[%s] [Time: %7.3f] [Interval: %.1f] "
-                "[NrMsg: %s] [NrErr: %s] [CPU: %s] [%s(%s): %s] \n") % \
+                "[NrMsg: %s] [NrErr: %s] [SYS: %s/%s] [%s(%s): %s/%s] \n") % \
                     ('D-Bus Info', SysMgr.uptime, SysMgr.uptimeDiff,
-                    convertNum(prevDbusData['totalCnt']), nrErr,
-                    sysCpuStr, DbusMgr.dbgObj.comm, DbusMgr.dbgObj.pid, mcpuStr))
+                    convertNum(prevDbusData['totalCnt']), nrErr, sysCpuStr,
+                    sysMemStr, DbusMgr.dbgObj.comm, DbusMgr.dbgObj.pid,
+                    mcpuStr, rssStr))
 
             # print resource usage of tasks #
             taskManager.printSystemUsage()
@@ -50577,26 +50649,40 @@ class DltAnalyzer(object):
 
         # update CPU usage #
         if DltAnalyzer.dbgObj:
+            # get CPU usage for myself #
             cpuUsage = DltAnalyzer.dbgObj.getCpuUsage(system=True)
             diff = SysMgr.uptimeDiff
             ttime = cpuUsage[0] / diff
             utime = cpuUsage[1] / diff
             stime = cpuUsage[2] / diff
+            mcpu = '%d%%' % ttime
+            mcpu = UtilMgr.convCpuColor(ttime, mcpu)
+            mcpuStr = '%s(U%d%%+S%d%%)' % (mcpu, utime, stime)
+
+            # get memory usage for myself #
+            rssStr = DltAnalyzer.dbgObj.getMemUsage()
+
+            # get CPU usage for system #
             ctime = 100 - (cpuUsage[3] / diff)
-            mcpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+            ctime = ctime if ctime >= 0 else 0
+            sysCpuStr = '%d%%' % ctime
+            sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
+
+            # get available memory for system #
+            sysMemStr = SysMgr.getAvailMemInfo()
+
             procInfo = '%s(%s)' % \
                 (DltAnalyzer.dbgObj.comm, DltAnalyzer.dbgObj.pid)
-            sysCpuStr = '%d%%' % ctime
         else:
-            procInfo = cpuStr = mcpuStr = '?'
+            procInfo = cpuStr = mcpuStr = rssStr = sysCpuStr = sysMemStr = '?'
 
         # print title #
         SysMgr.addPrint((
             "[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s] "
-            "[CPU: %s] [%s: %s]\n") % \
+            "[SYS: %s/%s] [%s: %s/%s]\n") % \
                 ('DLT Info', SysMgr.uptime, SysMgr.uptimeDiff,
                 convertFunc(DltAnalyzer.dltData['cnt']),
-                sysCpuStr, procInfo, mcpuStr))
+                sysCpuStr, sysMemStr, procInfo, mcpuStr, rssStr))
 
         # update daemon stat #
         DltAnalyzer.procInfo.saveProcInstance()
@@ -52008,7 +52094,6 @@ class Debugger(object):
         self.status = 'enter'
         self.traceStatus = False
         self.runStatus = False
-        self.sampleStatus = True
         self.attached = attach
         self.execCmd = execCmd
         self.arch = arch = SysMgr.getArch()
@@ -52101,6 +52186,7 @@ class Debugger(object):
         self.prevBtStr = None
         self.startAddr = None
         self.prevSym = None
+        self.inBacktrace = False
 
         self.lockObj = None
         self.tempPage = None
@@ -52373,8 +52459,7 @@ typedef struct {
     def __del__(self, stop=False):
         if not self.attached:
             return
-
-        if not self.isAlive():
+        elif not self.isAlive():
             return
 
         # kill target childs #
@@ -56642,15 +56727,12 @@ typedef struct {
 
         # check samples #
         if not self.callTable:
-            if not self.sampleStatus:
+            if not self.traceStatus:
                 SysMgr.printWarn(
                     "no sample data for %s(%s)" % \
                         (self.comm, self.pid), True)
             _resetStats()
             return
-
-        # update status for sample collection #
-        self.sampleStatus = True
 
         # check user input #
         SysMgr.waitUserInput(wait=0.000001, msg="Ctrl+c")
@@ -56707,15 +56789,25 @@ typedef struct {
                 else:
                     return
 
-        # get resource usage for target #
+        # get CPU usage for target #
         cpuUsage = self.getCpuUsage(system=True)
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
-        ctime = 100 - (cpuUsage[3] / diff)
-        cpuStr = '%d%%(U%d%%+S%d%%)' % (ttime, utime, stime)
-        sysCpuStr = '%d%%' % ctime
+        ttimeStr = UtilMgr.convCpuColor(ttime, '%d%%' % ttime)
+        cpuStr = '%s(U%d%%+S%d%%)' % (ttimeStr, utime, stime)
+
+        # get Memory usage for target #
         rssStr = self.getMemUsage()
+
+        # get CPU usage for system #
+        ctime = 100 - (cpuUsage[3] / diff)
+        ctime = ctime if ctime >= 0 else 0
+        sysCpuStr = '%d%%' % ctime
+        sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
+
+        # get available memory for system #
+        sysMemStr = SysMgr.getAvailMemInfo()
 
         # check CPU threshold #
         if Debugger.cpuCond > -1 and Debugger.cpuCond > ttime:
@@ -56765,6 +56857,7 @@ typedef struct {
         cpuUsage = Debugger.tracerInstance.getCpuUsage()
         mttime = cpuUsage[0] / diff
         mcpuStr = '%d%%' % mttime
+        mcpuStr = UtilMgr.convCpuColor(mttime, mcpuStr)
         mrssStr = Debugger.tracerInstance.getMemUsage()
 
         # add CPU time info #
@@ -56790,10 +56883,11 @@ typedef struct {
         # print top stat #
         ret = SysMgr.addPrint((
             '[Top %s Info] [Time: %.3f] [Interval: %.3f] [Samples: %s] '
-            '[CPU: %s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
+            '[SYS: %s/%s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff,
-                convert(self.totalCall), sysCpuStr, comm, self.pid,
-                cpuStr, rssStr, Debugger.tracerInstance.comm,
+                convert(self.totalCall), sysCpuStr, sysMemStr,
+                comm, self.pid, cpuStr, rssStr,
+                Debugger.tracerInstance.comm,
                 Debugger.tracerInstance.pid, mcpuStr, mrssStr,
                 sampleStr, twoLine), newline=2)
         if not ret:
@@ -57565,8 +57659,8 @@ typedef struct {
         if not self.runStatus and Debugger.envFlags['EXCEPTWAIT']:
             return
 
+        # increase err count #
         if err:
-            # increase err count #
             try:
                 self.callTable[sym]['err'] += 1
             except:
@@ -57574,6 +57668,7 @@ typedef struct {
 
             return
 
+        # add sample #
         if not realtime:
             self.callList.append([sym, self.current, filename])
             return
@@ -57799,21 +57894,22 @@ typedef struct {
             # use backtrace cache #
             if not force and self.btList:
                 return self.btList
+            # prevent recursive backtrace call #
+            elif self.inBacktrace:
+                return
+
+            # set initial flags #
+            restored = True
+            self.inBacktrace = True
 
             # return special language callstack #
             if not native:
-                btList = None
-
                 # python callstack #
                 if Debugger.envFlags['PYSTACK']:
                     btList = self.handlePycall(retbt=True)
-
-                # save and return backtrace #
-                if btList:
-                    self.btList = btList
-                    return self.btList
-
-            restored = True
+                    if btList:
+                        self.btList = btList
+                        return self.btList
 
             # check libcorkscrew #
             if not SysMgr.libcorkscrewObj:
@@ -57946,6 +58042,8 @@ typedef struct {
                 self.restoreRegs(bt=True)
 
             return []
+        finally:
+            self.inBacktrace = False
 
 
 
@@ -59201,7 +59299,7 @@ typedef struct {
 
 
 
-    def readPyStack(self, framep):
+    def readPyStack(self, framep, depth):
         bt = []
         lastAddr = None
         lastName = None
@@ -59234,7 +59332,7 @@ typedef struct {
                 bt.append([f_lineno, name, filename])
 
             # check last frame #
-            if SysMgr.funcDepth == 0 or f_back == 0:
+            if depth <= len(bt) or f_back == 0:
                 break
 
             framep = f_back
@@ -59273,7 +59371,8 @@ typedef struct {
 
             # read frames #
             try:
-                bt, line, call, fname = self.readPyStack(framep)
+                bt, line, call, fname = \
+                    self.readPyStack(framep, SysMgr.funcDepth)
 
                 # save context #
                 self.prevPySym = call
@@ -59429,7 +59528,8 @@ typedef struct {
             return
 
         # read frames #
-        bt, lastAddr, lastName, lastFile = self.readPyStack(framep)
+        bt, lastAddr, lastName, lastFile = \
+            self.readPyStack(framep, SysMgr.funcDepth)
 
         # check filter #
         if SysMgr.pyFuncFilter and \
@@ -60587,7 +60687,6 @@ typedef struct {
         self.comm = SysMgr.getComm(self.pid, cache=True)
         self.exe = SysMgr.getExeName(self.pid)
         self.start = self.last = time.time()
-        self.sampleStatus = True
         self.statFd = None
         self.kernelFd = None
         self.prevStat = None
@@ -61040,6 +61139,10 @@ typedef struct {
 
                 # exit #
                 elif stat == -1:
+                    # check alive status #
+                    if self.isAlive():
+                        continue
+
                     # print status #
                     SysMgr.printErr(
                         'terminated %s(%s)' % (self.comm, self.pid))
@@ -61628,27 +61731,29 @@ typedef struct {
             stime /= float(nrCpuUsageSample)
             ctime /= float(nrCpuUsageSample)
 
-            sysCpuStr = '[CPU: %d%%] ' % ctime
             cpuStr = '%d%%(U%d%%+S%d%%)' % (ttime, utime, stime)
             cpuStr = '[%s: %s] ' % (procInfo, cpuStr)
+
+            sysStr = '[SYS: %d%%/%s] ' % (ctime, SysMgr.getAvailMemInfo())
         else:
-            sysCpuStr = ' '
+            sysStr = ' '
             cpuStr = '[%s] ' % procInfo
 
         # average CPU usage for myself #
         if instance.selfCpuUsageList:
             mttime = sum(instance.selfCpuUsageList)
             mttime /= float(len(instance.selfCpuUsageList))
-            mcpuStr = '[%s: %d%%]' % (mprocInfo, mttime)
+            rssStr = Debugger.tracerInstance.getMemUsage()
+            mStr = '[%s: %d%%/%s]' % (mprocInfo, mttime, rssStr)
         else:
-            mcpuStr = '[%s]' % mprocInfo
+            mStr = '[%s]' % mprocInfo
 
         # print top stat #
         SysMgr.printPipe((
             '\n[%s %s Summary] [Elapsed: %.3f]%s%s%s%s '
             '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr,
-                sysCpuStr, cpuStr, mcpuStr,
+                sysStr, cpuStr, mStr,
                 convert(long(nrTotal)), freqStr,
                 convert(len(callTable)), suffix))
 
@@ -61727,9 +61832,8 @@ typedef struct {
             SysMgr.printPipe((
                 '\n[%s File Summary] [Elapsed: %.3f]%s%s%s%s '
                 '[NrSamples: %s(%s%%)] [NrFiles: %s] %s') % \
-                    (mtype, elapsed, samplingStr,
-                    sysCpuStr, cpuStr, mcpuStr,
-                    convert(long(nrTotal)), perSample,
+                    (mtype, elapsed, samplingStr, sysStr, cpuStr,
+                    mStr, convert(long(nrTotal)), perSample,
                     convert(len(fileTable)), suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
             SysMgr.printPipe(
@@ -62383,6 +62487,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             status = c_uint(0)
 
             while 1:
+                # wait for child #
                 try:
                     ret = SysMgr.libcObj.waitpid(
                         pid, pointer(status), options)
@@ -62391,10 +62496,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 except:
                     pass
 
+                # check termination #
                 if ret == -1:
                     if not self.isAlive():
                         sys.exit(0)
-                    continue
 
                 break
 
@@ -77477,7 +77582,6 @@ class TaskAnalyzer(object):
             obj.saveProcStat()
             TaskAnalyzer.printProcTree(
                 instance=obj.procData, printFunc=SysMgr.infoBufferPrint)
-            SysMgr.infoBufferPrint('%s\n' % oneLine)
         except SystemExit:
             sys.exit(0)
         except:
@@ -84286,27 +84390,9 @@ class TaskAnalyzer(object):
                     continue
 
         # save mem info #
-        try:
-            memBuf = None
-            SysMgr.memFd.seek(0)
-            memBuf = SysMgr.memFd.readlines()
-        except SystemExit:
-            sys.exit(0)
-        except:
-            try:
-                memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
-                SysMgr.memFd = open(memPath, 'r')
-
-                memBuf = SysMgr.memFd.readlines()
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(memPath)
-
-        # parse meminfo data #
+        memBuf = SysMgr.getMemInfo()
         if memBuf:
             self.prevMemData = self.memData
-
             self.memData = {}
 
             for line in memBuf:
@@ -85821,12 +85907,7 @@ class TaskAnalyzer(object):
 
         # convert color for CPU usage #
         totalUsageStr = r'%3s %%' % totalUsage
-        if totalUsage == 0:
-            pass
-        elif totalUsage >= SysMgr.cpuPerHighThreshold:
-            totalUsageStr = UtilMgr.convColor(totalUsageStr, 'RED')
-        else:
-            totalUsageStr = UtilMgr.convColor(totalUsageStr, 'YELLOW')
+        totalUsageStr = UtilMgr.convCpuColor(totalUsage, totalUsageStr)
 
         # convert color for mem available #
         availMemStr = r'%6s' % availMem
@@ -86066,14 +86147,8 @@ class TaskAnalyzer(object):
                     perCoreStats[idx]['total'] = totalCoreUsage
 
                     # apply color #
-                    if totalCoreUsage == 0:
-                        totalCoreUsageStr = totalCoreUsage
-                    elif totalCoreUsage >= SysMgr.cpuPerHighThreshold:
-                        totalCoreUsageStr = UtilMgr.convColor(
-                            totalCoreUsage, 'RED', 3)
-                    else:
-                        totalCoreUsageStr = UtilMgr.convColor(
-                            totalCoreUsage, 'YELLOW', 3)
+                    totalCoreUsageStr = UtilMgr.convCpuColor(
+                        totalCoreUsage, size=3)
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalCoreUsageStr,
@@ -86325,11 +86400,8 @@ class TaskAnalyzer(object):
                     if not SysMgr.totalEnable and totalCoreUsage > 0:
                         coreGraph = '#' * long(lenLine * totalCoreUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
-
-                        if totalCoreUsage >= SysMgr.cpuPerHighThreshold:
-                            coreGraph = UtilMgr.convColor(coreGraph, 'RED')
-                        else:
-                            coreGraph = UtilMgr.convColor(coreGraph, 'YELLOW')
+                        coreGraph = UtilMgr.convCpuColor(
+                            totalCoreUsage, coreGraph)
                     else:
                         coreGraph = ' ' * lenLine
 
@@ -86357,12 +86429,8 @@ class TaskAnalyzer(object):
                     totalGpuUsageStr = '%s %%' % totalGpuUsage
                     if SysMgr.colorEnable and totalGpuUsage > 0:
                         totalGpuUsageStr = r'{0:>5}'.format(totalGpuUsageStr)
-                        if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
-                            totalGpuUsageStr = UtilMgr.convColor(
-                                totalGpuUsageStr, 'RED')
-                        else:
-                            totalGpuUsageStr = UtilMgr.convColor(
-                                totalGpuUsageStr, 'YELLOW')
+                        totalGpuUsageStr = UtilMgr.convCpuColor(
+                            totalGpuUsage, totalGpuUsageStr)
 
                     coreStat = "{0:<23}({1:>5})|".format(
                         idx[:23], totalGpuUsageStr)
@@ -86399,14 +86467,8 @@ class TaskAnalyzer(object):
                         coreGraph = '#' * long(lenLine * totalGpuUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                         origCoreGraph = coreGraph
-
-                        if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
-                            coreGraph = UtilMgr.convColor(coreGraph, 'RED')
-                        else:
-                            coreGraph = UtilMgr.convColor(coreGraph, 'YELLOW')
-
-                        coreGraph += (
-                            ' ' * (len(coreGraph) - len(origCoreGraph)))
+                        coreGraph = UtilMgr.convCpuColor(totalGpuUsage, coreGraph)
+                        coreGraph += (' ' * (len(coreGraph) - len(origCoreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
 
@@ -87781,10 +87843,7 @@ class TaskAnalyzer(object):
                 if usage < SysMgr.cpuPerLowThreshold:
                     pass
                 else:
-                    if usage >= SysMgr.cpuPerHighThreshold:
-                        cpu = UtilMgr.convColor(cpu, 'RED')
-                    else:
-                        cpu = UtilMgr.convColor(cpu, 'YELLOW')
+                    cpu = UtilMgr.convCpuColor(usage, cpu)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -88603,10 +88662,7 @@ class TaskAnalyzer(object):
 
             # convert color for CPU usage #
             if value['ttime'] >= SysMgr.cpuPerLowThreshold:
-                if value['ttime'] >= SysMgr.cpuPerHighThreshold:
-                    ttime = convColor(ttime, 'RED', 4)
-                else:
-                    ttime = convColor(ttime, 'YELLOW', 4)
+                ttime = UtilMgr.convCpuColor(value['ttime'], ttime, size=4)
 
             # convert color for RSS #
             if mems < SysMgr.memLowThreshold:
@@ -88878,12 +88934,7 @@ class TaskAnalyzer(object):
         elif procCnt > 0:
             # total CPU #
             totalTime = '%6.1f' % totalStats['ttime']
-            if totalStats['ttime'] == 0:
-                pass
-            elif totalStats['ttime'] >= SysMgr.cpuPerHighThreshold:
-                totalTime = convColor(totalTime, 'RED')
-            else:
-                totalTime = convColor(totalTime, 'YELLOW')
+            totalTime = UtilMgr.convCpuColor(totalStats['ttime'], totalTime)
 
             # total BLOCK #
             totalBtime = totalStats['btime']
