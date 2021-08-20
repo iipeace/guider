@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210818"
+__revision__ = "210820"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24513,7 +24513,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr += '''
+                    helpStr += '''{2:1}
 Examples:
     - Trace all read syscalls for specific threads
         # {0:1} {1:1} -g a.out -t read
@@ -24584,7 +24584,7 @@ Examples:
 
     - Trace all syscalls and print memory that 2nd argument point to
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, cmdListStr)
 
                 # utrace #
                 elif SysMgr.checkMode('utrace'):
@@ -24692,7 +24692,7 @@ Options:
     -v                          verbose
                     '''
 
-                    examStr = '''
+                    examStr = '''{2:1}
 Examples:
     - Trace python calls for a specific thread in 100us cycles
         # {0:1} {1:1} -g a.out
@@ -24739,9 +24739,9 @@ Examples:
 
     - Trace python calls for a specific thread only for 2 seconds
         # {0:1} {1:1} -g a.out -R 2s
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, cmdListStr)
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += examStr
 
                 # btrace #
                 elif SysMgr.checkMode('btrace'):
@@ -27033,7 +27033,7 @@ Copyright:
 
 
     @staticmethod
-    def inotify(path, flags=[], verb=False):
+    def inotify(path, flags=[], wait=False, verb=False):
         if not path:
             return False
 
@@ -27044,10 +27044,14 @@ Copyright:
         if type(path) is str:
             path = [path]
 
-        # check path #
-        exitFlag = False
-        for item in path:
-            if not os.path.exists(item):
+        # check and wait for files to be created #
+        if wait:
+            exitFlag = False
+
+            for item in path:
+                if os.path.exists(item):
+                    continue
+
                 # get file info #
                 dirname, filename = UtilMgr.getPath(item)
 
@@ -27068,12 +27072,11 @@ Copyright:
                         "[%.6f] IN_CREATE@%s" % (current, fpath))
                 else:
                     SysMgr.printWarn(
-                        "skipped to wait '%s' to be created" % \
-                            item, True)
+                        "skipped to wait '%s' to be created" % item, True)
 
-        # check exit condition #
-        if exitFlag:
-            sys.exit(0)
+            # check exit condition #
+            if exitFlag:
+                sys.exit(0)
 
         # check flags type #
         if type(flags) is not list:
@@ -38454,7 +38457,7 @@ Copyright:
         # start watching #
         while 1:
             try:
-                ret = SysMgr.inotify(targetList, verb=True)
+                ret = SysMgr.inotify(targetList, wait=True, verb=True)
                 if not ret:
                     break
 
@@ -38629,7 +38632,7 @@ Copyright:
                 exceptBpFileList[pid] = \
                     deepcopy(procObj.exceptBpFileList)
 
-                # create a lock for a target multi-threaded process #
+                # create a lock for the multi-threaded process #
                 if SysMgr.getTids(pid, sibling=True):
                     lockList[pid] = \
                         Debugger.getGlobalLock(pid, len(bpList[pid]))
@@ -38803,13 +38806,13 @@ Copyright:
 
                 # broadcast term signal to childs and wait for them #
                 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+                childs = TaskAnalyzer.getDescendantList(SysMgr.pid)
                 SysMgr.killChilds(
-                    sig=signal.SIGINT, wait=True, group=True)
+                    sig=signal.SIGINT, childs=childs, wait=True, group=True)
 
                 # continue processes #
-                if SysMgr.isAlive(tid):
-                    SysMgr.sendSignalProcs(
-                        signal.SIGCONT, list(procList.keys()), verbose=False)
+                SysMgr.sendSignalProcs(
+                    signal.SIGCONT, list(procList.keys()), verbose=False)
 
                 # remove temporary files #
                 if mode == 'breakcall' or mode == 'pytrace':
@@ -43084,10 +43087,12 @@ Copyright:
 
         for pid in targetList:
             try:
+                pid = long(pid)
+
                 if SysMgr.isLinux:
                     kill(pid, sig)
                 else:
-                    SysMgr.getPkg('psutil').Process(long(pid)).terminate()
+                    SysMgr.getPkg('psutil').Process(pid).terminate()
             except:
                 SysMgr.printSigError(pid, 'SIGKILL')
 
@@ -44545,9 +44550,9 @@ Copyright:
         if not sig:
             sig = ConfigMgr.SIGKILL
 
-        SysMgr.updateChildList()
-
+        # get child list #
         if childs is None:
+            SysMgr.updateChildList()
             childs = list(SysMgr.childList.keys())
 
         # kill childs #
@@ -44556,13 +44561,17 @@ Copyright:
         # remove child list #
         SysMgr.clearChildList()
 
+        # check wait flag #
         if not wait:
             return
 
         # wait for termination for all childs #
         childs = set(map(str, childs))
+        if not childs:
+            return
+
         while 1:
-            # get all task list #
+            # update child list #
             tasks = set(SysMgr.getPidList())
 
             # check terminated tasks #
@@ -44570,12 +44579,11 @@ Copyright:
             if termTasks == childs:
                 break
 
-            remainTasks = childs - termTasks
-
             # wait for task termination #
             try:
-                monFiles = ['/proc/%s/comm' % tid for tid in remainTasks]
-                SysMgr.inotify(monFiles)
+                remainTasks = childs - termTasks
+                watchList = ['/proc/%s/comm' % tid for tid in remainTasks]
+                SysMgr.inotify(watchList)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -59059,7 +59067,7 @@ typedef struct {
 
         # print context #
         if warn:
-            SysMgr.printWarn(callString, newline=False)
+            SysMgr.printWarn(callString)
         else:
             SysMgr.printPipe(callString)
 
@@ -61466,7 +61474,7 @@ typedef struct {
     def destroyDebugger(instance):
         Debugger.dbgInstance = None
 
-        # check condition for breakpoint mode #
+        # check condition for breakpoint cleanup #
         if not instance.pid or \
             SysMgr.inputParam or \
             not instance.bpList or \
@@ -61484,13 +61492,15 @@ typedef struct {
         if tgid == instance.pid:
             os.kill(SysMgr.masterPid, signal.SIGINT)
 
-        # make my priority lower #
+        # make CPU priority lower #
         SysMgr.setPriority(SysMgr.pid, 'C', 19, verb=False)
 
-        # update register set #
-        cnt = 5
         try:
+            # set max try count #
+            cnt = 5
+
             while 1:
+                # update register set #
                 ret = instance.updateRegs()
                 if ret:
                     break
@@ -61503,6 +61513,7 @@ typedef struct {
                     instance.__del__(stop=True)
                     return
 
+                # wait a moment #
                 time.sleep(SysMgr.waitDelay)
         except:
             Debugger.printSummary(instance)
@@ -61515,12 +61526,14 @@ typedef struct {
             instance.setRegs()
             instance.removeBp(addr)
         else:
+            # check alignment #
             if addr % ConfigMgr.wordSize == 0:
                 origWord = instance.accessMem(instance.peekIdx, addr)
                 origWord = UtilMgr.convWord2Str(origWord)
             else:
                 origWord = instance.readMem(addr)
 
+            # recover memory #
             if origWord and origWord.startswith(instance.brkInst):
                 ret = instance.getSymbolInfo(addr)
                 fname = ret[1]
@@ -61535,7 +61548,7 @@ typedef struct {
             instance.removeAllBp(tgid)
             SysMgr.printEnable = origPrintFlag
 
-        # remove new breakpoins after fork for childs #
+        # remove new breakpoins for childs after fork #
         for addr in list(instance.bpNewList.keys()):
             instance.removeBp(addr)
 
@@ -79424,6 +79437,62 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
+    def getDescendantList(pids, instance=None):
+        taskList = []
+
+        # convert target list type #
+        try:
+            if UtilMgr.isNumber(pids):
+                pids = [pids]
+
+            pids = list(map(str, pids))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to convert target pids to get descendants', reason=True)
+            return taskList
+
+        # get proc instance #
+        if instance:
+            obj = instance
+        else:
+            obj = TaskAnalyzer(onlyInstance=True)
+
+            if SysMgr.isLinux:
+                obj.saveSystemStat()
+            else:
+                obj.saveSystemStatGen()
+
+        # get task tree #
+        try:
+            procTree = TaskAnalyzer.getProcTreeFromList(obj.procData)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return taskList
+
+        # get nodes in tree #
+        def _getTreeNodes(root, pids, enable, taskList):
+            initStatus = enable
+            for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
+                enable = initStatus
+
+                if enable:
+                    taskList.append(pid)
+                elif pid in pids:
+                    enable = True
+
+                _getTreeNodes(childs, pids, enable, taskList)
+
+        # get descendant list #
+        _getTreeNodes(procTree, pids, False, taskList)
+
+        return taskList
+
+
+
+    @staticmethod
     def printProcTree(
         instance=None, title=False, printFunc=None, targets=None):
 
@@ -79437,6 +79506,7 @@ class TaskAnalyzer(object):
             printFunc("\n\tNone")
             return
 
+        # define index variables #
         commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
         utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
@@ -79445,6 +79515,8 @@ class TaskAnalyzer(object):
         # get task tree #
         try:
             procTree = TaskAnalyzer.getProcTreeFromList(instance)
+        except SystemExit:
+            sys.exit(0)
         except:
             printFunc("\n\tNone")
             return
@@ -79563,20 +79635,22 @@ class TaskAnalyzer(object):
                 if depth == 0:
                     indent = '\n'
 
+                # make indent #
                 for idx in range(0, depth):
                     indent = '%s%s|' % (indent, ' ' * 5)
 
+                # add proc info #
                 procInfo = "%s(%s)" % (comm, pid)
                 treestr += '%s- %-22s %3s%%(%s/%s) ' % \
                     (indent, procInfo, cpuPer, ttimestr, runtimestr)
 
+                # add child info #
                 nrChild = len(childs)
                 if nrChild > 0:
                     treestr += '<%s>' % nrChild
 
-                treestr += '\n'
-
-                treestr += _printTreeNodes(childs, depth+1, targets, enable)
+                # add child nodes #
+                treestr += '\n%s' % _printTreeNodes(childs, depth+1, targets, enable)
 
             return treestr
 
@@ -86008,9 +86082,17 @@ class TaskAnalyzer(object):
 
             # /sys/class/hwmon #
             for hwPath in tempPath:
+                try:
+                    hwdirs = os.listdir(hwPath)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
+
                 tempDirList = \
                     [ '%s/%s' % (hwPath, item.replace('input', 'label')) \
-                    for item in os.listdir(hwPath) if item.endswith('_input') ]
+                        for item in hwdirs if item.endswith('_input') ]
+
                 phyId = long(0)
                 tempData = {}
 
