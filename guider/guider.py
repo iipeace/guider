@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210820"
+__revision__ = "210821"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4273,7 +4273,7 @@ class UtilMgr(object):
                 if inodeFilter and not inode in inodeFilter:
                     continue
 
-                # make device id #
+                # make device ID #
                 major = os.major(fstat.st_dev)
                 minor = os.minor(fstat.st_dev)
                 devid = '%s:%s' % (major, minor)
@@ -7694,7 +7694,7 @@ class Timeline(object):
         duration = segment.time_end - segment.time_start
         time_end = segment.time_end + start
 
-        # get color id #
+        # get color ID #
         if segment.color:
             color = segment.color
         else:
@@ -7703,7 +7703,7 @@ class Timeline(object):
             else:
                 colorid = group_idx
 
-            # get real color via id #
+            # get real color via ID #
             try:
                 color = self.color_map[colorid]
             except:
@@ -35202,7 +35202,7 @@ Copyright:
             for item in limitInfo:
                 (tid,per) = item.split(':')
 
-                # get id for tasks #
+                # get ID for tasks #
                 if tid.isdigit():
                     limitList[tid] = long(per)
                 else:
@@ -40037,7 +40037,7 @@ Copyright:
         # check package #
         SysMgr.getPkg('ctypes')
 
-        # check target id #
+        # check target ID #
         targetList = SysMgr.filterGroup
         if not targetList:
             SysMgr.printErr("no input for PID or COMM")
@@ -40840,7 +40840,7 @@ Copyright:
                         {'op': 'read', 'path': path, 'size': size})
             # read current directory #
             else:
-                # get device id #
+                # get device ID #
                 fstat = os.lstat('.')
                 major = str(os.major(fstat.st_dev))
                 minor = str(os.minor(fstat.st_dev))
@@ -46191,7 +46191,7 @@ Copyright:
                         if mp['major'] == major and mp['minor'] == minor:
                             raise MountException
 
-                # check nodes by device id #
+                # check nodes by device ID #
                 if not dev in self.diskInfo['prev']:
                     for node, attr in self.diskInfo['prev'].items():
                         if attr['major'] == major and attr['minor'] == minor:
@@ -48860,7 +48860,7 @@ class DbusMgr(object):
                     #dbusObj.dbus_connection_unref(conn)
                     return
 
-                # get process id #
+                # get process ID #
                 dbusObj.dbus_message_iter_get_basic(dictIterP, byref(procInfo))
                 if not procInfo.value:
                     _printWarn(procStr, getLine(), getErr())
@@ -76268,7 +76268,7 @@ class TaskAnalyzer(object):
                         if path in fileInfo:
                             fsize = convSize(fileInfo[path].st_size)
                             path = '%s[%s]' % (path, fsize)
-                    # search candidate files for incorrect device id #
+                    # search candidate files for incorrect device ID #
                     else:
                         path = ' '
                         mdid = "%s:" % did.split(':')[0]
@@ -79440,17 +79440,21 @@ class TaskAnalyzer(object):
     def getDescendantList(pids, instance=None):
         taskList = []
 
-        # convert target list type #
         try:
+            # convert to list #
             if UtilMgr.isNumber(pids):
                 pids = [pids]
 
+            # get minimum pid #
+            minPid = min(list(map(long, pids)))
+
+            # convert items to integer #
             pids = list(map(str, pids))
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                'fail to convert target pids to get descendants', reason=True)
+                'fail to convert items to get descendants', reason=True)
             return taskList
 
         # get proc instance #
@@ -79464,9 +79468,15 @@ class TaskAnalyzer(object):
             else:
                 obj.saveSystemStatGen()
 
+        # check kernel thread #
+        if '2' in pids:
+            kernel = True
+        else:
+            kernel = False
+
         # get task tree #
         try:
-            procTree = TaskAnalyzer.getProcTreeFromList(obj.procData)
+            procTree = TaskAnalyzer.getProcTreeFromList(obj.procData, kernel)
         except SystemExit:
             sys.exit(0)
         except:
@@ -80072,7 +80082,7 @@ class TaskAnalyzer(object):
 
                     if mid.split(':')[0] == major and \
                         val['start'] <= addr <= val['end']:
-                        # update device id #
+                        # update device ID #
                         minor = mid.split(':')[1]
                         did = '%s:%s' % (major, minor)
                         break
@@ -80756,7 +80766,7 @@ class TaskAnalyzer(object):
         if SysMgr.maxCore < long(core):
             SysMgr.maxCore = long(core)
 
-        # make core id #
+        # make core ID #
         coreId = '0[%s]' % core
         if long(d['thread']) == 0:
             thread = coreId
@@ -84634,7 +84644,7 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
-    def getProcTreeFromList(procInstance):
+    def getProcTreeFromList(procInstance, kernel=True):
         procTree = {}
         ppidIdx = ConfigMgr.STAT_ATTR.index("PPID")
 
@@ -84683,8 +84693,14 @@ class TaskAnalyzer(object):
             startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
             for pid, item in sorted(procInstance.items(),
                 key=lambda e: long(e[1]['stat'][startIdx])):
+                # get parent ID #
                 ppid = procInstance[pid]['stat'][ppidIdx]
 
+                # check kernel thread #
+                if not kernel and ppid == '2':
+                    continue
+
+                # add task #
                 if ppid == '0':
                     procTree[pid] = {}
                 else:
@@ -84695,6 +84711,7 @@ class TaskAnalyzer(object):
                 key=lambda e: long(e[1]['starttime'])):
                 ppid = procInstance[pid]['ppid']
 
+                # add task #
                 if ppid == '0':
                     procTree[pid] = {}
                 else:
@@ -86371,9 +86388,9 @@ class TaskAnalyzer(object):
                         except:
                             gov = None
 
-                    # get package id #
+                    # get package ID #
                     try:
-                        # get core id #
+                        # get core ID #
                         if idx in self.prevCpuData and \
                             'cidFd' in self.prevCpuData[idx]:
                             fd = self.prevCpuData[idx]['cidFd']
@@ -86390,7 +86407,7 @@ class TaskAnalyzer(object):
                         if coreId < 0:
                             coreId = '?'
 
-                        # get package id #
+                        # get package ID #
                         if idx in self.prevCpuData and \
                             'pidFd' in self.prevCpuData[idx]:
                             fd = self.prevCpuData[idx]['pidFd']
@@ -88138,7 +88155,7 @@ class TaskAnalyzer(object):
         def _isExceptTask(idx):
             exceptFlag = False
 
-            # check comm and id #
+            # check comm and ID #
             if not TaskAnalyzer.checkFilter(procData[idx]['comm'], idx):
                 exceptFlag = True
 
@@ -88465,7 +88482,7 @@ class TaskAnalyzer(object):
             'yld': long(0), 'prtd': long(0), 'task': long(0)
         }
 
-        # clear id list #
+        # clear ID list #
         if idIndex:
             SysMgr.idList = []
 
@@ -88513,7 +88530,7 @@ class TaskAnalyzer(object):
             # get comm #
             comm = value['comm']
 
-            # get parent id #
+            # get parent ID #
             if SysMgr.processEnable:
                 pid = stat[self.ppidIdx]
             else:

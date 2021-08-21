@@ -21,8 +21,7 @@ Table of contents
 Guider
 =======
 Guider is an integrated performance analyzer.   
-It provides most of the functions required for measuring, analyzing, testing and verifying system performance.
-Even now, its functions and usability are expanding.
+It provides most of the features needed to measure, analyze, test and verify system performance.
 
 The features of Guider are as follows.
 * Monitoring
@@ -31,6 +30,7 @@ The features of Guider are as follows.
 * Visualization
 * Control
 * Logging
+* Networking
 * Test
 * Util
 
@@ -41,16 +41,17 @@ Guider pursues characteristics as below.
 4. Submit the report in detail: show as much information as possible
 5. Visualize through the browser: visualization output in svg format
 
-It supports almost all platforms based on the Linux kernel as shown below.
+It supports almost all platforms based on the Linux kernel,
+Some other operating systems are limited.
+* distro (Ubuntu, CentOS, RHEL, MX, Mint, Arch, Manjaro, ...)
 * Android
-* distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
 * ccOS (Connected Car Operating System)
 * webOS
 * Tizen
 * GENIVI Development Platform (GDP)
 * Automotive Grade Linux (AGL) Platform
-* Windows (Limited)
-* macOS (Limited)
+* Windows [Limited]
+* macOS [Limited]
 
 Output
 =======
