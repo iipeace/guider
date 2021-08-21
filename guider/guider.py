@@ -76016,6 +76016,9 @@ class TaskAnalyzer(object):
 
     def printBlockInfo(self):
         def _printBlkUsage(cid, data, opt, tcnt):
+            convSize = UtilMgr.convSize2Unit
+            convNum = UtilMgr.convNum
+
             for num, val in sorted(
                 data.items(), key=lambda e:e[1], reverse=True):
                 if tcnt == 0:
@@ -76044,8 +76047,8 @@ class TaskAnalyzer(object):
                 except:
                     seqPer = '?'
 
-                size = UtilMgr.convSize2Unit(val[0])
-                seqSize = UtilMgr.convSize2Unit(val[3])
+                size = convSize(val[0])
+                seqSize = convSize(val[3])
                 seqString = '%s(%5.1f)' % (seqSize, seqPer)
 
                 if tcnt > 0:
@@ -76060,12 +76063,12 @@ class TaskAnalyzer(object):
 
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
-                    start = UtilMgr.convSize2Unit(optSize)
-                    end = UtilMgr.convSize2Unit((optSize << 1) - 1024)
+                    start = convSize(optSize, True)
+                    end = convSize((optSize << 1) - 1024, True)
                     SysMgr.printPipe((
                         "{0:^25} {0:^8} {0:^5} {1:>20} "
                         "{2:>25} {0:^12} {0:<20}").format(
-                            '', '[%7s - %7s]' % (start, end), cnt))
+                            '', '[%7s - %7s]' % (start, end), convNum(cnt)))
 
                 tcnt += 1
 
