@@ -10133,7 +10133,7 @@ class PageAnalyzer(object):
 
                         offset = long(0)
                     else:
-                        offset = SysMgr.pageSize
+                        offset = SysMgr.PAGESIZE
 
                     if addrs > addre:
                         SysMgr.printErr(
@@ -10161,7 +10161,7 @@ class PageAnalyzer(object):
                 format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",
                 "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
-            for addr in range(addrs, addre + offset, SysMgr.pageSize):
+            for addr in range(addrs, addre + offset, SysMgr.PAGESIZE):
                 entry = PageAnalyzer.getPagemapEntry(pid, addr)
 
                 pfn = PageAnalyzer.getPfn(entry)
@@ -15953,7 +15953,7 @@ class FileAnalyzer(object):
         SysMgr.printInfoBuffer()
 
         # define alias #
-        pageSize = SysMgr.pageSize
+        pageSize = SysMgr.PAGESIZE
         convert = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
         uptime = UtilMgr.convTime(SysMgr.updateUptime())
@@ -16788,7 +16788,7 @@ class FileAnalyzer(object):
         convert = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
         convNum = UtilMgr.convNum
-        pageSize = SysMgr.pageSize
+        pageSize = SysMgr.PAGESIZE
         uptime = UtilMgr.convTime(SysMgr.updateUptime())
 
         # Print process list #
@@ -17067,7 +17067,7 @@ class FileAnalyzer(object):
                 val['pageCnt'] = val['fileMap'].count(1)
                 self.profPageCnt += val['pageCnt']
 
-        pageSize = SysMgr.pageSize
+        pageSize = SysMgr.PAGESIZE
         for pid, val in self.procData.items():
             for fileName, mapInfo in val['procMap'].items():
                 if not fileName in self.fileData:
@@ -17122,7 +17122,7 @@ class FileAnalyzer(object):
     def getFilePageMaps(self):
         # pylint: disable=no-member
 
-        pageSize = SysMgr.pageSize
+        pageSize = SysMgr.PAGESIZE
         self.profSuccessCnt = long(0)
         self.profFailedCnt = long(0)
 
@@ -17830,7 +17830,7 @@ class LogMgr(object):
         logs = list()
         while 1:
             try:
-                data = os.read(fd, SysMgr.pageSize).decode()
+                data = os.read(fd, SysMgr.PAGESIZE).decode()
                 logs.append(data)
             except SystemExit:
                 sys.exit(0)
@@ -18140,12 +18140,16 @@ class SysMgr(object):
 
     # page size #
     try:
-        pageSize = os.sysconf("SC_PAGE_SIZE")
+        PAGESIZE = os.sysconf("SC_PAGE_SIZE")
     except:
-        pageSize = 4096
+        PAGESIZE = 4096
 
-    HZ = 250 # 4ms tick #
+    # define many-core number #
+    NRMANYCORE = 8
+
+    # set tick #
     try:
+        HZ = 250 # 4ms tick #
         if isLinux:
             TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
         else:
@@ -21282,7 +21286,7 @@ Commands:
 
 
     @staticmethod
-    def createShm(path=None, size=pageSize):
+    def createShm(path=None, size=PAGESIZE):
         if not SysMgr.isLinux:
             return
 
@@ -21300,6 +21304,8 @@ Commands:
             commList = ['%s(%s)' % \
                 (SysMgr.getComm(pid), pid) for pid in pidList]
             return ', '.join(commList)
+        except SystemExit:
+            sys.exit(0)
         except:
             return ', '.join(pidList)
 
@@ -39077,7 +39083,7 @@ Copyright:
             # print progress #
             UtilMgr.printProgress()
 
-            blockSize = SysMgr.pageSize
+            blockSize = SysMgr.PAGESIZE
 
             # sort by size #
             if SysMgr.showAll:
@@ -39188,7 +39194,7 @@ Copyright:
 
             convSize = UtilMgr.convSize2Unit
             convColor = UtilMgr.convColor
-            blockSize = SysMgr.pageSize
+            blockSize = SysMgr.PAGESIZE
 
             # sort by size #
             if SysMgr.showAll:
@@ -44447,7 +44453,7 @@ Copyright:
             SysMgr.printOpenErr(filePath)
             sys.exit(0)
 
-        pageSize = SysMgr.pageSize
+        pageSize = SysMgr.PAGESIZE
 
         while 1:
             try:
@@ -55422,10 +55428,10 @@ typedef struct {
     def mprotect(self, maddr, size=0, perm='rwx'):
         # check size #
         if not size:
-            size = SysMgr.pageSize
+            size = SysMgr.PAGESIZE
 
         # align address #
-        offset = maddr % SysMgr.pageSize
+        offset = maddr % SysMgr.PAGESIZE
         if offset > 0:
             maddr -= offset
 
@@ -55918,7 +55924,7 @@ typedef struct {
                 if string:
                     ret += string
 
-                if len(ret) > SysMgr.pageSize:
+                if len(ret) > SysMgr.PAGESIZE:
                     return ret
 
 
@@ -65612,7 +65618,7 @@ class ElfAnalyzer(object):
         decompressor = zlib.decompressobj()
 
         while True:
-            chunk = fd.read(SysMgr.pageSize)
+            chunk = fd.read(SysMgr.PAGESIZE)
             if not chunk:
                 break
             uncompBytes += decompressor.decompress(chunk)
@@ -74463,7 +74469,7 @@ class TaskAnalyzer(object):
                     (value['writeBlock'] * SysMgr.blockSize) >> 20
             if value['awriteBlock'] > 0:
                 value['awriteBlock'] = \
-                    (value['awriteBlock'] * SysMgr.pageSize) >> 20
+                    (value['awriteBlock'] * SysMgr.PAGESIZE) >> 20
 
         # set precise flag #
         if 'PRECISE' in SysMgr.environList:
@@ -80081,7 +80087,7 @@ class TaskAnalyzer(object):
             blkOffset = addr + (size >> 9)
         else:
             # convert page to real size #
-            size = SysMgr.pageSize
+            size = SysMgr.PAGESIZE
             blkOffset = addr + 1
 
         blkSize = _getBlkOptSize(size)
@@ -82439,12 +82445,12 @@ class TaskAnalyzer(object):
                         lastData[2] == did and \
                         lastData[3] == inode and \
                         lastData[4] + lastData[5] == ofs:
-                        lastData[5] += SysMgr.pageSize
+                        lastData[5] += SysMgr.PAGESIZE
                         return time
 
                 # append new event #
                 self.fsData[0].append(
-                    [thread, access, did, inode, ofs, SysMgr.pageSize])
+                    [thread, access, did, inode, ofs, SysMgr.PAGESIZE])
 
         elif func == "writeback_dirty_page":
             m = re.match((
@@ -86230,6 +86236,7 @@ class TaskAnalyzer(object):
             # traverse core files #
             for idx in list(self.cpuData.keys()):
                 try:
+                    cid = None
                     curCore = long(idx)
                     perCoreStats[curCore] = dict()
 
@@ -86280,7 +86287,12 @@ class TaskAnalyzer(object):
                     continue
 
                 # save frequency #
-                if not SysMgr.isLinux:
+                if not SysMgr.reportEnable and \
+                    not SysMgr.jsonEnable and \
+                    not SysMgr.barGraphEnable and \
+                    SysMgr.nrCore > SysMgr.NRMANYCORE:
+                    pass
+                elif not SysMgr.isLinux:
                     try:
                         cid = None
                         curFreq = minFreq = maxFreq = None
@@ -86453,7 +86465,6 @@ class TaskAnalyzer(object):
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        cid = None
                         perCoreStats[idx]['id'] = None
 
                 # merge frequency info #
@@ -86504,7 +86515,7 @@ class TaskAnalyzer(object):
                         lenCoreStat = len(UtilMgr.removeColor(coreStat))
 
                     # use short core stats for many-core system #
-                    if not SysMgr.barGraphEnable and SysMgr.nrCore > 8:
+                    if not SysMgr.barGraphEnable and SysMgr.nrCore > SysMgr.NRMANYCORE:
                         shortCoreStats += coreStat
                         coreFactor = long(maxCols / lenCoreStat)
                         if (curCore+1) % coreFactor == 0:
