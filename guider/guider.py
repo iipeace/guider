@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210821"
+__revision__ = "210823"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3247,7 +3247,7 @@ class ConfigMgr(object):
         ['SIGRT%d' % idx for idx in range(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
 
-    # signal for macOS #
+    # signal for MacOS #
     SIG_LIST_MACOS = [
         '0', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
         'SIGTRAP', 'SIGABRT', 'SIGEMT', 'SIGFPE', #8#
@@ -20416,7 +20416,7 @@ Commands:
 
     @staticmethod
     def setStream(cut=True):
-        if not cut:
+        if 'NOCUT' in SysMgr.environList or not cut:
             SysMgr.ttyCols = long(0)
 
         SysMgr.printStreamEnable = True
@@ -22335,7 +22335,7 @@ Commands:
             # set default SIGINT handler #
             signal.signal(signal.SIGINT, SysMgr.stopHandler)
 
-        # macOS #
+        # MacOS #
         elif sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
             SysMgr.isDarwin = True
@@ -22453,22 +22453,22 @@ Commands:
         return {
             'monitor': {
                 'atop': ('All', 'Linux'),
-                'bgtop': ('Background', 'Linux/macOS/Windows'),
+                'bgtop': ('Background', 'Linux/MacOS/Windows'),
                 'btop': ('Function', 'Linux'),
                 'cgtop': ('Cgroup', 'Linux'),
-                'ctop': ('Threshold', 'Linux/macOS/Windows'),
+                'ctop': ('Threshold', 'Linux/MacOS/Windows'),
                 'dbustop': ('D-Bus', 'Linux'),
-                'disktop': ('Storage', 'Linux/macOS/Windows'),
-                'dlttop': ('DLT', 'Linux/macOS/Windows'),
-                'ftop': ('File', 'Linux/macOS'),
+                'disktop': ('Storage', 'Linux/MacOS/Windows'),
+                'dlttop': ('DLT', 'Linux/MacOS/Windows'),
+                'ftop': ('File', 'Linux/MacOS'),
                 'mtop': ('Memory', 'Linux'),
-                'ntop': ('Network', 'Linux/macOS/Windows'),
+                'ntop': ('Network', 'Linux/MacOS/Windows'),
                 'ptop': ('PMU', 'Linux'),
                 'pytop': ('Python', 'Linux'),
-                'rtop': ('JSON', 'Linux/macOS/Windows'),
+                'rtop': ('JSON', 'Linux/MacOS/Windows'),
                 'stacktop': ('Stack', 'Linux'),
                 'systop': ('Syscall', 'Linux'),
-                'top': ('Process', 'Linux/macOS/Windows'),
+                'top': ('Process', 'Linux/MacOS/Windows'),
                 'ttop': ('Thread', 'Linux'),
                 'utop': ('Function', 'Linux'),
                 'wtop': ('WSS', 'Linux'),
@@ -22492,27 +22492,27 @@ Commands:
                 'sysrec': ('Syscall', 'Linux'),
                 },
             'visual': {
-                'convert': ('Text', 'Linux/macOS/Windows'),
-                'draw': ('System', 'Linux/macOS/Windows'),
-                'drawavg': ('Average', 'Linux/macOS/Windows'),
-                'drawcpu': ('CPU', 'Linux/macOS/Windows'),
-                'drawcpuavg': ('CPU', 'Linux/macOS/Windows'),
-                'drawdelay': ('Delay', 'Linux/macOS/Windows'),
-                'drawflame': ('Function', 'Linux/macOS/Windows'),
-                'drawio': ('I/O', 'Linux/macOS/Windows'),
-                'drawleak': ('Leak', 'Linux/macOS/Windows'),
-                'drawmem': ('Memory', 'Linux/macOS/Windows'),
-                'drawmemavg': ('Memory', 'Linux/macOS/Windows'),
-                'drawreq': ('URL', 'Linux/macOS/Windows'),
-                'drawrss': ('RSS', 'Linux/macOS/Windows'),
-                'drawrssavg': ('RSS', 'Linux/macOS/Windows'),
-                'drawtime': ('Timeline', 'Linux/macOS/Windows'),
-                'drawvss': ('VSS', 'Linux/macOS/Windows'),
-                'drawvssavg': ('VSS', 'Linux/macOS/Windows'),
+                'convert': ('Text', 'Linux/MacOS/Windows'),
+                'draw': ('System', 'Linux/MacOS/Windows'),
+                'drawavg': ('Average', 'Linux/MacOS/Windows'),
+                'drawcpu': ('CPU', 'Linux/MacOS/Windows'),
+                'drawcpuavg': ('CPU', 'Linux/MacOS/Windows'),
+                'drawdelay': ('Delay', 'Linux/MacOS/Windows'),
+                'drawflame': ('Function', 'Linux/MacOS/Windows'),
+                'drawio': ('I/O', 'Linux/MacOS/Windows'),
+                'drawleak': ('Leak', 'Linux/MacOS/Windows'),
+                'drawmem': ('Memory', 'Linux/MacOS/Windows'),
+                'drawmemavg': ('Memory', 'Linux/MacOS/Windows'),
+                'drawreq': ('URL', 'Linux/MacOS/Windows'),
+                'drawrss': ('RSS', 'Linux/MacOS/Windows'),
+                'drawrssavg': ('RSS', 'Linux/MacOS/Windows'),
+                'drawtime': ('Timeline', 'Linux/MacOS/Windows'),
+                'drawvss': ('VSS', 'Linux/MacOS/Windows'),
+                'drawvssavg': ('VSS', 'Linux/MacOS/Windows'),
                 },
             'control': {
                 'hook': ('Function', 'Linux'),
-                'kill/tkill': ('Signal', 'Linux/macOS'),
+                'kill/tkill': ('Signal', 'Linux/MacOS'),
                 'limitcpu': ('CPU', 'Linux'),
                 'pause': ('Thread', 'Linux'),
                 'remote': ('Command', 'Linux'),
@@ -22522,38 +22522,38 @@ Commands:
                 'setsched': ('Priority', 'Linux'),
                 },
             'util': {
-                'addr2sym': ('Symbol', 'Linux/macOS/Windows'),
-                'comp': ('Compress', 'Linux/macOS/Windows'),
-                'decomp': ('Decompress', 'Linux/macOS/Windows'),
+                'addr2sym': ('Symbol', 'Linux/MacOS/Windows'),
+                'comp': ('Compress', 'Linux/MacOS/Windows'),
+                'decomp': ('Decompress', 'Linux/MacOS/Windows'),
                 'dump': ('Memory', 'Linux'),
-                'exec': ('Command', 'Linux/macOS/Windows'),
+                'exec': ('Command', 'Linux/MacOS/Windows'),
                 'getafnt': ('Affinity', 'Linux'),
-                'mkcache': ('Cache', 'Linux/macOS/Windows'),
+                'mkcache': ('Cache', 'Linux/MacOS/Windows'),
                 'mount': ('Mount', 'Linux'),
-                'ping': ('ICMP', 'Linux/macOS/Windows'),
-                'print': ('File', 'Linux/macOS/Windows'),
+                'ping': ('ICMP', 'Linux/MacOS/Windows'),
+                'print': ('File', 'Linux/MacOS/Windows'),
                 'printbind': ('Funcion', 'Linux'),
                 'printcg': ('Cgroup', 'Linux'),
                 'printdbus': ('D-Bus', 'Linux'),
                 'printdbusintro': ('D-Bus', 'Linux'),
                 'printdbusstat': ('D-Bus', 'Linux'),
                 'printdbussub': ('D-Bus', 'Linux'),
-                'printdir': ('Dir', 'Linux/macOS/Windows'),
+                'printdir': ('Dir', 'Linux/MacOS/Windows'),
                 'printenv': ('Env', 'Linux'),
-                'printext': ('Ext4', 'Linux/macOS/Windows'),
+                'printext': ('Ext4', 'Linux/MacOS/Windows'),
                 'printinfo': ('System', 'Linux'),
                 'printns': ('Namespace', 'Linux'),
                 'printsig': ('Signal', 'Linux'),
                 'printsvc': ('systemd', 'Linux'),
-                'pstree': ('Process', 'Linux/macOS/Windows'),
+                'pstree': ('Process', 'Linux/MacOS/Windows'),
                 'readahead': ('File', 'Linux'),
-                'readelf': ('File', 'Linux/macOS/Windows'),
-                'req': ('URL', 'Linux/macOS/Windows'),
-                'strings': ('Text', 'Linux/macOS/Windows'),
-                'sym2addr': ('Address', 'Linux/macOS/Windows'),
+                'readelf': ('File', 'Linux/MacOS/Windows'),
+                'req': ('URL', 'Linux/MacOS/Windows'),
+                'strings': ('Text', 'Linux/MacOS/Windows'),
+                'sym2addr': ('Address', 'Linux/MacOS/Windows'),
                 'systat': ('Status', 'Linux'),
-                'topdiff': ('Diff', 'Linux/macOS/Windows'),
-                'topsum': ('Summary', 'Linux/macOS/Windows'),
+                'topdiff': ('Diff', 'Linux/MacOS/Windows'),
+                'topsum': ('Summary', 'Linux/MacOS/Windows'),
                 'umount': ('Unmount', 'Linux'),
                 'watch': ('File', 'Linux'),
                 },
@@ -22562,23 +22562,23 @@ Commands:
                 'logjrl': ('Journal', 'Linux'),
                 'logkmsg': ('Kernel', 'Linux'),
                 'logsys': ('Syslog', 'Linux'),
-                'printdlt': ('DLT', 'Linux/macOS/Windows'),
+                'printdlt': ('DLT', 'Linux/MacOS/Windows'),
                 'printjrl': ('Journal', 'Linux'),
                 'printkmsg': ('Kernel', 'Linux'),
                 'printsys': ('Syslog', 'Linux'),
                 },
             'network': {
-                'cli': ('Client', 'Linux/macOS/Windows'),
+                'cli': ('Client', 'Linux/MacOS/Windows'),
                 'event': ('Event', 'Linux'),
-                'list': ('List', 'Linux/macOS/Windows'),
+                'list': ('List', 'Linux/MacOS/Windows'),
                 'send': ('Signal', 'Linux'),
-                'server': ('Server', 'Linux/macOS'),
+                'server': ('Server', 'Linux/MacOS'),
                 'start': ('Signal', 'Linux'),
                 },
             'test': {
-                'cputest': ('CPU', 'Linux/macOS/Windows'),
-                'iotest ': ('Storage', 'Linux/macOS/Windows'),
-                'memtest': ('Memory', 'Linux/macOS/Windows'),
+                'cputest': ('CPU', 'Linux/MacOS/Windows'),
+                'iotest ': ('Storage', 'Linux/MacOS/Windows'),
+                'memtest': ('Memory', 'Linux/MacOS/Windows'),
                 'nettest ': ('Network', 'Linux'),
                 },
             }
@@ -22991,229 +22991,236 @@ Commands:
 
                 brkExamStr = '''{2:1}
 Examples:
-    - Trace all native calls for specific thread
+    - {3:1} for specific thread
         # {0:1} {1:1} -g 1234
 
-    - Trace all native calls from a specific binary
+    - {3:1} from a specific binary
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I "ls"
 
-    - Trace all native calls and standard output from a specific binary
+    - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
-    - Trace all native calls for specific threads (wait for new target if no task)
+    - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - Trace all native calls for child tasks created by a specific thread
+    - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - Trace all native calls except for wait status for specific threads
+    - {3:1} except for wait status for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - Trace all native calls except for register info for specific threads
+    - {3:1} except for register info for specific threads
         # {0:1} {1:1} -g a.out -q NOCONTEXT
 
-    - Trace all native calls for specific threads consumed CPU more than 10%
+    - {3:1} for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Trace all native calls for specific threads even if the master tracer is terminated
+    - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Trace all native calls for specific threads after loading all symbols in stop status
+    - {3:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - Trace all native calls except for no symbol functions for specific threads
+    - {3:1} except for no symbol functions for specific threads
         # {0:1} {1:1} -g a.out -q ONLYSYM
 
-    - Trace all native calls except for arguments for specific threads
+    - {3:1} except for arguments for specific threads
         # {0:1} {1:1} -g a.out -q NOARG
 
-    - Trace all native calls except for ld for specific threads
+    - {3:1} except for ld for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
-    - Trace all native calls and their injection info for specific threads
+    - {3:1} and their injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEBP
 
-    - Trace all native calls for 4th new threads in each new processes from a specific binary
+    - {3:1} for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -q TARGETNUM:4
 
-    - Trace all native calls from a specific binary with DWARF info
+    - {3:1} from a specific binary with DWARF info
+        # {0:1} {1:1} "ls" -eD
         # {0:1} {1:1} -I "ls" -eD
 
-    - Trace all native calls from a specific binary with environment variables
+    - {3:1} from a specific binary with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Trace all native calls with backtrace for specific threads
+    - {3:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Trace all native calls with python backtrace for specific threads
+    - {3:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - Trace specific native calls for specific threads
+    - {5:1} for specific threads
         # {0:1} {1:1} -g 1234 -c printPeace
 
-    - Trace all native calls except for printPeace for specific threads
+    - {3:1} except for printPeace for specific threads
         # {0:1} {1:1} -g 1234 -c ^printPeace
 
-    - Trace a specific native calls from a specific binary
+    - {5:1} from a specific binary
         # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Trace specific native calls only for 2 seconds
+    - {5:1} for specific threads only for 2 seconds
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
-    - Trace sepcific native calls and report the result to ./guider.out
+    - {5:1} for specific threads and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o .
 
-    - Trace specific native calls including specific word
+    - {5:1} including specific word for specific threads
         # {0:1} {1:1} -g 1234 -c "*printPeace"
         # {0:1} {1:1} -g 1234 -c "printPeace*"
         # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
-    - Trace all native calls related to specific files
+    - {3:1} related to specific files for specific threads
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
-    - Trace all native calls except for specific files
+    - {3:1} except for specific files for specific threads
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
-    - Trace specific native calls including specific word and stop tracing
+    - {5:1} including specific word for specific threads and stop tracing {4:1}
         # {0:1} {1:1} -g a.out -c "*printPeace|stop"
         # {0:1} {1:1} -g a.out -c "printPeace*|stop"
         # {0:1} {1:1} -g a.out -c "*printPeace*|stop"
 
-    - Trace all native calls with 0.1 second sleep
+    - {3:1} and sleep for 0.1 second {4:1}
         # {0:1} {1:1} -g a.out -c "*|sleep:0.1"
 
-    - Trace specific native calls with 0.1 second sleep only one time
+    - {5:1} and sleep for 0.1 second only one time for specific threads {4:1}
         # {0:1} {1:1} -g a.out -c "write|oneshot:sleep:0.1"
 
-    - Trace specific native calls and kill the target thread
+    - {5:1} for specific threads and kill the target thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|kill"
 
-    - Trace specific native calls and modify memory
+    - {5:1} for specific threads and modify memory {4:1}
         # {0:1} {1:1} -g a.out -c "write|wrmem:0x1234:aaaa:4"
 
-    - Trace specific native calls and modify memory pointed by 1st argument
+    - {5:1} for specific threads and modify memory pointed by 1st argument {4:1}
         # {0:1} {1:1} -g a.out -c "write|wrmem:0:aaaa:4"
 
-    - Trace printf native calls with 10-length string that 1st argument point to
+    - {5:1} for specific threads and print 10-length string pointed by 1st argument {4:1}
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0:10"
 
-    - Trace printf native calls with 10-length string from the specific address
+    - {5:1} for specific threads and print 10-length string from the specific address {4:1}
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0x1234:10"
 
-    - Trace specific native calls and return a specific value immediately
+    - {5:1} for specific threads and return a specific value immediately {4:1}
         # {0:1} {1:1} -g a.out -c "write|ret:3"
 
-    - Trace specific native calls and dump stack to a file
+    - {5:1} for specific threads and dump thread stack to the specific file {4:1}
         # {0:1} {1:1} -g a.out -c "write|dump:stack:stack.out"
 
-    - Trace specific native calls and dump specific memory range to a file
+    - {5:1} for specific threads and dump specific memory range to the specific file {4:1}
         # {0:1} {1:1} -g a.out -c "write|dump:0x1234-0x4567:dump.out"
 
-    - Trace specific native calls and return value
+    - {5:1} for specific threads and print return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret"
 
-    - Trace specific native calls and stop tracing and save return value to specific variable
+    - {5:1} for specific threads and stop tracing and save return value to specific variable {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
-    - Trace specific native calls and start tracing all calls
+    - {5:1} for specific threads and start tracing all calls after return {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret:start, *"
 
-    - Trace specific native calls with colorful elapsed time when the elapsed time exceed 0.1 second
+    - {5:1} for specific threads without truncation
+        # {0:1} {1:1} -g a.out -q NOCUT
+
+    - {5:1} with colorful elapsed time when the elapsed time exceed 0.1 second for specific threads {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
 
-    - Trace specific native calls and call them again repeatedly
+    - {5:1} for specific threads and call them again repeatedly {4:1}
         # {0:1} {1:1} -g a.out -c "write|repeat"
         # {0:1} {1:1} -g a.out -c "write|repeat:5"
 
-    - Trace specific native calls and change return value
+    - {5:1} for specific threads and modify return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|setret:3"
         # {0:1} {1:1} -g a.out -c "write|setret:3:print"
 
-    - Trace specific native calls and modify 1st and 2nd arguments
+    - {5:1} for specific threads and modify 1st and 2nd arguments {4:1}
         # {0:1} {1:1} -g a.out -c "write|setarg:0#2:1#5"
 
-    - Trace specific native calls and print details
+    - {5:1} and print call contexts {4:1}
         # {0:1} {1:1} -g a.out -c "write|print"
 
-    - Trace specific python calls and print details
+    - Trace specific python calls and print call contexts {4:1}
         # {0:1} {1:1} -g a.out -c "write|print" -q PYSTACK
 
-    - Trace specific native calls and save specific values to specific variables
+    - {5:1} and save specific values to specific variables {4:1}
         # {0:1} {1:1} -g a.out -c "write|save:VAR1|print:VAR1|save:VAR2:123"
         # {0:1} {1:1} -g a.out -c "write|save:ARG1:1:arg|print:VAR1"
 
-    - Trace specific native calls if call meets specific conditions
+    - {5:1} and print call contexts if specific conditions are met {4:1}
         # {0:1} {1:1} -g a.out -c "write|filter:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:INC:HE"
 
-    - Trace specific native calls and return if only the elapsed time exceed 0.0005 second
+    - {5:1} and print call contexts if only the elapsed time exceed 0.0005 second {4:1}
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005"
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005" -H -a
 
-    - Trace specific native calls with specific check the results
+    - {5:1} and check specific conditions {4:1}
         # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|check:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|check:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|check:*1:INC:HE"
         # {0:1} {1:1} -g a.out -c "write|check:@RET1:EQ:@RET2:EVENT_CONT"
 
-    - Trace specific native calls and print 1st and 2nd arguments
+    - {5:1} and print 1st and 2nd arguments {4:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1"
 
-    - Trace specific native calls and print 1st and 2nd arguments and save its return value to specific variable
+    - {5:1} and print 1st and 2nd arguments and save its return value to specific variable {4:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
-    - Trace specific native calls and start tracing all functions
+    - {5:1} and start tracing all functions {4:1}
         # {0:1} {1:1} -g a.out -c "write|start, *"
 
-    - Trace specific native calls and terminate target thread
+    - {5:1} and terminate the target thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|exit"
 
-    - Trace specific native calls within a specific range
+    - {5:1} within a specific range {4:1}
         # {0:1} {1:1} -g a.out -c "open|start|getret:stop, *"
         # {0:1} {1:1} -g a.out -c "open|start|getret:exit, *"
         # {0:1} {1:1} -g a.out -c "open|start, *, close|getret:condexit"
 
-    - Trace specific native calls and call specific functions every time
+    - {5:1} and call specific functions every time {4:1}
         # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345"
         # {0:1} {1:1} -g a.out -c "write|usercall:getenv#PATH, usercall:write#1#@getenv#1024"
 
-    - Trace specific native calls and call specific syscalls
+    - {5:1} and call specific syscalls {4:1}
         # {0:1} {1:1} -g a.out -c "write|syscall:getpid"
         # {0:1} {1:1} -g a.out -c "write|syscall:open#test.out#1"
 
-    - Trace specific native calls and load specific library
+    - {5:1} and load specific library {4:1}
         # {0:1} {1:1} -g a.out -c "write|load:/usr/lib/preload.so"
 
-    - Trace specific native calls and create a thread
+    - {5:1} and create a new thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|thread"
 
-    - Trace specific native calls and execute python code
+    - {5:1} and execute python code {4:1}
         # {0:1} {1:1} -g a.out -c "write|pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
         # {0:1} {1:1} -g a.out -c "write|pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
-    - Trace specific native calls and print accumulated stats for specific argument
+    - {5:1} and print accumulated stats for specific argument {4:1}
         # {0:1} {1:1} -g a.out -c "malloc|acc:CHUNK:0:arg"
 
-    - Trace specific native calls and print distribution stats for specific argument
+    - {5:1} and print distribution stats for specific argument {4:1}
         # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0:arg"
 
-    - Trace specific native calls and jump to specific function with specific arguments
+    - {5:1} and jump to specific function with specific arguments {4:1}
         # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
 
-    - Trace all native calls and execute specific commands
+    - {3:1} and execute specific commands {4:1}
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
-                '''.format(cmd, mode, cmdListStr)
+                '''.format(cmd, mode, cmdListStr,
+                    'Trace all native calls',
+                    'when specific calls detected',
+                    'Trace specific native calls')
 
                 logCommonStr = '''
 Usage:
@@ -24515,19 +24522,19 @@ Options:
 
                     helpStr += '''{2:1}
 Examples:
-    - Trace all read syscalls for specific threads
+    - {4:1} for specific threads
         # {0:1} {1:1} -g a.out -t read
 
-    - Trace all syscalls except for read for specific threads
+    - {3:1} except for read for specific threads
         # {0:1} {1:1} -g a.out -t ^read
 
-    - Trace all read syscalls for child tasks created by specific threads
+    - {4:1} for child tasks created by specific threads
         # {0:1} {1:1} -g 1234 -t read -q WAITCLONE
 
-    - Trace all write syscalls with specific command
+    - {4:1} with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
-    - Trace all read syscalls with backtrace for specific threads
+    - {4:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H
 
     - Trace only successful syscalls for specific threads
@@ -24536,55 +24543,60 @@ Examples:
     - Trace only failed syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - Trace all read syscalls with python backtrace for specific threads
+    - {4:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
 
-    - Trace all write syscalls with specific command (print standard output)
+    - {4:1} with specific command (print standard output)
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
 
-    - Trace all syscalls for specific threads (wait for new target if no task)
+    - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - Trace all write syscalls with specific command with no strip for buffer contents
+    - {4:1} with specific command with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
-    - Trace all syscalls except for no symbol backtraces for specific threads
+    - {3:1} except for no symbol backtraces for specific threads
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
-    - Trace all syscalls except for arguments for specific threads
+    - {3:1} except for arguments for specific threads
         # {0:1} {1:1} -g a.out -q NOARG
 
-    - Trace all syscalls for specific threads even if the master tracer is terminated
+    - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Trace all write syscalls with colorful elapsed time when the elapsed time exceed 0.1 second
+    - {4:1} with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
-    - Trace all syscalls for specific threads and print strings in specific maximum size
+    - {3:1} for specific threads without truncation
+        # {0:1} {1:1} -g a.out -q NOCUT
+
+    - {3:1} for specific threads and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
 
-    - Trace all read syscalls for specific threads and report the result to ./guider.out
+    - {4:1} for specific threads and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o .
 
-    - Trace all syscalls with breakpoint for read including register info for specific threads
+    - {3:1} with breakpoint for read including register info for specific threads
         # {0:1} {1:1} -g a.out -c read -a
 
-    - Trace all syscalls for specific threads only for 1 minute
+    - {3:1} for specific threads only for 1 minute
         # {0:1} {1:1} -g a.out -R 1m
 
-    - Trace all syscalls and pause when catching open syscall
+    - {3:1} and pause when catching open syscall
         # {0:1} {1:1} -I "ls -al" -c open
 
-    - Trace all syscalls and sleep for 1.5 second when catching open syscall
+    - {3:1} and sleep for 1.5 second when catching open syscall
         # {0:1} {1:1} -I "ls -al" -c "open|sleep:1.5"
 
-    - Trace all syscalls and sleep for 1.5 second whenever catching syscall
+    - {3:1} and sleep for 1.5 second whenever catching syscall
         # {0:1} {1:1} -I "ls -al" -c "*|sleep:1.5"
 
-    - Trace all syscalls and print memory that 2nd argument point to
+    - {3:1} and print memory that 2nd argument point to
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
-                    '''.format(cmd, mode, cmdListStr)
+                    '''.format(cmd, mode, cmdListStr,
+                        'Trace all syscalls',
+                        'Trace specific syscalls')
 
                 # utrace #
                 elif SysMgr.checkMode('utrace'):
@@ -24617,49 +24629,50 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Trace usercalls for a specific thread in 100us cycles
+    - {2:1} for specific threads in 100us cycles
         # {0:1} {1:1} -g a.out
 
-    - Trace usercalls for child tasks created by a specific thread
+    - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Trace usercalls from a specific binary
+    - {2:1} from a specific binary
         # {0:1} {1:1} "ls -al"
         # {0:1} {1:1} -I "ls -al"
 
-    - Trace usercalls for specific threads from a specific binary
+    - {2:1} for specific threads from a specific binary
         # {0:1} {1:1} "ls -al" -g a.out
         # {0:1} {1:1} -I "ls -al" -g a.out
 
-    - Trace usercalls for a specific thread in 10ms cycles
+    - {2:1} for specific threads in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - Trace usercalls for a specific thread (print standard output)
+    - {2:1} for specific threads (print standard output)
         # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
 
-    - Trace usercalls for specific threads (wait for new target if no task)
+    - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - Trace usercalls for a specific thread even if the master tracer is terminated
+    - {2:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Trace usercalls with 1/10 instructions for a specific thread
+    - {2:1} with 1/10 instructions for specific threads
         # {0:1} {1:1} -g a.out -H 10
 
-    - Trace usercalls for a specific thread and report the result to ./guider.out
+    - {2:1} for specific threads and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
-    - Trace usercalls with breakpoint for peace including register info for a specific thread
+    - {2:1} with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g a.out -c peace -a
 
-    - Trace usercalls for a specific thread only for 2 seconds
+    - {2:1} for specific threads only for 2 seconds
         # {0:1} {1:1} -g a.out -R 2s
 
-    - Trace usercalls from a specific binary and pause when catching PLT function call
+    - {2:1} from a specific binary and pause when catching PLT function call
         # {0:1} {1:1} "ls -al" -c PLT
         # {0:1} {1:1} -I "ls -al" -c PLT
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Trace usercalls')
 
                 # pytrace #
                 elif SysMgr.checkMode('pytrace'):
@@ -24694,52 +24707,56 @@ Options:
 
                     examStr = '''{2:1}
 Examples:
-    - Trace python calls for a specific thread in 100us cycles
+    - {3:1} for specific threads in 100us cycles
         # {0:1} {1:1} -g a.out
 
-    - Trace python calls for child tasks created by a specific thread
+    - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Trace python calls from a specific binary
+    - {3:1} from a specific binary
         # {0:1} {1:1} "ls -al"
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
         # {0:1} {1:1} -I "ls -al"
 
-    - Trace python calls for specific threads from a specific binary
+    - {3:1} for specific threads from a specific binary
         # {0:1} {1:1} "ls -al" -g a.out
         # {0:1} {1:1} -I "ls -al" -g a.out
 
-    - Trace python calls for a specific thread in 10ms cycles
+    - {3:1} for specific threads in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - Trace python calls for a specific thread (print standard output)
+    - {3:1} for specific threads (print standard output)
         # {0:1} {1:1} -g a.out -q NOMUTE
 
-    - Trace python calls for specific threads (wait for new target if no task)
+    - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - Trace python calls for child tasks created by a specific thread
+    - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - Trace python calls  with colorful elapsed time when the elapsed time exceed 0 second
+    - {3:1} with colorful elapsed time when the elapsed time exceed 0 second
         # {0:1} {1:1} -g a.out -c write -q PYELAPSED:0
 
-    - Trace python calls for a specific thread even if the master tracer is terminated
+    - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Trace python calls with 1/10 instructions for a specific thread
+    - {3:1} for specifics thread without truncation
+        # {0:1} {1:1} -g a.out -q NOCUT
+
+    - {3:1} with 1/10 instructions for specific threads
         # {0:1} {1:1} -g a.out -H 10
 
-    - Trace python calls for a specific thread and report the result to ./guider.out
+    - {3:1} for specifics thread and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
-    - Trace python calls with breakpoint for peace including register info for a specific thread
+    - {3:1} with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g a.out -c peace -a
 
-    - Trace python calls for a specific thread only for 2 seconds
+    - {3:1} for specific threads only for 2 seconds
         # {0:1} {1:1} -g a.out -R 2s
-                    '''.format(cmd, mode, cmdListStr)
+                    '''.format(cmd, mode, cmdListStr,
+                        'Trace python calls')
 
                     helpStr += examStr
 
@@ -46752,7 +46769,7 @@ Copyright:
             except:
                 pass
 
-            # macOS #
+            # MacOS #
             if SysMgr.isDarwin:
                 # disk node #
                 if line.startswith('/'):
@@ -56825,7 +56842,7 @@ typedef struct {
             else:
                 return
 
-        # print summary table #
+        # set table name #
         if self.mode == 'syscall':
             ctype = 'Syscall'
             addInfo = '<Elapsed>'
@@ -56915,7 +56932,7 @@ typedef struct {
             if sym[0] == '/':
                 sym = '??'
 
-            # check per #
+            # check percentage #
             try:
                 per = value['cnt'] / nrTotal * 100 * floatTotalUsage
                 if per < 1 and not SysMgr.showAll:
@@ -56923,7 +56940,7 @@ typedef struct {
             except:
                 break
 
-            # get stat #
+            # SYSCALL #
             if self.mode == 'syscall':
                 try:
                     total, tmax = self.syscallStat[sym]
@@ -56942,6 +56959,7 @@ typedef struct {
                     "<Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s>" % \
                         (convert(value['cnt']),
                             total, average, tmax, errstr)
+            # BREAKPOINT #
             elif self.mode == 'break':
                 try:
                     prev, total, tmin, tmax = self.brkcallStat[sym]
@@ -56952,6 +56970,7 @@ typedef struct {
                 addVal = \
                     '[%s] <Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f]' % \
                         (value['path'], convert(value['cnt']), avg, tmin, tmax)
+            # OTHERS #
             else:
                 addVal = '[%s] <Cnt: %s>' % \
                     (value['path'], convert(value['cnt']))
@@ -84107,7 +84126,7 @@ class TaskAnalyzer(object):
                 self.cpuData[idx]['iowait'] = cpu[4] * 100
                 self.cpuData[idx]['irq'] = cpu[5] * 100
                 self.cpuData[idx]['softirq'] = cpu[6] * 100
-            # macOS #
+            # MacOS #
             elif SysMgr.isDarwin:
                 self.cpuData[idx]['user'] = cpu[0] * 100
                 self.cpuData[idx]['nice'] = cpu[1] * 100

@@ -3,7 +3,7 @@ import site, os, sys, shutil
 
 setup(
     name = 'guider',
-    version = '3.9.86',
+    version = '3.9.87',
     license = 'GPL2',
     description = 'A system-wide analyzer of performance',
     author = 'Peace Lee',
@@ -19,17 +19,19 @@ setup(
         ],
     classifiers = [
         'Environment :: Console',
-        'Programming Language :: Python',
-        'Operating System :: Android',
-        'Operating System :: POSIX :: Linux',
-        'Operating System :: Microsoft :: Windows',
-        'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
         'Natural Language :: English',
+        'Operating System :: Android',
+        'Operating System :: MacOS',
+        'Operating System :: Microsoft :: Windows',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python',
         'Topic :: Software Development :: Debuggers',
         'Topic :: Software Development :: Embedded Systems',
+        'Topic :: Software Development :: Testing',
         'Topic :: System :: Filesystems',
         'Topic :: System :: Monitoring',
-        'Topic :: System :: Operating System Kernels',
+        'Topic :: System :: Operating System Kernels :: Linux',
+        'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
         ],
 )
 
