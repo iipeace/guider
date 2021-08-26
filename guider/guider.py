@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210823"
+__revision__ = "210826"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29713,7 +29713,7 @@ Copyright:
                 sys.exit(0)
         else:
             SysMgr.printErr(
-                'fail to save data because file path is not set')
+                'fail to save data because the path is not set')
             sys.exit(0)
 
         # set alarm again #
@@ -33557,18 +33557,25 @@ Copyright:
 
         # STRACE MODE #
         elif SysMgr.checkMode('strace'):
+            # just print syscall list #
             if SysMgr.findOption('l'):
                 SysMgr.setStream()
+
+                lineLen = 0
                 for idx, item in enumerate(ConfigMgr.sysList):
                     if item == 'sys_null':
                         continue
-                    elif idx > 0 and idx % 3 == 0:
+                    elif lineLen + len(item) > SysMgr.ttyCols/2:
                         newline = True
+                        lineLen = 0
                     else:
                         newline = False
+                        lineLen += (len(item) + 5)
 
                     SysMgr.printPipe(
-                        "%3s) %s  " % (idx, item), newline=newline)
+                        "%3s) %s  " % (idx, item.lstrip('sys_')),
+                        newline=newline)
+
                 SysMgr.printPipe()
                 sys.exit(0)
 
@@ -79921,7 +79928,7 @@ class TaskAnalyzer(object):
                 SysMgr.compressEnable = False
                 compressor = None
                 SysMgr.printErr(
-                    "fail to decompress for %s" % fname, True)
+                    "fail to decompress for '%s'" % fname, True)
 
         while 1:
             start = end = -1
@@ -79963,12 +79970,23 @@ class TaskAnalyzer(object):
                         sys.exit(0)
                     except:
                         SysMgr.printErr(
-                            "fail to read %s\n" % fname, reason=True)
+                            "fail to read '%s'\n" % fname, reason=True)
                         sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
+            # check decodable load #
+            try:
+                fd.read(1)
+                fd.seek(0)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to read '%s'\n" % fname)
                 sys.exit(0)
 
             # verify log buffer #
@@ -80035,7 +80053,7 @@ class TaskAnalyzer(object):
                 return 0
             elif not SysMgr.recordStatus:
                 SysMgr.printErr(
-                    "fail to read because there is no log")
+                    "fail to read '%s' because there is no log", fname)
                 sys.exit(0)
 
 
