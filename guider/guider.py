@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210826"
+__revision__ = "210829"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -141,12 +141,13 @@ class ConfigMgr(object):
     ]
 
     # cgroup stat #
-    CGROUP_STAT = [
-        'cpuacct.usage',
-        'memory.usage_in_bytes',
-        'tasks',
-        'cgroup.procs',
-    ]
+    CGROUP_STAT = {
+        'cpuacct.usage': None,
+        'memory.usage_in_bytes': None,
+        'tasks': None,
+        'cgroup.procs': None,
+        'cpu.stat': None,
+    }
 
     # state of process #
     PROC_STAT_TYPE = {
@@ -5702,7 +5703,7 @@ function format_percent(n) {
 '''
         attrCode = '''
     <rect x="0" y="0" width="100%%" height="%s" fill="url(#background)"/>
-    <text id="title" x="50.0000%%" y="24.00">Guider Flamegraph</text>
+    <text id="title" x="50.0000%%" y="24.00">Guider Flame Graph</text>
     <text id="subtitle" x="0.0000%%" y="50.00">%s</text>
     <text id="details" x="10" y="213.00"></text>
     <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom (ESC)</text>
@@ -26506,7 +26507,7 @@ Options:
     -g  <TID|COMM:MASK>         set values
     -P                          group threads in a same process
     -i  <SEC>                   set interval
-    -q  <NAME{:VALUE}>          set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -77976,12 +77977,12 @@ class TaskAnalyzer(object):
             return
 
         # Get Cgroup resource usage #
-        elif len(tokenList) == 8:
+        elif len(tokenList) == 9:
             tokenList = UtilMgr.cleanItem(tokenList, False)
-            if len(tokenList) != 7:
+            if len(tokenList) != 8:
                 return
 
-            system, proc, task, cpu, mem, read, write = tokenList
+            system, proc, task, cpu, thr, mem, read, write = tokenList
 
             # CPU #
             target = 'cgroup.cpu'
@@ -83984,6 +83985,8 @@ class TaskAnalyzer(object):
         # get cgroup list #
         try:
             systems = os.listdir(SysMgr.cgroupPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.cgroupPath)
             sys.exit(0)
@@ -87918,6 +87921,7 @@ class TaskAnalyzer(object):
 
         stats = {}
         prevData = self.prevCgroupData
+        cpuStatStr = 'nr_periods 0\nnr_throttled 0\nthrottled_time 0'
 
         for system, groups in self.cgroupData.items():
             for group, values in groups.items():
@@ -87930,8 +87934,23 @@ class TaskAnalyzer(object):
                 for name, value in values.items():
                     stats.setdefault(group, dict())
 
-                    if name == 'tasks' or name == 'cgroup.procs':
+                    if name == 'tasks' or \
+                        name == 'cgroup.procs':
                         stat = value.count('\n')
+                    elif name == 'cpu.stat':
+                        if value.startswith(cpuStatStr):
+                            continue
+
+                        try:
+                            # throttled_time #
+                            stat = long(value.split('\n')[2].split()[1])
+                            pvalue = prevData[system][group][name]
+                            prevStat = long(pvalue.split('\n')[2].split()[1])
+                            stat = stat - prevStat
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            stat = 0
                     else:
                         stat = long(value.rstrip())
 
@@ -87969,10 +87988,11 @@ class TaskAnalyzer(object):
 
         # print menu #
         ret = SysMgr.addPrint((
-                "{0:1}\n{1:<112}|{2:>4}|{3:>4}|"
-                "{4:>6}|{5:>7}|{6:>7}|{7:>7}|\n{8:1}\n").format(
-                twoLine, 'Control Group', 'Proc', 'Task',
-                'CPU(%)', 'Memory', 'Read', 'Write', oneLine), newline=3)
+            "{0:1}\n{1:<108}|{2:>4}|{3:>4}|"
+            "{4:>6}|{5:>3}|{6:>7}|{7:>7}|{8:>7}|\n{9:1}\n").format(
+            twoLine, 'Control Group', 'Proc', 'Task',
+            'CPU(%)', 'Thr', 'Memory', 'Read', 'Write', oneLine),
+            newline=3)
 
         # set sort value #
         if SysMgr.sort == 'm':
@@ -87984,7 +88004,7 @@ class TaskAnalyzer(object):
         for system, value in sorted(stats.items(),
             key=lambda e: e[1][item] if item in e[1] else 0, reverse=True):
 
-            # CPU #
+            # CPU Usage #
             try:
                 usage = value['cpuacct.usage'] / 10000000
                 cpu = '%6.1f' % usage
@@ -87998,6 +88018,15 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 cpu = 0
+
+            # CPU Throttle #
+            try:
+                throttle = long(value['cpu.stat'] / 10000000)
+                throttle = UtilMgr.convCpuColor(usage, throttle, 3)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                throttle = 0
 
             # Memory #
             try:
@@ -88020,9 +88049,10 @@ class TaskAnalyzer(object):
 
             # print stats of a process #
             ret = SysMgr.addPrint((
-                "{0:<112}|{1:>4}|{2:>4}|"
-                "{3:>6}|{4:>7}|{5:>7}|{6:>7}|\n").format(
-                    system, proc, task, cpu, mem, '-', '-'))
+                "{0:<108}|{1:>4}|{2:>4}|"
+                "{3:>6}|{4:>3}|{5:>7}|{6:>7}|{7:>7}|\n").format(
+                    system[-108:], proc, task,
+                    cpu, throttle, mem, '-', '-'))
             if not ret:
                 return -1
 
