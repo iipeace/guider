@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210829"
+__revision__ = "210830"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28049,9 +28049,10 @@ Copyright:
                 (perfbuf, convColor(convSize(cpucycle), 'YELLOW'))
             inst = value['PERF_COUNT_HW_INSTRUCTIONS']
             perfbuf = '%sInst: %s / ' % \
-                (perfbuf, convSize(inst))
+                (perfbuf, convColor(convSize(inst), 'YELLOW'))
             ipc = inst / float(cpucycle)
-            perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
+            perfbuf = '%sIPC: %s / ' % \
+                (perfbuf, convColor('%.2f' % ipc, 'YELLOW'))
         except SystemExit:
             sys.exit(0)
         except:
@@ -28061,10 +28062,10 @@ Copyright:
         try:
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
-            cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%sCacheMiss : %s(%s%%) / ' % \
+            cachemissrate = long(cachemiss / float(cacheref) * 100)
+            perfbuf = '%sCacheMiss : %s(%s) / ' % \
                 (perfbuf, convSize(cachemiss),
-                    convColor(long(cachemissrate), 'YELLOW'))
+                    convColor('%s%%' % cachemissrate, 'YELLOW'))
         except SystemExit:
             sys.exit(0)
         except:
@@ -28074,10 +28075,10 @@ Copyright:
         try:
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
-            branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%sBrcMiss: %s(%s%%) / ' % \
+            branchmissrate = long(branchmiss / float(branch) * 100)
+            perfbuf = '%sBrcMiss: %s(%s) / ' % \
                 (perfbuf, convSize(branchmiss),
-                    convColor(long(branchmissrate), 'YELLOW'))
+                    convColor('%s%%' % branchmissrate, 'YELLOW'))
         except SystemExit:
             sys.exit(0)
         except:
@@ -31247,10 +31248,15 @@ Copyright:
                     "fail to write to %s" % SysMgr.printFd.name, True)
         # console output #
         else:
+            # set truncate size #
             if trim:
                 cols = SysMgr.ttyCols
             else:
                 cols = 0
+
+            # append the end color character to head #
+            if SysMgr.colorEnable:
+                line = '%s%s' % (ConfigMgr.ENDC, line)
 
             # rstrip by terminal size #
             try:
@@ -31291,6 +31297,7 @@ Copyright:
 
                     sys.stdout.write(line)
 
+            # print newline #
             if newline:
                 sys.stdout.write('\n')
 
@@ -39077,11 +39084,20 @@ Copyright:
     @staticmethod
     def printDirs(path='.', maxLevel=-1):
         def _getDirsJson(result, parentPath, level, maxLevel):
-            fileList = os.listdir(parentPath)
-            parentAbsPath = "%s" % (os.path.abspath(parentPath))
+            # get subdir #
+            try:
+                fileList = os.listdir(parentPath)
+                parentAbsPath = "%s" % (os.path.abspath(parentPath))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "fail to access %s" % parentPath,
+                    always=True, reason=True)
+                return (0, 0, 0)
 
-            if not fileList or \
-                    (maxLevel != -1 and maxLevel <= level):
+            # check return condition #
+            if not fileList or (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
             totalSize = long(0)
@@ -39107,10 +39123,11 @@ Copyright:
 
                 fullPath = os.path.join(parentPath, subPath)
 
+                # skip link #
                 if os.path.islink(fullPath):
                     continue
 
-                subAbsPath = "%s" % (os.path.abspath(fullPath))
+                subAbsPath = os.path.abspath(fullPath)
 
                 if os.path.isdir(fullPath):
                     totalDir += 1
@@ -39122,6 +39139,7 @@ Copyright:
                         info = dict(subDirs=dict())
 
                     result[parentAbsPath]['subDirs'][subAbsPath] = info
+
                     totalInfo = \
                         _getDirsJson(result[parentAbsPath]['subDirs'],
                             fullPath, level + 1, maxLevel)
@@ -39152,6 +39170,7 @@ Copyright:
 
                     if 'subFiles' not in result[parentAbsPath]:
                         result[parentAbsPath]['subFiles'] = dict()
+
                     result[parentAbsPath]['subFiles'][subAbsPath] = \
                         dict(size=UtilMgr.convSize2Unit(size), type='file')
 
@@ -39216,6 +39235,8 @@ Copyright:
             else:
                 fileList.sort(
                     key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
+
+            BIGSIZE = 1 << 30
 
             for idx, subPath in enumerate(fileList):
                 idc = "|-"
@@ -39300,7 +39321,7 @@ Copyright:
 
                         # convert size to string #
                         try:
-                            if size >= 1<<30: color = 'RED'
+                            if size >= BIGSIZE or condval: color = 'RED'
                             else: color = 'CYAN'
                             sizeStr = convSize(size)
                             sizeStr = ' <%s>' % convColor(sizeStr, color)
@@ -39348,7 +39369,7 @@ Copyright:
 
                     # convert size to string #
                     try:
-                        if size >= 1<<30: color = 'RED'
+                        if size >= BIGSIZE or condval: color = 'RED'
                         else: color = 'CYAN'
                         sizeStr = convSize(size)
                         sizeStr = ' <%s>' % convColor(sizeStr, color)
@@ -39360,9 +39381,13 @@ Copyright:
                     string = "%s%s%s%s" % (prefix, idc, subPath, sizeStr)
                     result.append(string)
 
+            # check size #
+            if not _isValidSize(condop, condval, totalSize):
+                return (totalSize, totalDir, totalFile)
+
             # convert total size #
             if totalSize:
-                if totalSize >= 1<<30: color = 'RED'
+                if totalSize >= BIGSIZE or condval: color = 'RED'
                 else: color = 'CYAN'
                 tsize = 'SIZE: %s, ' % \
                     convColor(convSize(totalSize), color)
@@ -39405,17 +39430,21 @@ Copyright:
             # parse condition values #
             if len(sizeFilter) != 2:
                 error = True
-            elif sizeFilter[0].strip() == 'BT':
+            elif sizeFilter[0].strip().upper() == 'BT':
                 condop = 'BT'
                 try:
                     condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     condval = None
                     error = True
-            elif sizeFilter[0].strip() == 'LT':
+            elif sizeFilter[0].strip().upper() == 'LT':
                 condop = 'LT'
                 try:
                     condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     error = True
             else:
@@ -39424,7 +39453,7 @@ Copyright:
             # handle error #
             if error:
                 SysMgr.printErr(
-                    'wrong input value for SIZECOND')
+                    'wrong input value for SIZECOND', True)
                 sys.exit(0)
         else:
             sizeFilter = None
@@ -55504,8 +55533,6 @@ typedef struct {
                     return 0
 
                 cnt -= 1
-                time.sleep(0.001)
-
                 if cnt < 0:
                     break
                 elif not self.isAlive():
@@ -55514,6 +55541,8 @@ typedef struct {
                             (self.comm, pid)
                     SysMgr.printWarn(errMsg)
                     return -1
+
+                time.sleep(0.001)
 
         # continue target thread #
         ret = self.ptrace(self.contCmd, 0, sig)
@@ -57869,6 +57898,7 @@ typedef struct {
                 sym = hex(item[0]).rstrip('L')
             else:
                 sym = item[1]
+
             fname = item[2]
 
             # remove redundant symbols #
@@ -58865,7 +58895,7 @@ typedef struct {
 
         # remove breakpoint #
         ret = self.removeBp(addr)
-        if ret is None:
+        if not ret:
             self.unlock(nrLock)
             return
 
@@ -58891,7 +58921,7 @@ typedef struct {
 
             # check process #
             ret = self.waitpid()
-            self.checkStat(ret, reason="injection failed")
+            self.checkStat(ret, reason="of injection failure")
 
         # register this breakpoint again #
         self.injectBp(addr, sym, fname=fname, reins=reins)
@@ -62507,20 +62537,16 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def waitpid(self, pid=None):
+        '''
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
-        # Wait on all children, regardless of type #
-        __WALL = 0x40000000
+
         # Wait only on non-SIGCHLD children #
         __WCLONE = 0x80000000
 
-        # set default option #
-        options = __WALL
-
-        ret = 0
-
-        if pid is None:
-            pid = self.pid
+        # Wait on all children, regardless of type #
+        __WALL = 0x40000000
+        '''
 
         try:
             # type converting #
@@ -62529,27 +62555,29 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     (c_int, POINTER(None), c_int)
                 SysMgr.libcObj.waitpid.restype = c_int
                 self.initWaitpid = True
+                self.waitpidStat = c_uint(0)
 
-            status = c_uint(0)
+            if not pid:
+                pid = self.pid
 
-            while 1:
-                # wait for child #
-                try:
-                    ret = SysMgr.libcObj.waitpid(
-                        pid, pointer(status), options)
-                except SystemExit:
+            ret = 0
+            stat = self.waitpidStat
+
+            # wait for child #
+            try:
+                ret = SysMgr.libcObj.waitpid(
+                    pid, pointer(stat), 0x40000000)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # check termination #
+            if ret == -1:
+                if not self.isAlive():
                     sys.exit(0)
-                except:
-                    pass
 
-                # check termination #
-                if ret == -1:
-                    if not self.isAlive():
-                        sys.exit(0)
-
-                break
-
-            return ret, status.value
+            return ret, stat.value
         except SystemExit:
             sys.exit(0)
         except:
@@ -62581,8 +62609,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 SysMgr.libcObj.ptrace.restype = c_ulong
                 self.initPtrace = True
 
+            # ptrace #
             ret = SysMgr.libcObj.ptrace(req, pid, addr, data)
-            if c_long(ret).value == -1:
+            if not ret:
+                return ret
+            elif c_long(ret).value == -1:
                 return -1
             else:
                 return ret
@@ -90732,7 +90763,6 @@ class TaskAnalyzer(object):
 
     def printSystemStatGen(self, idIndex=False, target='task'):
         title = '[Top Info]'
-        nrIndent = len(title)
 
         if not self.taskStreamEnable:
             # print default stats #
