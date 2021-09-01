@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210830"
+__revision__ = "210901"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -641,25 +641,25 @@ class ConfigMgr(object):
 
     # syscall prototypes #
     SYSCALL_DEFFERABLE = {
-        'read': 0,
-        'recvmsg': 0,
-        'recvmmsg': 0,
-        'recv': 0,
-        'readv': 0,
-        'readlink': 0,
-        'recvfrom': 0,
-        'pread': 0,
-        'pread64': 0,
         'clock_gettime': 0,
+        'clone': 0,
         'getgroups': 0,
         'getgroups16': 0,
         'gethostname': 0,
         'getitimer': 0,
         'getpeername': 0,
-        'gettimeofday': 0,
         'getsockname': 0,
-        'clone': 0,
+        'gettimeofday': 0,
+        'pread': 0,
+        'pread64': 0,
         'process_vm_readv': 0,
+        'read': 0,
+        'readlink': 0,
+        'readv': 0,
+        'recv': 0,
+        'recvfrom': 0,
+        'recvmmsg': 0,
+        'recvmsg': 0,
     }
 
     # syscall prototypes #
@@ -866,14 +866,14 @@ class ConfigMgr(object):
         )),
         "execve": ("long", (
             ("const char *", "filename"),
-            ("const char *const *", "argv"),
-            ("const char *const *", "envp"),
+            ("const char * const *", "argv"),
+            ("const char * const *", "envp"),
         )),
         "execveat": ("long", (
             ("int", "dfd"),
             ("const char *", "filename"),
-            ("const char *const *", "argv"),
-            ("const char *const *", "envp"),
+            ("const char * const *", "argv"),
+            ("const char * const *", "envp"),
             ("int", "flags"),
         )),
         "exit": ("long", (
@@ -5821,11 +5821,13 @@ function format_percent(n) {
             sys.exit(0)
         except:
             SysMgr.printWarn("fail to convert dict to string", reason=True)
-            return None
 
+            '''
             # for debugging #
             SysMgr.printWarn(
                 "fail to convert %s to string" % [dictObj], reason=True)
+            '''
+
             return None
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
@@ -55924,6 +55926,33 @@ typedef struct {
 
 
 
+    def readStrList(self, pos, maxsize=sys.maxsize):
+        strList = []
+
+        while 1:
+            try:
+                # read start address for a string #
+                addr = self.readWord(pos)
+                if not addr: break
+
+                # read a string #
+                string = self.readString(addr)
+                if not string: break
+
+                strList.append(string.decode())
+                pos += ConfigMgr.wordSize
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    'fail to read string from list for %s(%s)' % \
+                        (self.comm, self.pid), reason=True)
+                break
+
+        return strList
+
+
+
     def readString(self, addr, chunk=256, maxsize=sys.maxsize):
         cnt = 0
         ret = b''
@@ -56232,9 +56261,13 @@ typedef struct {
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.OPEN_TYPE, num='oct')
         elif syscall == "execve":
-            if argname in ("argv", "envp"):
-                # TODO: handle double pointer values #
-                return value
+            # ignore envp arg #
+            if argname == "argv":
+                strList = self.readStrList(value)
+                if strList:
+                    return ' [%s] ' % (', '.join(strList))
+                else:
+                    return value
         elif syscall == "ptrace" and argname == "request":
             try:
                 return ConfigMgr.PTRACE_TYPE[value]
@@ -59947,21 +59980,18 @@ typedef struct {
             self.addSample(
                 self.syscall, '??', realtime=True, bt=backtrace)
 
-            if filtered:
-                return
+            if filtered: return
         elif SysMgr.outPath:
             self.addSample(self.syscall, '??', bt=backtrace)
 
-            if filtered:
-                return
+            if filtered: return
 
             # print to stdout #
             if SysMgr.printStreamEnable:
                 callString = '%s' % callString[:self.pbufsize]
                 sys.stdout.write(callString)
         else:
-            if filtered:
-                return
+            if filtered: return
 
             # trim string #
             if not SysMgr.showAll and SysMgr.funcDepth == 0:
@@ -88627,9 +88657,10 @@ class TaskAnalyzer(object):
                         self.stackTable[idx]['fd'] = open(spath, 'r')
                         self.stackTable[idx]['stack'] = {}
                         self.stackTable[idx]['total'] = long(0)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SysMgr.printOpenWarn(spath)
-
                         self.stackTable.pop(idx, None)
 
             # check limit #
@@ -88641,6 +88672,8 @@ class TaskAnalyzer(object):
 
             # get comm #
             comm = value['comm']
+            if self.isKernelThread(idx):
+                comm = '[%s]' % comm
 
             # get parent ID #
             if SysMgr.processEnable:
@@ -88688,12 +88721,16 @@ class TaskAnalyzer(object):
             try:
                 swapSize = \
                     long(value['status']['VmSwap'].split()[0]) >> 10
+            except SystemExit:
+                sys.exit(0)
             except:
                 swapSize = '-'
 
             # shared #
             try:
                 shr = long(value['statm'][self.shrIdx]) >> 8
+            except SystemExit:
+                sys.exit(0)
             except:
                 shr = '-'
 
@@ -88703,6 +88740,8 @@ class TaskAnalyzer(object):
                         value['status']['voluntary_ctxt_switches']
                     value['preempted'] = \
                         value['status']['nonvoluntary_ctxt_switches']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     value['yield'] = '-'
                     value['preempted'] = '-'
@@ -88741,6 +88780,8 @@ class TaskAnalyzer(object):
                 # user #
                 try:
                     prtd = value['user'][:6]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     prtd = '-'
             else:
@@ -88752,6 +88793,8 @@ class TaskAnalyzer(object):
                         prevStatus = self.prevProcData[idx]['status']
                         yld = long(value['yield']) - \
                             long(prevStatus['voluntary_ctxt_switches'])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     yld = '-'
 
@@ -88763,6 +88806,8 @@ class TaskAnalyzer(object):
                         prevStatus = self.prevProcData[idx]['status']
                         prtd = long(value['preempted']) - \
                             long(prevStatus['nonvoluntary_ctxt_switches'])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     prtd = '-'
 
@@ -88831,11 +88876,15 @@ class TaskAnalyzer(object):
             try:
                 sched = '%s%s' % \
                     (SCHED_POLICY[int(stat[self.policyIdx])], schedValue)
+            except SystemExit:
+                sys.exit(0)
             except:
                 sched = '?'
 
             try:
                 vss = long(stat[self.vssIdx]) >> 20
+            except SystemExit:
+                sys.exit(0)
             except:
                 vss = long(0)
 
@@ -88960,6 +89009,8 @@ class TaskAnalyzer(object):
                 try:
                     totalStats['yld'] += yld
                     totalStats['prtd'] += prtd
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             else:
@@ -88970,10 +89021,14 @@ class TaskAnalyzer(object):
                 try:
                     totalStats['read'] += value['read']
                     totalStats['write'] += value['write']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     try:
                         totalStats['read'] = value['read']
                         totalStats['write'] = value['write']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         totalStats['read'] = '-'
                         totalStats['write'] = '-'
@@ -89132,6 +89187,8 @@ class TaskAnalyzer(object):
 
                 try:
                     self.stackTable[idx]['total'] = long(0)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
