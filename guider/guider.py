@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210901"
+__revision__ = "210902"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -36562,8 +36562,15 @@ Copyright:
         def _loadConfig():
             initCmds = []
 
+            # get server config #
             config = SysMgr.getConfigItem('server')
-            if config and 'INIT' in config and type(config['INIT']) is list:
+            if not config:
+                return initCmds
+
+            # print config #
+            SysMgr.printWarn(UtilMgr.convDict2Str(config))
+
+            if 'INIT' in config and type(config['INIT']) is list:
                 # get command shortcut #
                 if 'COMMAND' in config and type(config['COMMAND']) is dict:
                     cmds = config['COMMAND']
@@ -36638,8 +36645,10 @@ Copyright:
 
                 # execute init commands #
                 for cmd in item['command']:
-                    # handle piped commands #
+                    # split command by pipe character #
                     pipeCmds = cmd.split('->')
+
+                    # normal command #
                     if len(pipeCmds) == 1:
                         # run remote task #
                         try:
@@ -36651,13 +36660,14 @@ Copyright:
                             SysMgr.printErr(
                                 "fail to execute remote command '%s'" % rcmd,
                                 reason=True)
+                    # piped command #
                     elif len(pipeCmds) == 2:
                         # create a pipe #
                         rd, wr = os.pipe()
 
                         # create a new process #
                         pid = SysMgr.createProcess()
-                        # writer #
+                        # writer relaying remote task #
                         if pid > 0:
                             # set stdio #
                             os.close(rd)
@@ -36674,7 +36684,7 @@ Copyright:
                                 SysMgr.printErr(
                                     "fail to execute remote command '%s'" % \
                                         rcmd, reason=True)
-                        # reader #
+                        # reader handling data #
                         else:
                             # set stdio #
                             os.close(wr)
@@ -86316,14 +86326,17 @@ class TaskAnalyzer(object):
                     freqList = []
 
             # traverse core files #
-            for idx in list(self.cpuData.keys()):
+            for idx in sorted(list(self.cpuData.keys()),
+                key=lambda x:long(x) if UtilMgr.isNumber(x) else -1):
                 try:
-                    cid = None
-                    curCore = long(idx)
-                    perCoreStats[curCore] = dict()
-
-                    if SysMgr.checkCutCond():
+                    if idx == -1:
+                        continue
+                    elif SysMgr.checkCutCond():
                         return
+
+                    cid = None
+                    curCore = idx
+                    perCoreStats[curCore] = dict()
 
                     # get CPU stats #
                     userCoreUsage = coreStats[idx]['user']
@@ -86597,7 +86610,8 @@ class TaskAnalyzer(object):
                         lenCoreStat = len(UtilMgr.removeColor(coreStat))
 
                     # use short core stats for many-core system #
-                    if not SysMgr.barGraphEnable and SysMgr.nrCore > SysMgr.NRMANYCORE:
+                    if not SysMgr.barGraphEnable and \
+                        SysMgr.nrCore > SysMgr.NRMANYCORE:
                         shortCoreStats += coreStat
                         coreFactor = long(maxCols / lenCoreStat)
                         if (curCore+1) % coreFactor == 0:
@@ -86625,6 +86639,10 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     pass
+
+            # print remain core stats #
+            if shortCoreStats:
+                SysMgr.addPrint(shortCoreStats[:-1]+'\n')
 
         # print GPU stats #
         gpuStats = {}
