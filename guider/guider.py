@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210902"
+__revision__ = "210905"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22963,19 +22963,20 @@ Examples:
 
                 cmdListStr = '''
 Commands:
-    acc      print accumulation stat [NAME:VAR|REG|VAL]
+    acc      print accumulation stats for specific values [NAME:VAR|REG|VAL]
     check    check values [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     condexit exit if tracing was started
-    dist     print distribution stat [NAME:VAR|REG|VAL]
+    dist     print distribution stats for specific values [NAME:VAR|REG|VAL]
     dump     dump specific memory range to a file [NAME|ADDR:FILE]
-    exec     execute command [CMD]
-    exit     exit
+    exec     execute the command [CMD]
+    exit     exit tracing
     filter   print only filtered context [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
     getarg   print specific registers [REGS]
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
+    inter    print interval stats for the function call
     jump     jump to specific function with specific arguments [FUNC#ARGS]
-    kill     terminate target
+    kill     terminate the target task
     load     load specific library [PATH]
     log      print specific message [MESSAGE]
     map      print memory map
@@ -23214,11 +23215,14 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
         # {0:1} {1:1} -g a.out -c "write|pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
-    - {5:1} and print accumulated stats for specific argument {4:1}
-        # {0:1} {1:1} -g a.out -c "malloc|acc:CHUNK:0:arg"
+    - {5:1} and print accumulated stats for a specific argument {4:1}
+        # {0:1} {1:1} -g a.out -c "malloc|acc:CHUNK:0"
 
-    - {5:1} and print distribution stats for specific argument {4:1}
-        # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0:arg"
+    - {5:1} and print distribution stats for a specific argument {4:1}
+        # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0"
+
+    - {5:1} and print interval stats for the function call {4:1}
+        # {0:1} {1:1} -g a.out -c "malloc|inter"
 
     - {5:1} and jump to specific function with specific arguments {4:1}
         # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
@@ -53033,6 +53037,8 @@ typedef struct {
             if type(item) is str and item.startswith('@'):
                 try:
                     argList[idx] = self.retList[item[1:]]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -53071,6 +53077,8 @@ typedef struct {
                 cmdformat = "VAL:CMD"
             elif cmd == 'getarg':
                 cmdformat = "REG:REG"
+            elif cmd == 'inter':
+                cmdformat = "VAL"
             elif cmd == 'setarg':
                 cmdformat = "REG#VAL:REG#VAL"
             elif cmd == 'wrmem':
@@ -53088,9 +53096,9 @@ typedef struct {
             elif cmd == 'save':
                 cmdformat = "VAR:VAL:TYPE"
             elif cmd == 'acc':
-                cmdformat = "NAME:VAR|NAME|REG|VAL"
+                cmdformat = "NAME:VAR|REG|VAL"
             elif cmd == 'dist':
-                cmdformat = "NAME:VAR|NAME|REG|VAL"
+                cmdformat = "NAME:VAR|REG|VAL"
             elif cmd == 'dump':
                 cmdformat = "NAME|ADDR:FILE"
             elif cmd == 'start':
@@ -53510,6 +53518,40 @@ typedef struct {
                 SysMgr.addPrint(
                     "\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
 
+            elif cmd == 'inter':
+                # get diff #
+                if sym in self.interList:
+                    val = self.vdiff - self.interList[sym]['time']
+                    self.interList[sym]['time'] = self.vdiff
+                    self.interList[sym]['total'] += val
+                else:
+                    val = 0
+
+                # accumulate values #
+                self.interList.setdefault(sym,
+                    dict({'time': self.vdiff, 'cnt': long(0),
+                        'total': val, 'min': float(val),
+                        'max': float(val)}))
+
+                self.interList[sym]['cnt'] += 1
+                if self.interList[sym]['min'] == 0 or \
+                    self.interList[sym]['min'] > val:
+                    self.interList[sym]['min'] = val
+                if self.interList[sym]['max'] < val:
+                    self.interList[sym]['max'] = val
+
+                # get variables #
+                cnt = self.interList[sym]['cnt']
+                total = self.interList[sym]['total']
+                avg = total / cnt
+                vmin = self.interList[sym]['min']
+                vmax = self.interList[sym]['max']
+
+                SysMgr.addPrint((
+                    "\n[%s] %.6f {cnt: %s / avg: %.6f / "
+                    "min: %.6f / max: %.6f / total %.6f}") % \
+                        (cmdstr, val, convNum(cnt), avg, vmin, vmax, total))
+
             elif cmd == 'acc' or cmd == 'dist':
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
@@ -53560,14 +53602,23 @@ typedef struct {
                 if cmd == 'dist':
                     try:
                         idx = long(math.sqrt(val))
+                    except SystemExit:
+                        sys.exit(0)
                     except:
-                        import math
-                        idx = long(math.sqrt(val))
-
-                    self.accList[name].setdefault('dist', dict())
-                    self.accList[name]['dist'].setdefault(idx, 0)
-                    self.accList[name]['dist'][idx] += 1
-                    dist = self.accList[name]['dist']
+                        try:
+                            import math
+                            idx = long(math.sqrt(val))
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printErr(
+                                "fail to import python package: math")
+                            idx = 0
+                    finally:
+                        self.accList[name].setdefault('dist', dict())
+                        self.accList[name]['dist'].setdefault(idx, 0)
+                        self.accList[name]['dist'][idx] += 1
+                        dist = self.accList[name]['dist']
                 else:
                     dist = ''
 
@@ -60849,6 +60900,7 @@ typedef struct {
         self.brkcallStat = dict()
         self.retList = dict()
         self.accList = dict()
+        self.interList = dict()
         self.setRetList = dict()
         self.regList = dict()
         self.repeatCntList = dict()
