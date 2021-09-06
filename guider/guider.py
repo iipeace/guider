@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210905"
+__revision__ = "210906"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22228,8 +22228,8 @@ Commands:
 
 
     @staticmethod
-    def getMainArgs(union=True, token=','):
-        args = SysMgr.getMainArg().split(token)
+    def getMainArgs(union=True, token=',', path=False):
+        args = SysMgr.getMainArg(path).split(token)
         return UtilMgr.cleanItem(args, union)
 
 
@@ -31261,7 +31261,7 @@ Copyright:
                 cols = 0
 
             # append the end color character to head #
-            if SysMgr.colorEnable:
+            if SysMgr.colorEnable and not SysMgr.jsonEnable:
                 line = '%s%s' % (ConfigMgr.ENDC, line)
 
             # rstrip by terminal size #
@@ -33411,9 +33411,6 @@ Copyright:
 
             # PRINTDLT MODE #
             elif SysMgr.checkMode('printdlt'):
-                # to prevent segmentation fault from python3.8 #
-                TaskAnalyzer(onlyInstance=True)
-
                 DltAnalyzer.runDltReceiver(mode='print')
 
         # PRINTSIG MODE #
@@ -49574,7 +49571,8 @@ class DbusMgr(object):
                     SysMgr.printPipe(
                         "{0:>23} {1:<12} {2:<23} [nrProxy: {3:<1}]".format(
                             ' ', ' ', signame, conv(len(procs))))
-                    procs = [ procInfo[name] if name in procInfo else name for name in list(procs.keys()) ]
+                    procs = [ procInfo[name] if name in procInfo else name \
+                        for name in list(procs.keys()) ]
                     # print proxy process stat #
                     for name in sorted(procs):
                         if name in procInfo:
@@ -50857,17 +50855,17 @@ class DltAnalyzer(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        if SysMgr.checkMode('printdlt'):
-            SysMgr.progressCnt += 1
-            if SysMgr.repeatCount <= SysMgr.progressCnt:
-                sys.exit(0)
-
         if DltAnalyzer.dltData['cnt'] == 0 and \
             not SysMgr.inWaitStatus:
             SysMgr.printWarn(
                 "no DLT message received", True)
         else:
             DltAnalyzer.printSummary()
+
+        # check term condition #
+        SysMgr.progressCnt += 1
+        if 0 < SysMgr.repeatCount <= SysMgr.progressCnt:
+            sys.exit(0)
 
         SysMgr.updateTimer()
 
@@ -50887,16 +50885,14 @@ class DltAnalyzer(object):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
 
-        # pick storage info #
-        if msg.storageheader:
-            ecuId = msg.storageheader.contents.ecu.decode()
-        else:
+        # check headers #
+        if not msg.storageheader or not msg.extendedheader:
             return
-        if msg.extendedheader:
-            apId = msg.extendedheader.contents.apid.decode()
-            ctxId = msg.extendedheader.contents.ctid.decode()
-        else:
-            return
+
+        # pick header info #
+        ecuId = msg.storageheader.contents.ecu.decode()
+        apId = msg.extendedheader.contents.apid.decode()
+        ctxId = msg.extendedheader.contents.ctid.decode()
 
         # summarizing #
         if mode == 'top':
@@ -50932,6 +50928,7 @@ class DltAnalyzer(object):
             dltObj.dlt_message_payload(
                 byref(msg), buf,
                 DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verbose)
+
             try:
                 #string = buf.value.decode("utf8")
                 string = buf.value
@@ -51079,7 +51076,8 @@ class DltAnalyzer(object):
                     buf = fobj.read(1024)
             return None
 
-        def _setFilter(dltObj, dltFilter, dltFile, apid=None, ctid=None, init=True):
+        def _setFilter(
+            dltObj, dltFilter, dltFile, apid=None, ctid=None, init=True):
             # initialize filter #
             if init and \
                 dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
@@ -51163,7 +51161,6 @@ class DltAnalyzer(object):
             } DltClient;
             '''
 
-            _pack_ = 1
             _fields_ = [
                     ("receiver", DltReceiver),
                     ("sock", c_int),
@@ -51187,7 +51184,6 @@ class DltAnalyzer(object):
                  char *context_description;
              } ContextIDsInfoType;
             '''
-            _pack_ = 1
             _fields_ = [
                 ("context_id", c_char * DLT_ID_SIZE),
                 ("log_level", c_int16),
@@ -51207,7 +51203,6 @@ class DltAnalyzer(object):
                  char *app_description;
              } AppIDsType;
             '''
-            _pack_ = 1
             _fields_ = [
                 ("app_id", c_char * DLT_ID_SIZE),
                 ("count_context_ids", c_uint16),
@@ -51224,7 +51219,6 @@ class DltAnalyzer(object):
                 AppIDsType *app_ids;            /**< holds info about a specific app id */
              } LogInfoType;
             '''
-            _pack_ = 1
             _fields_ = [
                 ("count_app_ids", c_uint16),
                 ("app_ids", POINTER(AppIDsType)),
@@ -51240,7 +51234,6 @@ class DltAnalyzer(object):
                 char com[DLT_ID_SIZE];      /**< communication interface */
              } DltServiceGetLogInfoResponse;
             '''
-            _pack_ = 1
             _fields_ = [
                 ("service_id", c_uint32),
                 ("status", c_uint8),
@@ -51259,7 +51252,6 @@ class DltAnalyzer(object):
             } PACKED DltStorageHeader;
             '''
 
-            _pack_ = 1
             _fields_ = [
                 ("pattern", c_char * DLT_ID_SIZE),
                 ("seconds", c_uint32),
@@ -51281,7 +51273,6 @@ class DltAnalyzer(object):
             } PACKED DltStandardHeader;
             '''
 
-            _pack_ = 1
             _fields_ = [
                 ("htyp", c_uint8),
                 ("mcnt", c_uint8),
@@ -51302,7 +51293,6 @@ class DltAnalyzer(object):
             } PACKED DltExtendedHeader;
             '''
 
-            _pack_ = 1
             _fields_ = [
                 ("msin", c_uint8),
                 ("noar", c_uint8),
@@ -51324,7 +51314,6 @@ class DltAnalyzer(object):
             } PACKED DltStandardHeaderExtra;
             '''
 
-            _pack_ = 1
             _fields_ = [
                 ("ecu", c_char * DLT_ID_SIZE),
                 ("seid", c_uint32),
@@ -51485,6 +51474,27 @@ class DltAnalyzer(object):
             sys.exit(0)
 
         # define dlt functions #
+        dltObj.dlt_register_app.argtypes = [c_char_p, c_char_p]
+        dltObj.dlt_register_app.restype = c_int
+
+        dltObj.dlt_register_context.argtypes = [c_void_p, c_char_p, c_char_p]
+        dltObj.dlt_register_context.restype = c_int
+
+        dltObj.dlt_log_string.argtypes = [c_void_p, c_int, c_char_p]
+        dltObj.dlt_log_string.restype = c_int
+
+        dltObj.dlt_filter_init.argtypes = [c_void_p, c_int]
+        dltObj.dlt_filter_init.restype = c_int
+
+        dltObj.dlt_log_set_level.argtypes = [c_int]
+        dltObj.dlt_log_set_level.restype = None
+
+        dltObj.dlt_filter_add.argtypes = [c_void_p, c_char_p, c_char_p, c_int]
+        dltObj.dlt_filter_add.restype = c_int
+
+        dltObj.dlt_file_set_filter.argtypes = [c_void_p, c_void_p, c_int]
+        dltObj.dlt_file_set_filter.restype = c_int
+
         dltObj.dlt_file_init.argtypes = [c_void_p, c_int]
         dltObj.dlt_file_init.restype = c_int
 
@@ -51509,7 +51519,7 @@ class DltAnalyzer(object):
         dltObj.dlt_client_send_all_log_level.argtypes = [c_void_p, c_int8]
         dltObj.dlt_client_send_all_log_level.restype = c_int
 
-        dltObj.dlt_client_get_log_info.argtypes = [c_void_p, c_int]
+        dltObj.dlt_client_get_log_info.argtypes = [c_void_p]
         dltObj.dlt_client_get_log_info.restype = c_int
 
         dltObj.dlt_client_main_loop.argtypes = [c_void_p, c_void_p, c_int]
@@ -51551,7 +51561,7 @@ class DltAnalyzer(object):
         # initialize input path #
         flist = []
         if SysMgr.hasMainArg():
-            flist = SysMgr.getMainArgs()
+            flist = SysMgr.getMainArgs(path=True)
             if not flist:
                 SysMgr.printErr("no path for DLT file")
                 sys.exit(0)
@@ -51753,7 +51763,7 @@ class DltAnalyzer(object):
 
         # print log level #
         try:
-            ret = dltObj.dlt_client_get_log_info(byref(dltClient), verbose)
+            ret = dltObj.dlt_client_get_log_info(byref(dltClient))
             if ret == 0:
                 resp = DltServiceGetLogInfoResponse()
                 resp.service_id = \
@@ -51860,7 +51870,7 @@ class DltAnalyzer(object):
                 # check DLT data to be read #
                 while 1:
                     ret = dltObj.dlt_message_read(
-                        byref(msg), cast(dltReceiver.buf, POINTER(c_char_p)),
+                        byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),
                         c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
                     if ret != 0:
                         # move receiver buffer pointer to start of the buffer #
@@ -51915,7 +51925,7 @@ class DltAnalyzer(object):
                 continue
 
         # free message #
-        dltObj.dlt_message_free(msg, verbose)
+        dltObj.dlt_message_free(byref(msg), verbose)
 
 
 
