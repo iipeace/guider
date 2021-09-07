@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210906"
+__revision__ = "210907"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22259,7 +22259,8 @@ Commands:
                 not SysMgr.checkMode('ctop') and \
                 not SysMgr.checkMode('decomp') and \
                 not SysMgr.checkMode('disktop') and \
-                not SysMgr.checkMode('dlttop') and \
+                not (SysMgr.checkMode('dlttop') and \
+                    (SysMgr.isLinux or SysMgr.isDarwin)) and \
                 not SysMgr.checkMode('drawreq') and \
                 not SysMgr.checkMode('exec') and \
                 not (SysMgr.checkMode('ftop') and \
@@ -22273,7 +22274,8 @@ Commands:
                 not SysMgr.checkMode('ping') and \
                 not SysMgr.checkMode('print') and \
                 not SysMgr.checkMode('printdir') and \
-                not SysMgr.checkMode('printdlt') and \
+                not (SysMgr.checkMode('printdlt') and \
+                    (SysMgr.isLinux or SysMgr.isDarwin)) and \
                 not SysMgr.checkMode('printext') and \
                 not SysMgr.checkMode('pstree') and \
                 not SysMgr.checkMode('readelf') and \
@@ -22468,7 +22470,7 @@ Commands:
                 'ctop': ('Threshold', 'Linux/MacOS/Windows'),
                 'dbustop': ('D-Bus', 'Linux'),
                 'disktop': ('Storage', 'Linux/MacOS/Windows'),
-                'dlttop': ('DLT', 'Linux/MacOS/Windows'),
+                'dlttop': ('DLT', 'Linux/MacOS'),
                 'ftop': ('File', 'Linux/MacOS'),
                 'mtop': ('Memory', 'Linux'),
                 'ntop': ('Network', 'Linux/MacOS/Windows'),
@@ -22571,7 +22573,7 @@ Commands:
                 'logjrl': ('Journal', 'Linux'),
                 'logkmsg': ('Kernel', 'Linux'),
                 'logsys': ('Syslog', 'Linux'),
-                'printdlt': ('DLT', 'Linux/MacOS/Windows'),
+                'printdlt': ('DLT', 'Linux/MacOS'),
                 'printjrl': ('Journal', 'Linux'),
                 'printkmsg': ('Kernel', 'Linux'),
                 'printsys': ('Syslog', 'Linux'),
@@ -51463,9 +51465,7 @@ class DltAnalyzer(object):
         socket = SysMgr.getPkg('socket')
 
         try:
-            from socket import socket, AF_INET, SOCK_DGRAM,\
-                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF,\
-                create_connection, MSG_PEEK, MSG_DONTWAIT
+            from socket import SOL_SOCKET, SO_RCVBUF, create_connection
         except SystemExit:
             sys.exit(0)
         except:
