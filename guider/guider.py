@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210907"
+__revision__ = "210908"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25499,6 +25499,7 @@ Description:
 Options:
     -o  <DIR|FILE>              set output path
     -g  <TID|COMM>              set task filter
+    -J                          print in JSON format
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -25873,6 +25874,7 @@ Options:
     -g  <WORD>                  set filter
     -c  <COMMAND>               set command
     -q  <NAME{{:VALUE}}>          set environment variables
+    -J                          print in JSON format
     -H  <LEVEL>                 set function depth level
                         '''.format(cmd, mode)
 
@@ -42838,8 +42840,14 @@ Copyright:
             SysMgr.printPipe(
                 '\n[Signal Status Info] %s\n%s' % (proc, twoLine))
 
-            # get signal info #
+            # set maximum signal length #
             printed = False
+            if SysMgr.jsonEnable:
+                sigDict = {}
+            else:
+                maxSigLen = max([len(sig) for sig in ConfigMgr.SIG_LIST])
+
+            # get signal info #
             for name, val in tobj.procData[pid]['status'].items():
                 if not name.startswith('Sig') or \
                     len(name) != 6:
@@ -42855,13 +42863,34 @@ Copyright:
 
                 if not sigList:
                     continue
+                elif SysMgr.jsonEnable:
+                    sigDict.setdefault(name, sigList)
+                    continue
 
+                # set variables for print #
                 printed = True
+                if SysMgr.ttyCols:
+                    maxItemLine = long(SysMgr.ttyCols / maxSigLen) - 1
+                else:
+                    maxItemLine = sys.maxsize
+                nameStr = '%s: ' % name
+                string = nameStr
 
-                SysMgr.printPipe(
-                    '%s: %s' % (name, '|'.join(sigList)))
+                # build string for print #
+                for idx, sig in enumerate(sigList):
+                    if idx and idx % maxItemLine == 0:
+                        string = '%s\n%s' % (string, ' ' * len(nameStr))
+                    string = '{0:1}{1:{sz}}'.format(
+                        string, '{0:{sz}}|'.format(sig, sz=maxSigLen-1),
+                        sz=maxSigLen)
 
-            if not printed:
+                # print string for signal list #
+                SysMgr.printPipe(string)
+
+            if SysMgr.jsonEnable:
+                SysMgr.printPipe(UtilMgr.convDict2Str(sigDict))
+                return
+            elif not printed:
                 SysMgr.printPipe('\tNone\n')
             SysMgr.printPipe(oneLine)
 
