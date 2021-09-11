@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210908"
+__revision__ = "210911"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22689,6 +22689,19 @@ Options:
             O:color | p:print | t:truncate | T:task ]
                 '''
 
+                jitProfStr = '''\
+        * Qt:
+            - run the target with "QV4_PROFILE_WRITE_PERF_MAP=1" environment variable (version >= 5.6.0)
+        * node:
+            - run the target with "--perf-basic-prof" option (version >= 0.11.13, map file growth endlessly)
+            - run the target with "--perf-basic-prof-only-functions" option (version >= 4.4.0)
+        * java:
+            1. install perf-map-agent
+            2. run the target with "-XX:+PreserveFramePointer" option
+            3. set environment with "export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")" command
+            4. create a map file with "perf-map-agent/bin/create-java-perf-map.sh PID" command
+                '''
+
                 drawSubStr = '''
 Options:
     -e  <CHARACTER>             enable options
@@ -23011,6 +23024,10 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I "ls"
 
+    - {3:1} and JIT-compiled function calls for specific threads
+{6:1}
+        # {0:1} {1:1} -g node -q JITSYM
+
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
@@ -23235,7 +23252,8 @@ Examples:
                 '''.format(cmd, mode, cmdListStr,
                     'Trace all native calls',
                     'when specific calls detected',
-                    'Trace specific native calls')
+                    'Trace specific native calls',
+                    jitProfStr)
 
                 logCommonStr = '''
 Usage:
@@ -23517,7 +23535,7 @@ Examples:
     - report the analysis result for specific threads and their siblings to ./guider.out
         # {0:1} {1:1} -o . -P -g 1234, 4567 -a
 
-    - report the function analysis result with maximum 3-depth for specific thread to ./guider.out
+    - report the function analysis result with maximum 3-depth for specific threads to ./guider.out
         # {0:1} {1:1} -o . -g 1234 -H 3
                     '''.format(cmd, mode)
 
@@ -23938,6 +23956,11 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
 
+    - Monitor native and JIT-compiled function calls for specific threads
+{2:1}
+        # {0:1} {1:1} -g node -q JITSYM
+        # {0:1} {1:1} -g java -q JITSYM
+
     - Monitor native function calls and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
@@ -24018,7 +24041,7 @@ Examples:
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, jitProfStr)
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -52226,8 +52249,13 @@ class Debugger(object):
         self.bufferedStr = ''
         self.mapFd = None
         self.pmap = None
-        self.amap = None
         self.prevPmap = None
+        self.amap = []
+        self.jmapFd = None
+        self.jmapPath = None
+        self.jmapSize = None
+        self.jmapSymTable = []
+        self.jmapAddrTable = []
         self.needMapScan = True
         self.initPtrace = False
         self.initWaitpid = False
@@ -57333,6 +57361,118 @@ typedef struct {
 
 
 
+    def getJITSymbolByOffset(self, offset):
+        # check symbol table #
+        if not self.jmapSymTable:
+            return '??', '??', '??'
+
+        try:
+            if UtilMgr.isString(offset):
+                try:
+                    offset = long(offset, 16)
+                except:
+                    offset = long(offset)
+
+            addrTable = self.jmapAddrTable
+            symTable = self.jmapSymTable
+
+            # get target index from address table #
+            idx = UtilMgr.bisect_left(addrTable, offset) - 1
+            if idx < 0:
+                idx = long(0)
+
+            while 1:
+                if addrTable[idx] > offset:
+                    return '??', '??', '??'
+
+                size = symTable[idx][1]
+                path = symTable[idx][2]
+
+                # set symbol scope to it's size #
+                maxAddr = addrTable[idx] + size
+
+                if offset >= addrTable[idx] and offset <= maxAddr:
+                    return symTable[idx][0], size, path
+
+                idx += 1
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return '??', '??', '??'
+
+
+
+    def loadJITSymbols(self):
+        if not self.jmapPath:
+            tgid = long(SysMgr.getTgid(self.pid))
+            if not tgid: return False
+            self.jmapPath = '%s/perf-%s.map' % (SysMgr.tmpPath, tgid)
+
+        if not self.jmapFd:
+            try:
+                self.jmapFd = open(self.jmapPath, 'r')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(self.jmapPath)
+                return False
+
+        # get map size #
+        try:
+            mapSize = os.fstat(self.jmapFd.fileno()).st_size
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "fail to get size for '%s' for %s(%s)" % \
+                    (self.jmapPath, self.comm, self.pid))
+            return False
+
+        # check map update and update JIT-compiled symbols #
+        if mapSize != self.jmapSize:
+            try:
+                SysMgr.printWarn(
+                    'start updating JIT-compiled symbols for %s(%s)' % \
+                        (self.comm, self.pid))
+
+                # update size #
+                self.jmapSize = mapSize
+
+                # reset symbol and address table #
+                jmapTable = []
+                self.jmapAddrTable = []
+                self.jmapSymTable = []
+
+                # parse and sort items #
+                for item in self.jmapFd.readlines():
+                    symInfo = item.rstrip().split(' ', 2)
+                    if len(symInfo) == 3:
+                        addr, size, sym = symInfo
+                    else:
+                        SysMgr.printWarn(
+                            "fail to parse JIT-compiled symbol info '%s' for %s(%s)" % \
+                                (item, self.comm, self.pid))
+                        continue
+
+                    jmapTable.append([long(addr, 16), sym, long(size, 16)])
+
+                # register symbols #
+                for item in sorted(jmapTable, key=lambda x: x[0]):
+                    addr, sym, size = item
+                    self.jmapAddrTable.append(addr)
+                    self.jmapSymTable.append([sym, size, '??'])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "fail to load JIT-compiled symbols from '%s' for %s(%s)" % \
+                        (self.jmapPath, self.comm, self.pid), reason=True)
+                return False
+
+            return True
+
+
+
     def loadSymbols(self, onlyFunc=True, onlyExec=True, tpath=None):
         ret = self.updateProcMap(onlyExec=onlyExec)
         if not ret and self.fileList:
@@ -57341,6 +57481,10 @@ typedef struct {
         # update overlayfs info #
         if not self.overlayfsList:
             self.overlayfsList = SysMgr.getOverlayfsInfo(self.pid)
+
+        # update JIT-compiled symbols #
+        if 'JITSYM' in SysMgr.environList:
+            self.loadJITSymbols()
 
         # check STOP condition #
         if 'STOPTARGET' in SysMgr.environList:
@@ -57527,10 +57671,26 @@ typedef struct {
         # get offset in the file #
         offset = vaddr - vstart + totalDiff
         if offset < 0:
-            # check JIT code #
+            # update anon map #
+            if not self.amap:
+                self.amap = FileAnalyzer.getAnonMapInfo(self.pid, self.mapFd)
+
+            # check JIT-compiled code #
             for addrs in self.amap:
                 if not addrs[0] <= vaddr <= addrs[1]:
                     continue
+
+                # get JIT-compiled symbol #
+                symInfo = self.getJITSymbolByOffset(vaddr)
+                if symInfo[0] != '??':
+                    # set path #
+                    if symInfo[2] == '??': path = 'JIT'
+                    else: path = symInfo[2]
+
+                    # return symbol info #
+                    ret = [symInfo[0], path, '??', '??', '??', '??']
+                    self.symbolCacheList[vaddr] = ret
+                    return ret
 
                 # convert address #
                 if SysMgr.showAll:
@@ -57573,7 +57733,7 @@ typedef struct {
         if not ElfAnalyzer.isRelocFile(fname):
             offset = vaddr
 
-        # get symbol #
+        # get native symbol #
         try:
             sym, size = fcache.getSymbolByOffset(offset, onlyFunc=onlyFunc)
             ret = [sym, fname, hex(offset).rstrip('L'), vstart, vend, size]
@@ -58205,11 +58365,17 @@ typedef struct {
                     raddr = self.getRetAddr(ip)
                     if not raddr:
                         break
+
+                    if type(raddr) is list:
+                        btList += raddr
+                    else:
+                        btList.append(raddr)
+
                     # check max length #
-                    elif len(btList) >= limit:
+                    if len(btList) >= limit:
                         break
 
-                    btList.append(raddr)
+                    # update IP #
                     ip = raddr
 
                 # convert addresses to symbols #
@@ -58304,8 +58470,15 @@ typedef struct {
 
         # get file offset #
         ret = self.getSymbolInfo(vaddr)
-        if not ret or ret[2] == '??':
-            return
+        if not ret:
+            return None
+        elif ret[1] == 'JIT':
+            bts = self.backtrace[SysMgr.arch](cur=False)
+            if not bts: return None
+            return [ item[0] for item in bts ]
+        elif ret[2] == '??':
+            return None
+
         sym = ret[0]
         foffset = long(ret[2], 16)
 
@@ -60593,6 +60766,7 @@ typedef struct {
         addrList = []
         addrDict = {}
 
+        # search symbols from all memory-mapped files #
         for mfile in list(self.pmap.keys()):
             if binary and not mfile in binary:
                 continue
@@ -60639,6 +60813,14 @@ typedef struct {
                     addrList.append([offset, sym, mfile])
 
                 addrDict[offset] = True
+
+        # search JIT-compiled symbols #
+        for idx, item in enumerate(self.jmapSymTable):
+            target = item[0]
+            if (start and target.startswith(symbol)) or \
+                (end and target.endswith(symbol)) or \
+                (inc and symbol in target):
+                addrList.append([self.jmapAddrTable[idx], target, 'JIT'])
 
         # return address #
         if not addrList:
@@ -69036,8 +69218,8 @@ class TaskAnalyzer(object):
         menuBuf = "{0:^16} | ".format('Task')
         printBuf = "{0:^16} | ".format('File')
         for fname in flist:
-            printBuf = ('{0:1} {1:^%d}|' % (len(emptyCpuStat)-1)).format(
-                printBuf, fname)
+            printBuf = ('{0:1} {1:^%d}|' % (lenCpuStat-1)).format(
+                printBuf, fname[-lenCpuStat+1:])
             menuBuf = ('{0:1} {1:^%d}' % len(menuStat)).format(
                 menuBuf, menuStat)
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
@@ -69049,7 +69231,7 @@ class TaskAnalyzer(object):
             if pname == 'TOTAL':
                 printBuf = "%16s | " % '[CPU/AVG]'
             else:
-                printBuf = "%16s | " % pname
+                printBuf = "%16s | " % pname[-16:]
 
             for idx, fname in enumerate(flist):
                 try:
@@ -69126,7 +69308,7 @@ class TaskAnalyzer(object):
         printBuf = "{0:^24} | ".format('File')
         for fname in flist:
             printBuf = ('{0:1} {1:^%d}|' % (len(emptyGpuStat)-1)).format(
-                printBuf, fname)
+                printBuf, fname[-lenGpuStat+1:])
             menuBuf = ('{0:1} {1:^%d}' % len(menuStat)).format(
                 menuBuf, menuStat)
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
@@ -69134,7 +69316,7 @@ class TaskAnalyzer(object):
 
         for pname, value in sorted(unionGpuList.items(),
             key=lambda e:float(e[1]), reverse=True):
-            printBuf = "%24s | " % pname
+            printBuf = "%24s | " % pname[-24:]
             for idx, fname in enumerate(flist):
                 try:
                     prevGpuProcList = \
@@ -69213,7 +69395,7 @@ class TaskAnalyzer(object):
         printBuf = "{0:^16} | ".format('File')
         for fname in flist:
             printBuf = ('{0:1} {1:^%d}|' % (len(emptyRssStat)-1)).format(
-                printBuf, fname)
+                printBuf, fname[-lenRssStat+1:])
             menuBuf = ('{0:1} {1:^%d}' % len(menuStat)).format(
                 menuBuf, menuStat)
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
@@ -69221,12 +69403,10 @@ class TaskAnalyzer(object):
 
         for pname, value in sorted(unionRssList.items(),
             key=lambda e:long(e[1]), reverse=True):
-            printBuf = "%16s | " % pname
-
             if pname == 'FREE':
                 printBuf = "%16s | " % '[FREE]'
             else:
-                printBuf = "%16s | " % pname
+                printBuf = "%16s | " % pname[-16:]
 
             for idx, fname in enumerate(flist):
                 try:

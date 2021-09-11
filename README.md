@@ -167,18 +167,66 @@ Output
     ==========================================================================================================================================================
       35.6% | _IO_file_xsputn@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                  
                100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
       17.8% | fputs_unlocked@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
                100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
       16.1% | __libc_start_main@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
       14.7% | memcpy@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
                100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
                          <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
       12.3% | strlen@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
                100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
        3.0% | _IO_file_write@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
                100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
                          <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
                          <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
+
+    # python3 guider/guider.py utop -g node -H -q JIT
+
+    [Top Usercall Info] [Time: 7249986.900] [Interval: 1.015] [Samples: 442] [SYS: 2%/120G] [node(1068318): 50%(U46%+S3%)/897M] [guider(1068338): 53%/256M] [Freq:
+    ==========================================================================================================================================================
+     Usage  | Function [PATH] <Sample>
+    ==========================================================================================================================================================
+      18.6% | write@GLIBC_2.28 [/usr/lib/x86_64-linux-gnu/libpthread-2.31.so] <Cnt: 82>
+               100.0% |  <- 0x13250[/usr/lib/x86_64-linux-gnu/libuv.so.1.0.0] <- uv_fs_write[/usr/lib/x86_64-linux-gnu/libuv.so.1.0.0]
+                         <- 0x573090[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- JIT[JIT] <- LazyCompile:*writeSync fs.js:551[JIT]
+                         <- Builtin:ArgumentsAdaptorTrampoline[JIT] <- LazyCompile:*writeOrBuffer _stream_writable.js:365[JIT]
+                         <- LazyCompile:*log console.js:199[JIT] <- Builtin:ArgumentsAdaptorTrampoline[JIT] <- Builtin:JSEntryTrampoline[JIT] <- JIT[JIT]
+                         <- 0xab0110[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- 0xab0720[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::O
+                         <- v8::Function::Call(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- 0x630d40[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- JIT[JIT] <- LazyCompile:* /home/peacelee/test/test.js:1[JIT]
+                         <- Builtin:InterpreterEntryTrampoline[JIT] <- Builtin:JSEntryTrampoline[JIT] * 8 <- JIT[JIT]
+                         <- 0xab0110[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- 0xab0720[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::O
+                         <- v8::Function::Call(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- 0x52cae0[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- node::LoadEnvironment(node::Environment*)[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- node::Start(v8::Isolate*, node::IsolateData*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char
+                         <- node::Start(int, char**)[/usr/lib/x86_64-linux-gnu/libnode.so.64] <Cnt: 82>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       3.8% | LazyCompile:*writeOrBuffer _stream_writable.js:365 [JIT] <Cnt: 17>
+                64.7% |  <- LazyCompile:*log console.js:199[JIT] <- Builtin:ArgumentsAdaptorTrampoline[JIT] <- Builtin:JSEntryTrampoline[JIT] <- JIT[JIT]
+                         <- 0xab0110[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- 0xab0720[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::O
+                         <- v8::Function::Call(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- 0x630d40[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- JIT[JIT] <- LazyCompile:* /home/peacelee/test/test.js:1[JIT]
+                         <- Builtin:InterpreterEntryTrampoline[JIT] <- Builtin:JSEntryTrampoline[JIT] * 8 <- JIT[JIT]
+                         <- 0xab0110[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- 0xab0720[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::O
+                         <- v8::Function::Call(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- 0x52cae0[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- node::LoadEnvironment(node::Environment*)[/usr/lib/x86_64-linux-gnu/libnode.so.64]
+                         <- node::Start(v8::Isolate*, node::IsolateData*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char
+                         <- node::Start(int, char**)[/usr/lib/x86_64-linux-gnu/libnode.so.64] <- main[/usr/bin/node]
+                         <- __libc_start_main@GLIBC_2.2.5[/usr/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 11>
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -1290,7 +1338,7 @@ COMMAND:
                     logjrl            <Journal>       (Linux)
                     logkmsg           <Kernel>        (Linux)
                     logsys            <Syslog>        (Linux)
-                    printdlt          <DLT>           (Linux/MacOS/Windows)
+                    printdlt          <DLT>           (Linux/MacOS)
                     printjrl          <Journal>       (Linux)
                     printkmsg         <Kernel>        (Linux)
                     printsys          <Syslog>        (Linux)
@@ -1302,7 +1350,7 @@ COMMAND:
                     ctop              <Threshold>     (Linux/MacOS/Windows)
                     dbustop           <D-Bus>         (Linux)
                     disktop           <Storage>       (Linux/MacOS/Windows)
-                    dlttop            <DLT>           (Linux/MacOS/Windows)
+                    dlttop            <DLT>           (Linux/MacOS)
                     ftop              <File>          (Linux/MacOS)
                     mtop              <Memory>        (Linux)
                     ntop              <Network>       (Linux/MacOS/Windows)
