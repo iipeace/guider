@@ -188,7 +188,7 @@ Output
 
 >>>
 
-    # python3 guider/guider.py utop -g node -H -q JIT
+    # python3 guider/guider.py utop -g node -H -q JITSYM
 
     [Top Usercall Info] [Time: 7249986.900] [Interval: 1.015] [Samples: 442] [SYS: 2%/120G] [node(1068318): 50%(U46%+S3%)/897M] [guider(1068338): 53%/256M] [Freq:
     ==========================================================================================================================================================
@@ -1280,7 +1280,7 @@ Kernel Configuration
 =======
 
 ```
-Enable kernel options as below to take advantage of all the features
+Enable kernel options as below to take advantage of all profile features,
 And if CONFIG_STRICT_MEMORY_RWX is enabled then disable it
 
 CONFIG_RING_BUFFER
