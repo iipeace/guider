@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210911"
+__revision__ = "210912"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23147,7 +23147,7 @@ Examples:
     - {5:1} for specific threads and print return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret"
 
-    - {5:1} for specific threads and stop tracing and save return value to specific variable {4:1}
+    - {5:1} for specific threads and stop tracing and save return value to the specific variable {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
     - {5:1} for specific threads and start tracing all calls after return {4:1}
@@ -23185,10 +23185,14 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:INC:HE"
+        # {0:1} {1:1} -g a.out -c "write|filter:2:BT:1|filter:1:EQ:1"
 
     - {5:1} and print call contexts if only the elapsed time exceed 0.0005 second {4:1}
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005"
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005" -H -a
+        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005|filter:0:BT:0"
+        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005:exit"
+        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005:sleep:1"
 
     - {5:1} and check specific conditions {4:1}
         # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
@@ -23200,7 +23204,7 @@ Examples:
     - {5:1} and print 1st and 2nd arguments {4:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1"
 
-    - {5:1} and print 1st and 2nd arguments and save its return value to specific variable {4:1}
+    - {5:1} and print 1st and 2nd arguments and save its return value to the specific variable {4:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
     - {5:1} and start tracing all functions {4:1}
@@ -54587,27 +54591,46 @@ typedef struct {
         if type(filterCmd) is not list:
             filterCmd = [filterCmd]
 
+        result = True
         for cmd in filterCmd:
             cmdset = cmd.split(':', 1)
             if len(cmdset) == 1:
                 _printErr(cmd)
-                return False
+                result = False
+                continue
 
             # get argument info #
             memset = cmdset[1].split(':')
             if len(memset) < 3:
                 _printErr(cmd)
-                return False
+                result = False
+                continue
 
             # handle return filter #
             if memset[0] == 'RET':
-                self.retFilterList[sym] = [memset, None]
+                # check multiple return filter #
+                if sym in self.retFilterList:
+                    SysMgr.printWarn(
+                        'return filter is overwritten for %s' % sym, True)
+
+                # get return command #
+                if len(memset) > 2:
+                    retcmd = ':'.join(memset[3:])
+                else:
+                    retcmd = None
+
+                # set return filter #
+                self.retFilterList[sym] = [memset, None, retcmd]
                 ret = self.setRetBp(sym, fname, cmd)
                 if not ret:
                     SysMgr.printErr((
                         "fail to set breakpoint to "
                         "return address for %s") % sym)
-                return False
+
+                # update filter result #
+                if len(filterCmd) == 1:
+                    result = False
+                continue
 
             # convert args for previous return #
             memset = self.convRetArgs(memset)
@@ -54661,7 +54684,8 @@ typedef struct {
                 if ret is None or ret == -1:
                     SysMgr.printErr(
                         "fail to read from %s" % addr)
-                    return False
+                    result = False
+                    continue
 
                 ret = ret.decode()
             # get value from register #
@@ -54673,36 +54697,42 @@ typedef struct {
             if op.upper() == 'EQ':
                 if ref:
                     if ret[:size] != val:
-                        return False
+                        result = False
+                        continue
                 else:
                     val = str(val)[:size]
                     ret = str(ret)[:size]
 
                     if ret != val:
-                        return False
+                        result = False
+                        continue
             # != #
             elif op.upper() == 'DF':
                 if ref:
                     if ret[:size] == val:
-                        return False
+                        result = False
+                        continue
                 else:
                     val = str(val)[:size]
                     ret = str(ret)[:size]
 
                     if ret == val:
-                        return False
+                        result = False
+                        continue
 
             # in #
             elif op.upper() == 'INC':
                 if ref:
                     if not val in ret[:size]:
-                        return False
+                        result = False
+                        continue
 
             # <= or >= #
             elif op.upper() == 'BT' or op.upper() == 'LT':
                 if not UtilMgr.isNumber(val):
                     _printErr(cmd)
-                    return False
+                    result = False
+                    continue
 
                 try:
                     val = long(val)
@@ -54712,16 +54742,19 @@ typedef struct {
                     val = long(val, 16)
 
                 if op.upper() == 'BT' and ret <= val:
-                    return False
+                    result = False
+                    continue
                 elif op.upper() == 'LT' and ret >= val:
-                    return False
+                    result = False
+                    continue
 
             else:
                 SysMgr.printErr(
                     "fail to recognize operator '%s' for filter" % op)
-                return False
+                result = False
+                continue
 
-        return True
+        return result
 
 
 
@@ -58982,11 +59015,12 @@ typedef struct {
         cmds = None
         skip = False
         convColor = UtilMgr.convColor
+        retcmd = None
 
         # handle breakpoint for return #
         if isRetBp:
             try:
-                etime, elapsed, hasRetFilter, skip = \
+                etime, elapsed, hasRetFilter, skip, retcmd = \
                     self.handleRetBpFilter(sym)
                 if not elapsed:
                     raise Exception()
@@ -59076,6 +59110,8 @@ typedef struct {
         # execute commands #
         if cmds:
             self.executeCmd(cmds, sym, fname, args)
+        if retcmd:
+            self.executeCmd([retcmd], sym, fname, args)
 
         return isRetBp
 
@@ -61204,6 +61240,7 @@ typedef struct {
             filters = self.retFilterList[origSym][0]
             op = filters[1].upper()
             cond = float(filters[2])
+            cmd = self.retFilterList[origSym][2]
 
             # compare values #
             if op == 'EQ':
@@ -61236,7 +61273,7 @@ typedef struct {
         # remove return filter #
         self.retFilterList.pop(origSym, None)
 
-        return etime, elapsed, hasRetFilter, skip
+        return etime, elapsed, hasRetFilter, skip, cmd
 
 
 
