@@ -10088,8 +10088,14 @@ class PageAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
+            if pid:
+                targetStr = " for '%s'" % ', '.join(pid)
+            else:
+                targetStr = ''
+
             SysMgr.printErr(
-                "fail to find task for '%s'" % ', '.join(pid), reason=True)
+                "fail to find task%s" % targetStr, reason=True)
+
             sys.exit(0)
 
         for pid in sorted(pids):
@@ -22799,6 +22805,9 @@ Examples:
 
     - Monitor status of {2:2} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
+
+    - Monitor status of {2:2} and report the result to ./guider.out with memo when SIGINT signal arrives
+        # {0:1} {1:1} -o . -q "monitoring result for server peak time"
 
     - Monitor status of {2:2} and report the result to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
@@ -46086,6 +46095,21 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['cmdline'] = self.cmdlineData
+        except:
+            pass
+
+        # memo #
+        try:
+            if not 'MEMO' in SysMgr.environList:
+                raise Exception('no memo')
+
+            memo = SysMgr.environList['MEMO'][0]
+
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format('Memo', memo))
+
+            if SysMgr.jsonEnable:
+                jsonData['memo'] = memo
         except:
             pass
 
