@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210912"
+__revision__ = "210913"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23743,9 +23743,12 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor open files, sockets, pipes for all processes
+    - Monitor all processes sorted by the number of file descriptors
         # {0:1} {1:1}
-        # {0:1} {1:1} -Q
+
+    - Monitor open files, sockets, pipes for all processes
+        # {0:1} {1:1} -a
+        # {0:1} {1:1} -a -Q
 
     - Monitor open files, sockets, pipes including null for all processes
         # {0:1} {1:1} -g :null
@@ -23757,13 +23760,11 @@ Examples:
         # {0:1} {1:1} -g system
 
     - Monitor open files, sockets, pipes for all processes with cmdline
-        # {0:1} {1:1} -e L
-
-    - Monitor all processes sorted by the number of file descriptors
-        # {0:1} {1:1} -S f
+        # {0:1} {1:1} -a -e L
 
     - Report analysis result of open files, sockets, pipes to ./guider.out
         # {0:1} {1:1} -o .
+        # {0:1} {1:1} -a -o .
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -46819,7 +46820,7 @@ Copyright:
         for line in data:
             try:
                 user, passwd, uid, gid, info, home, shell = \
-                    line.decode().split(':')
+                    line.rstrip().decode().split(':')[:7]
 
                 self.userData[uid] = {
                     'name': user,
@@ -70180,7 +70181,7 @@ class TaskAnalyzer(object):
             # initialize task stat #
             TaskAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
             TaskAnalyzer.dbgObj.initValues()
-            TaskAnalyzer.dbgObj.getCpuUsage()
+            TaskAnalyzer.dbgObj.getCpuUsage(system=True)
 
         # apply for filter from 1st argument #
         if not SysMgr.filterGroup and SysMgr.hasMainArg():
@@ -83896,25 +83897,41 @@ class TaskAnalyzer(object):
 
         # print cpu usage #
         if SysMgr.isLinux:
-            cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage()
+            # get diff #
             diff = SysMgr.uptimeDiff
-            if diff == 0:
-                diff = 0.1
+            if diff == 0: diff = 0.01
+
+            # get CPU usage for myself #
+            cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage(system=True)
             ttime = cpuUsage[0] / diff
             utime = cpuUsage[1] / diff
             stime = cpuUsage[2] / diff
-            cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+            mcpu = '%d%%' % ttime
+            mcpu = UtilMgr.convCpuColor(ttime, mcpu)
+            mcpuStr = '%s(U%d%%+S%d%%)' % (mcpu, utime, stime)
+
+            # get CPU usage for system #
+            ctime = 100 - (cpuUsage[3] / diff)
+            ctime = ctime if ctime >= 0 else 0
+            sysCpuStr = '%d%%' % ctime
+            sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
+
+            # get available memory for system #
+            sysMemStr = SysMgr.getAvailMemInfo()
         else:
-            cpuStr = 'N/A'
+            cpuStr = mcpuStr = sysCpuStr = sysMemStr = '?'
 
         SysMgr.addPrint(UtilMgr.convColor((
-            "[Top File Info] [Time: %7.3f] [Proc: %s] "
-            "[FD: %s] [File: %s] [CPU: %s] (Unit: %%/MB/NR)\n") % \
-            (SysMgr.uptime, convNum(self.nrProcess),
-            convNum(self.nrFd), convNum(len(self.fileData)), cpuStr), 'BOLD'))
+            "[Top File Info] [Time: %7.3f] [Interval: %.3f] [Proc: %s] "
+            "[FD: %s] [File: %s] [SYS: %s/%s] [%s(%s): %s] "
+            "(Unit: NR)\n") % \
+                (SysMgr.uptime, SysMgr.uptimeDiff, convNum(self.nrProcess),
+                    convNum(self.nrFd), convNum(len(self.fileData)),
+                    sysCpuStr, sysMemStr, SysMgr.comm, SysMgr.pid,
+                    mcpuStr), 'BOLD'))
 
         SysMgr.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|{6:^101}|\n{7:1}\n").\
+            ("{0:>16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|{6:^101}|\n{7:1}\n").\
             format("Process", "ID", "PID", "Nr", "Pri", "FD", "Path", oneLine),
             newline = 3)
 
@@ -83927,6 +83944,7 @@ class TaskAnalyzer(object):
             sortedProcData = sorted(self.procData.items(),
                 key=lambda e: len(e[1]['fdList']), reverse=True)
 
+        # get filters #
         procFilter, fileFilter = filters
 
         # print process info #
@@ -83960,7 +83978,7 @@ class TaskAnalyzer(object):
 
             # summary info #
             if 'fdInfo' in value:
-                details = '   '.join(["%s: %s" % (fd,path) for fd, path in \
+                details = '   '.join(["%6s: %5s" % (fd,path) for fd, path in \
                     sorted(value['fdInfo'].items(),
                     key=lambda e: long(e[1]), reverse=True)])
             else:
@@ -83970,13 +83988,15 @@ class TaskAnalyzer(object):
             nrFd = len(value['fdList'])
             if nrFd > 1000:
                 nrFd = UtilMgr.convColor(nrFd, 'RED', 6)
+            elif nrFd == 0:
+                break
 
             procInfo = "%s|%s\n" % \
                 (procInfo, '{0:>6}| {1:<100}|'.format(nrFd, details))
 
             # print only per-process summary #
             fdCnt = long(0)
-            if SysMgr.sort == 'f':
+            if not SysMgr.showAll and not SysMgr.filterGroup:
                 if procInfo != '':
                     ret = SysMgr.addPrint(procInfo)
                     procInfo = ''
@@ -84049,9 +84069,7 @@ class TaskAnalyzer(object):
                     fdinfoPath = "%s/%s/fdinfo/%s" % \
                         (SysMgr.procPath, idx, fd)
                     with open(fdinfoPath, 'r') as infofd:
-                        lines = infofd.readlines()
-
-                        for item in lines:
+                        for item in infofd.readlines():
                             if item.startswith('pos'):
                                 attr += '%s' % item.split(':')[1].strip()
                             elif item.startswith('flags'):
@@ -84081,8 +84099,6 @@ class TaskAnalyzer(object):
 
             if fdCnt > 0:
                 procCnt += 1
-
-            if fdCnt > 0:
                 ret = SysMgr.addPrint("%s\n" % oneLine)
                 if not ret:
                     break
@@ -84094,7 +84110,7 @@ class TaskAnalyzer(object):
                 (text, ' ' * (SysMgr.lineLength - len(text) - 1))
 
             SysMgr.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
-        elif SysMgr.sort == 'f':
+        elif not SysMgr.showAll and not SysMgr.filterGroup:
             SysMgr.addPrint("{0:1}\n".format(oneLine))
 
         SysMgr.printTopStats()
@@ -84188,6 +84204,8 @@ class TaskAnalyzer(object):
                     continue
 
                 try:
+                    self.nrFd += 1
+
                     if SysMgr.isLinux:
                         # add file info into fdList #
                         fdPath = "%s/%s" % (fdlistPath, fd)
@@ -89101,6 +89119,7 @@ class TaskAnalyzer(object):
                 if 'user' in self.prevProcData[idx]:
                     value['user'] = self.prevProcData[idx]['user']
                 else:
+                    SysMgr.sysInstance.saveUserInfo()
                     userData = SysMgr.sysInstance.userData
                     uid = value['status']['Uid'].split()[0]
                     value['user'] = userData[uid]['name']
