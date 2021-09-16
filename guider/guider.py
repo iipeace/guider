@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210913"
+__revision__ = "210916"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -2741,7 +2741,7 @@ class ConfigMgr(object):
     }
 
     '''
-    update syscalls from https://github.com/strace/strace/linux/ARCH/syscallent.h
+    update syscalls from https://github.com/strace/src/linux/ARCH/syscallent.h
     1. %s/\[.*= //g
     2. %s/{.*),\s*"/\'sys_/g
     3. %s/".*,/\',/g
@@ -2751,43 +2751,26 @@ class ConfigMgr(object):
 
     # common 32bit syscalls from 403 ~ 423 #
     SYSCALL_COMMON32 = [
-        'sys_clock_gettime64',
-        'sys_clock_settime64',
-        'sys_clock_adjtime64',
-        'sys_clock_getres_time64',
-        'sys_clock_nanosleep_time64',
-        'sys_timer_gettime64',
-        'sys_timer_settime64',
-        'sys_timerfd_gettime64',
-        'sys_timerfd_settime64',
-        'sys_utimensat_time64',
-        'sys_pselect6_time64',
-        'sys_ppoll_time64',
-        'sys_unused',
-        'sys_io_pgetevents_time64',
-        'sys_recvmmsg_time64',
-        'sys_mq_timedsend_time64',
-        'sys_mq_timedreceive_time64',
-        'sys_semtimedop_time64',
-        'sys_rt_sigtimedwait_time64',
-        'sys_futex_time64',
+        'sys_clock_gettime64', 'sys_clock_settime64', 'sys_clock_adjtime64',
+        'sys_clock_getres_time64', 'sys_clock_nanosleep_time64',
+        'sys_timer_gettime64', 'sys_timer_settime64', 'sys_timerfd_gettime64',
+        'sys_timerfd_settime64', 'sys_utimensat_time64', 'sys_pselect6_time64',
+        'sys_ppoll_time64', 'sys_unused', 'sys_io_pgetevents_time64',
+        'sys_recvmmsg_time64', 'sys_mq_timedsend_time64',
+        'sys_mq_timedreceive_time64', 'sys_semtimedop_time64',
+        'sys_rt_sigtimedwait_time64', 'sys_futex_time64',
         'sys_sched_rr_get_interval_time64',
     ]
 
-    # common syscalls from 424 ~ 435 #
+    # common syscalls from 424 ~ 447 #
     SYSCALL_COMMON = [
-        'sys_pidfd_send_signal',
-        'sys_io_uring_setup',
-        'sys_io_uring_enter',
-        'sys_io_uring_register',
-        'sys_open_tree',
-        'sys_move_mount',
-        'sys_fsopen',
-        'sys_fsconfig',
-        'sys_fsmount',
-        'sys_fspick',
-        'sys_pidfd_open',
-        'sys_clone3',
+        'sys_pidfd_send_signal', 'sys_io_uring_setup', 'sys_io_uring_enter',
+        'sys_io_uring_register', 'sys_open_tree', 'sys_move_mount',
+        'sys_fsopen', 'sys_fsconfig', 'sys_fsmount', 'sys_fspick',
+        'sys_pidfd_open', 'sys_clone3', "close_range", "openat2",
+        "pidfd_getfd", "faccessat2", "process_madvise", "epoll_pwait2",
+        "mount_setattr", "quotactl_fd", "landlock_create_ruleset",
+        "landlock_add_rule", "landlock_restrict_self", "memfd_secret"
     ]
 
     # syscall for ARM #
@@ -57595,7 +57578,6 @@ typedef struct {
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
                     if printLog:
                         printLog = False
-
                 continue
 
                 # print ELF object size on RAM #
