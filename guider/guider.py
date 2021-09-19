@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210916"
+__revision__ = "210919"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -69712,6 +69712,12 @@ class TaskAnalyzer(object):
             if onlyInstance:
                 return
 
+            # set target type #
+            if SysMgr.processEnable:
+                targets = 'processes'
+            else:
+                targets = 'threads'
+
             if SysMgr.graphEnable:
                 # draw images based on statistics #
                 if SysMgr.inputParam:
@@ -69736,6 +69742,12 @@ class TaskAnalyzer(object):
             if SysMgr.intervalEnable == 0:
                 SysMgr.intervalEnable = 1
 
+            # apply filter from 1st argument #
+            if not SysMgr.filterGroup and SysMgr.hasMainArg():
+                value = SysMgr.getMainArg()
+                value = UtilMgr.splitString(value)
+                SysMgr.filterGroup = UtilMgr.cleanItem(value)
+
             # remove wrong filter #
             if SysMgr.filterGroup:
                 for idx, val in enumerate(SysMgr.filterGroup):
@@ -69747,24 +69759,14 @@ class TaskAnalyzer(object):
                 if SysMgr.fileTopEnable:
                     pass
                 elif SysMgr.groupProcEnable:
-                    if SysMgr.processEnable:
-                        SysMgr.printInfo((
-                            "only specific processes that are involved "
-                            "in the process group [ %s ] are shown") % \
-                                taskList)
-                    else:
-                        SysMgr.printInfo((
-                            "only specific threads that are involved "
-                            "in the process group [ %s ] are shown") % \
-                                taskList)
-                elif SysMgr.processEnable:
-                    SysMgr.printInfo(
-                        "only specific processes [ %s ] are shown" % \
-                            taskList)
+                    SysMgr.printInfo((
+                        "only specific %s that are involved "
+                        "in the process group [ %s ] are shown") % \
+                            (targets, taskList))
                 else:
                     SysMgr.printInfo(
-                        "only specific threads [ %s ] are shown" % \
-                            taskList)
+                        "only specific %s [ %s ] are shown" % \
+                            (targets, taskList))
 
             # set network config #
             if not SysMgr.findOption('x'):
@@ -70080,12 +70082,6 @@ class TaskAnalyzer(object):
             SysMgr.printErr("fail to access cgroup filesystem")
             sys.exit(0)
 
-        # apply for filter from 1st argument #
-        if not SysMgr.filterGroup and SysMgr.hasMainArg():
-            value = SysMgr.getMainArg()
-            value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = UtilMgr.cleanItem(value)
-
         # run loop #
         while 1:
             # collect system stats as soon as possible #
@@ -70165,12 +70161,6 @@ class TaskAnalyzer(object):
             TaskAnalyzer.dbgObj.initValues()
             TaskAnalyzer.dbgObj.getCpuUsage(system=True)
 
-        # apply for filter from 1st argument #
-        if not SysMgr.filterGroup and SysMgr.hasMainArg():
-            value = SysMgr.getMainArg()
-            value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = UtilMgr.cleanItem(value)
-
         # import select package in the foreground #
         if not SysMgr.outPath:
             SysMgr.getPkg('select', False)
@@ -70228,12 +70218,6 @@ class TaskAnalyzer(object):
 
 
     def runTaskTopGen(self):
-        # apply for filter from 1st argument #
-        if not SysMgr.filterGroup and SysMgr.hasMainArg():
-            value = SysMgr.getMainArg()
-            value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = UtilMgr.cleanItem(value)
-
         # import select package in the foreground #
         if not SysMgr.outPath:
             SysMgr.getPkg('select', False)
@@ -70290,12 +70274,6 @@ class TaskAnalyzer(object):
 
         # initialize perf events #
         SysMgr.initSystemPerfEvents()
-
-        # apply for filter from 1st argument #
-        if not SysMgr.filterGroup and SysMgr.hasMainArg():
-            value = SysMgr.getMainArg()
-            value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = UtilMgr.cleanItem(value)
 
         # import select package in the foreground #
         if not SysMgr.outPath:
