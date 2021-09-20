@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210919"
+__revision__ = "210920"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -2767,10 +2767,11 @@ class ConfigMgr(object):
         'sys_pidfd_send_signal', 'sys_io_uring_setup', 'sys_io_uring_enter',
         'sys_io_uring_register', 'sys_open_tree', 'sys_move_mount',
         'sys_fsopen', 'sys_fsconfig', 'sys_fsmount', 'sys_fspick',
-        'sys_pidfd_open', 'sys_clone3', "close_range", "openat2",
-        "pidfd_getfd", "faccessat2", "process_madvise", "epoll_pwait2",
-        "mount_setattr", "quotactl_fd", "landlock_create_ruleset",
-        "landlock_add_rule", "landlock_restrict_self", "memfd_secret"
+        'sys_pidfd_open', 'sys_clone3', "sys_close_range", "sys_openat2",
+        "sys_pidfd_getfd", "sys_faccessat2", "sys_process_madvise",
+        "sys_epoll_pwait2", "sys_mount_setattr", "sys_quotactl_fd",
+        "sys_landlock_create_ruleset", "sys_landlock_add_rule",
+        "sys_landlock_restrict_self", "sys_memfd_secret"
     ]
 
     # syscall for ARM #
@@ -2957,8 +2958,7 @@ class ConfigMgr(object):
         'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2', 'sys_pwritev2',
         'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free', 'sys_statx',
         'sys_io_pgetevents', 'sys_rseq', 'sys_kexec_file_load',
-    ] + ['sys_null' for idx in range(295, 423, 1)] + SYSCALL_COMMON + \
-        ['close_range', 'openat2', 'pidfd_getfd', 'pidfd_getfd', 'faccessat2']
+    ] + ['sys_null' for idx in range(295, 423, 1)] + SYSCALL_COMMON
 
     # syscall for x86 #
     SYSCALL_X86 = [
@@ -3877,11 +3877,13 @@ class UtilMgr(object):
             ['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
 
         # print final diff list #
-        print("--- no prototype ---")
-        print(list(syscallList - protoList - ignoreList))
+        SysMgr.printPipe("--- NO PROTOTYPE ---")
+        for name in sorted(list(syscallList - protoList - ignoreList)):
+            SysMgr.printPipe(name)
 
-        print("\n--- no define ---")
-        print(list(protoList - syscallList))
+        SysMgr.printPipe("\n--- NO DEFINITION ---")
+        for name in sorted(list(protoList - syscallList)):
+            SysMgr.printPipe(name)
 
 
 
@@ -23023,6 +23025,9 @@ Examples:
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
+    - {3:1} and convert syscall args for specific threads
+        # {0:1} {1:1} -g a.out -q CONVARG
+
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
@@ -29653,7 +29658,7 @@ Copyright:
 
     @staticmethod
     def exitHandler(signum, frame):
-        if SysMgr.exitFlag:
+        if SysMgr.exitFlag or SysMgr.checkMode('report'):
             os._exit(0)
 
         # block signals and disable alarm for stable termination #
@@ -54666,7 +54671,7 @@ typedef struct {
             if len(memset) == 4:
                 size = long(memset[3])
             else:
-                size = -1
+                size = None
 
             # convert 1st value to number #
             if UtilMgr.isNumber(addr):
@@ -56003,7 +56008,7 @@ typedef struct {
             return None
 
         # check size #
-        if size == 0:
+        if not size:
             size = wordSize
 
         if self.supportProcessVmRd:
@@ -58947,21 +58952,10 @@ typedef struct {
         # define proto list #
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
-        # strip syscall args #
-        if sym in proto and len(proto[sym][1]) < len(args):
-            args = args[:len(proto[sym][1])]
-
         # check filter #
         filterCmd = self.bpList[addr]['filter']
         if not self.checkFilterCond(filterCmd, args, sym, fname):
             return
-
-        # build arguments string #
-        if Debugger.envFlags['NOARG']:
-            argstr = ''
-        else:
-            argstr = '(%s)' % \
-                ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
 
         # top mode #
         if self.isRealtime:
@@ -58977,7 +58971,34 @@ typedef struct {
 
             return
 
-        # trace mode #
+        #-------------------- TRACE MODE --------------------#
+
+        # set default symbol color #
+        symColor = 'GREEN'
+
+        # convert args #
+        if 'CONVARG' in SysMgr.environList and \
+            sym.split('@', 1)[0] in proto:
+            # convert args #
+            self.syscall = sym.split('@', 1)[0]
+            self.args = []
+            self.updateSyscallArgs()
+
+            # convert numbers #
+            args = [hex(arg[2]).rstrip('L') if type(arg[2]) is long \
+                else str(arg[2]) for arg in self.args]
+            argstr = '(%s)' % ','.join(args)
+
+            # change symbol color #
+            symColor = 'OKBLUE'
+        # build arguments string #
+        elif Debugger.envFlags['NOARG']:
+            argstr = ''
+        else:
+            argstr = '(%s)' % \
+                ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
+
+        # set task info #
         if self.multi:
             tinfo = '%s(%s) ' % (self.comm, self.pid)
         else:
@@ -59070,7 +59091,7 @@ typedef struct {
         else:
             # build current symbol string #
             callString = '\n%s %s%s%s%s/%s%s [%s]' % \
-                (diffstr, tinfo, indent, convColor(sym, 'GREEN'),
+                (diffstr, tinfo, indent, convColor(sym, symColor),
                     elapsed, hex(addr).rstrip('L'), argstr,
                     convColor(fname, 'YELLOW'))
 
@@ -60130,24 +60151,34 @@ typedef struct {
         # get argument values from register #
         regstr = self.readArgs()
 
-        # get data types #
-        self.rettype, formats = proto[self.syscall]
+        # check prototype #
+        if self.syscall in proto:
+            # get data types #
+            self.rettype, formats = proto[self.syscall]
 
-        # get values #
-        self.values = \
-            [value for value, format in zip(regstr, formats)]
+            # get values #
+            self.values = \
+                [value for value, format in zip(regstr, formats)]
 
-        seq = long(0)
+        else:
+            SysMgr.printWarn(
+                "fail to get prototype for %s" % self.syscall)
+
+            self.values = []
+            formats = []
+
         argset = {}
-        showAll = SysMgr.showAll
-        for value, format in zip(regstr, formats):
-            # get type and name of a argument #
-            argtype, argname = format
+        seq = long(0)
+        for value, aformat in zip(regstr, formats):
+            # get type and name for an argument #
+            argtype, argname = aformat
             argset[argname] = value
 
             # convert argument value #
             value = self.convSyscallParam(
-                argtype, argname, value, seq, ref, argset, showAll, retval)
+                argtype, argname, value, seq, ref, argset,
+                SysMgr.showAll, retval)
+
             if value is not None:
                 self.addArg(argtype, argname, value)
 
@@ -60401,9 +60432,6 @@ typedef struct {
         except:
             return
 
-        # define proto list #
-        proto = ConfigMgr.SYSCALL_PROTOTYPES
-
         # get diff time #
         diff = self.vdiff
 
@@ -60416,14 +60444,7 @@ typedef struct {
             if self.wait:
                 return
 
-            # check prototype #
-            if name not in proto:
-                SysMgr.printWarn(
-                    "fail to get args info of %s" % name, True)
-                return
-
             args = []
-
             self.syscallTime[name] = self.vdiff
 
             # convert args except for top mode #
@@ -61240,7 +61261,7 @@ typedef struct {
 
         # check return filter #
         if not origSym in self.retFilterList:
-            return etime, elapsed, hasRetFilter, skip
+            return etime, elapsed, hasRetFilter, skip, None
 
         # check condition #
         try:
@@ -76188,9 +76209,13 @@ class TaskAnalyzer(object):
         for icount in range(0, len(self.syscallData)):
             try:
                 self.threadData[self.syscallData[icount][2]]
+            except SystemExit:
+                sys.exit(0)
             except:
                 try:
                     del self.syscallData[icount]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     break
 
@@ -76293,6 +76318,8 @@ class TaskAnalyzer(object):
 
                     try:
                         elapsed = '%6.6f' % nowData[6]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         elapsed = ' ' * 8
 
@@ -76301,6 +76328,8 @@ class TaskAnalyzer(object):
                     nrRet = long(ret)
                     if nrRet < 0:
                         ret = ConfigMgr.ERR_TYPE[abs(nrRet) - 1]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
