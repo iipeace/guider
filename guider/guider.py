@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210920"
+__revision__ = "210921"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -59061,11 +59061,17 @@ typedef struct {
                     # get previous symbol info #
                     prevSymInfo = self.getSymbolInfo(addr)
                     if prevSymInfo:
+                        try:
+                            prevAddr = hex(prevSymInfo[3]).rstrip('L')
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            prevAddr = prevSymInfo[3]
+
                         prevSym = prevSymInfo[0]
                         prevFname = prevSymInfo[1]
-                        prevAddr = prevSymInfo[3]
                         addStr = ' -> %s/%s [%s]' % \
-                            (prevSym, hex(prevAddr).rstrip('L'), prevFname)
+                            (prevSym, prevAddr, prevFname)
                     else:
                         addStr = ''
 
@@ -61239,9 +61245,12 @@ typedef struct {
         # get original symbol #
         try:
             origSym = sym[:-len(Debugger.RETSTR)]
+        except SystemExit:
+            sys.exit(0)
         except:
             origSym = sym
 
+        # check entry time #
         if origSym not in self.entryTime:
             SysMgr.printWarn(
                 "no entry time of %s(%s) for %s(%s)" % \
@@ -61360,6 +61369,8 @@ typedef struct {
         except:
             SysMgr.printWarn(
                 'no backtrace for %s(%s)' % (sym, fname), reason=True)
+
+            # to prevent useless error message #
             return True
 
         # add the new breakpoint for return #
@@ -61374,7 +61385,7 @@ typedef struct {
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
-        # TODO: handle stack for no return procesure such like PLT #
+        # TODO: handle no return procedure such like PLT #
         self.entryTime.setdefault(sym, list())
         self.entryTime[sym].append(self.vdiff)
 
