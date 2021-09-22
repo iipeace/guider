@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210921"
+__revision__ = "210922"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3293,7 +3293,6 @@ class ConfigMgr(object):
         "TRAP_HWBKPT", # /* hardware breakpoint/watchpoint */
         "TRAP_UNK",    # /* undiagnosed trap */
     ]
-
 
     # SIGFPE si_codes #
     SIGFPE_CODE = [
@@ -22973,13 +22972,13 @@ Examples:
                 cmdListStr = '''
 Commands:
     acc      print accumulation stats for specific values [NAME:VAR|REG|VAL]
-    check    check values [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
+    check    check context and execute next commands [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     condexit exit if tracing was started
     dist     print distribution stats for specific values [NAME:VAR|REG|VAL]
     dump     dump specific memory range to a file [NAME|ADDR:FILE]
-    exec     execute the command [CMD]
+    exec     execute the external command [CMD]
     exit     exit tracing
-    filter   print only filtered context [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
+    filter   print only filtered context [VAR|ADDR|REG|RETTIME|RETVAL:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
     getarg   print specific registers [REGS]
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
@@ -23185,17 +23184,25 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:1|filter:1:EQ:1"
 
     - {5:1} and print call contexts if only the elapsed time exceed 0.0005 second {4:1}
-        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005"
-        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005" -H -a
-        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005|filter:0:BT:0"
-        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005:exit"
-        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005:sleep:1"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005" -H -a
+        # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005|filter:0:BT:0"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:exit"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:sleep:1"
+
+    - {5:1} and print call contexts if only the return value is bigger than 1 {4:1}
+        # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005" -H -a
+        # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005|filter:0:BT:0"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005:exit"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005:sleep:1"
 
     - {5:1} and check specific conditions {4:1}
         # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|check:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|check:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|check:*1:INC:HE"
+        # {0:1} {1:1} -g a.out -c "write|check:0:EQ:1|sleep:1"
         # {0:1} {1:1} -g a.out -c "write|check:@RET1:EQ:@RET2:EVENT_CONT"
 
     - {5:1} and print 1st and 2nd arguments {4:1}
@@ -26932,8 +26939,7 @@ Options:
 
                 # wrong command #
                 else:
-                    SysMgr.printErr(
-                        'wrong command %s' % mode)
+                    SysMgr.printErr('wrong command %s' % mode)
                     sys.exit(0)
 
                 # no pager #
@@ -28224,8 +28230,7 @@ Copyright:
                     if len(rVal) < 2:
                         continue
                     elif len(rVal) > 2:
-                        SysMgr.printErr(
-                            "wrong command '%s'" % rCmd)
+                        SysMgr.printErr("wrong command '%s'" % rCmd)
                         sys.exit(0)
                     tVal = rVal[1]
 
@@ -28420,15 +28425,13 @@ Copyright:
             # apply entry events #
             pCmd = 'p:%s_enter %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SysMgr.writeCmd('../uprobe_events', pCmd, append=True) < 0:
-                SysMgr.printErr(
-                    "wrong command '%s'" % pCmd)
+                SysMgr.printErr("wrong command '%s'" % pCmd)
                 sys.exit(0)
 
             # apply return events #
             rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SysMgr.writeCmd('../uprobe_events', rCmd, append=True) < 0:
-                SysMgr.printErr(
-                    "wrong command '%s'" % rCmd)
+                SysMgr.printErr("wrong command '%s'" % rCmd)
                 sys.exit(0)
 
         # apply filter #
@@ -53589,9 +53592,12 @@ typedef struct {
 
                 # broadcast event #
                 if ret:
+                    skip = False
                     params = cmdset[1].split(':')
                     if len(params) > 4:
                         SysMgr.broadcastEvent(params[4])
+                else:
+                    skip = True
 
                 # change color for False #
                 if ret:
@@ -53601,6 +53607,11 @@ typedef struct {
 
                 SysMgr.addPrint(
                     "\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
+
+                if skip:
+                    raise UserWarning
+                else:
+                    return ret
 
             elif cmd == 'inter':
                 # get diff #
@@ -54221,6 +54232,9 @@ typedef struct {
             # execute a command #
             try:
                 repeat = _handleCmd(cmdset, cmd)
+            except UserWarning:
+                newCmdList.append(cmdval)
+                break
             except SystemExit:
                 _flushPrint()
                 sys.exit(0)
@@ -54620,11 +54634,17 @@ typedef struct {
                 continue
 
             # handle return filter #
-            if memset[0] == 'RET':
+            if memset[0] == 'RETTIME' or memset[0] == 'RETVAL':
+                if cmdset[0] != 'filter':
+                    SysMgr.printErr(
+                        "wrong command '%s' with '%s'" % (
+                            cmdset[0], memset[0]))
+                    sys.exit(0)
+
                 # check multiple return filter #
                 if sym in self.retFilterList:
                     SysMgr.printWarn(
-                        'return filter is overwritten for %s' % sym, True)
+                        'return filter is overwritten for %s' % sym)
 
                 # get return command #
                 if len(memset) > 2:
@@ -59141,6 +59161,10 @@ typedef struct {
                     self.executeCmd(
                         cmd, sym=sym, fname=fname, args=args)
 
+        # check skip condition #
+        if skip:
+            return isRetBp
+
         # execute commands #
         if cmds:
             self.executeCmd(cmds, sym, fname, args)
@@ -61275,22 +61299,33 @@ typedef struct {
         # check condition #
         try:
             filters = self.retFilterList[origSym][0]
+            target = filters[0]
             op = filters[1].upper()
             cond = float(filters[2])
             cmd = self.retFilterList[origSym][2]
 
+            # set target value #
+            if target == 'RETTIME':
+                val = etime
+            elif target == 'RETVAL':
+                val = self.getRet()
+            else:
+                SysMgr.printErr(
+                    "fail to recognize '%s' as a return filter" % target)
+                sys.exit(0)
+
             # compare values #
             if op == 'EQ':
-                if etime != cond:
+                if val != cond:
                     skip = True
             elif op == 'DF':
-                if etime == cond:
+                if val == cond:
                     skip = True
             elif op == 'BT':
-                if etime <= cond:
+                if val <= cond:
                     skip = True
             elif op == 'LT':
-                if etime >= cond:
+                if val >= cond:
                     skip = True
             else:
                 SysMgr.printErr((
@@ -61305,7 +61340,7 @@ typedef struct {
         except:
             SysMgr.printErr(
                 "fail to check return filter for %s for %s(%s)" % \
-                    (origSym, self.comm, self.pid))
+                    (origSym, self.comm, self.pid), True)
 
         # remove return filter #
         self.retFilterList.pop(origSym, None)
