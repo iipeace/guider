@@ -43698,6 +43698,9 @@ Copyright:
 
     @staticmethod
     def setDeadlinePriority(pid, runtime, deadline, period):
+        if not SysMgr.isLinux:
+            return
+
         # get comm #
         comm = SysMgr.getComm(pid)
 
@@ -43712,6 +43715,8 @@ Copyright:
                     "because kernel version %g is lesser than 3.14") % \
                     (comm, pid, ver))
                 return -1
+        except SystemExit:
+            sys.exit(0)
         except:
             err = sys.exc_info()[1]
             SysMgr.printWarn(
@@ -43845,12 +43850,15 @@ Copyright:
 
     @staticmethod
     def setIoPriority(pid=0, ioclass=2, pri=0, who=1, verb=True):
+        if not SysMgr.isLinux:
+            return
+
         # define attributes #
         IOPRIO_CLASS_SHIFT = 13
 
-        try:
-            nmWho = nmClass = None
+        nmWho = nmClass = None
 
+        try:
             # get pri #
             pri = long(pri)
 
@@ -43900,6 +43908,9 @@ Copyright:
     @staticmethod
     def setPriority(
         pid, policy, pri, runtime=0, deadline=0, period=0, verb=True):
+        if not SysMgr.isLinux:
+            return
+
         try:
             # get args #
             pri = long(pri)
@@ -43949,7 +43960,7 @@ Copyright:
 
                 if ret != 0:
                     policy = upolicy
-                    raise Exception('no setpriority')
+                    raise Exception(SysMgr.getErrReason())
 
             # print result #
             if verb:
@@ -43964,7 +43975,6 @@ Copyright:
                 "for %s(%s) to %s[%s]") % \
                     (comm, pid, pri, upolicy)
             SysMgr.printWarn(err, always=True, reason=True)
-            return
 
 
 
