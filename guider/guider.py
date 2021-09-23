@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210922"
+__revision__ = "210923"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -797,6 +797,11 @@ class ConfigMgr(object):
         )),
         "close": ("long", (
             ("unsigned int", "fd"),
+        )),
+        "close_range": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned int", "max_fd"),
+            ("unsigned int", "flags"),
         )),
         "connect": ("long", (
             ("int", "sockfd"),
@@ -3853,16 +3858,6 @@ class UtilMgr(object):
 
     @staticmethod
     def compareSyscallSuperset():
-        # initialize ignore list #
-        ignoreList = set([
-            'sys_ppoll_time64', 'sys_nfsservctl', 'sys_null',
-            'sys_setfsgid32', 'sys_ftime', 'sys_geteuid32',
-            'sys_clock_adjtime64', 'sys_timerfd_settime64',
-            'sys_epoll_ctl_old', 'sys_setfsuid32', 'sys_getresgid32',
-            'sys_iopl', 'sys_chown32', 'sys_rt_sigtimedwait_time64',
-            'sys_gtty', 'sys_setresgid32', 'sys_reserved', 'sys_unused',
-        ])
-
         syscallList = \
             ConfigMgr.SYSCALL_COMMON + \
             ConfigMgr.SYSCALL_COMMON32 + \
@@ -3877,7 +3872,7 @@ class UtilMgr(object):
 
         # print final diff list #
         SysMgr.printPipe("--- NO PROTOTYPE ---")
-        for name in sorted(list(syscallList - protoList - ignoreList)):
+        for name in sorted(list(syscallList - protoList)):
             SysMgr.printPipe(name)
 
         SysMgr.printPipe("\n--- NO DEFINITION ---")
@@ -7665,6 +7660,7 @@ class Timeline(object):
             sorted(self.segments, key=lambda e: len(e.state))):
             UtilMgr.printProgress(idx, len(self.segments))
             self._draw_segment(segment, dwg, start)
+
         UtilMgr.deleteProgress()
 
 
@@ -7762,7 +7758,8 @@ class Timeline(object):
                     stroke='black', stroke_width=0.3))
 
         # check label flag #
-        if not 'LABEL' in SysMgr.environList:
+        if not 'LABEL' in SysMgr.environList and \
+            not 'LABELMIN' in SysMgr.environList:
             return
 
         # check duration #
