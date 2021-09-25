@@ -16,12 +16,18 @@ __repository__ = "https://github.com/iipeace/guider"
 
 
 
+# import sys package #
+try:
+    import sys
+except ImportError:
+    print("[ERROR] fail to import sys package")
+    sys.exit(0)
+
 # import essential packages #
 try:
     import os
     import re
     import gc
-    import sys
     import time
     import errno
     import signal
@@ -31,7 +37,7 @@ try:
     #from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
-    print("[ERROR] fail to import essential packages: %s" % err.args[0])
+    print("[ERROR] fail to import essential package: %s" % err.args[0])
     sys.exit(0)
 
 # convert an unsupported type #
