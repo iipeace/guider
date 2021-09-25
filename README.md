@@ -20,8 +20,9 @@ Table of contents
 
 Guider
 =======
-Guider is an integrated performance analyzer.   
-It provides most of the features needed to measure, analyze, test and verify system performance.
+Guider is an integrated performance analyzer.    
+It provides most of the features needed to measure, analyze, test and verify system performance.   
+It is made to work on all platforms from very old to modern.
 
 The features of Guider are as follows.
 * Monitoring
@@ -41,7 +42,7 @@ Guider pursues characteristics as below.
 4. Submit the report in detail: show as much information as possible
 5. Visualize through the browser: visualization output in svg format
 
-It supports almost all platforms based on the Linux kernel,
+Guider supports almost all platforms based on the Linux kernel,
 Some other operating systems are limited.
 * distro (Ubuntu, CentOS, RHEL, MX, Mint, Arch, Manjaro, ...)
 * Android
@@ -52,6 +53,11 @@ Some other operating systems are limited.
 * Automotive Grade Linux (AGL) Platform
 * Windows [Limited]
 * MacOS [Limited]
+
+Guider supports the following architectures.
+* x86
+* ARM
+* AArch64
 
 Output
 =======
@@ -1242,13 +1248,13 @@ Enter the following command to see all commands supported by the guider:
     $ guider --help
 
 Enter the following command to start tracing for all threads:
-    # python3 guider/guider.py record -a
+    # python3 guider/guider.py rec -a
 
 Enter the following command to start monitoring for all processes:
     $ python3 guider/guider.py top -a
 
 Enter the command in the format shown bellow to see options and examples for each command:
-    $ python3 guider/guider.py record -h
+    $ python3 guider/guider.py rec -h
     $ python3 guider/guider.py top -h
 
 Visit the following link to see the output of guider:
@@ -1268,7 +1274,8 @@ and just run the following commands:
     # guider
 
 Otherwise, download the source from https://github.com/iipeace/guider,
-and just run "python3 guider/guider.py" on shell.
+and just run the following command:
+    # python3 guider/guider.py
 
 If you want to run guider faster and lighter after downloading the source,
 then build and install it on your system as below.
