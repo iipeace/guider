@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210925"
+__revision__ = "210926"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5704,6 +5704,7 @@ function format_percent(n) {
         try:
             with open(path, 'w') as fd:
                 fd.write(finalCode)
+
             os.chmod(path, 0o777)
 
             # get output size #
@@ -22887,85 +22888,88 @@ Examples:
 
                 drawExamStr = '''
 Examples:
-    - Draw resource graph and memory chart
+    - Draw graphs
         # {0:1} {1:1} guider.out
-        # {0:1} {1:1} "guider.out, guider2.out"
+        # {0:1} {1:1} guider.out guider2.out guider3.out
         # {0:1} {1:1} "data/*"
 
-    - Draw resource graph and timeline segment
+    - Draw flame graphs for each file
+        # {0:1} {1:1} guider.out -q NOMERGE
+
+    - Draw graphs and timeline segment
         # {0:1} {1:1} guider.dat
 
-    - Draw resource graph and timeline segment for all events and tasks
+    - Draw graphs and timeline segment for all events and tasks
         # {0:1} {1:1} guider.dat -a
 
-    - Draw resource graph and timeline segment forcefully
+    - Draw graphs and timeline segment forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw resource graph and timeline segment in ns time unit
+    - Draw graphs and timeline segment in ns time unit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
 
-    - Draw resource graph and timeline segment except for label for timelines lesser than 100ms
+    - Draw graphs and timeline segment except for label for timelines lesser than 100ms
         # {0:1} {1:1} guider.dat -q LABELMIN:100
 
-    - Draw resource graph and timeline segment with label setting
+    - Draw graphs and timeline segment with label setting
         # {0:1} {1:1} guider.dat -q LABEL
         # {0:1} {1:1} guider.dat -q NOLABEL
 
-    - Draw resource graph and event markers on specific points
+    - Draw graphs and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
 
-    - Draw resource graph and timeline segment for specific cores
+    - Draw graphs and timeline segment for specific cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
 
-    - Draw resource graph and memory chart to specific image format
+    - Draw graphs to specific image format
         # {0:1} {1:1} guider.out -F png
         # {0:1} {1:1} guider.out -F pdf
         # {0:1} {1:1} guider.out -F svg
 
-    - Draw resource graph and timeline segment with config file
+    - Draw graphs and timeline segment with config file
         # {0:1} {1:1} guider.dat -C config.json
 
-    - Draw resource graph excluding chrome process and memory chart
+    - Draw graphs excluding chrome process
         # {0:1} {1:1} guider.out -g ^chrome
 
-    - Draw resource graph with some boundary lines
+    - Draw graphs with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
-    - Draw resource graph within specific interval range in second unit
+    - Draw graphs within specific interval range in second unit
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
         # {0:1} {1:1} guider.out -q TRIM:11.9:13.5, ABSTIME
 
-    - Draw resource graph on absolute timeline
+    - Draw graphs on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
 
-    - Draw flame graph only for backtrace stacks
+    - Draw flame graphs only for backtrace stacks
         # {0:1} {1:1} guider.out -q ONLYBTSTACK
 
-    - Draw resource graph within specific interval range in index unit
+    - Draw graphs within specific interval range in index unit
         # {0:1} {1:1} guider.out -q TRIMIDX:0:3
 
-    - Draw resource graph with y range 1-100
+    - Draw graphs with y range 1-100
         # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
 
-    - Draw resource graph with specific font size
+    - Draw graphs with specific font size
         # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
 
-    - Draw resource graph of top 5 processes
+    - Draw graphs of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
 
     - Draw graphs of total CPU usage by applying the multiplication of the number of CPUs
         # {0:1} {1:1} guider.out worstcase.out -d A
 
-    - Draw resource graph on customized layout
+    - Draw graphs on customized layout
         # {0:1} {1:1} guider.out -L c:3, d:3
         # {0:1} {1:1} guider.out -L c:2, m:2, i:2
         # {0:1} {1:1} guider.out -L c:4, r:1, v:1
 
-    - Draw resource graph on devices for block and network
+    - Draw graphs on devices for block and network
         # {0:1} {1:1} guider.out -e d n
 
-    - Draw resource graph with multiple files for comparison
+    - Draw graphs with multiple files for comparison
         # {0:1} {1:1} "guider*.out" worstcase.out
 
     - Draw graphs of total resource usage with multiple files for comparison
@@ -56726,27 +56730,64 @@ typedef struct {
 
 
     @staticmethod
-    def drawFlame(inputFile=None, callList=None, title=''):
+    def drawFlame(inputFile=None, callList={}, title=''):
         if not inputFile and not callList:
             SysMgr.printErr('no input for flamegraph')
             sys.exit(0)
 
-        # set output path #
-        outputPath = UtilMgr.getDrawOutputPath(inputFile, 'flamegraph')
+        # convert input value type to list #
+        if not inputFile:
+            fileName = 'guider'
+            inputName = 'N/A'
+            inputList = []
+        elif type(inputFile) is list:
+            fileName = inputFile[0]
+            inputName = ', '.join(inputFile)
+            inputList =  inputFile
+        else:
+            fileName = inputFile
+            inputName = inputFile
+            inputList = [inputFile]
 
+        # set output path #
+        if inputList:
+            outputPath = UtilMgr.getDrawOutputPath(fileName, 'flamegraph')
+        else:
+            outputPath = 'flamegraph.svg'
+
+        # load call samples #
         if not callList:
-            # get list for call samples #
-            try:
-                callList, title = Debugger.getCallStatsFile(inputFile)
-                if not callList:
-                    SysMgr.printErr('no call sample for flamegraph')
-                    return
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to get call samples from '%s'" % inputFile, True)
-                sys.exit(0)
+            for fname in inputList:
+                # get list for call samples #
+                try:
+                    # get samples #
+                    sampleList, newTitle = Debugger.getCallStatsFile(fname)
+                    if not sampleList:
+                        SysMgr.printErr("no call sample for '%s'" % fname)
+                        continue
+
+                    # add a new title #
+                    if title:
+                        title += '\n'
+                    title += newTitle
+
+                    # merge samples #
+                    for sample, cnt in sampleList.items():
+                        if sample in callList:
+                            callList[sample] += cnt
+                        else:
+                            callList[sample] = cnt
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "fail to get call sample from '%s'" % fname, True)
+                    sys.exit(0)
+
+        # check call samples #
+        if not callList:
+            SysMgr.printErr("no call sample to draw flame graph")
+            sys.exit(0)
 
         # convert list to tree for call samples #
         try:
@@ -56755,7 +56796,7 @@ typedef struct {
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to convert call samples from '%s'" % inputFile, True)
+                "fail to convert call samples from '%s'" % inputName, True)
             sys.exit(0)
 
         # make svg string #
@@ -56765,7 +56806,7 @@ typedef struct {
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to make flamegraph from '%s'" % inputFile, True)
+                "fail to make flame graph from '%s'" % inputName, True)
             sys.exit(0)
 
         # write svg code to the file #
@@ -56776,7 +56817,7 @@ typedef struct {
         except:
             SysMgr.printErr(
                 "fail to save flamegraph from '%s' to '%s'" % \
-                    (inputFile, SysMgr.outPath), True)
+                    (inputName, SysMgr.outPath), True)
             sys.exit(0)
 
 
@@ -58645,9 +58686,9 @@ typedef struct {
         # just use LR #
         elif self.arch == 'aarch64' or self.arch == 'arm':
             return self.lr
-        # just use FP #
+        # no more frame #
         else:
-            raddr = self.fp + ConfigMgr.wordSize
+            return None
 
         # return next IP from stack #
         try:
@@ -69803,8 +69844,11 @@ class TaskAnalyzer(object):
                 if SysMgr.inputParam:
                     # FLAME GRAPH MODE #
                     if SysMgr.checkMode('drawflame', True):
-                        for fpath in list(SysMgr.inputParam):
-                            Debugger.drawFlame(fpath)
+                        if 'NOMERGE' in SysMgr.environList:
+                            for fpath in list(SysMgr.inputParam):
+                                Debugger.drawFlame(fpath)
+                        else:
+                            Debugger.drawFlame(SysMgr.inputParam)
                     # OTHER DRAW MODE #
                     else:
                         self.drawStats(SysMgr.inputParam)
