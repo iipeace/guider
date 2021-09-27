@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210926"
+__revision__ = "210927"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5230,7 +5230,9 @@ class UtilMgr(object):
     def writeFlamegraph(path, samples, title, depth=20):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
         # fixed font size: 12, bar height: 15 #
-        height = 15*depth+100
+        barHeight = 15
+        titleHeight = (title.count('<tspan ')+1)*barHeight
+        height = barHeight*depth+100+titleHeight
         width = "1"
         flameCode = ('''<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -5694,8 +5696,8 @@ function format_percent(n) {
     <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom (ESC)</text>
     <text id="search" x="1090" y="24.00">Search (F3)</text>
     <text id="matched" x="1090" y="213.00"></text>
-    <svg id="frames" x="10" y="20" width="%s">
-''' % (height, '\r\n%s' % title if title else '', width)
+    <svg id="frames" x="10" y="%s" width="%s">
+''' % (height, '\r\n%s' % title if title else '', titleHeight, width)
 
         # complete code for flamegraph #
         finalCode = flameCode + attrCode + samples + '\n</svg></svg>'
@@ -6571,7 +6573,7 @@ class NetworkMgr(object):
                 output = output[0]
 
                 # composite packets #
-                data = data + output
+                data += output
 
                 if not output:
                     break
@@ -56767,9 +56769,7 @@ typedef struct {
                         continue
 
                     # add a new title #
-                    if title:
-                        title += '\n'
-                    title += newTitle
+                    title += '<tspan x="0" dy="1.2em">%s</tspan>' % newTitle
 
                     # merge samples #
                     for sample, cnt in sampleList.items():
