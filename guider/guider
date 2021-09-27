@@ -14,7 +14,7 @@ if [ ! $PYTHON ]
         if [ ! $PYTHON ]
             then
                 echo "[Error] fail to find python"
-                exit
+                exit 1
         fi
 fi
 
@@ -24,5 +24,3 @@ export CMDLINE
 
 # launch Guider #
 $PYTHON -m guider $*
-
-exit 0
