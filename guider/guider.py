@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210927"
+__revision__ = "210928"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7684,7 +7684,7 @@ class Timeline(object):
         scaled_top_height = y0 + (self.scaled_height / 7)
         scaled_bottom_height = y1 - (self.scaled_height * 0.25)
         duration = segment.time_end - segment.time_start
-        time_end = segment.time_end + start
+        time_end = segment.time_end + start - self.time_start
 
         # get color ID #
         if segment.color:
@@ -7728,10 +7728,14 @@ class Timeline(object):
 
             return
 
+        # define shortcut and duration string #
+        convNum = UtilMgr.convNum
+        durationstr = convNum(duration)
+
         # create the drawing group #
         g = dwg.add(dwg.g())
-        g.set_desc('%s | ~%s %s' % \
-            (segment.text, UtilMgr.convNum(time_end), self.time_unit))
+        g.set_desc('%s %s / ~%s (%s)' % \
+            (segment.text, durationstr, convNum(time_end), self.time_unit))
 
         # draw line for block_read status #
         if segment.state == 'RD':
@@ -7767,20 +7771,17 @@ class Timeline(object):
                     stroke='black', stroke_width=0.3))
 
         # check label flag #
-        if not 'LABEL' in SysMgr.environList and \
+        if not SysMgr.showAll and \
+            not 'LABEL' in SysMgr.environList and \
             not 'LABELMIN' in SysMgr.environList:
             return
-
         # check duration #
-        if not SysMgr.showAll and \
-            (duration < self.config.LABEL_SIZE_MIN or duration == 0):
+        elif not duration or \
+            duration < self.config.LABEL_SIZE_MIN:
             return
 
         # convert duration to text #
-        if duration == 0:
-            duration = '~'
-        else:
-            duration = '~%s' % (UtilMgr.convNum(duration))
+        duration = '~%s' % convNum(durationstr)
 
         # I/O #
         if segment.state == 'RD' or segment.state == 'WR':
@@ -7796,20 +7797,20 @@ class Timeline(object):
             if segment.state == 'RD':
                 if last_iogroup_segment == segment.text and \
                     x0 - last_iogroup_time < self.config.TICKS:
-                    segment_label = duration
+                    segment_label = durationstr
                     font_size = self.config.FONT_SIZE - 1
                 else:
-                    segment_label = "> %s | %s" % (segment.text, duration)
+                    segment_label = "[R] %s %s" % (segment.text, durationstr)
                     font_size = self.config.FONT_SIZE - 0.7
                 color = 'rgb(128,0,128)'
             # set text attributes for block_write #
             elif segment.state == 'WR':
                 if last_iogroup_segment == segment.text and \
                     x0 - last_iogroup_time < self.config.TICKS:
-                    segment_label = duration
+                    segment_label = durationstr
                     font_size = self.config.FONT_SIZE - 1
                 else:
-                    segment_label = "> %s | %s" % (segment.text, duration)
+                    segment_label = "[W] %s %s" % (segment.text, durationstr)
                     font_size = self.config.FONT_SIZE - 0.7
                 color = 'rgb(0,139,139)'
 
@@ -7830,7 +7831,9 @@ class Timeline(object):
         else:
             # SYSCALL #
             if segment.state == 'SYSCALL':
-                pass
+                prefix = '[S] '
+            else:
+                prefix = ''
 
             # initialize group data #
             self.last_group_segment.setdefault(group_idx, None)
@@ -7839,12 +7842,12 @@ class Timeline(object):
             # set text attributes for same task #
             if self.last_group_segment[group_idx] == segment.text and \
                 x0 - self.last_group_time[group_idx] < self.config.TICKS:
-                segment_label = duration
+                segment_label = durationstr
                 color = 'rgb(50,50,50)'
                 font_size = self.config.FONT_SIZE - 1
             # set text attributes for new task #
             else:
-                segment_label = "> %s | %s" % (segment.text, duration)
+                segment_label = "%s%s %s" % (prefix, segment.text, durationstr)
                 color = 'rgb(255,0,0)'
                 font_size = self.config.FONT_SIZE - 0.5
 
@@ -7920,7 +7923,7 @@ class Timeline(object):
 
             if time_unit == new_time_unit:
                 pass
-            elif time_unit == 'ns':
+            elif time_unit == 'us':
                 if new_time_unit == 'ms':
                     time_factor = 1/1000.0
                 elif new_time_unit == 'sec':
@@ -7929,7 +7932,7 @@ class Timeline(object):
                     SysMgr.printErr(
                         "no support '%s' unit for timeline" % new_time_unit)
             elif time_unit == 'ms':
-                if new_time_unit == 'ns':
+                if new_time_unit == 'us':
                     time_factor = 1000.0
                 elif new_time_unit == 'sec':
                     time_factor = 1/1000.0
@@ -19162,6 +19165,40 @@ Commands:
 
 
     @staticmethod
+    def getGpuMem():
+        # read NVIDIA GPU memory info #
+        try:
+            path = '/sys/kernel/debug/nvmap/iovmm/clients'
+            with open(path, 'rb') as fd:
+                gpuInfo = fd.readlines()[1:]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path)
+            return
+
+        gpuStat = {}
+
+        # parse per-process memory info #
+        for item in gpuInfo:
+            try:
+                comm, pid, size = item.decode().split()[1:]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
+
+            # convert size to number #
+            size = UtilMgr.convUnit2Size(size)
+
+            # save stat #
+            gpuStat.setdefault(pid, {'comm': comm, 'size': size})
+
+        return gpuStat
+
+
+
+    @staticmethod
     def execSshCmd(cmd, addr, port=22, passwd=None):
         # get subprocess object #
         subprocess = SysMgr.getPkg('subprocess')
@@ -22770,6 +22807,9 @@ Examples:
     - Monitor status of all {2:2} until 100 seconds of uptime
         # {0:1} {1:1} -a -q DEADLINE:100 -R
 
+    - Monitor status and GPU memory of all {2:2}
+        # {0:1} {1:1} -a -q GPUMEM
+
     - Monitor status of all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
@@ -22797,7 +22837,7 @@ Examples:
         # {0:1} {1:1} -o .
 
     - Monitor status of {2:2} and report the result to ./guider.out with memo when SIGINT signal arrives
-        # {0:1} {1:1} -o . -q "monitoring result for server peak time"
+        # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
     - Monitor status of {2:2} and report the result to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
@@ -22907,8 +22947,8 @@ Examples:
     - Draw graphs and timeline segment forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw graphs and timeline segment in ns time unit
-        # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
+    - Draw graphs and timeline segment in us time unit
+        # {0:1} {1:1} guider.dat -q TIMEUNIT:us
 
     - Draw graphs and timeline segment except for label for timelines lesser than 100ms
         # {0:1} {1:1} guider.dat -q LABELMIN:100
@@ -47668,14 +47708,9 @@ Copyright:
 
 
     def printGpuMemInfo(self):
-        try:
-            path = '/sys/kernel/debug/nvmap/iovmm/clients'
-            with open(path, 'rb') as fd:
-                gpuInfo = fd.readlines()[1:]
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenWarn(path)
+        # get per-process GPU memory info #
+        gpuInfo = SysMgr.getGpuMem()
+        if not gpuInfo:
             return
 
         # add JSON stats #
@@ -47693,25 +47728,16 @@ Copyright:
             "Process", "Size", oneLine))
 
         total = 0
-        for item in gpuInfo:
-            try:
-                comm, pid, size = item.decode().split()[1:]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                continue
-
-            # convert size to number #
-            size = UtilMgr.convUnit2Size(size)
-            if size == 0:
-                continue
-            else:
-                total += size
+        for pid, item in sorted(
+            gpuInfo.items(), key=lambda e:e[1]['size'], reverse=True):
+            # get size #
+            size = item['size']
+            total += size
 
             # reconvert size to unit #
             size = UtilMgr.convSize2Unit(size)
 
-            proc = '%s(%s)' % (comm, pid)
+            proc = '%s(%s)' % (item['comm'], pid)
 
             if SysMgr.jsonEnable:
                 jsonData.setdefault(proc, size)
@@ -69746,7 +69772,7 @@ class TaskAnalyzer(object):
             self.lastTidPerCore = {}
             self.lastEvent = '0'
             self.backupData = {}
-            self.timelineData = {"time_unit": "ns", "segments": list()}
+            self.timelineData = {"time_unit": "us", "segments": list()}
 
         # top mode #
         else:
@@ -89088,6 +89114,12 @@ class TaskAnalyzer(object):
         if idIndex:
             SysMgr.idList = []
 
+        # get per-process GPU memory info #
+        if 'GPUMEM' in SysMgr.environList:
+            gpuMem = SysMgr.getGpuMem()
+        else:
+            gpuMem = {}
+
         # print resource usage of processes / threads #
         procCnt = long(0)
         procData = self.procData
@@ -89586,6 +89618,12 @@ class TaskAnalyzer(object):
             if SysMgr.cmdlineEnable and value['cmdline']:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
+
+            # print GPU memory info #
+            if idx in gpuMem:
+                SysMgr.addPrint(
+                    "{0:>39} | {1:1}\n".format(
+                        'GPUMEM', convertFunc(gpuMem[idx]['size'])))
 
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
