@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210928"
+__revision__ = "210929"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16,15 +16,9 @@ __repository__ = "https://github.com/iipeace/guider"
 
 
 
-# import sys package #
-try:
-    import sys
-except ImportError:
-    print("[ERROR] failed to import sys package")
-    sys.exit(0)
-
 # import essential packages #
 try:
+    import sys
     import os
     import re
     import gc
@@ -37,8 +31,7 @@ try:
     #from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
-    print("[ERROR] failed to import essential package: %s" % err.args[0])
-    sys.exit(0)
+    sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
 
 # convert an unsupported type #
 try:
@@ -4145,11 +4138,7 @@ class UtilMgr(object):
                 bufstring += '\n'
             bufstring = "%s'%s', " % (bufstring, syscall)
 
-        print(bufstring)
-
-        print('total: %s' % len(systable))
-
-        sys.exit(0)
+        sys.exit('%s\ntotal: %s' % (bufstring, len(systable)))
 
 
 
@@ -49754,11 +49743,9 @@ class DbusMgr(object):
                             per = long(0)
 
                         # get time info #
-                        if pid in sentData and \
-                            name in sentData[pid]:
+                        if pid in sentData and name in sentData[pid]:
                             data = sentData[pid][name]
-                        elif pid in recvData and \
-                            name in recvData[pid]:
+                        elif pid in recvData and name in recvData[pid]:
                             data = recvData[pid][name]
                         else:
                             continue
@@ -49779,20 +49766,26 @@ class DbusMgr(object):
                         # check error #
                         if data['err'] > 0:
                             errstr = ', Err: %s' % data['err']
-                            color = 'RED'
                         else:
                             errstr = ''
-                            color = 'CYAN'
+
+                        # set color #
+                        try:
+                            mtype, stats = name.lstrip('[').split(']', 1)
+                            mtype = DbusMgr.msgColorList[mtype.strip()]
+                            name = '[%s]%s' % (mtype, stats)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
 
                         if data['max'] > 0:
-                            name = \
-                                '%s {Min: %.3f, Avr: %.3f, Max: %.3f%s} %s' % \
-                                (name, data['min'], avr, data['max'],
+                            name = ('%s {Min: %.3f, Avr: %.3f, Max: %.3f%s}'
+                                '%s') % (name, data['min'], avr, data['max'],
                                     errstr, wstat)
 
                         count = convertNum(value['cnt'])
                         size = convertSize(data['size'])
-                        name = convertColor(name, color)
 
                         dbusList.append(
                             "{0:>4}({1:>6}/{2:>3}%) {3:1}".format(
@@ -61719,7 +61712,7 @@ typedef struct {
                         continue
 
                     # print status #
-                    SysMgr.printErr(
+                    SysMgr.printWarn(
                         'terminated %s(%s)' % (self.comm, self.pid))
 
                     # wait event #
