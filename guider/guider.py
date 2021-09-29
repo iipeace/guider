@@ -19188,7 +19188,7 @@ Commands:
 
 
     @staticmethod
-    def execSshCmd(cmd, addr, port=22, passwd=None):
+    def execSshCmd(cmd, addr, port=22, user='root', passwd=None):
         # get subprocess object #
         subprocess = SysMgr.getPkg('subprocess')
 
@@ -19215,8 +19215,11 @@ Commands:
             sys.exit(0)
         sshPath = sshPath[0]
 
+        # set option #
+        opt = '-oStrictHostKeyChecking=no'
+
         # add ssh command #
-        cmdList += [sshPath, '-p', str(port), addr, cmd]
+        cmdList += [sshPath, opt, '-p', str(port), '%s@%s' % (user, addr), cmd]
 
         # save start time #
         startTime = time.time()
