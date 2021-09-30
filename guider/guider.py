@@ -4302,6 +4302,16 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def getUTCTime():
+        datetime = SysMgr.getPkg('datetime', False)
+        if datetime:
+            return datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        else:
+            return None
+
+
+
+    @staticmethod
     def getFileList(flist, sort=False):
         if not flist or type(flist) is not list:
             return []
@@ -4634,10 +4644,10 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getTextLines(fname, verbose=False, retfd=False):
+    def getTextLines(fname, verb=False, retfd=False, load=True):
         buf = []
 
-        if verbose:
+        if verb:
             # get output size #
             fsize = UtilMgr.getFileSize(fname)
             if fsize and fsize != '0':
@@ -4645,10 +4655,11 @@ class UtilMgr(object):
             else:
                 fsize = ''
 
-            if retfd:
-                job = 'checking'
-            else:
+            # set job type #
+            if load:
                 job = 'loading'
+            else:
+                job = 'checking'
 
             SysMgr.printStat(
                 r"start %s '%s'%s..." % (job, fname, fsize))
@@ -4701,10 +4712,10 @@ class UtilMgr(object):
             except:
                 break
 
-            if verbose:
+            if verb:
                 UtilMgr.printProgress(curSize, totalSize)
 
-        if verbose:
+        if verb:
             UtilMgr.deleteProgress()
 
         try:
@@ -6600,7 +6611,7 @@ class NetworkMgr(object):
 
 
 
-    def recvfrom(self, size=0, noTimeout=False, verbose=True):
+    def recvfrom(self, size=0, noTimeout=False, verb=True):
         if self.ip is None or self.port is None:
             SysMgr.printWarn(
                 "failed to use IP address for server because it is not set")
@@ -6635,7 +6646,7 @@ class NetworkMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                if verbose:
+                if verb:
                     SysMgr.printWarn(
                         "failed to receive data from %s:%d as client" % \
                             (self.ip, self.port), reason=True)
@@ -38959,7 +38970,7 @@ Copyright:
 
                 # continue processes #
                 SysMgr.sendSignalProcs(
-                    signal.SIGCONT, list(procList.keys()), verbose=False)
+                    signal.SIGCONT, list(procList.keys()), verb=False)
 
                 # remove temporary files #
                 if mode == 'breakcall' or mode == 'pytrace':
@@ -42249,7 +42260,7 @@ Copyright:
             pass
 
         # limit CPU usage of tasks #
-        SysMgr.doLimitCpu(limitInfo, verbose=False)
+        SysMgr.doLimitCpu(limitInfo, verb=False)
 
 
 
@@ -43061,7 +43072,7 @@ Copyright:
 
 
     @staticmethod
-    def doLimitCpu(limitInfo, isProcess=False, verbose=True):
+    def doLimitCpu(limitInfo, isProcess=False, verb=True):
         CLK_PRECISION = 100000
         MAX_BUCKET = CLK_PRECISION / 1000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
@@ -43211,7 +43222,7 @@ Copyright:
                         else:
                             tasktype = 'thread'
 
-                        if verbose:
+                        if verb:
                             SysMgr.printInfo((
                                 "try to limit CPU usage for %s(%s) %s"
                                 " to %s%%, it used %s%%") % \
@@ -43403,7 +43414,7 @@ Copyright:
 
     @staticmethod
     def sendSignalProcs(
-        nrSig, pidList=[], isThread=False, verbose=True, exceptList=[]):
+        nrSig, pidList=[], isThread=False, verb=True, exceptList=[]):
         def _kill(pid, nrSig):
             if isThread:
                 return SysMgr.syscall('tkill', pid, nrSig)
@@ -43455,7 +43466,7 @@ Copyright:
 
                     _kill(pid, nrSig)
 
-                    if verbose:
+                    if verb:
                         SysMgr.printInfo(
                             "sent %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
@@ -43530,7 +43541,7 @@ Copyright:
 
                     _kill(pid, nrSig)
 
-                    if verbose:
+                    if verb:
                         if SysMgr.checkMode('start') and waitStatus:
                             SysMgr.printInfo(
                                 "started %s(%s) to profile" % (comm, pid))
@@ -43546,7 +43557,7 @@ Copyright:
                 try:
                     _kill(long(pid), nrSig)
 
-                    if verbose:
+                    if verb:
                         SysMgr.printInfo(
                             "sent %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
@@ -43557,7 +43568,7 @@ Copyright:
 
             nrProc += 1
 
-        if nrProc == 0 and verbose:
+        if nrProc == 0 and verb:
             SysMgr.printInfo("no running process in the background")
 
 
@@ -51019,7 +51030,7 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def handleMessage(dltObj, msg, buf, mode, verbose, buffered=False):
+    def handleMessage(dltObj, msg, buf, mode, verb, buffered=False):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
 
@@ -51065,7 +51076,7 @@ class DltAnalyzer(object):
             # get payload #
             dltObj.dlt_message_payload(
                 byref(msg), buf,
-                DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verbose)
+                DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verb)
 
             try:
                 #string = buf.value.decode("utf8")
@@ -51218,13 +51229,13 @@ class DltAnalyzer(object):
             dltObj, dltFilter, dltFile, apid=None, ctid=None, init=True):
             # initialize filter #
             if init and \
-                dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
+                dltObj.dlt_filter_init(byref(dltFilter), verb) == -1:
                 SysMgr.printErr(
                     "failed to initialize the DLTFilter object")
                 return -1
 
             if dltObj.dlt_filter_add(
-                byref(dltFilter), apid or b"", ctid or b"", verbose) == -1:
+                byref(dltFilter), apid or b"", ctid or b"", verb) == -1:
                 SysMgr.printErr(
                     "failed to add %s and %s to the DLTFilter object" % \
                         (apid, ctid))
@@ -51238,7 +51249,7 @@ class DltAnalyzer(object):
                 return -1
 
             return dltObj.dlt_file_set_filter(
-                byref(dltFile), byref(dltFilter), verbose)
+                byref(dltFile), byref(dltFilter), verb)
 
         # get ctypes object #
         SysMgr.importPkgItems('ctypes')
@@ -51587,15 +51598,15 @@ class DltAnalyzer(object):
                     SysMgr.libdltPath, always=True, reason=True)
             sys.exit(0)
 
-        # define verbose #
+        # define verbose variable #
         if SysMgr.warnEnable:
             # set log level to DEBUG #
             if hasattr(dltObj, 'dlt_log_set_level'):
                 dltObj.dlt_log_set_level(LogMgr.LOG_DEBUG)
 
-            verbose = 1
+            verb = 1
         else:
-            verbose = long(0)
+            verb = long(0)
 
         # get socket object #
         socket = SysMgr.getPkg('socket')
@@ -51766,7 +51777,7 @@ class DltAnalyzer(object):
                 path = UtilMgr.encodeStr(path)
 
                 # initialize file object #
-                ret = dltObj.dlt_file_init(byref(dltFile), verbose)
+                ret = dltObj.dlt_file_init(byref(dltFile), verb)
                 if ret < 0:
                     SysMgr.printErr(
                         "failed to initialize a DLTFile object")
@@ -51775,7 +51786,7 @@ class DltAnalyzer(object):
                 #_setFilter(dltObj, dltFilter, dltFile, apid=b"", ctid=b"", init=True)
 
                 # open file #
-                ret = dltObj.dlt_file_open(byref(dltFile), path, verbose)
+                ret = dltObj.dlt_file_open(byref(dltFile), path, verb)
                 if ret != 0:
                     SysMgr.printErr(
                         "failed to open %s" % path)
@@ -51787,7 +51798,7 @@ class DltAnalyzer(object):
 
                 # read a file #
                 while dltFile.file_position < dltFile.file_length:
-                    ret = dltObj.dlt_file_read(byref(dltFile), verbose)
+                    ret = dltObj.dlt_file_read(byref(dltFile), verb)
                     # storage header corrupted #
                     if ret < 0:
                         nextHeaderPos = \
@@ -51803,7 +51814,7 @@ class DltAnalyzer(object):
                 # read messages #
                 for index in range(0, dltFile.counter_total):
                     ret = dltObj.dlt_file_message(
-                        byref(dltFile), index, verbose)
+                        byref(dltFile), index, verb)
                     if ret < 0:
                         SysMgr.printWarn(
                             "failed to read %s message from %s" %
@@ -51818,10 +51829,10 @@ class DltAnalyzer(object):
 
                     # print message #
                     DltAnalyzer.handleMessage(
-                        dltObj, dltFile.msg, buf, mode, verbose, buffered)
+                        dltObj, dltFile.msg, buf, mode, verb, buffered)
 
                 # free file object #
-                ret = dltObj.dlt_file_free(byref(dltFile), verbose)
+                ret = dltObj.dlt_file_free(byref(dltFile), verb)
                 if ret < 0:
                     SysMgr.printErr(
                         "failed to free a DLTFile object")
@@ -51882,11 +51893,11 @@ class DltAnalyzer(object):
 
         # initialize client #
         dltClient = DltClient()
-        dltObj.dlt_client_init(byref(dltClient), verbose)
+        dltObj.dlt_client_init(byref(dltClient), verb)
         sockno = c_int(connSock.fileno()) # pylint: disable=no-member
         dltClient.sock = sockno
         dltClient.receiver.fd = sockno
-        #dltObj.dlt_client_cleanup(byref(dltClient), verbose)
+        #dltObj.dlt_client_cleanup(byref(dltClient), verb)
 
         # change default log level #
         try:
@@ -51984,7 +51995,7 @@ class DltAnalyzer(object):
         while 1:
             try:
                 # initialize message #
-                ret = dltObj.dlt_message_init(byref(msg), verbose)
+                ret = dltObj.dlt_message_init(byref(msg), verb)
                 if ret < 0:
                     SysMgr.printErr(
                         "failed to initialize DLT message")
@@ -52007,7 +52018,7 @@ class DltAnalyzer(object):
                 while 1:
                     ret = dltObj.dlt_message_read(
                         byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),
-                        c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
+                        c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verb))
                     if ret != 0:
                         # move receiver buffer pointer to start of the buffer #
                         ret = dltObj.dlt_receiver_move_to_begin(
@@ -52039,10 +52050,10 @@ class DltAnalyzer(object):
                         sys.exit(0)
 
                     # print DLT message #
-                    if verbose:
+                    if verb:
                         dltObj.dlt_message_print_ascii(
                             byref(msg), byref(buf),
-                            c_uint32(msg.headersize), c_int(verbose))
+                            c_uint32(msg.headersize), c_int(verb))
 
                     # set storage info #
                     if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
@@ -52052,7 +52063,7 @@ class DltAnalyzer(object):
                         dltObj.dlt_set_storageheader(
                             msg.storageheader, c_char_p(''.encode()))
 
-                    DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verbose)
+                    DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verb)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -52061,7 +52072,7 @@ class DltAnalyzer(object):
                 continue
 
         # free message #
-        dltObj.dlt_message_free(byref(msg), verbose)
+        dltObj.dlt_message_free(byref(msg), verb)
 
 
 
@@ -52821,7 +52832,7 @@ typedef struct {
             hookHash[targetSym] = item
 
         # stop target #
-        SysMgr.sendSignalProcs(signal.SIGSTOP, [pid], verbose=False)
+        SysMgr.sendSignalProcs(signal.SIGSTOP, [pid], verb=False)
 
         # print context #
         dobj.printContext(regs=SysMgr.showAll, newline=True)
@@ -52979,7 +52990,7 @@ typedef struct {
                                 hookSym, hex(hookAddr), hookBin, procInfo))
 
         # continue target #
-        SysMgr.sendSignalProcs(signal.SIGCONT, [pid], verbose=False)
+        SysMgr.sendSignalProcs(signal.SIGCONT, [pid], verb=False)
 
         if not linkList:
             return
@@ -56802,13 +56813,20 @@ typedef struct {
         else:
             outputPath = 'flamegraph.svg'
 
+        # set verbose flag #
+        if len(inputList) > 1:
+            verb = True
+        else:
+            verb = False
+
         # load call samples #
         if not callList:
             for fname in inputList:
                 # get list for call samples #
                 try:
                     # get samples #
-                    sampleList, newTitle = Debugger.getCallStatsFile(fname)
+                    sampleList, newTitle = \
+                        Debugger.getCallStatsFile(fname, verb=verb)
                     if not sampleList:
                         SysMgr.printErr("no call sample for '%s'" % fname)
                         continue
@@ -56906,10 +56924,10 @@ typedef struct {
 
 
     @staticmethod
-    def getCallStatsFile(logFile):
+    def getCallStatsFile(logFile, verb=False):
         # get file handle #
         try:
-            fd = UtilMgr.getTextLines(logFile, retfd=True)
+            fd = UtilMgr.getTextLines(logFile, verb=verb, retfd=True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -70561,7 +70579,7 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
-    def getStatsFile(logFile, applyOpt=True):
+    def getStatsFile(logFile, applyOpt=True, verb=False):
         logBuf = None
         infoBuf = None
 
@@ -70594,7 +70612,7 @@ class TaskAnalyzer(object):
 
         # get file handle #
         try:
-            fd = UtilMgr.getTextLines(logFile, retfd=True)
+            fd = UtilMgr.getTextLines(logFile, verb=verb, retfd=True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -80490,12 +80508,12 @@ class TaskAnalyzer(object):
             # update fd #
             try:
                 if SysMgr.isRecordMode():
-                    verbose = False
+                    verb = False
                 else:
-                    verbose = True
+                    verb = True
 
                 if compressor and fd:
-                    if verbose:
+                    if verb:
                         # get output size #
                         fsize = UtilMgr.getFileSize(fname)
                         if fsize and fsize != '0':
@@ -80507,7 +80525,8 @@ class TaskAnalyzer(object):
                             r"start checking '%s'%s..." % (fname, fsize))
                 else:
                     try:
-                        fd = UtilMgr.getTextLines(fname, verbose, retfd=True)
+                        fd = UtilMgr.getTextLines(
+                            fname, verb, retfd=True, load=False)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -87212,10 +87231,7 @@ class TaskAnalyzer(object):
 
         # utctime #
         self.reportData['timestamp'] = SysMgr.uptime
-        datetime = SysMgr.getPkg('datetime', False)
-        if datetime:
-            self.reportData['utctime'] = \
-                datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        self.reportData['utctime'] = UtilMgr.getUTCTime()
 
         # system info #
         if not SysMgr.sysInstance.uname:
@@ -90141,7 +90157,7 @@ class TaskAnalyzer(object):
 
         while 1:
             # get message from clients #
-            ret = SysMgr.localServObj.recvfrom(verbose=False)
+            ret = SysMgr.localServObj.recvfrom(verb=False)
 
             # verify request type #
             if ret is False:
