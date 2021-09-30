@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210929"
+__revision__ = "210930"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7674,6 +7674,7 @@ class Timeline(object):
         scaled_bottom_height = y1 - (self.scaled_height * 0.25)
         duration = segment.time_end - segment.time_start
         time_end = segment.time_end + start - self.time_start
+        strokeSize = 3.5
 
         # get color ID #
         if segment.color:
@@ -7690,11 +7691,20 @@ class Timeline(object):
             except:
                 color = self.color_map[list(self.color_map.keys())[0]]
 
+        # check stroke option #
+        if self.stroke_text and \
+            UtilMgr.isValidStr(segment.text, self.stroke_text, inc=False):
+            stroke = 'rgb(255,0,0)'
+            stroke_width = 1
+        else:
+            stroke = 'none'
+            stroke_width = 0
+
         # draw bold line for core off #
         if segment.state == 'OFF':
             dwg.add(dwg.line(
                 (x0, y0), (x1, y0),
-                stroke='gray', stroke_width=3.5))
+                stroke='gray', stroke_width=strokeSize))
             return
 
         # draw circle and text for event #
@@ -7730,34 +7740,38 @@ class Timeline(object):
         if segment.state == 'RD':
             g.add(dwg.rect((x0, scaled_bottom_height),
                 (scaled_width, self.scaled_height*0.25),
-                rx=1, ry=1, fill='purple', fill_opacity=0.5))
+                rx=1, ry=1, fill='purple', fill_opacity=0.5,
+                stroke=stroke, stroke_width=stroke_width))
         # draw line for block_write status #
         elif segment.state == 'WR':
             g.add(dwg.rect((x0, scaled_bottom_height),
                 (scaled_width, self.scaled_height*0.25),
-                rx=1, ry=1, fill='darkcyan', fill_opacity=0.5))
+                rx=1, ry=1, fill='darkcyan', fill_opacity=0.5,
+                stroke=stroke, stroke_width=stroke_width))
         # draw line for syscall status #
         elif segment.state == 'SYSCALL':
             g.add(dwg.rect((x0, y0),
                 (scaled_width, self.scaled_height*0.5),
-                rx=1, ry=1, fill=color, fill_opacity=0.5))
+                rx=1, ry=1, fill=color, fill_opacity=0.5,
+                stroke=stroke, stroke_width=stroke_width))
         # draw line for sched status #
         else:
             # draw CPU timeslice #
             g.add(dwg.rect((x0, y0),
                 (scaled_width, self.scaled_height),
-                rx=1, ry=1, fill=color, fill_opacity=0.5))
+                rx=1, ry=1, fill=color, fill_opacity=0.5,
+                stroke=stroke, stroke_width=stroke_width))
 
             # draw preempted status #
             if segment.state == 'R':
                 g.add(dwg.line(
                     (x1, y0), (x1, scaled_top_height),
-                    stroke='red', stroke_width=0.3))
+                    stroke='red', stroke_width=strokeSize))
             # draw wait status #
             elif segment.state == 'D':
                 g.add(dwg.line(
                     (x1, y0), (x1, scaled_top_height),
-                    stroke='black', stroke_width=0.3))
+                    stroke='black', stroke_width=strokeSize))
 
         # check label flag #
         if not SysMgr.showAll and \
@@ -22933,26 +22947,29 @@ Examples:
     - Draw graphs and timeline segment
         # {0:1} {1:1} guider.dat
 
-    - Draw graphs and timeline segment for all events and tasks
+    - Draw graphs and timeline segments for all events and tasks
         # {0:1} {1:1} guider.dat -a
 
-    - Draw graphs and timeline segment forcefully
+    - Draw graphs and timeline segments forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw graphs and timeline segment in us time unit
+    - Draw graphs and timeline segments in us time unit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:us
 
-    - Draw graphs and timeline segment except for label for timelines lesser than 100ms
+    - Draw graphs and timeline segments except for label for timelines lesser than 100ms
         # {0:1} {1:1} guider.dat -q LABELMIN:100
 
-    - Draw graphs and timeline segment with label setting
+    - Draw graphs and timeline segments with label setting
         # {0:1} {1:1} guider.dat -q LABEL
         # {0:1} {1:1} guider.dat -q NOLABEL
+
+    - Draw graphs and timeline segments with stroke only for specific tasks
+        # {0:1} {1:1} guider.dat -q STROKE:"screen*", STROKE:"a.out"
 
     - Draw graphs and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
 
-    - Draw graphs and timeline segment for specific cores
+    - Draw graphs and timeline segments for specific cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
 
     - Draw graphs to specific image format
@@ -22960,7 +22977,7 @@ Examples:
         # {0:1} {1:1} guider.out -F pdf
         # {0:1} {1:1} guider.out -F svg
 
-    - Draw graphs and timeline segment with config file
+    - Draw graphs and timeline segments with config file
         # {0:1} {1:1} guider.dat -C config.json
 
     - Draw graphs excluding chrome process
@@ -30816,6 +30833,12 @@ Copyright:
 
             # load data #
             timeline = Timeline.load(inputPath, inputData, config, taskList)
+
+            # set stroke candidate #
+            if 'STROKE' in SysMgr.environList:
+                timeline.stroke_text = SysMgr.environList['STROKE']
+            else:
+                timeline.stroke_text = None
 
             # draw timeslices #
             timeline.draw(dwg, start=start, annotation=annotation)
