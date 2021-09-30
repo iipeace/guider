@@ -4734,6 +4734,14 @@ class UtilMgr(object):
 
         glob = SysMgr.getPkg('glob', False)
         if glob:
+            '''
+            # sort option #
+            glob(value, key=os.path.getctime)
+            glob(value, key=os.path.getatime)
+            glob(value, key=os.path.getmtime)
+            glob(value, key=os.path.getsize)
+            '''
+
             # check recursive path for specific version(>=python 3.5) #
             if '**' in value and sys.version_info >= (3, 5):
                 res = glob.glob(value, recursive=True)
@@ -4747,10 +4755,10 @@ class UtilMgr(object):
 
             # str #
             if retStr:
-                return separator.join(res)
+                return sorted(separator.join(res))
             # list #
             else:
-                return res
+                return sorted(res)
         else:
             # str #
             if retStr:
@@ -69432,6 +69440,10 @@ class TaskAnalyzer(object):
                         unionRssList[pname] = \
                             -(prevProcList[pname][stat])
 
+        # define shortcut functions #
+        convNum = UtilMgr.convNum
+        convColor = UtilMgr.convColor
+
         # print CPU diff #
         SysMgr.printPipe('\n[Diff CPU Info]\n%s' % twoLine)
 
@@ -69478,9 +69490,10 @@ class TaskAnalyzer(object):
 
                         diff = -(prevCpuProcList[pname][item])
                         if SysMgr.cpuAvgEnable:
-                            diff = '%6.1f' %  diff
+                            diff = '%6.1f%%' %  diff
 
-                        printBuf = '%s %6s%%%s' % \
+                        diff = convColor(diff, 'WARNING', 6)
+                        printBuf = '%s %6s%s' % \
                             (printBuf, diff, emptyCpuStat[7:])
                     else:
                         printBuf = '%s %s' % (printBuf, emptyCpuStat)
@@ -69491,15 +69504,16 @@ class TaskAnalyzer(object):
                     diff = '-'
                 elif cpuProcStat['diff'] > 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('+%s' % UtilMgr.convNum(cpuProcStat['diff'])))
+                        '%6s' % ('+%s' % convNum(cpuProcStat['diff'])))
+                    diff = convColor(diff, 'RED', 6)
                 elif cpuProcStat['diff'] < 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('-%s' % \
-                            UtilMgr.convNum(abs(cpuProcStat['diff']))))
+                        '%6s' % ('-%s' % convNum(abs(cpuProcStat['diff']))))
+                    diff = convColor(diff, 'GREEN', 6)
                 else:
                     diff = '0'
 
-                total = UtilMgr.convNum(cpuProcStat['total'])
+                total = convNum(cpuProcStat['total'])
 
                 newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%) |" % \
                     (diff, cpuProcStat['cnt'],
@@ -69561,9 +69575,10 @@ class TaskAnalyzer(object):
 
                         diff = -(prevGpuProcList[pname][item])
                         if SysMgr.cpuAvgEnable:
-                            diff = '%6.1f' %  diff
+                            diff = '%6.1f%%' %  diff
 
-                        printBuf = '%s %6s%%%s' % \
+                        diff = convColor(diff, 'WARNING', 6)
+                        printBuf = '%s %6s%s' % \
                             (printBuf, diff, emptyGpuStat[7:])
                     else:
                         printBuf = '%s %s' % (printBuf, emptyGpuStat)
@@ -69574,15 +69589,16 @@ class TaskAnalyzer(object):
                     diff = '-'
                 elif gpuProcStat['diff'] > 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('+%s' % UtilMgr.convNum(gpuProcStat['diff'])))
+                        '%6s' % ('+%s' % convNum(gpuProcStat['diff'])))
+                    diff = convColor(diff, 'RED', 6)
                 elif gpuProcStat['diff'] < 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('-%s' % \
-                            UtilMgr.convNum(abs(gpuProcStat['diff']))))
+                        '%6s' % ('-%s' % convNum(abs(gpuProcStat['diff']))))
+                    diff = convColor(diff, 'GREEN', 6)
                 else:
                     diff = '0'
 
-                total = UtilMgr.convNum(gpuProcStat['total'])
+                total = convNum(gpuProcStat['total'])
 
                 newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%) |" % \
                     (diff, gpuProcStat['cnt'],
@@ -69649,9 +69665,10 @@ class TaskAnalyzer(object):
                 if not pname in rssProcList:
                     if idx > 0 and prevRssProcList and \
                         pname in prevRssProcList:
-                        printBuf = '%s %6dM%s' % \
-                            (printBuf, -(prevRssProcList[pname]['maxRss']),
-                                emptyRssStat[7:])
+                        diff = '%6sM' % -(prevRssProcList[pname]['maxRss'])
+                        diff = convColor(diff, 'WARNING', 7)
+                        printBuf = '%s %7s%s' % \
+                            (printBuf, diff, emptyRssStat[7:])
                     else:
                         printBuf = '%s %s' % (printBuf, emptyRssStat)
                     continue
@@ -69661,8 +69678,10 @@ class TaskAnalyzer(object):
                     diff = '-'
                 elif rssProcStat['diff'] > 0:
                     diff = '{0:>6}M'.format('+%s' % rssProcStat['diff'])
+                    diff = convColor(diff, 'RED', 6)
                 elif rssProcStat['diff'] < 0:
                     diff = '{0:>6}M'.format('-%s' % abs(rssProcStat['diff']))
+                    diff = convColor(diff, 'GREEN', 6)
                 else:
                     diff = '0'
 
