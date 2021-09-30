@@ -17,8 +17,8 @@ __repository__ = "https://github.com/iipeace/guider"
 
 
 # import essential packages #
+import sys
 try:
-    import sys
     import os
     import re
     import gc
