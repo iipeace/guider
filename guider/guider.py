@@ -24642,6 +24642,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q  <NAME{:VALUE}>          set environment variables
+    -J                          print in JSON format
     -v                          verbose
                     '''
 
@@ -24827,6 +24828,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q  <NAME{:VALUE}>          set environment variables
+    -J                          print in JSON format
     -v                          verbose
                     '''
 
@@ -59229,7 +59231,7 @@ typedef struct {
                     else:
                         elapsed = convColor(elapsed, 'CYAN')
 
-                    # build output #
+                    # build JSON output #
                     if SysMgr.jsonEnable:
                         jsonData = {
                             'time': diffstr,
@@ -59240,8 +59242,8 @@ typedef struct {
                             'elapsed': elapsed.lstrip('/'),
                             'caller': addStr.lstrip('-> ')
                         }
+                    # build string output #
                     else:
-                        # build context string #
                         callString = '\n%s %s%s%s%s%s%s' % \
                             (diffstr, tinfo, indent, sym, retstr,
                                 elapsed, addStr)
@@ -59275,11 +59277,10 @@ typedef struct {
         # print output #
         if jsonData:
             if btstr:
-                jsonData['backtrace'] = btstr.lstrip()
+                jsonData['backtrace'] = btstr.lstrip().split('\n')
 
             SysMgr.printPipe(
                 UtilMgr.convDict2Str(jsonData, pretty=False), flush=True)
-
         elif callString:
             # emphasize string #
             if hasRetFilter and not skip:
@@ -60036,6 +60037,8 @@ typedef struct {
         diffstr = '%3.6f' % self.vdiff
 
         convColor = UtilMgr.convColor
+        jsonData = {}
+        callString = ''
 
         # build backtrace #
         if isRet:
@@ -60059,10 +60062,22 @@ typedef struct {
 
             sym = '%s%s' % (sym, Debugger.RETSTR)
 
-            # build current symbol string #
-            callString = '\n%s %s%s%s%s [%s:%s]' % \
-                (diffstr, tinfo, indent, self.prevPySym,
-                    elapsed, self.prevPyFile, self.prevPyLine)
+            # build JSON output #
+            if SysMgr.jsonEnable:
+                jsonData = {
+                    'time': diffstr,
+                    'task': tinfo if tinfo \
+                        else '%s(%s)' % (self.comm, self.pid),
+                    'symbol': self.prevPySym,
+                    'elapsed': elapsed.lstrip('/'),
+                    'file': self.prevPyFile,
+                    'line': self.prevPyLine
+                }
+            # build string output #
+            else:
+                callString = '\n%s %s%s%s%s [%s:%s]' % \
+                    (diffstr, tinfo, indent, self.prevPySym,
+                        elapsed, self.prevPyFile, self.prevPyLine)
 
             # initialize previous symbol #
             self.prevPySym = None
@@ -60087,17 +60102,34 @@ typedef struct {
 
             elapsed = ''
 
-            # build current symbol string #
-            callString = '\n%s %s%s%s%s [%s:%s]' % \
-                (diffstr, tinfo, indent, convColor(call, 'GREEN'),
-                    elapsed, fname, line)
+            if SysMgr.jsonEnable:
+                jsonData = {
+                    'time': diffstr,
+                    'task': tinfo if tinfo \
+                        else '%s(%s)' % (self.comm, self.pid),
+                    'symbol': call,
+                    'file': fname,
+                    'line': line,
+                }
+            else:
+                # build current symbol string #
+                callString = '\n%s %s%s%s%s [%s:%s]' % \
+                    (diffstr, tinfo, indent, convColor(call, 'GREEN'),
+                        elapsed, fname, line)
 
         # add backtrace #
         if btstr:
-            callString = '%s%s' % (btstr, callString)
+            if jsonData:
+                jsonData['backtrace'] = btstr.lstrip().split('\n')
+            else:
+                callString = '%s%s' % (btstr, callString)
 
+        # JSON output #
+        if jsonData:
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(jsonData, pretty=False), flush=True)
         # file output #
-        if SysMgr.outPath:
+        elif SysMgr.outPath:
             self.addSample(
                 call, fname, realtime=True, elapsed=None)
 
