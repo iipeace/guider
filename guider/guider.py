@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210930"
+__revision__ = "211001"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4855,8 +4855,9 @@ class UtilMgr(object):
     def convColor(string, color='LIGHT', size=1, align='right'):
         if not SysMgr.colorEnable or not color or \
             SysMgr.outPath or SysMgr.outputFile or \
-            (not SysMgr.isLinux and not SysMgr.isDarwin) or \
-            SysMgr.remoteRun:
+            SysMgr.jsonEnable or SysMgr.remoteRun or \
+            (not SysMgr.isLinux and not SysMgr.isDarwin):
+            SysMgr.colorEnable = False
             return string
 
         if align == 'right':
@@ -24912,6 +24913,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q  <NAME{:VALUE}>          set environment variables
+    -J                          print in JSON format
     -v                          verbose
                     '''
 
@@ -59184,6 +59186,7 @@ typedef struct {
         hasRetFilter = False
         elapsed = ''
         callString = ''
+        jsonData = {}
         etime = None
         cmds = None
         skip = False
@@ -59226,9 +59229,22 @@ typedef struct {
                     else:
                         elapsed = convColor(elapsed, 'CYAN')
 
-                    # build context string #
-                    callString = '\n%s %s%s%s%s%s%s' % \
-                        (diffstr, tinfo, indent, sym, retstr, elapsed, addStr)
+                    # build output #
+                    if SysMgr.jsonEnable:
+                        jsonData = {
+                            'time': diffstr,
+                            'task': tinfo if tinfo \
+                                else '%s(%s)' % (self.comm, self.pid),
+                            'symbol': sym,
+                            'return': retstr.lstrip('='),
+                            'elapsed': elapsed.lstrip('/'),
+                            'caller': addStr.lstrip('-> ')
+                        }
+                    else:
+                        # build context string #
+                        callString = '\n%s %s%s%s%s%s%s' % \
+                            (diffstr, tinfo, indent, sym, retstr,
+                                elapsed, addStr)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -59240,13 +59256,31 @@ typedef struct {
             if origSym in self.retCmdList:
                 cmds = self.retCmdList[origSym]
         else:
-            # build current symbol string #
-            callString = '\n%s %s%s%s%s/%s%s [%s]' % \
-                (diffstr, tinfo, indent, convColor(sym, symColor),
-                    elapsed, hex(addr).rstrip('L'), argstr,
-                    convColor(fname, 'YELLOW'))
+            if SysMgr.jsonEnable:
+                jsonData = {
+                    'time': diffstr,
+                    'task': tinfo if tinfo \
+                        else '%s(%s)' % (self.comm, self.pid),
+                    'symbol': sym,
+                    'args': argstr,
+                    'file': fname
+                }
+            else:
+                # build current symbol string #
+                callString = '\n%s %s%s%s%s/%s%s [%s]' % \
+                    (diffstr, tinfo, indent, convColor(sym, symColor),
+                        elapsed, hex(addr).rstrip('L'), argstr,
+                        convColor(fname, 'YELLOW'))
 
-        if callString:
+        # print output #
+        if jsonData:
+            if btstr:
+                jsonData['backtrace'] = btstr.lstrip()
+
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(jsonData, pretty=False), flush=True)
+
+        elif callString:
             # emphasize string #
             if hasRetFilter and not skip:
                 callString = convColor(callString, 'CYAN')
@@ -59274,6 +59308,7 @@ typedef struct {
             else:
                 SysMgr.printPipe(callString, newline=False, flush=True)
 
+        if jsonData or callString:
             # handle repeat command #
             if isRetBp and origPC != self.pc:
                 self.handleBp(True, checkArg)
