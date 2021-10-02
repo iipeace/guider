@@ -3909,7 +3909,7 @@ class UtilMgr(object):
         if targetType is str:
             targetStr = ''
             for val in targetList:
-                if val: targetStr = '%s%s' % (targetStr, val)
+                if val: targetStr += val
             return targetStr
         elif targetType is list:
             # remove redundant values #
@@ -13437,7 +13437,7 @@ class FunctionAnalyzer(object):
                     symbolStack = '%s\n%s' % (symbolStack, ' ' * indentLen)
                     appliedIndentLen = long(0)
 
-                symbolStack = '%s%s' % (symbolStack, symbolSet)
+                symbolStack += symbolSet
         except SystemExit:
             sys.exit(0)
         except:
@@ -13470,7 +13470,7 @@ class FunctionAnalyzer(object):
                         '%s\n%s' % (symbolStack, ' ' * indentLen)
                     appliedIndentLen = long(0)
 
-                symbolStack = '%s%s' % (symbolStack, symbolSet)
+                symbolStack += symbolSet
         elif self.sort == 'pos':
             for pos in subStack:
                 if not pos:
@@ -13625,7 +13625,7 @@ class FunctionAnalyzer(object):
                         binary = self.posData[subcall]['binary']
                         nextCall = ' <- %s[%s]' % (symbol, binary)
                         if SysMgr.lineLength > nowLen + len(nextCall):
-                            userCall = '%s%s' % (userCall, nextCall)
+                            userCall += nextCall
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
@@ -13841,7 +13841,7 @@ class FunctionAnalyzer(object):
                         binary = self.posData[subcall]['binary']
                         nextCall = ' <- %s[%s]' % (symbol, binary)
                         if SysMgr.lineLength > nowLen + len(nextCall):
-                            userCall = '%s%s' % (userCall, nextCall)
+                            userCall += nextCall
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
@@ -13867,7 +13867,7 @@ class FunctionAnalyzer(object):
                         nextCall = \
                             ' <- %s' % (self.posData[subcall]['symbol'])
                         if SysMgr.lineLength > nowLen + len(nextCall):
-                            kernelCall = '%s%s' % (kernelCall, nextCall)
+                            kernelCall += nextCall
                             nowLen += len(nextCall)
                         else:
                             kernelCall = \
@@ -14813,7 +14813,7 @@ class FunctionAnalyzer(object):
                         nextCall = ' <- %s[%s]' % \
                             (subcall, self.userSymData[subcall]['origBin'])
                         if SysMgr.lineLength > nowLen + len(nextCall):
-                            userCall = '%s%s' % (userCall, nextCall)
+                            userCall += nextCall
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
@@ -14848,7 +14848,7 @@ class FunctionAnalyzer(object):
                     try:
                         nextCall = ' <- %s' % (subcall)
                         if SysMgr.lineLength > nowLen + len(nextCall):
-                            kernelCall = '%s%s' % (kernelCall, nextCall)
+                            kernelCall += nextCall
                             nowLen += len(nextCall)
                         else:
                             kernelCall = '%s\n%s %s' % \
@@ -15077,7 +15077,7 @@ class FunctionAnalyzer(object):
                         binary = self.posData[subcall]['binary']
                         nextCall = ' <- %s[%s]' % (symbol, binary)
                         if SysMgr.lineLength > nowLen + len(nextCall):
-                            userCall = '%s%s' % (userCall, nextCall)
+                            userCall += nextCall
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
@@ -29072,7 +29072,7 @@ Copyright:
                         stat = ''
 
                     # append status #
-                    item = '%s%s' % (item, stat)
+                    item += stat
 
                     # cache string #
                     SysMgr.tcpListCache[tcp[inodeIdx]] = item
@@ -35634,7 +35634,7 @@ Copyright:
                 elif line == '':
                     return output
 
-                output = '%s%s' % (output, line)
+                output += line
 
 
 
@@ -58418,7 +58418,7 @@ typedef struct {
                 pos += len(newStr)
 
             # add a symbol to backtrace #
-            btStr = '%s%s' % (btStr, newStr)
+            btStr += newStr
 
         if btStr == '':
             self.btStr = '??'
@@ -60105,7 +60105,7 @@ typedef struct {
             if not self.entryTime[sym]:
                 self.entryTime.pop(sym, None)
 
-            sym = '%s%s' % (sym, Debugger.RETSTR)
+            sym += Debugger.RETSTR
 
             # build JSON output #
             if SysMgr.jsonEnable:
@@ -60585,7 +60585,7 @@ typedef struct {
             # handle call string for enter #
             if filtered:
                 if defer:
-                    self.bufferedStr = '%s%s' % (self.bufferedStr, callString)
+                    self.bufferedStr += callString
                 else:
                     self.bufferedStr = callString
 
@@ -60879,8 +60879,7 @@ typedef struct {
             # print call string #
             if SysMgr.outPath:
                 if self.callPrint:
-                    self.callPrint[-1] = '%s%s' % \
-                        (self.callPrint[-1], callString)
+                    self.callPrint[-1] += callString
                 else:
                     self.callPrint.append(callString)
 
@@ -77026,7 +77025,7 @@ class TaskAnalyzer(object):
                     "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
                     "{5:>12} {6:<75}\n").format(
                         '', '', did, '', convSize(totalSize), fs, dev)))
-                devStr = '%s%s' % (devStr, inodeStr)
+                devStr += inodeStr
 
             SysMgr.printPipe(
                 "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
@@ -77098,7 +77097,7 @@ class TaskAnalyzer(object):
                         "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} "
                         "{5:>12} {6:<75}\n").format(
                             '', '', did, '', convSize(totalSize), fs, dev)))
-                    devStr = '%s%s' % (devStr, inodeStr)
+                    devStr += inodeStr
 
                 # update previous thread info #
                 if previnfo == tinfo:
@@ -79117,7 +79116,7 @@ class TaskAnalyzer(object):
             else:
                 usage = long(0)
 
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+            timeLine += '{0:>6} '.format(usage)
             lineLen += margin + 2
 
         SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
@@ -79168,7 +79167,7 @@ class TaskAnalyzer(object):
                 # append lifecycle flag to usage #
                 usage = '%s%s' % (lflag, usage)
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += margin + 2
 
             # skip process used no CPU #
@@ -79242,7 +79241,7 @@ class TaskAnalyzer(object):
                 else:
                     usage = long(0)
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += margin + 2
 
             # skip no delayed procdss #
@@ -79311,7 +79310,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = long(0)
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += 7
 
             SysMgr.printPipe(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
@@ -79375,7 +79374,7 @@ class TaskAnalyzer(object):
             else:
                 usage = long(0)
 
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+            timeLine += '{0:>6} '.format(usage)
             lineLen += 7
 
         SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
@@ -79441,7 +79440,7 @@ class TaskAnalyzer(object):
                     if maxRss == 0 or maxRss < usage:
                         maxRss = usage
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += 7
 
             # mark change #
@@ -79504,7 +79503,7 @@ class TaskAnalyzer(object):
             else:
                 usage = long(0)
 
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+            timeLine += '{0:>6} '.format(usage)
             lineLen += 7
 
         SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
@@ -79570,7 +79569,7 @@ class TaskAnalyzer(object):
                     if maxVss == 0 or maxVss < usage:
                         maxVss = usage
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += 7
 
             # mark change #
@@ -79654,7 +79653,7 @@ class TaskAnalyzer(object):
                     else:
                         usage = long(0)
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += 7
 
             SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
@@ -79730,7 +79729,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = '0/0/0/0'
 
-                timeLine = '%s%s' % (timeLine, '{0:>21} '.format(usage))
+                timeLine += '{0:>21} '.format(usage)
                 lineLen += margin
 
             SysMgr.printPipe(
@@ -79793,7 +79792,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = '0/0'
 
-                timeLine = '%s%s' % (timeLine, '{0:>21} '.format(usage))
+                timeLine += '{0:>21} '.format(usage)
                 lineLen += margin
 
             SysMgr.printPipe(
@@ -79818,8 +79817,7 @@ class TaskAnalyzer(object):
                 timeLine += ('\n' + (' ' * (length - 1)) + '| ')
                 lineLen = length
 
-            timeLine = '%s%s' % \
-                (timeLine, '{0:>{margin}} '.format(i, margin=margin+more))
+            timeLine += '{0:>{margin}} '.format(i, margin=margin+more)
             lineLen += margin + spaces
 
         SysMgr.printPipe(("{0:1} {1:1}\n").format(title, timeLine))
@@ -79880,7 +79878,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = 0
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += margin + 2
 
             SysMgr.printPipe(
@@ -79936,7 +79934,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = 0
 
-                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                timeLine += '{0:>6} '.format(usage)
                 lineLen += margin + 2
 
             SysMgr.printPipe(
@@ -88117,7 +88115,7 @@ class TaskAnalyzer(object):
                             (zoneData, ' ' * 7, ' ' * nrIndent)
                         lenZone = nrIndent
 
-                    zoneData = '%s%s' % (zoneData, zoneStat)
+                    zoneData += zoneStat
                     lenZone += lenZoneStat
 
                 stat = UtilMgr.convSize2Unit(val << 12)
@@ -88134,7 +88132,7 @@ class TaskAnalyzer(object):
                         (zoneData, ' ' * 7, ' ' * nrIndent)
                     lenZone = nrIndent
 
-                zoneData = '%s%s' % (zoneData, zoneStat)
+                zoneData += zoneStat
                 lenZone += lenZoneStat
 
             SysMgr.addPrint("{0:<1}]\n".format(zoneData[:-2]))
@@ -88176,7 +88174,7 @@ class TaskAnalyzer(object):
                 irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
                 lenIrq = nrIndent
 
-            irqData = '%s%s' % (irqData, newIrq)
+            irqData += newIrq
             lenIrq += lenNewIrq
 
         if nrIrq > 0:
@@ -89108,7 +89106,7 @@ class TaskAnalyzer(object):
                     except:
                         pass
 
-                fullstack = '%s%s' % (fullstack, line)
+                fullstack += line
                 fullstack = fullstack.rstrip(' <- ')
 
                 ret = SysMgr.addPrint(
@@ -89745,7 +89743,7 @@ class TaskAnalyzer(object):
 
                     pstr = '%s' % pstr[slimit:]
 
-                tstr = '%s%s' % (tstr, pstr)
+                tstr += pstr
 
                 # count newlines #
                 newline = tstr.count('\n')+1
@@ -90840,9 +90838,9 @@ class TaskAnalyzer(object):
             addinfo = ''
             for pid, data in comval['task'].items():
                 addinfo += '_%s_%s' % (data['comm'], pid)
-            ename = '%s%s' % (ename, addinfo)
+            ename += addinfo
         elif 'dev' in comval:
-            ename = '%s%s' % (ename, comval['dev'])
+            ename += comval['dev']
 
         if item in comval:
             ename = '%s_%s' % (ename, comval[item])
