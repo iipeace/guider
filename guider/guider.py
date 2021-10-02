@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211001"
+__revision__ = "211002"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23139,6 +23139,9 @@ Examples:
     - {3:1} and their injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEBP
 
+    - {3:1} and print context combined both entry and exit
+        # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
+
     - {3:1} for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -q TARGETNUM:4
@@ -23267,6 +23270,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005|filter:0:BT:0"
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:exit"
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:sleep:1"
+        # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:dist:0"
 
     - {5:1} and print call contexts if only the return value is bigger than 1 {4:1}
         # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005"
@@ -52119,6 +52123,7 @@ class Debugger(object):
         'ONLYOK': False,
         'ONLYFAIL': False,
         'WAITCLONE': False,
+        'COMPLETECALL': False,
     }
 
     def getSigStruct(self):
@@ -52410,6 +52415,7 @@ class Debugger(object):
         self.bpList = {}
         self.bpNewList = {}
         self.entryTime = {}
+        self.entryContext = {}
         self.retCmdList = {}
         self.retFilterList = {}
         self.exceptBpList = {}
@@ -59087,47 +59093,13 @@ typedef struct {
 
 
 
-    def printBpContext(self, sym, addr, fname, checkArg, origPC):
-        # skip ld functions #
-        if Debugger.envFlags['EXCEPTLD'] and fname and \
-            os.path.basename(fname).startswith('ld-'):
-            SysMgr.printWarn(
-                'skip printing %s in %s' % (sym, fname))
-            return False
-
-        # read args #
-        args = self.readArgs()
-
-        # define proto list #
-        proto = ConfigMgr.SYSCALL_PROTOTYPES
-
-        # check filter #
-        filterCmd = self.bpList[addr]['filter']
-        if not self.checkFilterCond(filterCmd, args, sym, fname):
-            return
-
-        # top mode #
-        if self.isRealtime:
-            if SysMgr.funcDepth > 0:
-                backtrace = self.getBacktrace()
-            else:
-                backtrace = None
-
-            self.addSample(
-                sym, fname, realtime=True, bt=backtrace)
-
-            self.addStat(sym)
-
-            return
-
-        #-------------------- TRACE MODE --------------------#
-
+    def getBpContext(self, sym, addr, args, isRetBp):
         # set default symbol color #
         symColor = 'GREEN'
 
         # convert args #
         if 'CONVARG' in SysMgr.environList and \
-            sym.split('@', 1)[0] in proto:
+            sym.split('@', 1)[0] in ConfigMgr.SYSCALL_PROTOTYPES:
             # convert args #
             self.syscall = sym.split('@', 1)[0]
             self.args = []
@@ -59156,19 +59128,8 @@ typedef struct {
         # get diff time #
         diffstr = '%3.6f' % self.vdiff
 
-        # check return type #
-        if sym.endswith(Debugger.RETSTR):
-            isRetBp = True
-        else:
-            isRetBp = False
-
         # build backtrace #
         if SysMgr.funcDepth > 0:
-            if SysMgr.showAll:
-                cont = False
-            else:
-                cont = True
-
             # add return address to backtrace #
             if isRetBp:
                 addBt = [addr]
@@ -59177,26 +59138,71 @@ typedef struct {
 
             # get backtrace tree #
             btstr, depth = self.getBtStr(
-                diffstr, tinfo, cont, addBt=addBt)
+                diffstr, tinfo, not SysMgr.showAll, addBt=addBt)
 
             indent = '  ' * depth
         else:
             btstr = indent = ''
 
+        return tinfo, diffstr, args, argstr, btstr, indent, symColor
+
+
+
+    def printBpContext(self, sym, addr, fname, checkArg, origPC):
+        # check return type #
+        if sym.endswith(Debugger.RETSTR):
+            isRetBp = True
+        else:
+            isRetBp = False
+
+        # skip loader functions #
+        if Debugger.envFlags['EXCEPTLD'] and fname and \
+            os.path.basename(fname).startswith('ld-'):
+            SysMgr.printWarn(
+                'skip printing %s in %s' % (sym, fname))
+            return isRetBp
+
+        # read args #
+        args = self.readArgs()
+
+        # check filter #
+        filterRes = True
+        filterCmd = self.bpList[addr]['filter']
+        if not self.checkFilterCond(filterCmd, args, sym, fname):
+            if not Debugger.envFlags['COMPLETECALL']:
+                return isRetBp
+            filterRes = False
+
+        # top mode #
+        if self.isRealtime:
+            if SysMgr.funcDepth > 0:
+                backtrace = self.getBacktrace()
+            else:
+                backtrace = None
+
+            self.addSample(
+                sym, fname, realtime=True, bt=backtrace)
+
+            self.addStat(sym)
+
+            return isRetBp
+
+        # get context data #
+        tinfo, diffstr, args, argstr, btstr, indent, symColor = \
+            self.getBpContext(sym, addr, args, isRetBp)
+
         # print return value #
-        retstr = ''
-        hasRetFilter = False
-        elapsed = ''
-        callString = ''
         jsonData = {}
-        etime = None
-        cmds = None
-        skip = False
+        elapsed = callString = retstr = ''
+        etime = cmds = retcmd = None
+        skip = hasRetFilter = False
         convColor = UtilMgr.convColor
-        retcmd = None
 
         # handle breakpoint for return #
         if isRetBp:
+            # get original symbol #
+            origSym = sym[:-len(Debugger.RETSTR)]
+
             try:
                 etime, elapsed, hasRetFilter, skip, retcmd = \
                     self.handleRetBpFilter(sym)
@@ -59231,9 +59237,38 @@ typedef struct {
                     else:
                         elapsed = convColor(elapsed, 'CYAN')
 
+                    # build combined output #
+                    if Debugger.envFlags['COMPLETECALL'] and \
+                        origSym in self.entryContext:
+                        # get entry context #
+                        entryData = self.entryContext.pop(origSym, None)
+
+                        # combine contexts for both entry and exit #
+                        if SysMgr.jsonEnable:
+                            args = entryData['args']
+                            args = args[1:-1].split(',') if args else []
+                            jsonData = {
+                                'context': 'complete',
+                                'time': entryData['time'],
+                                'args': args,
+                                'file': entryData['file'],
+                                'task': tinfo if tinfo \
+                                    else '%s(%s)' % (self.comm, self.pid),
+                                'symbol': origSym,
+                                'return': retstr.lstrip('='),
+                                'elapsed': elapsed.lstrip('/'),
+                                'caller': addStr.lstrip('-> ')
+                            }
+                        else:
+                            callString = '\n%s %s%s%s%s[%s]%s%s%s' % \
+                                (entryData['time'], tinfo, indent,
+                                    convColor(origSym, symColor),
+                                    entryData['args'], entryData['file'],
+                                    retstr, elapsed, addStr)
                     # build JSON output #
-                    if SysMgr.jsonEnable:
+                    elif SysMgr.jsonEnable:
                         jsonData = {
+                            'context': 'exit',
                             'time': diffstr,
                             'task': tinfo if tinfo \
                                 else '%s(%s)' % (self.comm, self.pid),
@@ -59254,38 +59289,49 @@ typedef struct {
                 isRetBp = False
 
             # check command #
-            origSym = sym[:-len(Debugger.RETSTR)]
             if origSym in self.retCmdList:
                 cmds = self.retCmdList[origSym]
         else:
-            if SysMgr.jsonEnable:
+            # save entry context #
+            if Debugger.envFlags['COMPLETECALL']:
+                self.entryContext[sym] =  {
+                    'time': diffstr,
+                    'args': argstr,
+                    'file': fname
+                }
+            # build JSON output #
+            elif SysMgr.jsonEnable:
+                args = argstr[1:-1].split(',') if argstr else []
                 jsonData = {
+                    'context': 'entry',
                     'time': diffstr,
                     'task': tinfo if tinfo \
                         else '%s(%s)' % (self.comm, self.pid),
                     'symbol': sym,
-                    'args': argstr,
+                    'args': args,
                     'file': fname
                 }
+            # build string output #
             else:
-                # build current symbol string #
                 callString = '\n%s %s%s%s%s/%s%s [%s]' % \
                     (diffstr, tinfo, indent, convColor(sym, symColor),
                         elapsed, hex(addr).rstrip('L'), argstr,
                         convColor(fname, 'YELLOW'))
 
+        # check filter result #
+        if not filterRes:
+            return isRetBp
+
         # print output #
         if jsonData:
+            # add backtrace #
             if btstr:
                 jsonData['backtrace'] = btstr.lstrip().split('\n')
 
+            # print output #
             SysMgr.printPipe(
                 UtilMgr.convDict2Str(jsonData, pretty=False), flush=True)
         elif callString:
-            # emphasize string #
-            if hasRetFilter and not skip:
-                callString = convColor(callString, 'CYAN')
-
             # add backtrace #
             if btstr:
                 callString = '%s%s' % (btstr, callString)
@@ -59309,18 +59355,18 @@ typedef struct {
             else:
                 SysMgr.printPipe(callString, newline=False, flush=True)
 
-        if jsonData or callString:
+        # handle rest jobs #
+        if jsonData or callString or Debugger.envFlags['COMPLETECALL']:
             # handle repeat command #
             if isRetBp and origPC != self.pc:
                 self.handleBp(True, checkArg)
-                return
+                return isRetBp
 
             # check command #
-            cmd = self.bpList[addr]['cmd']
-            if cmd:
+            if self.bpList[addr]['cmd']:
                 self.bpList[addr]['cmd'] = \
-                    self.executeCmd(
-                        cmd, sym=sym, fname=fname, args=args)
+                    self.executeCmd(self.bpList[addr]['cmd'], sym=sym,
+                        fname=fname, args=args)
 
         # check skip condition #
         if skip:
@@ -59466,10 +59512,9 @@ typedef struct {
             self.unlock(nrLock)
             return
         # check recursive call #
-        elif isRetBp:
-            if sym.endswith(Debugger.RETSTR) in self.entryTime:
-                self.unlock(nrLock)
-                return
+        elif isRetBp and sym.endswith(Debugger.RETSTR) in self.entryTime:
+            self.unlock(nrLock)
+            return
 
         if self.pc == origPC:
             # continue processing an instruction #
