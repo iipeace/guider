@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211002"
+__revision__ = "211003"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23779,6 +23779,7 @@ Examples:
 
     - record default events including specific syscalls of all threads to ./guider.dat
         # {0:1} {1:1} -s . -t sys_read, write
+        # {0:1} {1:1} -s . -t "write*", "*64"
 
     - record default events including lock of all threads to ./guider.dat
         # {0:1} {1:1} -s . -e L
@@ -24654,6 +24655,7 @@ Options:
 Examples:
     - {4:1} for specific threads
         # {0:1} {1:1} -g a.out -t read
+        # {0:1} {1:1} -g a.out -t "read*", "*64"
 
     - {3:1} except for read for specific threads
         # {0:1} {1:1} -g a.out -t ^read
@@ -32483,23 +32485,33 @@ Copyright:
                         else:
                             exceptFlag = False
 
-                        if val[0:4] == 'sys_':
-                            nrSyscall = ConfigMgr.sysList.index(val)
-                        else:
-                            nrSyscall = \
-                                ConfigMgr.sysList.index('sys_%s' % val)
+                        # convert syscall name #
+                        if not val.startswith('sys_') and \
+                            not val.startswith('*'):
+                            val = 'sys_%s' % val
 
-                        if exceptFlag:
-                            disabledSyscall.append(
-                                ConfigMgr.sysList[nrSyscall])
+                        # get syscall index #
+                        nrList = []
+                        if '*' in val:
+                            for idx, syscall in enumerate(ConfigMgr.sysList):
+                                if UtilMgr.isValidStr(syscall, [val], False):
+                                    nrList.append(idx)
                         else:
-                            enabledSyscall.append(
-                                ConfigMgr.sysList[nrSyscall])
+                            nrList = [ConfigMgr.sysList.index(val)]
 
-                        if exceptFlag:
-                            SysMgr.syscallExceptList.append(nrSyscall)
-                        else:
-                            SysMgr.syscallList.append(nrSyscall)
+                        # classify syscall #
+                        for nrSyscall in nrList:
+                            if exceptFlag:
+                                disabledSyscall.append(
+                                    ConfigMgr.sysList[nrSyscall])
+                            else:
+                                enabledSyscall.append(
+                                    ConfigMgr.sysList[nrSyscall])
+
+                            if exceptFlag:
+                                SysMgr.syscallExceptList.append(nrSyscall)
+                            else:
+                                SysMgr.syscallList.append(nrSyscall)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -32508,6 +32520,7 @@ Copyright:
                             (val, SysMgr.arch))
                         sys.exit(0)
 
+                # print logs #
                 if not enabledSyscall:
                     SysMgr.printInfo("enabled syscall list [ ALL ]")
                 else:
@@ -32944,22 +32957,30 @@ Copyright:
 
             elif option == 't':
                 SysMgr.sysEnable = True
-                SysMgr.syscallList = \
-                    UtilMgr.cleanItem(value.split(','))
+                syscallList = UtilMgr.cleanItem(value.split(','))
                 enabledSyscall = []
 
-                for val in SysMgr.syscallList:
+                for val in syscallList:
                     try:
-                        if val[0:4] == 'sys_':
-                            nrSyscall = ConfigMgr.sysList.index(val)
-                        else:
-                            nrSyscall = \
-                                ConfigMgr.sysList.index('sys_%s' % val)
+                        # convert syscall name #
+                        if not val.startswith('sys_') and \
+                            not val.startswith('*'):
+                            val = 'sys_%s' % val
 
-                        enabledSyscall.append(
-                            ConfigMgr.sysList[nrSyscall])
-                        sidx = SysMgr.syscallList.index(val)
-                        SysMgr.syscallList[sidx] = nrSyscall
+                        # get syscall index #
+                        nrList = []
+                        if '*' in val:
+                            for idx, syscall in enumerate(ConfigMgr.sysList):
+                                if UtilMgr.isValidStr(syscall, [val], False):
+                                    nrList.append(idx)
+                        else:
+                            nrList = [ConfigMgr.sysList.index(val)]
+
+                        # classify syscall #
+                        for nrSyscall in nrList:
+                            enabledSyscall.append(
+                                ConfigMgr.sysList[nrSyscall])
+                            SysMgr.syscallList.append(nrSyscall)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -32968,6 +32989,7 @@ Copyright:
                             (val, SysMgr.arch))
                         sys.exit(0)
 
+                # print logs #
                 if not enabledSyscall:
                     SysMgr.printInfo("enabled syscall list [ ALL ]")
                 else:
