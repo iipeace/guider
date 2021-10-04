@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211003"
+__revision__ = "211004"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23102,6 +23102,11 @@ Examples:
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
+    - {3:1} and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
     - {3:1} and convert syscall args for specific threads
         # {0:1} {1:1} -g a.out -q CONVARG
 
@@ -23885,19 +23890,19 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor syscalls
+    - {2:1}
         # {0:1} {1:1} -g a.out
 
-    - Monitor syscalls with backtrace for specific threads
+    - {2:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor syscalls with python backtrace for specific threads
+    - {2:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - Monitor syscalls for child tasks created by specific threads
+    - {2:1} for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor syscalls for specific threads every 2 second
+    - {2:1} for specific threads every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
 
     - Monitor CPU usage on whole system of syscalls for a specific thread
@@ -23906,53 +23911,58 @@ Examples:
     - Monitor only successful syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYOK
 
-    - Monitor syscalls for child tasks created by a specific thread
+    - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
     - Monitor only failed syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - Monitor syscalls and standard output from a specific binary
+    - {2:1} from a specific binary and print standard output for child tasks
         # {0:1} {1:1} a.out -q NOMUTE
 
-    - Monitor syscalls and report the result to ./guider.out when SIGINT signal arrives
+    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
+    - {2:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
-    - Monitor syscalls for specific threads (wait for new target if no task)
+    - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - Monitor syscalls for specific threads even if the master tracer is terminated
+    - {2:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Monitor syscalls except for wait status for specific threads
+    - {2:1} except for wait status for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - Monitor syscalls except for register info for specific threads
+    - {2:1} except for register info for specific threads
         # {0:1} {1:1} -g a.out -q NOCONTEXT
 
-    - Monitor syscalls for specific threads consumed CPU more than 10%
+    - {2:1} for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Monitor syscalls except for no symbol backtraces for specific threads
+    - {2:1} except for no symbol backtraces for specific threads
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
-    - Monitor syscalls for specific threads after loading all symbols in stop status
+    - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - Monitor syscalls for 4th new threads in each new processes from a specific binary
+    - {2:1} for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
 
-    - Monitor syscalls for a specific binary execution with enviornment variables
+    - {2:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Monitor syscalls with breakpoint for read including register info for a specific thread
+    - {2:1} with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Monitor syscalls')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -23968,63 +23978,68 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor python calls for specific threads
+    - {2:1} for specific threads
         # {0:1} {1:1} -g a.out
 
-    - Monitor python calls for child tasks created by a specific thread
+    - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor python calls with backtrace for specific threads (merged native stack and python stack from python 3.7)
+    - {2:1} with backtrace for specific threads (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor python calls with backtrace including native symbols for specific threads (merged native stack and python stack from python 3.7)
+    - {2:1} with backtrace including native symbols for specific threads (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H -q INCNATIVE
 
-    - Monitor python calls for specific threads every 2 second for 1 minute with 1 ms sampling
+    - {2:1} for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor python calls and standard output from a specific binary
+    - {2:1} from a specific binary and print standard output for child tasks
         # {0:1} {1:1} a.out -q NOMUTE
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
 
-    - Monitor python calls for specific threads (wait for new target if no task)
+    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
+    - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
 
-    - Monitor python calls for specific threads even if the master tracer is terminated
+    - {2:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - Monitor python calls except for wait status for specific threads
+    - {2:1} except for wait status for specific threads
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - Monitor python calls except for register info for specific threads
+    - {2:1} except for register info for specific threads
         # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
-    - Monitor python calls for specific threads consumed CPU more than 10%
+    - {2:1} for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Monitor python calls except for no symbol functions for specific threads
+    - {2:1} except for no symbol functions for specific threads
         # {0:1} {1:1} a.out -g a.out -q ONLYSYM
 
-    - Monitor python calls for specific threads after loading all symbols in stop status
+    - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
-    - Monitor python calls for 4th new threads in each new processes from a specific binary
+    - {2:1} for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
 
-    - Monitor python calls for a specific binary execution with enviornment variables
+    - {2:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
     - Monitor CPU usage on whole system of python calls for specific threads
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor python calls with breakpoint for peace including register info for specific threads
+    - {2:1} with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Monitor python calls')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -24040,10 +24055,10 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor native function calls for specific threads
+    - {3:1} for specific threads
         # {0:1} {1:1} -g a.out
 
-    - Monitor native function calls from a specific binary
+    - {3:1} from a specific binary
         # {0:1} {1:1} a.out
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
@@ -24053,87 +24068,93 @@ Examples:
         # {0:1} {1:1} -g node -q JITSYM
         # {0:1} {1:1} -g java -q JITSYM
 
-    - Monitor native function calls and report the result to ./guider.out when SIGINT signal arrives
+    - {3:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
-    - Monitor native function calls and standard output from a specific binary
+    - {3:1} and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
 
-    - Monitor native function calls for specific threads with lazy cache loading
+    - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
+    - {3:1} for specific threads with lazy cache loading
         # {0:1} {1:1} a.out -q LAZYCACHE
 
-    - Monitor native function calls for specific threads from a specific binary
+    - {3:1} for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
-    - Monitor native function calls for child tasks created by a specific thread
+    - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - Monitor native function calls for specific threads (wait for new target if no task)
+    - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
 
-    - Monitor native function calls for specific threads even if the master tracer is terminated
+    - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - Monitor native function calls except for wait status for specific threads
+    - {3:1} except for wait status for specific threads
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - Monitor native function calls except for register info for specific threads
+    - {3:1} except for register info for specific threads
         # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
-    - Monitor native function calls for specific threads consumed CPU more than 10%
+    - {3:1} for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Monitor native function calls except for no symbol functions for specific threads
+    - {3:1} except for no symbol functions for specific threads
         # {0:1} {1:1} a.out -g a.out -q ONLYSYM
 
-    - Monitor native function calls for specific threads after loading all symbols in stop status
+    - {3:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
-    - Monitor native function calls for 4th new threads in each new processes from a specific binary
+    - {3:1} for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
 
-    - Monitor native function calls for a specific binary execution with enviornment variables
+    - {3:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Monitor native function calls for specific threads with DWARF info
+    - {3:1} for specific threads with DWARF info
         # {0:1} {1:1} -g a.out -eD
 
-    - Monitor native function calls for specific threads after user input
+    - {3:1} for specific threads after user input
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor native function calls for specific threads after 5 seconds
+    - {3:1} for specific threads after 5 seconds
         # {0:1} {1:1} -g a.out -W 5s
 
-    - Monitor native function calls for specific threads from 100 seconds of uptime
+    - {3:1} for specific threads from 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q START:100 -W
 
-    - Monitor native function calls for specific threads until 100 seconds of uptime
+    - {3:1} for specific threads until 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q DEADLINE:100 -R
 
-    - Monitor native function calls with backtrace for specific threads
+    - {3:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor native function calls with backtrace (no-use-libcorkscrew) for specific threads
+    - {3:1} with backtrace (no-use-libcorkscrew) for specific threads
         # {0:1} {1:1} -g a.out -H -q NOLIBCORK
 
-    - Monitor native function calls with python backtrace for specific threads
+    - {3:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - Monitor native function calls for specific threads every 2 second for 1 minute with 1 ms sampling
+    - {3:1} for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
     - Monitor CPU usage on whole system of native function calls for specific threads
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor native function calls with breakpoint for peace including register info for specific threads
+    - {3:1} with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode, jitProfStr)
+                    '''.format(cmd, mode, jitProfStr,
+                        'Monitor native function calls')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -24681,6 +24702,11 @@ Examples:
     - {4:1} with specific command (print standard output)
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
 
+    - {4:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
@@ -24781,6 +24807,11 @@ Examples:
     - {2:1} for specific threads (print standard output)
         # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
 
+    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
@@ -24860,6 +24891,11 @@ Examples:
 
     - {3:1} for specific threads (print standard output)
         # {0:1} {1:1} -g a.out -q NOMUTE
+
+    - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
@@ -25106,13 +25142,13 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Trace all signals for a specific thread
+    - {2:1} for a specific thread
         # {0:1} {1:1} -g a.out
 
-    - Trace all signals for a specific command
+    - {2:1} for a specific command
         # {0:1} {1:1} -I "ls"
 
-    - Trace all signals with detailed info for a specific thread
+    - {2:1} with detailed info for a specific thread
         # {0:1} {1:1} -g a.out -a
 
     - Trace the SIGINT signal for a specific thread
@@ -25121,14 +25157,19 @@ Examples:
     - Trace the SIGINT signal for a specific thread (print standard output)
         # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
 
-    - Trace all signals for specific threads (wait for new target if no task)
+    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
+    - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - Trace all signals for a specific thread even if the master tracer is terminated
+    - {2:1} for a specific thread even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Trace all signals')
 
                 # mem #
                 elif SysMgr.checkMode('mem'):
@@ -36005,19 +36046,57 @@ Copyright:
 
 
     @staticmethod
+    def redirectFd(path, fileno):
+        try:
+            SysMgr.printInfo("redirect fd(%s) to '%s'" % (fileno, path))
+            fd = os.open(path, os.O_RDWR|os.O_CREAT|os.O_APPEND)
+            os.dup2(fd, fileno)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to redirect %s to '%s'" % (fileno, path), True)
+            sys.exit(0)
+
+
+
+    @staticmethod
     def closeStdFd(stdin=False, stdout=True, stderr=True):
-        if not SysMgr.nullFd:
-            SysMgr.nullFd = open(SysMgr.nullPath, 'w')
+        try:
+            if not SysMgr.nullFd:
+                SysMgr.nullFd = open(SysMgr.nullPath, 'w')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to open '%s'" % SysMgr.nullPath, True)
+            return
 
         # get null fd #
         nullFd = SysMgr.nullFd.fileno()
 
-        # redirect stds to null #
-        if stdin:
+        # redirect stdin to file #
+        if 'STDIN' in SysMgr.environList:
+            path = SysMgr.environList['STDIN'][0]
+            if path != 'SET':
+                SysMgr.redirectFd(path, sys.stdin.fileno())
+        # redirect stdin to null #
+        elif stdin:
             os.dup2(nullFd, sys.stdin.fileno())
-        if stdout:
+
+        # redirect stdout to file #
+        if 'STDOUT' in SysMgr.environList:
+            path = SysMgr.environList['STDOUT'][0]
+            if path != 'SET':
+                SysMgr.redirectFd(path, sys.stdout.fileno())
+        elif stdout:
             os.dup2(nullFd, sys.stdout.fileno())
-        if stderr:
+
+        # redirect stderr to file #
+        if 'STDERR' in SysMgr.environList:
+            path = SysMgr.environList['STDERR'][0]
+            if path != 'SET':
+                SysMgr.redirectFd(path, sys.stderr.fileno())
+        elif stderr:
             os.dup2(nullFd, sys.stderr.fileno())
 
 
@@ -36025,27 +36104,24 @@ Copyright:
     @staticmethod
     def resetFileTable(mute=True, closeFd=True):
         # redirect stdout and stderr to null #
-        if mute:
-            try:
+        try:
+            if mute:
                 SysMgr.closeStdFd(stderr=False)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
-        # close all fds without standard #
-        if closeFd:
-            try:
-                path = '%s/self/fd' % SysMgr.procPath
-                fdList = os.listdir(path)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to read file descriptors in %s" % path, reason=True)
-                return
+        if not closeFd:
+            return
 
-            for fd in fdList:
+        # close all file descriptors except for stds #
+        try:
+            # set path for descriptor list #
+            path = '%s/self/fd' % SysMgr.procPath
+
+            # close descriptors #
+            for fd in os.listdir(path):
                 try:
                     fd = long(fd)
                     if fd > 2:
@@ -36054,6 +36130,14 @@ Copyright:
                     sys.exit(0)
                 except:
                     pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to get file descriptors in %s" % path,
+                reason=True)
+            return
+
 
 
 
