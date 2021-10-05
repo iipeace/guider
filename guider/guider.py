@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211004"
+__revision__ = "211005"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -401,10 +401,10 @@ class ConfigMgr(object):
         "MS_SILENT": 32768,
         "MS_POSIXACL": (1<<16),   # VFS does not apply the umask
         "MS_UNBINDABLE": (1<<17), # change to unbindable
-        "MS_PRIVATE": (1<<18),	  # change to private
-        "MS_SLAVE": (1<<19),	  # change to slave
-        "MS_SHARED": (1<<20),	  # change to shared
-        "MS_RELATIME": (1<<21),	  # Update atime relative to mtime/ctime
+        "MS_PRIVATE": (1<<18),    # change to private
+        "MS_SLAVE": (1<<19),      # change to slave
+        "MS_SHARED": (1<<20),     # change to shared
+        "MS_RELATIME": (1<<21),   # Update atime relative to mtime/ctime
         "MS_KERNMOUNT": (1<<22),  # this is a kern_mount call
         "MS_I_VERSION": (1<<23),  # Update inode I_version field
         "MS_STRICTATIME": (1<<24),# Always perform atime updates
@@ -2476,13 +2476,6 @@ class ConfigMgr(object):
             ("const char *", "filename"),
             ("struct stat64 *", "statbuf"),
         )),
-        "statx": ("long", (
-            ("int", "dfd"),
-            ("const char *", "path"),
-            ("unsigned", "flags"),
-            ("unsigned", "mask"),
-            ("struct statx *", "buf"),
-        )),
         "statfs": ("long", (
             ("const char *", "path"),
             ("struct statfs *", "buf"),
@@ -2497,7 +2490,7 @@ class ConfigMgr(object):
             ("const char *", "path"),
             ("unsigned", "flags"),
             ("unsigned", "mask"),
-            ("struct statx *", "buffer"),
+            ("struct statx *", "statxbuf"),
         )),
         "stime": ("long", (
             ("old_time_t *", "tptr"),
@@ -3250,7 +3243,7 @@ class ConfigMgr(object):
     # SIGCHLD si_codes #
     SIGCHLD_CODE = [
         "N/A",
-        "CLD_EXITED",	 # /* child has exited */
+        "CLD_EXITED",    # /* child has exited */
         "CLD_KILLED",    # /* child was killed */
         "CLD_DUMPED",    # /* child terminated abnormally */
         "CLD_TRAPPED",   # /* traced child has trapped */
@@ -63574,7 +63567,7 @@ class ElfAnalyzer(object):
     DT_VERSIONTAGNUM = 16
 
     rustChars = [
-	[",",  "$C$"],
+        [",",  "$C$"],
         ["@",  "$SP$"],
         ["*",  "$BP$"],
         ["&",  "$RF$"],
@@ -81586,10 +81579,10 @@ class TaskAnalyzer(object):
         # check trim range #
         if hasattr(self, 'trimStart') and \
             self.trimStart > 0 and checkTime < self.trimStart:
-                return time
+            return time
         elif hasattr(self, 'trimStop') and \
             self.trimStop > 0 and checkTime > self.trimStop:
-                return time
+            return time
 
         # check skip condition #
         if SysMgr.perCoreList and \
