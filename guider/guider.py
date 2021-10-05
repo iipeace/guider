@@ -23140,9 +23140,9 @@ Examples:
     - {3:1} and print context combined both entry and exit
         # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
 
-    - {3:1} for 4th new threads in each new processes from a specific binary
-        # {0:1} {1:1} a.out -q TARGETNUM:4
-        # {0:1} {1:1} -I a.out -q TARGETNUM:4
+    - {3:1} for 4th and 5th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} -I a.out -q TARGETNUM:4, TARGETNUM:5
 
     - {3:1} from a specific binary with DWARF info
         # {0:1} {1:1} "ls" -eD
@@ -23943,9 +23943,9 @@ Examples:
     - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - {2:1} for 4th new threads in each new processes from a specific binary
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+    - {2:1} for 4th and 5th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
     - {2:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
@@ -24017,9 +24017,9 @@ Examples:
     - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
-    - {2:1} for 4th new threads in each new processes from a specific binary
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+    - {2:1} for 4th and 5th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
     - {2:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
@@ -24104,9 +24104,9 @@ Examples:
     - {3:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
-    - {3:1} for 4th new threads in each new processes from a specific binary
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+    - {3:1} for 4th and 5th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
     - {3:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
@@ -52204,7 +52204,7 @@ class Debugger(object):
     dbusEnable = False
     RETSTR = None
 
-    targetNum = -1
+    targetNums = {}
     cpuCond = -1
     pyElapsed = -1
     strSize = -1
@@ -52480,9 +52480,13 @@ class Debugger(object):
         self.forked = False
         self.multi = False
         self.sampleTime = long(0)
-        self.targetNum = 0
-        self.childNum = 0
         self.startProfTime = False
+
+        # init task number #
+        if not hasattr(self, 'myNum'):
+            self.myNum = 0
+        if not hasattr(self, 'childNum'):
+            self.childNum = 0
 
         # update break mode #
         self.updateBreakMode()
@@ -52765,12 +52769,21 @@ typedef struct {
             self.retTime = float(SysMgr.environList['ELAPSED'][0])
 
         # set target sequence #
-        if Debugger.targetNum == -1 and \
+        if not Debugger.targetNums and \
             'TARGETNUM' in SysMgr.environList:
-            Debugger.targetNum = long(SysMgr.environList['TARGETNUM'][0])
+            for item in SysMgr.environList['TARGETNUM']:
+                try:
+                    Debugger.targetNums.setdefault(long(item), None)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to add '%s' target number list" % item, True)
+                    sys.exit(0)
+
             SysMgr.printInfo(
-                "set the number of target to '%s' for new threads" % \
-                    Debugger.targetNum)
+                "set the number list to [%s] for new threads" % \
+                    ','.join(list(map(str, Debugger.targetNums.keys()))))
 
         # apply color for return string #
         if not Debugger.RETSTR:
@@ -57282,10 +57295,10 @@ typedef struct {
             self.comm = origComm
 
         # check comm filter for child #
-        if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNum > -1:
-            if UtilMgr.isValidStr(self.comm, inc=True):
+        if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNums:
+            if SysMgr.filterGroup and UtilMgr.isValidStr(self.comm):
                 pass
-            elif Debugger.targetNum == self.targetNum:
+            elif self.myNum in Debugger.targetNums:
                 pass
             else:
                 # skip on break mode #
@@ -57298,7 +57311,7 @@ typedef struct {
 
                 # print status #
                 SysMgr.printWarn(
-                    'stopped tracing for %s(%s) because it is not targeted' % \
+                    'stopped tracing %s(%s) because it is not targeted' % \
                         (self.comm, self.pid))
 
                 # disable alarm #
@@ -61395,8 +61408,8 @@ typedef struct {
             signal.alarm(SysMgr.intervalEnable)
 
             # increase the number of childs #
-            self.targetNum = self.childNum + 1
             self.childNum += 1
+            self.myNum = self.childNum
 
             # change status to leave clone context #
             if self.mode == 'syscall':
@@ -61464,6 +61477,10 @@ typedef struct {
             dobj.targetBpList = self.targetBpList
             dobj.targetBpFileList = self.targetBpFileList
             dobj.exceptBpFileList = self.exceptBpFileList
+
+        # apply original attribute #
+        dobj.myNum = self.myNum
+        dobj.childNum = self.childNum
 
         # load symbols and inject breakpoints #
         if (dobj.mode != 'syscall' and dobj.mode != 'signal') or \
@@ -61909,7 +61926,7 @@ typedef struct {
                         self.restartTrace()
                     else:
                         SysMgr.printErr(
-                            'terminated tracing for %s(%s) because of exec' % \
+                            'terminated tracing %s(%s) because of exec' % \
                                 (self.comm, self.pid))
                     sys.exit(0)
 
