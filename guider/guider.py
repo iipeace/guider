@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211005"
+__revision__ = "211006"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23095,6 +23095,9 @@ Examples:
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
+    - {3:1} using merged symbols
+        # {0:1} {1:1} "ls" -q ALLSYM
+
     - {3:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
@@ -23913,6 +23916,9 @@ Examples:
     - {2:1} from a specific binary and print standard output for child tasks
         # {0:1} {1:1} a.out -q NOMUTE
 
+    - {2:1} using merged symbols
+        # {0:1} {1:1} a.out -q ALLSYM
+
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
@@ -24063,6 +24069,9 @@ Examples:
 
     - {3:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
+
+    - {3:1} using merged symbols for specific threads
+        # {0:1} {1:1} -g a.out -q ALLSYM
 
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
@@ -24682,6 +24691,9 @@ Examples:
 
     - {4:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H
+
+    - {4:1} with backtrace using merged symbol for specific threads
+        # {0:1} {1:1} -g a.out -t read -H -q ALLSYM
 
     - Trace only successful syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYOK
@@ -25737,6 +25749,7 @@ Description:
 Options:
     -I  <FILE|COMM|PID>         set input path or process
     -g  <OFFSET>                set offset
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -25744,6 +25757,9 @@ Options:
 Examples:
     - Print symbol infomation of specific addresses in a file
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
+
+    - Print merged symbol infomation of specific addresses in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g ab1cf -q ALLSYM
 
     - Print symbol infomation of specific addresses in a process memory map
         # {0:1} {1:1} -I yes -g ab1cf
@@ -25842,6 +25858,7 @@ Description:
 Options:
     -I  <FILE|COMM|PID>         set input path or process
     -g  <SYMBOL>                set offset
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -25849,6 +25866,9 @@ Options:
 Examples:
     - Print infomation of specific symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
+
+    - Print infomation of specific merged symbols in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
     - Print infomation of all symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g
@@ -38785,7 +38805,7 @@ Copyright:
 
 
     @staticmethod
-    def doTrace(mode):
+    def doTrace(mode, tid=None):
         def _doCommonJobs(pids, procList):
             # check STOP condition #
             if 'STOPTARGET' in SysMgr.environList:
@@ -38932,6 +38952,7 @@ Copyright:
         execCmd = None
         lockObj = None
         procList = {}
+        allpids = []
         bpList = {}
         lockList = {}
         exceptBpList = {}
@@ -38940,7 +38961,9 @@ Copyright:
         exceptBpFileList = {}
 
         # get argument #
-        if SysMgr.hasMainArg():
+        if tid:
+            inputParam = None
+        elif SysMgr.hasMainArg():
             inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
@@ -38986,7 +39009,9 @@ Copyright:
         SysMgr.setDwarfFlag()
 
         # get pids #
-        if not inputParam:
+        if tid:
+            allpids = pids = [tid]
+        elif not inputParam:
             # convert comm to pid #
             pids = SysMgr.convTaskList(
                 SysMgr.filterGroup, isThread=True,
@@ -50873,7 +50898,7 @@ class DbusMgr(object):
                     lockf(syncLock, LOCK_UN) # pylint: disable=undefined-variable
 
                 # execute strace mode #
-                SysMgr.doTrace('syscall')
+                SysMgr.doTrace('syscall', tid=tid)
 
                 sys.exit(0)
 
@@ -54463,6 +54488,7 @@ typedef struct {
 
 
     def setTraceme(self):
+        # WARN: This requires CAP_SYS_PTRACE with PTRACE_TRACEME #
         cmd = ConfigMgr.PTRACE_TYPE.index('PTRACE_TRACEME')
         return self.ptrace(cmd)
 
@@ -54499,6 +54525,7 @@ typedef struct {
             self.setTraceme()
 
             # execute #
+            # WARN: This requires CAP_SYS_PTRACE with PTRACE_TRACEME #
             SysMgr.executeProcess(cmd=execCmd, mute=mute)
 
             # execute fail #
@@ -55553,7 +55580,7 @@ typedef struct {
             fcache = ElfAnalyzer.getObject(libcPath)
             if not hasattr(fcache, 'attr'):
                 SysMgr.printErr(
-                    "failed to find attr field from the cache for %s" % libcPath)
+                    "failed to find attr from the cache for %s" % libcPath)
                 return None
 
             # get mapping info #
@@ -66048,6 +66075,13 @@ class ElfAnalyzer(object):
         prevAddr = None
         prevSize = 0
         prevLen = 0
+        curLen = 0
+
+        # set merge flag #
+        if 'ALLSYM' in SysMgr.environList:
+            mergeFlag = True
+        else:
+            mergeFlag = False
 
         # sort and convert table #
         for idx, item in sorted(tempSymTable.items(),
@@ -66062,24 +66096,25 @@ class ElfAnalyzer(object):
                 continue
 
             # update symbol length #
+            prevLen = curLen
             curLen = idx.find('@')
             if curLen < 0:
                 curLen = len(idx)
 
-            # update main symbol caused by same address #
+            # update representatives among symbols with the same address #
             if prevAddr == item['value']:
-                if idx.startswith('_') and \
-                    not mainSym.startswith('_'):
+                # merge all symbols #
+                if mergeFlag:
+                    mainSym += '/%s' % idx
+                    continue
+                # ignore _SYMBOL #
+                elif idx.startswith('_') and not mainSym.startswith('_'):
                     pass
-                elif not idx.startswith('_') and \
-                    mainSym.startswith('_'):
+                # choose the shortest symbol #
+                elif ('@' in idx and not '@' in mainSym) or \
+                    (not idx.startswith('_') and mainSym.startswith('_')) or \
+                    (curLen < prevLen):
                     mainSym = idx
-                elif '@' in idx and \
-                    not '@' in mainSym:
-                    mainSym = idx
-                elif curLen < prevLen:
-                    mainSym = idx
-                prevLen = curLen
                 continue
 
             # register symbol #
@@ -66094,14 +66129,9 @@ class ElfAnalyzer(object):
             prevLen = sys.maxsize
 
         # register last symbol #
-        try:
-            if not prevAddr:
-                raise Exception()
-
+        if prevAddr:
             self.sortedAddrTable.append(prevAddr)
             self.sortedSymTable.append([mainSym, prevSize])
-        except:
-            pass
 
         # remove useless symbols after merge #
         if removeOrig:
