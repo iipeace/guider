@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211006"
+__revision__ = "211007"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20131,9 +20131,13 @@ Commands:
 
         # convert binary file to string #
         clist = UtilMgr.convBin2Str(inputParam, pos=SysMgr.showAll)
-        if not clist:
+        if clist:
+            SysMgr.printPipe()
+        else:
             SysMgr.printErr("no available string")
             return
+
+        convColor = UtilMgr.convColor
 
         # print position #
         if SysMgr.showAll:
@@ -20146,13 +20150,14 @@ Commands:
                     continue
                 SysMgr.printPipe(
                     '{0:>{digit}} {1}'.format(
-                        hex(pos), string, digit=maxDigit))
+                        convColor(hex(pos), 'BLUE'),
+                        convColor(string, 'RED'), digit=maxDigit))
         else:
             if SysMgr.filterGroup:
                 for string in clist:
                     if not UtilMgr.isValidStr(string, inc=True, ignCap=True):
                         continue
-                    SysMgr.printPipe(string)
+                    SysMgr.printPipe(convColor(string, 'RED'))
             else:
                 SysMgr.printPipe('\n'.join(clist))
 
@@ -25559,13 +25564,13 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print ELF infomation of a specific file
+    - Print ELF information of a specific file
         # {0:1} {1:1} -I /usr/bin/yes
 
-    - Print ELF infomation of a specific file with LLVM demangler
+    - Print ELF information of a specific file with LLVM demangler
         # {0:1} {1:1} -I /usr/bin/yes -q LIBLLVM:libLLVM-10.so
 
-    - Print vDSO infomation
+    - Print vDSO information
         # {0:1} {1:1} -I vdso
                     '''.format(cmd, mode)
 
@@ -25755,13 +25760,13 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print symbol infomation of specific addresses in a file
+    - Print symbol information of specific addresses in a file
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
 
-    - Print merged symbol infomation of specific addresses in a file
+    - Print merged symbol information of specific addresses in a file
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf -q ALLSYM
 
-    - Print symbol infomation of specific addresses in a process memory map
+    - Print symbol information of specific addresses in a process memory map
         # {0:1} {1:1} -I yes -g ab1cf
                     '''.format(cmd, mode)
 
@@ -25864,24 +25869,24 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print infomation of specific symbols in a file
+    - Print information of specific symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
-    - Print infomation of specific merged symbols in a file
+    - Print information of specific merged symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
-    - Print infomation of all symbols in a file
+    - Print information of all symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g
 
-    - Print infomation of specific symbols including specific word in a file
+    - Print information of specific symbols including specific word in a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc"
         # {0:1} {1:1} -I /usr/bin/yes -g "testFunc*"
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc*"
 
-    - Print infomation of specific symbols including specific word in a file
+    - Print information of specific symbols including specific word in a file
         # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Print infomation of specific symbols in a process memory map
+    - Print information of specific symbols in a process memory map
         # {0:1} {1:1} -I yes -g testFunc
                     '''.format(cmd, mode)
 
@@ -66106,7 +66111,6 @@ class ElfAnalyzer(object):
                 # merge all symbols #
                 if mergeFlag:
                     mainSym += '/%s' % idx
-                    continue
                 # ignore _SYMBOL #
                 elif idx.startswith('_') and not mainSym.startswith('_'):
                     pass
