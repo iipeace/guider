@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211007"
+__revision__ = "211008"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4311,12 +4311,16 @@ class UtilMgr(object):
 
         rlist = list()
         for item in flist:
+            item = item.strip()
             if item.startswith('-'):
                 break
 
             # apply regular expression for path #
             ilist = UtilMgr.convPath(item)
-            if UtilMgr.isString(ilist):
+            if not ilist:
+                SysMgr.printWarn(
+                    "failed to find any file related to '%s'" % item, True)
+            elif UtilMgr.isString(ilist):
                 rlist.append(ilist)
             elif type(ilist) is list:
                 rlist += ilist
