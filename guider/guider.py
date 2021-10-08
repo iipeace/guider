@@ -69488,7 +69488,16 @@ class TaskAnalyzer(object):
                         pass
 
             # set diff to the union list if this file is lastest one #
-            if idx == len(flist)-1 and len(flist) > 1:
+            if nrFiles == 1:
+                cpuStats = statFileList[lfile]['cpuProcUsage']
+                for pname in list(unionCpuList.keys()):
+                    try:
+                        unionCpuList[pname] = cpuStats[pname]['average']
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+            elif idx == nrFiles-1 and nrFiles > 1:
                 prevProcList = statFileList[flist[-2]]['cpuProcUsage']
                 lastProcList = statFileList[flist[-1]]['cpuProcUsage']
                 for pname, value in unionCpuList.items():
@@ -69588,7 +69597,16 @@ class TaskAnalyzer(object):
                         pass
 
                 # set diff to the union list if this file is lastest one #
-                if idx == len(flist)-1 and len(flist) > 1:
+                if nrFiles == 1:
+                    gpuStats = statFileList[lfile]['gpuProcUsage']
+                    for pname in list(unionGpuList.keys()):
+                        try:
+                            unionGpuList[pname] = gpuStats[pname]['average']
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
+                elif idx == nrFiles and nrFiles > 1:
                     unionGpuList[pname] = value['diff']
 
             # remove * characters #
@@ -69683,7 +69701,16 @@ class TaskAnalyzer(object):
                         continue
 
             # set diff to the union list if this file is lastest one #
-            if idx == len(flist)-1 and len(flist) > 1:
+            if nrFiles == 1:
+                memStats = statFileList[lfile]['memProcUsage']
+                for pname in list(unionRssList.keys()):
+                    try:
+                        unionRssList[pname] = memStats[pname]['maxRss']
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+            elif idx == nrFiles-1 and nrFiles > 1:
                 prevProcList = statFileList[flist[-2]]['memProcUsage']
                 lastProcList = statFileList[flist[-1]]['memProcUsage']
                 for pname, value in unionRssList.items():
@@ -69710,9 +69737,10 @@ class TaskAnalyzer(object):
         convColor = UtilMgr.convColor
 
         # define color description #
-        colors = '[Color: %s(Increase)/%s(Decrease)/%s(New)]' % (
-            convColor('RED', 'RED'), convColor('GREEN', 'GREEN'),
-            convColor('PURPLE', 'WARNING'))
+        colors = '[Color: %s/%s/%s]' % (
+            convColor('RED(Increase)', 'RED'),
+            convColor('GREEN(Decrease)', 'GREEN'),
+            convColor('PURPLE(New)', 'WARNING'))
 
         # print CPU diff #
         SysMgr.printPipe(
