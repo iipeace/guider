@@ -7766,7 +7766,7 @@ class Timeline(object):
                 rx=1, ry=1, fill='darkcyan', fill_opacity=0.5,
                 stroke=stroke, stroke_width=stroke_width))
         # draw line for syscall status #
-        elif False and segment.state == 'SYSCALL':
+        elif segment.state == 'SYSCALL':
             g.add(dwg.rect((x0, y0),
                 (scaled_width, self.scaled_height*0.5),
                 rx=1, ry=1, fill=color, fill_opacity=0.5,
@@ -22977,6 +22977,9 @@ Examples:
 
     - Draw graphs and timeline segments for all events and tasks
         # {0:1} {1:1} guider.dat -a
+
+    - Draw graphs and timeline segments except for syscalls
+        # {0:1} {1:1} guider.dat -q NOSYSCALL
 
     - Draw graphs and timeline segments forcefully
         # {0:1} {1:1} guider.dat -f
@@ -82958,7 +82961,9 @@ class TaskAnalyzer(object):
             # save syscall usage #
             diff = ''
             sysItem = threadData['syscallInfo'][nrstr]
-            if sysItem['last'] > 0:
+            if 'NOSYSCALL' in SysMgr.environList:
+                pass
+            elif sysItem['last'] > 0:
                 start_delta = long((float(sysItem['last'])-stime)*1000000)
                 stop_delta = long((float(ftime)-stime)*1000000)
 
@@ -82979,18 +82984,6 @@ class TaskAnalyzer(object):
                     'time_start': start_delta,
                     'time_end': stop_delta,
                 })
-
-                diff = ftime - sysItem['last']
-                threadData['syscallInfo'][nrstr]['usage'] += diff
-                threadData['syscallInfo'][nrstr]['last'] = long(0)
-
-                if sysItem['max'] == 0 or sysItem['max'] < diff:
-                    threadData['syscallInfo'][nrstr]['max'] = diff
-                if sysItem['min'] <= 0 or sysItem['min'] > diff:
-                    threadData['syscallInfo'][nrstr]['min'] = diff
-
-                if ret[0] == '-':
-                    threadData['syscallInfo'][nrstr]['err'] += 1
             else:
                 # start_delta = long(0)
                 stop_delta = long((float(ftime)-stime)*1000000)
@@ -83006,6 +82999,20 @@ class TaskAnalyzer(object):
                     'time_start': start_delta,
                     'time_end': stop_delta,
                 })
+
+            # update syscall stat #
+            if sysItem['last'] > 0:
+                diff = ftime - sysItem['last']
+                threadData['syscallInfo'][nrstr]['usage'] += diff
+                threadData['syscallInfo'][nrstr]['last'] = long(0)
+
+                if sysItem['max'] == 0 or sysItem['max'] < diff:
+                    threadData['syscallInfo'][nrstr]['max'] = diff
+                if sysItem['min'] <= 0 or sysItem['min'] > diff:
+                    threadData['syscallInfo'][nrstr]['min'] = diff
+
+                if ret[0] == '-':
+                    threadData['syscallInfo'][nrstr]['err'] += 1
 
             # save syscall history #
             if SysMgr.syscallList:
