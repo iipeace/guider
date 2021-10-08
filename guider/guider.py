@@ -69709,8 +69709,14 @@ class TaskAnalyzer(object):
         convNum = UtilMgr.convNum
         convColor = UtilMgr.convColor
 
+        # define color description #
+        colors = '[Color: %s(Increase)/%s(Decrease)/%s(New)]' % (
+            convColor('RED', 'RED'), convColor('GREEN', 'GREEN'),
+            convColor('PURPLE', 'WARNING'))
+
         # print CPU diff #
-        SysMgr.printPipe('\n[Diff CPU Info]\n%s' % twoLine)
+        SysMgr.printPipe(
+            '\n[Diff CPU Info] %s\n%s' % (colors, twoLine))
 
         emptyCpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             ('-', '-', '-', '-', '-', '-')
@@ -69803,7 +69809,8 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(oneLine)
 
         # print GPU diff #
-        SysMgr.printPipe('\n[Diff GPU Info]\n%s' % twoLine)
+        SysMgr.printPipe(
+            '\n[Diff GPU Info] %s\n%s' % (colors, twoLine))
 
         emptyGpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             ('-', '-', '-', '-', '-', '-')
@@ -69891,7 +69898,7 @@ class TaskAnalyzer(object):
 
         # print memory diff #
         SysMgr.printPipe(
-            '\n[Diff %s Info]\n%s' % (mtype, twoLine))
+            '\n[Diff %s Info] %s\n%s' % (mtype, colors, twoLine))
 
         emptyRssStat = "%7s(%2s)(%7s/%7s/%7s) |" % \
             ('-', '-', '-', '-', '-')
