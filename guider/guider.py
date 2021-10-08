@@ -7766,7 +7766,7 @@ class Timeline(object):
                 rx=1, ry=1, fill='darkcyan', fill_opacity=0.5,
                 stroke=stroke, stroke_width=stroke_width))
         # draw line for syscall status #
-        elif segment.state == 'SYSCALL':
+        elif False and segment.state == 'SYSCALL':
             g.add(dwg.rect((x0, y0),
                 (scaled_width, self.scaled_height*0.5),
                 rx=1, ry=1, fill=color, fill_opacity=0.5,
@@ -22966,8 +22966,14 @@ Examples:
     - Draw flame graphs for each file
         # {0:1} {1:1} guider.out -q NOMERGE
 
-    - Draw graphs and timeline segment
+    - Draw graphs and timeline segments
         # {0:1} {1:1} guider.dat
+
+    - Draw graphs and timeline segments for specific tasks
+        # {0:1} {1:1} guider.dat -g task3
+
+    - Draw graphs and timeline segments for specific tasks and their siblings
+        # {0:1} {1:1} guider.dat -g task3 -P
 
     - Draw graphs and timeline segments for all events and tasks
         # {0:1} {1:1} guider.dat -a
@@ -70559,6 +70565,22 @@ class TaskAnalyzer(object):
                         if item in value['comm']:
                             plist[value['tgid']] = long(0)
 
+            # filter segments #
+            segments = self.timelineData['segments']
+            self.timelineData['segments'] = []
+            for item in segments:
+                # no tid #
+                if not item['id'] in self.threadData:
+                    continue
+                # other group task #
+                elif SysMgr.isExceptTarget(
+                    item['id'], self.threadData, plist=plist):
+                    continue
+
+                # add segment #
+                self.timelineData['segments'].append(item)
+
+            # filter thread data #
             for key in list(self.threadData.keys()):
                 # except for core #
                 if key.startswith('0['):
@@ -81930,6 +81952,8 @@ class TaskAnalyzer(object):
                     self.futexData.append(
                         [prev_id, time, core, opt, otype,
                         '', locks, '', ''])
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -81989,11 +82013,8 @@ class TaskAnalyzer(object):
                         (prev_comm, prev_id, diff, SysMgr.curLine))
 
             # add timeline stats #
-            if not prev_id.startswith('0[') and \
-                (not SysMgr.filterGroup or \
-                    prev_id in SysMgr.filterGroup or \
-                    UtilMgr.isValidStr(prev_comm)):
-
+            isValidStr = UtilMgr.isValidStr
+            if not prev_id.startswith('0['):
                 # add runtime to list for histogram #
                 self.statData.setdefault('runtime', list())
                 self.statData['runtime'].append(diff)
