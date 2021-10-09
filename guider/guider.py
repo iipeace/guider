@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211008"
+__revision__ = "211009"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26637,9 +26637,9 @@ Examples:
     - Set the CPU scheduler policy(CFS), priority(-20) for specific threads
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
-        # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "-20:a*"
         # {0:1} {1:1} "-20:1234, 10:a.out, 15:test"
+        # {0:1} {1:1} "-20:a.out|test"
 
     - Set the I/O scheduler for specific threads
         # {0:1} {1:1} "rt:process:1:a.out"
@@ -26663,8 +26663,8 @@ Examples:
     - Set the CPU scheduler policy(CFS), priority(-20) for specific threads every 2 seconds
         # {0:1} {1:1} "-20:a.out" -i 2
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
-        # {0:1} {1:1} "-20:a.out -P"
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads and their siblings
+        # {0:1} {1:1} "-20:a.out" -P
 
     - Set the CPU scheduler policy(FIFO), priority(90) for specific threads
         # {0:1} {1:1} "f:90:a.out"
@@ -34597,9 +34597,13 @@ Copyright:
         else:
             waitTime = 0
 
+        # define lists #
         pidList = []
         prevTargetList = []
+        tidList = []
+        nameList = name.split('|')
 
+        # check tid #
         if not SysMgr.isLinux:
             try:
                 psutil = SysMgr.getPkg('psutil')
@@ -34608,9 +34612,9 @@ Copyright:
                 for proc in procs:
                     pid = proc.info['pid']
                     comm = proc.info['name']
-                    if name == pid:
+                    if pid in nameList:
                         pidList.append(pid)
-                    elif UtilMgr.isValidStr(comm, [name]):
+                    elif UtilMgr.isValidStr(comm, nameList):
                         pidList.append(pid)
 
                 return pidList
@@ -34621,29 +34625,30 @@ Copyright:
                     "failed to find tasks related to '%s'" % name, reason=True)
                 return pidList
 
+        # check tid #
+        for item in nameList:
+            # check task #
+            if not UtilMgr.isNumber(item) or \
+                not os.path.isdir('%s/%s' % (SysMgr.procPath, item)):
+                continue
+
+            # add task #
+            if sibling:
+                path = '%s/%s/task' % (SysMgr.procPath, item)
+                for pid in os.listdir(path):
+                    if pid.isdigit():
+                        pidList.append(pid)
+            elif main:
+                pidList.append(set([item, SysMgr.getTgid(item)]))
+            else:
+                pidList.append(item)
+
+            tidList.append(item)
+
+        # pop tids from list #
+        nameList = list(set(nameList) - set(tidList))
+
         while 1:
-            # tid #
-            if UtilMgr.isNumber(name) and \
-                os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
-                if sibling:
-                    path = '%s/%s/task' % (SysMgr.procPath, name)
-                    for pid in os.listdir(path):
-                        if pid.isdigit():
-                            pidList.append(pid)
-
-                    # check retry condition #
-                    if not pidList and _checkWait(pidList, waitTime):
-                        continue
-
-                    return pidList
-                elif main:
-                    return list(set([name, SysMgr.getTgid(name)]))
-                else:
-                    return [name]
-
-            # comm #
-            nameList = [name]
-
             # set check list #
             targetList = SysMgr.getPidList()
             curList = set(targetList) - set(prevTargetList)
@@ -39269,7 +39274,7 @@ Copyright:
             # check file #
             if not os.path.isfile(inputArg):
                 SysMgr.printErr(
-                    "failed to recognize %s as a file or a process" % inputArg)
+                    "failed to recognize %s as file or process" % inputArg)
                 sys.exit(0)
 
             menu1st = 'Address'
@@ -40100,7 +40105,7 @@ Copyright:
                 # check file #
                 if not os.path.isfile(item):
                     SysMgr.printErr(
-                        "failed to recognize %s as a file or a process" % item)
+                        "failed to recognize %s as file or process" % item)
                     sys.exit(0)
 
                 # load symbol caches #
@@ -40186,7 +40191,7 @@ Copyright:
             # check file #
             if not os.path.isfile(inputArg):
                 SysMgr.printErr(
-                    "failed to recognize %s as a file or a process" % inputArg)
+                    "failed to recognize %s as file or process" % inputArg)
                 sys.exit(0)
 
             filePath = inputArg
@@ -43779,8 +43784,9 @@ Copyright:
             lastIdx = 4
             schedSet = item.split(':')
 
+            # I/O #
             try:
-                # check io sched #
+                # check I/O sched #
                 ioclass = None
                 if schedSet[0] in ConfigMgr.IOSCHED_CLASS:
                     # set class #
@@ -43790,7 +43796,7 @@ Copyright:
                     if nmClass in ConfigMgr.IOSCHED_CLASS:
                         ioclass = ConfigMgr.IOSCHED_CLASS.index(nmClass)
 
-                # apply io sched #
+                # apply I/O sched #
                 if ioclass:
                     # set who #
                     if len(schedSet) == 4:
@@ -43830,7 +43836,7 @@ Copyright:
                         SysMgr.printWarn(
                             "no thread related to '%s'" % task)
 
-                    # change the CPU scheduling priority for tasks #
+                    # change the I/O scheduling priority for tasks #
                     for task in sorted(targetList):
                         SysMgr.setIoPriority(task, ioclass, pri, who)
 
@@ -43845,6 +43851,7 @@ Copyright:
                     (item, ' '.join(list(err))))
                 sys.exit(0)
 
+            # CPU #
             try:
                 # policy and priority #
                 try:
