@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211009"
+__revision__ = "211010"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3363,7 +3363,7 @@ class ConfigMgr(object):
         'REALTIME_PRIORITY_CLASS': 'RT',
     }
 
-    # io sched class #
+    # I/O sched class #
     IOSCHED_CLASS = [
         'NONE',
         'IOPRIO_CLASS_RT',
@@ -3371,7 +3371,7 @@ class ConfigMgr(object):
         'IOPRIO_CLASS_IDLE',
     ]
 
-    # io sched target #
+    # I/O sched target #
     IOSCHED_TARGET = [
         'NONE',
         'IOPRIO_WHO_PROCESS',
@@ -24088,6 +24088,12 @@ Examples:
     - {3:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
+    - {3:1} for specific TID
+        # {0:1} {1:1} -g 1234 -q ONLYPID
+
+    - {3:1} for specific task name
+        # {0:1} {1:1} -g 1234 -q ONLYCOMM
+
     - {3:1} using merged symbols for specific threads
         # {0:1} {1:1} -g a.out -q ALLSYM
 
@@ -26646,6 +26652,12 @@ Examples:
         # {0:1} {1:1} "idle:process:1:a.out"
         # {0:1} {1:1} "be:5:a.out"
         # {0:1} {1:1} "rt:process:1:0"
+
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific TID
+        # {0:1} {1:1} "-20:1234" -q ONLYPID
+
+    - Set the CPU scheduler policy(CFS), priority(-20) for specific task name
+        # {0:1} {1:1} "-20:1234" -q ONLYCOMM
 
     - Set the CPU scheduler policy(CFS), priority(-20) for specific processes
         # {0:1} {1:1} "-20:a.out" -q PROCSEARCH
@@ -34603,12 +34615,17 @@ Copyright:
         tidList = []
         nameList = name.split('|')
 
+        # check input #
+        if not name:
+            return pidList
+
         # check tid #
         if not SysMgr.isLinux:
             try:
                 psutil = SysMgr.getPkg('psutil')
                 procs = psutil.process_iter(
                     attrs=['pid', 'name'], ad_value=None)
+
                 for proc in procs:
                     pid = proc.info['pid']
                     comm = proc.info['name']
@@ -34622,24 +34639,30 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printWarn(
-                    "failed to find tasks related to '%s'" % name, reason=True)
+                    "failed to find tasks related to '%s'" % name,
+                    reason=True)
                 return pidList
 
         # check tid #
         for item in nameList:
+            if 'ONLYCOMM' in SysMgr.environList:
+                break
+
             # check task #
             if not UtilMgr.isNumber(item) or \
                 not os.path.isdir('%s/%s' % (SysMgr.procPath, item)):
                 continue
 
-            # add task #
+            # add sibling tasks #
             if sibling:
                 path = '%s/%s/task' % (SysMgr.procPath, item)
                 for pid in os.listdir(path):
                     if pid.isdigit():
                         pidList.append(pid)
+            # add only main task #
             elif main:
                 pidList.append(set([item, SysMgr.getTgid(item)]))
+            # add a task #
             else:
                 pidList.append(item)
 
@@ -34647,6 +34670,8 @@ Copyright:
 
         # pop tids from list #
         nameList = list(set(nameList) - set(tidList))
+        if not nameList or 'ONLYPID' in SysMgr.environList:
+            return pidList
 
         while 1:
             # set check list #
@@ -35666,7 +35691,7 @@ Copyright:
         # print help #
         SysMgr.printHelp()
 
-        # set default io #
+        # set default I/O #
         SysMgr.inputFile = sys.argv[1]
         SysMgr.outputFile = None
 
@@ -36638,7 +36663,7 @@ Copyright:
                 if connObj.socket:
                     listenFds.append(connObj.socket)
 
-                # get io buffer size #
+                # get I/O buffer size #
                 if 'READCHUNK' in SysMgr.environList:
                     try:
                         readChunkSize = \
@@ -44118,7 +44143,7 @@ Copyright:
                 who = ConfigMgr.IOSCHED_TARGET.index(who)
             nmWho = ConfigMgr.IOSCHED_TARGET[who]
 
-            # set io class (default: IOPRIO_CLASS_BE) #
+            # set I/O class (default: IOPRIO_CLASS_BE) #
             if not UtilMgr.isNumber(ioclass):
                 ioclass = ConfigMgr.IOSCHED_CLASS.index(ioclass)
             nmClass = ConfigMgr.IOSCHED_CLASS[ioclass]
@@ -73321,7 +73346,7 @@ class TaskAnalyzer(object):
                         labelList.append(
                             '%s%s Read - %s' % (prefix, idx, totalsize))
 
-                # Process IO usage #
+                # Process I/O usage #
                 for idx, item in blkProcUsage.items():
                     if not SysMgr.showAll:
                         break
@@ -73330,14 +73355,14 @@ class TaskAnalyzer(object):
                     rdUsage = list()
                     wrUsage = list()
 
-                    # divide io graph #
+                    # divide I/O graph #
                     for item in usage:
                         io = item.split('/')
                         if(len(io) == 2):
                             rdUsage.append(long(io[0]) << 10)
                             wrUsage.append(long(io[1]) << 10)
 
-                    # no io usage #
+                    # no I/O usage #
                     if len(rdUsage) == len(wrUsage) == 0:
                         continue
 
@@ -75367,7 +75392,7 @@ class TaskAnalyzer(object):
                 self.threadData[coreId]['comm'] = 'swapper/' + str(n)
                 self.threadData[coreId]['usage'] = long(0)
 
-        # sort by size of io usage and convert read blocks to MB size #
+        # sort by size of I/O usage and convert read blocks to MB size #
         for key, value in sorted(self.threadData.items(),
             key=lambda e: e[1]['readBlock'], reverse=True):
 
@@ -75567,7 +75592,7 @@ class TaskAnalyzer(object):
         # set total irq variables #
         totalIrqTime = long(0)
 
-        # set total io variables #
+        # set total I/O variables #
         totalIoRdWait = long(0)
         totalReadBlock = long(0)
         totalReadBlockCnt = long(0)
@@ -77991,7 +78016,7 @@ class TaskAnalyzer(object):
             # get pylab object #
             SysMgr.importPkgItems('pylab')
 
-        # draw io graph #
+        # draw I/O graph #
         if SysMgr.graphEnable and len(ioUsageList) > 0:
             timelen = len(ioUsageList[0])
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
@@ -86328,7 +86353,7 @@ class TaskAnalyzer(object):
         # save I/O data #
         if SysMgr.blockEnable:
             ioBuf = self.saveTaskData(path, tid, 'io')
-            # check io support in proc filesystem #
+            # check I/O support in proc filesystem #
             if not ioBuf and \
                 not os.path.isfile('%s/self/io' % SysMgr.procPath):
                 SysMgr.printWarn(
@@ -87008,7 +87033,7 @@ class TaskAnalyzer(object):
         if pgRclmBg > 0 or pgRclmFg > 0:
             pgRclmStr = UtilMgr.convColor(pgRclmStr, 'RED')
 
-        # convert color for io stats #
+        # convert color for I/O stats #
         pgIOMemDiffStr = r'%s/%s' % (pgInMemDiff, pgOutMemDiff)
         pgIOMemDiffStr = r'{0:^7}'.format(pgIOMemDiffStr)
         if pgInMemDiff > 0 or pgOutMemDiff > 0:
@@ -87867,7 +87892,7 @@ class TaskAnalyzer(object):
                     if not value['comm'].startswith('*'):
                         value['comm'] = '*%s' % (value['comm'])
 
-                # update io #
+                # update I/O #
                 if value['io']:
                     value['read'] = value['io']['read_bytes'] - \
                             self.prevProcData[pid]['io']['read_bytes']
@@ -89718,7 +89743,7 @@ class TaskAnalyzer(object):
             except:
                 dtime = '-'
 
-            # get io size #
+            # get I/O size #
             try:
                 readSize = value['read'] >> 20
                 if readSize > 0:
