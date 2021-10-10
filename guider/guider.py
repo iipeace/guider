@@ -61003,6 +61003,8 @@ typedef struct {
 
                 try:
                     retstr = '%s(%s)' % (retval, hex(retval).rstrip('L'))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     retstr = retval
                 err = ''
@@ -61056,7 +61058,7 @@ typedef struct {
                 diffStr = UtilMgr.convColor(diffStr, 'CYAN')
 
             # add newline after backtrace #
-            if self.prevBtStr:
+            if self.btStr or self.prevBtStr:
                 newline = '\n ' + (' ' * self.indentLen)
             else:
                 newline = ''
