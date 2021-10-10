@@ -24270,7 +24270,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor performance stats by PMU(Performance Monitoring Unit)
+    Monitor performance stats using PMU(Performance Monitoring Unit)
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -52554,6 +52554,7 @@ class Debugger(object):
         self.lastSig = None
         self.forked = False
         self.multi = False
+        self.errCnt = 0
         self.sampleTime = long(0)
         self.startProfTime = False
 
@@ -57305,6 +57306,7 @@ typedef struct {
             # reset data #
             self.totalCall = long(0)
             self.callTable = dict()
+            self.errCnt = long(0)
             SysMgr.clearPrint()
 
         def _checkInterval():
@@ -57499,12 +57501,19 @@ typedef struct {
         else:
             comm = '??'
 
+        # set error count #
+        if self.errCnt:
+            errcnt = convColor(convert(self.errCnt), 'RED')
+        else:
+            errcnt = 0
+
         # print top stat #
         ret = SysMgr.addPrint((
-            '[Top %s Info] [Time: %.3f] [Interval: %.3f] [Samples: %s] '
-            '[SYS: %s/%s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
-                (ctype, SysMgr.uptime, diff,
-                convert(self.totalCall), sysCpuStr, sysMemStr,
+            '[Top %s Info] [Time: %.3f] [Inter: %.3f] [Sample: %s] '
+            '[Err: %s] [SYS: %s/%s] [%s(%s): %s/%s] '
+            '[%s(%s): %s/%s]%s \n%s\n') % \
+                (ctype, SysMgr.uptime, diff, convert(self.totalCall),
+                errcnt, sysCpuStr, sysMemStr,
                 comm, self.pid, cpuStr, rssStr,
                 Debugger.tracerInstance.comm,
                 Debugger.tracerInstance.pid, mcpuStr, mrssStr,
@@ -60967,6 +60976,9 @@ typedef struct {
 
             # convert error code #
             if retval < 0:
+                # increase error count #
+                self.errCnt += 1
+
                 # check exit condition for success #
                 if Debugger.envFlags['ONLYOK']:
                     self.clearArgs()
@@ -61654,6 +61666,7 @@ typedef struct {
         self.failedAddrList = dict()
         self.prevReturn = -1
         self.startAddr = None
+        self.errCnt = 0
 
         # timestamp variables #
         self.updateCurrent()
@@ -62682,10 +62695,10 @@ typedef struct {
         # print top stat #
         SysMgr.printPipe((
             '\n[%s %s Summary] [Elapsed: %.3f]%s%s%s%s '
-            '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
+            '[Sample: %s%s] [Err: %s] [Symbol: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr,
-                sysStr, cpuStr, mStr,
-                convert(long(nrTotal)), freqStr,
+                sysStr, cpuStr, mStr, convert(long(nrTotal)),
+                freqStr, convert(instance.errCnt),
                 convert(len(callTable)), suffix))
 
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
@@ -62701,6 +62714,7 @@ typedef struct {
                 sym = '??'
 
             # get percentage #
+            print(sym)
             try:
                 per = value['cnt'] / nrTotal * 100
             except:
