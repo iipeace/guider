@@ -62593,7 +62593,8 @@ typedef struct {
                 symbol, timestamp, filename = item
 
                 # skip breakpoints for return #
-                if instance.mode == 'break' and \
+                if not Debugger.envFlags['COMPLETECALL'] and \
+                    instance.mode == 'break' and \
                     symbol.endswith(Debugger.RETSTR):
                     nrTotal -= 1
                     continue
@@ -62714,7 +62715,6 @@ typedef struct {
                 sym = '??'
 
             # get percentage #
-            print(sym)
             try:
                 per = value['cnt'] / nrTotal * 100
             except:
@@ -62727,8 +62727,13 @@ typedef struct {
                 addVal = '[%s] <Cnt: %s' % (
                     value['path'], convert(value['cnt']))
 
+                # set symbol #
+                if sym.endswith(Debugger.RETSTR):
+                    rsym = sym
+                else:
+                    rsym = sym + Debugger.RETSTR
+
                 # add return stats #
-                rsym = sym + Debugger.RETSTR
                 if rsym in instance.callTable and \
                     'elapsed' in instance.callTable[rsym] and \
                     instance.callTable[rsym]['elapsed'] > 0:
