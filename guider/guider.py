@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211010"
+__revision__ = "211011"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4855,7 +4855,7 @@ class UtilMgr(object):
             SysMgr.jsonEnable or SysMgr.remoteRun or \
             (not SysMgr.isLinux and not SysMgr.isDarwin):
             SysMgr.colorEnable = False
-            return string
+            return str(string)
 
         if align == 'right':
             string = '{0:>{size}}'.format(str(string), size=size)
@@ -4870,6 +4870,7 @@ class UtilMgr(object):
         except:
             SysMgr.printWarn(
                 'failed to convert color for %s' % color, reason=True)
+            return str(string)
 
 
 
@@ -88540,18 +88541,18 @@ class TaskAnalyzer(object):
                 # convert color for network usage #
                 recvSize = '%8s' % convertFunc(rdiff[0])
                 if rdiff[0] > 0:
-                    recvSize = '%s' % UtilMgr.convColor(recvSize, 'YELLOW')
+                    recvSize = UtilMgr.convColor(recvSize, 'YELLOW')
                 tranSize = '%8s' % convertFunc(tdiff[0])
                 if tdiff[0] > 0:
-                    tranSize = '%s' % UtilMgr.convColor(tranSize, 'YELLOW')
+                    tranSize = UtilMgr.convColor(tranSize, 'YELLOW')
 
                 # convert color for network error #
                 recvErr = '%8s' % convertFunc(rdiff[2])
                 if rdiff[2] > 0:
-                    recvErr = '%s' % UtilMgr.convColor(recvErr, 'RED')
+                    recvErr = UtilMgr.convColor(recvErr, 'RED')
                 tranErr = '%8s' % convertFunc(tdiff[2])
                 if tdiff[2] > 0:
-                    tranErr = '%s' % UtilMgr.convColor(tranErr, 'RED')
+                    tranErr = UtilMgr.convColor(tranErr, 'RED')
 
                 SysMgr.addPrint((
                     "{0:>16} | {1:>21} | "
@@ -88577,18 +88578,18 @@ class TaskAnalyzer(object):
             # convert color for network usage #
             recvSize = '%8s' % convertFunc(rdiff[0])
             if rdiff[0] > 0:
-                recvSize = '%s' % UtilMgr.convColor(recvSize, 'YELLOW')
+                recvSize = UtilMgr.convColor(recvSize, 'YELLOW')
             tranSize = '%8s' % convertFunc(tdiff[0])
             if tdiff[0] > 0:
-                tranSize = '%s' % UtilMgr.convColor(tranSize, 'YELLOW')
+                tranSize = UtilMgr.convColor(tranSize, 'YELLOW')
 
             # convert color for network error #
             recvErr = '%8s' % convertFunc(rdiff[2])
             if rdiff[2] > 0:
-                recvErr = '%s' % UtilMgr.convColor(recvErr, 'RED')
+                recvErr = UtilMgr.convColor(recvErr, 'RED')
             tranErr = '%8s' % convertFunc(tdiff[2])
             if tdiff[2] > 0:
-                tranErr = '%s' % UtilMgr.convColor(tranErr, 'RED')
+                tranErr = UtilMgr.convColor(tranErr, 'RED')
 
             SysMgr.addPrint((
                 "{0:>16} | {1:^21} | "
@@ -88678,7 +88679,7 @@ class TaskAnalyzer(object):
                 # convert color for storage busy rate #
                 busytime = '%3s%%' % busyper
                 if busyper > 0:
-                    busytime = '%s' % UtilMgr.convColor(busytime, 'RED')
+                    busytime = UtilMgr.convColor(busytime, 'RED')
             except SystemExit:
                 sys.exit(0)
             except:
@@ -88727,7 +88728,7 @@ class TaskAnalyzer(object):
                 try:
                     favail = '%7s' % convSize2Unit(value['favail'])
                     if value['favail'] == 0:
-                        favail = '%s' % UtilMgr.convColor(favail, 'RED')
+                        favail = UtilMgr.convColor(favail, 'RED')
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -88757,9 +88758,9 @@ class TaskAnalyzer(object):
             # convert color for storage usage #
             usePer = '%4s%%' % value['usagePer']
             if value['usagePer'] > SysMgr.diskPerHighThreshold:
-                usePer = '%s' % UtilMgr.convColor(usePer, 'RED')
+                usePer = UtilMgr.convColor(usePer, 'RED')
             elif value['usagePer'] > 0:
-                usePer = '%s' % UtilMgr.convColor(usePer, 'YELLOW')
+                usePer = UtilMgr.convColor(usePer, 'YELLOW')
 
             # make disk stat string #
             option = value['mount']['option']
