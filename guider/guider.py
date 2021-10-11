@@ -63415,48 +63415,50 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
 
-        # Wait only on non-SIGCHLD children #
-        __WCLONE = 0x80000000
-
         # Wait on all children, regardless of type #
         __WALL = 0x40000000
+
+        # Wait only on non-SIGCHLD children #
+        __WCLONE = 0x80000000
         '''
 
         try:
+            # init variables #
+            ret = 0
+            status = c_uint(0)
+            if not pid:
+                pid = self.pid
+
             # type converting #
             if not self.initWaitpid:
                 SysMgr.libcObj.waitpid.argtypes = \
                     (c_int, POINTER(None), c_int)
                 SysMgr.libcObj.waitpid.restype = c_int
                 self.initWaitpid = True
-                self.waitpidStat = c_uint(0)
 
-            if not pid:
-                pid = self.pid
-
-            ret = 0
-            stat = self.waitpidStat
-
-            # wait for child #
-            try:
-                ret = SysMgr.libcObj.waitpid(
-                    pid, pointer(stat), 0x40000000)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-
-            # check termination #
-            if ret == -1:
-                if not self.isAlive():
+            while 1:
+                # wait for child #
+                try:
+                    ret = SysMgr.libcObj.waitpid(
+                        pid, pointer(status), 0x40000000)
+                except SystemExit:
                     sys.exit(0)
+                except:
+                    pass
 
-            return ret, stat.value
+                # check termination #
+                if ret == -1:
+                    if not self.isAlive():
+                        sys.exit(0)
+
+                break
+
+            return ret, status.value
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                'failed to call waitpid', reason=True)
+                'fail to call waitpid', reason=True)
             return 0, 0
 
 
