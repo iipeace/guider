@@ -57504,17 +57504,16 @@ typedef struct {
 
         # set error count #
         if self.errCnt:
-            errcnt = convColor(convert(self.errCnt), 'RED')
+            errstr = '[Err: %s] ' % convColor(convert(self.errCnt), 'RED')
         else:
-            errcnt = 0
+            errstr = ''
 
         # print top stat #
         ret = SysMgr.addPrint((
             '[Top %s Info] [Time: %.3f] [Inter: %.3f] [Sample: %s] '
-            '[Err: %s] [SYS: %s/%s] [%s(%s): %s/%s] '
-            '[%s(%s): %s/%s]%s \n%s\n') % \
+            '%s[SYS: %s/%s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, convert(self.totalCall),
-                errcnt, sysCpuStr, sysMemStr,
+                errstr, sysCpuStr, sysMemStr,
                 comm, self.pid, cpuStr, rssStr,
                 Debugger.tracerInstance.comm,
                 Debugger.tracerInstance.pid, mcpuStr, mrssStr,
