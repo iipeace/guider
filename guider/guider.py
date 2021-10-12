@@ -59374,10 +59374,8 @@ typedef struct {
         # build backtrace #
         if SysMgr.funcDepth > 0:
             # add return address to backtrace #
-            if isRetBp:
-                addBt = [addr]
-            else:
-                addBt = []
+            if isRetBp: addBt = [addr]
+            else: addBt = []
 
             # get backtrace tree #
             btstr, depth = self.getBtStr(
@@ -59393,10 +59391,8 @@ typedef struct {
 
     def printBpContext(self, sym, addr, fname, checkArg, origPC):
         # check return type #
-        if sym.endswith(Debugger.RETSTR):
-            isRetBp = True
-        else:
-            isRetBp = False
+        if sym.endswith(Debugger.RETSTR): isRetBp = True
+        else: isRetBp = False
 
         # skip loader functions #
         if Debugger.envFlags['EXCEPTLD'] and fname and \
