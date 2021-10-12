@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211011"
+__revision__ = "211012"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3896,6 +3896,46 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convertRange(targetList):
+        result = []
+
+        for item in targetList:
+            try:
+                nums = item.split(':')
+                if len(nums) == 1:
+                    result.append(item)
+                elif len(nums) == 2:
+                    for num in range(long(nums[0]), long(nums[1])+1):
+                        result.append(str(num))
+                else:
+                    raise Exception()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("wrong number range '%s'" % item, True)
+                sys.exit(0)
+
+        return result
+
+
+
+    @staticmethod
+    def unionItem(targetList):
+        result = []
+        dictionary = {}
+
+        for item in targetList:
+            if item in dictionary:
+                continue
+
+            result.append(item)
+            dictionary[item] = None
+
+        return result
+
+
+
+    @staticmethod
     def cleanItem(targetList, union=True):
         targetType = type(targetList)
 
@@ -3907,7 +3947,7 @@ class UtilMgr(object):
         elif targetType is list:
             # remove redundant values #
             if union:
-                targetList = list(set(targetList))
+                targetList = UtilMgr.unionItem(targetList)
 
             # remove empty values #
             newList = []
@@ -20561,7 +20601,7 @@ Commands:
                 cmask = c_ulong(((0x1 << nrCore) - 1) & mask)
 
                 ret = SysMgr.libcObj.sched_setaffinity(
-                    c_int(pid), c_ulong(nrCore), byref(cmask))
+                    c_int(long(pid)), c_ulong(nrCore), byref(cmask))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -20613,7 +20653,7 @@ Commands:
 
             # get affinity #
             ret = SysMgr.libcObj.sched_getaffinity(
-                c_int(pid), c_ulong(size), mask)
+                c_int(long(pid)), c_ulong(size), mask)
             if ret < 0:
                 raise Exception('wrong affinity')
 
@@ -22815,7 +22855,10 @@ Examples:
     - Monitor status of {2:2} used system resource totally
         # {0:1} {1:1} -e T
 
-    - Monitor status of all {2:2} with bar graphs for cores
+    - Monitor status of all {2:2} with specific cores
+        # {0:1} {1:1} -e c -O 0:4, 10, 12
+
+    - Monitor status of all {2:2} with bar graphs for all cores
         # {0:1} {1:1} -a -e B
 
     - Monitor status of all {2:2} with minimal stats
@@ -23001,8 +23044,9 @@ Examples:
     - Draw graphs and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
 
-    - Draw graphs and timeline segments for specific cores
+    - Draw graphs and timeline segments only for specific cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
+        # {0:1} {1:1} guider.dat -O 1:10, 14
 
     - Draw graphs to specific image format
         # {0:1} {1:1} guider.out -F png
@@ -32530,15 +32574,16 @@ Copyright:
                 SysMgr.checkOptVal(option, value)
 
                 # split core values #
-                SysMgr.perCoreList = \
-                    UtilMgr.cleanItem(value.split(','))
-                if not SysMgr.perCoreList:
+                perCoreList = UtilMgr.cleanItem(value.split(','))
+                if not perCoreList:
                     SysMgr.printErr(
                         "no input value for filter" % option)
                     sys.exit(0)
 
+                perCoreList = UtilMgr.convertRange(perCoreList)
+
                 # check value type #
-                for item in SysMgr.perCoreList:
+                for item in perCoreList:
                     if not item.isdigit():
                         SysMgr.printErr((
                             "wrong value for core list, "
@@ -32547,10 +32592,10 @@ Copyright:
 
                 SysMgr.printInfo(
                     "only specific cores [ %s ] are shown" % \
-                    ', '.join(SysMgr.perCoreList))
+                    ', '.join(perCoreList))
 
-                SysMgr.perCoreList = \
-                    list(map(long, SysMgr.perCoreList))
+                # convert items to number #
+                SysMgr.perCoreList = list(map(long, perCoreList))
 
                 if SysMgr.isDrawMode():
                     SysMgr.perCoreDrawList = SysMgr.perCoreList
@@ -70654,6 +70699,17 @@ class TaskAnalyzer(object):
                 except:
                     continue
 
+        # add empty timeline data for drawing cores #
+        for nrCore in SysMgr.perCoreDrawList:
+            self.timelineData['segments'].append({
+                'group': nrCore,
+                'text': 'OFF',
+                'id': nrCore,
+                'state': 'OFF',
+                'time_start': 0,
+                'time_end': 0,
+            })
+
 
 
     def __del__(self):
@@ -75404,8 +75460,7 @@ class TaskAnalyzer(object):
         # initialize swapper thread per core #
         for n in range(0, SysMgr.maxCore + 1):
             try:
-                if SysMgr.perCoreList and \
-                    n not in SysMgr.perCoreList:
+                if SysMgr.perCoreList and n not in SysMgr.perCoreList:
                     continue
 
                 coreId = '0[%s]' % n
@@ -86915,9 +86970,11 @@ class TaskAnalyzer(object):
 
         for idx in list(self.cpuData.keys()):
             try:
-                nowData = self.cpuData[int(idx)]
+                nrIdx = long(idx)
+                nowData = self.cpuData[nrIdx]
 
-                if not long(idx) in self.prevCpuData:
+                # check previous data #
+                if not nrIdx in self.prevCpuData:
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/" + str(idx), '- %', '-', '-', '-', '-')
                     SysMgr.addPrint('%s\n' % coreStat)
@@ -86927,7 +86984,7 @@ class TaskAnalyzer(object):
                 if SysMgr.totalEnable:
                     prevData = self.init_cpuData
                 else:
-                    prevData = self.prevCpuData[int(idx)]
+                    prevData = self.prevCpuData[nrIdx]
 
                 coreStats[idx] = dict()
 
@@ -86970,6 +87027,10 @@ class TaskAnalyzer(object):
                 irqUsage += coreStats[idx]['irq']
                 coreStats[idx]['idle'] = long(idleCoreUsage * scale)
                 idleUsage += coreStats[idx]['idle']
+
+                # check core filter #
+                if SysMgr.perCoreList and not idx in SysMgr.perCoreList:
+                    coreStats.pop(idx, None)
             except SystemExit:
                 sys.exit(0)
             except:
