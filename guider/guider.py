@@ -23039,7 +23039,8 @@ Examples:
         # {0:1} {1:1} guider.dat -q NOLABEL
 
     - Draw graphs and timeline segments with stroke only for specific tasks
-        # {0:1} {1:1} guider.dat -q STROKE:"screen*", STROKE:"a.out"
+        # {0:1} {1:1} guider.dat -q STROKE:"*"
+        # {0:1} {1:1} guider.dat -q STROKE:"screen*", STROKE:"a.out(1234)"
 
     - Draw graphs and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
@@ -77850,12 +77851,16 @@ class TaskAnalyzer(object):
                 try:
                     # revise core usage in DVFS system #
                     if self.threadData[key]['coreSchedCnt'] == 0 and \
-                        self.threadData[key]['offCnt'] > 0:
-                        raise Exception('core off')
+                        (self.threadData[key]['offCnt'] > 0 or \
+                            not core in self.lastTidPerCore or \
+                            self.lastTidPerCore[core] == 0):
+                            raise Exception('core off')
                     else:
                         per = (100 - self.intData[icount][key]['cpuPer'])
                         timeLine += '%3d ' % per
                         cpuAvgUsage[icount] += per
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     timeLine += '%3s ' % '0'
 
