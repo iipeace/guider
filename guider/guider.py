@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211012"
+__revision__ = "211014"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34659,11 +34659,18 @@ Copyright:
         pidList = []
         prevTargetList = []
         tidList = []
-        nameList = name.split('|')
 
         # check input #
         if not name:
             return pidList
+
+        # split items #
+        try:
+            nameList = name.split('|')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            nameList = [name]
 
         # check tid #
         if not SysMgr.isLinux:
@@ -42395,7 +42402,7 @@ Copyright:
         # get the number of task and load #
         try:
             if SysMgr.hasMainArg():
-                value = SysMgr.getMainArgs(token=':')
+                value = SysMgr.getMainArgs(union=False, token=':')
             else:
                 value = [100 * SysMgr.getNrCore()]
 
@@ -62734,14 +62741,19 @@ typedef struct {
         else:
             mStr = '[%s]' % mprocInfo
 
+        # set error count #
+        if instance.errCnt:
+            errstr = '[Err: %s] ' % convert(instance.errCnt)
+        else:
+            errstr = ''
+
         # print top stat #
         SysMgr.printPipe((
             '\n[%s %s Summary] [Elapsed: %.3f]%s%s%s%s '
-            '[Sample: %s%s] [Err: %s] [Symbol: %s] %s') % \
+            '[Sample: %s%s] %s[Symbol: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr,
                 sysStr, cpuStr, mStr, convert(long(nrTotal)),
-                freqStr, convert(instance.errCnt),
-                convert(len(callTable)), suffix))
+                freqStr, errstr, convert(len(callTable)), suffix))
 
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
         SysMgr.printPipe(
