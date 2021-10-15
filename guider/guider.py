@@ -297,7 +297,7 @@ class ConfigMgr(object):
 
     # control message type #
     CMSG_TYPE = {
-        0x01: "SCM_RIGHTS",  # rw: access rights (array of int)
+        0x01: "SCM_RIGHTS",      # rw: access rights (array of int)
         0x02: "SCM_CREDENTIALS", # rw: struct ucred
         0x03: "SCM_SECURITY"
     }
@@ -3170,8 +3170,8 @@ class ConfigMgr(object):
 
     REGS_X64 = [
         'rax', 'rdx', 'rcx', 'rbx', 'rsi', 'rdi', 'rbp', 'rsp',
-        'r8',  'r9',  'r10', 'r11', 'r12', 'r13', 'r14', 'r15',
-        'rip', 'xmm0',  'xmm1',  'xmm2',  'xmm3', 'xmm4', 'xmm5', 'xmm6',
+        'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15',
+        'rip', 'xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6',
         'xmm7', 'xmm8', 'xmm9', 'xmm10', 'xmm11', 'xmm12', 'xmm13', 'xmm14',
         'xmm15', 'st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6',
         'st7', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6',
@@ -5439,7 +5439,7 @@ function get_params() {
     for (var i = 0; i < paramsarr.length; ++i) {
         var tmp = paramsarr[i].split("=");
         if (!tmp[0] || !tmp[1]) continue;
-        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+        params[tmp[0]] = decodeURIComponent(tmp[1]);
     }
     return params;
 }
@@ -8321,7 +8321,7 @@ class Ext4Analyzer(object):
             # Uses 64-bit features
             INCOMPAT_64BIT    = 0x80
             # Directory entries record file type (instead of inode flags)
-            INCOMPAT_FILETYPE =  0x2
+            INCOMPAT_FILETYPE = 0x2
 
             _fields_ = [
                 ("s_inodes_count", c_uint),                 # 0x0000
@@ -8847,7 +8847,7 @@ class Ext4Analyzer(object):
                     else:
                         # internal xattr
                         start = xattr_entry.e_value_offs + offset
-                        end =  xattr_entry.e_value_offs + offset + \
+                        end = xattr_entry.e_value_offs + offset + \
                             xattr_entry.e_value_size
                         xattr_value = raw_data[start:end]
 
@@ -10805,7 +10805,7 @@ class FunctionAnalyzer(object):
             subStackPageInfoIdx = long(0)
 
             try:
-                # Decrease page count of symbol allocated page  #
+                # Decrease page count of symbol allocated page #
                 # TODO: fix bug about wrong count of pos #
                 allocSym = self.pageTable[pfnv]['sym']
                 allocStackAddr = self.pageTable[pfnv]['subStackAddr']
@@ -11345,7 +11345,7 @@ class FunctionAnalyzer(object):
                     kerStackSet = set(kernelStack)
                     kerSubStackSet = set(stackInfo[subStackIndex])
 
-                    # Found same stack  in stack list #
+                    # Found same stack in stack list #
                     if not list(kerStackSet - kerSubStackSet) and \
                         not list(kerSubStackSet - kerStackSet):
                         found = True
@@ -13421,7 +13421,7 @@ class FunctionAnalyzer(object):
                 "{5:>7}|{6:>9}({7:>8}/{8:>8}/{9:>8})|{10:>7}|{11:>8}|"
                 "{12:>8}|{13:>8}|{14:>9}|{15:>6}|{16:>8}|")).\
                 format(comm[:16], idx, value['tgid'], targetMark, life,
-                cpuPer, allocMem, userMem, cacheMem,  kernelMem,
+                cpuPer, allocMem, userMem, cacheMem, kernelMem,
                 knownFreeMem, unknownFreeMem, cval,
                 readBlock, writeBlock, nrLock, nrCustom))
 
@@ -16590,7 +16590,7 @@ class FileAnalyzer(object):
             sys.exit(0)
 
         # merge readahead chunks #
-        if 'RAMERGE' in  SysMgr.environList:
+        if 'RAMERGE' in SysMgr.environList:
             SysMgr.printInfo(
                 'merge continuous readahead chunks')
 
@@ -20712,7 +20712,7 @@ Commands:
         ICMP_ECHO_REQUEST = 8
 
         def _checksum(source):
-            sum = 0
+            total = 0
             countTo = (len(source)/2)*2
             count = 0
             while count < countTo:
@@ -20727,17 +20727,17 @@ Commands:
                     data2 = ord(source[count])
 
                 thisVal = data1*256 + data2
-                sum = sum + thisVal
-                sum = sum & 0xffffffff # Necessary?
+                total += thisVal
+                total = total & 0xffffffff # Necessary?
                 count = count + 2
 
             if countTo < len(source):
-                sum = sum + ord(source[len(source) - 1])
-                sum = sum & 0xffffffff # Necessary?
+                total += ord(source[len(source) - 1])
+                total = total & 0xffffffff # Necessary?
 
-            sum = (sum >> 16)  +  (sum & 0xffff)
-            sum = sum + (sum >> 16)
-            answer = ~sum
+            total = (total >> 16) + (total & 0xffff)
+            total = total + (total >> 16)
+            answer = ~total
             answer = answer & 0xffff
 
             # Swap bytes. Bugger me if I know why #
@@ -20843,12 +20843,11 @@ Commands:
 
                             for word in addrs:
                                 newAddrs.append('%s.%s' % (word, idx))
+                    elif not addrs:
+                        newAddrs.append(item)
                     else:
-                        if not addrs:
-                            newAddrs.append(item)
-                        else:
-                            for word in addrs:
-                                newAddrs.append('%s.%s' % (word, idx))
+                        for word in addrs:
+                            newAddrs.append('%s.%s' % (word, idx))
                 elif item == '*':
                     for idx in range(1, 255):
                         if not addrs:
@@ -21508,7 +21507,7 @@ Commands:
             # flush fd cache #
             if SysMgr.maxKeepFd < fd.fileno():
                 SysMgr.commFdCache = {}
-            # cache  fd #
+            # cache fd #
             elif cache:
                 SysMgr.commFdCache[pid] = fd
             else:
@@ -21682,7 +21681,7 @@ Commands:
 
         # import package #
         try:
-            obj =  __import__(name, fromlist = [name] if isRoot else [None])
+            obj = __import__(name, fromlist = [name] if isRoot else [None])
         except SystemExit:
             sys.exit(0)
         except:
@@ -36588,7 +36587,7 @@ Copyright:
                     }
 
                 SysMgr.printInfo(
-                    "registered '%s' as a service node successfully" %  value)
+                    "registered '%s' as a service node successfully" % value)
 
                 # update service node list #
                 _updateNodeList()
@@ -40743,7 +40742,7 @@ Copyright:
 
         # START #
         cmd = SysMgr.customCmd
-        startSize = endSize =  0
+        startSize = endSize = 0
         convUnit = UtilMgr.convUnit2Size
         if cmd:
             if len(cmd) >= 2:
@@ -42781,7 +42780,7 @@ Copyright:
                 newstr = ''
 
             # get die task #
-            dieTasks =  set(prevProcs.keys()) - set(procs.keys())
+            dieTasks = set(prevProcs.keys()) - set(procs.keys())
             if dieTasks:
                 diestr = '\n[%9s]' % 'DIE'
                 for pid in sorted(dieTasks):
@@ -51057,7 +51056,7 @@ class DltAnalyzer(object):
 
     # define log level #
     LOGLEVEL = {
-        "DEFAULT":  -1, # Default log level
+        "DEFAULT": -1, # Default log level
         "OFF": 0x00, # Log level off
         "FATAL": 0x01, # fatal system error
         "ERROR": 0x02, # error with impact to correct functionality
@@ -51075,8 +51074,8 @@ class DltAnalyzer(object):
         "DLT_RETURN_PIPE_FULL": -3,
         "DLT_RETURN_PIPE_ERROR": -2,
         "DLT_RETURN_ERROR": -1,
-        "DLT_RETURN_OK":  0,
-        "DLT_RETURN_TRUE":  1,
+        "DLT_RETURN_OK": 0,
+        "DLT_RETURN_TRUE": 1,
     }
 
     SERVICEID = {
@@ -52516,7 +52515,7 @@ class Debugger(object):
                     ("link", c_ulong),
                     ("xer", c_ulong),
                     ("ccr", c_ulong),
-                    ("mq", c_ulong),  # FIXME: ppc64 => softe
+                    ("mq", c_ulong),
                     ("trap", c_ulong),
                     ("dar", c_ulong),
                     ("dsisr", c_ulong),
@@ -57067,7 +57066,7 @@ typedef struct {
         elif type(inputFile) is list:
             fileName = inputFile[0]
             inputName = ', '.join(inputFile)
-            inputList =  inputFile
+            inputList = inputFile
         else:
             fileName = inputFile
             inputName = inputFile
@@ -58327,7 +58326,7 @@ typedef struct {
                         if regstrline:
                             regstrline = '%s | %s' % (regstrline, newline)
                         else:
-                            regstrline =  newline
+                            regstrline = newline
                 else:
                     SysMgr.addPrint(
                         '%13s: 0x%x%s\n' % (reg, val, rvalue))
@@ -59543,7 +59542,7 @@ typedef struct {
         else:
             # save entry context #
             if Debugger.envFlags['COMPLETECALL']:
-                self.entryContext[sym] =  {
+                self.entryContext[sym] = {
                     'time': diffstr,
                     'args': argstr,
                     'file': fname
@@ -60124,7 +60123,7 @@ typedef struct {
                     exc_type, exc_value, exc_traceback, dictp, \
                     gilstate_counter, async_exc, thread_id, \
                     trash_delete_nesting, trash_delete_later, \
-                    on_delete, on_delete_data  = \
+                    on_delete, on_delete_data = \
                     struct.unpack('QQQQibbiiQQQQQQQQQQQiQliQQQ', PyThreadState)
 
             else:
@@ -65290,7 +65289,7 @@ class ElfAnalyzer(object):
             return 'finish'
 
         def _decode_10110001_0000iiii(self):
-            self._index += 1  # skip constant byte
+            self._index += 1 # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             if (op1 & 0xf0) != 0 or op1 == 0x00:
@@ -65299,7 +65298,7 @@ class ElfAnalyzer(object):
                 return 'pop %s' % self._printGPR((op1 & 0x0f))
 
         def _decode_10110010_uleb128(self):
-            self._index += 1   # skip constant byte
+            self._index += 1 # skip constant byte
             uleb_buffer = [self._bytecode_array[self._index]]
             self._index += 1
             while self._bytecode_array[self._index] & 0x80 == 0:
@@ -65324,7 +65323,7 @@ class ElfAnalyzer(object):
                 self._calculate_range(8, opcode & 0x07), "d")
 
         def _decode_11000110_sssscccc(self):
-            self._index += 1  # skip constant byte
+            self._index += 1 # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             start = ((op1 & 0xf0) >> 4)
@@ -65333,7 +65332,7 @@ class ElfAnalyzer(object):
                 self._calculate_range(start, count), "wR")
 
         def _decode_11000111_0000iiii(self):
-            self._index += 1  # skip constant byte
+            self._index += 1 # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             if (op1 & 0xf0) != 0 or op1 == 0x00:
@@ -65342,7 +65341,7 @@ class ElfAnalyzer(object):
                 return 'pop %s' % self._print_registers(op1 & 0x0f, "wCGR")
 
         def _decode_11001000_sssscccc(self):
-            self._index += 1  # skip constant byte
+            self._index += 1 # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             start = 16 + ((op1 & 0xf0) >> 4)
@@ -65351,7 +65350,7 @@ class ElfAnalyzer(object):
                 self._calculate_range(start, count), "d")
 
         def _decode_11001001_sssscccc(self):
-            self._index += 1  # skip constant byte
+            self._index += 1 # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             start = ((op1 & 0xf0) >> 4)
@@ -67622,7 +67621,7 @@ Section header string table index: %d
                     offset += vd_next
 
             # parse .gnu.version_r table #
-            if e_shverneed  >= 0:
+            if e_shverneed >= 0:
                 # get .gnu.version_r section info #
                 sh_name, sh_type, sh_flags, sh_addr,\
                     sh_offset, sh_size, sh_link, sh_info,\
@@ -69925,7 +69924,7 @@ class TaskAnalyzer(object):
 
                         diff = -(prevCpuProcList[pname][item])
                         if SysMgr.cpuAvgEnable:
-                            diff = '%6.1f%%' %  diff
+                            diff = '%6.1f%%' % diff
 
                         diff = convColor(diff, 'WARNING', 6)
                         printBuf = '%s %6s%s' % \
@@ -70011,7 +70010,7 @@ class TaskAnalyzer(object):
 
                         diff = -(prevGpuProcList[pname][item])
                         if SysMgr.cpuAvgEnable:
-                            diff = '%6.1f%%' %  diff
+                            diff = '%6.1f%%' % diff
 
                         diff = convColor(diff, 'WARNING', 6)
                         printBuf = '%s %6s%s' % \
@@ -70444,7 +70443,7 @@ class TaskAnalyzer(object):
             # D-Bus mode #
             elif SysMgr.dbusTopEnable:
                 DbusMgr.runDbusSnooper(mode='top')
-            # cgroup  mode #
+            # cgroup mode #
             elif SysMgr.cgTopEnable:
                 try:
                     self.runCgTop()
@@ -72351,7 +72350,7 @@ class TaskAnalyzer(object):
             except:
                 continue
 
-            # get property of process  #
+            # get property of process #
             line = '_' * len(idx) * 1
 
             rss = item['[TOTAL]'][propList.index('rss')]
@@ -77365,7 +77364,7 @@ class TaskAnalyzer(object):
                     inodeCache[cacheId] = path
 
                     # build final string #
-                    inodeStr = '%s%s'  % (inodeStr, (
+                    inodeStr = '%s%s' % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
                         "{5:>12} {6:<75}\n").format(
                             ' ', ' ', ' ', inode, size, ' ', path))
@@ -77437,7 +77436,7 @@ class TaskAnalyzer(object):
                         path = inodeCache[cacheId]
 
                         # build final string #
-                        inodeStr = '%s%s'  % (inodeStr, (
+                        inodeStr = '%s%s' % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
                             "{5:>12} {6:<75}\n").format(
                                 ' ', ' ', ' ', inode, size, ' ', path))
@@ -79280,7 +79279,7 @@ class TaskAnalyzer(object):
         for filename in list(SysMgr.fileInstance.keys()):
             # increase type count per process #
             if filename.startswith('anon'):
-                nrEvent  += 1
+                nrEvent += 1
             elif filename.startswith('socket'):
                 nrSocket += 1
             elif filename.startswith('/dev'):
@@ -79799,7 +79798,7 @@ class TaskAnalyzer(object):
                 lineLen += 7
 
             # mark change #
-            if maxRss - minRss  > 0:
+            if maxRss - minRss > 0:
                 try:
                     procInfo = procInfo.replace(' (', '^(', 1)
                 except:
@@ -79928,7 +79927,7 @@ class TaskAnalyzer(object):
                 lineLen += 7
 
             # mark change #
-            if maxVss - minVss  > 0:
+            if maxVss - minVss > 0:
                 try:
                     procInfo = procInfo.replace(' (', '^(', 1)
                 except:
@@ -84026,8 +84025,8 @@ class TaskAnalyzer(object):
             elif 'binderTranId' in self.threadData[thread]:
                 reqTranId = self.threadData[thread]['binderTranId']
                 if reqTranId in self.binderTranData:
-                    reqTime =  self.binderTranData[reqTranId]['reqtime']
-                    origCode =  self.binderTranData[reqTranId]['code']
+                    reqTime = self.binderTranData[reqTranId]['reqtime']
+                    origCode = self.binderTranData[reqTranId]['code']
                     diff = ftime - reqTime
                     self.binderTranData[reqTranId]['diff'] = diff
 
@@ -84153,7 +84152,7 @@ class TaskAnalyzer(object):
             function = d['function']
             wq = d['wq']
             rcpu = d['rcpu']
-            ecpu =  d['ecpu']
+            ecpu = d['ecpu']
 
 
             # register workqueue #
@@ -86298,7 +86297,7 @@ class TaskAnalyzer(object):
                 pass
             # sibling thread #
             elif mainID in self.procData and \
-                stat in self.procData[mainID] and  \
+                stat in self.procData[mainID] and \
                 self.procData[mainID][stat]:
                 self.procData[tid][stat] = \
                     self.procData[mainID][stat]
@@ -86737,7 +86736,7 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            totalKernelMem =  0
+            totalKernelMem = 0
 
         # fault #
         try:
@@ -88264,9 +88263,9 @@ class TaskAnalyzer(object):
             if SysMgr.wssEnable:
                 # get current WSS size #
                 try:
-                    wss =  convertFunc(item['Referenced:'] << 10, False)
+                    wss = convertFunc(item['Referenced:'] << 10, False)
                 except:
-                    wss =  0
+                    wss = 0
 
                 # get previous WSS history #
                 try:
@@ -89725,11 +89724,11 @@ class TaskAnalyzer(object):
             # save cgroup info #
             self.saveCgroupData(value['taskPath'], idx)
 
-            # save sched info to get delayed time  #
+            # save sched info to get delayed time #
             if not SysMgr.wfcEnable:
                 self.saveProcSchedData(value['taskPath'], idx)
 
-            # save wait channel info  #
+            # save wait channel info #
             if SysMgr.wchanEnable:
                 self.saveProcWchanData(value['taskPath'], idx)
 
