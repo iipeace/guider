@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211014"
+__revision__ = "211015"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24752,6 +24752,10 @@ Examples:
 
     - {3:1} except for read for specific threads
         # {0:1} {1:1} -g a.out -t ^read
+
+    - {3:1} for specific threads and print contexts in JSON format
+        # {0:1} {1:1} -g a.out -J
+        # {0:1} {1:1} -g a.out -J -q COMPLETECALL
 
     - {4:1} for child tasks created by specific threads
         # {0:1} {1:1} -g 1234 -t read -q WAITCLONE
@@ -60796,6 +60800,11 @@ typedef struct {
                 else:
                     jsonData['args'][arg[1]] = arg[2]
 
+            # register entry context #
+            if Debugger.envFlags['COMPLETECALL']:
+                self.entryContext[self.syscall] = jsonData
+                return
+
             try:
                 SysMgr.printPipe(
                     str(UtilMgr.convDict2Str(jsonData, pretty=False)))
@@ -61099,6 +61108,16 @@ typedef struct {
                     "err": err,
                 }
 
+                # make complete context #
+                if Debugger.envFlags['COMPLETECALL'] and \
+                    self.syscall in self.entryContext:
+                    entryData = self.entryContext.pop(self.syscall, None)
+                    if entryData:
+                        entryData.update(jsonData)
+                        jsonData = entryData
+                    jsonData["type"] = "complete"
+
+                # print context #
                 SysMgr.printPipe(
                     str(UtilMgr.convDict2Str(jsonData, pretty=False)))
 
@@ -78006,7 +78025,7 @@ class TaskAnalyzer(object):
                     timeLine += '%3d ' % \
                         self.intData[icount]['toTal']['customEvent'][evt]['count']
                 except:
-                    timeLine += '%3d ' % (0)
+                    timeLine += '%3d ' % 0
 
             if newLine:
                 SysMgr.addPrint("\n")
