@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211015"
+__revision__ = "211017"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7632,10 +7632,10 @@ class Timeline(object):
 
 
 
-    def _draw_group_axis(self, dwg):
-        dwg.add(dwg.rect(
-            (0, 0),
-            (self.config.TIME_AXIS_HEIGHT, self.config.HEIGHT), fill='black'))
+    def _draw_group_axis(self, dwg, yval):
+        dwg.add(dwg.rect((0, 0),
+            (self.config.TIME_AXIS_HEIGHT, self.config.HEIGHT),
+            fill='black'))
 
         idx = 0
         groupList = list(self.segment_groups)
@@ -7657,12 +7657,22 @@ class Timeline(object):
                 font_size=self.scaled_height/2,
                 fill='rgb(200,200,200)'))
 
+            # add info #
+            addinfo = yval[name] if name in yval else ''
+            if addinfo:
+                x = self.config.FONT_SIZE*self.scaled_height*len(str(name))/5
+                dwg.add(dwg.text(
+                    addinfo, (x, y_tick+self.scaled_height),
+                    font_size=self.scaled_height/2/2,
+                    fill='rgb(200,200,200)'))
+
+
 
 
     def _draw_time_axis(self, dwg, start=0, annotation=None):
-        dwg.add(dwg.rect(
-            (0, self.config.HEIGHT),
-            (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT), fill='black'))
+        dwg.add(dwg.rect((0, self.config.HEIGHT),
+            (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT),
+            fill='black'))
 
         y_time_tick = self.config.HEIGHT + self.config.TIME_AXIS_HEIGHT / 2
         ratio = 1 / self.ratio
@@ -7938,10 +7948,10 @@ class Timeline(object):
 
 
 
-    def draw(self, dwg, start=0, annotation=None):
+    def draw(self, dwg, start=0, annotation=None, yval=None):
         self._draw_background(dwg)
         self._draw_grid(dwg)
-        self._draw_group_axis(dwg)
+        self._draw_group_axis(dwg, yval)
         self._draw_time_axis(dwg, start, annotation=annotation)
         self._draw_segments(dwg, start)
 
@@ -30928,7 +30938,7 @@ Copyright:
     @staticmethod
     def drawTimeline(
         inputPath=None, inputData=None, outputPath=None, configPath=None,
-        configData=None, taskList=None, start=0, annotation=None):
+        configData=None, taskList=None, start=0, annotation=None, yval=None):
 
         def _addUserEvent(inputData):
             if not inputData or \
@@ -31003,7 +31013,7 @@ Copyright:
                 timeline.stroke_text = None
 
             # draw timeslices #
-            timeline.draw(dwg, start=start, annotation=annotation)
+            timeline.draw(dwg, start=start, annotation=annotation, yval=yval)
 
             dwg.save()
         except SystemExit:
@@ -92048,6 +92058,26 @@ def main(args=None):
         outputPath = UtilMgr.prepareForImageFile(
             SysMgr.inputFile, 'timeline')
 
+        # get core usage #
+        coreUsageList = {}
+        for key, value in tobj.threadData.items():
+            if not key.startswith('0['):
+                continue
+
+            try:
+                coreId = long(key[key.find('[')+1:-1])
+            except:
+                continue
+
+            # calculate total core usage percentage #
+            try:
+                idle = value['usage'] / float(tobj.totalTime)
+                usagePercent = long(100 - (idle * 100))
+            except:
+                usagePercent = long(0)
+
+            coreUsageList[coreId] = '%d%%' % usagePercent
+
         # check absolute timeline option #
         if 'ABSTIME' in SysMgr.environList:
             start = float(SysMgr.startTime)
@@ -92066,7 +92096,7 @@ def main(args=None):
             inputData=tobj.timelineData,
             outputPath=outputPath,
             taskList=list(tobj.threadData.keys()),
-            start=start, annotation=annotation)
+            start=start, annotation=annotation, yval=coreUsageList)
 
         # draw resource graph #
         SysMgr.graphEnable = True
