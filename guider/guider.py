@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211017"
+__revision__ = "211018"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4296,6 +4296,37 @@ class UtilMgr(object):
                     fileAttr[fpath] = fstat
 
         return inodeList
+
+
+
+    @staticmethod
+    def gerPermutation(inputList, union=False):
+        visited = [0 for _ in range(len(inputList))]
+        returnList = []
+
+        def dfs(cnt, items):
+            if cnt == len(inputList):
+                returnList.append(items[:])
+                return
+
+            for i, val in enumerate(inputList):
+                # check union #
+                if union and visited[i] == 1:
+                    continue
+
+                # add item and check visit flag #
+                items.append(val)
+                visited[i] = 1
+
+                dfs(cnt+1, items)
+
+                # remove item and uncheck visit flag #
+                items.pop()
+                visited[i] = 0
+
+        dfs(0, [])
+
+        return returnList
 
 
 
@@ -26935,6 +26966,9 @@ Examples:
     - Read the specific file 5 times
         # {0:1} {1:1} read:TEST -R 5
 
+    - Read the specific file with specific chunk size
+        # {0:1} {1:1} read:TEST -q CHUNK:1M
+
     - Read all device nodes mounted
         # {0:1} {1:1} -a
 
@@ -41153,6 +41187,8 @@ Copyright:
                 elif fsize and fsize != '0':
                     fsize = '[%s]' % fsize
 
+            # declare shortcut function #
+            conv = UtilMgr.convNum
 
             # make load string #
             if size > 0:
@@ -41160,7 +41196,17 @@ Copyright:
             else:
                 loadStr = ''
 
-            conv = UtilMgr.convNum
+            # flush page caches #
+            if 'CHUNK' in SysMgr.environList:
+                try:
+                    chunkVar = SysMgr.environList['CHUNK'][0]
+                    chunk = UtilMgr.convUnit2Size(chunkVar)
+                except:
+                    SysMgr.printErr(
+                        "failed to convert I/O chunk '%s'" % chunkVar, True)
+                    sys.exit(0)
+            else:
+                chunk = 4096
 
             SysMgr.printInfo(
                 "created a new process to %s %s%s '%s%s' %s times\n" % \
@@ -41168,19 +41214,22 @@ Copyright:
 
             # run loop #
             for seq in range(repeat):
-                sys.stdout.write("[%s] Start... " % conv(seq))
+                sys.stdout.write("(%s) Start... " % conv(seq))
                 sys.stdout.flush()
 
                 # flush page caches #
                 if 'DROPCACHE' in SysMgr.environList:
                     _flushCache()
 
+                # save timestamp #
+                start = time.time()
+
                 # FILE #
                 if target == 'file':
                     try:
                         done = 0
                         fd = os.open(path, flag)
-                        for piece in opFunc(fd):
+                        for piece in opFunc(fd, chunk=chunk):
                             # update progress #
                             if isinstance(piece, (int, long)):
                                 done += piece
@@ -41212,7 +41261,7 @@ Copyright:
                                 continue
 
                             fd = os.open(fpath, flag)
-                            for piece in opFunc(fd):
+                            for piece in opFunc(fd, chunk=chunk):
                                 if not piece:
                                     break
                             os.close(fd)
@@ -41223,7 +41272,8 @@ Copyright:
                                 'failed to access %s for %s' % (fpath, op),
                                 True, True)
 
-                sys.stdout.write("Done\n")
+                elapsed = time.time() - start
+                sys.stdout.write("[%.6f sec]\n" % elapsed)
 
         # get tasks #
         try:
