@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211018"
+__revision__ = "211019"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -70323,6 +70323,7 @@ class TaskAnalyzer(object):
             self.lastTidPerCore = {}
             self.lastEvent = '0'
             self.backupData = {}
+            self.nrSchedLoss = 0
             self.timelineData = {"time_unit": "us", "segments": list()}
 
         # top mode #
@@ -70600,6 +70601,12 @@ class TaskAnalyzer(object):
 
             self.lastJob[self.lastCore]['job'] = self.lastEvent
             self.lastJob[self.lastCore]['time'] = self.finishTime
+
+        # print the number of missed sched data #
+        if self.nrSchedLoss:
+            SysMgr.printWarn(
+                'a total of %s scheduling data is missing' % \
+                    UtilMgr.convNum(self.nrSchedLoss), True)
 
         # update finish time #
         if self.finishTime == '0':
@@ -82057,6 +82064,16 @@ class TaskAnalyzer(object):
             else:
                 next_id = next_pid
 
+            # check missed sched data #
+            if core in self.lastTidPerCore and \
+                self.lastTidPerCore[core] != prev_id:
+                SysMgr.printWarn(
+                    'no context for %s(%s) on Core/%s' % \
+                        (prev_comm, prev_id, core))
+                self.nrSchedLoss += 1
+
+            self.lastTidPerCore[core] = next_id
+
             # update prev comm #
             if next_comm == '<...>' and next_id in SysMgr.commCache:
                 next_comm = SysMgr.commCache[next_id]
@@ -82238,7 +82255,7 @@ class TaskAnalyzer(object):
 
                 # add timeline data #
                 self.timelineData['segments'].append({
-                    'group': long(coreId[2:-1]),
+                    'group': long(core),
                     'text': '%s(%s)' % (tcomm, prev_id),
                     'id': prev_id,
                     'state': prev_state,
