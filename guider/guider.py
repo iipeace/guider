@@ -26963,8 +26963,9 @@ Examples:
         # {0:1} {1:1} . -i 3
         # {0:1} {1:1} -g . -i 3
 
-    - Read the specific file 5 times
-        # {0:1} {1:1} read:TEST -R 5
+    - Read specific files 5 times
+        # {0:1} {1:1} "read:TEST1,TEST2" -R 5
+        # {0:1} {1:1} "read:TEST*" -R 5
 
     - Read the specific file with specific chunk size
         # {0:1} {1:1} read:TEST -q CHUNK:1M
@@ -26981,6 +26982,7 @@ Examples:
 
     - Write 100MB of dummy data to the specific file
         # {0:1} {1:1} write:TEST:100m
+        # {0:1} {1:1} "write:TEST:100m, write:TEST2:50m"
         # {0:1} {1:1} -g write:TEST:100m
                     '''.format(cmd, mode)
 
@@ -41153,127 +41155,146 @@ Copyright:
 
             # set operation #
             if op == 'write':
+                # set direction #
                 direct = 'to'
+
+                # convert path list #
+                pathList = path.split(',')
+                pathList = UtilMgr.cleanItem(pathList)
             elif op == 'read':
+                # set direction #
                 direct = 'from'
 
-            # check I/O type #
-            if os.path.isfile(path) or SysMgr.isBlkDev(path):
-                target = 'file'
-            elif os.path.isdir(path):
-                if op == 'write':
-                    path = os.path.join(path, 'WRTEST')
-                else:
-                    target = 'dir'
-            elif op == 'write' and SysMgr.isWritable(path):
-                target = 'file'
-            else:
-                SysMgr.printErr(
-                    "failed to access '%s'" % path)
-                return
-
-            # set repeat count #
-            repeat = SysMgr.repeatInterval
-            if repeat == 0:
-                repeat = 1
-
-            # make file size string #
-            fsize = ''
-            if target == 'file':
-                # get output size #
-                fsize = UtilMgr.getFileSize(path)
-                if fsize == '?':
-                    fsize = ''
-                elif fsize and fsize != '0':
-                    fsize = '[%s]' % fsize
-
-            # declare shortcut function #
-            conv = UtilMgr.convNum
-
-            # make load string #
-            if size > 0:
-                loadStr = 'only %s ' % UtilMgr.convSize2Unit(size)
-            else:
-                loadStr = ''
-
-            # flush page caches #
-            if 'CHUNK' in SysMgr.environList:
-                try:
-                    chunkVar = SysMgr.environList['CHUNK'][0]
-                    chunk = UtilMgr.convUnit2Size(chunkVar)
-                except:
+                # convert path list #
+                pathList = UtilMgr.convPath(path, separator=',')
+                if not pathList:
                     SysMgr.printErr(
-                        "failed to convert I/O chunk '%s'" % chunkVar, True)
+                        "failed to recognize '%s'" % path)
                     sys.exit(0)
-            else:
-                chunk = 4096
 
-            SysMgr.printInfo(
-                "created a new process to %s %s%s '%s%s' %s times\n" % \
-                    (op, loadStr, direct, path, fsize, conv(repeat)))
+            for path in pathList:
+                # check I/O type #
+                if os.path.isfile(path) or SysMgr.isBlkDev(path):
+                    target = 'file'
+                elif os.path.isdir(path):
+                    if op == 'write':
+                        path = os.path.join(path, 'WRTEST')
+                    else:
+                        target = 'dir'
+                elif op == 'write' and SysMgr.isWritable(path):
+                    target = 'file'
+                else:
+                    SysMgr.printErr(
+                        "failed to access '%s'" % path)
+                    return
 
-            # run loop #
-            for seq in range(repeat):
-                sys.stdout.write("(%s) Start... " % conv(seq))
-                sys.stdout.flush()
+                # set repeat count #
+                repeat = SysMgr.repeatInterval
+                if repeat == 0:
+                    repeat = 1
+
+                # make file size string #
+                fsize = ''
+                if target == 'file':
+                    # get output size #
+                    fsize = UtilMgr.getFileSize(path)
+                    if fsize == '?':
+                        fsize = ''
+                    elif fsize and fsize != '0':
+                        fsize = '[%s]' % fsize
+
+                # declare shortcut function #
+                conv = UtilMgr.convNum
+
+                # make load string #
+                if size > 0:
+                    loadStr = 'only %s ' % UtilMgr.convSize2Unit(size)
+                else:
+                    loadStr = ''
 
                 # flush page caches #
-                if 'DROPCACHE' in SysMgr.environList:
-                    _flushCache()
-
-                # save timestamp #
-                start = time.time()
-
-                # FILE #
-                if target == 'file':
+                if 'CHUNK' in SysMgr.environList:
                     try:
-                        done = 0
-                        fd = os.open(path, flag)
-                        for piece in opFunc(fd, chunk=chunk):
-                            # update progress #
-                            if isinstance(piece, (int, long)):
-                                done += piece
-                            else:
-                                done += len(piece)
-
-                            # check stop condition #
-                            if not piece:
-                                break
-                            elif size > 0 and done >= size:
-                                break
-                        os.close(fd)
-                    except SystemExit:
-                        sys.exit(0)
+                        chunkVar = SysMgr.environList['CHUNK'][0]
+                        chunk = UtilMgr.convUnit2Size(chunkVar)
                     except:
-                        SysMgr.printWarn(
-                            'failed to access %s for %s' % (path, op),
-                                True, True)
-                        break
-                elif target != 'dir':
-                    continue
+                        SysMgr.printErr(
+                            "failed to convert I/O chunk '%s'" % chunkVar,
+                            True)
+                        sys.exit(0)
+                else:
+                    chunk = 4096
 
-                # DIR #
-                for r, d, f in os.walk(path):
-                    for item in f:
+                SysMgr.printInfo(
+                    "%s %s%s '%s%s' %s times\n" % \
+                        (op, loadStr, direct, path, fsize, conv(repeat)))
+
+                # run loop #
+                for seq in range(repeat):
+                    sys.stdout.write(
+                        "(%s) %s %s '%s'... " % \
+                            (conv(seq), op, target,
+                                UtilMgr.convColor(path, 'CYAN')))
+                    sys.stdout.flush()
+
+                    # flush page caches #
+                    if 'DROPCACHE' in SysMgr.environList:
+                        _flushCache()
+
+                    # save timestamp #
+                    start = time.time()
+
+                    # FILE #
+                    if target == 'file':
                         try:
-                            fpath = os.path.join(r, item)
-                            if not os.path.isfile(fpath):
-                                continue
-
-                            fd = os.open(fpath, flag)
+                            done = 0
+                            fd = os.open(path, flag)
                             for piece in opFunc(fd, chunk=chunk):
+                                # update progress #
+                                if isinstance(piece, (int, long)):
+                                    done += piece
+                                else:
+                                    done += len(piece)
+
+                                # check stop condition #
                                 if not piece:
+                                    break
+                                elif size > 0 and done >= size:
                                     break
                             os.close(fd)
                         except SystemExit:
                             sys.exit(0)
                         except:
                             SysMgr.printWarn(
-                                'failed to access %s for %s' % (fpath, op),
-                                True, True)
+                                'failed to access %s for %s' % (path, op),
+                                    True, True)
+                            break
+                    elif target != 'dir':
+                        continue
 
-                elapsed = time.time() - start
-                sys.stdout.write("[%.6f sec]\n" % elapsed)
+                    # DIR #
+                    for r, d, f in os.walk(path):
+                        for item in f:
+                            try:
+                                fpath = os.path.join(r, item)
+                                if not os.path.isfile(fpath):
+                                    continue
+
+                                fd = os.open(fpath, flag)
+                                for piece in opFunc(fd, chunk=chunk):
+                                    if not piece:
+                                        break
+                                os.close(fd)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                SysMgr.printWarn(
+                                    'failed to access %s for %s' % (fpath, op),
+                                    True, True)
+
+                    elapsed = '%.6f' % (time.time() - start)
+                    sys.stdout.write(
+                        '[%s]\n' % UtilMgr.convColor(elapsed, 'GREEN'))
 
         # get tasks #
         try:
