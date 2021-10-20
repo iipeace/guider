@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211019"
+__revision__ = "211020"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13372,8 +13372,7 @@ class FunctionAnalyzer(object):
 
             # get CPU usage #
             if self.totalTick > 0:
-                cpuPer = \
-                    '%.1f%%' % \
+                cpuPer = '%.1f%%' % \
                     (float(value['cpuTick']) / float(self.totalTick) * 100)
             else:
                 cpuPer = '0.0%%'
@@ -22883,14 +22882,20 @@ Examples:
     - Monitor status of {2:2} used CPU resource more than 1% every interval
         # {0:1} {1:1}
 
-    - Monitor status of {2:2} having TID 1234 or COMM including 1234
+    - Monitor status of {2:2} having TID 1234 or COMM 1234
         # {0:1} {1:1} -g 1234
 
-    - Monitor status of {2:2} that dont' have COMM including "test"
+    - Monitor status of {2:2} having COMM starting with kworker
+        # {0:1} {1:1} -g "kworker*"
+
+    - Monitor status of {2:2} having COMM ending in kworker
+        # {0:1} {1:1} -g "*kworker"
+
+    - Monitor status of {2:2} except the one having COMM test
         # {0:1} {1:1} -g ^test
 
-    - Monitor status of {2:2} that use CPU more than 1% without including "test" in COMM
-        # {0:1} {1:1} -g ^test -S c:1
+    - Monitor status of {2:2} using CPU more than 1%
+        # {0:1} {1:1} -g -S c:1
 
     - Monitor status of {2:2} used system resource totally
         # {0:1} {1:1} -e T
@@ -22939,7 +22944,7 @@ Examples:
     - Monitor status and change the CPU scheduling priority for all {2:2} every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - Monitor status of {2:2} and change the CPU scheduling priority for specific {2:2} having name including a.out every second
+    - Monitor status of {2:2} and change the CPU scheduling priority for specific threads having COMM a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
     - Monitor status of the fixed list for {2:2} to save CPU resource for monitoring
@@ -23933,11 +23938,16 @@ Examples:
         # {0:1} {1:1} -a
         # {0:1} {1:1} -a -Q
 
+    - Monitor open files, sockets, pipes for specific processes
+        # {0:1} {1:1} "test"
+        # {0:1} {1:1} "test*"
+        # {0:1} {1:1} "*test"
+
     - Monitor open files, sockets, pipes including null for all processes
         # {0:1} {1:1} -g :null
 
-    - Monitor open files, sockets, pipes including 8000 or zero for specific processes including a.out or test
-        # {0:1} {1:1} -g a.out,test:8000,zero
+    - Monitor open files, sockets, pipes including 8000 for the process having COMM test
+        # {0:1} {1:1} -g test:8000
 
     - Monitor open files, sockets, pipes of specific processes including system
         # {0:1} {1:1} -g system
@@ -32700,6 +32710,13 @@ Copyright:
                             (val, SysMgr.arch))
                         sys.exit(0)
 
+                    # no syscall #
+                    if syscallList and not SysMgr.syscallList:
+                        SysMgr.printErr(
+                            "no %s syscall in %s ABI" % \
+                            (val, SysMgr.arch))
+                        sys.exit(0)
+
                 # print logs #
                 if not enabledSyscall:
                     SysMgr.printInfo("enabled syscall list [ ALL ]")
@@ -33168,6 +33185,13 @@ Copyright:
                             "no %s syscall in %s ABI" % \
                             (val, SysMgr.arch))
                         sys.exit(0)
+
+                # no syscall #
+                if syscallList and not SysMgr.syscallList:
+                    SysMgr.printErr(
+                        "no %s syscall in %s ABI" % \
+                        (val, SysMgr.arch))
+                    sys.exit(0)
 
                 # print logs #
                 if not enabledSyscall:
@@ -34734,7 +34758,7 @@ Copyright:
                     comm = proc.info['name']
                     if pid in nameList:
                         pidList.append(pid)
-                    elif UtilMgr.isValidStr(comm, nameList):
+                    elif UtilMgr.isValidStr(comm, nameList, inc=inc):
                         pidList.append(pid)
 
                 return pidList
@@ -38013,7 +38037,7 @@ Copyright:
 
                 # check filter #
                 if SysMgr.filterGroup:
-                    if not UtilMgr.isValidStr(req):
+                    if not UtilMgr.isValidStr(req, inc=False):
                         continue
 
                 # add timestamps in ms #
@@ -38414,7 +38438,7 @@ Copyright:
             if filters:
                 filteredList = []
                 for env in envs:
-                    if UtilMgr.isValidStr(env, key=filters, inc=True):
+                    if UtilMgr.isValidStr(env, key=filters, inc=False):
                         filteredList.append(env)
                 envs = filteredList
 
@@ -38710,7 +38734,8 @@ Copyright:
                         continue
                     elif node in busServiceList:
                         continue
-                    elif not UtilMgr.isValidStr(node, ignCap=True):
+                    elif not UtilMgr.isValidStr(
+                        node, inc=False, ignCap=True):
                         continue
 
                     fpath = os.path.join(items[0], node)
@@ -38740,9 +38765,11 @@ Copyright:
                 busServiceList.items(), key=lambda e:e[0]):
                 cnt = 0
                 for attr, val in sorted(value.items()):
-                    if not UtilMgr.isValidStr(attr, attrList, ignCap=True):
+                    if not UtilMgr.isValidStr(
+                        attr, attrList, inc=False, ignCap=True):
                         continue
-                    elif not UtilMgr.isValidStr(val, valList, ignCap=True):
+                    elif not UtilMgr.isValidStr(
+                        val, valList, inc=False, ignCap=True):
                         continue
 
                     SysMgr.addPrint(
@@ -38764,7 +38791,7 @@ Copyright:
         # print filtered list #
         if filteredList:
             SysMgr.printPipe(
-                '[Systemd Exceptional Service] (NrItems: %s)\n%s' % \
+                '\n[Systemd Exceptional Service] (NrItems: %s)\n%s' % \
                     (cv(len(filteredList)), twoLine))
             for node, value in sorted(filteredList.items()):
                 SysMgr.printPipe('[ %s ]' % node)
@@ -43643,12 +43670,8 @@ Copyright:
 
         # get pids #
         for pid in procList:
-            if not inc and '*' in pid:
-                inc = True
-                pid = pid.replace('*', '')
-
             taskList = SysMgr.getTids(
-                pid, isThread, sibling, False, inc, cache)
+                pid, isThread, sibling, False, False, cache)
             targetList += taskList
 
         # remove redundant items #
@@ -47798,7 +47821,7 @@ Copyright:
                             SysMgr.getComm(curdir, save=True)
 
                     # filter process #
-                    if UtilMgr.isValidStr(comm, inc=True, ignCap=True):
+                    if UtilMgr.isValidStr(comm, inc=False, ignCap=True):
                         SysMgr.infoBufferPrint(
                             '%s- %s(%s)' % \
                             (indent, comm, curdir))
@@ -47839,7 +47862,7 @@ Copyright:
             # remove subsystems from tree #
             for subsystem in list(cgroupTree.keys()):
                 if not UtilMgr.isValidStr(
-                    subsystem, key=items, inc=True, ignCap=True):
+                    subsystem, key=items, inc=False, ignCap=True):
                     cgroupTree.pop(subsystem, None)
 
         # print cgroup tree #
@@ -57513,7 +57536,8 @@ typedef struct {
 
         # check comm filter for child #
         if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNums:
-            if SysMgr.filterGroup and UtilMgr.isValidStr(self.comm):
+            if SysMgr.filterGroup and \
+                UtilMgr.isValidStr(self.comm, inc=False):
                 pass
             elif self.myNum in Debugger.targetNums:
                 pass
@@ -69484,11 +69508,15 @@ class TaskAnalyzer(object):
     def checkFilter(comm, pid):
         found = False
 
+        if UtilMgr.isValidStr(comm, inc=False):
+            return True
+
         for idx in list(SysMgr.filterGroup):
             # check exclusion condition #
             if idx.startswith('^'):
                 cond = idx[1:]
-                if cond in comm or pid == cond:
+                if UtilMgr.isValidStr(comm, [cond], inc=False) or \
+                    pid == cond:
                     found = False
                     break
                 else:
@@ -69496,7 +69524,7 @@ class TaskAnalyzer(object):
                     continue
 
             # check inclusion condition #
-            if idx in comm or pid == idx:
+            if pid == idx:
                 found = True
                 break
 
