@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211020"
+__revision__ = "211021"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4176,7 +4176,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def isValidStr(string, key=None, inc=True, ignCap=False):
+    def isValidStr(string, key=None, inc=False, ignCap=False):
         if not key:
             key = SysMgr.filterGroup
 
@@ -4348,13 +4348,13 @@ class UtilMgr(object):
         for r, d, f in os.walk(path):
             if incFile:
                 for sfile in f:
-                    if name and not UtilMgr.isValidStr(sfile, name, inc=False):
+                    if name and not UtilMgr.isValidStr(sfile, name):
                         continue
                     flist.append(os.path.join(r, sfile))
 
             if incDir:
                 for sdir in d:
-                    if name and not UtilMgr.isValidStr(sdir, name, inc=False):
+                    if name and not UtilMgr.isValidStr(sdir, name):
                         continue
                     flist.append(os.path.join(r, sdir))
 
@@ -7792,7 +7792,7 @@ class Timeline(object):
 
         # check stroke option #
         if self.stroke_text and \
-            UtilMgr.isValidStr(segment.text, self.stroke_text, inc=False):
+            UtilMgr.isValidStr(segment.text, self.stroke_text):
             stroke = 'rgb(255,0,0)'
             stroke_width = 1
         else:
@@ -15906,7 +15906,6 @@ class FileAnalyzer(object):
                     if os.path.isdir(fname):
                         for subfname in UtilMgr.getFiles(
                             fname, recursive=SysMgr.recursionEnable):
-                            fdList.append(open(subfname, 'r'))
                             targetFiles.append(os.path.abspath(subfname))
                     elif os.path.isfile(fname):
                         fdList.append(open(fname, 'r'))
@@ -17099,7 +17098,7 @@ class FileAnalyzer(object):
                     continue
 
                 # check condition #
-                if self.target and \
+                if self.target != [''] and \
                     not UtilMgr.isValidStr(tid, self.target) and \
                     not UtilMgr.isValidStr(comm, self.target):
                     continue
@@ -17138,7 +17137,8 @@ class FileAnalyzer(object):
                             elif tid != pid and \
                                 fname in self.procData[pid]['procMap']:
                                 continue
-                            elif not UtilMgr.isValidStr(fname, filterList):
+                            elif filterList != [''] and \
+                                not UtilMgr.isValidStr(fname, filterList):
                                 continue
 
                             # init file info #
@@ -17196,7 +17196,8 @@ class FileAnalyzer(object):
         for pid, val in self.procData.items():
             for fileName, scope in val['procMap'].items():
                 # check file filter #
-                if not UtilMgr.isValidStr(fileName, filterList):
+                if filterList != [''] and \
+                    not UtilMgr.isValidStr(fileName, filterList):
                     continue
 
                 newOffset = scope['offset']
@@ -17422,13 +17423,11 @@ class FileAnalyzer(object):
                 if raPath:
                     # check allow list #
                     if raAllowList and \
-                        not UtilMgr.isValidStr(
-                            fileName, raAllowList, inc=False):
+                        not UtilMgr.isValidStr(fileName, raAllowList):
                         skip = True
                     # check deny list #
                     elif raDenyList and \
-                        UtilMgr.isValidStr(
-                            fileName, raDenyList, inc=False):
+                        UtilMgr.isValidStr(fileName, raDenyList):
                         skip = True
                     else:
                         skip = False
@@ -17671,7 +17670,7 @@ class LogMgr(object):
         while 1:
             log = SysMgr.syslogFd.readline()
 
-            if not UtilMgr.isValidStr(log):
+            if not UtilMgr.isValidStr(log, inc=True):
                 continue
 
             if SysMgr.outPath and console:
@@ -17886,7 +17885,7 @@ class LogMgr(object):
                         decstr = jrlStr.decode('latin-1')
 
                         if not UtilMgr.isValidStr(decstr):
-                            raise Exception()
+                            continue
 
                         if SysMgr.outPath and console:
                             print(decstr)
@@ -21438,7 +21437,14 @@ Commands:
         if not mmap:
             return
 
-        return mmap.mmap(-1, size)
+        # create a memory segment #
+        mem = mmap.mmap(-1, size)
+
+        # initialize the memory #
+        if sys.version_info < (3, 0, 0):
+            mem.write(bytes('0') * size)
+
+        return mem
 
 
 
@@ -21509,7 +21515,7 @@ Commands:
             if pid in SysMgr.commFdCache:
                 fd = SysMgr.commFdCache[pid]
                 fd.seek(0)
-                comm = fd.readline()[:-1]
+                comm = fd.readlines()[0][:-1]
                 if save:
                     SysMgr.commCache[pid] = comm
                 return comm
@@ -21532,8 +21538,7 @@ Commands:
                 return None
 
         comm = None
-        commPath = \
-            '%s/%s/comm' % (SysMgr.procPath, pid)
+        commPath = '%s/%s/comm' % (SysMgr.procPath, pid)
 
         try:
             fd = open(commPath, 'r')
@@ -23189,8 +23194,9 @@ Commands:
 
                 brkExamStr = '''{2:1}
 Examples:
-    - {3:1} for specific thread
+    - {3:1} for specific threads
         # {0:1} {1:1} -g 1234
+        # {0:1} {1:1} -g a.out
 
     - {3:1} from a specific binary
         # {0:1} {1:1} "ls"
@@ -32684,7 +32690,7 @@ Copyright:
                         nrList = []
                         if '*' in val:
                             for idx, syscall in enumerate(ConfigMgr.sysList):
-                                if UtilMgr.isValidStr(syscall, [val], False):
+                                if UtilMgr.isValidStr(syscall, [val]):
                                     nrList.append(idx)
                         else:
                             nrList = [ConfigMgr.sysList.index(val)]
@@ -33168,7 +33174,7 @@ Copyright:
                         nrList = []
                         if '*' in val:
                             for idx, syscall in enumerate(ConfigMgr.sysList):
-                                if UtilMgr.isValidStr(syscall, [val], False):
+                                if UtilMgr.isValidStr(syscall, [val]):
                                     nrList.append(idx)
                         else:
                             nrList = [ConfigMgr.sysList.index(val)]
@@ -35086,11 +35092,11 @@ Copyright:
             for idx, path in enumerate(nameList):
                 # check allow list #
                 if raAllowList and \
-                    not UtilMgr.isValidStr(path, raAllowList, inc=False):
+                    not UtilMgr.isValidStr(path, raAllowList):
                     raAllowIndexList.append(idx)
                 # check deny list #
                 elif raDenyList and \
-                    UtilMgr.isValidStr(path, raDenyList, inc=False):
+                    UtilMgr.isValidStr(path, raDenyList):
                     raDenyIndexList.append(idx)
 
         # do readahead #
@@ -38037,7 +38043,7 @@ Copyright:
 
                 # check filter #
                 if SysMgr.filterGroup:
-                    if not UtilMgr.isValidStr(req, inc=False):
+                    if not UtilMgr.isValidStr(req):
                         continue
 
                 # add timestamps in ms #
@@ -38438,7 +38444,7 @@ Copyright:
             if filters:
                 filteredList = []
                 for env in envs:
-                    if UtilMgr.isValidStr(env, key=filters, inc=False):
+                    if UtilMgr.isValidStr(env, key=filters):
                         filteredList.append(env)
                 envs = filteredList
 
@@ -38734,8 +38740,7 @@ Copyright:
                         continue
                     elif node in busServiceList:
                         continue
-                    elif not UtilMgr.isValidStr(
-                        node, inc=False, ignCap=True):
+                    elif not UtilMgr.isValidStr(node, ignCap=True):
                         continue
 
                     fpath = os.path.join(items[0], node)
@@ -38765,11 +38770,9 @@ Copyright:
                 busServiceList.items(), key=lambda e:e[0]):
                 cnt = 0
                 for attr, val in sorted(value.items()):
-                    if not UtilMgr.isValidStr(
-                        attr, attrList, inc=False, ignCap=True):
+                    if not UtilMgr.isValidStr(attr, attrList, ignCap=True):
                         continue
-                    elif not UtilMgr.isValidStr(
-                        val, valList, inc=False, ignCap=True):
+                    elif not UtilMgr.isValidStr(val, valList, ignCap=True):
                         continue
 
                     SysMgr.addPrint(
@@ -39589,7 +39592,7 @@ Copyright:
                 elif os.path.isfile(fullPath):
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isValidStr(subPath, inc=False):
+                        if not UtilMgr.isValidStr(subPath):
                             continue
 
                     totalFile += 1
@@ -39693,7 +39696,7 @@ Copyright:
 
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if UtilMgr.isValidStr(subPath, inc=False):
+                        if UtilMgr.isValidStr(subPath):
                             isTarget = True
                             SysMgr.printPipe(
                                 '[%s]' % convColor(fullPath, 'GREEN'))
@@ -39738,7 +39741,7 @@ Copyright:
                     # apply filter #
                     if SysMgr.filterGroup:
                         # name #
-                        if not UtilMgr.isValidStr(subPath, inc=False):
+                        if not UtilMgr.isValidStr(subPath):
                             continue
 
                         # get size #
@@ -47821,7 +47824,7 @@ Copyright:
                             SysMgr.getComm(curdir, save=True)
 
                     # filter process #
-                    if UtilMgr.isValidStr(comm, inc=False, ignCap=True):
+                    if UtilMgr.isValidStr(comm, ignCap=True):
                         SysMgr.infoBufferPrint(
                             '%s- %s(%s)' % \
                             (indent, comm, curdir))
@@ -47861,8 +47864,7 @@ Copyright:
 
             # remove subsystems from tree #
             for subsystem in list(cgroupTree.keys()):
-                if not UtilMgr.isValidStr(
-                    subsystem, key=items, inc=False, ignCap=True):
+                if not UtilMgr.isValidStr(subsystem, key=items, ignCap=True):
                     cgroupTree.pop(subsystem, None)
 
         # print cgroup tree #
@@ -57507,6 +57509,12 @@ typedef struct {
             else:
                 sys.exit(0)
 
+        # update comm #
+        origComm = self.comm
+        self.comm = SysMgr.getComm(self.pid)
+        if not self.comm:
+            self.comm = origComm
+
         # check samples #
         if not self.callTable:
             if not self.traceStatus:
@@ -57528,16 +57536,10 @@ typedef struct {
         diff = current - self.last
         self.last = current
 
-        # update comm #
-        origComm = self.comm
-        self.comm = SysMgr.getComm(self.pid)
-        if not self.comm:
-            self.comm = origComm
-
         # check comm filter for child #
         if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNums:
             if SysMgr.filterGroup and \
-                UtilMgr.isValidStr(self.comm, inc=False):
+                UtilMgr.isValidStr(self.comm):
                 pass
             elif self.myNum in Debugger.targetNums:
                 pass
@@ -59693,8 +59695,12 @@ typedef struct {
             if sym in self.retFilterList:
                 self.retFilterList[sym][1] = callString
 
+            # task filter #
+            if self.execCmd and SysMgr.filterGroup and \
+                not UtilMgr.isValidStr(self.comm):
+                pass
             # file output #
-            if SysMgr.outPath:
+            elif SysMgr.outPath:
                 self.addSample(
                     sym, fname, realtime=True, elapsed=etime)
 
@@ -60418,7 +60424,7 @@ typedef struct {
 
             # check filter #
             if SysMgr.pyFuncFilter and \
-                not UtilMgr.isValidStr(call, SysMgr.pyFuncFilter, inc=True):
+                not UtilMgr.isValidStr(call, SysMgr.pyFuncFilter):
                 return
 
             # set the breakpoint for return #
@@ -60594,8 +60600,7 @@ typedef struct {
 
         # check filter #
         if SysMgr.pyFuncFilter and \
-            not UtilMgr.isValidStr(
-                lastName, SysMgr.pyFuncFilter, inc=True):
+            not UtilMgr.isValidStr(lastName, SysMgr.pyFuncFilter):
             return
 
         # add last python call info #
@@ -61016,6 +61021,11 @@ typedef struct {
 
 
     def handleSyscall(self):
+        # task filter #
+        if self.execCmd and SysMgr.filterGroup and \
+            not UtilMgr.isValidStr(self.comm):
+            return
+
         # skip useless return processing #
         if self.status == 'skip':
             self.status = 'enter'
@@ -61260,9 +61270,7 @@ typedef struct {
                 # print to stdout #
                 if SysMgr.printStreamEnable:
                     sys.stdout.write('%s\n' % callString)
-            elif self.isRealtime:
-                pass
-            else:
+            elif not self.isRealtime:
                 SysMgr.printPipe(callString, newline=False, flush=True)
 
             # remove arg string #
@@ -67848,7 +67856,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isValidStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol):
                             continue
 
                     SysMgr.printPipe(
@@ -67958,7 +67966,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isValidStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol):
                             continue
 
                     SysMgr.printPipe(
@@ -68049,7 +68057,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isValidStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol):
                             continue
 
                     SysMgr.printPipe(
@@ -68134,7 +68142,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isValidStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol):
                             continue
 
                     SysMgr.printPipe(
@@ -68981,7 +68989,7 @@ Section header string table index: %d
                     if debug:
                         # apply filter #
                         if SysMgr.filterGroup:
-                            if not UtilMgr.isValidStr(symbol, inc=True):
+                            if not UtilMgr.isValidStr(symbol):
                                 continue
 
                         # type info #
@@ -69116,7 +69124,7 @@ Section header string table index: %d
 
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isValidStr(output, inc=True):
+                        if not UtilMgr.isValidStr(output):
                             continue
 
                     SysMgr.printPipe(output)
@@ -69508,15 +69516,14 @@ class TaskAnalyzer(object):
     def checkFilter(comm, pid):
         found = False
 
-        if UtilMgr.isValidStr(comm, inc=False):
+        if UtilMgr.isValidStr(comm):
             return True
 
         for idx in list(SysMgr.filterGroup):
             # check exclusion condition #
             if idx.startswith('^'):
                 cond = idx[1:]
-                if UtilMgr.isValidStr(comm, [cond], inc=False) or \
-                    pid == cond:
+                if pid == cond or UtilMgr.isValidStr(comm, [cond]):
                     found = False
                     break
                 else:
@@ -77634,11 +77641,11 @@ class TaskAnalyzer(object):
 
                 # check allow list #
                 if raAllowList and \
-                    not UtilMgr.isValidStr(path, raAllowList, inc=False):
+                    not UtilMgr.isValidStr(path, raAllowList):
                     skip = True
                 # check deny list #
                 elif raDenyList and \
-                    UtilMgr.isValidStr(path, raDenyList, inc=False):
+                    UtilMgr.isValidStr(path, raDenyList):
                     skip = True
                 else:
                     skip = False
@@ -80767,7 +80774,7 @@ class TaskAnalyzer(object):
                 try:
                     comm = instance[pid]['comm']
                     if SysMgr.filterGroup and \
-                        UtilMgr.isValidStr(comm, inc=True, ignCap=True):
+                        UtilMgr.isValidStr(comm, ignCap=True):
                         comm = UtilMgr.convColor(comm, 'RED')
                 except SystemExit:
                     sys.exit(0)
@@ -85516,7 +85523,7 @@ class TaskAnalyzer(object):
                 continue
             elif filterList:
                 if not str(pid) in filterList and \
-                    not UtilMgr.isValidStr(comm, filterList, inc=True):
+                    not UtilMgr.isValidStr(comm, filterList):
                     # increase total thread count #
                     if 'num_threads' in procInfo and procInfo['num_threads']:
                         self.nrThread += procInfo['num_threads']
@@ -89127,8 +89134,7 @@ class TaskAnalyzer(object):
             for group, values in groups.items():
                 # filter group #
                 if SysMgr.filterGroup:
-                    if not UtilMgr.isValidStr(
-                        group, inc=True, ignCap=True):
+                    if not UtilMgr.isValidStr(group, ignCap=True):
                         continue
 
                 for name, value in values.items():
@@ -89255,6 +89261,9 @@ class TaskAnalyzer(object):
                     cpu, throttle, mem, '-', '-'))
             if not ret:
                 return -1
+
+        if not stats:
+            SysMgr.addPrint("\tNone\n")
 
         SysMgr.addPrint("%s\n" % oneLine)
 
