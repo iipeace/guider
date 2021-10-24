@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211022"
+__revision__ = "211024"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22890,7 +22890,7 @@ Examples:
     - Monitor status of {2:2} having TID 1234 or COMM 1234
         # {0:1} {1:1} -g 1234
 
-    - Monitor status of {2:2} for specific commands executed
+    - Monitor status of {2:2} newly executed
         # {0:1} {1:1} -I ./a.out
 
     - Monitor status of {2:2} having COMM starting with kworker
@@ -23942,6 +23942,9 @@ Description:
 Examples:
     - Monitor all processes sorted by the number of file descriptors
         # {0:1} {1:1}
+
+    - Monitor open files, sockets, pipes for the specific process newly executed
+        # {0:1} {1:1} -I ./a.out
 
     - Monitor open files, sockets, pipes for all processes
         # {0:1} {1:1} -a
@@ -50262,7 +50265,7 @@ class DbusMgr(object):
 
                 # get CPU usage for system #
                 ctime = 100 - (cpuUsage[3] / diff)
-                ctime = ctime if ctime >= 0 else 0
+                ctime = ctime if ctime > 0 else 0
                 sysCpuStr = '%d%%' % ctime
                 sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
 
@@ -51256,7 +51259,7 @@ class DltAnalyzer(object):
 
             # get CPU usage for system #
             ctime = 100 - (cpuUsage[3] / diff)
-            ctime = ctime if ctime >= 0 else 0
+            ctime = ctime if ctime > 0 else 0
             sysCpuStr = '%d%%' % ctime
             sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
 
@@ -57595,7 +57598,7 @@ typedef struct {
 
         # get CPU usage for system #
         ctime = 100 - (cpuUsage[3] / diff)
-        ctime = ctime if ctime >= 0 else 0
+        ctime = ctime if ctime > 0 else 0
         sysCpuStr = '%d%%' % ctime
         sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
 
@@ -70960,6 +70963,17 @@ class TaskAnalyzer(object):
             TaskAnalyzer.dbgObj.initValues()
             TaskAnalyzer.dbgObj.getCpuUsage(system=True)
 
+            # execute commands #
+            if SysMgr.inputParam:
+                watchList = []
+                for cmd in SysMgr.inputParam.split(','):
+                    pid = SysMgr.createProcess(cmd.split(), mute=True)
+                    if pid > 0:
+                        watchList.append(str(pid))
+
+                # apply new filter #
+                SysMgr.filterGroup = watchList
+
         # import select package in the foreground #
         if not SysMgr.outPath:
             SysMgr.getPkg('select', False)
@@ -70986,7 +71000,7 @@ class TaskAnalyzer(object):
             # print system status #
             self.printFileStat(nowFilter)
 
-            # flush socket cache #
+            # flush socket caches #
             SysMgr.udpListCache = {}
             SysMgr.tcpListCache = {}
             SysMgr.udsListCache = {}
@@ -84698,7 +84712,10 @@ class TaskAnalyzer(object):
             if diff == 0: diff = 0.01
 
             # get CPU usage for myself #
-            cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage(system=True)
+            if diff >= 1:
+                cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage(system=True)
+            else:
+                cpuUsage = [0, 0, 0, 100]
             ttime = cpuUsage[0] / diff
             utime = cpuUsage[1] / diff
             stime = cpuUsage[2] / diff
@@ -84708,7 +84725,7 @@ class TaskAnalyzer(object):
 
             # get CPU usage for system #
             ctime = 100 - (cpuUsage[3] / diff)
-            ctime = ctime if ctime >= 0 else 0
+            ctime = ctime if ctime > 0 else 0
             sysCpuStr = '%d%%' % ctime
             sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
 
