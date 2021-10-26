@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211024"
+__revision__ = "211026"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23950,6 +23950,10 @@ Examples:
         # {0:1} {1:1} -a
         # {0:1} {1:1} -a -Q
 
+    - Monitor open files, sockets, pipes for all processes and print about them in JSON format
+        # {0:1} {1:1} -J
+        # {0:1} {1:1} -a -J
+
     - Monitor open files, sockets, pipes for specific processes
         # {0:1} {1:1} "test"
         # {0:1} {1:1} "test*"
@@ -40920,7 +40924,7 @@ Copyright:
 
         SysMgr.printStat('wait for %s' % fname)
 
-        # wait for the output file is closed #
+        # wait for the output file to be closed #
         while 1:
             if not SysMgr.isAlive(pid):
                 SysMgr.printErr(
@@ -80472,12 +80476,15 @@ class TaskAnalyzer(object):
         except:
             pass
 
+        # ftop mode #
         if SysMgr.fileTopEnable:
             TaskAnalyzer.printFileTable()
+        # check skip condition #
         elif SysMgr.jsonEnable or \
             SysMgr.dltTopEnable or \
             SysMgr.dbusTopEnable:
             pass
+        # top mode #
         else:
             # build summary interval table #
             TaskAnalyzer.summarizeInterval()
@@ -84734,19 +84741,33 @@ class TaskAnalyzer(object):
         else:
             cpuStr = mcpuStr = sysCpuStr = sysMemStr = '?'
 
-        SysMgr.addPrint(UtilMgr.convColor((
-            "[Top File Info] [Time: %7.3f] [Interval: %.3f] [Proc: %s] "
-            "[FD: %s] [File: %s] [SYS: %s/%s] [%s(%s): %s] "
-            "(Unit: NR)\n") % \
-                (SysMgr.uptime, SysMgr.uptimeDiff, convNum(self.nrProcess),
-                    convNum(self.nrFd), convNum(len(self.fileData)),
-                    sysCpuStr, sysMemStr, SysMgr.comm, SysMgr.pid,
-                    mcpuStr), 'BOLD'))
+        # print menu #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData = {
+                'uptime': SysMgr.uptime,
+                'uptimeDiff': SysMgr.uptimeDiff,
+                'nrProcess': self.nrProcess,
+                'nrFd': self.nrFd,
+                'nrFile': len(self.fileData),
+                'comm': SysMgr.comm,
+                'pid': SysMgr.pid,
+                'processes': {},
+            }
+        else:
+            SysMgr.addPrint(UtilMgr.convColor((
+                "[Top File Info] [Time: %7.3f] [Interval: %.3f] [Proc: %s] "
+                "[FD: %s] [File: %s] [SYS: %s/%s] [%s(%s): %s] "
+                "(Unit: NR)\n") % \
+                    (SysMgr.uptime, SysMgr.uptimeDiff,
+                        convNum(self.nrProcess), convNum(self.nrFd),
+                        convNum(len(self.fileData)), sysCpuStr, sysMemStr,
+                        SysMgr.comm, SysMgr.pid, mcpuStr), 'BOLD'))
 
-        SysMgr.addPrint("%s\n" % twoLine + \
-            ("{0:>16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|{6:^101}|\n{7:1}\n").\
-            format("Process", "ID", "PID", "Nr", "Pri", "FD", "Path", oneLine),
-            newline = 3)
+            SysMgr.addPrint("%s\n" % twoLine + \
+                ("{0:>16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|"
+                "{6:^101}|\n{7:1}\n").format(
+                "Process", "ID", "PID", "Nr", "Pri", "FD", "Path", oneLine),
+                newline = 3)
 
         # set sort value #
         if SysMgr.sort == 'p':
@@ -84811,7 +84832,17 @@ class TaskAnalyzer(object):
             fdCnt = long(0)
             if not SysMgr.showAll and not SysMgr.filterGroup:
                 if procInfo != '':
-                    ret = SysMgr.addPrint(procInfo)
+                    if SysMgr.jsonEnable:
+                        ret = True
+                        SysMgr.jsonData['processes'][idx] = {
+                            'comm': comm,
+                            'pid': pid,
+                            'nrThread': nrThread,
+                            'nrFd': len(value['fdList']),
+                        }
+                    else:
+                        ret = SysMgr.addPrint(procInfo)
+
                     procInfo = ''
                     if not ret:
                         break
@@ -84853,8 +84884,17 @@ class TaskAnalyzer(object):
                         continue
 
                 if procInfo != '':
-                    ret = SysMgr.addPrint(procInfo)
-                    procInfo = ''
+                    if SysMgr.jsonEnable:
+                        ret = True
+                        SysMgr.jsonData['processes'][idx] = {
+                            'comm': comm,
+                            'pid': pid,
+                            'nrThread': nrThread,
+                            'nrFd': len(value['fdList']),
+                            'fdList': value['fdList'],
+                        }
+                    else:
+                        ret = SysMgr.addPrint(procInfo)
 
                     # save cmdline #
                     if SysMgr.isLinux:
@@ -84863,11 +84903,16 @@ class TaskAnalyzer(object):
 
                     # print cmdline #
                     if 'cmdline' in value:
-                        # print stat #
-                        SysMgr.addPrint(
-                            ("{0:>1}|{1:>6}| {2:<100}|\n").format(
-                            ' ' * procInfoLen, 'CMD', value['cmdline']))
+                        if SysMgr.jsonEnable:
+                            SysMgr.jsonData['processes'][idx]['cmdline'] = \
+                                value['cmdline']
+                        else:
+                            # print stat #
+                            SysMgr.addPrint(
+                                ("{0:>1}|{1:>6}| {2:<100}|\n").format(
+                                ' ' * procInfoLen, 'CMD', value['cmdline']))
 
+                    procInfo = ''
                     if not ret:
                         break
 
@@ -84904,20 +84949,26 @@ class TaskAnalyzer(object):
                             reason=True)
 
                 # print stat #
-                SysMgr.addPrint(
-                    ("{0:>1}|{1:>6}| {2:<100}|\n").format(
-                    ' ' * procInfoLen, fd, path))
+                if not SysMgr.jsonEnable:
+                    SysMgr.addPrint(
+                        ("{0:>1}|{1:>6}| {2:<100}|\n").format(
+                        ' ' * procInfoLen, fd, path))
 
                 fdCnt += 1
 
             if fdCnt > 0:
                 procCnt += 1
-                ret = SysMgr.addPrint("%s\n" % oneLine)
+                if SysMgr.jsonEnable:
+                    ret = True
+                else:
+                    ret = SysMgr.addPrint("%s\n" % oneLine)
                 if not ret:
                     break
 
         # print total stats #
-        if procCnt == 0:
+        if SysMgr.jsonEnable:
+            pass
+        elif procCnt == 0:
             text = "{0:^16}".format('None')
             frame = '%s%s|' % \
                 (text, ' ' * (SysMgr.lineLength - len(text) - 1))
@@ -84926,6 +84977,7 @@ class TaskAnalyzer(object):
         elif not SysMgr.showAll and not SysMgr.filterGroup:
             SysMgr.addPrint("{0:1}\n".format(oneLine))
 
+        # print buffer #
         SysMgr.printTopStats()
 
 
