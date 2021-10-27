@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211026"
+__revision__ = "211027"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4288,7 +4288,7 @@ class UtilMgr(object):
                 fpath = os.path.join(fdir, name)
 
                 # register inode #
-                inodeList.setdefault(devid, dict())
+                inodeList.setdefault(devid, {})
                 inodeList[devid][inode] = fpath
 
                 # register file attribute #
@@ -7611,12 +7611,12 @@ class Timeline(object):
             sys.exit(0)
 
         self.tasks = tasks
-        self.last_group_segment = dict()
-        self.last_group_time = dict()
-        self.height_group_pos = dict()
-        self.last_iogroup_segment = dict()
-        self.last_iogroup_time = dict()
-        self.height_iogroup_pos = dict()
+        self.last_group_segment = {}
+        self.last_group_time = {}
+        self.height_group_pos = {}
+        self.last_iogroup_segment = {}
+        self.last_iogroup_time = {}
+        self.height_iogroup_pos = {}
 
         # time factor #
         if hasattr(self.config, 'TIMEFACTOR'):
@@ -8111,8 +8111,8 @@ class Ext4Analyzer(object):
 
         # init variables #
         self.volume = None
-        self.inodeList = dict()
-        self.failDirList = dict()
+        self.inodeList = {}
+        self.failDirList = {}
 
 
 
@@ -13002,7 +13002,7 @@ class FunctionAnalyzer(object):
                 try:
                     threadData[thread]['comm'] = d['comm']
                 except:
-                    threadData[thread] = dict()
+                    threadData[thread] = {}
                     threadData[thread]['comm'] = d['comm']
 
                 # set tgid #
@@ -14004,9 +14004,7 @@ class FunctionAnalyzer(object):
                 if value['tickCnt'] == 0:
                     break
 
-                cpuPer = \
-                    round(float(value['tickCnt']) / \
-                    float(self.periodicEventCnt) * 100, 1)
+                cpuPer = value['tickCnt'] / float(self.periodicEventCnt) * 100
                 if cpuPer < 1 and not SysMgr.showAll:
                     break
 
@@ -14035,8 +14033,7 @@ class FunctionAnalyzer(object):
                         for sym in subStack:
                             self.userSymData[sym]['totalTickCnt'] += 1
 
-                        cpuPer = \
-                            round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
+                        cpuPer = cpuCnt / float(value['tickCnt']) * 100
                         if cpuPer < 1 and not SysMgr.showAll:
                             break
 
@@ -14071,8 +14068,7 @@ class FunctionAnalyzer(object):
                     break
 
                 cpuPer = \
-                    round(float(value['totalTickCnt']) / \
-                    float(self.periodicEventCnt) * 100, 1)
+                    value['totalTickCnt'] / float(self.periodicEventCnt) * 100
                 if cpuPer < 1 and not SysMgr.showAll:
                     break
 
@@ -14105,8 +14101,7 @@ class FunctionAnalyzer(object):
                     break
 
                 cpuPer = \
-                    round(float(value['tickCnt']) / \
-                    float(self.periodicEventCnt) * 100, 1)
+                    value['tickCnt'] / float(self.periodicEventCnt) * 100
                 if cpuPer < 1 and not SysMgr.showAll:
                     break
 
@@ -14140,7 +14135,7 @@ class FunctionAnalyzer(object):
                 value['symbol'] == 'el1_irq' or \
                 value['symbol'] == 'gic_handle_irq' or \
                 value['symbol'] == 'apic_timer_interrupt':
-                exceptList.setdefault(pos, dict())
+                exceptList.setdefault(pos, {})
 
         # Print CPU usage of stacks #
         for idx, value in sorted(self.kerSymData.items(),
@@ -14213,8 +14208,7 @@ class FunctionAnalyzer(object):
             # Print stacks by symbol #
             for chain, tick in sorted(
                 mergedSymbolChain.items(), key=lambda e:e[1], reverse=True):
-                cpuPer = \
-                    round(tick / float(value['tickCnt']) * 100, 1)
+                cpuPer = tick / float(value['tickCnt']) * 100
                 if cpuPer < 1 and not SysMgr.showAll:
                     break
 
@@ -15301,7 +15295,7 @@ class FunctionAnalyzer(object):
                 try:
                     exceptList[pos]
                 except:
-                    exceptList[pos] = dict()
+                    exceptList[pos] = {}
 
         return exceptList
 
@@ -15681,7 +15675,7 @@ class LeakAnalyzer(object):
                 self.symData[sym]['size'] = val['size']
                 self.symData[sym]['lastPosCnt'] = val['lastPosCnt']
                 self.symData[sym]['lastPosSize'] = val['lastPosSize']
-                self.symData[sym]['substack'] = dict()
+                self.symData[sym]['substack'] = {}
 
             if val['callList']:
                 for time in list(val['callList'].keys()):
@@ -15759,7 +15753,7 @@ class LeakAnalyzer(object):
                 posid = val['stack'][0]
                 self.posData[posid]['callList'][pos] = None
             except:
-                self.posData[posid]['callList'] = dict()
+                self.posData[posid]['callList'] = {}
                 self.posData[posid]['callList'][pos] = None
 
         UtilMgr.deleteProgress()
@@ -15791,7 +15785,7 @@ class LeakAnalyzer(object):
                 continue
 
             time = None
-            item = dict()
+            item = {}
 
             for content in items[1:]:
                 try:
@@ -15825,7 +15819,7 @@ class LeakAnalyzer(object):
                     self.posData[pos] = dict(self.init_posData)
                     self.posData[pos]['count'] = 1
                     self.posData[pos]['size'] = long(item['size'])
-                    self.posData[pos]['callList'] = dict()
+                    self.posData[pos]['callList'] = {}
 
             try:
                 lastPos = item['stack'][0]
@@ -16454,7 +16448,7 @@ class FileAnalyzer(object):
             FileAnalyzer.procMapStrCache[pid] = mapBuf
 
         # define map dictionary #
-        fileMap = dict()
+        fileMap = {}
 
         # parse and merge lines in maps #
         for val in mapBuf:
@@ -17217,7 +17211,7 @@ class FileAnalyzer(object):
 
                 # add pid into file info #
                 if not self.fileData[fileName]['pids']:
-                    self.fileData[fileName]['pids'] = dict()
+                    self.fileData[fileName]['pids'] = {}
                 if not pid in self.fileData[fileName]['pids']:
                     self.fileData[fileName]['pids'][pid] = val['comm']
 
@@ -18072,7 +18066,7 @@ class LogMgr(object):
 
         # kmsg node #
         while 1:
-            jsonResult = dict()
+            jsonResult = {}
             log = SysMgr.kmsgFd.readline()
 
             # apply filter #
@@ -18982,7 +18976,7 @@ Commands:
 
         # convert list to dictionary #
         if retDict:
-            newDict = dict()
+            newDict = {}
 
             for line in vmBuf:
                 try:
@@ -20944,7 +20938,7 @@ Commands:
 
             # define socket list #
             sockList = list()
-            sockInfo = dict()
+            sockInfo = {}
 
             # send packets #
             for idx, destAddr in enumerate(addrList):
@@ -20999,7 +20993,7 @@ Commands:
 
             # define json variable #
             if SysMgr.jsonEnable:
-                jsonData = {'seq': seq, 'success': dict(), 'fail': dict()}
+                jsonData = {'seq': seq, 'success': {}, 'fail': {}}
 
             timeoutstr = ''
             timeoutlinestr = ''
@@ -21014,7 +21008,7 @@ Commands:
                     delay = attr[3] * 1000
 
                     if SysMgr.jsonEnable:
-                        jsonData['success'].setdefault(name, dict())
+                        jsonData['success'].setdefault(name, {})
                         jsonData['success'][name]['time'] = delay
                         continue
 
@@ -21026,7 +21020,7 @@ Commands:
                 # timeout #
                 else:
                     if SysMgr.jsonEnable:
-                        jsonData['fail'].setdefault(name, dict())
+                        jsonData['fail'].setdefault(name, {})
                         jsonData['fail'][name]['time'] = timeout
                         continue
 
@@ -21781,7 +21775,7 @@ Commands:
                 if skip:
                     continue
 
-            dlist[dev] = dict()
+            dlist[dev] = {}
             dlist[dev]['curNrRead'] = long(items[3])
             dlist[dev]['curNrWrite'] = long(items[7])
             dlist[dev]['curReadMs'] = long(items[6])
@@ -30258,7 +30252,7 @@ Copyright:
                     fd = SysMgr.cmdFileCache[target]
                     fd.seek(0)
                 except:
-                    pass
+                    fd = None
 
                 if not fd:
                     fd = open(target, perm)
@@ -38067,7 +38061,7 @@ Copyright:
 
                 # initialize lists #
                 reqid = '%s_%s' % (task, req)
-                resTable.setdefault(reqid, dict())
+                resTable.setdefault(reqid, {})
                 resTable[reqid].setdefault('reqtime', list())
                 resTable[reqid].setdefault('restime', list())
 
@@ -38215,7 +38209,7 @@ Copyright:
             minfreqpath = '%s/scaling_min_freq' % commonpath
             maxfreqpath = '%s/scaling_max_freq' % commonpath
 
-            cpulist[cpu] = dict()
+            cpulist[cpu] = {}
 
             # affected_cpus #
             try:
@@ -38699,7 +38693,7 @@ Copyright:
 
             lines = fd.readlines()
 
-            attrList = dict()
+            attrList = {}
             for line in lines:
                 try:
                     if line == '\n' or \
@@ -39079,11 +39073,11 @@ Copyright:
                     continue
 
                 # initialize lists #
-                bpList.setdefault(pid, dict())
-                exceptBpList.setdefault(pid, dict())
-                targetBpList.setdefault(pid, dict())
-                targetBpFileList.setdefault(pid, dict())
-                exceptBpFileList.setdefault(pid, dict())
+                bpList.setdefault(pid, {})
+                exceptBpList.setdefault(pid, {})
+                targetBpList.setdefault(pid, {})
+                targetBpFileList.setdefault(pid, {})
+                exceptBpFileList.setdefault(pid, {})
 
                 # create object #
                 procObj = Debugger(pid=pid, mode='break')
@@ -39620,7 +39614,7 @@ Copyright:
                         continue
 
                     if 'subFiles' not in result[parentAbsPath]:
-                        result[parentAbsPath]['subFiles'] = dict()
+                        result[parentAbsPath]['subFiles'] = {}
 
                     result[parentAbsPath]['subFiles'][subAbsPath] = \
                         dict(size=UtilMgr.convSize2Unit(size), type='file')
@@ -39916,7 +39910,7 @@ Copyright:
 
         # print start path #
         if SysMgr.jsonEnable:
-            result = dict()
+            result = {}
             if SysMgr.showAll:
                 result[abspath] = dict(subDirs=dict(), subFiles=dict())
             else:
@@ -41037,7 +41031,7 @@ Copyright:
             sys.exit(0)
 
         # run tasks #
-        ioTasks = dict()
+        ioTasks = {}
         for idx, item in enumerate(workload):
             try:
                 pid = SysMgr.createProcess()
@@ -41425,7 +41419,7 @@ Copyright:
             _flushCache(verb=True)
 
         # run tasks #
-        ioTasks = dict()
+        ioTasks = {}
         for _ in range(1):
             for idx in range(len(workload)):
                 try:
@@ -41541,7 +41535,7 @@ Copyright:
             if result != CUDA_SUCCESS:
                 return None
 
-            gpuInfo[i] = dict()
+            gpuInfo[i] = {}
 
             if cuda.cuDeviceGetName(
                 c_char_p(name), len(name), device) == CUDA_SUCCESS:
@@ -41950,11 +41944,11 @@ Copyright:
         def _task(reqs, repeat, delay, cache):
             # initialize statistics #
             stats = {
-                'perReqTime': dict(),
-                'perReqTimeAll': dict(),
-                'perReqErr': dict(),
+                'perReqTime': {},
+                'perReqTimeAll': {},
+                'perReqErr': {},
                 'perCycleTime': list(),
-                'name': dict()
+                'name': {}
             }
 
 
@@ -42577,7 +42571,7 @@ Copyright:
                 taskstr = 'a thread'
 
         # run tasks #
-        limitInfo = dict()
+        limitInfo = {}
         try:
             # process #
             if SysMgr.processEnable:
@@ -42736,7 +42730,7 @@ Copyright:
                 item = zl[0]
                 if item == 'Node':
                     zone = '%s-%s' % (zl[1][:-1], zl[3])
-                    memData[zone] = dict()
+                    memData[zone] = {}
                 elif item == 'pages' and zl[1] == 'free':
                     memData[zone]['free'] = long(zl[2])
                 elif item == 'min' or item == 'low' or item == 'high' or \
@@ -44950,7 +44944,7 @@ Copyright:
                             else:
                                 rpath = subdevPath
 
-                            self.devArchInfo.setdefault(subdirname, dict())
+                            self.devArchInfo.setdefault(subdirname, {})
                             self.devArchInfo[subdirname][rpath] = devid
                 except SystemExit:
                     sys.exit(0)
@@ -45686,6 +45680,7 @@ Copyright:
             if cmd == "":
                 cmd = "(common_pid != 0)"
 
+            # set userstacktrace options #
             if SysMgr.userEnable:
                 SysMgr.writeCmd('../trace_options', 'userstacktrace')
                 SysMgr.writeCmd('../trace_options', 'sym-userobj')
@@ -46170,8 +46165,8 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['os'] = dict()
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general']['os'] = {}
             jsonData = SysMgr.jsonData['general']['os']
 
         SysMgr.infoBufferPrint('\n[System OS Info]')
@@ -46230,8 +46225,8 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general'].setdefault('limit', dict())
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general'].setdefault('limit', {})
             jsonData = SysMgr.jsonData['general']['limit']
 
         limitData = self.limitData
@@ -46252,7 +46247,7 @@ Copyright:
             try:
                 items = limit.split()
                 name = ' '.join(items[:-4])
-                jsonData.setdefault(name, dict())
+                jsonData.setdefault(name, {})
                 jsonData[name]['soft'] = items[-3]
                 jsonData[name]['hard'] = items[-2]
                 jsonData[name]['unit'] = items[-1]
@@ -46268,7 +46263,7 @@ Copyright:
     def printSystemInfo(self):
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
+            SysMgr.jsonData.setdefault('general', {})
             jsonData = SysMgr.jsonData['general']
 
         SysMgr.infoBufferPrint('\n\n[System General Info]')
@@ -46569,8 +46564,8 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['cache'] = dict()
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general']['cache'] = {}
             jsonData = SysMgr.jsonData['general']['cache']
 
         SysMgr.infoBufferPrint('\n[System CPU Cache Info]')
@@ -46617,8 +46612,8 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['cpu'] = dict()
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general']['cpu'] = {}
             jsonData = SysMgr.jsonData['general']['cpu']
 
         SysMgr.infoBufferPrint('\n[System CPU Info]')
@@ -46706,7 +46701,7 @@ Copyright:
 
 
     def updateDiskInfo(self, time, data):
-        self.diskInfo[time] = dict()
+        self.diskInfo[time] = {}
 
         if not SysMgr.isLinux:
             return
@@ -46725,7 +46720,7 @@ Copyright:
                 else:
                     diskStat[ConfigMgr.DISKSTAT[idx]] = item
 
-            self.diskInfo[time][diskStat['name']] = dict()
+            self.diskInfo[time][diskStat['name']] = {}
             diskInfoBuf = self.diskInfo[time][diskStat['name']]
 
             # save recent stat #
@@ -46861,7 +46856,7 @@ Copyright:
             pass
 
         # initialize shm variable #
-        self.ipcData['shm'] = dict()
+        self.ipcData['shm'] = {}
 
         # parse new shm data #
         for line in data:
@@ -46878,7 +46873,7 @@ Copyright:
             if key == 'key':
                 continue
 
-            shmData = self.ipcData['shm'][shmid] = dict()
+            shmData = self.ipcData['shm'][shmid] = {}
             shmData['key'] = key
             shmData['perms'] = perms
             shmData['size'] = long(size)
@@ -46918,7 +46913,7 @@ Copyright:
             pass
 
         # initialize msgq variable #
-        self.ipcData['msgq'] = dict()
+        self.ipcData['msgq'] = {}
 
         # parse new msgq data #
         for line in data:
@@ -46930,7 +46925,7 @@ Copyright:
             except:
                 pass
 
-            msgqData = self.ipcData['msgq'][msgqid] = dict()
+            msgqData = self.ipcData['msgq'][msgqid] = {}
             msgqData['key'] = key
             msgqData['perms'] = perms
             msgqData['cbytes'] = cbytes
@@ -46970,7 +46965,7 @@ Copyright:
             pass
 
         # initialize sem variable #
-        self.ipcData['sem'] = dict()
+        self.ipcData['sem'] = {}
 
         # parse new sem data #
         for line in data:
@@ -46981,7 +46976,7 @@ Copyright:
             except:
                 pass
 
-            semData = self.ipcData['sem'][semid] = dict()
+            semData = self.ipcData['sem'][semid] = {}
             semData['key'] = key
             semData['perms'] = perms
             semData['nsems'] = nsems
@@ -47056,7 +47051,7 @@ Copyright:
 
                     # update ip address #
                     devList.append(dev)
-                    self.networkInfo.setdefault(dev, dict())
+                    self.networkInfo.setdefault(dev, {})
                     family, addr, mask, broadcast, ptp = item
                     self.networkInfo[dev]['ipaddr'] = addr
 
@@ -47147,7 +47142,7 @@ Copyright:
 
                 dev = dev.strip()
 
-                self.networkInfo.setdefault(dev, dict())
+                self.networkInfo.setdefault(dev, {})
 
                 # set IP addr #
                 try:
@@ -47425,7 +47420,7 @@ Copyright:
             partition = psutil.disk_partitions(all=True)
             for item in partition:
                 dev, path, fs, opts, maxfile, maxpath = item
-                self.storageData.setdefault(dev, dict())
+                self.storageData.setdefault(dev, {})
                 self.storageData[dev]['mount'] = {
                     'fs': fs,
                     'path': path,
@@ -47522,7 +47517,7 @@ Copyright:
 
 
     def getStorageInfo(self):
-        storageData = dict()
+        storageData = {}
         init_storageData = \
             {'total': long(0), 'free': long(0), 'favail': long(0),
             'read': long(0), 'write': long(0), 'usage': long(0),
@@ -47695,7 +47690,7 @@ Copyright:
                 # update subdir #
                 for item in subdirs:
                     subdir = os.path.join(dirpath, item)
-                    root[subdir] = dict()
+                    root[subdir] = {}
 
                 # update subfiles #
                 for item in subfiles:
@@ -47713,7 +47708,7 @@ Copyright:
             return None
 
         # get full path list #
-        dirList = dict()
+        dirList = {}
         _getPaths(dirList, os.walk(cgroupPath))
 
         # split a path to multiple tokens #
@@ -47890,7 +47885,7 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
+            SysMgr.jsonData.setdefault('general', {})
             SysMgr.jsonData['general']['cgroup'] = cgroupTree
 
 
@@ -47930,7 +47925,7 @@ Copyright:
         convTimeFunc = UtilMgr.convTime
 
         # merge stats per-owner #
-        ownerData = dict()
+        ownerData = {}
         for shmid, stats in self.ipcData['shm'].items():
             try:
                 owner = stats['cpid']
@@ -47940,7 +47935,7 @@ Copyright:
                 ownerData[owner]['rss'] += stats['rss']
                 ownerData[owner]['swap'] += stats['swap']
             except:
-                ownerData[owner] = dict()
+                ownerData[owner] = {}
                 ownerData[owner]['uid'] = stats['uid']
                 ownerData[owner]['count'] = 1
                 ownerData[owner]['size'] = stats['size']
@@ -48067,8 +48062,8 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['gpu'] = dict()
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general']['gpu'] = {}
             jsonData = SysMgr.jsonData['general']['gpu']
 
         # print GPU info #
@@ -48082,7 +48077,7 @@ Copyright:
             name = item['name']
             if SysMgr.jsonEnable:
                 origName = name
-                jsonData.setdefault(origName, dict())
+                jsonData.setdefault(origName, {})
 
             for key, value in sorted(item.items()):
                 if key == 'name':
@@ -48109,9 +48104,9 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general'].setdefault('gpu', dict())
-            SysMgr.jsonData['general'].setdefault('gpumem', dict())
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general'].setdefault('gpu', {})
+            SysMgr.jsonData['general'].setdefault('gpumem', {})
             jsonData = SysMgr.jsonData['general']['gpumem']
 
         # print GPU Memory info #
@@ -48150,8 +48145,8 @@ Copyright:
     def printNetworkInfo(self):
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['network'] = dict()
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general']['network'] = {}
             jsonData = SysMgr.jsonData['general']['network']
 
         # print network info #
@@ -48251,7 +48246,7 @@ Copyright:
                 cnt += 1
 
                 if SysMgr.jsonEnable:
-                    jsonData[dev] = dict()
+                    jsonData[dev] = {}
 
                     jsonData[dev]['ipaddr'] = val['ipaddr']
 
@@ -48317,8 +48312,8 @@ Copyright:
     def printStorageInfo(self):
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['storage'] = dict()
+            SysMgr.jsonData.setdefault('general', {})
+            SysMgr.jsonData['general']['storage'] = {}
             jsonData = SysMgr.jsonData['general']['storage']
 
         # print storage info #
@@ -48553,7 +48548,7 @@ Copyright:
 
         # parse data #
         time = 'prev'
-        self.memInfo[time] = dict()
+        self.memInfo[time] = {}
         for l in self.memData[time]:
             m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
             if m:
@@ -48561,7 +48556,7 @@ Copyright:
                 self.memInfo[time][d['type']] = d['size']
 
         time = 'next'
-        self.memInfo[time] = dict()
+        self.memInfo[time] = {}
         for l in self.memData[time]:
             m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
             if m:
@@ -48710,7 +48705,7 @@ Copyright:
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('general', dict())
+            SysMgr.jsonData.setdefault('general', {})
             SysMgr.jsonData['general']['mem'] = {
                 'memTotal': convertFunc(long(after['MemTotal']) << 10),
                 'memFree': convertFunc(long(after['MemFree']) << 10),
@@ -49339,7 +49334,7 @@ class DbusMgr(object):
 
             name = c_char_p(''.encode())
             value = c_uint32(0)
-            statList = dict()
+            statList = {}
 
             # array item loop #
             while 1:
@@ -49474,7 +49469,7 @@ class DbusMgr(object):
 
                 # allocate a new task dict #
                 procId = procInfo.value.decode()
-                perProcList.setdefault(procId, dict())
+                perProcList.setdefault(procId, {})
                 procSigList = perProcList[procId]
 
                 # parse signal array #
@@ -49518,8 +49513,8 @@ class DbusMgr(object):
                         addr = '%s%s' % (iface, member)
 
                         # save perProc items #
-                        procSigList.setdefault(sender, dict())
-                        procSigList[sender].setdefault(addr, dict())
+                        procSigList.setdefault(sender, {})
+                        procSigList[sender].setdefault(addr, {})
                         if 'arg0' in sinfo:
                             argList = [ '%s' % sinfo[i] for i in sorted(
                                 list(sinfo.keys())) if i.startswith('arg') ]
@@ -49527,9 +49522,9 @@ class DbusMgr(object):
                                 ', '.join(argList))
 
                         # save perSignal items #
-                        perSigList.setdefault(sender, dict())
+                        perSigList.setdefault(sender, {})
                         sigProcList = perSigList[sender]
-                        sigProcList.setdefault(addr, dict())
+                        sigProcList.setdefault(addr, {})
                         sigProcList[addr].setdefault(procId)
 
                     if not dbusObj.dbus_message_iter_next(arraySigIterP):
@@ -50039,9 +50034,9 @@ class DbusMgr(object):
                 proc = sender
 
             initDict = \
-                {'proxyList': dict(), 'nrSignal': 0, 'interface': dict()}
+                {'proxyList': {}, 'nrSignal': 0, 'interface': {}}
             nrPerSigProcs.setdefault(proc, dict(initDict))
-            nrPerSigProcs[proc]['interface'].setdefault(sender, dict())
+            nrPerSigProcs[proc]['interface'].setdefault(sender, {})
             nrPerSigProcs[proc]['interface'][sender].update(items)
 
             nrPerSigProcs[proc]['nrSignal'] += len(items)
@@ -50449,7 +50444,7 @@ class DbusMgr(object):
 
                     # check previous data #
                     if not tid in DbusMgr.prevData:
-                        DbusMgr.prevData[tid] = dict()
+                        DbusMgr.prevData[tid] = {}
                         DbusMgr.prevData[tid]['recvmsg'] = ''
                         DbusMgr.prevData[tid]['sendmsg'] = ''
 
@@ -50653,8 +50648,8 @@ class DbusMgr(object):
                             continue
 
                     # set task default dict #
-                    DbusMgr.sentData.setdefault(tid, dict())
-                    DbusMgr.recvData.setdefault(tid, dict())
+                    DbusMgr.sentData.setdefault(tid, {})
+                    DbusMgr.recvData.setdefault(tid, {})
 
                     # return check #
                     if mtype == 'RETURN':
@@ -50749,7 +50744,7 @@ class DbusMgr(object):
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        TaskAnalyzer.dbusData[tid][name] = dict()
+                        TaskAnalyzer.dbusData[tid][name] = {}
                         TaskAnalyzer.dbusData[tid][name]['cnt'] = \
                             value['count']
             except SystemExit:
@@ -51035,7 +51030,7 @@ class DbusMgr(object):
                 services = None
 
             # register services #
-            busServiceList.setdefault(tid, dict())
+            busServiceList.setdefault(tid, {})
             if services:
                 busProcList = {}
 
@@ -51058,7 +51053,7 @@ class DbusMgr(object):
 
                 busServiceList[tid].setdefault(bus, busProcList)
             else:
-                busServiceList[tid].setdefault(bus, dict())
+                busServiceList[tid].setdefault(bus, {})
 
             # define process string #
             procStr = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
@@ -52779,8 +52774,8 @@ class Debugger(object):
         self.targetBpList = {}
         self.targetBpFileList = {}
         self.exceptBpFileList = {}
-        self.symbolCacheList = dict()
-        self.failedAddrList = dict()
+        self.symbolCacheList = {}
+        self.failedAddrList = {}
         self.ldInjected = False
         self.libcLoaded = False
         self.dftBpFileList = {}
@@ -54169,7 +54164,7 @@ typedef struct {
                                 "failed to import python package: math")
                             idx = 0
                     finally:
-                        self.accList[name].setdefault('dist', dict())
+                        self.accList[name].setdefault('dist', {})
                         self.accList[name]['dist'].setdefault(idx, 0)
                         self.accList[name]['dist'][idx] += 1
                         dist = self.accList[name]['dist']
@@ -57478,12 +57473,12 @@ typedef struct {
     def printIntervalSummary(self):
         def _resetStats():
             # initialize syscall timetable #
-            self.syscallStat = dict()
-            self.brkcallStat = dict()
+            self.syscallStat = {}
+            self.brkcallStat = {}
 
             # reset data #
             self.totalCall = long(0)
-            self.callTable = dict()
+            self.callTable = {}
             self.errCnt = long(0)
             SysMgr.clearPrint()
 
@@ -57773,7 +57768,7 @@ typedef struct {
             if value['backtrace']:
                 # backup backtraces #
                 if SysMgr.outPath:
-                    self.btTable.setdefault(sym, dict())
+                    self.btTable.setdefault(sym, {})
                     for bt, cnt in value['backtrace'].items():
                         self.btTable[sym].setdefault(bt, 0)
                         self.btTable[sym][bt] += cnt
@@ -58658,7 +58653,7 @@ typedef struct {
                 'cnt': 1,
                 'path': filename,
                 'err': long(0),
-                'backtrace': dict(),
+                'backtrace': {},
                 'elapsed': float(0),
                 'min': float(0),
                 'max': float(0),
@@ -58688,7 +58683,7 @@ typedef struct {
         try:
             self.fileTable[filename]['cnt'] += 1
         except:
-            self.fileTable[filename] = dict()
+            self.fileTable[filename] = {}
             self.fileTable[filename]['cnt'] = 1
 
         if not SysMgr.outPath:
@@ -60914,7 +60909,7 @@ typedef struct {
                 "tid": self.pid,
                 "comm": self.comm,
                 "backtrace": bts,
-                "args": dict(),
+                "args": {},
             }
 
             # marshaling args #
@@ -61847,17 +61842,17 @@ typedef struct {
         self.callPrint = list()
         self.cpuUsageList = list()
         self.selfCpuUsageList = list()
-        self.syscallTime = dict()
-        self.syscallStat = dict()
-        self.brkcallStat = dict()
-        self.retList = dict()
-        self.accList = dict()
-        self.interList = dict()
-        self.setRetList = dict()
-        self.regList = dict()
-        self.repeatCntList = dict()
-        self.symbolCacheList = dict()
-        self.failedAddrList = dict()
+        self.syscallTime = {}
+        self.syscallStat = {}
+        self.brkcallStat = {}
+        self.retList = {}
+        self.accList = {}
+        self.interList = {}
+        self.setRetList = {}
+        self.regList = {}
+        self.repeatCntList = {}
+        self.symbolCacheList = {}
+        self.failedAddrList = {}
         self.prevReturn = -1
         self.startAddr = None
         self.errCnt = 0
@@ -62729,8 +62724,8 @@ typedef struct {
         else:
             instance.last = time.time()
 
-        callTable = dict()
-        fileTable = dict()
+        callTable = {}
+        fileTable = {}
         elapsedTable = list()
 
         # define stop flag #
@@ -62801,7 +62796,7 @@ typedef struct {
                 try:
                     callTable[symbol]['cnt'] += 1
                 except:
-                    callTable[symbol] = dict()
+                    callTable[symbol] = {}
                     callTable[symbol]['cnt'] = 1
                     callTable[symbol]['path'] = filename
 
@@ -62814,7 +62809,7 @@ typedef struct {
                 try:
                     fileTable[filename]['cnt'] += 1
                 except:
-                    fileTable[filename] = dict()
+                    fileTable[filename] = {}
                     fileTable[filename]['cnt'] = 1
             except SystemExit:
                 UtilMgr.deleteProgress()
@@ -65258,7 +65253,7 @@ class ElfAnalyzer(object):
             self._bytecode_array = bytecode_array
             self._index = None
             self.mnemonic_array = []
-            self.cfa_table = dict()
+            self.cfa_table = {}
             if bytecode_array:
                 self._decode()
 
@@ -67376,7 +67371,7 @@ class ElfAnalyzer(object):
                 struct.unpack('QQQIHHHHHH', fd.read(40))
 
         # save header info #
-        self.attr.setdefault('elfHeader', dict())
+        self.attr.setdefault('elfHeader', {})
         self.attr['elfHeader']['magic'] = \
             ("%02x %02x %02x %02x %02x %02x %02x %02x" %
             (ei_mag0, ei_mag1, ei_mag2, ei_mag3, ei_class, ei_data,
@@ -67553,7 +67548,7 @@ Section header string table index: %d
         e_shframe = -1
 
         # define section info #
-        self.attr.setdefault('sectionHeader', dict())
+        self.attr.setdefault('sectionHeader', {})
 
         # print section header title #
         if debug and e_shnum > 0:
@@ -67671,9 +67666,9 @@ Section header string table index: %d
                 self.attr['versymList'].append(symidx)
 
         # define .dynsym info #
-        self.attr.setdefault('dynsymTable', dict())
+        self.attr.setdefault('dynsymTable', {})
         self.attr.setdefault('dynsymList', ['']) # STN_UNDEF == 0
-        self.attr.setdefault('versionTable', dict())
+        self.attr.setdefault('versionTable', {})
 
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0 and \
@@ -67893,7 +67888,7 @@ Section header string table index: %d
                 SysMgr.printPipe(oneLine)
 
         # define .sym info #
-        self.attr.setdefault('symTable', dict())
+        self.attr.setdefault('symTable', {})
 
         # parse .symtab table #
         if e_shsymndx >= 0 and e_shstrndx >= 0 and \
@@ -68196,7 +68191,7 @@ Section header string table index: %d
             frameSectName = ''
 
         # check frame section #
-        self.attr['dwarfTable'] = dict()
+        self.attr['dwarfTable'] = {}
         if SysMgr.dwarfEnable and e_shframe >= 0 and frameSectName:
             def _getEncType(encoding):
                 if encoding == ENC_FLAGS['DW_EH_PE_omit']:
@@ -68264,13 +68259,13 @@ Section header string table index: %d
 
             def _getAugData(string, table, pos, size):
                 if size == 0:
-                    return dict(), '', ''
+                    return {}, '', ''
 
                 augdata = table[pos:pos+size]
 
                 # parse data #
                 augpos = 0
-                augdict = dict()
+                augdict = {}
                 for idx, char in enumerate(string):
                     if augpos >= len(augdata):
                         break
@@ -68688,12 +68683,12 @@ Section header string table index: %d
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shframe)
 
-            self.attr.setdefault('dwarf', dict())
-            self.attr['dwarf']['CIE'] = dict()
-            self.attr['dwarf']['FDE'] = dict()
-            self.attr['dwarf'].setdefault('general', dict())
+            self.attr.setdefault('dwarf', {})
+            self.attr['dwarf']['CIE'] = {}
+            self.attr['dwarf']['FDE'] = {}
+            self.attr['dwarf'].setdefault('general', {})
             self.attr['dwarf'].setdefault('CFAIndex', list())
-            self.attr['dwarf'].setdefault('CFATable', dict())
+            self.attr['dwarf'].setdefault('CFATable', {})
             ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
             nrCIE = nrFDE = 0
 
@@ -69075,8 +69070,8 @@ Section header string table index: %d
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframehdr)
 
-            self.attr.setdefault('dwarf', dict())
-            self.attr['dwarf']['hdr'] = dict()
+            self.attr.setdefault('dwarf', {})
+            self.attr['dwarf']['hdr'] = {}
             ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
 
             # get symbol string #
@@ -69228,10 +69223,10 @@ Section header string table index: %d
 
                     SysMgr.printPipe('\n')
 
-            self.attr.setdefault('dwarf', dict())
-            self.attr['dwarf'].setdefault('general', dict())
+            self.attr.setdefault('dwarf', {})
+            self.attr['dwarf'].setdefault('general', {})
             self.attr['dwarf'].setdefault('CFAIndex', list())
-            self.attr['dwarf'].setdefault('CFATable', dict())
+            self.attr['dwarf'].setdefault('CFATable', {})
 
             # define entry size #
             EHABI_INDEX_ENTRY_SIZE = 8
@@ -69621,10 +69616,10 @@ class TaskAnalyzer(object):
 
         # define variable and table #
         nrFiles = len(flist)
-        unionCpuList = dict()
-        unionGpuList = dict()
-        unionRssList = dict()
-        statFileList = dict()
+        unionCpuList = {}
+        unionGpuList = {}
+        unionRssList = {}
+        statFileList = {}
 
         # get diff type #
         if SysMgr.cpuAvgEnable:
@@ -69737,7 +69732,7 @@ class TaskAnalyzer(object):
 
                 # save diff itself #
                 if idx > 0:
-                    targetList = dict()
+                    targetList = {}
                     prevProcList = statFileList[flist[idx-1]]['cpuProcUsage']
 
                     for proc, pval in prevProcList.items():
@@ -69846,7 +69841,7 @@ class TaskAnalyzer(object):
 
                 # save diff itself #
                 if idx > 0:
-                    targetList = dict()
+                    targetList = {}
                     prevProcList = statFileList[flist[idx-1]]['gpuProcUsage']
 
                     for proc, pval in prevProcList.items():
@@ -69945,7 +69940,7 @@ class TaskAnalyzer(object):
 
                 # save diff itself #
                 if idx > 0:
-                    targetList = dict()
+                    targetList = {}
                     prevProcList = statFileList[flist[idx-1]]['memProcUsage']
 
                     for proc, pval in prevProcList.items():
@@ -71518,7 +71513,7 @@ class TaskAnalyzer(object):
                     # calculate total usage of tasks filtered #
                     if TaskAnalyzer.checkFilter(comm, pid):
                         if not "[ TOTAL ]" in cpuProcUsage:
-                            cpuProcUsage["[ TOTAL ]"] = dict()
+                            cpuProcUsage["[ TOTAL ]"] = {}
 
                             filterTotal = list(map(long,
                                 cpuProcUsage[pname]['usage'].split()))
@@ -71620,7 +71615,7 @@ class TaskAnalyzer(object):
                     # calculate total usage of tasks filtered #
                     if TaskAnalyzer.checkFilter(comm, pid):
                         if not "[ TOTAL ]" in cpuProcDelay:
-                            cpuProcDelay["[ TOTAL ]"] = dict()
+                            cpuProcDelay["[ TOTAL ]"] = {}
 
                             filterTotal = list(map(long,
                                 cpuProcDelay[pname]['usage'].split()))
@@ -71835,7 +71830,7 @@ class TaskAnalyzer(object):
                         intervalList += sline[1]
                 elif intervalList and (sname != 'Device' and sname != 'Storage'):
                     # define arrays #
-                    storageUsage.setdefault(sname, dict())
+                    storageUsage.setdefault(sname, {})
                     busyList = list()
                     readList = list()
                     writeList = list()
@@ -71866,7 +71861,7 @@ class TaskAnalyzer(object):
                         intervalList += sline[1]
                 elif intervalList and (sname != 'Device' and sname != 'Network'):
                     # define arrays #
-                    networkUsage.setdefault(sname, dict())
+                    networkUsage.setdefault(sname, {})
                     recvList = list()
                     tranList = list()
 
@@ -72117,7 +72112,7 @@ class TaskAnalyzer(object):
             if sname.endswith('List'):
                 continue
             elif sname.endswith('ProcUsage'):
-                avgList.setdefault(sname, dict())
+                avgList.setdefault(sname, {})
 
                 for proc, pvalue in value.items():
                     pname = proc.split('(', 1)[0].lstrip('*')
@@ -72147,7 +72142,7 @@ class TaskAnalyzer(object):
                 avgList.setdefault(sname, [0] * len(flist))
                 avgList[sname][fileIdxList[fname]] = usage
             elif type(value) is dict:
-                avgList.setdefault(sname, dict())
+                avgList.setdefault(sname, {})
 
                 for item, val in value.items():
                     if UtilMgr.isString(val):
@@ -72345,8 +72340,8 @@ class TaskAnalyzer(object):
             logFile = SysMgr.outFilePath
 
             # define integrated stats #
-            graphStats = dict()
-            chartStats = dict()
+            graphStats = {}
+            chartStats = {}
 
             # parse stats from multiple files #
             for lfile in flist:
@@ -76888,7 +76883,7 @@ class TaskAnalyzer(object):
             "Error", "Min", "Max", "Avg"))
         SysMgr.printPipe(twoLine)
 
-        totalInfo = dict()
+        totalInfo = {}
 
         for key, value in sorted(self.threadData.items(),
             key=lambda e: e[1]['nrSyscall'], reverse=True):
@@ -76939,7 +76934,7 @@ class TaskAnalyzer(object):
                 # add total info #
                 try:
                     if not sysId in totalInfo:
-                        totalInfo[sysId] = dict()
+                        totalInfo[sysId] = {}
                         totalInfo[sysId]['usage'] = long(0)
                         totalInfo[sysId]['count'] = long(0)
                         totalInfo[sysId]['err'] = long(0)
@@ -79049,8 +79044,8 @@ class TaskAnalyzer(object):
                 usage = long(d['usage'])
 
                 TA.procIntData[index]['total'].setdefault(
-                    'gpu', dict())
-                TA.procTotData['total'].setdefault('gpu', dict())
+                    'gpu', {})
+                TA.procTotData['total'].setdefault('gpu', {})
 
                 try:
                     TA.procTotData['total']['gpu'][gpu]['usage'] += usage
@@ -79060,7 +79055,7 @@ class TaskAnalyzer(object):
                     elif TA.procTotData['total']['gpu'][gpu]['max'] < usage:
                         TA.procTotData['total']['gpu'][gpu]['max'] = usage
                 except:
-                    TA.procTotData['total']['gpu'][gpu] = dict()
+                    TA.procTotData['total']['gpu'][gpu] = {}
                     TA.procTotData['total']['gpu'][gpu]['usage'] = usage
                     TA.procTotData['total']['gpu'][gpu]['min'] = usage
                     TA.procTotData['total']['gpu'][gpu]['max'] = usage
@@ -79074,17 +79069,17 @@ class TaskAnalyzer(object):
 
         # Get Storage resource usage #
         elif len(tokenList) == 12 and tokenList[0][0] == '/':
-            TA.procIntData[index]['total'].setdefault('storage', dict())
+            TA.procIntData[index]['total'].setdefault('storage', {})
 
-            TA.procTotData['total'].setdefault('storage', dict())
+            TA.procTotData['total'].setdefault('storage', {})
 
             try:
                 # get device name #
                 dev = tokenList[0].strip()
                 dev = dev[dev.rfind('/')+1:]
 
-                TA.procIntData[index]['total']['storage'].setdefault(dev, dict())
-                TA.procTotData['total']['storage'].setdefault(dev, dict())
+                TA.procIntData[index]['total']['storage'].setdefault(dev, {})
+                TA.procTotData['total']['storage'].setdefault(dev, {})
 
                 # get busy time and average queue-length #
                 busy = convUnit2Size(tokenList[1].strip()[:-1])
@@ -79148,16 +79143,16 @@ class TaskAnalyzer(object):
                 tokenList[0].strip() == 'Dev':
                 return
 
-            TA.procIntData[index]['total'].setdefault('netdev', dict())
+            TA.procIntData[index]['total'].setdefault('netdev', {})
 
-            TA.procTotData['total'].setdefault('netdev', dict())
+            TA.procTotData['total'].setdefault('netdev', {})
 
             try:
                 # get device name #
                 dev = tokenList[0].strip()
 
-                TA.procIntData[index]['total']['netdev'].setdefault(dev, dict())
-                TA.procTotData['total']['netdev'].setdefault(dev, dict())
+                TA.procIntData[index]['total']['netdev'].setdefault(dev, {})
+                TA.procTotData['total']['netdev'].setdefault(dev, {})
 
                 # get storage stats in MB #
                 recv = convUnit2Size(tokenList[2].strip())
@@ -79198,7 +79193,7 @@ class TaskAnalyzer(object):
                 return
 
             try:
-                TA.procTotData['total'].setdefault(target, dict())
+                TA.procTotData['total'].setdefault(target, {})
 
                 TA.procTotData['total'][target][system]['usage'] += usage
 
@@ -79207,13 +79202,13 @@ class TaskAnalyzer(object):
                 elif TA.procTotData['total'][target][system]['max'] < usage:
                     TA.procTotData['total'][target][system]['max'] = usage
             except:
-                TA.procTotData['total'][target][system] = dict()
+                TA.procTotData['total'][target][system] = {}
                 TA.procTotData['total'][target][system]['usage'] = usage
                 TA.procTotData['total'][target][system]['min'] = usage
                 TA.procTotData['total'][target][system]['max'] = usage
 
             try:
-                TA.procIntData[index]['total'].setdefault(target, dict())
+                TA.procIntData[index]['total'].setdefault(target, {})
                 TA.procIntData[index]['total'][target][system] = usage
             except:
                 pass
@@ -79227,7 +79222,7 @@ class TaskAnalyzer(object):
                 return
 
             try:
-                TA.procTotData['total'].setdefault(target, dict())
+                TA.procTotData['total'].setdefault(target, {})
                 TA.procTotData['total'][target][system]['usage'] = usage
 
                 if TA.procTotData['total'][target][system]['min'] > usage:
@@ -79235,13 +79230,13 @@ class TaskAnalyzer(object):
                 elif TA.procTotData['total'][target][system]['max'] < usage:
                     TA.procTotData['total'][target][system]['max'] = usage
             except:
-                TA.procTotData['total'][target][system] = dict()
+                TA.procTotData['total'][target][system] = {}
                 TA.procTotData['total'][target][system]['usage'] = usage
                 TA.procTotData['total'][target][system]['min'] = usage
                 TA.procTotData['total'][target][system]['max'] = usage
 
             try:
-                TA.procIntData[index]['total'].setdefault(target, dict())
+                TA.procIntData[index]['total'].setdefault(target, {})
                 TA.procIntData[index]['total'][target][system] = usage
             except:
                 pass
@@ -79273,7 +79268,7 @@ class TaskAnalyzer(object):
                     TA.lifecycleData[rcomm] = [0] * 8
 
                 # initialize lifedata #
-                TA.lifeIntData.setdefault(pid, dict())
+                TA.lifeIntData.setdefault(pid, {})
                 TA.lifeIntData[pid].setdefault(index, list())
 
                 # add died process to list #
@@ -82491,7 +82486,7 @@ class TaskAnalyzer(object):
             self.irqData[irqId]['name'].setdefault(d['name'], 0)
 
             # make per-thread irq list #
-            threadData.setdefault('irqList', dict())
+            threadData.setdefault('irqList', {})
             threadData['irqList'].setdefault(
                 irqId, dict(self.init_irqData))
             threadData['irqList'][irqId]['name'] = d['name']
@@ -82736,7 +82731,7 @@ class TaskAnalyzer(object):
             nr = pow(2, order)
 
             # register page order #
-            threadData.setdefault('orderPages', dict())
+            threadData.setdefault('orderPages', {})
             threadData['orderPages'].setdefault(order, 0)
             threadData['orderPages'][order] += 1
             self.allocPageData.setdefault(order, 0)
@@ -83095,7 +83090,7 @@ class TaskAnalyzer(object):
             try:
                 threadData['syscallInfo']
             except:
-                threadData['syscallInfo'] = dict()
+                threadData['syscallInfo'] = {}
             try:
                 threadData['syscallInfo'][nrstr]
             except:
@@ -83657,15 +83652,15 @@ class TaskAnalyzer(object):
             ops = 'READ'
 
             # total read #
-            self.fsTable[0].setdefault(ops, dict())
-            self.fsTable[0][ops].setdefault(did, dict())
+            self.fsTable[0].setdefault(ops, {})
+            self.fsTable[0][ops].setdefault(did, {})
             self.fsTable[0][ops][did].setdefault(inode, 0)
             self.fsTable[0][ops][did][inode] += 1
 
             # thread read #
-            self.fsTable[1].setdefault(thread, dict())
-            self.fsTable[1][thread].setdefault(ops, dict())
-            self.fsTable[1][thread][ops].setdefault(did, dict())
+            self.fsTable[1].setdefault(thread, {})
+            self.fsTable[1][thread].setdefault(ops, {})
+            self.fsTable[1][thread][ops].setdefault(did, {})
             self.fsTable[1][thread][ops][did].setdefault(inode, 0)
             self.fsTable[1][thread][ops][did][inode] += 1
 
@@ -83716,15 +83711,15 @@ class TaskAnalyzer(object):
             self.threadData[coreId]['awriteBlockCnt'] += 1
 
             # total write #
-            self.fsTable[0].setdefault(ops, dict())
-            self.fsTable[0][ops].setdefault(did, dict())
+            self.fsTable[0].setdefault(ops, {})
+            self.fsTable[0][ops].setdefault(did, {})
             self.fsTable[0][ops][did].setdefault(inode, 0)
             self.fsTable[0][ops][did][inode] += 1
 
             # thread write #
-            self.fsTable[1].setdefault(thread, dict())
-            self.fsTable[1][thread].setdefault(ops, dict())
-            self.fsTable[1][thread][ops].setdefault(did, dict())
+            self.fsTable[1].setdefault(thread, {})
+            self.fsTable[1][thread].setdefault(ops, {})
+            self.fsTable[1][thread][ops].setdefault(did, {})
             self.fsTable[1][thread][ops][did].setdefault(inode, 0)
             self.fsTable[1][thread][ops][did][inode] += 1
 
@@ -84154,11 +84149,11 @@ class TaskAnalyzer(object):
 
             # sub stat update function #
             def _updateBinderStat(binderStat, ctask, code):
-                binderStat.setdefault('others', dict())
-                binderStat['others'].setdefault(ctask, dict())
+                binderStat.setdefault('others', {})
+                binderStat['others'].setdefault(ctask, {})
                 binderStat['others'][ctask].setdefault('count', 0)
                 binderStat['others'][ctask]['count'] += 1
-                binderStat['others'][ctask].setdefault('call', dict())
+                binderStat['others'][ctask].setdefault('call', {})
                 binderStat['others'][ctask]['call'].setdefault(code, 0)
                 binderStat['others'][ctask]['call'][code] += 1
 
@@ -84336,7 +84331,7 @@ class TaskAnalyzer(object):
             except:
                 self.wqData[struct] = dict(self.init_wqData)
                 self.wqData[struct]['name'] = function
-                self.wqData[struct]['task'] = dict()
+                self.wqData[struct]['task'] = {}
 
         elif func == "workqueue_execute_start":
             m = re.match((
@@ -85145,7 +85140,7 @@ class TaskAnalyzer(object):
             item = zl[0]
             if item == 'Node':
                 zone = '%s-%s' % (zl[1][:-1], zl[3])
-                self.zoneData[zone] = dict()
+                self.zoneData[zone] = {}
             elif item == 'pages' and zl[1] == 'free':
                 self.zoneData[zone]['free'] = long(zl[2])
             elif item == 'min' or item == 'low' or item == 'high' or \
@@ -85223,7 +85218,7 @@ class TaskAnalyzer(object):
                 return
 
             # register subsystem #
-            root.setdefault(sub, dict())
+            root.setdefault(sub, {})
             cgroupPath = SysMgr.cgroupPath
 
             for dirpath, subdirs, subfiles in path:
@@ -85257,7 +85252,7 @@ class TaskAnalyzer(object):
                         stat = fd.read()
 
                         # save stat #
-                        root[sub].setdefault(dpath, dict())
+                        root[sub].setdefault(dpath, {})
                         root[sub][dpath][item] = stat
                     except SystemExit:
                         sys.exit(0)
@@ -85429,7 +85424,7 @@ class TaskAnalyzer(object):
         if not cpuStat:
             cpuStat = []
         for idx, cpu in enumerate(cpuStat):
-            self.cpuData[idx] = dict()
+            self.cpuData[idx] = {}
             # linux #
             if SysMgr.isLinux:
                 self.cpuData[idx]['user'] = cpu[0] * 100
@@ -86245,13 +86240,13 @@ class TaskAnalyzer(object):
 
                     # NVIDIA tegra #
                     if 'devfreq' in nodes:
-                        candList[path] = dict()
+                        candList[path] = {}
                         self.gpuNameList[path] = 'NVIDIA'
 
                     # QUALCOMM #
                     if 'kgsl-3d0' in nodes:
                         name = '%s/%s/devfreq' % (path, 'kgsl-3d0')
-                        candList[name] = dict()
+                        candList[name] = {}
                         self.gpuNameList[name] = 'QUALCOMM'
 
         # no GPU supported #
@@ -86271,7 +86266,7 @@ class TaskAnalyzer(object):
                 if gpuName.startswith('NVIDIA'):
                     devName = cand[cand.rfind('/')+1:]
                     target = '%s/%s' % (gpuName, devName)
-                    self.gpuData[target] = dict()
+                    self.gpuData[target] = {}
                     nodePath = '%s/devfreq/%s' % (cand, devName)
 
                     if not 'uevent' in value:
@@ -86298,7 +86293,7 @@ class TaskAnalyzer(object):
                     realCand = cand.rstrip('/devfreq')
                     devName = realCand[realCand.rfind('/')+1:]
                     target = '%s/%s' % (gpuName, devName)
-                    self.gpuData[target] = dict()
+                    self.gpuData[target] = {}
                     nodePath = cand
 
                     # save GPU device load #
@@ -86740,8 +86735,8 @@ class TaskAnalyzer(object):
 
                     # update global info #
                     value = value[1:-1]
-                    self.nsData.setdefault(node, dict())
-                    self.nsData[node].setdefault(value, dict())
+                    self.nsData.setdefault(node, {})
+                    self.nsData[node].setdefault(value, {})
                     self.nsData[node][value].setdefault(tid, 0)
 
                     # update task info #
@@ -87219,7 +87214,7 @@ class TaskAnalyzer(object):
 
         # initialize accumulated CPU values #
         userUsage = kerUsage = ioUsage = irqUsage = idleUsage = long(0)
-        coreStats = dict()
+        coreStats = {}
 
         for idx in list(self.cpuData.keys()):
             try:
@@ -87239,7 +87234,7 @@ class TaskAnalyzer(object):
                 else:
                     prevData = self.prevCpuData[nrIdx]
 
-                coreStats[idx] = dict()
+                coreStats[idx] = {}
 
                 #-------------------- SIMPLE STAT --------------------#
                 userStat = nowData['user'] - prevData['user']
@@ -87405,7 +87400,7 @@ class TaskAnalyzer(object):
             try:
                 self.tempFdList
             except:
-                self.tempFdList = dict()
+                self.tempFdList = {}
 
             try:
                 for item in os.listdir(tempPath):
@@ -87557,7 +87552,7 @@ class TaskAnalyzer(object):
 
                     cid = None
                     curCore = idx
-                    perCoreStats[curCore] = dict()
+                    perCoreStats[curCore] = {}
 
                     # get CPU stats #
                     userCoreUsage = coreStats[idx]['user']
@@ -87942,7 +87937,7 @@ class TaskAnalyzer(object):
         jsonData is just data to be kept in JSON format.
         They have different purporse.
         '''
-        self.reportData = dict()
+        self.reportData = {}
 
         # utctime #
         self.reportData['timestamp'] = SysMgr.uptime
@@ -88090,7 +88085,7 @@ class TaskAnalyzer(object):
                     not 'tdiff' in value:
                     continue
 
-                self.reportData['net'][dev] = dict()
+                self.reportData['net'][dev] = {}
                 reportData = self.reportData['net'][dev]
 
                 reportData['ipaddr'] = value['ipaddr']
@@ -88188,7 +88183,7 @@ class TaskAnalyzer(object):
                 except:
                     value['avq'] = long(0)
         else:
-            self.reportData['storage'] = dict()
+            self.reportData['storage'] = {}
 
         # apply report data to global data #
         if SysMgr.jsonEnable:
@@ -88495,7 +88490,7 @@ class TaskAnalyzer(object):
                     self.procData[idx]['wss'] = \
                         self.prevProcData[idx]['wss']
                 except:
-                    self.procData[idx].setdefault('wss', dict())
+                    self.procData[idx].setdefault('wss', {})
 
                     # clear reference bits #
                     try:
@@ -88631,7 +88626,7 @@ class TaskAnalyzer(object):
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('system', dict())
+            SysMgr.jsonData.setdefault('system', {})
             jsonData = SysMgr.jsonData['system']
 
             jsonData['uptime'] = SysMgr.uptime
@@ -88669,7 +88664,7 @@ class TaskAnalyzer(object):
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('zone', dict())
+            SysMgr.jsonData.setdefault('zone', {})
 
         for node, items in sorted(self.zoneData.items()):
             zoneData = '%s [%-10s > ' % (' ' * nrIndent, 'N%s' % node)
@@ -88678,7 +88673,7 @@ class TaskAnalyzer(object):
 
             for info, val in sorted(items.items()):
                 if SysMgr.jsonEnable:
-                    SysMgr.jsonData['zone'].setdefault(node, dict())
+                    SysMgr.jsonData['zone'].setdefault(node, {})
 
                 if info == 'free':
                     if not node in self.prevZoneData or \
@@ -88735,7 +88730,7 @@ class TaskAnalyzer(object):
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('irq', dict())
+            SysMgr.jsonData.setdefault('irq', {})
 
         for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
             self.irqData[e[0]] if not e[0] in self.prevIrqData \
@@ -88780,7 +88775,7 @@ class TaskAnalyzer(object):
 
         # add JSON stats #
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('PMU', dict())
+            SysMgr.jsonData.setdefault('PMU', {})
             jsonData = SysMgr.jsonData['PMU']
 
             plist = perfString[1:-1].split(' / ')
@@ -88818,7 +88813,7 @@ class TaskAnalyzer(object):
         convertFunc = UtilMgr.convSize2Unit
 
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('net', dict())
+            SysMgr.jsonData.setdefault('net', {})
 
         cnt = long(0)
         totalStat = {'rdiff': [0] * 5, 'tdiff': [0] * 5}
@@ -88946,7 +88941,7 @@ class TaskAnalyzer(object):
         prevStorageData = SysMgr.sysInstance.prevStorageData
 
         if SysMgr.jsonEnable:
-            SysMgr.jsonData.setdefault('storage', dict())
+            SysMgr.jsonData.setdefault('storage', {})
 
         printCnt = long(0)
         for dev, value in sorted(storageData.items(),
@@ -89228,7 +89223,7 @@ class TaskAnalyzer(object):
                         continue
 
                 for name, value in values.items():
-                    stats.setdefault(group, dict())
+                    stats.setdefault(group, {})
 
                     if name == 'tasks' or \
                         name == 'cgroup.procs':
@@ -89822,7 +89817,7 @@ class TaskAnalyzer(object):
         # add JSON stats #
         if SysMgr.jsonEnable:
             jtype = mode.lower()
-            SysMgr.jsonData.setdefault(jtype, dict())
+            SysMgr.jsonData.setdefault(jtype, {})
             jsonData = SysMgr.jsonData[jtype]
 
         # increase print tick #
@@ -89893,7 +89888,7 @@ class TaskAnalyzer(object):
 
             # add task into stack trace list #
             if SysMgr.stackEnable:
-                self.stackTable.setdefault(idx, dict())
+                self.stackTable.setdefault(idx, {})
 
                 if not 'fd' in self.stackTable[idx]:
                     spath = '%s/%s/stack' % (SysMgr.procPath, idx)
@@ -90523,8 +90518,8 @@ class TaskAnalyzer(object):
         cl = 26 - (pd * 2)
 
         if SysMgr.reportEnable:
-            self.reportData.setdefault('task', dict())
-            self.reportData['task'].setdefault(taskType, dict())
+            self.reportData.setdefault('task', {})
+            self.reportData['task'].setdefault(taskType, {})
             jsonData = self.reportData['task'][taskType]
 
         # get task list #
