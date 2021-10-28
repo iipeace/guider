@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211027"
+__revision__ = "211028"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3860,7 +3860,7 @@ class UtilMgr(object):
         syscallList = set(syscallList)
 
         protoList = set(\
-            ['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
+            ['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES])
 
         # print final diff list #
         SysMgr.printPipe("--- NO PROTOTYPE ---")
@@ -4483,7 +4483,7 @@ class UtilMgr(object):
             except:
                 SysMgr.printErr(
                     "failed to get %s in [%s]" % \
-                        (flag, '|'.join(list(vlist.keys()))))
+                        (flag, '|'.join(list(vlist))))
                 sys.exit(0)
 
         return num
@@ -4505,7 +4505,7 @@ class UtilMgr(object):
     def getFlagString(value, flist, num='hex'):
         string = ''
         numVal = long(value)
-        for bit in list(flist.keys()):
+        for bit in list(flist):
             try:
                 if numVal - bit < 0:
                     break
@@ -4921,8 +4921,7 @@ class UtilMgr(object):
 
     @staticmethod
     def convColor(string, color='LIGHT', size=1, align='right'):
-        if not SysMgr.colorEnable or not color or \
-            SysMgr.outPath or SysMgr.outputFile or \
+        if not SysMgr.colorEnable or not color or SysMgr.outPath or \
             SysMgr.jsonEnable or SysMgr.remoteRun or \
             (not SysMgr.isLinux and not SysMgr.isDarwin):
             SysMgr.colorEnable = False
@@ -7307,7 +7306,7 @@ class NetworkMgr(object):
             except:
                 SysMgr.printOpenWarn(path)
 
-        return list(effectiveList.keys())
+        return list(effectiveList)
 
 
 
@@ -7332,7 +7331,7 @@ class NetworkMgr(object):
             except:
                 pass
 
-        return list(gateways.keys())
+        return list(gateways)
 
 
 
@@ -7788,7 +7787,7 @@ class Timeline(object):
             try:
                 color = self.color_map[colorid]
             except:
-                color = self.color_map[list(self.color_map.keys())[0]]
+                color = self.color_map[list(self.color_map)[0]]
 
         # check stroke option #
         if self.stroke_text and \
@@ -12301,7 +12300,7 @@ class FunctionAnalyzer(object):
         UtilMgr.deleteProgress()
 
         # Save stack of last events per core #
-        for idx in list(self.coreCtx.keys()):
+        for idx in list(self.coreCtx):
             self.lastCore = idx
             self.nowCtx = self.coreCtx[idx]
 
@@ -13736,7 +13735,7 @@ class FunctionAnalyzer(object):
         convertNum = UtilMgr.convNum
 
         # Make custom event list #
-        customList = ', '.join(list(self.customEventTable.keys()))
+        customList = ', '.join(list(self.customEventTable))
 
         # Print custom event in user space #
         if SysMgr.userEnable:
@@ -14173,7 +14172,7 @@ class FunctionAnalyzer(object):
                 else:
                     # Find index of the backmost exception value #
                     maxIdx = -1
-                    for pos in list(exceptList.keys()):
+                    for pos in list(exceptList):
                         try:
                             ridx = subStack.index(pos)
                             if ridx >= 0 and ridx > maxIdx:
@@ -15678,7 +15677,7 @@ class LeakAnalyzer(object):
                 self.symData[sym]['substack'] = {}
 
             if val['callList']:
-                for time in list(val['callList'].keys()):
+                for time in list(val['callList']):
                     callinfo = self.callData[time]
                     substack = dobj.getBacktraceStr(callinfo['symstack'][1:])
                     dobj.btStr = None
@@ -16108,7 +16107,7 @@ class FileAnalyzer(object):
         SysMgr.printPipe("%s\n\n" % oneLine)
 
         # remove invalid files #
-        for fileName in list(self.fileList.keys()):
+        for fileName in list(self.fileList):
             if not FileAnalyzer.isValidFile(fileName):
                 self.fileList.pop(fileName, None)
 
@@ -16456,7 +16455,7 @@ class FileAnalyzer(object):
 
         # remove non-executable files #
         if onlyExec:
-            for fname in list(fileMap.keys()):
+            for fname in list(fileMap):
                 if fname != 'stack' and not fileMap[fname]['exec']:
                     fileMap.pop(fname, None)
 
@@ -16942,7 +16941,7 @@ class FileAnalyzer(object):
         SysMgr.printPipe("%s\n\n" % oneLine)
 
         # remove invalid files #
-        for fileName in list(self.fileData.keys()):
+        for fileName in list(self.fileData):
             if not FileAnalyzer.isValidFile(fileName):
                 self.fileData.pop(fileName, None)
 
@@ -17470,7 +17469,7 @@ class FileAnalyzer(object):
                     UtilMgr.convNum(self.profFailedCnt))
 
         # print skip files #
-        for path in sorted(list(skipFiles.keys())):
+        for path in sorted(list(skipFiles)):
             SysMgr.printWarn(
                 "skipped adding '%s' to readahead list" % path)
 
@@ -20782,7 +20781,7 @@ Commands:
             select = SysMgr.getPkg('select')
 
             timeLeft = timeout
-            while True:
+            while 1:
                 startedSelect = time.time()
 
                 # wait for event #
@@ -27527,7 +27526,7 @@ Copyright:
             i += (size + flen)
 
         # clean up #
-        for wd in list(wlist.keys()):
+        for wd in list(wlist):
             SysMgr.libcObj.inotify_rm_watch(fd, wd)
         SysMgr.libcObj.close(fd)
 
@@ -28279,7 +28278,7 @@ Copyright:
             if not SysMgr.perfTargetEvent and \
                 len(SysMgr.perfEventChannel[coreId]) > 0:
                 SysMgr.perfTargetEvent = \
-                    list(SysMgr.perfEventChannel[coreId].keys())
+                    list(SysMgr.perfEventChannel[coreId])
 
         if successCnt == 0:
             SysMgr.printWarn('failed to find available perf event')
@@ -28310,9 +28309,9 @@ Copyright:
             return
 
         # check perf event channel #
-        for coreId in list(SysMgr.perfEventChannel.keys()):
+        for coreId in list(SysMgr.perfEventChannel):
             # make event list #
-            events = list(SysMgr.perfEventChannel[coreId].keys())
+            events = list(SysMgr.perfEventChannel[coreId])
 
             # remove all core events if specific target process exist #
             if SysMgr.perfGroupEnable:
@@ -28342,7 +28341,7 @@ Copyright:
         perfData = {}
 
         # make event list #
-        events = list(fdList.keys())
+        events = list(fdList)
 
         # get event data #
         values = SysMgr.readPerfEvents(fdList.values())
@@ -28860,7 +28859,7 @@ Copyright:
 
 
     def disableAllEvents(self):
-        for event in list(self.cmdList.keys()):
+        for event in list(self.cmdList):
             self.cmdList[event] = False
 
 
@@ -36540,7 +36539,7 @@ Copyright:
 
         def _updateNodeList(ret=False):
             # close sockets for terminated connections #
-            for addr in list(nodeList.keys()):
+            for addr in list(nodeList):
                 ret = NetworkMgr.requestPing(addr, verb=SysMgr.warnEnable)
                 if not ret:
                     try:
@@ -36892,7 +36891,7 @@ Copyright:
                 return
 
             # execute remote commands #
-            for addr in list(nodeList.keys()):
+            for addr in list(nodeList):
                 # create a new worker process #
                 pid = SysMgr.createProcess()
                 if pid > 0:
@@ -37658,7 +37657,7 @@ Copyright:
 
             try:
                 # set fds #
-                listenFds = [ item for item in cmdPipeList.keys() ]
+                listenFds = [ item for item in cmdPipeList ]
 
                 if len(listenFds) > 1:
                     isMulti = True
@@ -38267,7 +38266,7 @@ Copyright:
                 continue
 
             if not core:
-                cpuRange = list(cpulist.keys())
+                cpuRange = list(cpulist)
             else:
                 cpuRange = [core]
 
@@ -38830,7 +38829,7 @@ Copyright:
 
             cnt = 1
             for key, tids in sorted(val.items(), key=lambda e:e[0]):
-                tid = sorted(list(tids.keys()), key=lambda e:long(e))[0]
+                tid = sorted(list(tids), key=lambda e:long(e))[0]
                 comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
                 subStr = '{ %s(%s)' % (comm, tid)
                 if len(tids) == 1:
@@ -38847,7 +38846,7 @@ Copyright:
                 if not SysMgr.showAll:
                     continue
 
-                for tid in sorted(tids.keys(), key=lambda e:long(e)):
+                for tid in sorted(tids, key=lambda e:long(e)):
                     comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
                     cmdline = SysMgr.getCmdline(tid)
                     if cmdline: cmdline = '<%s>' % cmdline
@@ -39021,13 +39020,13 @@ Copyright:
                 except:
                     pass
 
-            pidList = list(map(long, procList.keys()))
+            pidList = list(map(long, procList))
 
             # merge map files #
             mapList = []
             getProcMapInfo = FileAnalyzer.getProcMapInfo
             for pid in pidList:
-                mapList += getProcMapInfo(pid, onlyExec=True).keys()
+                mapList += getProcMapInfo(pid, onlyExec=True)
             mapList = list(set(mapList))
 
             # load symbol caches at once #
@@ -39295,7 +39294,7 @@ Copyright:
 
                 # continue processes #
                 SysMgr.sendSignalProcs(
-                    signal.SIGCONT, list(procList.keys()), verb=False)
+                    signal.SIGCONT, list(procList), verb=False)
 
                 # remove temporary files #
                 if mode == 'breakcall' or mode == 'pytrace':
@@ -40289,13 +40288,13 @@ Copyright:
                 except:
                     pass
 
-            pidList = list(map(long, procList.keys()))
+            pidList = list(map(long, procList))
 
             # merge map files #
             mapList = []
             getProcMapInfo = FileAnalyzer.getProcMapInfo
             for pid in pidList:
-                mapList += getProcMapInfo(pid, onlyExec=True).keys()
+                mapList += getProcMapInfo(pid, onlyExec=True)
             mapList = list(set(mapList))
 
             # load symbol caches at once #
@@ -42607,7 +42606,7 @@ Copyright:
                 (taskstr, totalLoad, load))
 
         # set affinity #
-        for pid in list(limitInfo.keys()):
+        for pid in list(limitInfo):
             for item in SysMgr.affinityFilter:
                 SysMgr.setAffinity(item[1], [pid])
 
@@ -42888,7 +42887,7 @@ Copyright:
                 statstr = "RSS: %s" % conv(long(mlist[rssIdx]) << 12)
 
             # get new task #
-            newTasks = set(procs.keys()) - set(prevProcs.keys())
+            newTasks = set(procs) - set(prevProcs)
             if newTasks:
                 newstr = '\n[%9s]' % 'NEW'
                 for pid in sorted(newTasks):
@@ -42900,7 +42899,7 @@ Copyright:
                 newstr = ''
 
             # get die task #
-            dieTasks = set(prevProcs.keys()) - set(procs.keys())
+            dieTasks = set(prevProcs) - set(procs)
             if dieTasks:
                 diestr = '\n[%9s]' % 'DIE'
                 for pid in sorted(dieTasks):
@@ -43549,7 +43548,7 @@ Copyright:
                         "failed to find task to limit CPU usage")
                     return
 
-                for tid in list(taskList.keys()):
+                for tid in list(taskList):
                     val = taskList[tid]
                     val['prevTick'] = val['nowTick']
 
@@ -45112,7 +45111,7 @@ Copyright:
 
     @staticmethod
     def updateChildList():
-        childList = list(SysMgr.childList.keys())
+        childList = list(SysMgr.childList)
 
         for pid in childList:
             if not SysMgr.isAlive(pid):
@@ -45133,7 +45132,7 @@ Copyright:
         # get child list #
         if childs is None:
             SysMgr.updateChildList()
-            childs = list(SysMgr.childList.keys())
+            childs = list(SysMgr.childList)
 
         # kill childs #
         SysMgr.terminateTasks(childs, sig, group)
@@ -47056,7 +47055,7 @@ Copyright:
                     self.networkInfo[dev]['ipaddr'] = addr
 
             # remove devices #
-            for dev in list(self.networkInfo.keys()):
+            for dev in list(self.networkInfo):
                 if not dev in devList:
                     self.networkInfo.pop(dev, None)
 
@@ -47428,7 +47427,7 @@ Copyright:
                 }
 
             # usage #
-            for dev in list(self.storageData.keys()):
+            for dev in list(self.storageData):
                 try:
                     target = self.storageData[dev]
                     path = target['mount']['path']
@@ -47454,7 +47453,7 @@ Copyright:
                 self.storageMapData = self.getStorageMapInfo()
             mapTable = self.storageMapData
 
-            for dev in list(self.storageData.keys()):
+            for dev in list(self.storageData):
                 try:
                     # get physical device path #
                     if dev in mapTable:
@@ -47767,7 +47766,7 @@ Copyright:
                     continue
 
                 tempSubdir = deepcopy(subdir)
-                for val in list(subdir.keys()):
+                for val in list(subdir):
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
                     elif val == 'tasks':
@@ -47873,7 +47872,7 @@ Copyright:
             items = SysMgr.getMainArgs()
 
             # remove subsystems from tree #
-            for subsystem in list(cgroupTree.keys()):
+            for subsystem in list(cgroupTree):
                 if not UtilMgr.isValidStr(subsystem, key=items, ignCap=True):
                     cgroupTree.pop(subsystem, None)
 
@@ -49517,7 +49516,7 @@ class DbusMgr(object):
                         procSigList[sender].setdefault(addr, {})
                         if 'arg0' in sinfo:
                             argList = [ '%s' % sinfo[i] for i in sorted(
-                                list(sinfo.keys())) if i.startswith('arg') ]
+                                list(sinfo)) if i.startswith('arg') ]
                             procSigList[sender][addr].setdefault(
                                 ', '.join(argList))
 
@@ -50017,7 +50016,7 @@ class DbusMgr(object):
                     SysMgr.printPipe(
                         "{0:>23} {1:<23} {2:<12}".format(
                             ' ', ' ', name))
-                    for key in sorted(list(arg.keys())):
+                    for key in sorted(list(arg)):
                         SysMgr.printPipe(
                             "{0:>23} {1:<23} {2:<10} ({3:<1})".format(
                                 ' ', ' ', ' ', key))
@@ -50080,7 +50079,7 @@ class DbusMgr(object):
                         "{0:>23} {1:<12} {2:<23} [nrProxy: {3:<1}]".format(
                             ' ', ' ', signame, conv(len(procs))))
                     procs = [ procInfo[name] if name in procInfo else name \
-                        for name in list(procs.keys()) ]
+                        for name in list(procs) ]
                     # print proxy process stat #
                     for name in sorted(procs):
                         if name in procInfo:
@@ -53032,14 +53031,14 @@ typedef struct {
 
             SysMgr.printInfo(
                 "set the number list to [%s] for new threads" % \
-                    ','.join(list(map(str, Debugger.targetNums.keys()))))
+                    ','.join(list(map(str, Debugger.targetNums))))
 
         # apply color for return string #
         if not Debugger.RETSTR:
             Debugger.RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
 
         # update flags by environment variable #
-        for item in list(Debugger.envFlags.keys()):
+        for item in list(Debugger.envFlags):
             if item in SysMgr.environList and not Debugger.envFlags[item]:
                 Debugger.envFlags[item] = True
 
@@ -54790,7 +54789,7 @@ typedef struct {
                         SysMgr.getComm(tgid, cache=True), tgid))
 
         # remove all breakpoints #
-        for idx, addr in enumerate(list(self.bpList.keys())):
+        for idx, addr in enumerate(list(self.bpList)):
             if verb:
                 UtilMgr.printProgress(idx, len(self.bpList))
             self.removeBp(addr)
@@ -54878,7 +54877,7 @@ typedef struct {
 
     def injectDefaultBp(self):
         # add default breakpoints such as mmap #
-        for lib in list(self.dftBpFileList.keys()):
+        for lib in list(self.dftBpFileList):
             # add all symbols of loader #
             if not self.isRunning and not self.ldInjected and \
                 os.path.basename(lib).startswith('ld-'):
@@ -54896,7 +54895,7 @@ typedef struct {
                 continue
 
             # add specific default symbols #
-            for dsym in list(self.dftBpSymList.keys()):
+            for dsym in list(self.dftBpSymList):
                 ret = self.getAddrBySymbol(dsym, binary=[lib])
                 if not ret: continue
 
@@ -55631,7 +55630,7 @@ typedef struct {
         self.loadSymbols()
         if not self.pmap: return None
 
-        for path in list(self.pmap.keys()):
+        for path in list(self.pmap):
             if os.path.basename(path).startswith(fname):
                 return path
 
@@ -56446,7 +56445,7 @@ typedef struct {
                     self.exceptBpFileList[path[1:]] = 0
                 else:
                     self.targetBpFileList[path] = 0
-        return list(self.targetBpFileList.keys())
+        return list(self.targetBpFileList)
 
 
 
@@ -58066,7 +58065,7 @@ typedef struct {
             needStop = False
 
         # register default libraries #
-        for fpath in list(self.pmap.keys()):
+        for fpath in list(self.pmap):
             # update start address #
             startAddr = self.pmap[fpath]['vstart']
             if self.startAddr is None:
@@ -58088,7 +58087,7 @@ typedef struct {
         ret = False
         printLog = True
         prevRss = 0
-        for mfile in list(self.pmap.keys()):
+        for mfile in list(self.pmap):
             try:
                 # check file validation #
                 if mfile in ElfAnalyzer.cachedFiles or \
@@ -60155,7 +60154,7 @@ typedef struct {
         elif len(symbolInfo) > 1:
             SysMgr.printErr(
                 "found multiple symbols [ %s ] for %s" % \
-                 (', '.join(list(symbolInfo.keys())), procInfo))
+                 (', '.join(list(symbolInfo)), procInfo))
             sys.exit(0)
 
         # set pthread ID for target task #
@@ -61489,7 +61488,7 @@ typedef struct {
         addrDict = {}
 
         # search symbols from all memory-mapped files #
-        for mfile in list(self.pmap.keys()):
+        for mfile in list(self.pmap):
             if binary and not mfile in binary:
                 continue
 
@@ -62102,7 +62101,7 @@ typedef struct {
 
     def checkStat(self, ret, reason=None):
         stat = self.getStatus(ret[1])
-        if SysMgr.isTermSignal(stat) or stat == -1:
+        if SysMgr.isTermSignal(stat) or (stat == -1 and not self.isAlive()):
             msg = "terminated %s(%s)" % (self.comm, self.pid)
             if reason:
                 msg = "%s because %s" % (msg, reason)
@@ -62669,7 +62668,7 @@ typedef struct {
             SysMgr.printEnable = origPrintFlag
 
         # remove new breakpoins for childs after fork #
-        for addr in list(instance.bpNewList.keys()):
+        for addr in list(instance.bpNewList):
             instance.removeBp(addr)
 
         instance.__del__(stop=True)
@@ -63094,7 +63093,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
     def pauseThreads(tlist):
         def _updateTargets(taskList):
             dlist = []
-            tlist = list(taskList.keys())
+            tlist = list(taskList)
 
             for tid in tlist:
                 if not SysMgr.isAlive(tid):
@@ -66728,7 +66727,7 @@ class ElfAnalyzer(object):
         uncompBytes = b''
         decompressor = zlib.decompressobj()
 
-        while True:
+        while 1:
             chunk = fd.read(SysMgr.PAGESIZE)
             if not chunk:
                 break
@@ -69049,7 +69048,7 @@ Section header string table index: %d
             self.attr['dwarf']['general']['nrFDE'] = nrFDE
 
             # remove useless data #
-            for name in list(self.attr['dwarf'].keys()):
+            for name in list(self.attr['dwarf']):
                 if not name in ('CFAIndex', 'CFATable'):
                     del self.attr['dwarf'][name]
 
@@ -69669,7 +69668,7 @@ class TaskAnalyzer(object):
                 }
 
             # remove * characters #
-            for pinfo in sorted(cpuProcUsage.keys()):
+            for pinfo in sorted(cpuProcUsage):
                 if pinfo.startswith('*'):
                     cpuProcUsage[pinfo[1:]] = cpuProcUsage.pop(pinfo)
                 else:
@@ -69677,7 +69676,7 @@ class TaskAnalyzer(object):
 
             # merge tasks having same name #
             prevTask = None
-            for pinfo in sorted(cpuProcUsage.keys()):
+            for pinfo in sorted(cpuProcUsage):
                 pname = _getProcName(pinfo)
 
                 # convert usage string to list #
@@ -69751,7 +69750,7 @@ class TaskAnalyzer(object):
             # set diff to the union list if this file is lastest one #
             if nrFiles == 1:
                 cpuStats = statFileList[lfile]['cpuProcUsage']
-                for pname in list(unionCpuList.keys()):
+                for pname in list(unionCpuList):
                     try:
                         unionCpuList[pname] = cpuStats[pname]['average']
                     except SystemExit:
@@ -69775,7 +69774,7 @@ class TaskAnalyzer(object):
                             -(prevProcList[pname]['average'])
 
             # remove * characters #
-            for pinfo in sorted(gpuProcUsage.keys()):
+            for pinfo in sorted(gpuProcUsage):
                 if pinfo.startswith('*'):
                     gpuProcUsage[pinfo[1:]] = gpuProcUsage.pop(pinfo)
                 else:
@@ -69783,7 +69782,7 @@ class TaskAnalyzer(object):
 
             # merge tasks having same name #
             prevTask = None
-            for pinfo in sorted(gpuProcUsage.keys()):
+            for pinfo in sorted(gpuProcUsage):
                 pname = _getProcName(pinfo)
 
                 # convert usage string to list #
@@ -69860,7 +69859,7 @@ class TaskAnalyzer(object):
                 # set diff to the union list if this file is lastest one #
                 if nrFiles == 1:
                     gpuStats = statFileList[lfile]['gpuProcUsage']
-                    for pname in list(unionGpuList.keys()):
+                    for pname in list(unionGpuList):
                         try:
                             unionGpuList[pname] = gpuStats[pname]['average']
                         except SystemExit:
@@ -69871,7 +69870,7 @@ class TaskAnalyzer(object):
                     unionGpuList[pname] = value['diff']
 
             # remove * characters #
-            for pinfo in sorted(memProcUsage.keys()):
+            for pinfo in sorted(memProcUsage):
                 if pinfo.startswith('*'):
                     memProcUsage[pinfo[1:]] = memProcUsage.pop(pinfo)
                 else:
@@ -69879,7 +69878,7 @@ class TaskAnalyzer(object):
 
             # merge tasks having same name #
             prevTask = None
-            for pinfo in sorted(memProcUsage.keys()):
+            for pinfo in sorted(memProcUsage):
                 pname = _getProcName(pinfo)
 
                 # convert usage string to list #
@@ -69964,7 +69963,7 @@ class TaskAnalyzer(object):
             # set diff to the union list if this file is lastest one #
             if nrFiles == 1:
                 memStats = statFileList[lfile]['memProcUsage']
-                for pname in list(unionRssList.keys()):
+                for pname in list(unionRssList):
                     try:
                         unionRssList[pname] = memStats[pname]['maxRss']
                     except SystemExit:
@@ -70843,7 +70842,7 @@ class TaskAnalyzer(object):
                 self.timelineData['segments'].append(item)
 
             # filter thread data #
-            for key in list(self.threadData.keys()):
+            for key in list(self.threadData):
                 # except for core #
                 if key.startswith('0['):
                     continue
@@ -71202,7 +71201,7 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def applyPrintCond():
-        for env in list(SysMgr.printCond.keys()):
+        for env in list(SysMgr.printCond):
             if not env in SysMgr.environList:
                 continue
 
@@ -74927,7 +74926,7 @@ class TaskAnalyzer(object):
         start = time.time()
 
         while 1:
-            for idx in list(self.stackTable.keys()):
+            for idx in list(self.stackTable):
                 item = self.stackTable[idx]
 
                 # read stack #
@@ -75135,7 +75134,7 @@ class TaskAnalyzer(object):
                 name = item['name']
 
                 # change default stat value -1 to 0 #
-                for key in list(item.keys()):
+                for key in list(item):
                     if item[key] == -1:
                         item[key] = 0
 
@@ -75146,7 +75145,7 @@ class TaskAnalyzer(object):
                 target = wqData[name]
 
                 # change default stat value -1 to 0 #
-                for key in list(target.keys()):
+                for key in list(target):
                     if target[key] == -1:
                         target[key] = 0
 
@@ -75204,7 +75203,7 @@ class TaskAnalyzer(object):
             SysMgr.clearPrint()
 
             # print irq list #
-            irqList = [irq for irq in list(self.irqData.keys()) \
+            irqList = [irq for irq in list(self.irqData) \
                 if irq.startswith('irq')]
             for key in sorted(irqList, key=lambda e:int(e.split('/')[1])):
                 totalCnt += self.irqData[key]['count']
@@ -75213,7 +75212,7 @@ class TaskAnalyzer(object):
                     ("{0:>16} {1:<62} {2:>12} {3:>10.6f} {4:>10.6f} "
                     "{5:>10.6f} {6:>10.6f} {7:>10.6f}\n").\
                     format(key,
-                    ' | '.join(list(self.irqData[key]['name'].keys())),
+                    ' | '.join(list(self.irqData[key]['name'])),
                     convertNum(self.irqData[key]['count']),
                     self.irqData[key]['usage'],
                     self.irqData[key]['max'], self.irqData[key]['min'],
@@ -75221,7 +75220,7 @@ class TaskAnalyzer(object):
                     self.irqData[key]['minPeriod']))
 
             # print softirq list #
-            sirqList = [irq for irq in list(self.irqData.keys()) \
+            sirqList = [irq for irq in list(self.irqData) \
                 if irq.startswith('softirq')]
             for key in sorted(sirqList, key=lambda e:int(e.split('/')[1])):
                 totalCnt += self.irqData[key]['count']
@@ -75229,7 +75228,7 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint(
                     ("{0:>16} {1:<62} {2:>12} {3:>10.6f} {4:>10.6f} "
                     "{5:>10.6f} {6:>10.6f} {7:>10.6f}\n").format(
-                    key, ' | '.join(list(self.irqData[key]['name'].keys())),
+                    key, ' | '.join(list(self.irqData[key]['name'])),
                     convertNum(self.irqData[key]['count']),
                     self.irqData[key]['usage'],
                     self.irqData[key]['max'], self.irqData[key]['min'],
@@ -77204,7 +77203,7 @@ class TaskAnalyzer(object):
         if not self.allocPageData:
             return
 
-        orderTable = list(sorted(self.allocPageData.keys()))
+        orderTable = list(sorted(self.allocPageData))
         orders = ' '.join(['{0:>5}'.format(
             UtilMgr.convNum(order)) for order in orderTable])
         SysMgr.printPipe(
@@ -77432,8 +77431,8 @@ class TaskAnalyzer(object):
         inodeCache = {}
         inodeFilter = []
         mountInfo = SysMgr.savedMountTree
-        for did in list(inodeList.keys()):
-            inodeFilter += list(inodeList[did].keys())
+        for did in list(inodeList):
+            inodeFilter += list(inodeList[did])
         inodeFilter = list(set(inodeFilter))
 
         # get target inode info #
@@ -77505,7 +77504,7 @@ class TaskAnalyzer(object):
                         path = ' '
                         mdid = "%s:" % did.split(':')[0]
                         pathList = []
-                        for devid in sorted(list(inodeInfo.keys())):
+                        for devid in sorted(list(inodeInfo)):
                             if not inode in inodeInfo[devid]:
                                 continue
                             cpath = inodeInfo[devid][inode]
@@ -77701,7 +77700,7 @@ class TaskAnalyzer(object):
             return
 
         # print skip files #
-        for path in sorted(list(skipFiles.keys())):
+        for path in sorted(list(skipFiles)):
             SysMgr.printWarn(
                 "skipped adding '%s' to readahead list" % path)
 
@@ -79433,7 +79432,7 @@ class TaskAnalyzer(object):
         convNum = UtilMgr.convNum
 
         nrEvent = nrSocket = nrDevice = nrPipe = nrProc = nrFile = long(0)
-        for filename in list(SysMgr.fileInstance.keys()):
+        for filename in list(SysMgr.fileInstance):
             # increase type count per process #
             if filename.startswith('anon'):
                 nrEvent += 1
@@ -80557,7 +80556,7 @@ class TaskAnalyzer(object):
         convertNum = UtilMgr.convNum
         convertFunc = UtilMgr.convSize2Unit
 
-        for pid in tuple(SysMgr.procInstance.keys()):
+        for pid in tuple(SysMgr.procInstance):
             path = '%s/%s' % (SysMgr.procPath, pid)
             SysMgr.topInstance.updateOOMScore(path, pid)
             SysMgr.topInstance.saveProcStatusData(path, pid)
@@ -81257,7 +81256,7 @@ class TaskAnalyzer(object):
                 return 0
             elif not SysMgr.recordStatus:
                 SysMgr.printErr(
-                    "failed to read '%s' because there is no log", fname)
+                    "failed to read '%s' because there is no log" % fname)
                 sys.exit(0)
 
 
@@ -81605,7 +81604,7 @@ class TaskAnalyzer(object):
 
             # calculate custom event usage in this interval #
             if 'totalCustomEvent' in curIntval:
-                for evt in list(curIntval['totalCustomEvent'].keys()):
+                for evt in list(curIntval['totalCustomEvent']):
                     try:
                         curIntval['customEvent'][evt]['count'] = \
                             curIntval['totalCustomEvent'][evt]['count'] - \
@@ -81621,7 +81620,7 @@ class TaskAnalyzer(object):
 
             # calculate user event usage in this interval #
             if 'totalUserEvent' in curIntval:
-                for evt in list(curIntval['totalUserEvent'].keys()):
+                for evt in list(curIntval['totalUserEvent']):
                     try:
                         curIntval['userEvent'][evt]['count'] = \
                             curIntval['totalUserEvent'][evt]['count'] - \
@@ -81647,7 +81646,7 @@ class TaskAnalyzer(object):
 
             # calculate kernel event usage in this interval #
             if 'totalKernelEvent' in curIntval:
-                for evt in list(curIntval['totalKernelEvent'].keys()):
+                for evt in list(curIntval['totalKernelEvent']):
                     try:
                         curIntval['kernelEvent'][evt]['count'] = \
                             curIntval['totalKernelEvent'][evt]['count'] - \
@@ -85004,7 +85003,7 @@ class TaskAnalyzer(object):
                 pids = SysMgr.getPidList()
             else:
                 self.saveProcStatGen(['open_files'])
-                pids = list(self.procData.keys())
+                pids = list(self.procData)
 
         # remove myself info #
         try:
@@ -85294,7 +85293,7 @@ class TaskAnalyzer(object):
 
     def saveProcStat(self):
         if SysMgr.fixedProcList:
-            pids = list(SysMgr.fixedProcList.keys())
+            pids = list(SysMgr.fixedProcList)
         else:
             # get process list #
             pids = SysMgr.getPidList()
@@ -85796,7 +85795,7 @@ class TaskAnalyzer(object):
 
             # set the number of core #
             SysMgr.nrCore = long(0)
-            for idx in list(self.cpuData.keys()):
+            for idx in list(self.cpuData):
                 try:
                     SysMgr.maxCore = long(idx)
                     SysMgr.nrCore += 1
@@ -86804,7 +86803,7 @@ class TaskAnalyzer(object):
         nrRclm = long(0)
         for pid, val in sorted(
             self.procData.items(), key=lambda x:int(x[0])):
-            for item in val.keys():
+            for item in val:
                 if not item.endswith('Fd'):
                     continue
 
@@ -87216,7 +87215,7 @@ class TaskAnalyzer(object):
         userUsage = kerUsage = ioUsage = irqUsage = idleUsage = long(0)
         coreStats = {}
 
-        for idx in list(self.cpuData.keys()):
+        for idx in list(self.cpuData):
             try:
                 nrIdx = long(idx)
                 nowData = self.cpuData[nrIdx]
@@ -87542,7 +87541,7 @@ class TaskAnalyzer(object):
                     freqList = []
 
             # traverse core files #
-            for idx in sorted(list(self.cpuData.keys()),
+            for idx in sorted(list(self.cpuData),
                 key=lambda x:long(x) if UtilMgr.isNumber(x) else -1):
                 try:
                     if idx == -1:
@@ -90524,13 +90523,13 @@ class TaskAnalyzer(object):
 
         # get task list #
         if taskType == 'abnormal':
-            taskList = set(self.abnormalTasks.keys())
+            taskList = set(self.abnormalTasks)
         elif taskType == 'new':
             taskList = \
-                set(self.procData.keys()) - set(self.prevProcData.keys())
+                set(self.procData) - set(self.prevProcData)
         elif taskType == 'die':
             taskList = \
-                set(self.prevProcData.keys()) - set(self.procData.keys())
+                set(self.prevProcData) - set(self.procData)
 
         procCnt = long(0)
         for tid in sorted(list(map(long, taskList))):
@@ -91106,7 +91105,7 @@ class TaskAnalyzer(object):
 
                 # convert EVTPID #
                 if 'task' in value:
-                    pid = list(value['task'].keys())[0]
+                    pid = list(value['task'])[0]
                     cmd = cmd.replace('EVTPID', pid)
 
                 # convert SELFPID #
@@ -91155,8 +91154,8 @@ class TaskAnalyzer(object):
             return
 
         # print events #
-        prevList = list(SysMgr.thresholdEventList.keys())
-        nowList = list(self.reportData['event'].keys())
+        prevList = list(SysMgr.thresholdEventList)
+        nowList = list(self.reportData['event'])
 
         # print finished events #
         endList = set(prevList) - set(nowList)
@@ -91344,21 +91343,21 @@ class TaskAnalyzer(object):
 
             # new status #
             if self.reportData['task']['new']:
-                newList = list(self.reportData['task']['new'].keys())
+                newList = list(self.reportData['task']['new'])
                 target = '_'.join(newList)
                 self.checkThreshold(
                     'task', 'new', 'NEW', None, target)
 
             # die status #
             if self.reportData['task']['die']:
-                dieList = list(self.reportData['task']['die'].keys())
+                dieList = list(self.reportData['task']['die'])
                 target = '_'.join(dieList)
                 self.checkThreshold(
                     'task', 'die', 'DIE', None, target)
 
             # abnormal status #
             if self.reportData['task']['abnormal']:
-                abnormalList = list(self.reportData['task']['abnormal'].keys())
+                abnormalList = list(self.reportData['task']['abnormal'])
                 target = '_'.join(abnormalList)
                 self.checkThreshold(
                     'task', 'abnormal', 'ABNORMAL', None, target)
@@ -91765,7 +91764,7 @@ class TaskAnalyzer(object):
 
             # make output path #
             filePath = os.path.dirname(SysMgr.inputFile) + '/guider'
-            for event in list(self.reportData['event'].keys()):
+            for event in list(self.reportData['event']):
                 filePath = '%s_%s' % (filePath, event)
             filePath = '%s_%s.out' % \
                 (filePath, str(long(SysMgr.uptime)))
@@ -92305,7 +92304,7 @@ def main(args=None):
         SysMgr.drawTimeline(
             inputData=tobj.timelineData,
             outputPath=outputPath,
-            taskList=list(tobj.threadData.keys()),
+            taskList=list(tobj.threadData),
             start=start, annotation=annotation, yval=coreUsageList)
 
         # draw resource graph #
