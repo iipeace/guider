@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211028"
+__revision__ = "211029"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4828,6 +4828,11 @@ class UtilMgr(object):
             else:
                 return sorted(res)
         else:
+            if '*' in value:
+                SysMgr.printWarn(
+                    'failed to handle * character in the path '
+                    'because of no glob package', True)
+
             # str #
             if retStr:
                 return value
@@ -23048,10 +23053,13 @@ Examples:
 
                 drawExamStr = '''
 Examples:
-    - Draw graphs
+    - Draw graphs for specific files
         # {0:1} {1:1} guider.out
         # {0:1} {1:1} guider.out guider2.out guider3.out
         # {0:1} {1:1} "data/*"
+
+    - Draw graphs for specific files from current directory to all sub-directories
+        # {0:1} {1:1} "**/*"
 
     - Draw flame graphs for each file
         # {0:1} {1:1} guider.out -q NOMERGE
@@ -25573,8 +25581,11 @@ Examples:
     - Diff top report files
         # {0:1} {1:1} "tc1.out, tc2.out"
 
-    - Diff top report files
+    - Diff top report files in current directory
         # {0:1} {1:1} "tc*.out"
+
+    - Diff top report files from current directory to all sub-directories
+        # {0:1} {1:1} "**/tc*.out"
 
     - Diff top report files by total usage
         # {0:1} {1:1} "tc*.out" -dA
@@ -25767,6 +25778,9 @@ Examples:
     - Print DLT messages from specific files
         # {0:1} {1:1} "./*.dlt"
         # {0:1} {1:1} -I "./*.dlt"
+
+    - Print DLT messages from specific files from current directory to all sub-directories
+        # {0:1} {1:1} "**/*.dlt"
 
     - Print DLT messages including specific words
         # {0:1} {1:1} -g test
