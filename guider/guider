@@ -8,14 +8,12 @@
 # any later version.
 
 # check python #
-if [ ! $PYTHON ]
-    then
-        PYTHON=$(which python || which python3 || which python2)
-        if [ ! $PYTHON ]
-            then
-                echo "[Error] fail to find python"
-                exit 1
-        fi
+if [ ! $PYTHON ]; then
+    PYTHON=$(which python || which python3 || which python2)
+    if [ ! $PYTHON ]; then
+        echo "[Error] fail to find python"
+        exit 1
+    fi
 fi
 
 # export CMDLINE for Guider #
@@ -23,4 +21,4 @@ CMDLINE=$0
 export CMDLINE
 
 # launch Guider #
-$PYTHON -m guider $*
+$PYTHON -m guider "$@"
