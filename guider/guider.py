@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211029"
+__revision__ = "211031"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10308,14 +10308,14 @@ class PageAnalyzer(object):
         fpath = '%s/%s/maps' % (SysMgr.procPath, pid)
 
         if start == end == -1 and not showall:
-            printSummary = True
+            summaryFlag = True
         else:
-            printSummary = False
+            summaryFlag = False
 
         # read all map info #
         try:
             # summary #
-            if printSummary:
+            if summaryFlag:
                 buf = FileAnalyzer.getProcMapInfo(pid, saveAll=True)
             else:
                 with open(fpath, 'r') as fd:
@@ -10347,7 +10347,7 @@ class PageAnalyzer(object):
 
         # print menu #
         menuStr = ''
-        if printSummary:
+        if summaryFlag:
             menuList = \
                 ['AREA', 'PERM', '%8s' % 'OFFSET',\
                     '%6s' % 'DEV', '%12s' % 'INODE']
@@ -10376,7 +10376,7 @@ class PageAnalyzer(object):
         pstr = tstr[1]
 
         # print summarized map info #
-        if printSummary:
+        if summaryFlag:
             for fname, info in sorted(buf.items(),
                 key=lambda e: e[1]['vstart']):
                 # skip non-contiguous segments #
@@ -35726,7 +35726,7 @@ Copyright:
 
     @staticmethod
     def getEnvList():
-        def applyList(myEnv, envList):
+        def _applyList(myEnv, envList):
             for env in envList:
                 var = env.split('=', 1)
                 if len(var) > 1:
@@ -35752,14 +35752,14 @@ Copyright:
             if not envList and envFileList:
                 return myEnv
 
-            applyList(myEnv, envList)
+            _applyList(myEnv, envList)
 
             # read variables from files #
             for fname in envFileList:
                 try:
                     with open(fname, 'r') as fd:
                         envList = fd.readlines()
-                        applyList(myEnv, envList)
+                        _applyList(myEnv, envList)
                 except:
                     SysMgr.printErr(
                         'failed to parse environment variable from %s' % \
@@ -48869,7 +48869,7 @@ class DbusMgr(object):
 
     @staticmethod
     def getBus(bus, tid=None, addr=None):
-        def setEuid():
+        def _setEuid():
             # set EUID #
             try:
                 euidOrig = os.geteuid()
@@ -48906,7 +48906,7 @@ class DbusMgr(object):
             bustype = DbusMgr.DBusBusType['DBUS_BUS_SESSION']
 
             # set EUID #
-            euidOrig = setEuid()
+            euidOrig = _setEuid()
         else:
             comm = SysMgr.getComm(tid, cache=True)
             SysMgr.printWarn("failed to recognize %s bus for %s" % \
@@ -50198,10 +50198,10 @@ class DbusMgr(object):
                                     errstr, wstat)
 
                         count = convertNum(value['cnt'])
-                        size = convertSize(data['size'])
+                        size = convertSize(data['size'], isInt=True)
 
                         dbusList.append(
-                            "{0:>4}({1:>6}/{2:>3}%) {3:1}".format(
+                            "{0:>4}({1:>5}/{2:>3}%) {3:1}".format(
                                 count, size, per, name))
 
                     # add D-Bus usage #
@@ -50213,7 +50213,7 @@ class DbusMgr(object):
                     SysMgr.printWarn(
                         "failed to update task info", True, reason=True)
 
-        def printSummary(signum, frame):
+        def _printSummary(signum, frame):
             def _checkRepeatCnt():
                 if SysMgr.repeatCount > 0:
                     SysMgr.progressCnt += 1
@@ -50312,7 +50312,7 @@ class DbusMgr(object):
             _checkRepeatCnt()
 
             # enable alarm #
-            signal.signal(signal.SIGALRM, printSummary)
+            signal.signal(signal.SIGALRM, _printSummary)
 
             # reset timer #
             SysMgr.updateTimer()
@@ -50334,7 +50334,7 @@ class DbusMgr(object):
                 taskManager.reinitStats()
 
                 # set timer #
-                signal.signal(signal.SIGALRM, printSummary)
+                signal.signal(signal.SIGALRM, _printSummary)
                 SysMgr.updateTimer()
 
             while 1:
@@ -65270,7 +65270,7 @@ class ElfAnalyzer(object):
             if bytecode_array:
                 self._decode()
 
-        def getMnemonicItem(self, bytecode, mnemonic):
+        def _getMnemonicItem(self, bytecode, mnemonic):
             return '%s ; %s' % \
                 (' '.join(['0x%02x' % x for x in bytecode]), mnemonic)
 
@@ -65301,7 +65301,7 @@ class ElfAnalyzer(object):
                     end_idx = self._index
 
                     # convert code to string #
-                    dstr = self.getMnemonicItem(
+                    dstr = self._getMnemonicItem(
                         self._bytecode_array[start_idx: end_idx], mnemonic)
                     self.mnemonic_array.append(dstr)
 
@@ -78042,7 +78042,7 @@ class TaskAnalyzer(object):
                         (self.threadData[key]['offCnt'] > 0 or \
                             not core in self.lastTidPerCore or \
                             self.lastTidPerCore[core] == 0):
-                            raise Exception('core off')
+                        raise Exception('core off')
                     else:
                         per = (100 - self.intData[icount][key]['cpuPer'])
                         timeLine += '%3d ' % per
