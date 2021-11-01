@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211031"
+__revision__ = "211101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6089,9 +6089,9 @@ class NetworkMgr(object):
             if SysMgr.warnEnable or \
                 SysMgr.checkMode('server') or \
                 SysMgr.checkMode('cli'):
-                SysMgr.printErr(
-                    "failed to create a socket for %s:%s as server because %s%s" % \
-                        (self.ip, self.port, err, feedback))
+                SysMgr.printErr((
+                    "failed to create a socket for %s:%s as server "
+                    "because %s%s") % (self.ip, self.port, err, feedback))
 
             '''
             if error "99 Cannot assign requested address" occurs:
@@ -27202,11 +27202,14 @@ Examples:
         # {0:1} {1:1} "ls -lha", "date"
         # {0:1} {1:1} "192.168.0.100:5050|vmstat 1, 192.168.0.101:1234|find /"
 
-    - Execute remote command by service nodes
+    - Execute remote command by all nodes
         # {0:1} {1:1} "b:ls -lha"
         # {0:1} {1:1} "broadcast:ls -lha"
         # {0:1} {1:1} "b:restart"
         # {0:1} {1:1} "b:download:test/*@backup/""
+
+    - Execute remote command by specific nodes
+        # {0:1} {1:1} "b:@192.168.105.86/5589@192.168.105.100/5566:ls -lha"
 
     - Execute a remote command with no timeout
         # {0:1} {1:1} "ls -lha" -q NOTIMEOUT
@@ -36554,8 +36557,7 @@ Copyright:
         def _updateNodeList(ret=False):
             # close sockets for terminated connections #
             for addr in list(nodeList):
-                ret = NetworkMgr.requestPing(addr, verb=SysMgr.warnEnable)
-                if not ret:
+                if not NetworkMgr.requestPing(addr, verb=SysMgr.warnEnable):
                     try:
                         nodeList[addr]['sock'].close()
                     except:
@@ -36584,10 +36586,8 @@ Copyright:
                 listStr += '[{0:>3}] {1:^13} {2:<25} {3:<1}\n'.format(
                     idx, UtilMgr.convTime(diff), addr, value['host'])
                 idx += 1
-            if nodeList:
-                listStr += '%s\n' % oneLine
-            else:
-                listStr += '\tNone\n%s\n' % oneLine
+            listStr += '%s\n' % oneLine if nodeList \
+                else '\tNone\n%s\n' % oneLine
             SysMgr.printWarn(listStr, True)
 
             if ret:
@@ -36878,43 +36878,65 @@ Copyright:
                     pass
 
         def _onBroadcast(connObj, value, response, sync=True):
-            # convert command #
-            reqCmd = value.split(':', 1)[0].upper()
+            # check node list #
+            if not nodeList:
+                connObj.send('NO_SERV_NODE')
+                return
+
+            # split items #
+            itemList = value.split(':')
+
+            # check target list #
+            if itemList[0].startswith('@'):
+                targetList = itemList.pop(0)[1:].split('@')
+                value = ':'.join(itemList)
+                nrTarget = len(targetList)
+            else:
+                targetList = []
+                nrTarget = len(nodeList)
+
+            # pick command #
+            reqCmd = itemList[0].upper()
             if reqCmd in NetworkMgr.REQUEST_LIST:
                 cmd = value
             else:
                 cmd = 'run:' + value
 
-            # reply message #
-            if nodeList:
-                # send message packet #
-                connObj.send(
-                    'MSG:"%s" is executed by %s node' % \
-                        (cmd, len(nodeList)))
+            # send message packet #
+            connObj.send(
+                'MSG:"%s" is going to be executed by %s nodes' % \
+                    (cmd, UtilMgr.convNum(nrTarget)))
 
-                '''
-                receive an ACK packet
-                to prevent receiving two packets at once
-                '''
-                connObj.recv()
+            '''
+            receive an ACK packet
+            to prevent receiving two packets at once
+            '''
+            connObj.recv()
 
-                # send reply packet for command #
-                connObj.send('run|%s' % value)
-            else:
-                connObj.send('NO_SERV_NODE')
-                return
+            # send reply packet for command #
+            connObj.send('run|%s' % value)
 
             # execute remote commands #
+            pid = 0
             for addr in list(nodeList):
+                if targetList and not addr.replace(':', '/') in targetList:
+                    continue
+
                 # create a new worker process #
                 pid = SysMgr.createProcess()
                 if pid > 0:
                     continue
 
                 try:
+                    # get host name #
+                    if addr in nodeList:
+                        hostinfo = '%s@' % nodeList[addr]['host']
+                    else:
+                        hostinfo = ''
+
                     SysMgr.printInfo(
-                        "execute '%s' at %s for %s:%s" % \
-                            (cmd, addr, connObj.ip, connObj.port))
+                        "execute '%s' at %s%s for %s:%s" % \
+                            (cmd, hostinfo, addr, connObj.ip, connObj.port))
 
                     # disable log #
                     SysMgr.logEnable = False
