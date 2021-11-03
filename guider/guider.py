@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211101"
+__revision__ = "211103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22995,8 +22995,11 @@ Examples:
     - Monitor status of all {2:2} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - Monitor status of {2:2} having the name including system and their siblings
-        # {0:1} {1:1} -g system -P
+    - Monitor status of {2:2} with the name including system and their siblings
+        # {0:1} {1:1} -g "*system*" -P
+
+    - Monitor status of {2:2} named gdbus among {2:2} with the name including system and their siblings
+        # {0:1} {1:1} -g "*system*" -P -q FILTER:"gdbus"
 
     - Monitor status of {2:2} and print stats if only system resource usage exceeds specific threshold
         # {0:1} {1:1} -q CPUCOND:10
@@ -89563,18 +89566,29 @@ class TaskAnalyzer(object):
                 return False
 
         def _isExceptTask(idx):
+            def __check2ndFilter(exceptFlag):
+                if exceptFlag:
+                    return True
+                elif 'FILTER' in SysMgr.environList and \
+                    not UtilMgr.isValidStr(
+                        procData[idx]['comm'], SysMgr.environList['FILTER']):
+                    return True
+                else:
+                    return False
+
             exceptFlag = False
 
             # check comm and ID #
             if not TaskAnalyzer.checkFilter(procData[idx]['comm'], idx):
                 exceptFlag = True
+            else:
+                exceptFlag = __check2ndFilter(exceptFlag)
 
             # single mode #
             if not SysMgr.groupProcEnable:
                 return exceptFlag
-
             # group mode #
-            if not exceptFlag:
+            elif not exceptFlag:
                 return exceptFlag
             # check siblings #
             else:
@@ -89618,6 +89632,8 @@ class TaskAnalyzer(object):
                         break
                     else:
                         exceptFlag = True
+
+            exceptFlag = __check2ndFilter(exceptFlag)
 
             return exceptFlag
 
