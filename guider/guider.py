@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211103"
+__revision__ = "211104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23259,6 +23259,9 @@ Examples:
     - {3:1} except for ld for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
+    - {3:1} for specific threads except for DWARF table of specific files
+        # {0:1} {1:1} a.out -q EXCEPTDWARF:"*deno"
+
     - {3:1} and their injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEBP
 
@@ -24223,6 +24226,9 @@ Examples:
 
     - {3:1} for specific threads with lazy cache loading
         # {0:1} {1:1} a.out -q LAZYCACHE
+
+    - {3:1} for specific threads except for DWARF table of specific files
+        # {0:1} {1:1} a.out -q EXCEPTDWARF:"*deno"
 
     - {3:1} for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
@@ -59093,13 +59099,18 @@ typedef struct {
 
         # get ELF object #
         fobj = ElfAnalyzer.getObject(fname)
+        if not fobj:
+            return None
 
         # check DWARF info #
         if 'dwarf' not in fobj.attr or not fobj.attr['dwarf']['CFAIndex']:
             SysMgr.printWarn(
                 'failed to find DWARF info for %s(%s) in %s' % \
                     (sym, hex(foffset), fname))
-            SysMgr.dwarfEnable = False
+            if not 'EXCEPTDWARF' in SysMgr.environList or \
+                not UtilMgr.isValidStr(
+                    fobj.path, SysMgr.environList['EXCEPTDWARF']):
+                SysMgr.dwarfEnable = False
             return None
 
         # get function address from CFA index table #
@@ -65356,26 +65367,28 @@ class ElfAnalyzer(object):
                     # set regs #
                     elif mnemonic.startswith(pop_str):
                         regs = mnemonic[len(pop_str):-1].split(', ')
+                        val = 'OFFSET'
                         for reg in regs:
                             if reg == 'lr':
-                                self.cfa_table[lrIdx] = ('OFFSET', self.offset)
+                                self.cfa_table[lrIdx] = (val, self.offset)
                             elif reg == 'fp':
-                                self.cfa_table[fpIdx] = ('OFFSET', self.offset)
+                                self.cfa_table[fpIdx] = (val, self.offset)
                             elif reg == 'sp':
-                                self.cfa_table[spIdx] = ('OFFSET', self.offset)
+                                self.cfa_table[spIdx] = (val, self.offset)
                             elif reg == 'ip':
-                                self.cfa_table[ipIdx] = ('OFFSET', self.offset)
+                                self.cfa_table[ipIdx] = (val, self.offset)
                             elif reg == 'pc':
-                                self.cfa_table[pcIdx] = ('OFFSET', self.offset)
+                                self.cfa_table[pcIdx] = (val, self.offset)
                             else:
                                 reg = long(reg[1:])
-                                self.cfa_table[reg] = ('OFFSET', self.offset)
+                                self.cfa_table[reg] = (val, self.offset)
 
                             # only ARM 32bit supported #
                             self.offset += 4
                     else:
                         SysMgr.printWarn(
-                            "unknown operation '%s' in %s" % (mnemonic, self.path))
+                            "unknown operation '%s' in %s" % \
+                                (mnemonic, self.path))
 
                     break
 
@@ -66436,6 +66449,13 @@ class ElfAnalyzer(object):
         if prevAddr:
             self.sortedAddrTable.append(prevAddr)
             self.sortedSymTable.append([mainSym, prevSize])
+
+        # except dwarf table #
+        if 'dwarf' in self.attr and \
+            'EXCEPTDWARF' in SysMgr.environList and \
+            UtilMgr.isValidStr(
+                self.path, SysMgr.environList['EXCEPTDWARF']):
+            del self.attr['dwarf']
 
         # remove useless symbols after merge #
         if removeOrig:
