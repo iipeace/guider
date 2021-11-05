@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211104"
+__revision__ = "211105"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19007,6 +19007,7 @@ Commands:
         # function #
         elif SysMgr.checkMode('funcrec'):
             SysMgr.functionEnable = True
+            SysMgr.colorEnable = False
 
         # syscall #
         elif SysMgr.checkMode('sysrec'):
@@ -19020,6 +19021,10 @@ Commands:
         # general #
         elif SysMgr.checkMode('genrec'):
             SysMgr.systemEnable = True
+
+        # thread #
+        elif SysMgr.checkMode('rec'):
+            SysMgr.colorEnable = False
 
         # update record status #
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
@@ -33044,8 +33049,7 @@ Copyright:
     def parseRecordOption():
         if not "ISMAIN" in os.environ:
             return
-
-        if len(sys.argv) <= 2:
+        elif len(sys.argv) <= 2:
             return
 
         SysMgr.parseOption()
@@ -81374,16 +81378,16 @@ class TaskAnalyzer(object):
         origid = did = '%s:%s' % (major, minor)
 
         # revise real minor number by address #
-        if not did in SysMgr.savedMountTree or minor == '0':
-            for mid, val in SysMgr.savedMountTree.items():
+        mntTree = SysMgr.savedMountTree
+        if not did in mntTree or minor == '0':
+            for mid, val in mntTree.items():
                 try:
                     if did == mid:
                         continue
 
-                    if minor == '0' and \
-                        did in SysMgr.savedMountTree:
-                        devPath = SysMgr.savedMountTree[did]['dev']
-                        if SysMgr.savedMountTree[mid]['dev'].startswith(devPath) and \
+                    if minor == '0' and did in mntTree:
+                        devPath = mntTree[did]['dev']
+                        if mntTree[mid]['dev'].startswith(devPath) and \
                             val['start'] <= addr <= val['end']:
                             did = mid
                             break
