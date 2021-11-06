@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211105"
+__revision__ = "211106"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16521,8 +16521,8 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def getReadaheadListStr(readaheadList, raSummary):
-        if not readaheadList:
+    def getReadaheadListStr(raList, raSummary):
+        if not raList:
             SysMgr.printWarn('no readahead item', True)
             return ''
 
@@ -16533,7 +16533,7 @@ class FileAnalyzer(object):
         # print readahead stat #
         printStr += \
             '\n[Thread Readahead Info] (NrFiles: %s) (NrCalls: %s)\n%s\n' % \
-                (convNum(len(raSummary)), convNum(len(readaheadList)), twoLine)
+                (convNum(len(raSummary)), convNum(len(raList)), twoLine)
         printStr += (
             "{0:>12} {1:>12} {2:>1}\n{3:1}\n".format(
             'Size', 'Count', 'Path', twoLine))
@@ -16583,7 +16583,8 @@ class FileAnalyzer(object):
             except:
                 fname = SysMgr.environList['RAADDLIST'][0]
                 SysMgr.printErr(
-                    "failed to apply readahead add list from '%s'" % fname, True)
+                    "failed to apply readahead add list from '%s'" % fname,
+                    reason=True)
                 sys.exit(0)
 
             # get full path #
@@ -19007,7 +19008,6 @@ Commands:
         # function #
         elif SysMgr.checkMode('funcrec'):
             SysMgr.functionEnable = True
-            SysMgr.colorEnable = False
 
         # syscall #
         elif SysMgr.checkMode('sysrec'):
@@ -19021,10 +19021,6 @@ Commands:
         # general #
         elif SysMgr.checkMode('genrec'):
             SysMgr.systemEnable = True
-
-        # thread #
-        elif SysMgr.checkMode('rec'):
-            SysMgr.colorEnable = False
 
         # update record status #
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
@@ -77270,9 +77266,9 @@ class TaskAnalyzer(object):
         orders = ' '.join(['{0:>5}'.format(
             UtilMgr.convNum(order)) for order in orderTable])
         SysMgr.printPipe(
-            '\n[Thread Page Info] (Unit: Order)')
+            '\n[Thread Page Info]')
         SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:^25} {1:>1}".format('Thread', orders))
+        SysMgr.printPipe("{0:^25} {1:>1}".format('Thread / Order', orders))
         SysMgr.printPipe(twoLine)
 
         # print total pages #
@@ -78372,11 +78368,11 @@ class TaskAnalyzer(object):
 
                 if minIdx > 0:
                     minUsage = str(item[minIdx])
-                    text(minIdx + 1, item[minIdx] - margin, minUsage, fontsize=4,
+                    text(minIdx+1, item[minIdx]-margin, minUsage, fontsize=4,
                         color=color, fontweight='bold')
                 if maxIdx > 0:
                     maxUsage = str(item[maxIdx])
-                    text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=4,
+                    text(maxIdx+1, item[maxIdx]-margin, maxUsage, fontsize=4,
                         color=color, fontweight='bold')
 
             # draw label #
@@ -78889,10 +78885,21 @@ class TaskAnalyzer(object):
         try:
             orig = SysMgr.processEnable
             SysMgr.processEnable = False
+
+            # save task info #
             obj = TaskAnalyzer(onlyInstance=True)
             obj.saveProcStat()
+
+            # set color flag #
+            if SysMgr.checkMode('filerec'):
+                color = True
+            else:
+                color = False
+
+            # print task tree #
             TaskAnalyzer.printProcTree(
-                instance=obj.procData, printFunc=SysMgr.infoBufferPrint)
+                instance=obj.procData, printFunc=SysMgr.infoBufferPrint,
+                color=color)
         except SystemExit:
             sys.exit(0)
         except:
@@ -80804,7 +80811,7 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printProcTree(
-        instance=None, title=False, printFunc=None, targets=None):
+        instance=None, title=False, printFunc=None, targets=None, color=True):
 
         if not instance and SysMgr.procInstance:
             instance = SysMgr.procInstance
@@ -80960,7 +80967,8 @@ class TaskAnalyzer(object):
                     treestr += '<%s>' % nrChild
 
                 # add child nodes #
-                treestr += '\n%s' % _printTreeNodes(childs, depth+1, targets, enable)
+                treestr += '\n%s' % _printTreeNodes(
+                    childs, depth+1, targets, enable)
 
             return treestr
 
@@ -80970,8 +80978,16 @@ class TaskAnalyzer(object):
         else:
             enable = True
 
+        # set color flag #
+        origColor = SysMgr.colorEnable
+        if not color and SysMgr.colorEnable:
+            SysMgr.colorEnable = False
+
         # get string for tree #
         finalstr = _printTreeNodes(procTree, 0, targets, enable)
+
+        # recover color flag #
+        SysMgr.colorEnable = origColor
 
         # print tree #
         printFunc('%s\n%s' % (finalstr.strip('\n'), oneLine))
