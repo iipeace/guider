@@ -70057,9 +70057,9 @@ class TaskAnalyzer(object):
 
         # define color description #
         colors = '[Color: %s/%s/%s]' % (
-            convColor('RED(Increase)', 'RED'),
-            convColor('GREEN(Decrease)', 'GREEN'),
-            convColor('PURPLE(New)', 'WARNING'))
+            convColor('RED(+)', 'RED'),
+            convColor('GREEN(-)', 'GREEN'),
+            convColor('PURPLE(x)', 'WARNING'))
 
         # print CPU diff #
         SysMgr.printPipe(
