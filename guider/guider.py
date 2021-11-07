@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211106"
+__revision__ = "211107"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22215,14 +22215,16 @@ Commands:
         # error code #
         try:
             num = SysMgr.geterrnoFunc()[0]
-            if not num in errno.errorcode:
+            if num == 0:
+                return 'N/A'
+            elif not num in errno.errorcode:
                 raise Exception('no errorno')
             code = errno.errorcode[num]
             return '%s (%s)' % (code, os.strerror(num))
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn('failed to get error reason')
+            SysMgr.printWarn('failed to get error reason', reason=True)
             return 'N/A'
 
 
@@ -52748,6 +52750,7 @@ class Debugger(object):
         self.arch = arch = SysMgr.getArch()
         self.skipInst = 5
         self.indentLen = 20
+        self.errmsg = ''
         self.syscall = ''
         self.bufferedStr = ''
         self.mapFd = None
@@ -54758,7 +54761,12 @@ typedef struct {
     def setTraceme(self):
         # WARN: This requires CAP_SYS_PTRACE with PTRACE_TRACEME #
         cmd = ConfigMgr.PTRACE_TYPE.index('PTRACE_TRACEME')
-        return self.ptrace(cmd)
+        ret = self.ptrace(cmd)
+        if ret != 0:
+            SysMgr.printWarn(
+                'failed to apply traceme for %s(%s) because %s' % \
+                    (self.comm, self.pid, self.errmsg), True)
+        return ret
 
 
 
@@ -55499,11 +55507,18 @@ typedef struct {
                     reason = ' because of no root permission'
                     exit = True
                 else:
-                    reason = ''
+                    reason = ' because %s' % self.errmsg
 
+                # print error message #
                 SysMgr.printWarn(
                     'failed to attach %s(%s) to guider(%s)%s' % \
                         (self.comm, pid, SysMgr.pid, reason), verb)
+
+                # print solution for docker #
+                SysMgr.printWarn((
+                    "if you use docker then attach "
+                    "'--cap-add=SYS_PTRACE --security-opt seccomp=unconfined'"
+                    " option to the run command"), verb)
 
                 # check return #
                 if exit:
@@ -56194,7 +56209,8 @@ typedef struct {
         ret = self.ptrace(cmd)
         if ret != 0:
             SysMgr.printWarn(
-                'failed to kill %s(%s)' % (self.comm, self.pid))
+                'failed to kill %s(%s) because %s' % \
+                    (self.comm, self.pid, self.errmsg))
             return -1
         else:
             SysMgr.printWarn(
@@ -56232,10 +56248,10 @@ typedef struct {
                 if cnt < 0:
                     break
                 elif not self.isAlive():
-                    errMsg = \
-                        'failed to continue %s(%s) because it is terminated' % \
-                            (self.comm, pid)
-                    SysMgr.printWarn(errMsg)
+                    SysMgr.printWarn(
+                        ('failed to continue %s(%s) '
+                        'because it is terminated') % \
+                            (self.comm, pid))
                     return -1
 
                 time.sleep(0.001)
@@ -56244,7 +56260,8 @@ typedef struct {
         ret = self.ptrace(self.contCmd, 0, sig)
         if ret != 0:
             SysMgr.printWarn(
-                'failed to continue %s(%s)' % (self.comm, pid))
+                'failed to continue %s(%s) because %s' % \
+                    (self.comm, pid, self.errmsg))
             return -1
 
         return 0
@@ -56264,8 +56281,8 @@ typedef struct {
             ret = self.ptrace(cmd, pid=pid)
             if ret != 0:
                 SysMgr.printWarn(
-                    'failed to detach %s(%s) from guider(%s)' % \
-                        (self.comm, pid, SysMgr.pid))
+                    'failed to detach %s(%s) from guider(%s) because %s' % \
+                        (self.comm, pid, SysMgr.pid, self.errmsg))
 
                 # check return #
                 if not check:
@@ -56395,6 +56412,12 @@ typedef struct {
 
                 # do syscall #
                 ret = process_vm_writev(pid, liov, 1, riov, 1, 0)
+                if c_long(ret).value == -1:
+                    self.errmsg = SysMgr.getErrReason()
+                    SysMgr.printWarn(
+                        'failed to process_vm_writev for %s(%s) because %s' % \
+                            (self.comm, self.pid, self.errmsg))
+                    raise Exception()
                 return ret
             except SystemExit:
                 sys.exit(0)
@@ -56562,8 +56585,15 @@ typedef struct {
 
                 # do syscall #
                 ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
+                ret = c_long(ret).value
                 if ret == 0:
                     return None
+                elif ret == -1:
+                    self.errmsg = SysMgr.getErrReason()
+                    SysMgr.printWarn(
+                        'failed to process_vm_readv for %s(%s) because %s' % \
+                            (self.comm, self.pid, self.errmsg))
+                    raise Exception()
 
                 data = memoryview(lbuf).tobytes()
                 if retWord:
@@ -59942,6 +59972,10 @@ typedef struct {
                 self.stop()
             else:
                 ret = self.ptrace(self.singlestepCmd)
+                if ret != 0:
+                    SysMgr.printWarn(
+                        'failed to singlestep %s(%s) because %s' % \
+                            (self.comm, self.pid, self.errmsg))
 
             # check process #
             ret = self.waitpid()
@@ -63356,7 +63390,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
-                raise Exception('no regset')
+                raise Exception('setregset failure')
         except SystemExit:
             sys.exit(0)
         except:
@@ -63383,8 +63417,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
 
         SysMgr.printErr(
-            "failed to write remote registers for %s(%s)" % \
-                (self.comm, self.pid))
+            "failed to write remote registers for %s(%s) because %s" % \
+                (self.comm, self.pid, self.errmsg))
 
         return False
 
@@ -63426,7 +63460,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         cmd = self.getfpregsCmd
 
         ret = self.ptrace(cmd, 0, addr)
-
         if ret != 0:
             if not self.isAlive():
                 SysMgr.printErr(
@@ -63434,8 +63467,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 sys.exit(0)
 
             SysMgr.printErr(
-                "failed to get fp register set of %s(%s)" % \
-                    (self.comm, self.pid))
+                "failed to get fp register set of %s(%s) because %s" % \
+                    (self.comm, self.pid, self.errmsg))
 
         return ret
 
@@ -63466,7 +63499,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
-                raise Exception('no regset')
+                raise Exception('getregset failure')
         except SystemExit:
             sys.exit(0)
         except:
@@ -63494,7 +63527,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             # check state #
             if self.isStopped():
-                SysMgr.printWarn(errMsg)
+                SysMgr.printWarn(
+                    '%s because %s' % (errMsg, self.errmsg))
                 return self.getRegs()
             else:
                 SysMgr.printWarn(
@@ -63733,6 +63767,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             if not ret:
                 return ret
             elif c_long(ret).value == -1:
+                self.errmsg = SysMgr.getErrReason()
                 return -1
             else:
                 return ret
