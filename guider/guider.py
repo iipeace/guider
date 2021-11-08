@@ -66893,6 +66893,12 @@ class ElfAnalyzer(object):
 
 
 
+    def __str__(self):
+        self.__init__(self.path, debug=True)
+        return ''
+
+
+
     def __init__(
         self, path=None, debug=False, onlyHeader=False,
         fd=None, size=sys.maxsize, incArg=False):
@@ -71921,7 +71927,8 @@ class TaskAnalyzer(object):
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
-                elif intervalList and (sname != 'Device' and sname != 'Storage'):
+                elif intervalList and \
+                    (sname != 'Device' and sname != 'Storage'):
                     # define arrays #
                     storageUsage.setdefault(sname, {})
                     busyList = list()
@@ -71952,7 +71959,8 @@ class TaskAnalyzer(object):
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
-                elif intervalList and (sname != 'Device' and sname != 'Network'):
+                elif intervalList and \
+                    (sname != 'Device' and sname != 'Network'):
                     # define arrays #
                     networkUsage.setdefault(sname, {})
                     recvList = list()
@@ -84703,19 +84711,23 @@ class TaskAnalyzer(object):
 
             if func == '%s_enter' % name:
                 isSaved = True
-                m = re.match(
-                    r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
+                m = re.match((
+                    r'^\s*\((?P<name>.+)\+(?P<offset>.+) '
+                    r'<(?P<addr>.+)>\)(?P<args>.*)'), etc)
                 if m:
                     d = m.groupdict()
                     self.kernelEventData.append(
-                        ['ENTER', name, d['addr'], comm, thread, allTime, '', d['args']])
+                        ['ENTER', name, d['addr'], comm, thread, allTime,
+                            '', d['args']])
                 else:
                     m = re.match(
-                        r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
+                        r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)',
+                        etc)
                     if m:
                         d = m.groupdict()
                         self.kernelEventData.append(
-                            ['ENTER', name, '', comm, thread, allTime, '', d['args']])
+                            ['ENTER', name, '', comm, thread, allTime,
+                                '', d['args']])
                     else:
                         isSaved = False
                         SysMgr.printWarn(
@@ -85371,7 +85383,8 @@ class TaskAnalyzer(object):
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(
-                            'failed to read stat from %s' % subfile, True, True)
+                            'failed to read stat from %s' % subfile,
+                            True, True)
 
         # reset and save cgroup instance #
         self.saveCgroupInstance()
