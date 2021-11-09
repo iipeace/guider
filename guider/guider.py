@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211107"
+__revision__ = "211109"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4900,9 +4900,12 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convNum(number):
+    def convNum(number, isFloat=False, floatDigit=1):
         try:
-            return format(long(number), ",")
+            if isFloat:
+                return format(round(float(number),1), ",")
+            else:
+                return format(long(number), ",")
         except SystemExit:
             sys.exit(0)
         except:
@@ -66894,14 +66897,25 @@ class ElfAnalyzer(object):
 
 
     def __str__(self):
-        self.__init__(self.path, debug=True)
-        return ''
+        self.__init__(self.path, debug=True, printer=True)
+        return self.logstr
 
 
 
     def __init__(
         self, path=None, debug=False, onlyHeader=False,
-        fd=None, size=sys.maxsize, incArg=False):
+        fd=None, size=sys.maxsize, incArg=False, printer=False):
+
+        def _printer(item):
+            if not hasattr(self, 'logstr'):
+                self.logstr = ''
+            self.logstr += '\n%s' % item
+
+        # set printer #
+        if printer:
+            printer = _printer
+        else:
+            printer = SysMgr.printPipe
 
         # structures #
         '''
@@ -67497,7 +67511,7 @@ class ElfAnalyzer(object):
 
         # print header info #
         if debug:
-            SysMgr.printPipe('''\
+            printer('''\
 
 [ELF Header]
 %s
@@ -67540,7 +67554,7 @@ Section header string table index: %d
 
         # print program header title #
         if debug:
-            SysMgr.printPipe((
+            printer((
                 "[Program Headers]\n%s\n"
                 "%16s %10s %16s %16s %12s %12s %10s\n%s") % \
                 (twoLine, "Type", "Offset", "VirtAddr",
@@ -67603,13 +67617,13 @@ Section header string table index: %d
                 continue
 
             # print program header #
-            SysMgr.printPipe(
+            printer(
                 "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
                 (typestr, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, flags))
 
         if debug:
-            SysMgr.printPipe(oneLine)
+            printer(oneLine)
 
         if e_shinterpndx >= 0:
             fd.seek(e_phoff + e_phentsize * e_shinterpndx)
@@ -67651,7 +67665,7 @@ Section header string table index: %d
 
         # print section header title #
         if debug and e_shnum > 0:
-            SysMgr.printPipe(
+            printer(
                 ("\n[Section Headers]\n%s\n"
                 "[NR] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s\n%s") % \
                 (twoLine, "Name", "Type", "Address", "Offset", "Size(%)",
@@ -67696,7 +67710,7 @@ Section header string table index: %d
                 size_str = '%s(%4.1f%%)' % \
                     (UtilMgr.convNum(sh_size), size_per)
 
-                SysMgr.printPipe(
+                printer(
                     "[%02d] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s" % \
                     (i, symbol,
                     ElfAnalyzer.SH_TYPE[sh_type] \
@@ -67742,7 +67756,7 @@ Section header string table index: %d
                 pass
 
         if debug and e_shnum > 0:
-            SysMgr.printPipe(oneLine)
+            printer(oneLine)
 
         # define versym info #
         self.attr['versymList'] = list()
@@ -67888,7 +67902,7 @@ Section header string table index: %d
 
             # print .dynsym table title #
             if debug:
-                SysMgr.printPipe((
+                printer((
                     "\n[.dynsym Section]\n%s\n"
                     "%04s %16s%10s%10s%10s%10s%10s %30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type",
@@ -67896,7 +67910,7 @@ Section header string table index: %d
 
             nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
-                SysMgr.printPipe('\tNone')
+                printer('\tNone')
 
             printCnt = 0
 
@@ -67968,7 +67982,7 @@ Section header string table index: %d
                         if not UtilMgr.isValidStr(symbol):
                             continue
 
-                    SysMgr.printPipe(
+                    printer(
                         "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
                         ElfAnalyzer.ST_TYPE[
@@ -67983,8 +67997,8 @@ Section header string table index: %d
 
             if debug:
                 if printCnt == 0:
-                    SysMgr.printPipe('\tNone')
-                SysMgr.printPipe(oneLine)
+                    printer('\tNone')
+                printer(oneLine)
 
         # define .sym info #
         self.attr.setdefault('symTable', {})
@@ -68016,7 +68030,7 @@ Section header string table index: %d
 
             # parse .sym table title #
             if debug:
-                SysMgr.printPipe((
+                printer((
                     "\n[.symtab Section]\n%s\n"
                     "%04s %16s%10s%10s%10s%10s%10s%30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type",
@@ -68024,7 +68038,7 @@ Section header string table index: %d
 
             nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
-                SysMgr.printPipe('\tNone')
+                printer('\tNone')
 
             printCnt = 0
 
@@ -68078,7 +68092,7 @@ Section header string table index: %d
                         if not UtilMgr.isValidStr(symbol):
                             continue
 
-                    SysMgr.printPipe(
+                    printer(
                         "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
                         ElfAnalyzer.ST_TYPE[
@@ -68092,8 +68106,8 @@ Section header string table index: %d
                     printCnt += 1
             if debug:
                 if printCnt == 0:
-                    SysMgr.printPipe('\tNone')
-                SysMgr.printPipe(oneLine)
+                    printer('\tNone')
+                printer(oneLine)
         else:
             ElfAnalyzer.strippedFiles[path] = True
             SysMgr.printWarn(
@@ -68109,7 +68123,7 @@ Section header string table index: %d
             shname = self.getString(str_section, sh_name)
 
             if debug:
-                SysMgr.printPipe((
+                printer((
                     '\n[%s Section]\n%s\n'
                     '%16s %16s %32s %16s %s\n%s') % \
                     (shname, twoLine, "Offset", "Info", "Type",
@@ -68119,7 +68133,7 @@ Section header string table index: %d
 
             nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
-                SysMgr.printPipe('\tNone')
+                printer('\tNone')
 
             printCnt = 0
             for i in range(nrItems):
@@ -68169,7 +68183,7 @@ Section header string table index: %d
                         if not UtilMgr.isValidStr(symbol):
                             continue
 
-                    SysMgr.printPipe(
+                    printer(
                         '%016x %016x %32s %016x %s' % \
                         (sh_offset, sh_info, RTYPE, saddr, symbol))
 
@@ -68177,8 +68191,8 @@ Section header string table index: %d
 
             if debug:
                 if printCnt == 0:
-                    SysMgr.printPipe('\tNone')
-                SysMgr.printPipe(oneLine)
+                    printer('\tNone')
+                printer(oneLine)
 
         # parse RELA table #
         for idx in e_shrelalist:
@@ -68190,7 +68204,7 @@ Section header string table index: %d
             shname = self.getString(str_section, sh_name)
 
             if debug:
-                SysMgr.printPipe((
+                printer((
                     '\n[%s Section]\n%s\n'
                     '%16s %16s %32s %16s %s\n%s') % \
                     (shname, twoLine, "Offset", "Info", "Type",
@@ -68200,7 +68214,7 @@ Section header string table index: %d
 
             nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
-                SysMgr.printPipe('\tNone')
+                printer('\tNone')
 
             printCnt = 0
 
@@ -68254,7 +68268,7 @@ Section header string table index: %d
                         if not UtilMgr.isValidStr(symbol):
                             continue
 
-                    SysMgr.printPipe(
+                    printer(
                         '%016x %016x %32s %s %s' % \
                             (sh_offset, sh_info, RTYPE, val,
                             '%s%x' % (symbol, sh_addend)))
@@ -68263,8 +68277,8 @@ Section header string table index: %d
 
             if debug:
                 if printCnt == 0:
-                    SysMgr.printPipe('\tNone')
-                SysMgr.printPipe(oneLine)
+                    printer('\tNone')
+                printer(oneLine)
 
         # set DWARF Flag #
         if SysMgr.dwarfEnable:
@@ -68703,7 +68717,7 @@ Section header string table index: %d
                     s += '\n'
 
                 if prt:
-                    SysMgr.printPipe(s)
+                    printer(s)
 
             def _printCFIs(cfi, cie=None, pc=None, regList=None):
                 def _convRegName(arg, regList):
@@ -68776,7 +68790,7 @@ Section header string table index: %d
                     else:
                         s += ' %s: <??>\n' % name
 
-                SysMgr.printPipe(s.rstrip('\n'))
+                printer(s.rstrip('\n'))
 
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -68795,7 +68809,7 @@ Section header string table index: %d
             shname = self.getString(str_section, sh_name)
 
             if debug:
-                SysMgr.printPipe(
+                printer(
                     '\n[%s Section]\n%s' % (shname, twoLine))
 
             # set position #
@@ -68965,7 +68979,7 @@ Section header string table index: %d
                         if augdatastr:
                             printStr += ' %-22s %s\n\n' % \
                                 ('Augmentation data: ', augdatastr)
-                        SysMgr.printPipe(printStr)
+                        printer(printStr)
 
                 #-------------------- FDE --------------------#
                 else:
@@ -69121,7 +69135,7 @@ Section header string table index: %d
                                 ('Augmentation data: ', augdatastr)
 
                         # print line #
-                        SysMgr.printPipe(printStr)
+                        printer(printStr)
 
                 # decode instructions to make CFA table #
                 _decodeCFI(self, entry, cfi, cie, offset)
@@ -69153,7 +69167,7 @@ Section header string table index: %d
                     del self.attr['dwarf'][name]
 
             if debug:
-                SysMgr.printPipe(
+                printer(
                     '\n< Total CIE: %s / FDE: %s >\n%s' % \
                         (UtilMgr.convNum(nrCIE),
                             UtilMgr.convNum(nrFDE), oneLine))
@@ -69177,7 +69191,7 @@ Section header string table index: %d
             shname = self.getString(str_section, sh_name)
 
             if debug:
-                SysMgr.printPipe(
+                printer(
                     '\n[%s Section]\n%s' % (shname, twoLine))
 
             # set position #
@@ -69206,12 +69220,12 @@ Section header string table index: %d
 
             # print summary #
             if debug:
-                SysMgr.printPipe((\
+                printer((\
                     'eh_frame pointer: %016x, FDE count: %s\n%s' %
                         (ehframePtr, UtilMgr.convNum(fdeCnt), oneLine)))
 
                 # print menu #
-                SysMgr.printPipe(
+                printer(
                     '{0:^5} {1:^16} {2:^16}'.format(
                             'IDX', 'FUNC ADDR', 'FDE ADDR'))
 
@@ -69236,14 +69250,14 @@ Section header string table index: %d
                         if not UtilMgr.isValidStr(output):
                             continue
 
-                    SysMgr.printPipe(output)
+                    printer(output)
 
                     printCnt += 1
 
             if debug:
                 if printCnt == 0:
-                    SysMgr.printPipe('%s\n\tNone' % oneLine)
-                SysMgr.printPipe(oneLine)
+                    printer('%s\n\tNone' % oneLine)
+                printer(oneLine)
 
         # check .ARM.IDX section #
         if SysMgr.dwarfEnable and e_sharmidx >= 0:
@@ -69268,7 +69282,7 @@ Section header string table index: %d
                 dobj = ElfAnalyzer.EHABIBytecodeDecoder(bytecode, self.path)
 
                 if debug:
-                    SysMgr.printPipe('Entry %s:' % idx)
+                    printer('Entry %s:' % idx)
 
                 # get table offset #
                 if personality == -1:
@@ -69303,24 +69317,24 @@ Section header string table index: %d
                         }
 
                 if debug:
-                    SysMgr.printPipe(
+                    printer(
                         ' Function offset %s: %s' % (\
                             hex(foffset).rstrip('L'), toffset))
 
                 if personality == -1:
                     if debug:
-                        SysMgr.printPipe('\n')
+                        printer('\n')
                     return
 
                 if debug:
-                    SysMgr.printPipe(
+                    printer(
                         ' Compact model index: %s' % personality)
 
                     # print op code #
                     for line in dobj.mnemonic_array:
-                        SysMgr.printPipe(' %s' % line)
+                        printer(' %s' % line)
 
-                    SysMgr.printPipe('\n')
+                    printer('\n')
 
             self.attr.setdefault('dwarf', {})
             self.attr['dwarf'].setdefault('general', {})
@@ -69337,7 +69351,7 @@ Section header string table index: %d
             shname = self.getString(str_section, sh_name)
 
             if debug:
-                SysMgr.printPipe(
+                printer(
                     '\n[%s Section]\n%s\n' % (shname, twoLine))
 
             for idx in range(nrItems):
@@ -69441,7 +69455,7 @@ Section header string table index: %d
             self.attr['dwarf']['CFAIndex'].sort()
 
             if debug:
-                SysMgr.printPipe(oneLine)
+                printer(oneLine)
 
         def _readNoteSection(fd, offset, size):
             # set position #
@@ -69466,7 +69480,7 @@ Section header string table index: %d
                 else:
                     descstr = 'N/A'
 
-                SysMgr.printPipe(
+                printer(
                     '%20s %16s [type:%x] %s' % \
                         (name, hex(descsz), ntype, descstr))
 
@@ -69479,13 +69493,13 @@ Section header string table index: %d
                 if sh_offset+size <= fd.tell():
                     break
 
-            SysMgr.printPipe(oneLine)
+            printer(oneLine)
 
         # check note sections #
         if debug:
             for sh_offset, size in e_notelist.items():
                 # print note section title #
-                SysMgr.printPipe(
+                printer(
                     '\n[Note %s Section]\n%s\n%20s %16s %s\n%s' % \
                         (hex(sh_offset).rstrip('L'), twoLine, "Owner",
                             "Data size", "Description", twoLine))
@@ -69502,7 +69516,7 @@ Section header string table index: %d
                 shname = self.getString(str_section, sh_name)
 
                 # print .note section title #
-                SysMgr.printPipe(
+                printer(
                     '\n[%s Section]\n%s\n%20s %16s %s\n%s' % \
                         (shname, twoLine, "Owner", "Data size",\
                             "Description", twoLine))
@@ -69526,14 +69540,14 @@ Section header string table index: %d
         dynamic_section = fd.read(sh_size)
 
         if debug:
-            SysMgr.printPipe((
+            printer((
                 '\n[.dynamic Section]\n%s\n'
                 '%16s %20s %32s\n%s') % \
                 (twoLine, "Tag", "Type", "Name/Value", twoLine))
 
         nrItems = long(sh_size / sh_entsize)
         if nrItems == 0:
-            SysMgr.printPipe('\tNone')
+            printer('\tNone')
 
         for i in range(nrItems):
             fd.seek(sh_offset + i * sh_entsize)
@@ -69554,7 +69568,7 @@ Section header string table index: %d
                 if ElfAnalyzer.DT_TYPE[d_tag] == 'NEEDED' or \
                     ElfAnalyzer.DT_TYPE[d_tag] == 'SONAME' or \
                     ElfAnalyzer.DT_TYPE[d_tag] == 'RPATH':
-                    SysMgr.printPipe(
+                    printer(
                         '%016x %20s %32s' % \
                         (d_tag, ElfAnalyzer.DT_TYPE[d_tag],
                             dynsymTable[d_un]))
@@ -69566,19 +69580,19 @@ Section header string table index: %d
                     ElfAnalyzer.DT_TYPE[d_tag] == 'VERDEFNUM' or \
                     ElfAnalyzer.DT_TYPE[d_tag] == 'VERNEEDNUM' or \
                     ElfAnalyzer.DT_TYPE[d_tag] == 'RELCOUNT':
-                    SysMgr.printPipe(
+                    printer(
                         '%016x %20s %32s' % \
                         (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
                 else:
-                    SysMgr.printPipe(
+                    printer(
                         '%016x %20s %32s' % \
                         (d_tag, ElfAnalyzer.DT_TYPE[d_tag], hex(d_un)))
             else:
-                SysMgr.printPipe(
+                printer(
                     '%016x %20s %32s' % (d_tag, d_tag, hex(d_un)))
 
         if debug:
-            SysMgr.printPipe('%s\n\n\n' % oneLine)
+            printer('%s\n\n\n' % oneLine)
 
 
 
@@ -70097,10 +70111,10 @@ class TaskAnalyzer(object):
         convColor = UtilMgr.convColor
 
         # define color description #
-        colors = '[Color: %s/%s/%s]' % (
-            convColor('RED(+)', 'RED'),
-            convColor('GREEN(-)', 'GREEN'),
-            convColor('PURPLE(x)', 'WARNING'))
+        colors = '[Color: %s|%s|%s]' % (
+            convColor('Increased', 'RED'),
+            convColor('Decreased', 'GREEN'),
+            convColor('Removed', 'WARNING'))
 
         # print CPU diff #
         SysMgr.printPipe(
@@ -70163,16 +70177,18 @@ class TaskAnalyzer(object):
                     diff = '-'
                 elif cpuProcStat['diff'] > 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('+%s' % convNum(cpuProcStat['diff'])))
+                        '%6s' % ('+%s' % convNum(
+                            cpuProcStat['diff'], isFloat=True)))
                     diff = convColor(diff, 'RED', 6)
                 elif cpuProcStat['diff'] < 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('-%s' % convNum(abs(cpuProcStat['diff']))))
+                        '%6s' % ('-%s' % convNum(
+                            abs(cpuProcStat['diff']), isFloat=True)))
                     diff = convColor(diff, 'GREEN', 6)
                 else:
                     diff = '0'
 
-                total = convNum(cpuProcStat['total'])
+                total = cpuProcStat['total']
 
                 newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%) |" % \
                     (diff, cpuProcStat['cnt'],
@@ -70249,11 +70265,13 @@ class TaskAnalyzer(object):
                     diff = '-'
                 elif gpuProcStat['diff'] > 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('+%s' % convNum(gpuProcStat['diff'])))
+                        '%6s' % ('+%s' % convNum(
+                            gpuProcStat['diff'], isFloat=True)))
                     diff = convColor(diff, 'RED', 6)
                 elif gpuProcStat['diff'] < 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('-%s' % convNum(abs(gpuProcStat['diff']))))
+                        '%6s' % ('-%s' % convNum(
+                            abs(gpuProcStat['diff']), isFloat=True)))
                     diff = convColor(diff, 'GREEN', 6)
                 else:
                     diff = '0'
@@ -70337,18 +70355,20 @@ class TaskAnalyzer(object):
                 if not 'diff' in rssProcStat:
                     diff = '-'
                 elif rssProcStat['diff'] > 0:
-                    diff = '{0:>6}M'.format('+%s' % rssProcStat['diff'])
+                    diff = '{0:>6}M'.format(
+                        '+%s' % convNum(rssProcStat['diff']))
                     diff = convColor(diff, 'RED', 6)
                 elif rssProcStat['diff'] < 0:
-                    diff = '{0:>6}M'.format('-%s' % abs(rssProcStat['diff']))
+                    diff = '{0:>6}M'.format(
+                        '-%s' % convNum(abs(rssProcStat['diff'])))
                     diff = convColor(diff, 'GREEN', 6)
                 else:
                     diff = '0'
 
-                newStat = "%7s(%2d)(%6dM/%6dM/%6dM) |" % \
-                    (diff, rssProcStat['cnt'],
-                        rssProcStat['minRss'], rssProcStat['avgRss'],
-                        rssProcStat['maxRss'])
+                newStat = "%7s(%2s)(%6sM/%6sM/%6sM) |" % \
+                    (diff, convNum(rssProcStat['cnt']),
+                        convNum(rssProcStat['minRss']), convNum(rssProcStat['avgRss']),
+                        convNum(rssProcStat['maxRss']))
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
