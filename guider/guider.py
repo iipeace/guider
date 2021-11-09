@@ -22842,14 +22842,18 @@ Options:
                 jitProfStr = '''\
         * Qt:
             - run the target with "QV4_PROFILE_WRITE_PERF_MAP=1" environment variable (version >= 5.6.0)
-        * node:
+        * Node:
             - run the target with "--perf-basic-prof" option (version >= 0.11.13, map file growth endlessly)
             - run the target with "--perf-basic-prof-only-functions" option (version >= 4.4.0)
-        * java:
+        * Java:
             1. install perf-map-agent
-            2. run the target with "-XX:+PreserveFramePointer" option
+            2. run the target with "-XX:+PreserveFramePointer -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints" option
             3. set environment with "export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")" command
             4. create a map file with "perf-map-agent/bin/create-java-perf-map.sh PID" command
+        * Mono:
+            - run the target with "--jitmap" option
+        * .NET Core:
+            - run the target with "COMPlus_PerfMapEnabled=1" environment variable
                 '''
 
                 drawSubStr = '''
