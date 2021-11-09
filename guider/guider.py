@@ -4343,7 +4343,7 @@ class UtilMgr(object):
 
     @staticmethod
     def getFiles(path, name=None, incFile=True, incDir=False, recursive=True):
-        flist = list()
+        flist = []
 
         for r, d, f in os.walk(path):
             if incFile:
@@ -4380,7 +4380,7 @@ class UtilMgr(object):
         if not flist or type(flist) is not list:
             return []
 
-        rlist = list()
+        rlist = []
         for item in flist:
             item = item.strip()
             if item.startswith('-'):
@@ -9084,7 +9084,7 @@ class Ext4Analyzer(object):
                     # Obtain mapping from extents
                     mapping = [] # List of MappingEntry instances
 
-                    nodes = list()
+                    nodes = []
                     nodes.append(self.offset + ext4_inode.i_block.offset)
 
                     while nodes:
@@ -11702,7 +11702,7 @@ class FunctionAnalyzer(object):
         # check addr2line path #
         if not 'ADDR2LINE' in SysMgr.environList:
             try:
-                symbolList = list()
+                symbolList = []
                 binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
                     return None
@@ -17931,7 +17931,7 @@ class LogMgr(object):
         except:
             return None
 
-        logs = list()
+        logs = []
         while 1:
             try:
                 data = os.read(fd, SysMgr.PAGESIZE).decode()
@@ -17942,7 +17942,7 @@ class LogMgr(object):
                 break
 
         # convert logs #
-        retList = list()
+        retList = []
         for log in logs[-line:]:
             # parse log #
             pos = log.find(';')
@@ -19591,7 +19591,7 @@ Commands:
                 try:
                     if libList[idx+1].startswith('/'):
                         value = libList[idx+1]
-                        libDict.setdefault(item, list())
+                        libDict.setdefault(item, [])
                         libDict[item].append(value)
                 except SystemExit:
                     sys.exit(0)
@@ -20945,7 +20945,7 @@ Commands:
                 return 0
 
             # define socket list #
-            sockList = list()
+            sockList = []
             sockInfo = {}
 
             # send packets #
@@ -21235,7 +21235,7 @@ Commands:
                     continue
                 elif line.startswith('<') and line.endswith('>'):
                     entry = line[1:-1]
-                    ConfigMgr.confData.setdefault(entry, list())
+                    ConfigMgr.confData.setdefault(entry, [])
                     targetList = ConfigMgr.confData[entry]
                     continue
                 else:
@@ -35352,7 +35352,7 @@ Copyright:
                         stat = None
 
                     if not addr in netDict:
-                        netDict[addr] = list()
+                        netDict[addr] = []
 
                     if stat:
                         netDict[addr].append(stat)
@@ -37797,7 +37797,7 @@ Copyright:
                     "failed to handle multiple commands", reason=True)
 
         # run mainloop for user interaction #
-        hlist = list()
+        hlist = []
         while 1:
             try:
                 isHistory = False
@@ -37969,7 +37969,7 @@ Copyright:
                 response = stat['restime']
 
                 realreq = req[req.find(')_')+2:]
-                totalStats.setdefault(realreq, list())
+                totalStats.setdefault(realreq, [])
                 totalStats[realreq] += response
 
                 # draw total gpu graph #
@@ -38115,8 +38115,8 @@ Copyright:
                 # initialize lists #
                 reqid = '%s_%s' % (task, req)
                 resTable.setdefault(reqid, {})
-                resTable[reqid].setdefault('reqtime', list())
-                resTable[reqid].setdefault('restime', list())
+                resTable[reqid].setdefault('reqtime', [])
+                resTable[reqid].setdefault('restime', [])
 
                 resTable[reqid]['reqtime'] += reqtimeList
                 resTable[reqid]['restime'] += restimeList
@@ -39067,7 +39067,7 @@ Copyright:
                     except:
                         pass
 
-                    procList.setdefault(pid, list())
+                    procList.setdefault(pid, [])
                     procList[pid].append(tid)
                 except SystemExit:
                     sys.exit(0)
@@ -39459,7 +39459,7 @@ Copyright:
             SysMgr.printErr("no input for offset")
             sys.exit(0)
         else:
-            addrList = list()
+            addrList = []
             for idx, addr in enumerate(SysMgr.filterGroup):
                 if not UtilMgr.isNumber(addr):
                     SysMgr.printErr(
@@ -39632,9 +39632,9 @@ Copyright:
                     totalSize += blockSize
 
                     if SysMgr.showAll:
-                        info = dict(subDirs=dict(), subFiles=dict())
+                        info = dict(subDirs={}, subFiles={})
                     else:
-                        info = dict(subDirs=dict())
+                        info = dict(subDirs={})
 
                     result[parentAbsPath]['subDirs'][subAbsPath] = info
 
@@ -39965,9 +39965,9 @@ Copyright:
         if SysMgr.jsonEnable:
             result = {}
             if SysMgr.showAll:
-                result[abspath] = dict(subDirs=dict(), subFiles=dict())
+                result[abspath] = dict(subDirs={}, subFiles={})
             else:
-                result[abspath] = dict(subDirs=dict())
+                result[abspath] = dict(subDirs={})
 
             _getDirsJson(result, path, 0, -1)
             jsonResult = UtilMgr.convDict2Str(result)
@@ -40335,7 +40335,7 @@ Copyright:
                     if not pid:
                         continue
 
-                    procList.setdefault(pid, list())
+                    procList.setdefault(pid, [])
                     procList[pid].append(tid)
                 except SystemExit:
                     sys.exit(0)
@@ -41960,7 +41960,7 @@ Copyright:
                 SysMgr.printWarn(data, True)
 
             # save statistics #
-            stats['perReqTime'].setdefault(req, list())
+            stats['perReqTime'].setdefault(req, [])
             stats['perReqTime'][req].append(elapsed)
             stats['perReqTimeAll'][req].append([before, elapsed])
 
@@ -42000,7 +42000,7 @@ Copyright:
                 'perReqTime': {},
                 'perReqTimeAll': {},
                 'perReqErr': {},
-                'perCycleTime': list(),
+                'perCycleTime': [],
                 'name': {}
             }
 
@@ -42032,7 +42032,7 @@ Copyright:
 
                     for req in reqs:
                         try:
-                            stats['perReqTimeAll'].setdefault(req, list())
+                            stats['perReqTimeAll'].setdefault(req, [])
                             stats['perReqErr'].setdefault(req, 0)
 
                             # do request #
@@ -42235,7 +42235,7 @@ Copyright:
 
 
             # run mainloop for user interaction #
-            hlist = list()
+            hlist = []
             while 1:
                 try:
                     isHistory = False
@@ -43023,7 +43023,7 @@ Copyright:
         obj.saveProcStat()
         pid = SysMgr.pid
 
-        pidList = list()
+        pidList = []
         if count > 0:
             for _ in range(count):
                 try:
@@ -45226,7 +45226,7 @@ Copyright:
 
     @staticmethod
     def removeExitFunc(func, args=None):
-        newList = list()
+        newList = []
         for handler in SysMgr.exitFuncList:
             if handler[0] == func and \
                 handler[1] == args:
@@ -47228,7 +47228,7 @@ Copyright:
                 rlist = list(map(long, stats[:nrdvd]))
 
                 if 'recv' in self.networkInfo[dev]:
-                    self.networkInfo[dev]['rdiff'] = list()
+                    self.networkInfo[dev]['rdiff'] = []
 
                     for idx, val in enumerate(rlist):
                         self.networkInfo[dev]['rdiff'].append(
@@ -47242,7 +47242,7 @@ Copyright:
                 tlist = list(map(long, stats[nrdvd:]))
 
                 if 'tran' in self.networkInfo[dev]:
-                    self.networkInfo[dev]['tdiff'] = list()
+                    self.networkInfo[dev]['tdiff'] = []
 
                     for idx, val in enumerate(tlist):
                         self.networkInfo[dev]['tdiff'].append(
@@ -48231,12 +48231,12 @@ Copyright:
                 '''
 
                 # recv diff #
-                rdiff = list()
+                rdiff = []
                 for idx, stat in enumerate(val['recv']):
                     rdiff.append(stat - val['initrecv'][idx])
 
                 # tran diff #
-                tdiff = list()
+                tdiff = []
                 for idx, stat in enumerate(val['tran']):
                     tdiff.append(stat - val['inittran'][idx])
 
@@ -49420,7 +49420,7 @@ class DbusMgr(object):
                     sname = name.value.decode()
 
                     # register stat name #
-                    statList.setdefault(sname, list())
+                    statList.setdefault(sname, [])
 
                     # next stat value #
                     if not dbusObj.dbus_message_iter_next(dictIterP):
@@ -53358,7 +53358,7 @@ typedef struct {
                         linkInfo = 'NONE'
 
                     # register link info to list #
-                    linkList.setdefault(fpath, list())
+                    linkList.setdefault(fpath, [])
                     linkList[fpath].append((
                         convColor(sym, 'YELLOW'),
                         attr['bind'], attr['vis'],
@@ -53859,7 +53859,7 @@ typedef struct {
                 except:
                     num = long(val)
                 finally:
-                    self.setRetList.setdefault(newSym, list())
+                    self.setRetList.setdefault(newSym, [])
                     self.setRetList[newSym].append(num)
 
                 # print return value #
@@ -54723,7 +54723,7 @@ typedef struct {
         if type(cmdList) is not list:
             return cmdList
 
-        newCmdList = list()
+        newCmdList = []
 
         convNum = UtilMgr.convNum
 
@@ -54900,7 +54900,7 @@ typedef struct {
 
 
     def convertFilterValue(self, origCmdSet):
-        cmdSet = list()
+        cmdSet = []
         for cmd in origCmdSet:
             cmds = cmd.split(':')
             if cmds[0] != 'filter' or \
@@ -54973,7 +54973,7 @@ typedef struct {
             symlist.append('**')
         else:
             oldlist = list(symlist)
-            symlist = list()
+            symlist = []
             for sym in oldlist:
                 if sym.startswith('|'):
                     symlist.append('**%s' % sym)
@@ -55064,9 +55064,9 @@ typedef struct {
 
 
     def injectBpList(self, symList, binList=None, verb=True):
-        exceptList = list()
+        exceptList = []
         if symList:
-            newList = list()
+            newList = []
             for symbol in symList:
                 if not symbol.startswith('^'):
                     newList.append(symbol)
@@ -57243,7 +57243,7 @@ typedef struct {
 
                 pos += per
 
-        tagList = list()
+        tagList = []
         _iterNode(tagList, callTree, callCnt)
         return '\n'.join(tagList)
 
@@ -57350,7 +57350,7 @@ typedef struct {
     @staticmethod
     def convCallList2Tree(callList):
         def _getObj():
-            return dict(cnt=0, child=dict())
+            return dict(cnt=0, child={})
 
         tree = {}
         totals = {}
@@ -60599,7 +60599,7 @@ typedef struct {
                 indent = '  ' * depth
 
                 # save indent #
-                self.prevPyIndent.setdefault(call, list())
+                self.prevPyIndent.setdefault(call, [])
                 self.prevPyIndent[call].append(indent)
             else:
                 btstr = indent = ''
@@ -61925,13 +61925,13 @@ typedef struct {
 
         # call variables #
         self.prevCallString = ''
-        self.stack = list()
-        self.prevStack = list()
-        self.childList = list()
-        self.callList = list()
-        self.callPrint = list()
-        self.cpuUsageList = list()
-        self.selfCpuUsageList = list()
+        self.stack = []
+        self.prevStack = []
+        self.childList = []
+        self.callList = []
+        self.callPrint = []
+        self.cpuUsageList = []
+        self.selfCpuUsageList = []
         self.syscallTime = {}
         self.syscallStat = {}
         self.brkcallStat = {}
@@ -62144,7 +62144,7 @@ typedef struct {
 
         # register function entry time #
         # TODO: handle no return procedure such like PLT #
-        self.entryTime.setdefault(sym, list())
+        self.entryTime.setdefault(sym, [])
         self.entryTime[sym].append(self.vdiff)
 
         # set command list #
@@ -62816,7 +62816,7 @@ typedef struct {
 
         callTable = {}
         fileTable = {}
-        elapsedTable = list()
+        elapsedTable = []
 
         # define stop flag #
         needStop = False
@@ -66618,7 +66618,7 @@ class ElfAnalyzer(object):
         if not self.sortedSymTable:
             self.mergeSymTable(onlyFunc=onlyFunc)
 
-        clist = list()
+        clist = []
 
         # get offset or symbol list #
         try:
@@ -67553,7 +67553,7 @@ Section header string table index: %d
         str_section = fd.read(sh_size)
 
         # define program info #
-        self.attr['progHeader'] = list()
+        self.attr['progHeader'] = []
         e_notelist = {}
 
         # print program header title #
@@ -67763,7 +67763,7 @@ Section header string table index: %d
             printer(oneLine)
 
         # define versym info #
-        self.attr['versymList'] = list()
+        self.attr['versymList'] = []
 
         # parse .gnu.version table #
         if e_shversym >= 0:
@@ -68804,7 +68804,7 @@ Section header string table index: %d
             self.attr['dwarf']['CIE'] = {}
             self.attr['dwarf']['FDE'] = {}
             self.attr['dwarf'].setdefault('general', {})
-            self.attr['dwarf'].setdefault('CFAIndex', list())
+            self.attr['dwarf'].setdefault('CFAIndex', [])
             self.attr['dwarf'].setdefault('CFATable', {})
             ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
             nrCIE = nrFDE = 0
@@ -68959,7 +68959,7 @@ Section header string table index: %d
                         'augdata': augdata,
                         'augdatastr': augdatastr,
                         'cfi': cfi,
-                        'table': list(),
+                        'table': [],
                     }
 
                     # print info #
@@ -69096,7 +69096,7 @@ Section header string table index: %d
                         'initLoc': initLoc,
                         'lenSize': lenSize,
                         'cfi': cfi,
-                        'table': list(),
+                        'table': [],
                     }
 
                     if initLoc in self.addrTable and self.addrTable[initLoc]:
@@ -69342,7 +69342,7 @@ Section header string table index: %d
 
             self.attr.setdefault('dwarf', {})
             self.attr['dwarf'].setdefault('general', {})
-            self.attr['dwarf'].setdefault('CFAIndex', list())
+            self.attr['dwarf'].setdefault('CFAIndex', [])
             self.attr['dwarf'].setdefault('CFATable', {})
 
             # define entry size #
@@ -70513,7 +70513,7 @@ class TaskAnalyzer(object):
             self.lastEvent = '0'
             self.backupData = {}
             self.nrSchedLoss = 0
-            self.timelineData = {"time_unit": "us", "segments": list()}
+            self.timelineData = {"time_unit": "us", "segments": []}
 
         # top mode #
         else:
@@ -71955,10 +71955,10 @@ class TaskAnalyzer(object):
                     (sname != 'Device' and sname != 'Storage'):
                     # define arrays #
                     storageUsage.setdefault(sname, {})
-                    busyList = list()
-                    readList = list()
-                    writeList = list()
-                    freeList = list()
+                    busyList = []
+                    readList = []
+                    writeList = []
+                    freeList = []
 
                     # convert previous stats #
                     for item in intervalList.split():
@@ -71987,8 +71987,8 @@ class TaskAnalyzer(object):
                     (sname != 'Device' and sname != 'Network'):
                     # define arrays #
                     networkUsage.setdefault(sname, {})
-                    recvList = list()
-                    tranList = list()
+                    recvList = []
+                    tranList = []
 
                     # convert previous stats e
                     for item in intervalList.split():
@@ -73739,8 +73739,8 @@ class TaskAnalyzer(object):
                         break
 
                     usage = item['usage'].split()[:lent]
-                    rdUsage = list()
-                    wrUsage = list()
+                    rdUsage = []
+                    wrUsage = []
 
                     # divide I/O graph #
                     for item in usage:
@@ -75646,7 +75646,7 @@ class TaskAnalyzer(object):
         if not SysMgr.maxInterval:
             return
 
-        self.intervalData.setdefault(key, list())
+        self.intervalData.setdefault(key, [])
         self.intervalData[key].append(value)
         mod = len(self.intervalData[key]) - SysMgr.maxInterval
         if mod > 0:
@@ -75661,7 +75661,7 @@ class TaskAnalyzer(object):
         try:
             target.setdefault(key, self.prevProcData[pid][key])
         except:
-            target.setdefault(key, list())
+            target.setdefault(key, [])
 
         target[key].append(value)
         mod = len(target[key]) - SysMgr.maxInterval
@@ -78994,7 +78994,7 @@ class TaskAnalyzer(object):
                 compressor = SysMgr.getPkg('gzip')
                 fd = compressor.GzipFile(fileobj=fd)
 
-                lines = list()
+                lines = []
                 tlines = fd.read().decode().split('\n')
                 for item in tlines:
                     if not item:
@@ -79405,7 +79405,7 @@ class TaskAnalyzer(object):
 
                 # initialize lifedata #
                 TA.lifeIntData.setdefault(pid, {})
-                TA.lifeIntData[pid].setdefault(index, list())
+                TA.lifeIntData[pid].setdefault(index, [])
 
                 # add died process to list #
                 if comm[1] == '-':
@@ -82474,7 +82474,7 @@ class TaskAnalyzer(object):
             isValidStr = UtilMgr.isValidStr
             if not prev_id.startswith('0['):
                 # add runtime to list for histogram #
-                self.statData.setdefault('runtime', list())
+                self.statData.setdefault('runtime', [])
                 self.statData['runtime'].append(diff)
 
                 # add timestamps to list for timeline #
@@ -82577,7 +82577,7 @@ class TaskAnalyzer(object):
                 self.threadData[coreId]['schedLatency'] += schedLat
                 self.threadData[next_id]['schedReady'] = long(0)
 
-                self.statData.setdefault('schedlat', list())
+                self.statData.setdefault('schedlat', [])
                 self.statData['schedlat'].append(schedLat)
 
             # calculate preempted time of next thread #
@@ -82606,7 +82606,7 @@ class TaskAnalyzer(object):
 
                 # add preempted time to list for histogram #
                 if not next_id.startswith('0['):
-                    self.statData.setdefault('prttime', list())
+                    self.statData.setdefault('prttime', [])
                     self.statData['prttime'].append(preemptedTime)
 
             self.threadData[next_id]['lastStatus'] = 'R'
@@ -83964,7 +83964,7 @@ class TaskAnalyzer(object):
                 self.threadData[pid]['createdTime'] = ftime
 
                 if not threadData['childList']:
-                    threadData['childList'] = list()
+                    threadData['childList'] = []
 
                 threadData['childList'].append(pid)
                 self.nrNewTask += 1
@@ -83991,7 +83991,7 @@ class TaskAnalyzer(object):
                 self.threadData[cpid]['createdTime'] = ftime
 
                 if not threadData['childList']:
-                    threadData['childList'] = list()
+                    threadData['childList'] = []
 
                 threadData['childList'].append(cpid)
                 self.nrNewTask += 1
