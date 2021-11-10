@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211109"
+__revision__ = "211110"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28,7 +28,7 @@ try:
     import atexit
     import struct
     from copy import deepcopy
-    #from ctypes import *
+    from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -26549,6 +26549,9 @@ Examples:
         # {0:1} {1:1} GET#http://127.0.0.1:5000
         # {0:1} {1:1} "GET#http://127.0.0.1:5000|GET#http://10.25.123.123:5000"
 
+    - Request GET/URL to specific server with Keep-Alive attribute
+        # {0:1} {1:1} http://127.0.0.1:5000 -q KEEPALIVE
+
     - Request GET/URL with alias to specific server
         # {0:1} {1:1} ALIAS:TEST1#http://127.0.0.1:5000
 
@@ -41744,26 +41747,28 @@ Copyright:
 
                 # create a session to improve performance by session reuse #
                 try:
-                    session = requests.Session()
+                    if not 'KEEPALIVE' in SysMgr.environList:
+                        raise Exception()
+                    obj = requests.Session()
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    session = requests
+                    obj = requests
 
                 # GET #
                 if remain.startswith('GET#'):
                     method = 'GET'
-                    cmd = requests.get
+                    cmd = obj.get
                     remain = remain[len(method)+1:]
                 # POST #
                 elif remain.startswith('POST#'):
                     method = 'POST'
-                    cmd = requests.post
+                    cmd = obj.post
                     remain = remain[len(method)+1:]
                 # default #
                 else:
                     method = 'GET'
-                    cmd = requests.get
+                    cmd = obj.get
 
                 # check method #
                 if not cmd:
@@ -41964,6 +41969,13 @@ Copyright:
             stats['perReqTime'][req].append(elapsed)
             stats['perReqTimeAll'][req].append([before, elapsed])
 
+            # check mute option #
+            if mute:
+                # raise Exception for error #
+                if not res.ok:
+                    raise Exception(res.reason)
+                return
+
             # convert result #
             if res.ok:
                 success = UtilMgr.convColor('OK', 'GREEN')
@@ -41982,13 +41994,11 @@ Copyright:
             # round elapsd time #
             elapsed = '%.6f' % elapsed
 
-            # check mute flag #
-            if not mute:
-                # print response #
-                SysMgr.printPipe(
-                    '%s(%s) <%s> [%.6f] <- [%s/%s] %s%s' % \
-                        (SysMgr.comm, SysMgr.pid, idx, after, code,
-                            UtilMgr.convColor(elapsed, 'CYAN'), success, text))
+            # print response #
+            SysMgr.printPipe(
+                '%s(%s) <%s> [%.6f] <- [%s/%s] %s%s' % \
+                    (SysMgr.comm, SysMgr.pid, idx, after, code,
+                        UtilMgr.convColor(elapsed, 'CYAN'), success, text))
 
             # raise Exception for error #
             if not res.ok:
@@ -42295,10 +42305,9 @@ Copyright:
 
         # add ssl variables for TLS 1.0 #
         try:
-            requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += \
-                ':DES-CBC3-SHA'
-            requests.packages.urllib3.disable_warnings(
-                requests.packages.urllib3.exceptions.InsecureRequestWarning)
+            urllib3 = requests.packages.urllib3
+            urllib3.util.ssl_.DEFAULT_CIPHERS += ':DES-CBC3-SHA'
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         except:
             pass
 
