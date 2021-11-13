@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211110"
+__revision__ = "211113"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28,7 +28,7 @@ try:
     import atexit
     import struct
     from copy import deepcopy
-    from ctypes import *
+    #from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -5947,16 +5947,17 @@ class NetworkMgr(object):
 
     # define valid request list #
     REQUEST_LIST = {
-        'DOWNLOAD': None,
-        'UPLOAD': None,
-        'RUN': None,
         'BROADCAST': None,
+        'CLEAR': None,
+        'DOWNLOAD': None,
+        'JOBS': None,
+        'LIST': None,
         'NEW': None,
         'PING': None,
-        'LIST': None,
-        'CLEAR': None,
-        'JOBS': None,
         'RESTART': None,
+        'RUN': None,
+        'UPSTREAM': None,
+        'UPLOAD': None,
     }
 
     def __init__(
@@ -6379,6 +6380,9 @@ class NetworkMgr(object):
                     pass
                 finally:
                     return res
+
+        def _onUpstream(req):
+            pass
 
         def _onUpload(req):
             # parse path #
@@ -18650,10 +18654,11 @@ class SysMgr(object):
 
     cliCmdStr = '''
 Commands:
+    - RUN:Command
     - DOWNLOAD:RemotePath@LocalPath
     - UPLOAD:LocalPath@RemotePath
-    - RUN:Command
     - BROADCAST:Command
+    - UPSTREAM:Command
     - PING
     - LIST
     - CLEAR
@@ -27220,26 +27225,30 @@ Examples:
         # {0:1} {1:1} c
         # {0:1} {1:1} "clear"
 
-    - Execute remote commands in parallel
+    - Execute remote commands in parallel by the server
         # {0:1} {1:1} "ls -lha", "date"
         # {0:1} {1:1} "192.168.0.100:5050|vmstat 1, 192.168.0.101:1234|find /"
 
-    - Execute remote command by all nodes
+    - Execute remote commands by all nodes connected to the agent
         # {0:1} {1:1} "b:ls -lha"
         # {0:1} {1:1} "broadcast:ls -lha"
         # {0:1} {1:1} "b:restart"
         # {0:1} {1:1} "b:download:test/*@backup/""
 
-    - Execute remote command by specific nodes
+    - Execute remote commands on the central server through the agent
+        # {0:1} {1:1} "s:ls -lha"
+        # {0:1} {1:1} "upstream:ls -lha"
+
+    - Execute remote commands by specific nodes connected to the agent
         # {0:1} {1:1} "b:@192.168.105.86/5589@192.168.105.100/5566:ls -lha"
 
-    - Execute a remote command with no timeout
+    - Execute a remote commands with no timeout
         # {0:1} {1:1} "ls -lha" -q NOTIMEOUT
 
-    - Execute a remote command with specific timeout
+    - Execute a remote commands with specific timeout
         # {0:1} {1:1} "ls -lha" -q TIMEOUT:1.5
 
-    - Execute a remote command with no output
+    - Execute a remote commands with no output
         # {0:1} {1:1} -q QUIET
 
     - Execute remote Guider commands in fixed-line-output
@@ -36569,6 +36578,7 @@ Copyright:
     @staticmethod
     def runServerMode():
         nodeList = {}
+        agentList = {}
 
         def _sendErrMsg(netObj, message):
             message = 'ERROR|%s:%s:%s' % \
@@ -36898,6 +36908,68 @@ Copyright:
                 except:
                     pass
 
+        def _onUpstream(netObj, value, response, sync=True):
+            # check agent list #
+            if not agentList:
+                connObj.send('NO_SERV_AGENT')
+                return
+
+            # split items #
+            itemList = value.split(':')
+
+            # pick command #
+            reqCmd = itemList[0].upper()
+            if reqCmd in NetworkMgr.REQUEST_LIST:
+                cmd = value
+            else:
+                cmd = 'run:' + value
+
+            # send message packet #
+            connObj.send(
+                'MSG:"%s" is going to be executed by the agent' % cmd)
+
+            '''
+            receive an ACK packet
+            to prevent receiving two packets at once
+            '''
+            connObj.recv()
+
+            # send reply packet for command #
+            connObj.send('run|%s' % value)
+
+            # execute remote commands #
+            pid = 0
+            for addr in list(agentList):
+                # create a new worker process #
+                pid = SysMgr.createProcess()
+                if pid > 0:
+                    continue
+
+                try:
+                    SysMgr.printInfo(
+                        "execute '%s' at %s for %s:%s" % \
+                            (cmd, addr, connObj.ip, connObj.port))
+
+                    # disable log #
+                    SysMgr.logEnable = False
+
+                    # execute a command from the agent #
+                    rcmd = '%s|%s' % (addr, cmd)
+                    SysMgr.runClientMode(rcmd, connObj)
+                except SystemExit:
+                    pass
+                except:
+                    SysMgr.logEnable = True
+                    SysMgr.printErr(
+                        "failed to execute '%s' at %s for %s:%s" % \
+                            (cmd, addr, connObj.ip, connObj.port))
+
+                sys.exit(0)
+
+            # wait for termination for remote commands #
+            if pid > 0 and sync:
+                SysMgr.waitChild()
+
         def _onBroadcast(connObj, value, response, sync=True):
             # check node list #
             if not nodeList:
@@ -37002,6 +37074,9 @@ Copyright:
                     SysMgr.printInfo(
                         'connected to the agent (%s)' % raddr)
 
+                    # register agent info #
+                    agentList["%s:%s" % (cliObj.ip, cliObj.port)] = True
+
                     # init error message #
                     errMsg = None
 
@@ -37033,6 +37108,15 @@ Copyright:
 
                     # update latest error message #
                     errMsg = curErrMsg
+
+                    # remove agent info #
+                    try:
+                        agentList.pop(
+                            "%s:%s" % (cliObj.ip, cliObj.port), None)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
                     # close invalid socket #
                     if cliObj.connected:
@@ -37229,16 +37313,17 @@ Copyright:
 
             # define valid request list #
             requestList = {
-                'DOWNLOAD': _onDownload,
-                'UPLOAD': _onUpload,
-                'RUN': _onRun,
                 'BROADCAST': _onBroadcast,
+                'CLEAR': _onClear,
+                'DOWNLOAD': _onDownload,
+                'JOBS': _onJobs,
+                'LIST': _onList,
                 'NEW': _onNew,
                 'PING': _onPing,
-                'LIST': _onList,
-                'CLEAR': _onClear,
-                'JOBS': _onJobs,
                 'RESTART': _onRestart,
+                'RUN': _onRun,
+                'UPSTREAM': _onUpstream,
+                'UPLOAD': _onUpload,
             }
 
             # check request type #
@@ -37428,7 +37513,7 @@ Copyright:
                 continue
             except:
                 SysMgr.printWarn(
-                    'failed to accept connection', reason=True)
+                    'failed to accept the connection request', reason=True)
                 continue
 
             SysMgr.printInfo(
@@ -37530,6 +37615,8 @@ Copyright:
                 uinput = 'run' + uinput[1:]
             elif uinputUpper.startswith('B:'):
                 uinput = 'broadcast' + uinput[1:]
+            elif uinputUpper.startswith('S:'):
+                uinput = 'upstream' + uinput[1:]
             elif uinputUpper == 'H':
                 uinput = 'history'
             elif uinputUpper == 'P':
