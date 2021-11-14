@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211113"
+__revision__ = "211114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6110,6 +6110,12 @@ class NetworkMgr(object):
 
 
 
+    def __str__(self):
+        return '%s object at %x, IP: %s, PORT: %s' % \
+            (self.__class__, id(self), self.ip, self.port)
+
+
+
     def listen(self, nrQueue=5):
         return self.socket.listen(nrQueue)
 
@@ -6341,9 +6347,83 @@ class NetworkMgr(object):
 
 
 
+    def customBind(self):
+        # get bind info #
+        ipList = portList = []
+        if 'CLIENTIP' in SysMgr.environList:
+            ipList = SysMgr.environList['CLIENTIP']
+        if 'CLIENTPORT' in SysMgr.environList:
+            portList = SysMgr.environList['CLIENTPORT']
+
+        # check bind address #
+        if not ipList and not portList:
+            return True
+
+        # set default IP #
+        if not ipList:
+            ipList = ['0']
+
+        # convert PORT list #
+        if portList:
+            newPortList = []
+            for item in portList:
+                if '-' in item:
+                    start, end = item.split('-')
+                    try:
+                        for idx in range(long(start), long(end)+1):
+                            newPortList.append(idx)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            'failed to bind client socket', True)
+                        return False
+                else:
+                    newPortList.append(long(item))
+
+            portList = list(set(newPortList))
+        else:
+            portList = [0]
+
+        # disable REUSEADDR flag #
+        socket = SysMgr.getPkg('socket')
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+
+        # bind #
+        isBound = False
+        for ip in ipList:
+            for port in portList:
+                try:
+                    self.bind(ip, port)
+                    SysMgr.printWarn(
+                        'succeed to bind client socket to %s:%s' % \
+                            (ip, port))
+                    isBound = True
+                    break
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        'failed to bind client socket to %s:%s' % \
+                            (ip, port), reason=True)
+
+        # check result #
+        if isBound:
+            return True
+        else:
+            SysMgr.printErr(
+                'failed to bind local address for client socket')
+            return False
+
+
+
     def connect(self, addr=None):
         if addr is None:
             addr = (self.ip, self.port)
+
+        # bind to specific address #
+        if not self.customBind():
+            raise Exception('bind failure')
 
         self.socket.connect(addr)
 
@@ -7079,19 +7159,20 @@ class NetworkMgr(object):
         if port is None:
             port = SysMgr.defaultServPort
 
-        networkObject = NetworkMgr('client', ip, port)
-        if not networkObject.ip:
+        # create a new object #
+        netObj = NetworkMgr('client', ip, port)
+        if not netObj.ip:
             sys.exit(0)
         else:
-            networkObject.status = 'ALWAYS'
-            networkObject.request = service
+            netObj.status = 'ALWAYS'
+            netObj.request = service
             naddr = '%s:%s' % (ip, str(port))
 
             if service == 'PRINT':
-                SysMgr.addrListForPrint[naddr] = networkObject
+                SysMgr.addrListForPrint[naddr] = netObj
             elif service.startswith('REPORT_'):
                 SysMgr.reportEnable = True
-                SysMgr.addrListForReport[naddr] = networkObject
+                SysMgr.addrListForReport[naddr] = netObj
             else:
                 SysMgr.printErr(errMsg)
 
@@ -7108,7 +7189,7 @@ class NetworkMgr(object):
 
         if SysMgr.localServObj and not force:
             SysMgr.printWarn(
-                "ignored to set server network because it is already set", verb)
+                "ignored to set server network because its already set", verb)
             return
 
         # get internet available IP first #
@@ -27082,6 +27163,7 @@ Description:
     Show running {2:1} processes
 
 Options:
+    -Q                          print all rows in a stream
     -v                          verbose
                         '''.format(cmd, mode, __module__)
 
@@ -27250,6 +27332,10 @@ Examples:
 
     - Execute a remote commands with no output
         # {0:1} {1:1} -q QUIET
+
+    - Execute a remote commands using specific client addresses
+        # {0:1} {1:1} -q CLIENTIP:127.0.0.1, CLIENTPORT:12345
+        # {0:1} {1:1} -q CLIENTPORT:12345-12399
 
     - Execute remote Guider commands in fixed-line-output
         # {0:1} {1:1} "192.168.0.100:5050|GUIDER top -m 15:, 192.168.0.101:1234|GUIDER ttop -m 15:"
@@ -33518,6 +33604,7 @@ Copyright:
 
         # LIST MODE #
         if SysMgr.checkMode('list'):
+            SysMgr.setStream(not SysMgr.printStreamEnable)
             SysMgr.printBgProcs()
 
         # SERVER MODE #
@@ -37654,6 +37741,7 @@ Copyright:
 
             # launch remote command #
             pipe = NetworkMgr.execRemoteCmd(uinput, addr)
+            print(pipe)
             if not pipe:
                 if addr:
                     addrstr = ' at %s' % addr
