@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211114"
+__revision__ = "211115"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28,7 +28,7 @@ try:
     import atexit
     import struct
     from copy import deepcopy
-    #from ctypes import *
+    from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -37741,7 +37741,6 @@ Copyright:
 
             # launch remote command #
             pipe = NetworkMgr.execRemoteCmd(uinput, addr)
-            print(pipe)
             if not pipe:
                 if addr:
                     addrstr = ' at %s' % addr
@@ -52339,7 +52338,7 @@ class DltAnalyzer(object):
             elif item == 'warn':
                 color = 'PINK'
             else:
-                color = None
+                color = 'DEFAULT'
 
             DltAnalyzer.msgColorList.append(
                 UtilMgr.convColor(item, color, 5, 'left'))
@@ -54954,8 +54953,10 @@ typedef struct {
         cmd = ConfigMgr.PTRACE_TYPE.index('PTRACE_TRACEME')
         ret = self.ptrace(cmd)
         if ret != 0:
+            if not self.comm:
+                self.comm = SysMgr.getComm(self.pid, cache=True)
             SysMgr.printWarn(
-                'failed to apply traceme for %s(%s) because %s' % \
+                'failed to apply PTRACE_TRACEME for %s(%s) because %s' % \
                     (self.comm, self.pid, self.errmsg), True)
         return ret
 
@@ -54986,6 +54987,7 @@ typedef struct {
         # create a new process #
         pid = SysMgr.createProcess()
         if pid == 0:
+            # update pid #
             self.pid = os.getpid()
 
             # set tracee flag #
@@ -63932,7 +63934,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def ptrace(self, req, addr=0, data=0, pid=None):
-        if not pid:
+        if pid is None:
             pid = self.pid
 
         '''
