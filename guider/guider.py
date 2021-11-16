@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211115"
+__revision__ = "211116"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28,7 +28,7 @@ try:
     import atexit
     import struct
     from copy import deepcopy
-    from ctypes import *
+    #from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -4928,18 +4928,25 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convColor(string, color='LIGHT', size=1, align='right'):
-        if not SysMgr.colorEnable or not color or SysMgr.outPath or \
-            SysMgr.jsonEnable or SysMgr.remoteRun or \
-            (not SysMgr.isLinux and not SysMgr.isDarwin):
+    def convColor(string, color='LIGHT', size=1, align='right', force=False):
+        # check skip condition #
+        if not color:
+            return str(string)
+        elif force:
+            pass
+        elif not SysMgr.colorEnable:
+            return str(string)
+        elif SysMgr.outPath or SysMgr.jsonEnable:
             SysMgr.colorEnable = False
             return str(string)
 
+        # direction #
         if align == 'right':
             string = '{0:>{size}}'.format(str(string), size=size)
         else:
             string = '{0:<{size}}'.format(str(string), size=size)
 
+        # add color characters #
         try:
             return '%s%s%s' % \
                 (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
@@ -7016,7 +7023,7 @@ class NetworkMgr(object):
                             reason=True, always=verb)
 
                     # handle error #
-                    et, err, to = sys.exc_info()
+                    _, err, to = sys.exc_info()
                     if err.args and err.args[0] == 99:
                         time.sleep(0.1)
                         continue
@@ -10801,7 +10808,7 @@ class FunctionAnalyzer(object):
             else:
                 rootPath = SysMgr.rootPath
             SysMgr.printInfo(
-                "use %s as sysroot path" % rootPath)
+                "use '%s' as the sysroot path" % rootPath)
 
         # Register None pos #
         self.posData['0'] = dict(self.init_posData)
@@ -11817,7 +11824,7 @@ class FunctionAnalyzer(object):
                 sys.exit(0)
 
             SysMgr.printInfo(
-                "use %s as addr2line path" % ', '.join(addr2linePath))
+                "use '%s' as the addr2line path" % ', '.join(addr2linePath))
         else:
             for path in SysMgr.environList['ADDR2LINE']:
                 if not os.path.isfile(path):
@@ -22545,6 +22552,8 @@ Commands:
                     SysMgr.encodeEnable = False
                     SysMgr.remoteRun = True
                     SysMgr.colorEnable = False
+                else:
+                    SysMgr.colorEnable = True
 
                 # check encode condition #
                 if not "LANG" in os.environ or \
@@ -22582,6 +22591,9 @@ Commands:
             # set default SIGINT handler #
             signal.signal(signal.SIGINT, SysMgr.stopHandler)
 
+            # set color flag #
+            SysMgr.colorEnable = False
+
         # MacOS #
         elif sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
@@ -22596,6 +22608,8 @@ Commands:
                         (sys.argv[1], sys.platform))
                 sys.exit(0)
 
+            # set color flag #
+            SysMgr.colorEnable = True
         else:
             SysMgr.printErr(
                 "'%s' platform is not supported now" % sys.platform)
@@ -27789,7 +27803,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                'failed to recognize %s as perf event type' % econfig)
+                "failed to recognize '%s' as the perf event type" % econfig)
             return
 
         if SysMgr.guiderObj:
@@ -33118,7 +33132,7 @@ Copyright:
         elif option == 'E':
             SysMgr.cacheDirPath = value
             SysMgr.printInfo(
-                "use %s as cache directory" % value)
+                "use '%s' as the cache directory" % value)
 
         elif option == 'G':
             SysMgr.checkOptVal(option, value)
@@ -33264,7 +33278,7 @@ Copyright:
                 SysMgr.objdumpPath = value
 
                 SysMgr.printInfo(
-                    "use %s as objdump path" % SysMgr.objdumpPath)
+                    "use '%s' as the objdump path" % SysMgr.objdumpPath)
 
             elif option == 'F':
                 SysMgr.printOptionWarn(option, value)
@@ -34729,7 +34743,7 @@ Copyright:
                     attr, ip, port = addr.split(':')
                 except:
                     SysMgr.printWarn(
-                        "failed to use %s as remote address" % (addr))
+                        "failed to use '%s' as the remote address" % addr)
                     continue
 
                 networkObject = NetworkMgr('client', ip, long(port))
@@ -34738,7 +34752,8 @@ Copyright:
 
                 if not networkObject.ip or not networkObject.port:
                     SysMgr.printWarn(
-                        "failed to use %s:%s as remote address" % (ip, port))
+                        "failed to use '%s:%s' as the remote address" % \
+                            (ip, port))
                     continue
 
                 for item in event:
@@ -39666,7 +39681,8 @@ Copyright:
             # check file #
             if not os.path.isfile(inputArg):
                 SysMgr.printErr(
-                    "failed to recognize %s as file or process" % inputArg)
+                    "failed to recognize '%s' as the file or process" % \
+                        inputArg)
                 sys.exit(0)
 
             menu1st = 'Address'
@@ -39684,7 +39700,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "failed to load %s as an ELF object" % filePath, True)
+                    "failed to load '%s' as an ELF object" % filePath, True)
                 sys.exit(0)
 
             for addr in addrList:
@@ -40497,7 +40513,8 @@ Copyright:
                 # check file #
                 if not os.path.isfile(item):
                     SysMgr.printErr(
-                        "failed to recognize %s as file or process" % item)
+                        "failed to recognize '%s' as the file or process" % \
+                            item)
                     sys.exit(0)
 
                 # load symbol caches #
@@ -40583,7 +40600,8 @@ Copyright:
             # check file #
             if not os.path.isfile(inputArg):
                 SysMgr.printErr(
-                    "failed to recognize %s as file or process" % inputArg)
+                    "failed to recognize '%s' as a file or a process" % \
+                        inputArg)
                 sys.exit(0)
 
             filePath = inputArg
@@ -55110,7 +55128,7 @@ typedef struct {
                         sys.exit(0)
                     except:
                         SysMgr.printErr(
-                            "failed to recognize %s as a number" % val, True)
+                            "failed to recognize '%s' as a number" % val, True)
                         sys.exit(0)
 
             cmds[3] = str(val)
@@ -56157,7 +56175,7 @@ typedef struct {
             if not func: return None
         else:
             SysMgr.printErr(
-                "failed to recognize %s as a function for %s" % \
+                "failed to recognize '%s' as a function for %s" % \
                     (usercall, procInfo), True)
             return None
         setattr(self.regs, self.retreg, func)
@@ -66153,7 +66171,7 @@ class ElfAnalyzer(object):
                 SysMgr.printInfo(failLog, prefix=False, title=False)
 
                 SysMgr.printWarn(
-                    "failed to load %s as an ELF object" % path, reason=True)
+                    "failed to load '%s' as an ELF object" % path, reason=True)
 
                 if raiseExcept:
                     raise Exception('wrong binary')
@@ -72302,7 +72320,7 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "failed to recognize %s as START:END time" % \
+                    "failed to recognize '%s' as the START:END time" % \
                         ':'.join(trim))
                 sys.exit(0)
 
