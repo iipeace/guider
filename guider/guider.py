@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211116"
+__revision__ = "211117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -57779,14 +57779,21 @@ typedef struct {
             if SysMgr.repeatCount <= SysMgr.progressCnt or meetDeadline:
                 sys.exit(0)
 
-        def _finishPrint():
-            # print stats #
+        def _finishPrint(self, needStop=False, term=False):
+            # flush print buffer #
             SysMgr.printTopStats()
 
             # check and update repeat count #
             _checkInterval()
 
+            # reset stats #
             _resetStats()
+
+            # stop target to return original status #
+            if needStop: self.stop(check=True)
+
+            # terminate tracing #
+            if term: sys.exit(0)
 
 
 
@@ -57977,14 +57984,18 @@ typedef struct {
                 Debugger.tracerInstance.pid, mcpuStr, mrssStr,
                 sampleStr, twoLine), newline=2)
         if not ret:
-            _finishPrint()
+            # flush print buffer #
+            _finishPrint(self, needStop, term)
+            return
 
         # print menu #
         ret = SysMgr.addPrint(
             '{0:^7} | {1:<144}\n{2:<1}\n'.format(
                 'Usage', 'Function %s' % addInfo, twoLine), newline=2)
         if not ret:
-            _finishPrint()
+            # flush print buffer #
+            _finishPrint(self, needStop, term)
+            return
 
         totalCnt = long(0)
         isBtPrinted = False
@@ -58067,16 +58078,9 @@ typedef struct {
 
                     nline = bt.count('\n') + 1
                     if SysMgr.checkCutCond(nline):
-                        _finishPrint()
-
-                        # stop target to return original status #
-                        if needStop:
-                            self.stop(check=True)
-
-                        if term:
-                            sys.exit(0)
-                        else:
-                            return
+                        # flush print buffer #
+                        _finishPrint(self, needStop, term)
+                        return
 
                     ret = SysMgr.addPrint(
                         '{0:>17} | {1:<1} <Cnt: {2:1}>\n'.format(
@@ -58090,27 +58094,21 @@ typedef struct {
                 if not ret:
                     break
 
-        if totalCnt == 0:
-            SysMgr.addPrint('\tNone\n')
+        # print status #
+        if ret:
+            if totalCnt == 0:
+                SysMgr.addPrint('\tNone\n')
 
-        if not isBtPrinted:
-            SysMgr.addPrint('%s\n' % oneLine)
+            if not isBtPrinted:
+                SysMgr.addPrint('%s\n' % oneLine)
 
-        # print stats #
-        _finishPrint()
-
-        # check term condition #
-        if term:
-            sys.exit(0)
+        # flush print buffer #
+        _finishPrint(self, needStop, term)
 
         # print progress #
-        if SysMgr.repeatCount > 0:
+        if ret and SysMgr.repeatCount > 0:
             UtilMgr.printProgress(
                 SysMgr.progressCnt, SysMgr.repeatCount)
-
-        # stop target to return original status #
-        if needStop:
-            self.stop(check=True)
 
 
 
