@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211117"
+__revision__ = "211118"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -67,23 +67,9 @@ class ConfigMgr(object):
         sys.platform.startswith('darwin') or \
         sys.platform.startswith('freebsd')) and \
         not 'REMOTERUN' in os.environ:
-        WARNING = '\033[95m'
-        OKBLUE = '\033[94m'
-        OKGREEN = '\033[92m'
-        SPECIAL = '\033[93m'
-        FAIL = '\033[91m'
         ENDC = '\033[0m'
-        BOLD = '\033[1m'
-        UNDERLINE = '\033[4m'
     else:
-        WARNING = ''
-        OKBLUE = ''
-        OKGREEN = ''
-        SPECIAL = ''
-        FAIL = ''
         ENDC = ''
-        BOLD = ''
-        UNDERLINE = ''
 
     # config info #
     confData = {}
@@ -123,6 +109,7 @@ class ConfigMgr(object):
         'BGPINK': '\033[45m',
         'BGCYAN': '\033[46m',
         'BGWHITE': '\033[47m',
+        'FAIL': '\033[91m',
         'OKGREEN': '\033[92m',
         'SPECIAL': '\033[93m',
         'OKBLUE': '\033[94m',
@@ -4932,7 +4919,7 @@ class UtilMgr(object):
         # check skip condition #
         if not color:
             return str(string)
-        elif force:
+        elif force and not SysMgr.isWindows:
             pass
         elif not SysMgr.colorEnable:
             return str(string)
@@ -24145,6 +24132,9 @@ Examples:
     - {2:1} for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -W
 
+    - {2:1} for specific threads and report the result in JSON format
+        # {0:1} {1:1} -g a.out -J
+
     - {2:1} for specific threads every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
 
@@ -24316,6 +24306,9 @@ Examples:
 
     - {3:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
+
+    - {3:1} and report the result in JSON format
+        # {0:1} {1:1} -J
 
     - {3:1} for specific TID
         # {0:1} {1:1} -g 1234 -q ONLYPID
@@ -31827,17 +31820,10 @@ Copyright:
         else:
             rstring = ''
 
-        # apply color #
-        if SysMgr.colorEnable:
-            color = ConfigMgr.WARNING
-            colorl = ConfigMgr.ENDC
-        else:
-            color = colorl = ''
-
         proc = SysMgr.getProcInfo()
 
-        log = ('\n%s%s%s%s%s%s' % \
-            (color, '[WARN] ', proc, line, rstring, colorl))
+        log = '%s%s%s%s' % ('[WARN] ', proc, line, rstring)
+        log = '\n%s' % (UtilMgr.convColor(log, 'WARNING', force=True))
 
         if newline:
             log = '%s\n' % log
@@ -31876,17 +31862,10 @@ Copyright:
         except:
             pass
 
-        # apply color #
-        if SysMgr.colorEnable:
-            color = ConfigMgr.FAIL
-            colorl = ConfigMgr.ENDC
-        else:
-            color = colorl = ''
-
         proc = SysMgr.getProcInfo()
 
-        log = ('\n%s%s%s%s%s%s\n' % \
-            (color, '[ERROR] ', proc, line, rstring, colorl))
+        log = '%s%s%s%s' % ('[ERROR] ', proc, line, rstring)
+        log = '\n%s\n' % (UtilMgr.convColor(log, 'FAIL', force=True))
 
         # write log #
         if SysMgr.stdlog:
@@ -31929,14 +31908,9 @@ Copyright:
             prefix = ''
 
         # color #
-        if SysMgr.colorEnable:
-            color = ConfigMgr.BOLD
-            colorl = ConfigMgr.ENDC
-        else:
-            color = colorl = ''
-
-        log = '%s%s%s%s%s%s' % \
-            (prefix, color, title, proc, line, colorl)
+        log = UtilMgr.convColor(
+            '%s%s%s' % (title, proc, line), 'BOLD', force=True)
+        log = '%s%s' % (prefix, log)
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -31963,17 +31937,10 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        # apply color #
-        if SysMgr.colorEnable:
-            color = ConfigMgr.OKGREEN
-            colorl = ConfigMgr.ENDC
-        else:
-            color = colorl = ''
-
         proc = SysMgr.getProcInfo()
 
-        log = '\n%s%s%s%s%s' % \
-            (color, '[INFO] ', proc, line, colorl)
+        log = '%s%s%s' % ('[INFO] ', proc, line)
+        log = '\n%s' % (UtilMgr.convColor(log, 'OKGREEN', force=True))
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -31987,17 +31954,10 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        # apply color #
-        if SysMgr.colorEnable:
-            color = ConfigMgr.UNDERLINE
-            colorl = ConfigMgr.ENDC
-        else:
-            color = colorl = ''
-
         proc = SysMgr.getProcInfo()
 
-        log = '\n%s%s%s%s' % \
-            (color, proc, line, colorl)
+        log = '%s%s' % (proc, line)
+        log = '\n%s' % (UtilMgr.convColor(log, 'UNDERLINE', force=True))
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -32011,17 +31971,10 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        # apply color #
-        if SysMgr.colorEnable:
-            color = ConfigMgr.SPECIAL
-            colorl = ConfigMgr.ENDC
-        else:
-            color = colorl = ''
-
         proc = SysMgr.getProcInfo()
 
-        log = '\n%s%s%s%s%s' % \
-            (color, '[STEP] ', proc, line, colorl)
+        log = '%s%s%s' % ('[STEP] ', proc, line)
+        log = '\n%s' % (UtilMgr.convColor(log, 'SPECIAL', force=True))
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -57779,9 +57732,10 @@ typedef struct {
             if SysMgr.repeatCount <= SysMgr.progressCnt or meetDeadline:
                 sys.exit(0)
 
-        def _finishPrint(self, needStop=False, term=False):
+        def _finishPrint(self, needStop=False, term=False, flush=True):
             # flush print buffer #
-            SysMgr.printTopStats()
+            if flush:
+                SysMgr.printTopStats()
 
             # check and update repeat count #
             _checkInterval()
@@ -57832,7 +57786,7 @@ typedef struct {
         # define stop flag #
         needStop = False
 
-        # set time #
+        # update time #
         SysMgr.updateUptime()
         current = time.time()
         diff = current - self.last
@@ -57967,35 +57921,57 @@ typedef struct {
         else:
             comm = '??'
 
-        # set error count #
-        if self.errCnt:
-            errstr = '[Err: %s] ' % convColor(convert(self.errCnt), 'RED')
+        # JSON-format stats #
+        if SysMgr.jsonEnable:
+            jsonData = {
+                'type': ctype,
+                'uptime': SysMgr.uptime,
+                'interval': diff,
+                'samples': self.totalCall,
+                'nrError': self.errCnt,
+                'sysCpu': sysCpuStr,
+                'sysMem': sysMemStr,
+                'comm': comm,
+                'pid': self.pid,
+                'cpu': cpuStr,
+                'rss': rssStr,
+                'tracerComm': Debugger.tracerInstance.comm,
+                'tracerPid': Debugger.tracerInstance.pid,
+                'tracerCpu': mcpuStr,
+                'tracerRss': mrssStr,
+                'stats': {},
+            }
+        # string-format stats #
         else:
-            errstr = ''
+            # set error count #
+            if self.errCnt:
+                errstr = '[Err: %s] ' % convColor(convert(self.errCnt), 'RED')
+            else:
+                errstr = ''
 
-        # print top stat #
-        ret = SysMgr.addPrint((
-            '[Top %s Info] [Time: %.3f] [Inter: %.3f] [Sample: %s] '
-            '%s[SYS: %s/%s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
-                (ctype, SysMgr.uptime, diff, convert(self.totalCall),
-                errstr, sysCpuStr, sysMemStr,
-                comm, self.pid, cpuStr, rssStr,
-                Debugger.tracerInstance.comm,
-                Debugger.tracerInstance.pid, mcpuStr, mrssStr,
-                sampleStr, twoLine), newline=2)
-        if not ret:
-            # flush print buffer #
-            _finishPrint(self, needStop, term)
-            return
+            # print top stat #
+            ret = SysMgr.addPrint((
+                '[Top %s Info] [Time: %.3f] [Inter: %.3f] [Sample: %s] '
+                '%s[SYS: %s/%s] [%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
+                    (ctype, SysMgr.uptime, diff, convert(self.totalCall),
+                    errstr, sysCpuStr, sysMemStr,
+                    comm, self.pid, cpuStr, rssStr,
+                    Debugger.tracerInstance.comm,
+                    Debugger.tracerInstance.pid, mcpuStr, mrssStr,
+                    sampleStr, twoLine), newline=2)
+            if not ret:
+                # flush print buffer #
+                _finishPrint(self, needStop, term)
+                return
 
-        # print menu #
-        ret = SysMgr.addPrint(
-            '{0:^7} | {1:<144}\n{2:<1}\n'.format(
-                'Usage', 'Function %s' % addInfo, twoLine), newline=2)
-        if not ret:
-            # flush print buffer #
-            _finishPrint(self, needStop, term)
-            return
+            # print menu #
+            ret = SysMgr.addPrint(
+                '{0:^7} | {1:<144}\n{2:<1}\n'.format(
+                    'Usage', 'Function %s' % addInfo, twoLine), newline=2)
+            if not ret:
+                # flush print buffer #
+                _finishPrint(self, needStop, term)
+                return
 
         totalCnt = long(0)
         isBtPrinted = False
@@ -58027,10 +58003,19 @@ typedef struct {
                 else:
                     errstr = convert(err)
 
-                addVal = \
+                # merge stats #
+                if SysMgr.jsonEnable:
+                    jsonData['stats'][sym] = {
+                        'count': value['cnt'],
+                        'totalTime': total,
+                        'avgTime': average,
+                        'maxTime': tmax,
+                        'error': err,
+                    }
+                else:
+                    addVal = \
                     "<Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s>" % \
-                        (convert(value['cnt']),
-                            total, average, tmax, errstr)
+                        (convert(value['cnt']), total, average, tmax, errstr)
             # BREAKPOINT #
             elif self.mode == 'break':
                 try:
@@ -58039,31 +58024,51 @@ typedef struct {
                 except:
                     prev = total = tmin = tmax = avg = long(0)
 
-                addVal = \
+                # merge stats #
+                if SysMgr.jsonEnable:
+                    jsonData['stats'][sym] = {
+                        'path': value['path'],
+                        'count': value['cnt'],
+                        'avgTime': avg,
+                        'minTime': tmin,
+                        'maxTime': tmax,
+                    }
+                else:
+                    addVal = \
                     '[%s] <Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f]' % \
                         (value['path'], convert(value['cnt']), avg, tmin, tmax)
             # OTHERS #
             else:
-                addVal = '[%s] <Cnt: %s>' % \
-                    (value['path'], convert(value['cnt']))
+                # merge stats #
+                if SysMgr.jsonEnable:
+                    jsonData['stats'][sym] = {
+                        'path': value['path'],
+                        'count': value['cnt'],
+                    }
+                else:
+                    addVal = '[%s] <Cnt: %s>' % \
+                        (value['path'], convert(value['cnt']))
 
-            # check cut condition #
-            if SysMgr.checkCutCond():
-                break
+            if not SysMgr.jsonEnable:
+                # check cut condition #
+                if SysMgr.checkCutCond():
+                    break
 
-            ret = SysMgr.addPrint(
-                '{0:>7} | {1:<144}\n'.format(
-                    '%.1f%%' % per, '%s %s' % \
-                        (convColor(sym, 'CYAN'), addVal)))
-            if not ret:
-                break
+                ret = SysMgr.addPrint(
+                    '{0:>7} | {1:<144}\n'.format(
+                        '%.1f%%' % per, '%s %s' % \
+                            (convColor(sym, 'CYAN'), addVal)))
+                if not ret:
+                    break
 
             totalCnt += 1
 
             # backtrace #
             if value['backtrace']:
                 # backup backtraces #
-                if SysMgr.outPath:
+                if SysMgr.jsonEnable:
+                    pass
+                elif SysMgr.outPath:
                     self.btTable.setdefault(sym, {})
                     for bt, cnt in value['backtrace'].items():
                         self.btTable[sym].setdefault(bt, 0)
@@ -58072,7 +58077,20 @@ typedef struct {
                 for bt, cnt in sorted(value['backtrace'].items(),
                     key=lambda x:x[1], reverse=True):
 
+                    # set percent #
                     bper = cnt / float(value['cnt']) * 100
+
+                    if SysMgr.jsonEnable:
+                        jsonData['stats'][sym].setdefault('backtraces', [])
+                        jsonData['stats'][sym]['backtraces'].append({
+                            'stack': UtilMgr.cleanItem(
+                                bt.replace('\n', '').split(' <- ')),
+                            'count': cnt,
+                            'per': bper,
+                        })
+                        continue
+
+                    # check break condition #
                     if bper < 1 and not SysMgr.showAll:
                         break
 
@@ -58088,27 +58106,36 @@ typedef struct {
                     if not ret:
                         break
 
-            if SysMgr.funcDepth > 0:
+            if SysMgr.jsonEnable:
+                continue
+            elif SysMgr.funcDepth > 0:
                 isBtPrinted = True
                 ret = SysMgr.addPrint('%s\n' % oneLine)
                 if not ret:
                     break
 
         # print status #
-        if ret:
-            if totalCnt == 0:
-                SysMgr.addPrint('\tNone\n')
+        if SysMgr.jsonEnable:
+            # stop target again #
+            _finishPrint(self, needStop, term, False)
 
-            if not isBtPrinted:
-                SysMgr.addPrint('%s\n' % oneLine)
+            # print JSON-format output #
+            SysMgr.printPipe(UtilMgr.convDict2Str(jsonData, pretty=False))
+        else:
+            if ret:
+                if totalCnt == 0:
+                    SysMgr.addPrint('\tNone\n')
 
-        # flush print buffer #
-        _finishPrint(self, needStop, term)
+                if not isBtPrinted:
+                    SysMgr.addPrint('%s\n' % oneLine)
 
-        # print progress #
-        if ret and SysMgr.repeatCount > 0:
-            UtilMgr.printProgress(
-                SysMgr.progressCnt, SysMgr.repeatCount)
+            # flush print buffer #
+            _finishPrint(self, needStop, term)
+
+            # print progress #
+            if ret and SysMgr.repeatCount > 0:
+                UtilMgr.printProgress(
+                    SysMgr.progressCnt, SysMgr.repeatCount)
 
 
 
@@ -61192,7 +61219,8 @@ typedef struct {
             filtered = False
 
         # print context in JSON format #
-        if SysMgr.jsonEnable:
+        if SysMgr.jsonEnable and not self.isRealtime:
+            # set context #
             jsonData = {
                 "type": "enter",
                 "time": self.current,
@@ -61511,7 +61539,8 @@ typedef struct {
                     self.syscallStat[name] = [diff, diff]
 
             # print context in JSON format #
-            if SysMgr.jsonEnable:
+            if SysMgr.jsonEnable and not self.isRealtime:
+                # set context #
                 jsonData = {
                     "type": "exit",
                     "time": self.current,
