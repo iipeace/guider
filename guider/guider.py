@@ -23015,6 +23015,9 @@ Examples:
     - Monitor status of all {2:2} after user input
         # {0:1} {1:1} -a -W
 
+    - Monitor status of all {2:2} and quit when specific {2:2} are terminated
+        # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
+
     - Monitor status of all {2:2} after 5 seconds
         # {0:1} {1:1} -a -W 5s
 
@@ -71479,6 +71482,10 @@ class TaskAnalyzer(object):
             if not SysMgr.processEnable:
                 SysMgr.groupProcEnable = True
 
+            # add termination condition #
+            SysMgr.environList.setdefault('EXITCONDTERM', [])
+            SysMgr.environList['EXITCONDTERM'] += watchList
+
         # run loop #
         while 1:
             if SysMgr.remoteServObj:
@@ -71506,6 +71513,9 @@ class TaskAnalyzer(object):
             if self.prevCpuData:
                 # print system status #
                 self.printSystemStat(idIndex=True)
+
+                # check termination condition #
+                self.checkTermCond()
 
                 # report system status for elastic stack
                 if SysMgr.elasticEnable:
@@ -81304,6 +81314,8 @@ class TaskAnalyzer(object):
 
         # get string for tree #
         finalstr = _printTreeNodes(procTree, 0, targets, enable)
+        if not finalstr:
+            finalstr = '\tNone'
 
         # recover color flag #
         SysMgr.colorEnable = origColor
@@ -89935,7 +89947,8 @@ class TaskAnalyzer(object):
                     return True
                 elif 'FILTER' in SysMgr.environList and \
                     not UtilMgr.isValidStr(
-                        procData[idx]['comm'], SysMgr.environList['FILTER']):
+                        procData[idx]['comm'].lstrip('*'),
+                        SysMgr.environList['FILTER']):
                     return True
                 else:
                     return False
@@ -89943,7 +89956,8 @@ class TaskAnalyzer(object):
             exceptFlag = False
 
             # check comm and ID #
-            if not TaskAnalyzer.checkFilter(procData[idx]['comm'], idx):
+            if not TaskAnalyzer.checkFilter(
+                procData[idx]['comm'].lstrip('*'), idx):
                 exceptFlag = True
             else:
                 exceptFlag = __check2ndFilter(exceptFlag)
@@ -89968,7 +89982,8 @@ class TaskAnalyzer(object):
                         break
                     # check current's parent comm #
                     elif ppid in procData and \
-                        item in procData[ppid]['stat'][self.commIdx]:
+                        UtilMgr.isValidStr(
+                            procData[ppid]['comm'].lstrip('*'), [item]):
                         break
                     # check current's parent pid #
                     elif item in procData and \
@@ -89981,12 +89996,13 @@ class TaskAnalyzer(object):
                 else:
                     pid = procData[idx]['mainID']
 
-                    # check current process comm #
-                    if pid in procData and \
-                        item in procData[pid]['stat'][self.commIdx]:
-                        break
                     # check current pid by comm #
-                    elif pid in plist:
+                    if pid in plist:
+                        break
+                    # check current process comm #
+                    elif pid in procData and \
+                        UtilMgr.isValidStr(
+                            procData[pid]['comm'].lstrip('*'), [item]):
                         break
                     # check current's pid #
                     elif item in procData and \
@@ -90006,17 +90022,15 @@ class TaskAnalyzer(object):
                 return {}
 
             plist = {}
+
             for idx, value in sortedProcData:
-                for item in SysMgr.filterGroup:
-                    if not item in value['stat'][self.commIdx]:
-                        continue
+                if not UtilMgr.isValidStr(value['comm'].lstrip('*')):
+                    continue
 
-                    if not SysMgr.processEnable:
-                        plist[self.procData[idx]['mainID']] = long(0)
-                        break
-
+                if SysMgr.processEnable:
                     plist[self.procData[idx]['stat'][self.ppidIdx]] = long(0)
-                    break
+                else:
+                    plist[self.procData[idx]['mainID']] = long(0)
 
             return plist
 
@@ -91902,7 +91916,7 @@ class TaskAnalyzer(object):
             # check except attribute #
             elif attr == 'TASK' and 'except' in comval:
                 pid = next(iter(addval['task']))
-                comm = addval['task'][pid]['comm']
+                comm = addval['task'][pid]['comm'].lstrip('*')
 
                 if type(comval['except']) is list:
                     for excomm in comval['except']:
@@ -91924,7 +91938,7 @@ class TaskAnalyzer(object):
                 # check except attribute #
                 elif attr == 'TASK' and 'except' in comitem:
                     pid = next(iter(addval['task']))
-                    comm = addval['task'][pid]['comm']
+                    comm = addval['task'][pid]['comm'].lstrip('*')
 
                     if type(comitem['except']) is list:
                         found = False
@@ -91974,14 +91988,17 @@ class TaskAnalyzer(object):
 
         # traverse all tasks #
         for pid, data in self.procData.items():
+            comm = data['comm'].lstrip('*')
+
             # skip Guider #
-            if data['comm'] == __module__:
+            if comm == __module__:
                 continue
 
             for item in mapTable:
                 try:
                     resource, cattr, pattr, intname, event, comp = item
 
+                    # check skip condition #
                     if not resource in td:
                         continue
                     elif not pattr in data:
@@ -92024,10 +92041,10 @@ class TaskAnalyzer(object):
                         exceptTaskResource.setdefault(resource, None)
 
                     # check a specific task #
-                    if data['comm'] in td[resource]:
+                    if comm in td[resource]:
                         self.checkThreshold(
                             resource, cattr, event, comp,
-                                value, data['comm'], intval, append)
+                                value, comm, intval, append)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -92506,6 +92523,24 @@ class TaskAnalyzer(object):
                 SysMgr.clearPrint()
         else:
             SysMgr.printTopStats()
+
+
+
+    def checkTermCond(self):
+        # get task list #
+        if 'EXITCONDTERM' in SysMgr.environList:
+            termCond = SysMgr.environList['EXITCONDTERM']
+            taskList = set(self.prevProcData) - set(self.procData)
+        else:
+            return
+
+        # check termination condition #
+        for pid in taskList:
+            comm = self.prevProcData[pid]['comm'].lstrip('*')
+            if pid in termCond or UtilMgr.isValidStr(comm, termCond):
+                SysMgr.printInfo(
+                        '%s(%s) is terminated' % (comm, pid))
+                sys.exit(0)
 
 
 
