@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211118"
+__revision__ = "211119"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -36617,6 +36617,26 @@ Copyright:
 
 
     @staticmethod
+    def callSigHandler(sig, frame=None):
+        try:
+            sh = signal.getsignal(sig)
+            sh(sig, frame)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            if sh == signal.SIG_IGN:
+                reason = ' because %s is ignored' % sig
+            elif sh == signal.SIG_DFL:
+                reason = ' because %s is handled in default' % sig
+            else:
+                reason = ''
+
+            SysMgr.printWarn(
+                "failed to call signal handler for %s%s" % (sig, reason))
+
+
+
+    @staticmethod
     def setNormalSignal():
         if not SysMgr.isLinux and not SysMgr.isDarwin:
             return
@@ -57775,8 +57795,8 @@ typedef struct {
         if not self.callTable:
             if not self.traceStatus:
                 SysMgr.printWarn(
-                    "no sample data for %s(%s)" % \
-                        (self.comm, self.pid), True)
+                    "no sample data for %s(%s)" % (self.comm, self.pid),
+                        False if SysMgr.masterPid > 0 else True)
             _resetStats()
             return
 
@@ -62542,6 +62562,7 @@ typedef struct {
                     if self.isExited(ostat):
                         self.handleExit()
                         self.cont()
+                        SysMgr.callSigHandler(signal.SIGALRM)
                         continue
 
                     # after execve() #
