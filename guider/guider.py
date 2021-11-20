@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211119"
+__revision__ = "211120"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23017,6 +23017,9 @@ Examples:
 
     - Monitor status of all {2:2} and quit when specific {2:2} are terminated
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
+
+    - Monitor status of all {2:2} and quit when specific {2:2} are executed
+        # {0:1} {1:1} -a -q EXITCONDNEW:"a.out"
 
     - Monitor status of all {2:2} after 5 seconds
         # {0:1} {1:1} -a -W 5s
@@ -90955,11 +90958,9 @@ class TaskAnalyzer(object):
         if taskType == 'abnormal':
             taskList = set(self.abnormalTasks)
         elif taskType == 'new':
-            taskList = \
-                set(self.procData) - set(self.prevProcData)
+            taskList = set(self.procData) - set(self.prevProcData)
         elif taskType == 'die':
-            taskList = \
-                set(self.prevProcData) - set(self.procData)
+            taskList = set(self.prevProcData) - set(self.procData)
 
         procCnt = long(0)
         for tid in sorted(list(map(long, taskList))):
@@ -92421,7 +92422,7 @@ class TaskAnalyzer(object):
                 break
 
             processData['pid'] = long(pid)
-            processData['name'] = data['stat'][self.commIdx][1:-1]
+            processData['name'] = data['comm']
             processData['cpu']['user']['pct'] = data['utime']
             processData['cpu']['kernel']['pct'] = data['stime']
             processData['cpu']['total']['pct'] = data['ttime']
@@ -92531,15 +92532,27 @@ class TaskAnalyzer(object):
         if 'EXITCONDTERM' in SysMgr.environList:
             termCond = SysMgr.environList['EXITCONDTERM']
             taskList = set(self.prevProcData) - set(self.procData)
+            msg = 'terminated'
+        elif 'EXITCONDNEW' in SysMgr.environList:
+            termCond = SysMgr.environList['EXITCONDNEW']
+            taskList = set(self.procData) - set(self.prevProcData)
+            msg = 'executed'
         else:
             return
 
         # check termination condition #
         for pid in taskList:
-            comm = self.prevProcData[pid]['comm'].lstrip('*')
-            if pid in termCond or UtilMgr.isValidStr(comm, termCond):
+            if pid in self.prevProcData:
+                comm = self.prevProcData[pid]['comm'].lstrip('*')
+            elif pid in self.procData:
+                comm = self.procData[pid]['comm'].lstrip('*')
+            else:
+                comm = ''
+
+            if pid in termCond or \
+                (comm and UtilMgr.isValidStr(comm, termCond)):
                 SysMgr.printInfo(
-                        '%s(%s) is terminated' % (comm, pid))
+                        '%s(%s) is %s' % (comm, pid, msg))
                 sys.exit(0)
 
 
