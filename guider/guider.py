@@ -3836,6 +3836,24 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def callPyFunc(path, func, *args):
+        try:
+            if sys.version_info < (3, 0, 0):
+                execfile(path)
+            else:
+                exec(open(path).read())
+
+            return locals()[func](args)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to call '%s()' from '%s'" % (func, path), True)
+            sys.exit(0)
+
+
+
+    @staticmethod
     def compareSyscallSuperset():
         syscallList = \
             ConfigMgr.SYSCALL_COMMON + \
@@ -23026,6 +23044,9 @@ Examples:
 
     - Monitor status of all {2:2} and quit when specific files are not found
         # {0:1} {1:1} -a -q EXITCONDNOFILE:"/tmp/term"
+
+    - Monitor status of all {2:2} and quit when specific functions return true
+        # {0:1} {1:1} -a -q EXITCONDFUNC:"/tmp/check.py":"checkFunc":"123"
 
     - Monitor status of all {2:2} after 5 seconds
         # {0:1} {1:1} -a -W 5s
@@ -92575,6 +92596,29 @@ class TaskAnalyzer(object):
             for fpath in SysMgr.environList['EXITCONDNOFILE']:
                 if not os.path.isfile(fpath):
                     SysMgr.printInfo("no '%s'" % os.path.abspath(fpath))
+                    sys.exit(0)
+
+        # check functions #
+        if 'EXITCONDFUNC' in SysMgr.environList:
+            for item in SysMgr.environList['EXITCONDFUNC']:
+                # get function info #
+                try:
+                    values = item.split(':')
+                    path = values[0]
+                    func = values[1]
+                    if len(values) > 2: args = values[2:]
+                    else: args = []
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to parse function info from '%s'" % item, True)
+                    sys.exit(0)
+
+                # call function #
+                if UtilMgr.callPyFunc(path, func, args):
+                    SysMgr.printInfo(
+                        "%s(%s) in %s returned true" % (func, args, path))
                     sys.exit(0)
 
 
