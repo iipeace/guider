@@ -23312,6 +23312,7 @@ Commands:
     map      print memory map
     print    print context [VAR]
     pyfile   execute specific python file [PATH:SYNC]
+    pyscript execute python function [PATH:FUNC:ARGS]
     pystr    execute python code [CODE:SYNC]
     rdmem    print specific memory or register [VAR|ADDR|REG:SIZE]
     repeat   call again repeatedly [CNT]
@@ -23576,7 +23577,11 @@ Examples:
     - {5:1} and create a new thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|thread"
 
-    - {5:1} and execute python code {4:1}
+    - {5:1} and execute specific python function {4:1}
+        # {0:1} {1:1} -g a.out -c "write|pyscript:test.py:test_func"
+        # {0:1} {1:1} -g a.out -c "write|pyscript:test.py:test_func:1:2:3"
+
+    - {5:1} and execute specific python code {4:1}
         # {0:1} {1:1} -g a.out -c "write|pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
         # {0:1} {1:1} -g a.out -c "write|pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
@@ -53925,6 +53930,8 @@ typedef struct {
                 cmdformat = "CODE:SYNC"
             elif cmd == 'pyfile':
                 cmdformat = "PATH:SYNC"
+            elif cmd == 'pyscript':
+                cmdformat = "PATH:FUNC:ARGS"
             elif cmd == 'log':
                 cmdformat = "MESSAGE"
             else:
@@ -54523,6 +54530,32 @@ typedef struct {
                     "\n[%s] %s: %s(%sbyte)%s" % \
                         (cmdstr, hex(addr).rstrip('L'), \
                             repr(ret), size, binstr))
+
+            elif cmd == 'pyscript':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) < 2:
+                    _printCmdErr(cmdval, cmd)
+
+                # get function items #
+                path = memset[0]
+                func = memset[1]
+                if len(memset) > 2: argset = memset[2:]
+                else: argset = []
+
+                # call function #
+                res = UtilMgr.callPyFunc(path, func, argset)
+                if res:
+                    res = UtilMgr.convColor(res, 'GREEN')
+                else:
+                    res = UtilMgr.convColor(res, 'RED')
+
+                output = "\n[%s] %s(%s)[%s] = %s" % \
+                    (cmdstr, func, argset, path, res)
+                SysMgr.addPrint(output)
 
             elif cmd == 'start':
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
