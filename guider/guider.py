@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211120"
+__revision__ = "211121"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23020,6 +23020,12 @@ Examples:
 
     - Monitor status of all {2:2} and quit when specific {2:2} are executed
         # {0:1} {1:1} -a -q EXITCONDNEW:"a.out"
+
+    - Monitor status of all {2:2} and quit when specific files are found
+        # {0:1} {1:1} -a -q EXITCONDFILE:"/tmp/term"
+
+    - Monitor status of all {2:2} and quit when specific files are not found
+        # {0:1} {1:1} -a -q EXITCONDNOFILE:"/tmp/term"
 
     - Monitor status of all {2:2} after 5 seconds
         # {0:1} {1:1} -a -W 5s
@@ -92528,32 +92534,48 @@ class TaskAnalyzer(object):
 
 
     def checkTermCond(self):
-        # get task list #
+        def _searchTask(self, termCond, taskList, msg):
+            # check termination condition #
+            for pid in taskList:
+                if pid in self.prevProcData:
+                    comm = self.prevProcData[pid]['comm'].lstrip('*')
+                elif pid in self.procData:
+                    comm = self.procData[pid]['comm'].lstrip('*')
+                else:
+                    comm = ''
+
+                if pid in termCond or \
+                    (comm and UtilMgr.isValidStr(comm, termCond)):
+                    SysMgr.printInfo('%s(%s) is %s' % (comm, pid, msg))
+                    sys.exit(0)
+
+        # terminated tasks #
         if 'EXITCONDTERM' in SysMgr.environList:
             termCond = SysMgr.environList['EXITCONDTERM']
             taskList = set(self.prevProcData) - set(self.procData)
             msg = 'terminated'
-        elif 'EXITCONDNEW' in SysMgr.environList:
+            _searchTask(self, termCond, taskList, msg)
+
+        # new tasks #
+        if 'EXITCONDNEW' in SysMgr.environList:
             termCond = SysMgr.environList['EXITCONDNEW']
             taskList = set(self.procData) - set(self.prevProcData)
             msg = 'executed'
-        else:
-            return
+            _searchTask(self, termCond, taskList, msg)
 
-        # check termination condition #
-        for pid in taskList:
-            if pid in self.prevProcData:
-                comm = self.prevProcData[pid]['comm'].lstrip('*')
-            elif pid in self.procData:
-                comm = self.procData[pid]['comm'].lstrip('*')
-            else:
-                comm = ''
+        # new files #
+        if 'EXITCONDFILE' in SysMgr.environList:
+            for fpath in SysMgr.environList['EXITCONDFILE']:
+                if os.path.isfile(fpath):
+                    SysMgr.printInfo("'%s' is found" % os.path.abspath(fpath))
+                    sys.exit(0)
 
-            if pid in termCond or \
-                (comm and UtilMgr.isValidStr(comm, termCond)):
-                SysMgr.printInfo(
-                        '%s(%s) is %s' % (comm, pid, msg))
-                sys.exit(0)
+        # removed files #
+        if 'EXITCONDNOFILE' in SysMgr.environList:
+            for fpath in SysMgr.environList['EXITCONDNOFILE']:
+                if not os.path.isfile(fpath):
+                    SysMgr.printInfo("no '%s'" % os.path.abspath(fpath))
+                    sys.exit(0)
 
 
 
