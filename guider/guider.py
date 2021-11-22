@@ -87820,8 +87820,9 @@ class TaskAnalyzer(object):
         self.addSysInterval('available', availMem)
 
         # convert color for CPU usage #
+        convCpuColor = UtilMgr.convCpuColor
         totalUsageStr = r'%3s %%' % totalUsage
-        totalUsageStr = UtilMgr.convCpuColor(totalUsage, totalUsageStr)
+        totalUsageStr = convCpuColor(totalUsage, totalUsageStr)
 
         # convert color for mem available #
         availMemStr = r'%6s' % availMem
@@ -88073,8 +88074,7 @@ class TaskAnalyzer(object):
                     perCoreStats[idx]['total'] = totalCoreUsage
 
                     # apply color #
-                    totalCoreUsageStr = UtilMgr.convCpuColor(
-                        totalCoreUsage, size=3)
+                    totalCoreUsageStr = convCpuColor(totalCoreUsage, size=3)
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalCoreUsageStr,
@@ -88331,8 +88331,7 @@ class TaskAnalyzer(object):
                     if not SysMgr.totalEnable and totalCoreUsage > 0:
                         coreGraph = '#' * long(lenLine * totalCoreUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
-                        coreGraph = UtilMgr.convCpuColor(
-                            totalCoreUsage, coreGraph)
+                        coreGraph = convCpuColor(totalCoreUsage, coreGraph)
                     else:
                         coreGraph = ' ' * lenLine
 
@@ -88364,7 +88363,7 @@ class TaskAnalyzer(object):
                     totalGpuUsageStr = '%s %%' % totalGpuUsage
                     if SysMgr.colorEnable and totalGpuUsage > 0:
                         totalGpuUsageStr = r'{0:>5}'.format(totalGpuUsageStr)
-                        totalGpuUsageStr = UtilMgr.convCpuColor(
+                        totalGpuUsageStr = convCpuColor(
                             totalGpuUsage, totalGpuUsageStr)
 
                     coreStat = "{0:<23}({1:>5})|".format(
@@ -88402,7 +88401,7 @@ class TaskAnalyzer(object):
                         coreGraph = '#' * long(lenLine * totalGpuUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                         origCoreGraph = coreGraph
-                        coreGraph = UtilMgr.convCpuColor(totalGpuUsage, coreGraph)
+                        coreGraph = convCpuColor(totalGpuUsage, coreGraph)
                         coreGraph += (' ' * (len(coreGraph) - len(origCoreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
