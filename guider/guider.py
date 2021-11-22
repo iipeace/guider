@@ -24608,24 +24608,28 @@ Description:
 
                     examStr = '''
 Examples:
-    - Report system status in JSON format to /tmp/guider.report
+    - {2:1} /tmp/guider.report
         # {0:1} {1:1}
 
-    - Report system status in JSON format to console standard output
+    - {2:1} console standard output
         # {0:1} {1:1} -Q
 
     - Report system status including threshold events in JSON format to /tmp/guider.report
         # {0:1} {1:1} -C ./guider.conf
         # {0:1} {1:1} -C ./guider.conf -e l
 
-    - Report system status in JSON format to ./guider.report in the background every second
+    - {2:1} ./guider.report in the background every second
         # {0:1} {1:1} -j . -u
+
+    - Report system status with the return value of external functions in JSON format to /tmp/guider.report
+        # {0:1} {1:1} -q REPORTFUNC:test.py:test
 
     - Stop reporting processes in the background
         # {0:1} stop
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        "Report system status in JSON format to")
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -54551,8 +54555,7 @@ typedef struct {
                     _printCmdErr(cmdval, cmd)
 
                 # get function items #
-                path = memset[0]
-                func = memset[1]
+                path, func = memset[:2]
                 if len(memset) > 2: argset = memset[2:]
                 else: argset = []
 
@@ -88561,6 +88564,7 @@ class TaskAnalyzer(object):
             self.reportData['net']['mac'] = macAddr[0]
             self.reportData['net']['ip'] = macAddr[1]
 
+        # network #
         if SysMgr.networkEnable:
             SysMgr.sysInstance.updateNetworkInfo()
 
@@ -88670,6 +88674,34 @@ class TaskAnalyzer(object):
                     value['avq'] = long(0)
         else:
             self.reportData['storage'] = {}
+
+        # custom #
+        if 'REPORTFUNC' in SysMgr.environList:
+            for item in SysMgr.environList['REPORTFUNC']:
+                # get function info #
+                try:
+                    values = item.split(':')
+                    path, func = values[:2]
+                    if len(values) > 2: args = values[2:]
+                    else: args = []
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to parse function info from '%s'" % item, True)
+                    sys.exit(0)
+
+                # call function #
+                ret = UtilMgr.callPyFunc(path, func, args)
+                try:
+                    self.reportData.setdefault('custom', {})
+                    fname = '%s(%s)' % (func, args)
+                    self.reportData['custom'][fname] = ret
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to get custom data from '%s'" % item, True)
 
         # apply report data to global data #
         if SysMgr.jsonEnable:
@@ -92646,8 +92678,7 @@ class TaskAnalyzer(object):
                 # get function info #
                 try:
                     values = item.split(':')
-                    path = values[0]
-                    func = values[1]
+                    path, func = values[:2]
                     if len(values) > 2: args = values[2:]
                     else: args = []
                 except SystemExit:
