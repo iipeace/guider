@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211121"
+__revision__ = "211122"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3836,14 +3836,23 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def callPyFunc(path, func, *args):
+    def callPyFunc(path, fname, *args):
         try:
-            if sys.version_info < (3, 0, 0):
+            # get function pointer #
+            fullname = '%s_%s' % (path, fname)
+            if fullname in SysMgr.externList:
+                func = SysMgr.externList[fullname]
+            elif sys.version_info < (3, 0, 0):
                 execfile(path)
+                SysMgr.externList[fullname] = locals()[fname]
+                func = SysMgr.externList[fullname]
             else:
                 exec(open(path).read())
+                SysMgr.externList[fullname] = locals()[fname]
+                func = SysMgr.externList[fullname]
 
-            return locals()[func](args)
+            # call the function and return #
+            return func(args)
         except SystemExit:
             sys.exit(0)
         except:
@@ -18462,6 +18471,7 @@ class SysMgr(object):
     libdemanglePath = libcppPath
     libLLVMPath = 'libLLVM.so'
     environList = {}
+    externList = {}
     environ = {}
     eventLogPath = None
     inputFile = None
@@ -92649,9 +92659,10 @@ class TaskAnalyzer(object):
                     sys.exit(0)
 
                 # call function #
-                if UtilMgr.callPyFunc(path, func, args):
+                ret = UtilMgr.callPyFunc(path, func, args)
+                if ret:
                     SysMgr.printInfo(
-                        "%s(%s) in %s returned true" % (func, args, path))
+                        "%s(%s) in %s returned %s" % (func, args, path, ret))
                     sys.exit(0)
 
 
