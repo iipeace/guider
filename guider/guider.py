@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211122"
+__revision__ = "211123"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -58115,6 +58115,18 @@ typedef struct {
                     addVal = \
                     "<Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s>" % \
                         (convert(value['cnt']), total, average, tmax, errstr)
+
+                # merge total stats #
+                for syscall in self.syscallStat:
+                    self.syscallTotalStat.setdefault(syscall, [0, 0])
+                    # update maximum elapsed time #
+                    if self.syscallTotalStat[syscall][1] < \
+                        self.syscallStat[syscall][1]:
+                        self.syscallTotalStat[syscall][1] = \
+                            self.syscallStat[syscall][1]
+                    self.syscallTotalStat[syscall][0] += \
+                        self.syscallStat[syscall][0]
+
             # BREAKPOINT #
             elif self.mode == 'break':
                 try:
@@ -58134,7 +58146,7 @@ typedef struct {
                     }
                 else:
                     addVal = \
-                    '[%s] <Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f]' % \
+                    '[%s] <Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f>' % \
                         (value['path'], convert(value['cnt']), avg, tmin, tmax)
             # OTHERS #
             else:
@@ -61623,22 +61635,26 @@ typedef struct {
 
             # get diff time #
             if self.isRealtime:
-                # apply diff and update maximum diff #
                 try:
+                    # get times #
                     ttotal, tmax = self.syscallStat[name]
                     ttotal += diff
 
-                    if tmax < diff:
-                        tmax = diff
+                    # update maximum time #
+                    if tmax < diff: tmax = diff
 
+                    # update times #
                     self.syscallStat[name] = [ttotal, tmax]
                 except SystemExit:
                     sys.exit(0)
                 except:
                     self.syscallStat[name] = [diff, diff]
 
+                self.clearArgs()
+
+                return
             # print context in JSON format #
-            if SysMgr.jsonEnable and not self.isRealtime:
+            elif SysMgr.jsonEnable:
                 # set context #
                 jsonData = {
                     "type": "exit",
@@ -61708,7 +61724,7 @@ typedef struct {
 
         else:
             SysMgr.printErr(
-                'failed to recognize syscall status')
+                "failed to recognize syscall %s's status" % name)
 
 
 
@@ -62264,6 +62280,7 @@ typedef struct {
         self.selfCpuUsageList = []
         self.syscallTime = {}
         self.syscallStat = {}
+        self.syscallTotalStat = {}
         self.brkcallStat = {}
         self.retList = {}
         self.accList = {}
@@ -62552,7 +62569,7 @@ typedef struct {
         self.dstart = time.time()
 
         # set update flag for time #
-        if SysMgr.isTraceMode():
+        if SysMgr.isTraceMode() or self.mode == 'syscall':
             updateTime = True
         else:
             updateTime = False
@@ -63107,7 +63124,7 @@ typedef struct {
 
 
     @staticmethod
-    def printCallHistory(instance):
+    def printCallHistory(instance, name=None):
         if not instance.callPrint:
             return
 
@@ -63121,8 +63138,8 @@ typedef struct {
         procInfo = '%s(%s)' % (instance.comm, instance.pid)
 
         SysMgr.printPipe(
-            '\n[Trace History] [%s] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
-                (procInfo, elapsed, nrLine, twoLine, callStr, oneLine))
+            '\n[Trace %s History] [%s] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
+                (name, procInfo, elapsed, nrLine, twoLine, callStr, oneLine))
 
 
 
@@ -63337,7 +63354,13 @@ typedef struct {
 
             # add stats #
             if instance.mode == 'syscall':
-                addVal = '<Cnt: %s>' % convert(value['cnt'])
+                if sym in instance.syscallTotalStat:
+                    cnt = value['cnt']
+                    vals = instance.syscallTotalStat[sym]
+                    addVal = '<Tot: %.6f, Avg: %.6f, Max: %.6f> <Cnt: %s>' % \
+                        (vals[0], vals[0] / float(cnt), vals[1], convert(cnt))
+                else:
+                    addVal = '<Cnt: %s>' % convert(value['cnt'])
             elif instance.isBreakMode:
                 addVal = '[%s] <Cnt: %s' % (
                     value['path'], convert(value['cnt']))
@@ -63424,7 +63447,7 @@ typedef struct {
 
             SysMgr.printPipe('%s%s' % (oneLine, suffix))
 
-        instance.printCallHistory(instance)
+        instance.printCallHistory(instance, ctype)
 
         # stop target to return original status #
         if needStop:
@@ -77359,10 +77382,10 @@ class TaskAnalyzer(object):
                 continue
 
             try:
-                if value['syscallInfo']:
-                    threadInfo = "%16s(%7s)" % (value['comm'], key)
-                else:
+                if not value['syscallInfo']:
                     continue
+
+                threadInfo = "%16s(%7s)" % (value['comm'], key)
             except:
                 continue
 
