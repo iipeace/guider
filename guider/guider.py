@@ -19325,6 +19325,7 @@ Commands:
 
             # check counter #
             if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
+                SysMgr.printWarn('terminated by timer\n', True)
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
@@ -22665,6 +22666,7 @@ Commands:
     def onAlarm(signum, frame):
         SysMgr.progressCnt += 1
         if SysMgr.repeatCount <= SysMgr.progressCnt:
+            SysMgr.printWarn('terminated by timer\n', True)
             sys.exit(0)
 
         SysMgr.updateTimer()
@@ -22687,6 +22689,7 @@ Commands:
 
             # send signal to myself #
             try:
+                SysMgr.printWarn('terminated by timer\n', True)
                 os.kill(SysMgr.pid, signal.SIGINT)
             except SystemExit:
                 sys.exit(0)
@@ -30141,6 +30144,13 @@ Copyright:
 
 
     @staticmethod
+    def alarmExitHandler(signum, frame):
+        SysMgr.printWarn('terminated by timer\n', True)
+        SysMgr.exitHandler(signum, frame)
+
+
+
+    @staticmethod
     def exitHandler(signum, frame):
         if SysMgr.exitFlag or SysMgr.checkMode('report'):
             os._exit(0)
@@ -30177,6 +30187,7 @@ Copyright:
         # check exit condition #
         if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
             UtilMgr.deleteProgress()
+            SysMgr.printWarn('terminated by timer\n', True)
             sys.exit(0)
 
         # print progress #
@@ -50487,6 +50498,7 @@ class DbusMgr(object):
                 if SysMgr.repeatCount > 0:
                     SysMgr.progressCnt += 1
                     if SysMgr.repeatCount <= SysMgr.progressCnt:
+                        SysMgr.printWarn('terminated by timer\n', True)
                         os.kill(SysMgr.pid, signal.SIGINT)
                         sys.exit(0)
 
@@ -51093,11 +51105,7 @@ class DbusMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                try:
-                    if tid:
-                        comm = SysMgr.getComm(tid, cache=True)
-                except:
-                    pass
+                comm = SysMgr.getComm(tid, cache=True)
 
                 if tid:
                     procInfo = ' for %s(%s)' % (comm, tid)
@@ -51659,6 +51667,7 @@ class DltAnalyzer(object):
         # check term condition #
         SysMgr.progressCnt += 1
         if 0 < SysMgr.repeatCount <= SysMgr.progressCnt:
+            SysMgr.printWarn('terminated by timer\n', True)
             sys.exit(0)
 
         SysMgr.updateTimer()
@@ -57832,6 +57841,7 @@ typedef struct {
 
             SysMgr.progressCnt += 1
             if SysMgr.repeatCount <= SysMgr.progressCnt or meetDeadline:
+                SysMgr.printWarn('terminated by timer\n', True)
                 sys.exit(0)
 
         def _finishPrint(self, needStop=False, term=False, flush=True):
@@ -62929,11 +62939,10 @@ typedef struct {
         else:
             # set timer handler #
             if SysMgr.intervalEnable:
-                signal.signal(signal.SIGALRM, SysMgr.exitHandler)
+                signal.signal(signal.SIGALRM, SysMgr.alarmExitHandler)
 
             # inst #
-            if SysMgr.checkMode('utrace') and \
-                SysMgr.funcDepth > 0:
+            if SysMgr.checkMode('utrace') and SysMgr.funcDepth > 0:
                 # set sampling rate for instruction #
                 self.skipInst = SysMgr.funcDepth
 
