@@ -53278,6 +53278,10 @@ typedef struct {
         elif self.execCmd:
             self.execute(self.execCmd)
             if mode == 'signal':
+                # wait for PTRACE_TRACEME of the child #
+                time.sleep(0.1)
+
+                # attach to the child #
                 self.attach()
         # ready #
         else:
