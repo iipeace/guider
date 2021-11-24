@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211123"
+__revision__ = "211124"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23500,7 +23500,7 @@ Examples:
     - {5:1} for specific threads without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
 
-    - {5:1} with colorful elapsed time when the elapsed time exceed 0.1 second for specific threads {4:1}
+    - {5:1} with colorful elapsed time exceeds 0.1 second for specific threads {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
 
     - {5:1} for specific threads and call them again repeatedly {4:1}
@@ -24188,6 +24188,9 @@ Examples:
 
     - Monitor CPU usage on whole system of syscalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
+
+    - {2:1} for specific threads with colorful elapsed time exceeds 0.1 second
+        # {0:1} {1:1} -g a.out -q ELAPSED:0.1
 
     - Monitor only successful syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYOK
@@ -25033,7 +25036,7 @@ Examples:
     - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - {4:1} with colorful elapsed time when the elapsed time exceed 0.1 second
+    - {4:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
     - {3:1} for specific threads without truncation
@@ -25214,7 +25217,7 @@ Examples:
     - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - {3:1} with colorful elapsed time when the elapsed time exceed 0 second
+    - {3:1} with colorful elapsed time exceeds 0 second
         # {0:1} {1:1} -g a.out -c write -q PYELAPSED:0
 
     - {3:1} for specific threads even if the master tracer is terminated
@@ -58079,9 +58082,12 @@ typedef struct {
             if sym[0] == '/':
                 sym = '??'
 
+            cnt = value['cnt']
+            cntstr = convert(cnt)
+
             # check percentage #
             try:
-                per = value['cnt'] / nrTotal * 100 * floatTotalUsage
+                per = cnt / nrTotal * 100 * floatTotalUsage
                 if per < 1 and not SysMgr.showAll:
                     break
             except:
@@ -58091,7 +58097,7 @@ typedef struct {
             if self.mode == 'syscall':
                 try:
                     total, tmax = self.syscallStat[sym]
-                    average = total / value['cnt']
+                    average = total / cnt
                 except:
                     total = average = tmax = long(0)
 
@@ -58105,16 +58111,25 @@ typedef struct {
                 # merge stats #
                 if SysMgr.jsonEnable:
                     jsonData['stats'][sym] = {
-                        'count': value['cnt'],
+                        'count': cnt,
                         'totalTime': total,
                         'avgTime': average,
                         'maxTime': tmax,
                         'error': err,
                     }
                 else:
+                    avgtime = '%.6f' % average
+                    maxtime = '%.6f' % tmax
+
+                    # convert time color #
+                    if average > self.retTime:
+                        avgtime = UtilMgr.convColor(avgtime, 'RED')
+                    if tmax > self.retTime:
+                        maxtime = UtilMgr.convColor(maxtime, 'RED')
+
                     addVal = \
-                    "<Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s>" % \
-                        (convert(value['cnt']), total, average, tmax, errstr)
+                    "<Cnt: %s, Tot: %.6f, Avg: %s, Max: %s, Err: %s>" % \
+                        (cntstr, total, avgtime, maxtime, errstr)
 
                 # merge total stats #
                 for syscall in self.syscallStat:
@@ -58131,34 +58146,42 @@ typedef struct {
             elif self.mode == 'break':
                 try:
                     prev, total, tmin, tmax = self.brkcallStat[sym]
-                    avg = total / value['cnt']
+                    average = total / cnt
                 except:
-                    prev = total = tmin = tmax = avg = long(0)
+                    prev = total = tmin = tmax = average = long(0)
 
                 # merge stats #
                 if SysMgr.jsonEnable:
                     jsonData['stats'][sym] = {
                         'path': value['path'],
-                        'count': value['cnt'],
-                        'avgTime': avg,
+                        'count': cnt,
+                        'avgTime': average,
                         'minTime': tmin,
                         'maxTime': tmax,
                     }
                 else:
+                    avgtime = '%.6f' % average
+                    maxtime = '%.6f' % tmax
+
+                    # convert time color #
+                    if average > self.retTime:
+                        avgtime = UtilMgr.convColor(avgtime, 'RED')
+                    if tmax > self.retTime:
+                        maxtime = UtilMgr.convColor(maxtime, 'RED')
+
                     addVal = \
-                    '[%s] <Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f>' % \
-                        (value['path'], convert(value['cnt']), avg, tmin, tmax)
+                        '[%s] <Cnt: %s, Avg: %s, Min: %.6f, Max: %s>' % \
+                            (value['path'], cntstr, avgtime, tmin, maxtime)
             # OTHERS #
             else:
                 # merge stats #
                 if SysMgr.jsonEnable:
                     jsonData['stats'][sym] = {
                         'path': value['path'],
-                        'count': value['cnt'],
+                        'count': cnt,
                     }
                 else:
-                    addVal = '[%s] <Cnt: %s>' % \
-                        (value['path'], convert(value['cnt']))
+                    addVal = '[%s] <Cnt: %s>' % (value['path'], cntstr)
 
             if not SysMgr.jsonEnable:
                 # check cut condition #
@@ -58181,22 +58204,22 @@ typedef struct {
                     pass
                 elif SysMgr.outPath:
                     self.btTable.setdefault(sym, {})
-                    for bt, cnt in value['backtrace'].items():
+                    for bt, bcnt in value['backtrace'].items():
                         self.btTable[sym].setdefault(bt, 0)
-                        self.btTable[sym][bt] += cnt
+                        self.btTable[sym][bt] += bcnt
 
-                for bt, cnt in sorted(value['backtrace'].items(),
+                for bt, bcnt in sorted(value['backtrace'].items(),
                     key=lambda x:x[1], reverse=True):
 
                     # set percent #
-                    bper = cnt / float(value['cnt']) * 100
+                    bper = bcnt / float(cnt) * 100
 
                     if SysMgr.jsonEnable:
                         jsonData['stats'][sym].setdefault('backtraces', [])
                         jsonData['stats'][sym]['backtraces'].append({
                             'stack': UtilMgr.cleanItem(
                                 bt.replace('\n', '').split(' <- ')),
-                            'count': cnt,
+                            'count': bcnt,
                             'per': bper,
                         })
                         continue
@@ -58213,7 +58236,7 @@ typedef struct {
 
                     ret = SysMgr.addPrint(
                         '{0:>17} | {1:<1} <Cnt: {2:1}>\n'.format(
-                            '%.1f%%' % bper, bt, convert(cnt)), newline=nline)
+                            '%.1f%%' % bper, bt, convert(bcnt)), newline=nline)
                     if not ret:
                         break
 
@@ -59773,7 +59796,7 @@ typedef struct {
 
 
 
-    def addStat(self, sym):
+    def addBrkStat(self, sym):
         # apply stat #
         try:
             prev, ttotal, tmin, tmax = self.brkcallStat[sym]
@@ -59974,7 +59997,7 @@ typedef struct {
             self.addSample(
                 sym, fname, realtime=True, bt=backtrace)
 
-            self.addStat(sym)
+            self.addBrkStat(sym)
 
             return isRetBp
 
@@ -61461,6 +61484,24 @@ typedef struct {
 
 
 
+    def updateSyscallStat(self, name, diff):
+        try:
+            # get times #
+            ttotal, tmax = self.syscallStat[name]
+            ttotal += diff
+
+            # update maximum time #
+            if tmax < diff: tmax = diff
+
+            # update times #
+            self.syscallStat[name] = [ttotal, tmax]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.syscallStat[name] = [diff, diff]
+
+
+
     def handleSyscall(self):
         # task filter #
         if self.execCmd and SysMgr.filterGroup and \
@@ -61625,6 +61666,7 @@ typedef struct {
                 elif Debugger.envFlags['ONLYOK']:
                     callString = '\n%s ' % self.bufferedStr
 
+                # build return string #
                 try:
                     retstr = '%s(%s)' % (retval, hex(retval).rstrip('L'))
                 except SystemExit:
@@ -61633,25 +61675,10 @@ typedef struct {
                     retstr = retval
                 err = ''
 
-            # get diff time #
+            # update stats #
             if self.isRealtime:
-                try:
-                    # get times #
-                    ttotal, tmax = self.syscallStat[name]
-                    ttotal += diff
-
-                    # update maximum time #
-                    if tmax < diff: tmax = diff
-
-                    # update times #
-                    self.syscallStat[name] = [ttotal, tmax]
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    self.syscallStat[name] = [diff, diff]
-
+                self.updateSyscallStat(name, diff)
                 self.clearArgs()
-
                 return
             # print context in JSON format #
             elif SysMgr.jsonEnable:
@@ -61712,6 +61739,9 @@ typedef struct {
                     self.callPrint[-1] += callString
                 else:
                     self.callPrint.append(callString)
+
+                # update stats #
+                self.updateSyscallStat(name, diff)
 
                 # print to stdout #
                 if SysMgr.printStreamEnable:
@@ -63333,7 +63363,6 @@ typedef struct {
                 (mtype, ctype, elapsed, samplingStr,
                 sysStr, cpuStr, mStr, convert(long(nrTotal)),
                 freqStr, errstr, convert(len(callTable)), suffix))
-
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
         SysMgr.printPipe(
             '{0:^7} | {1:<144}{2:1}'.format(
@@ -63354,13 +63383,19 @@ typedef struct {
 
             # add stats #
             if instance.mode == 'syscall':
+                cnt = value['cnt']
+
+                # add time stats #
                 if sym in instance.syscallTotalStat:
-                    cnt = value['cnt']
                     vals = instance.syscallTotalStat[sym]
                     addVal = '<Tot: %.6f, Avg: %.6f, Max: %.6f> <Cnt: %s>' % \
                         (vals[0], vals[0] / float(cnt), vals[1], convert(cnt))
+                elif sym in instance.syscallStat:
+                    vals = instance.syscallStat[sym]
+                    addVal = '<Tot: %.6f, Avg: %.6f, Max: %.6f> <Cnt: %s>' % \
+                        (vals[0], vals[0] / float(cnt), vals[1], convert(cnt))
                 else:
-                    addVal = '<Cnt: %s>' % convert(value['cnt'])
+                    addVal = '<Cnt: %s>' % convert(cnt)
             elif instance.isBreakMode:
                 addVal = '[%s] <Cnt: %s' % (
                     value['path'], convert(value['cnt']))
@@ -63396,7 +63431,7 @@ typedef struct {
             if sym in instance.btTable:
                 for bt, btcnt in sorted(instance.btTable[sym].items(),
                     key=lambda x:x[1], reverse=True):
-
+                    # print backtrace and percent #
                     bper = btcnt / float(value['cnt']) * 100
                     ret = SysMgr.printPipe(
                         '{0:>17} | {1:<1} <Cnt: {2:1}>'.format(
