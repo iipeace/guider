@@ -45,6 +45,19 @@ try:
 except:
     xrange = range
 
+# enable JIT compiler #
+try:
+    if 'JITCOMPILE' in os.environ:
+        from numba import jit
+    else:
+        def jit(func):
+            def decorated():
+                func()
+            return decorated
+except:
+    err = sys.exc_info()[1]
+    sys.exit("[ERROR] failed to import numba package: %s" % err.args[0])
+
 
 
 
