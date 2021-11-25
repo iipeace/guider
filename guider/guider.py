@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211124"
+__revision__ = "211125"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10504,6 +10504,10 @@ class PageAnalyzer(object):
                     sys.exit(0)
                 except:
                     pass
+
+            if lastLine:
+                SysMgr.printPipe(oneLine)
+
             return
 
         # print all map info #
@@ -54006,8 +54010,11 @@ typedef struct {
                         "\n[%s] %s = %s" % (cmdstr, var, data))
 
             elif cmd == 'map':
+                SysMgr.addPrint("\n[%s]" % cmdstr)
+                _flushPrint(False)
                 PageAnalyzer.printMemoryArea(
-                    self.pid, comm=self.comm, lastLine=True)
+                    self.pid, comm=self.comm, lastLine=True,
+                    showall=SysMgr.showAll)
 
             elif cmd == 'exec':
                 if len(cmdset) == 1:
