@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211125"
+__revision__ = "211126"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18256,7 +18256,8 @@ class LogMgr(object):
             # print message #
             if SysMgr.jsonEnable:
                 if jsonResult:
-                    jsonResult = UtilMgr.convDict2Str(jsonResult)
+                    jsonResult = UtilMgr.convDict2Str(
+                        jsonResult, pretty=not SysMgr.streamEnable)
                     SysMgr.printPipe(jsonResult)
             else:
                 if SysMgr.outPath and console:
@@ -18595,7 +18596,7 @@ class SysMgr(object):
     netInIndex = -1
 
     # log #
-    printStreamEnable = False
+    streamEnable = False
     loggingEnable = False
     dltEnable = False
     kmsgEnable = False
@@ -20695,7 +20696,7 @@ Commands:
         if 'NOCUT' in SysMgr.environList or not cut:
             SysMgr.ttyCols = long(0)
 
-        SysMgr.printStreamEnable = True
+        SysMgr.streamEnable = True
         SysMgr.encodeEnable = False
 
 
@@ -21128,6 +21129,7 @@ Commands:
             # define json variable #
             if SysMgr.jsonEnable:
                 jsonData = {'seq': seq, 'success': {}, 'fail': {}}
+                pretty = not SysMgr.findOption('Q')
 
             timeoutstr = ''
             timeoutlinestr = ''
@@ -21169,7 +21171,8 @@ Commands:
 
             # print results in JSON format #
             if SysMgr.jsonEnable:
-                SysMgr.printPipe(UtilMgr.convDict2Str(jsonData))
+                SysMgr.printPipe(
+                    UtilMgr.convDict2Str(jsonData, pretty=pretty))
             elif timeoutlinestr:
                 timeoutstr = '%s %s\n' % \
                     (timeoutstr, timeoutlinestr.lstrip())
@@ -24124,6 +24127,7 @@ Examples:
 
     - Monitor open files, sockets, pipes for all processes and print about them in JSON format
         # {0:1} {1:1} -J
+        # {0:1} {1:1} -J -Q
         # {0:1} {1:1} -a -J
 
     - Monitor open files, sockets, pipes for specific processes
@@ -24202,6 +24206,7 @@ Examples:
 
     - {2:1} for specific threads and report the result in JSON format
         # {0:1} {1:1} -g a.out -J
+        # {0:1} {1:1} -g a.out -J -Q
 
     - {2:1} for specific threads every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
@@ -24380,6 +24385,7 @@ Examples:
 
     - {3:1} and report the result in JSON format
         # {0:1} {1:1} -J
+        # {0:1} {1:1} -J -Q
 
     - {3:1} for specific TID
         # {0:1} {1:1} -g 1234 -q ONLYPID
@@ -25009,6 +25015,7 @@ Examples:
 
     - {3:1} for specific threads and print contexts in JSON format
         # {0:1} {1:1} -g a.out -J
+        # {0:1} {1:1} -g a.out -J -Q
         # {0:1} {1:1} -g a.out -J -q COMPLETECALL
 
     - {4:1} for child tasks created by specific threads
@@ -30581,7 +30588,7 @@ Copyright:
 
         if SysMgr.terminalOver or \
             not SysMgr.outPath or \
-            not SysMgr.printStreamEnable:
+            not SysMgr.streamEnable:
             return True
 
         SysMgr.printConsole(string)
@@ -30663,7 +30670,7 @@ Copyright:
         SysMgr.convertExtAscii(ConfigMgr.logo)
 
         if not SysMgr.outPath:
-            if SysMgr.printStreamEnable:
+            if SysMgr.streamEnable:
                 if not absolute:
                     return
             elif onlyFile:
@@ -31532,7 +31539,7 @@ Copyright:
                     SysMgr.printPipe(jsonStr)
         # realtime mode #
         elif not SysMgr.outPath:
-            if not SysMgr.printStreamEnable:
+            if not SysMgr.streamEnable:
                 SysMgr.clearScreen()
             SysMgr.doPrint()
         # pipe mode #
@@ -31553,7 +31560,7 @@ Copyright:
             return True
         elif not SysMgr.outPath and \
             not SysMgr.jsonEnable and \
-            not SysMgr.printStreamEnable and \
+            not SysMgr.streamEnable and \
             SysMgr.bufferRows + newline >= \
                 SysMgr.ttyRows - SysMgr.ttyRowsMargin:
             SysMgr.terminalOver = True
@@ -31664,7 +31671,7 @@ Copyright:
 
         # pager initialization #
         if not pager or SysMgr.pipeForPager or \
-            SysMgr.outPath or SysMgr.printStreamEnable:
+            SysMgr.outPath or SysMgr.streamEnable:
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
             try:
@@ -33654,7 +33661,7 @@ Copyright:
 
         # LIST MODE #
         if SysMgr.checkMode('list'):
-            SysMgr.setStream(not SysMgr.printStreamEnable)
+            SysMgr.setStream(not SysMgr.streamEnable)
             SysMgr.printBgProcs()
 
         # SERVER MODE #
@@ -33813,7 +33820,8 @@ Copyright:
                     obj = ElfAnalyzer(path, debug, incArg=True)
 
                 if SysMgr.jsonEnable:
-                    jsonStr = UtilMgr.convDict2Str(obj.attr)
+                    jsonStr = UtilMgr.convDict2Str(
+                        obj.attr, pretty=not SysMgr.streamEnable)
                     SysMgr.printPipe(jsonStr)
             except SystemExit:
                 sys.exit(0)
@@ -34329,7 +34337,7 @@ Copyright:
         if SysMgr.reportEnable:
             return True
 
-        if SysMgr.printStreamEnable:
+        if SysMgr.streamEnable:
             SysMgr.reportObject = sys.stdout
             reportPath = SysMgr.nullPath
         else:
@@ -34883,7 +34891,8 @@ Copyright:
     def printBgProcs(cache=False, pager=False):
         if SysMgr.jsonEnable:
             result = (SysMgr.getBgProcList(isJson=True))
-            jsonResult = UtilMgr.convDict2Str(result)
+            jsonResult = UtilMgr.convDict2Str(
+                result, pretty=not SysMgr.streamEnable)
             SysMgr.printPipe(jsonResult)
             return
 
@@ -39170,7 +39179,8 @@ Copyright:
 
         if SysMgr.jsonEnable:
             # convert dict data to JSON string #
-            jsonStr = UtilMgr.convDict2Str(SysMgr.jsonData)
+            jsonStr = UtilMgr.convDict2Str(
+                SysMgr.jsonData, pretty=not SysMgr.streamEnable)
             if not jsonStr:
                 SysMgr.printWarn(
                     "failed to convert report data to JSON format")
@@ -40219,7 +40229,8 @@ Copyright:
                 result[abspath] = dict(subDirs={})
 
             _getDirsJson(result, path, 0, -1)
-            jsonResult = UtilMgr.convDict2Str(result)
+            jsonResult = UtilMgr.convDict2Str(
+                result, pretty=not SysMgr.streamEnable)
             UtilMgr.deleteProgress()
             SysMgr.printPipe(jsonResult)
         else:
@@ -40383,7 +40394,7 @@ Copyright:
                 nrLast = long(SysMgr.environList['TAIL'][0])
             except:
                 nrLast = 100
-            SysMgr.printStreamEnable = True
+            SysMgr.streamEnable = True
         else:
             tail = False
             nrLast = 0
@@ -43615,8 +43626,9 @@ Copyright:
             tobj.saveProcStatusData(path, pid)
 
             # print process name #
-            SysMgr.printPipe(
-                '\n[Signal Status Info] %s\n%s' % (proc, twoLine))
+            if not SysMgr.jsonEnable:
+                SysMgr.printPipe(
+                    '\n[Signal Status Info] %s\n%s' % (proc, twoLine))
 
             # set maximum signal length #
             printed = False
@@ -43666,7 +43678,9 @@ Copyright:
                 SysMgr.printPipe(string)
 
             if SysMgr.jsonEnable:
-                SysMgr.printPipe(UtilMgr.convDict2Str(sigDict))
+                SysMgr.printPipe(
+                    UtilMgr.convDict2Str(
+                        sigDict, pretty=not SysMgr.streamEnable))
                 return
             elif not printed:
                 SysMgr.printPipe('\tNone\n')
@@ -45330,7 +45344,7 @@ Copyright:
                 fd.write(buf)
 
                 # print to console #
-                if SysMgr.printStreamEnable:
+                if SysMgr.streamEnable:
                     SysMgr.printPipe(buf, newline=False)
 
                 if SysMgr.recordStatus:
@@ -52395,7 +52409,7 @@ class DltAnalyzer(object):
         # check sort option #
         if SysMgr.findOption('S'):
             buffered = True
-            SysMgr.printStreamEnable = False
+            SysMgr.streamEnable = False
         else:
             buffered = False
 
@@ -53689,7 +53703,7 @@ typedef struct {
 
         # set pager #
         if not SysMgr.findOption('Q'):
-            SysMgr.printStreamEnable = False
+            SysMgr.streamEnable = False
 
         # print title for bind info #
         SysMgr.printPipe(
@@ -53907,7 +53921,7 @@ typedef struct {
                     self.callPrint.append(SysMgr.bufferString[1:])
 
                 # print to stdout #
-                if SysMgr.printStreamEnable:
+                if SysMgr.streamEnable:
                     sys.stdout.write(SysMgr.bufferString)
             else:
                 SysMgr.printPipe(
@@ -55017,9 +55031,9 @@ typedef struct {
         convNum = UtilMgr.convNum
 
         # disable stream #
-        origin = SysMgr.printStreamEnable
+        origin = SysMgr.streamEnable
         if origin and SysMgr.outPath:
-            SysMgr.printStreamEnable = False
+            SysMgr.streamEnable = False
 
         for cmdval in cmdList:
             # parse cmd set #
@@ -55046,7 +55060,7 @@ typedef struct {
                 newCmdList.append(cmdval)
 
         # recovery stream #
-        SysMgr.printStreamEnable = origin
+        SysMgr.streamEnable = origin
 
         _flushPrint(False)
 
@@ -58288,7 +58302,9 @@ typedef struct {
             _finishPrint(self, needStop, term, False)
 
             # print JSON-format output #
-            SysMgr.printPipe(UtilMgr.convDict2Str(jsonData, pretty=False))
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(
+                    jsonData, pretty=not SysMgr.streamEnable))
         else:
             if ret:
                 if totalCnt == 0:
@@ -60176,9 +60192,12 @@ typedef struct {
             if btstr:
                 jsonData['backtrace'] = btstr.lstrip().split('\n')
 
+            # set pretty flag #
+            pretty = not SysMgr.findOption('Q')
+
             # print output #
             SysMgr.printPipe(
-                UtilMgr.convDict2Str(jsonData, pretty=False), flush=True)
+                UtilMgr.convDict2Str(jsonData, pretty=pretty), flush=True)
         elif callString:
             # add backtrace #
             if btstr:
@@ -60201,7 +60220,7 @@ typedef struct {
                 self.callPrint.append(callString.rstrip())
 
                 # print to stdout #
-                if SysMgr.printStreamEnable:
+                if SysMgr.streamEnable:
                     sys.stdout.write(callString)
             # console output #
             else:
@@ -60459,7 +60478,7 @@ typedef struct {
                 self.callPrint.append(exitStr.rstrip())
 
             # print to stdout #
-            if SysMgr.printStreamEnable:
+            if SysMgr.streamEnable:
                 sys.stdout.write('%s\n' % exitStr)
         else:
             SysMgr.printPipe(exitStr, flush=True)
@@ -61027,8 +61046,11 @@ typedef struct {
 
         # JSON output #
         if jsonData:
+            # set pretty flag #
+            pretty = not SysMgr.findOption('Q')
+
             SysMgr.printPipe(
-                UtilMgr.convDict2Str(jsonData, pretty=False), flush=True)
+                UtilMgr.convDict2Str(jsonData, pretty=pretty), flush=True)
         # file output #
         elif SysMgr.outPath:
             self.addSample(
@@ -61038,7 +61060,7 @@ typedef struct {
             self.callPrint.append(callString.rstrip())
 
             # print to stdout #
-            if SysMgr.printStreamEnable:
+            if SysMgr.streamEnable:
                 sys.stdout.write(callString)
         # console output #
         else:
@@ -61413,8 +61435,11 @@ typedef struct {
                 return
 
             try:
+                # set pretty flag #
+                pretty = not SysMgr.findOption('Q')
+
                 SysMgr.printPipe(
-                    str(UtilMgr.convDict2Str(jsonData, pretty=False)))
+                    str(UtilMgr.convDict2Str(jsonData, pretty=pretty)))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -61463,7 +61488,7 @@ typedef struct {
             if filtered: return
 
             # print to stdout #
-            if SysMgr.printStreamEnable:
+            if SysMgr.streamEnable:
                 callString = '%s' % callString[:self.pbufsize]
                 sys.stdout.write(callString)
         else:
@@ -61738,9 +61763,12 @@ typedef struct {
                         jsonData = entryData
                     jsonData["type"] = "complete"
 
+                # set pretty flag #
+                pretty = not SysMgr.findOption('Q')
+
                 # print context #
                 SysMgr.printPipe(
-                    str(UtilMgr.convDict2Str(jsonData, pretty=False)))
+                    str(UtilMgr.convDict2Str(jsonData, pretty=pretty)))
 
                 self.clearArgs()
 
@@ -61778,7 +61806,7 @@ typedef struct {
                 self.updateSyscallStat(name, diff)
 
                 # print to stdout #
-                if SysMgr.printStreamEnable:
+                if SysMgr.streamEnable:
                     sys.stdout.write('%s\n' % callString)
             elif not self.isRealtime:
                 SysMgr.printPipe(callString, newline=False, flush=True)
@@ -71014,7 +71042,7 @@ class TaskAnalyzer(object):
             # check task stream flag #
             if 'TASKSTREAM' in SysMgr.environList:
                 self.taskStreamEnable = True
-                SysMgr.printStreamEnable = True
+                SysMgr.streamEnable = True
             else:
                 self.taskStreamEnable = False
 
@@ -92419,7 +92447,7 @@ class TaskAnalyzer(object):
                     SysMgr.inputFile, filePath)
 
         # convert dict data to JSON string #
-        pretty = not SysMgr.printStreamEnable
+        pretty = not SysMgr.streamEnable
         jsonStr = UtilMgr.convDict2Str(
             self.reportData, pretty=pretty, ignore=True)
         if not jsonStr:
