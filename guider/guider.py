@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211126"
+__revision__ = "211128"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5987,11 +5987,12 @@ class NetworkMgr(object):
         'JOBS': None,
         'LIST': None,
         'NEW': None,
+        'NOTIFY': None,
         'PING': None,
         'RESTART': None,
         'RUN': None,
-        'UPSTREAM': None,
         'UPLOAD': None,
+        'UPSTREAM': None,
     }
 
     def __init__(
@@ -6498,6 +6499,9 @@ class NetworkMgr(object):
         def _onUpstream(req):
             pass
 
+        def _onNotify(req):
+            return True
+
         def _onUpload(req):
             # parse path #
             reqList = req.split('|', 1)[1]
@@ -6629,6 +6633,9 @@ class NetworkMgr(object):
 
             elif reqUpper.startswith('JOBS'):
                 return _onJobs(req)
+
+            elif reqUpper.startswith('NOTIFY'):
+                return _onNotify(req)
 
             elif reqUpper.startswith('ERROR'):
                 err = req.split('|', 1)[1]
@@ -6948,6 +6955,8 @@ class NetworkMgr(object):
                 reply = connObj.recvfrom()
             elif msg.startswith('LIST:'):
                 reply = (msg,)
+            elif msg.startswith('NOTIFY:'):
+                return True
         except:
             pass
 
@@ -18776,14 +18785,15 @@ class SysMgr(object):
     cliCmdStr = '''
 Commands:
     - RUN:Command
-    - DOWNLOAD:RemotePath@LocalPath
-    - UPLOAD:LocalPath@RemotePath
     - BROADCAST:Command
     - UPSTREAM:Command
-    - PING
+    - NOTIFY:Event
+    - DOWNLOAD:RemotePath@LocalPath
+    - UPLOAD:LocalPath@RemotePath
     - LIST
-    - CLEAR
     - JOBS
+    - PING
+    - CLEAR
     - RESTART
     - HISTORY
     - QUIT\n'''
@@ -27410,6 +27420,10 @@ Examples:
         # {0:1} {1:1} "s:ls -lha"
         # {0:1} {1:1} "upstream:ls -lha"
 
+    - Notify an event occured to the server
+        # {0:1} {1:1} "n:TEST"
+        # {0:1} {1:1} "notify:TEST"
+
     - Execute remote commands by specific nodes connected to the agent
         # {0:1} {1:1} "b:@192.168.105.86/5589@192.168.105.100/5566:ls -lha"
 
@@ -30027,7 +30041,10 @@ Copyright:
         SysMgr.writeTraceCmd('STOP')
 
         # handle signal #
-        if SysMgr.checkMode('filerec') and not SysMgr.intervalEnable:
+        if SysMgr.jsonEnable:
+            sys.exit(0)
+
+        elif SysMgr.checkMode('filerec') and not SysMgr.intervalEnable:
             sys.exit(0)
 
         elif SysMgr.isFileMode() or SysMgr.isSystemMode():
@@ -37075,6 +37092,23 @@ Copyright:
                 except:
                     pass
 
+        def _onNotify(netObj, value, response):
+            # send message packet #
+            connObj.send(
+                'MSG:"%s" is going to be delivered by the agent' % value)
+
+            '''
+            receive an ACK packet
+            to prevent receiving two packets at once
+            '''
+            connObj.recv()
+
+            # send reply packet for command #
+            connObj.send('NOTIFY:%s' % value)
+
+            # execute event handlers #
+            _runEventHandlers(value)
+
         def _onUpstream(netObj, value, response, sync=True):
             # check agent list #
             if not agentList:
@@ -37296,11 +37330,15 @@ Copyright:
 
         def _loadConfig():
             initCmds = []
+            eventHandlers = {}
 
             # get server config #
             config = SysMgr.getConfigItem('server')
             if not config:
                 return initCmds
+
+            SysMgr.printInfo(
+                "loaded server config from '%s'" % SysMgr.confFileName)
 
             # print config #
             SysMgr.printWarn(UtilMgr.convDict2Str(config))
@@ -37358,7 +37396,76 @@ Copyright:
                 if SysMgr.warnEnable:
                     SysMgr.printWarn(UtilMgr.convDict2Str(initCmds))
 
-            return initCmds
+            if 'EVENT' in config and type(config['EVENT']) is list:
+                # get valid commands #
+                for item in config['EVENT']:
+                    if not 'apply' in item or item['apply'] != 'true':
+                        continue
+
+                    # check duplicated registation #
+                    name = item['name']
+                    if name in eventHandlers:
+                        SysMgr.printWarn(
+                            "'%s' event handler is already registered" % \
+                                name, True)
+                        continue
+
+                    # register handler #
+                    eventHandlers[name] = item
+
+            if eventHandlers:
+                SysMgr.printInfo(
+                    "applied event handlers from '%s'" % SysMgr.confFileName)
+
+                # print thresholds #
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn(UtilMgr.convDict2Str(eventHandlers))
+
+            return initCmds, eventHandlers
+
+        def _runEventHandlers(event):
+            # check event handler #
+            if event not in eventHandlers:
+                SysMgr.printErr(
+                    "no event handler registered for '%s'" % event)
+                return
+
+            pid = 0
+            for name, value in eventHandlers.items():
+                # command #
+                if 'command' in value:
+                    for cmd in value['command']:
+                        SysMgr.printInfo(
+                            "execute '%s' via %s event" % (cmd, event))
+
+                        # create a new worker process to execute a command #
+                        pid = SysMgr.createProcess(cmd)
+                        if pid == 0:
+                            sys.exit(0)
+
+                # handler #
+                if 'handler' in value:
+                    for value in value['handler']:
+                        SysMgr.printInfo(
+                            "call '%s' via %s event" % (value, event))
+
+                        # create a new worker process #
+                        pid = SysMgr.createProcess()
+                        if pid != 0:
+                            continue
+
+                        # get function items #
+                        cmd = value.split(':')
+                        path, func = cmd[:2]
+                        if len(cmd) > 2: argset = cmd[2:]
+                        else: argset = []
+
+                        # call handler #
+                        res = UtilMgr.callPyFunc(path, func, argset)
+
+            # wait for termination for remote commands #
+            if pid != 0:
+                SysMgr.waitChild()
 
         def _runInitCmds(addr, initCmds):
             for item in initCmds:
@@ -37433,7 +37540,7 @@ Copyright:
                             "no support piped command set bigger than 2 "
                             "for '%s'") % cmd)
 
-        def _handleConn(connObj, connMan, initCmds=[]):
+        def _handleConn(connObj, connMan, initCmds=[], eventHandlers={}):
             # read command #
             req = connObj.recvfrom()
 
@@ -37486,6 +37593,7 @@ Copyright:
                 'JOBS': _onJobs,
                 'LIST': _onList,
                 'NEW': _onNew,
+                'NOTIFY': _onNotify,
                 'PING': _onPing,
                 'RESTART': _onRestart,
                 'RUN': _onRun,
@@ -37616,13 +37724,13 @@ Copyright:
 
         # load config #
         try:
-            initCmds = _loadConfig()
+            initCmds, eventHandlers = _loadConfig()
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to load config', reason=True)
-            initCmds = []
+            initCmds = eventHandlers = []
 
         # import packages #
         SysMgr.getPkg('select')
@@ -37696,7 +37804,7 @@ Copyright:
             connObj.socket = sock
 
             # handle request from client #
-            if _handleConn(connObj, connMan, initCmds):
+            if _handleConn(connObj, connMan, initCmds, eventHandlers):
                 connObj.close()
                 SysMgr.printBgProcs()
 
@@ -37784,6 +37892,8 @@ Copyright:
                 uinput = 'broadcast' + uinput[1:]
             elif uinputUpper.startswith('S:'):
                 uinput = 'upstream' + uinput[1:]
+            elif uinputUpper.startswith('N:'):
+                uinput = 'notify' + uinput[1:]
             elif uinputUpper == 'H':
                 uinput = 'history'
             elif uinputUpper == 'P':
@@ -63242,7 +63352,7 @@ typedef struct {
             SysMgr.printInfoBuffer()
 
         # check realtime mode #
-        if not SysMgr.outPath:
+        if not SysMgr.outPath or SysMgr.jsonEnable:
             return
 
         # summarize samples after last tick #

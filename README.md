@@ -56,6 +56,7 @@ Some other operating systems are limited.
 
 Guider supports the following architectures.
 * x86
+* x64
 * ARM
 * AArch64
 
