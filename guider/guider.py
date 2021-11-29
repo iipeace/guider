@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211128"
+__revision__ = "211129"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6385,10 +6385,10 @@ class NetworkMgr(object):
     def customBind(self):
         # get bind info #
         ipList = portList = []
-        if 'CLIENTIP' in SysMgr.environList:
-            ipList = SysMgr.environList['CLIENTIP']
-        if 'CLIENTPORT' in SysMgr.environList:
-            portList = SysMgr.environList['CLIENTPORT']
+        if 'CLIIP' in SysMgr.environList:
+            ipList = SysMgr.environList['CLIIP']
+        if 'CLIPORT' in SysMgr.environList:
+            portList = SysMgr.environList['CLIPORT']
 
         # check bind address #
         if not ipList and not portList:
@@ -6403,8 +6403,9 @@ class NetworkMgr(object):
             newPortList = []
             for item in portList:
                 if '-' in item:
-                    start, end = item.split('-')
                     try:
+                        start, end = item.split('-')
+                        if end == '': end = 65535
                         for idx in range(long(start), long(end)+1):
                             newPortList.append(idx)
                     except SystemExit:
@@ -7475,7 +7476,7 @@ class NetworkMgr(object):
     def getMainIp():
         ipList = NetworkMgr.getUsingIps()
 
-        # remove invaild IP #
+        # remove IP for all IPv4 addresses #
         try:
             ipList.remove('0.0.0.0')
         except SystemExit:
@@ -7484,7 +7485,7 @@ class NetworkMgr(object):
             pass
 
         # return main IP #
-        if not ipList or not ipList:
+        if not ipList:
             return None
         elif '127.0.0.1' in ipList:
             return '127.0.0.1'
@@ -27333,6 +27334,9 @@ Examples:
 
     - Run server and register to the agent as a service node
         # {0:1} {1:1} -X 127.0.0.1:3456
+        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIIP:127.0.0.1, CLIPORT:12345
+        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-12399
+        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-
 
     - Run server with configuration
         # {0:1} {1:1} -C
@@ -27437,8 +27441,9 @@ Examples:
         # {0:1} {1:1} -q QUIET
 
     - Execute a remote commands using specific client addresses
-        # {0:1} {1:1} -q CLIENTIP:127.0.0.1, CLIENTPORT:12345
-        # {0:1} {1:1} -q CLIENTPORT:12345-12399
+        # {0:1} {1:1} -q CLIIP:127.0.0.1, CLIPORT:12345
+        # {0:1} {1:1} -q CLIPORT:12345-12399
+        # {0:1} {1:1} -q CLIPORT:12345-
 
     - Execute remote Guider commands in fixed-line-output
         # {0:1} {1:1} "192.168.0.100:5050|GUIDER top -m 15:, 192.168.0.101:1234|GUIDER ttop -m 15:"
