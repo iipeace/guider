@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211129"
+__revision__ = "211130"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23392,6 +23392,9 @@ Examples:
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
+    - {3:1} excluding specific environment variable
+        # {0:1} {1:1} "ls" -q REMOVEENV:MAIL
+
     - {3:1} using merged symbols
         # {0:1} {1:1} "ls" -q ALLSYM
 
@@ -24240,6 +24243,9 @@ Examples:
     - {2:1} from a specific binary and print standard output for child tasks
         # {0:1} {1:1} a.out -q NOMUTE
 
+    - {2:1} excluding specific environment variable
+        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
+
     - {2:1} using merged symbols
         # {0:1} {1:1} a.out -q ALLSYM
 
@@ -24414,6 +24420,9 @@ Examples:
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
+    - {3:1} from a specific binary excluding specific environment variable
+        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
 
     - {3:1} for specific threads with lazy cache loading
         # {0:1} {1:1} a.out -q LAZYCACHE
@@ -25032,8 +25041,12 @@ Examples:
     - {4:1} for child tasks created by specific threads
         # {0:1} {1:1} -g 1234 -t read -q WAITCLONE
 
-    - {4:1} with specific command
+    - {4:1} from a specific binary
+        # {0:1} {1:1} "ls -al" -t write
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - {4:1} from a specific binary excluding specific environment variable
+        # {0:1} {1:1} "ls -al" -t write -q REMOVEENV:MAIL
 
     - {4:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H
@@ -25050,7 +25063,7 @@ Examples:
     - {4:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
 
-    - {4:1} with specific command (print standard output)
+    - {4:1} from a specific binary (print standard output)
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
 
     - {4:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -25062,7 +25075,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
 
-    - {4:1} with specific command with no strip for buffer contents
+    - {4:1} from a specific binary with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
     - {3:1} except for no symbol backtraces for specific threads
@@ -36085,6 +36098,11 @@ Copyright:
             itemList = UtilMgr.splitString(value)
             SysMgr.environList = \
                 UtilMgr.convList2Dict(itemList, cap=True)
+
+        # remove environment variables #
+        if 'REMOVEENV' in SysMgr.environList:
+            for var in SysMgr.environList['REMOVEENV']:
+                os.environ.pop(var, None)
 
 
 
