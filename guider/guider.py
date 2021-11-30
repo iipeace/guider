@@ -638,6 +638,73 @@ class ConfigMgr(object):
         'pwrite64': 0,
     }
 
+    # BPF syscall commands #
+    BPF_CMD = [
+	'BPF_MAP_CREATE',
+	'BPF_MAP_LOOKUP_ELEM',
+	'BPF_MAP_UPDATE_ELEM',
+	'BPF_MAP_DELETE_ELEM',
+	'BPF_MAP_GET_NEXT_KEY',
+	'BPF_PROG_LOAD',
+	'BPF_OBJ_PIN',
+	'BPF_OBJ_GET',
+	'BPF_PROG_ATTACH',
+	'BPF_PROG_DETACH',
+	'BPF_PROG_TEST_RUN',
+	'BPF_PROG_GET_NEXT_ID',
+	'BPF_MAP_GET_NEXT_ID',
+	'BPF_PROG_GET_FD_BY_ID',
+	'BPF_MAP_GET_FD_BY_ID',
+	'BPF_OBJ_GET_INFO_BY_FD',
+    ]
+
+    BPF_MAP_TYPE = [
+	'BPF_MAP_TYPE_UNSPEC',
+	'BPF_MAP_TYPE_HASH',
+	'BPF_MAP_TYPE_ARRAY',
+	'BPF_MAP_TYPE_PROG_ARRAY',
+	'BPF_MAP_TYPE_PERF_EVENT_ARRAY',
+	'BPF_MAP_TYPE_PERCPU_HASH',
+	'BPF_MAP_TYPE_PERCPU_ARRAY',
+	'BPF_MAP_TYPE_STACK_TRACE',
+	'BPF_MAP_TYPE_CGROUP_ARRAY',
+	'BPF_MAP_TYPE_LRU_HASH',
+	'BPF_MAP_TYPE_LRU_PERCPU_HASH',
+	'BPF_MAP_TYPE_LPM_TRIE',
+	'BPF_MAP_TYPE_ARRAY_OF_MAPS',
+	'BPF_MAP_TYPE_HASH_OF_MAPS',
+	'BPF_MAP_TYPE_DEVMAP',
+	'BPF_MAP_TYPE_SOCKMAP',
+    ]
+
+    BPF_PROG_TYPE = [
+	'BPF_PROG_TYPE_UNSPEC',
+	'BPF_PROG_TYPE_SOCKET_FILTER',
+	'BPF_PROG_TYPE_KPROBE',
+	'BPF_PROG_TYPE_SCHED_CLS',
+	'BPF_PROG_TYPE_SCHED_ACT',
+	'BPF_PROG_TYPE_TRACEPOINT',
+	'BPF_PROG_TYPE_XDP',
+	'BPF_PROG_TYPE_PERF_EVENT',
+	'BPF_PROG_TYPE_CGROUP_SKB',
+	'BPF_PROG_TYPE_CGROUP_SOCK',
+	'BPF_PROG_TYPE_LWT_IN',
+	'BPF_PROG_TYPE_LWT_OUT',
+	'BPF_PROG_TYPE_LWT_XMIT',
+	'BPF_PROG_TYPE_SOCK_OPS',
+	'BPF_PROG_TYPE_SK_SKB',
+    ]
+
+    BPF_ATTACH_TYPE = [
+	'BPF_CGROUP_INET_INGRESS',
+	'BPF_CGROUP_INET_EGRESS',
+	'BPF_CGROUP_INET_SOCK_CREATE',
+	'BPF_CGROUP_SOCK_OPS',
+	'BPF_SK_SKB_STREAM_PARSER',
+	'BPF_SK_SKB_STREAM_VERDICT',
+	'__MAX_BPF_ATTACH_TYPE',
+    ]
+
     # syscall prototypes #
     SYSCALL_DEFFERABLE = {
         'clock_gettime': 0,
@@ -57438,6 +57505,25 @@ typedef struct {
                     return ' [%s] ' % (', '.join(strList))
                 else:
                     return value
+        elif syscall.startswith('mmap') or syscall == 'mprotect':
+            if argname == 'prot':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.PROT_TYPE)
+            elif argname == 'flags':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.MAP_TYPE)
+        elif syscall.startswith('fcntl'):
+            if argname == 'cmd':
+                return ConfigMgr.FCNTL_TYPE[value]
+        elif syscall.startswith('futex'):
+            if argname == 'op':
+                if value < len(ConfigMgr.FUTEX_TYPE):
+                    return ConfigMgr.FUTEX_TYPE[value]
+
+                # check _PRIVATE FLAG #
+                value = value & 0x16
+                if value < len(ConfigMgr.FUTEX_TYPE):
+                    return ConfigMgr.FUTEX_TYPE[value] + '_PRIVATE'
         elif syscall == "ptrace" and argname == "request":
             try:
                 return ConfigMgr.PTRACE_TYPE[value]
@@ -57485,6 +57571,14 @@ typedef struct {
                     sys.exit(0)
                 except:
                     return value
+        elif syscall == 'bpf':
+            if argname == 'cmd':
+                try:
+                    return ConfigMgr.BPF_CMD[value]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return value
         elif syscall == 'prctl':
             if argname == 'option':
                 try:
@@ -57493,25 +57587,6 @@ typedef struct {
                     sys.exit(0)
                 except:
                     return value
-        elif syscall.startswith('mmap') or syscall == 'mprotect':
-            if argname == 'prot':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.PROT_TYPE)
-            elif argname == 'flags':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.MAP_TYPE)
-        elif syscall.startswith('fcntl'):
-            if argname == 'cmd':
-                return ConfigMgr.FCNTL_TYPE[value]
-        elif syscall.startswith('futex'):
-            if argname == 'op':
-                if value < len(ConfigMgr.FUTEX_TYPE):
-                    return ConfigMgr.FUTEX_TYPE[value]
-
-                # check _PRIVATE FLAG #
-                value = value & 0x16
-                if value < len(ConfigMgr.FUTEX_TYPE):
-                    return ConfigMgr.FUTEX_TYPE[value] + '_PRIVATE'
         elif syscall.startswith('madvise'):
             if argname == 'behavior':
                 try:
