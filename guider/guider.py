@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211130"
+__revision__ = "211201"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -37874,6 +37874,11 @@ Copyright:
                 sock, addr = connMan.accept()
             except SystemExit:
                 sys.exit(0)
+            except IOError as err:
+                if err.errno != errno.EINTR:
+                    SysMgr.printWarn(
+                        'failed to accept the connection request', reason=True)
+                continue
             except socket.timeout:
                 continue
             except:
@@ -54321,22 +54326,27 @@ typedef struct {
                 else:
                     cmd = None
 
-                # inject the new breakpoint for return #
-                ret = self.setRetBp(sym, fname, cmd)
-                if not ret:
-                    SysMgr.printErr((
-                        "failed to set breakpoint to "
-                        "return address for %s") % sym)
-                    return repeat
-
-                # register a return value #
-                newSym = '%s%s' % (sym, Debugger.RETSTR)
+                # convert return type #
                 try:
                     val = memset[0]
                     num = long(val, 16)
                 except:
                     num = long(val)
-                finally:
+
+                # inject the new breakpoint for return #
+                if self.mode == 'syscall':
+                    setattr(self.regs, self.retreg, num)
+                    self.setRegs()
+                else:
+                    ret = self.setRetBp(sym, fname, cmd)
+                    if not ret:
+                        SysMgr.printErr((
+                            "failed to set breakpoint to "
+                            "return address for %s") % sym)
+                        return repeat
+
+                    # register a return value #
+                    newSym = '%s%s' % (sym, Debugger.RETSTR)
                     self.setRetList.setdefault(newSym, [])
                     self.setRetList[newSym].append(num)
 
@@ -59395,24 +59405,37 @@ typedef struct {
 
 
 
-    def checkSymbol(self, sym, newline=False):
+    def checkSymbol(self, sym, newline=False, exceptFilter=[]):
         if not SysMgr.customCmd or SysMgr.outPath:
             return
 
+        # check filter #
+        needNewline = False
         isPaused = False
         for cmd in SysMgr.customCmd:
             item = cmd.split('|', 1)
-            if item[0] and item[0] != '*' and item[0] != sym:
+            # skip #
+            if not UtilMgr.isValidStr(sym, [item[0]]):
                 continue
-
-            if len(item) == 1:
+            # set pause flag #
+            elif len(item) == 1:
                 isPaused = True
                 break
+            # execute commands #
             elif len(item) > 1:
+                # check skip condition #
+                if exceptFilter and \
+                    not UtilMgr.isValidStr(item[1], exceptFilter):
+                    continue
+
                 args = self.readArgs()
                 self.executeCmd([item[1]], sym, None, args)
+                needNewline = True
 
+        # check return #
         if not isPaused:
+            if needNewline:
+                SysMgr.printPipe()
             return
 
         sys.stdout.write('\n')
@@ -61723,7 +61746,7 @@ typedef struct {
 
         # check symbol #
         if SysMgr.customCmd:
-            self.checkSymbol(self.syscall, newline=True)
+            self.checkSymbol(self.syscall, newline=True, exceptFilter=['ret'])
 
 
 
@@ -61884,7 +61907,26 @@ typedef struct {
             except:
                 diff = long(0)
 
-            # set return value from register #
+            # execute commands #
+            if SysMgr.customCmd:
+                needUpdateRegs = False
+                for cmd in SysMgr.customCmd:
+                    item = cmd.split('|', 1)
+                    # skip #
+                    if not UtilMgr.isValidStr(name, [item[0]]):
+                        continue
+                    # execute commands #
+                    elif len(item) > 1 and 'ret' in item[1]:
+                        args = self.readArgs()
+                        self.executeCmd([item[1]], name, None, args)
+                        needUpdateRegs = True
+
+                # update final regset #
+                if needUpdateRegs:
+                    self.updateRegs()
+                    SysMgr.printPipe()
+
+            # get return value from register #
             retval = self.getRet()
 
             # check wait condition #
