@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211201"
+__revision__ = "211202"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -640,69 +640,69 @@ class ConfigMgr(object):
 
     # BPF syscall commands #
     BPF_CMD = [
-	'BPF_MAP_CREATE',
-	'BPF_MAP_LOOKUP_ELEM',
-	'BPF_MAP_UPDATE_ELEM',
-	'BPF_MAP_DELETE_ELEM',
-	'BPF_MAP_GET_NEXT_KEY',
-	'BPF_PROG_LOAD',
-	'BPF_OBJ_PIN',
-	'BPF_OBJ_GET',
-	'BPF_PROG_ATTACH',
-	'BPF_PROG_DETACH',
-	'BPF_PROG_TEST_RUN',
-	'BPF_PROG_GET_NEXT_ID',
-	'BPF_MAP_GET_NEXT_ID',
-	'BPF_PROG_GET_FD_BY_ID',
-	'BPF_MAP_GET_FD_BY_ID',
-	'BPF_OBJ_GET_INFO_BY_FD',
+        'BPF_MAP_CREATE',
+        'BPF_MAP_LOOKUP_ELEM',
+        'BPF_MAP_UPDATE_ELEM',
+        'BPF_MAP_DELETE_ELEM',
+        'BPF_MAP_GET_NEXT_KEY',
+        'BPF_PROG_LOAD',
+        'BPF_OBJ_PIN',
+        'BPF_OBJ_GET',
+        'BPF_PROG_ATTACH',
+        'BPF_PROG_DETACH',
+        'BPF_PROG_TEST_RUN',
+        'BPF_PROG_GET_NEXT_ID',
+        'BPF_MAP_GET_NEXT_ID',
+        'BPF_PROG_GET_FD_BY_ID',
+        'BPF_MAP_GET_FD_BY_ID',
+        'BPF_OBJ_GET_INFO_BY_FD',
     ]
 
     BPF_MAP_TYPE = [
-	'BPF_MAP_TYPE_UNSPEC',
-	'BPF_MAP_TYPE_HASH',
-	'BPF_MAP_TYPE_ARRAY',
-	'BPF_MAP_TYPE_PROG_ARRAY',
-	'BPF_MAP_TYPE_PERF_EVENT_ARRAY',
-	'BPF_MAP_TYPE_PERCPU_HASH',
-	'BPF_MAP_TYPE_PERCPU_ARRAY',
-	'BPF_MAP_TYPE_STACK_TRACE',
-	'BPF_MAP_TYPE_CGROUP_ARRAY',
-	'BPF_MAP_TYPE_LRU_HASH',
-	'BPF_MAP_TYPE_LRU_PERCPU_HASH',
-	'BPF_MAP_TYPE_LPM_TRIE',
-	'BPF_MAP_TYPE_ARRAY_OF_MAPS',
-	'BPF_MAP_TYPE_HASH_OF_MAPS',
-	'BPF_MAP_TYPE_DEVMAP',
-	'BPF_MAP_TYPE_SOCKMAP',
+        'BPF_MAP_TYPE_UNSPEC',
+        'BPF_MAP_TYPE_HASH',
+        'BPF_MAP_TYPE_ARRAY',
+        'BPF_MAP_TYPE_PROG_ARRAY',
+        'BPF_MAP_TYPE_PERF_EVENT_ARRAY',
+        'BPF_MAP_TYPE_PERCPU_HASH',
+        'BPF_MAP_TYPE_PERCPU_ARRAY',
+        'BPF_MAP_TYPE_STACK_TRACE',
+        'BPF_MAP_TYPE_CGROUP_ARRAY',
+        'BPF_MAP_TYPE_LRU_HASH',
+        'BPF_MAP_TYPE_LRU_PERCPU_HASH',
+        'BPF_MAP_TYPE_LPM_TRIE',
+        'BPF_MAP_TYPE_ARRAY_OF_MAPS',
+        'BPF_MAP_TYPE_HASH_OF_MAPS',
+        'BPF_MAP_TYPE_DEVMAP',
+        'BPF_MAP_TYPE_SOCKMAP',
     ]
 
     BPF_PROG_TYPE = [
-	'BPF_PROG_TYPE_UNSPEC',
-	'BPF_PROG_TYPE_SOCKET_FILTER',
-	'BPF_PROG_TYPE_KPROBE',
-	'BPF_PROG_TYPE_SCHED_CLS',
-	'BPF_PROG_TYPE_SCHED_ACT',
-	'BPF_PROG_TYPE_TRACEPOINT',
-	'BPF_PROG_TYPE_XDP',
-	'BPF_PROG_TYPE_PERF_EVENT',
-	'BPF_PROG_TYPE_CGROUP_SKB',
-	'BPF_PROG_TYPE_CGROUP_SOCK',
-	'BPF_PROG_TYPE_LWT_IN',
-	'BPF_PROG_TYPE_LWT_OUT',
-	'BPF_PROG_TYPE_LWT_XMIT',
-	'BPF_PROG_TYPE_SOCK_OPS',
-	'BPF_PROG_TYPE_SK_SKB',
+        'BPF_PROG_TYPE_UNSPEC',
+        'BPF_PROG_TYPE_SOCKET_FILTER',
+        'BPF_PROG_TYPE_KPROBE',
+        'BPF_PROG_TYPE_SCHED_CLS',
+        'BPF_PROG_TYPE_SCHED_ACT',
+        'BPF_PROG_TYPE_TRACEPOINT',
+        'BPF_PROG_TYPE_XDP',
+        'BPF_PROG_TYPE_PERF_EVENT',
+        'BPF_PROG_TYPE_CGROUP_SKB',
+        'BPF_PROG_TYPE_CGROUP_SOCK',
+        'BPF_PROG_TYPE_LWT_IN',
+        'BPF_PROG_TYPE_LWT_OUT',
+        'BPF_PROG_TYPE_LWT_XMIT',
+        'BPF_PROG_TYPE_SOCK_OPS',
+        'BPF_PROG_TYPE_SK_SKB',
     ]
 
     BPF_ATTACH_TYPE = [
-	'BPF_CGROUP_INET_INGRESS',
-	'BPF_CGROUP_INET_EGRESS',
-	'BPF_CGROUP_INET_SOCK_CREATE',
-	'BPF_CGROUP_SOCK_OPS',
-	'BPF_SK_SKB_STREAM_PARSER',
-	'BPF_SK_SKB_STREAM_VERDICT',
-	'__MAX_BPF_ATTACH_TYPE',
+        'BPF_CGROUP_INET_INGRESS',
+        'BPF_CGROUP_INET_EGRESS',
+        'BPF_CGROUP_INET_SOCK_CREATE',
+        'BPF_CGROUP_SOCK_OPS',
+        'BPF_SK_SKB_STREAM_PARSER',
+        'BPF_SK_SKB_STREAM_VERDICT',
+        '__MAX_BPF_ATTACH_TYPE',
     ]
 
     # syscall prototypes #
@@ -68360,6 +68360,7 @@ Section header string table index: %d
         e_shnotelist = {}
         e_shehframe = -1
         e_shdbgframe = -1
+        e_shdbginfo = -1
         e_shehframehdr = -1
         e_sharmidx = -1
         e_shframe = -1
@@ -68438,6 +68439,9 @@ Section header string table index: %d
             elif symbol == '.debug_frame' or \
                 symbol == '.zdebug_frame':
                 e_shdbgframe = i
+            elif symbol == '.debug_info' or \
+                symbol == '.zdebug_info':
+                e_shdbginfo = i
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
             elif symbol.startswith('.note.'):
@@ -70226,6 +70230,71 @@ Section header string table index: %d
                             "Description", twoLine))
 
                 _readNoteSection(fd, sh_offset, sh_size)
+
+        # check debug_info section #
+        if SysMgr.dwarfEnable and e_shdbginfo >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbginfo)
+
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
+
+            if debug:
+                printer(
+                    '\n[%s Section]\n%s' % (shname, twoLine))
+
+            # set position #
+            fd.seek(sh_offset)
+
+            # length #
+            initLen = struct.unpack('I', fd.read(4))[0]
+
+            # format #
+            dwarfFormat = 64 if initLen == 0xFFFFFFFF else 32
+
+            # version #
+            ver = struct.unpack('H', fd.read(2))[0]
+
+            if debug:
+                printStr = 'Compilation Unit @ offset 0x0\n'
+                printStr += 'Length: 0x%x (%s-Bit)\n' % (initLen, dwarfFormat)
+                printStr += 'Version: %s\n' % ver
+
+            if ver >= 5:
+                # unit type #
+                unitType = struct.unpack('B', fd.read(1))[0]
+
+                # address size #
+                addrSize = struct.unpack('B', fd.read(1))[0]
+
+                # debug_abbrev_offset #
+                if dwarfFormat == 32:
+                    dao = struct.unpack('I', fd.read(4))[0]
+                else:
+                    dao = struct.unpack('Q', fd.read(8))[0]
+
+                if debug:
+                    printStr += 'Unit Type: %s\n' % unitType
+                    printStr += 'Pointer Size: %s\n' % addrSize
+                    printStr += 'Abbrev Offset: %x\n' % dao
+            else:
+                # debug_abbrev_offset #
+                if dwarfFormat == 32:
+                    dao = struct.unpack('I', fd.read(4))[0]
+                else:
+                    dao = struct.unpack('Q', fd.read(8))[0]
+
+                # address size #
+                addrSize = struct.unpack('B', fd.read(1))[0]
+
+                if debug:
+                    printStr += 'Abbrev Offset: %x\n' % dao
+                    printStr += 'Pointer Size: %s\n' % addrSize
+
+            if debug:
+                printer(printStr)
+                printer(oneLine)
 
         # remove useless data #
         del self.attr['dynsymList']
