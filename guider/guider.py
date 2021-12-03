@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211202"
+__revision__ = "211203"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -65499,12 +65499,15 @@ class ElfAnalyzer(object):
     bits, with the high 2 bits, so these constants are exactly as they would
     appear in an actual file.
     '''
-    DW_CONSTANTS = {
+    DW_INL = {
         "DW_INL_not_inlined":0,
         "DW_INL_inlined":1,
         "DW_INL_declared_not_inlined":2,
         "DW_INL_declared_inlined":3,
+    }
+    DW_INL_map = {v: k for k, v in DW_INL.items()}
 
+    DW_LANG = {
         "DW_LANG_C89":0x0001,
         "DW_LANG_C":0x0002,
         "DW_LANG_Ada83":0x0003,
@@ -65551,7 +65554,10 @@ class ElfAnalyzer(object):
         "DW_LANG_HP_Assembler":0x8007,
         "DW_LANG_GOOGLE_RenderScript":0x8e57,
         "DW_LANG_BORLAND_Delphi":0xb000,
+    }
+    DW_LANG_map = {v: k for k, v in DW_LANG.items()}
 
+    DW_ATE = {
         "DW_ATE_void":0x0,
         "DW_ATE_address":0x1,
         "DW_ATE_boolean":0x2,
@@ -65580,31 +65586,52 @@ class ElfAnalyzer(object):
         "DW_ATE_HP_floathpintel":0x84,
         "DW_ATE_HP_imaginary_float80":0x85,
         "DW_ATE_HP_imaginary_float128":0x86,
+    }
+    DW_ATE_map = {v: k for k, v in DW_ATE.items()}
 
+    DW_ACCESS = {
         "DW_ACCESS_public":1,
         "DW_ACCESS_protected":2,
         "DW_ACCESS_private":3,
+    }
+    DW_ACCESS_map = {v: k for k, v in DW_ACCESS.items()}
 
+    DW_VIS = {
         "DW_VIS_local":1,
         "DW_VIS_exported":2,
         "DW_VIS_qualified":3,
+    }
+    DW_VIS = {v: k for k, v in DW_VIS.items()}
 
+    DW_VIRTUALITY = {
         "DW_VIRTUALITY_none":0,
         "DW_VIRTUALITY_virtual":1,
         "DW_VIRTUALITY_pure_virtual":2,
+    }
+    DW_VIRTUALITY = {v: k for k, v in DW_VIRTUALITY.items()}
 
+    DW_ID = {
         "DW_ID_case_sensitive":0,
         "DW_ID_up_case":1,
         "DW_ID_down_case":2,
         "DW_ID_case_insensitive":3,
+    }
+    DW_ID = {v: k for k, v in DW_ID.items()}
 
+    DW_CC = {
         "DW_CC_normal":0x1,
         "DW_CC_program":0x2,
         "DW_CC_nocall":0x3,
+    }
+    DW_CC = {v: k for k, v in DW_CC.items()}
 
+    DW_ORD = {
         "DW_ORD_row_major":0,
         "DW_ORD_col_major":1,
+    }
+    DW_ORD = {v: k for k, v in DW_ORD.items()}
 
+    DW_LNS = {
         "DW_LNS_copy":0x01,
         "DW_LNS_advance_pc":0x02,
         "DW_LNS_advance_line":0x03,
@@ -65617,6 +65644,10 @@ class ElfAnalyzer(object):
         "DW_LNS_set_prologue_end":0x0a,
         "DW_LNS_set_epilogue_begin":0x0b,
         "DW_LNS_set_isa":0x0c,
+    }
+    DW_LNS = {v: k for k, v in DW_LNS.items()}
+
+    DW_LNE = {
         "DW_LNE_end_sequence":0x01,
         "DW_LNE_set_address":0x02,
         "DW_LNE_define_file":0x03,
@@ -65624,6 +65655,7 @@ class ElfAnalyzer(object):
         "DW_LNE_lo_user":0x80,
         "DW_LNE_hi_user":0xff,
     }
+    DW_LNE = {v: k for k, v in DW_LNE.items()}
 
     DW_AT = {
         "DW_AT_null":0x00,
@@ -65811,6 +65843,7 @@ class ElfAnalyzer(object):
         "DW_AT_APPLE_objc_complete_type":0x3fec,
         "DW_AT_APPLE_property":0x3fed,
     }
+    DW_AT_map = {v: k for k, v in DW_AT.items()}
 
     DW_FORM = {
         "DW_FORM_null":0x00,
@@ -65862,6 +65895,7 @@ class ElfAnalyzer(object):
         "DW_FORM_GNU_ref_alt":0x1f20,
         "DW_FORM_GNU_strp_alt":0x1f21,
     }
+    DW_FORM_map = {v: k for k, v in DW_FORM.items()}
 
     DW_TAG = {
         "DW_TAG_null":0x00,
@@ -65940,6 +65974,7 @@ class ElfAnalyzer(object):
         "DW_TAG_APPLE_property":0x4200,
         "DW_TAG_hi_user":0xffff,
     }
+    DW_TAG_map = {v: k for k, v in DW_TAG.items()}
 
     DW_EH_encoding_flags = {
         "DW_EH_PE_absptr":0x00,
@@ -65960,7 +65995,6 @@ class ElfAnalyzer(object):
         "DW_EH_PE_indirect":0x80,
         "DW_EH_PE_omit":0xff,
     }
-
     DW_EH_encoding_map = {v: k for k, v in DW_EH_encoding_flags.items()}
 
     DW_INST = {
@@ -65994,7 +66028,6 @@ class ElfAnalyzer(object):
         "DW_PRIMARY_MASK":0b11000000,
         "DW_PRIMARY_ARG_MASK":0b00111111,
     }
-
     DW_INST_MAP = {v: k for k, v in DW_INST.items()}
 
     DW_OPS_DEC_ARGS = set([
@@ -70232,7 +70265,7 @@ Section header string table index: %d
                 _readNoteSection(fd, sh_offset, sh_size)
 
         # check debug_info section #
-        if SysMgr.dwarfEnable and e_shdbginfo >= 0:
+        if False and SysMgr.dwarfEnable and e_shdbginfo >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbginfo)
@@ -70248,31 +70281,40 @@ Section header string table index: %d
             fd.seek(sh_offset)
 
             # length #
-            initLen = struct.unpack('I', fd.read(4))[0]
+            size = struct.unpack('I', fd.read(4))[0]
+
+            # data #
+            pos = 0
+            table = fd.read(size-4)
 
             # format #
-            dwarfFormat = 64 if initLen == 0xFFFFFFFF else 32
+            dwarfFormat = 64 if size == 0xFFFFFFFF else 32
 
             # version #
-            ver = struct.unpack('H', fd.read(2))[0]
+            ver = struct.unpack('H', table[pos:pos+2])[0]
+            pos += 2
 
             if debug:
                 printStr = 'Compilation Unit @ offset 0x0\n'
-                printStr += 'Length: 0x%x (%s-Bit)\n' % (initLen, dwarfFormat)
+                printStr += 'Length: 0x%x (%s-Bit)\n' % (size, dwarfFormat)
                 printStr += 'Version: %s\n' % ver
 
             if ver >= 5:
                 # unit type #
-                unitType = struct.unpack('B', fd.read(1))[0]
+                unitType = struct.unpack('B', table[pos:pos+1])[0]
+                pos += 1
 
                 # address size #
-                addrSize = struct.unpack('B', fd.read(1))[0]
+                addrSize = struct.unpack('B', table[pos:pos+1])[0]
+                pos += 1
 
                 # debug_abbrev_offset #
                 if dwarfFormat == 32:
-                    dao = struct.unpack('I', fd.read(4))[0]
+                    dao = struct.unpack('I', table[pos:pos+4])[0]
+                    pos += 4
                 else:
-                    dao = struct.unpack('Q', fd.read(8))[0]
+                    dao = struct.unpack('Q', table[pos:pos+8])[0]
+                    pos += 8
 
                 if debug:
                     printStr += 'Unit Type: %s\n' % unitType
@@ -70281,16 +70323,42 @@ Section header string table index: %d
             else:
                 # debug_abbrev_offset #
                 if dwarfFormat == 32:
-                    dao = struct.unpack('I', fd.read(4))[0]
+                    dao = struct.unpack('I', table[pos:pos+4])[0]
+                    pos += 4
                 else:
-                    dao = struct.unpack('Q', fd.read(8))[0]
+                    dao = struct.unpack('Q', table[pos:pos+8])[0]
+                    pos += 8
 
                 # address size #
-                addrSize = struct.unpack('B', fd.read(1))[0]
+                addrSize = struct.unpack('B', table[pos:pos+1])[0]
+                pos += 1
 
                 if debug:
                     printStr += 'Abbrev Offset: %x\n' % dao
                     printStr += 'Pointer Size: %s\n' % addrSize
+
+            # tag #
+            data = table[pos:].decode('latin-1')
+            tag, nsize = UtilMgr.decodeULEB128(data)
+            pos += nsize
+
+            # child flag #
+            childFlag = struct.unpack('B', table[pos:pos+1])[0]
+            pos += 1
+
+            while 1:
+                # name #
+                data = table[pos:].decode('latin-1')
+                name, nsize = UtilMgr.decodeULEB128(data)
+                pos += nsize
+
+                # form #
+                data = table[pos:].decode('latin-1')
+                form, nsize = UtilMgr.decodeULEB128(data)
+                pos += nsize
+
+                if name == form == 0:
+                    break
 
             if debug:
                 printer(printStr)
