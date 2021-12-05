@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211203"
+__revision__ = "211205"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -68394,6 +68394,7 @@ Section header string table index: %d
         e_shehframe = -1
         e_shdbgframe = -1
         e_shdbginfo = -1
+        e_shdbgabbrev = -1
         e_shehframehdr = -1
         e_sharmidx = -1
         e_shframe = -1
@@ -68475,6 +68476,9 @@ Section header string table index: %d
             elif symbol == '.debug_info' or \
                 symbol == '.zdebug_info':
                 e_shdbginfo = i
+            elif symbol == '.debug_abbrev' or \
+                symbol == '.zdebug_abbrev':
+                e_shdbgabbrev = i
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
             elif symbol.startswith('.note.'):
@@ -70282,13 +70286,16 @@ Section header string table index: %d
 
             # length #
             size = struct.unpack('I', fd.read(4))[0]
+            # extended length 8 bytes are needed #
+            if size == 0xffffffff:
+                size = struct.unpack('Q', fd.read(8))[0]
+
+            # format #
+            dwarfFormat = 64 if size == 0xFFFFFFFF else 32
 
             # data #
             pos = 0
             table = fd.read(size-4)
-
-            # format #
-            dwarfFormat = 64 if size == 0xFFFFFFFF else 32
 
             # version #
             ver = struct.unpack('H', table[pos:pos+2])[0]
@@ -70318,8 +70325,6 @@ Section header string table index: %d
 
                 if debug:
                     printStr += 'Unit Type: %s\n' % unitType
-                    printStr += 'Pointer Size: %s\n' % addrSize
-                    printStr += 'Abbrev Offset: %x\n' % dao
             else:
                 # debug_abbrev_offset #
                 if dwarfFormat == 32:
@@ -70333,36 +70338,27 @@ Section header string table index: %d
                 addrSize = struct.unpack('B', table[pos:pos+1])[0]
                 pos += 1
 
-                if debug:
-                    printStr += 'Abbrev Offset: %x\n' % dao
-                    printStr += 'Pointer Size: %s\n' % addrSize
-
-            # tag #
-            data = table[pos:].decode('latin-1')
-            tag, nsize = UtilMgr.decodeULEB128(data)
-            pos += nsize
-
-            # child flag #
-            childFlag = struct.unpack('B', table[pos:pos+1])[0]
-            pos += 1
-
-            while 1:
-                # name #
-                data = table[pos:].decode('latin-1')
-                name, nsize = UtilMgr.decodeULEB128(data)
-                pos += nsize
-
-                # form #
-                data = table[pos:].decode('latin-1')
-                form, nsize = UtilMgr.decodeULEB128(data)
-                pos += nsize
-
-                if name == form == 0:
-                    break
-
             if debug:
+                printStr += 'Abbrev Offset: %x\n' % dao
+                printStr += 'Pointer Size: %s\n' % addrSize
                 printer(printStr)
                 printer(oneLine)
+
+        # check debug_abbrev section #
+        if False and SysMgr.dwarfEnable and e_shdbginfo >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgabbrev)
+
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
+
+            if debug:
+                printer(
+                    '\n[%s Section]\n%s' % (shname, twoLine))
+
+            # set position #
+            fd.seek(sh_offset)
 
         # remove useless data #
         del self.attr['dynsymList']
