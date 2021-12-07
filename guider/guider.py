@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211205"
+__revision__ = "211207"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -70268,82 +70268,6 @@ Section header string table index: %d
 
                 _readNoteSection(fd, sh_offset, sh_size)
 
-        # check debug_info section #
-        if False and SysMgr.dwarfEnable and e_shdbginfo >= 0:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
-                sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbginfo)
-
-            # get symbol string #
-            shname = self.getString(str_section, sh_name)
-
-            if debug:
-                printer(
-                    '\n[%s Section]\n%s' % (shname, twoLine))
-
-            # set position #
-            fd.seek(sh_offset)
-
-            # length #
-            size = struct.unpack('I', fd.read(4))[0]
-            # extended length 8 bytes are needed #
-            if size == 0xffffffff:
-                size = struct.unpack('Q', fd.read(8))[0]
-
-            # format #
-            dwarfFormat = 64 if size == 0xFFFFFFFF else 32
-
-            # data #
-            pos = 0
-            table = fd.read(size-4)
-
-            # version #
-            ver = struct.unpack('H', table[pos:pos+2])[0]
-            pos += 2
-
-            if debug:
-                printStr = 'Compilation Unit @ offset 0x0\n'
-                printStr += 'Length: 0x%x (%s-Bit)\n' % (size, dwarfFormat)
-                printStr += 'Version: %s\n' % ver
-
-            if ver >= 5:
-                # unit type #
-                unitType = struct.unpack('B', table[pos:pos+1])[0]
-                pos += 1
-
-                # address size #
-                addrSize = struct.unpack('B', table[pos:pos+1])[0]
-                pos += 1
-
-                # debug_abbrev_offset #
-                if dwarfFormat == 32:
-                    dao = struct.unpack('I', table[pos:pos+4])[0]
-                    pos += 4
-                else:
-                    dao = struct.unpack('Q', table[pos:pos+8])[0]
-                    pos += 8
-
-                if debug:
-                    printStr += 'Unit Type: %s\n' % unitType
-            else:
-                # debug_abbrev_offset #
-                if dwarfFormat == 32:
-                    dao = struct.unpack('I', table[pos:pos+4])[0]
-                    pos += 4
-                else:
-                    dao = struct.unpack('Q', table[pos:pos+8])[0]
-                    pos += 8
-
-                # address size #
-                addrSize = struct.unpack('B', table[pos:pos+1])[0]
-                pos += 1
-
-            if debug:
-                printStr += 'Abbrev Offset: %x\n' % dao
-                printStr += 'Pointer Size: %s\n' % addrSize
-                printer(printStr)
-                printer(oneLine)
-
         # check debug_abbrev section #
         if False and SysMgr.dwarfEnable and e_shdbginfo >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
@@ -70359,6 +70283,88 @@ Section header string table index: %d
 
             # set position #
             fd.seek(sh_offset)
+
+            abbrevDict = {}
+
+            # data #
+            pos = 0
+            table = fd.read(sh_size)
+
+            while 1:
+                # abbrev_code #
+                data = table[pos:].decode('latin-1')
+                abbrevCode, nsize = UtilMgr.decodeULEB128(data)
+                pos += nsize
+
+                if abbrevCode == 0:
+                    break
+
+                # tag #
+                data = table[pos:].decode('latin-1')
+                tag, nsize = UtilMgr.decodeULEB128(data)
+                pos += nsize
+
+                # children_flag #
+                childFlag = struct.unpack('B', table[pos:pos+1])[0]
+                pos += 1
+
+                abbrevDict[abbrevCode] = {
+                    'tag': tag,
+                    'child': childFlag,
+                    'attrs': [],
+                }
+
+                while 1:
+                    # name data #
+                    data = table[pos:].decode('latin-1')
+                    name, nsize = UtilMgr.decodeULEB128(data)
+                    pos += nsize
+
+                    # form data #
+                    data = table[pos:].decode('latin-1')
+                    form, nsize = UtilMgr.decodeULEB128(data)
+                    pos += nsize
+
+                    # check end #
+                    if name == form == 0:
+                        break
+
+                    abbrevDict[abbrevCode]['attrs'].append([name, form])
+
+            if debug:
+                printStr = '%4s     %s   [%s]\n' % ('Num', 'TAG', 'Child')
+                printStr += '%s\n' % twoLine
+                for name, value in abbrevDict.items():
+                    if value['child']:
+                        children = 'has children'
+                    else:
+                        chidlren = 'no children'
+
+                     # tag name #
+                    if value['tag'] in ElfAnalyzer.DW_TAG_map:
+                        tag = ElfAnalyzer.DW_TAG_map[value['tag']]
+                    else:
+                        tag = None
+
+                    printStr += '%4s     %s   [%s]\n' % (name, tag, children)
+
+                    for item in value['attrs']:
+                        # name #
+                        if item[0] in ElfAnalyzer.DW_AT_map:
+                            name = ElfAnalyzer.DW_AT_map[item[0]]
+                        else:
+                            name = 'N/A'
+
+                        # form #
+                        if item[1] in ElfAnalyzer.DW_FORM_map:
+                            form = ElfAnalyzer.DW_FORM_map[item[1]]
+                        else:
+                            form = 'N/A'
+
+                        printStr += '%4s %-20s %s\n' % (' ', name, form)
+
+                printer(printStr)
+                printer(oneLine)
 
         # remove useless data #
         del self.attr['dynsymList']
