@@ -65508,7 +65508,7 @@ class ElfAnalyzer(object):
         "DW_INL_declared_not_inlined":2,
         "DW_INL_declared_inlined":3,
     }
-    DW_INL_map = {v: k for k, v in DW_INL.items()}
+    DW_INL_MAP = {v: k for k, v in DW_INL.items()}
 
     DW_LANG = {
         "DW_LANG_C89":0x0001,
@@ -65558,7 +65558,7 @@ class ElfAnalyzer(object):
         "DW_LANG_GOOGLE_RenderScript":0x8e57,
         "DW_LANG_BORLAND_Delphi":0xb000,
     }
-    DW_LANG_map = {v: k for k, v in DW_LANG.items()}
+    DW_LANG_MAP = {v: k for k, v in DW_LANG.items()}
 
     DW_ATE = {
         "DW_ATE_void":0x0,
@@ -65590,28 +65590,28 @@ class ElfAnalyzer(object):
         "DW_ATE_HP_imaginary_float80":0x85,
         "DW_ATE_HP_imaginary_float128":0x86,
     }
-    DW_ATE_map = {v: k for k, v in DW_ATE.items()}
+    DW_ATE_MAP = {v: k for k, v in DW_ATE.items()}
 
     DW_ACCESS = {
         "DW_ACCESS_public":1,
         "DW_ACCESS_protected":2,
         "DW_ACCESS_private":3,
     }
-    DW_ACCESS_map = {v: k for k, v in DW_ACCESS.items()}
+    DW_ACCESS_MAP = {v: k for k, v in DW_ACCESS.items()}
 
     DW_VIS = {
         "DW_VIS_local":1,
         "DW_VIS_exported":2,
         "DW_VIS_qualified":3,
     }
-    DW_VIS = {v: k for k, v in DW_VIS.items()}
+    DW_VIS_MAP = {v: k for k, v in DW_VIS.items()}
 
     DW_VIRTUALITY = {
         "DW_VIRTUALITY_none":0,
         "DW_VIRTUALITY_virtual":1,
         "DW_VIRTUALITY_pure_virtual":2,
     }
-    DW_VIRTUALITY = {v: k for k, v in DW_VIRTUALITY.items()}
+    DW_VIRTUALITY_MAP = {v: k for k, v in DW_VIRTUALITY.items()}
 
     DW_ID = {
         "DW_ID_case_sensitive":0,
@@ -65619,20 +65619,20 @@ class ElfAnalyzer(object):
         "DW_ID_down_case":2,
         "DW_ID_case_insensitive":3,
     }
-    DW_ID = {v: k for k, v in DW_ID.items()}
+    DW_ID_MAP = {v: k for k, v in DW_ID.items()}
 
     DW_CC = {
         "DW_CC_normal":0x1,
         "DW_CC_program":0x2,
         "DW_CC_nocall":0x3,
     }
-    DW_CC = {v: k for k, v in DW_CC.items()}
+    DW_CC_MAP = {v: k for k, v in DW_CC.items()}
 
     DW_ORD = {
         "DW_ORD_row_major":0,
         "DW_ORD_col_major":1,
     }
-    DW_ORD = {v: k for k, v in DW_ORD.items()}
+    DW_ORD_MAP = {v: k for k, v in DW_ORD.items()}
 
     DW_LNS = {
         "DW_LNS_copy":0x01,
@@ -65648,7 +65648,7 @@ class ElfAnalyzer(object):
         "DW_LNS_set_epilogue_begin":0x0b,
         "DW_LNS_set_isa":0x0c,
     }
-    DW_LNS = {v: k for k, v in DW_LNS.items()}
+    DW_LNS_MAP = {v: k for k, v in DW_LNS.items()}
 
     DW_LNE = {
         "DW_LNE_end_sequence":0x01,
@@ -65658,7 +65658,7 @@ class ElfAnalyzer(object):
         "DW_LNE_lo_user":0x80,
         "DW_LNE_hi_user":0xff,
     }
-    DW_LNE = {v: k for k, v in DW_LNE.items()}
+    DW_LNE_MAP = {v: k for k, v in DW_LNE.items()}
 
     DW_AT = {
         "DW_AT_null":0x00,
@@ -65846,7 +65846,7 @@ class ElfAnalyzer(object):
         "DW_AT_APPLE_objc_complete_type":0x3fec,
         "DW_AT_APPLE_property":0x3fed,
     }
-    DW_AT_map = {v: k for k, v in DW_AT.items()}
+    DW_AT_MAP = {v: k for k, v in DW_AT.items()}
 
     DW_FORM = {
         "DW_FORM_null":0x00,
@@ -65899,7 +65899,7 @@ class ElfAnalyzer(object):
         "DW_FORM_GNU_ref_alt":0x1f20,
         "DW_FORM_GNU_strp_alt":0x1f21,
     }
-    DW_FORM_map = {v: k for k, v in DW_FORM.items()}
+    DW_FORM_MAP = {v: k for k, v in DW_FORM.items()}
 
     DW_TAG = {
         "DW_TAG_null":0x00,
@@ -65978,9 +65978,9 @@ class ElfAnalyzer(object):
         "DW_TAG_APPLE_property":0x4200,
         "DW_TAG_hi_user":0xffff,
     }
-    DW_TAG_map = {v: k for k, v in DW_TAG.items()}
+    DW_TAG_MAP = {v: k for k, v in DW_TAG.items()}
 
-    DW_EH_encoding_flags = {
+    DW_EH_ENCODING_FLAGS = {
         "DW_EH_PE_absptr":0x00,
         "DW_EH_PE_uleb128":0x01,
         "DW_EH_PE_udata2":0x02,
@@ -65999,7 +65999,7 @@ class ElfAnalyzer(object):
         "DW_EH_PE_indirect":0x80,
         "DW_EH_PE_omit":0xff,
     }
-    DW_EH_encoding_map = {v: k for k, v in DW_EH_encoding_flags.items()}
+    DW_EH_ENCODING_MAP = {v: k for k, v in DW_EH_ENCODING_FLAGS.items()}
 
     DW_INST = {
         "DW_CFA_advance_loc":0b01000000,
@@ -66033,6 +66033,88 @@ class ElfAnalyzer(object):
         "DW_PRIMARY_ARG_MASK":0b00111111,
     }
     DW_INST_MAP = {v: k for k, v in DW_INST.items()}
+
+    DW_OPS_NAMES = {
+        "DW_OP_addr":0x03,
+        "DW_OP_deref":0x06,
+        "DW_OP_const1u":0x08,
+        "DW_OP_const1s":0x09,
+        "DW_OP_const2u":0x0a,
+        "DW_OP_const2s":0x0b,
+        "DW_OP_const4u":0x0c,
+        "DW_OP_const4s":0x0d,
+        "DW_OP_const8u":0x0e,
+        "DW_OP_const8s":0x0f,
+        "DW_OP_constu":0x10,
+        "DW_OP_consts":0x11,
+        "DW_OP_dup":0x12,
+        "DW_OP_drop":0x13,
+        "DW_OP_over":0x14,
+        "DW_OP_pick":0x15,
+        "DW_OP_swap":0x16,
+        "DW_OP_rot":0x17,
+        "DW_OP_xderef":0x18,
+        "DW_OP_abs":0x19,
+        "DW_OP_and":0x1a,
+        "DW_OP_div":0x1b,
+        "DW_OP_minus":0x1c,
+        "DW_OP_mod":0x1d,
+        "DW_OP_mul":0x1e,
+        "DW_OP_neg":0x1f,
+        "DW_OP_not":0x20,
+        "DW_OP_or":0x21,
+        "DW_OP_plus":0x22,
+        "DW_OP_plus_uconst":0x23,
+        "DW_OP_shl":0x24,
+        "DW_OP_shr":0x25,
+        "DW_OP_shra":0x26,
+        "DW_OP_xor":0x27,
+        "DW_OP_bra":0x28,
+        "DW_OP_eq":0x29,
+        "DW_OP_ge":0x2a,
+        "DW_OP_gt":0x2b,
+        "DW_OP_le":0x2c,
+        "DW_OP_lt":0x2d,
+        "DW_OP_ne":0x2e,
+        "DW_OP_skip":0x2f,
+        "DW_OP_regx":0x90,
+        "DW_OP_fbreg":0x91,
+        "DW_OP_bregx":0x92,
+        "DW_OP_piece":0x93,
+        "DW_OP_deref_size":0x94,
+        "DW_OP_xderef_size":0x95,
+        "DW_OP_nop":0x96,
+        "DW_OP_push_object_address":0x97,
+        "DW_OP_call2":0x98,
+        "DW_OP_call4":0x99,
+        "DW_OP_call_ref":0x9a,
+        "DW_OP_form_tls_address":0x9b,
+        "DW_OP_call_frame_cfa":0x9c,
+        "DW_OP_bit_piece":0x9d,
+        "DW_OP_implicit_value":0x9e,
+        "DW_OP_stack_value":0x9f,
+        "DW_OP_implicit_pointer":0xa0,
+        "DW_OP_addrx":0xa1,
+        "DW_OP_constx":0xa2,
+        "DW_OP_entry_value":0xa3,
+        "DW_OP_const_type":0xa4,
+        "DW_OP_regval_type":0xa5,
+        "DW_OP_deref_type":0xa6,
+        "DW_OP_xderef_type":0xa7,
+        "DW_OP_convert":0xa8,
+        "DW_OP_reinterpret":0xa9,
+        "DW_OP_lo_user":0xe0,
+        "DW_OP_GNU_push_tls_address":0xe0,
+        "DW_OP_GNU_implicit_pointer":0xf2,
+        "DW_OP_GNU_entry_value":0xf3,
+        "DW_OP_GNU_const_type":0xf4,
+        "DW_OP_GNU_regval_type":0xf5,
+        "DW_OP_GNU_deref_type":0xf6,
+        "DW_OP_GNU_convert":0xf7,
+        "DW_OP_GNU_parameter_ref":0xfa,
+        "DW_OP_hi_user":0xff,
+    }
+    DW_OPS_NAMES_MAP = {v: k for k, v in DW_OPS_NAMES.items()}
 
     DW_OPS_DEC_ARGS = set([
         'DW_OP_const1u', 'DW_OP_const1s', 'DW_OP_const2u', 'DW_OP_const2s',
@@ -69083,9 +69165,9 @@ Section header string table index: %d
                 encMod = encoding & 0xf0
 
                 # get format #
-                DW_EH_encoding_map = ElfAnalyzer.DW_EH_encoding_map
-                if basicEnc in DW_EH_encoding_map:
-                    encFormat = DW_EH_encoding_map[basicEnc]
+                DW_EH_ENCODING_MAP = ElfAnalyzer.DW_EH_ENCODING_MAP
+                if basicEnc in DW_EH_ENCODING_MAP:
+                    encFormat = DW_EH_ENCODING_MAP[basicEnc]
                 else:
                     encFormat = None
 
@@ -69174,9 +69256,9 @@ Section header string table index: %d
                         augpos += 1
 
                         # get format #
-                        DW_EH_encoding_map = ElfAnalyzer.DW_EH_encoding_map
-                        if basicEnc in DW_EH_encoding_map:
-                            encFormat = DW_EH_encoding_map[basicEnc]
+                        DW_EH_ENCODING_MAP = ElfAnalyzer.DW_EH_ENCODING_MAP
+                        if basicEnc in DW_EH_ENCODING_MAP:
+                            encFormat = DW_EH_ENCODING_MAP[basicEnc]
                         else:
                             encFormat = None
                         augdict['personality']['format'] = encFormat
@@ -69569,7 +69651,7 @@ Section header string table index: %d
             self.attr['dwarf'].setdefault('general', {})
             self.attr['dwarf'].setdefault('CFAIndex', [])
             self.attr['dwarf'].setdefault('CFATable', {})
-            ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
+            ENC_FLAGS = ElfAnalyzer.DW_EH_ENCODING_FLAGS
             nrCIE = nrFDE = 0
 
             # get symbol string #
@@ -69952,7 +70034,7 @@ Section header string table index: %d
 
             self.attr.setdefault('dwarf', {})
             self.attr['dwarf']['hdr'] = {}
-            ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
+            ENC_FLAGS = ElfAnalyzer.DW_EH_ENCODING_FLAGS
 
             # get symbol string #
             shname = self.getString(str_section, sh_name)
@@ -70389,8 +70471,8 @@ Section header string table index: %d
                             chidlren = 'no children'
 
                          # tag name #
-                        if value['tag'] in ElfAnalyzer.DW_TAG_map:
-                            tag = ElfAnalyzer.DW_TAG_map[value['tag']]
+                        if value['tag'] in ElfAnalyzer.DW_TAG_MAP:
+                            tag = ElfAnalyzer.DW_TAG_MAP[value['tag']]
                         else:
                             tag = None
 
@@ -70399,14 +70481,14 @@ Section header string table index: %d
 
                         for item in value['attrs']:
                             # name #
-                            if item[0] in ElfAnalyzer.DW_AT_map:
-                                name = ElfAnalyzer.DW_AT_map[item[0]]
+                            if item[0] in ElfAnalyzer.DW_AT_MAP:
+                                name = ElfAnalyzer.DW_AT_MAP[item[0]]
                             else:
                                 name = 'N/A'
 
                             # form #
-                            if item[1] in ElfAnalyzer.DW_FORM_map:
-                                form = ElfAnalyzer.DW_FORM_map[item[1]]
+                            if item[1] in ElfAnalyzer.DW_FORM_MAP:
+                                form = ElfAnalyzer.DW_FORM_MAP[item[1]]
                             else:
                                 form = 'N/A'
 
@@ -70580,7 +70662,7 @@ Section header string table index: %d
                         if not abbrevCode in abbrevDict[idx]:
                             raise Exception('no table')
                         value = abbrevDict[idx][abbrevCode]
-                        tag = ElfAnalyzer.DW_TAG_map[value['tag']]
+                        tag = ElfAnalyzer.DW_TAG_MAP[value['tag']]
                         child = value['child']
                         attrs = value['attrs']
 
@@ -70596,17 +70678,17 @@ Section header string table index: %d
                         # get data from FORM attributes #
                         for attr in attrs:
                             # name #
-                            if attr[0] in ElfAnalyzer.DW_AT_map:
-                                name = ElfAnalyzer.DW_AT_map[attr[0]]
+                            if attr[0] in ElfAnalyzer.DW_AT_MAP:
+                                name = ElfAnalyzer.DW_AT_MAP[attr[0]]
                             else:
                                 name = 'Unknown AT'
 
                             # form #
                             form = attr[1]
-                            if form in ElfAnalyzer.DW_FORM_map:
-                                formstr = ElfAnalyzer.DW_FORM_map[form]
-                            elif form in ElfAnalyzer.DW_AT_map:
-                                formstr = ElfAnalyzer.DW_AT_map[form]
+                            if form in ElfAnalyzer.DW_FORM_MAP:
+                                formstr = ElfAnalyzer.DW_FORM_MAP[form]
+                            elif form in ElfAnalyzer.DW_AT_MAP:
+                                formstr = ElfAnalyzer.DW_AT_MAP[form]
                             else:
                                 raise Exception('no form')
                                 sys.exit(0)
