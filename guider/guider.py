@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211207"
+__revision__ = "211209"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25996,6 +25996,9 @@ Examples:
 
     - Print vDSO information
         # {0:1} {1:1} -I vdso
+
+    - Print ELF information of a specific file with debug information
+        # {0:1} {1:1} -q DEBUGINFO
                     '''.format(cmd, mode)
 
                 # log #
@@ -65848,6 +65851,7 @@ class ElfAnalyzer(object):
     DW_FORM = {
         "DW_FORM_null":0x00,
         "DW_FORM_addr":0x01,
+        "DW_FORM_ref":0x02,
         "DW_FORM_block2":0x03,
         "DW_FORM_block4":0x04,
         "DW_FORM_data2":0x05,
@@ -67422,7 +67426,7 @@ class ElfAnalyzer(object):
                 inst = "DW_CFA_advance_loc"
                 args = [primaryArg]
             elif primary == DW["DW_CFA_offset"]:
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
 
@@ -67471,10 +67475,10 @@ class ElfAnalyzer(object):
                 DW["DW_CFA_register"],
                 DW["DW_CFA_def_cfa"],
                 DW["DW_CFA_val_offset"]):
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg1, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg2, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
 
@@ -67487,38 +67491,38 @@ class ElfAnalyzer(object):
                 DW["DW_CFA_def_cfa_register"],
                 DW["DW_CFA_def_cfa_offset"]):
                 inst = DWM[opcode]
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg, nsize = UtilMgr.decodeULEB128(data)
                 args = [arg]
                 pos += nsize
             elif opcode == DW["DW_CFA_def_cfa_offset_sf"]:
                 inst = DWM[opcode]
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg, nsize = UtilMgr.decodeSLEB128(data)
                 args = [arg]
                 pos += nsize
             elif opcode == DW["DW_CFA_def_cfa_expression"]:
                 inst = DWM[opcode]
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 args, pos = _getBlockArgs(table, pos)
             elif opcode in (\
                 DW["DW_CFA_expression"],
                 DW["DW_CFA_val_expression"]):
                 inst = DWM[opcode]
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg1, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg2, pos = _getBlockArgs(table, pos)
                 args = [arg1, arg2]
             elif opcode in (\
                 DW["DW_CFA_offset_extended_sf"],
                 DW["DW_CFA_def_cfa_sf"],
                 DW["DW_CFA_val_offset_sf"]):
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg1, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg2, nsize = UtilMgr.decodeSLEB128(data)
                 pos += nsize
 
@@ -67526,7 +67530,7 @@ class ElfAnalyzer(object):
                 args = [arg1, arg2]
             elif opcode == DW["DW_CFA_GNU_args_size"]:
                 inst = DWM[opcode]
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 arg, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
                 args = [arg]
@@ -67579,7 +67583,10 @@ class ElfAnalyzer(object):
 
 
 
-    def getString(self, strtable, start=0):
+    def getString(self, strtable, start=0, retlen=False):
+        if not strtable:
+            return ''
+
         idx = start
         end = self.fileSize - start
 
@@ -67597,10 +67604,16 @@ class ElfAnalyzer(object):
         else:
             try:
                 symbol = strtable[start:idx].decode()
+            except SystemExit:
+                sys.exit(0)
             except:
                 symbol = strtable[start:idx]
 
-        return symbol
+        # return #
+        if retlen:
+            return symbol, idx-start
+        else:
+            return symbol
 
 
 
@@ -68394,6 +68407,9 @@ Section header string table index: %d
         e_shehframe = -1
         e_shdbgframe = -1
         e_shdbginfo = -1
+        e_shdbgstr = -1
+        e_shdbglinestr = -1
+        e_shdbgline = -1
         e_shdbgabbrev = -1
         e_shehframehdr = -1
         e_sharmidx = -1
@@ -68473,6 +68489,12 @@ Section header string table index: %d
             elif symbol == '.debug_frame' or \
                 symbol == '.zdebug_frame':
                 e_shdbgframe = i
+            elif symbol == '.debug_str':
+                e_shdbgstr = i
+            elif symbol == '.debug_line_str':
+                e_shdbglinestr = i
+            elif symbol == '.debug_line':
+                e_shdbgline = i
             elif symbol == '.debug_info' or \
                 symbol == '.zdebug_info':
                 e_shdbginfo = i
@@ -69561,6 +69583,8 @@ Section header string table index: %d
             fd.seek(sh_offset)
 
             # decompress section #
+            origFd = fd
+            isCompressed = False
             if shname.startswith('.z'):
                 decompSect, decompSize = self.unzip(fd, shname)
                 if decompSize:
@@ -69570,8 +69594,6 @@ Section header string table index: %d
                     fd = MemoryFile(size=sh_offset+sh_size, name=shname)
                     fd.seek(sh_offset)
                     fd.write(decompSect)
-            else:
-                isCompressed = False
 
             # initialize the number of decode error #
             self.nrSkipUpdate = 0
@@ -69648,23 +69670,23 @@ Section header string table index: %d
                         addrSize = segmentSize = -1
 
                     # Call Alignment Factor #
-                    data = table[pos:].decode('latin-1')
+                    data = table[pos:pos+1024].decode('latin-1')
                     caf, nsize = UtilMgr.decodeULEB128(data)
                     pos += nsize
 
                     # Data Alignment Factor #
-                    data = table[pos:].decode('latin-1')
+                    data = table[pos:pos+1024].decode('latin-1')
                     daf, nsize = UtilMgr.decodeSLEB128(data)
                     pos += nsize
 
                     # Return Address Register #
-                    data = table[pos:].decode('latin-1')
+                    data = table[pos:pos+1024].decode('latin-1')
                     rar, nsize = UtilMgr.decodeULEB128(data)
                     pos += nsize
 
                     # Augmentation Size #
                     if 'z' in augstr:
-                        data = table[pos:].decode('latin-1')
+                        data = table[pos:pos+1024].decode('latin-1')
                         augsize, nsize = UtilMgr.decodeULEB128(data)
                         pos += nsize
                     else:
@@ -70269,7 +70291,8 @@ Section header string table index: %d
                 _readNoteSection(fd, sh_offset, sh_size)
 
         # check debug_abbrev section #
-        if False and SysMgr.dwarfEnable and e_shdbginfo >= 0:
+        if 'DEBUGINFO' in SysMgr.environList and \
+            SysMgr.dwarfEnable and e_shdbginfo >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgabbrev)
@@ -70284,23 +70307,45 @@ Section header string table index: %d
             # set position #
             fd.seek(sh_offset)
 
-            abbrevDict = {}
+            # decompress section #
+            origFd = fd
+            isCompressed = False
+            if shname.startswith('.z'):
+                decompSect, decompSize = self.unzip(fd, shname)
+                if decompSize:
+                    isCompressed = True
+                    origFd = fd
+                    sh_size = decompSize
+                    fd = MemoryFile(size=sh_offset+sh_size, name=shname)
+                    fd.seek(sh_offset)
+                    fd.write(decompSect)
+
+            # init variables #
+            idx = 0
+            abbrevDict = [{}]
 
             # data #
             pos = 0
             table = fd.read(sh_size)
 
             while 1:
+                # check final end #
+                if pos+1 >= sh_size:
+                    break
+
                 # abbrev_code #
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 abbrevCode, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
 
+                # create a new table #
                 if abbrevCode == 0:
-                    break
+                    abbrevDict.append({})
+                    idx += 1
+                    continue
 
                 # tag #
-                data = table[pos:].decode('latin-1')
+                data = table[pos:pos+1024].decode('latin-1')
                 tag, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
 
@@ -70308,7 +70353,7 @@ Section header string table index: %d
                 childFlag = struct.unpack('B', table[pos:pos+1])[0]
                 pos += 1
 
-                abbrevDict[abbrevCode] = {
+                abbrevDict[idx][abbrevCode] = {
                     'tag': tag,
                     'child': childFlag,
                     'attrs': [],
@@ -70316,12 +70361,12 @@ Section header string table index: %d
 
                 while 1:
                     # name data #
-                    data = table[pos:].decode('latin-1')
+                    data = table[pos:pos+1024].decode('latin-1')
                     name, nsize = UtilMgr.decodeULEB128(data)
                     pos += nsize
 
                     # form data #
-                    data = table[pos:].decode('latin-1')
+                    data = table[pos:pos+1024].decode('latin-1')
                     form, nsize = UtilMgr.decodeULEB128(data)
                     pos += nsize
 
@@ -70329,42 +70374,398 @@ Section header string table index: %d
                     if name == form == 0:
                         break
 
-                    abbrevDict[abbrevCode]['attrs'].append([name, form])
+                    abbrevDict[idx][abbrevCode]['attrs'].append([name, form])
 
             if debug:
                 printStr = '%4s     %s   [%s]\n' % ('Num', 'TAG', 'Child')
                 printStr += '%s\n' % twoLine
-                for name, value in abbrevDict.items():
-                    if value['child']:
-                        children = 'has children'
-                    else:
-                        chidlren = 'no children'
 
-                     # tag name #
-                    if value['tag'] in ElfAnalyzer.DW_TAG_map:
-                        tag = ElfAnalyzer.DW_TAG_map[value['tag']]
-                    else:
-                        tag = None
-
-                    printStr += '%4s     %s   [%s]\n' % (name, tag, children)
-
-                    for item in value['attrs']:
-                        # name #
-                        if item[0] in ElfAnalyzer.DW_AT_map:
-                            name = ElfAnalyzer.DW_AT_map[item[0]]
+                for idx in range(len(abbrevDict)):
+                    printStr += '\n'
+                    for name, value in abbrevDict[idx].items():
+                        if value['child']:
+                            children = 'has children'
                         else:
-                            name = 'N/A'
+                            chidlren = 'no children'
 
-                        # form #
-                        if item[1] in ElfAnalyzer.DW_FORM_map:
-                            form = ElfAnalyzer.DW_FORM_map[item[1]]
+                         # tag name #
+                        if value['tag'] in ElfAnalyzer.DW_TAG_map:
+                            tag = ElfAnalyzer.DW_TAG_map[value['tag']]
                         else:
-                            form = 'N/A'
+                            tag = None
 
-                        printStr += '%4s %-20s %s\n' % (' ', name, form)
+                        printStr += '%4s     %s   [%s]\n' % \
+                            (name, tag, children)
+
+                        for item in value['attrs']:
+                            # name #
+                            if item[0] in ElfAnalyzer.DW_AT_map:
+                                name = ElfAnalyzer.DW_AT_map[item[0]]
+                            else:
+                                name = 'N/A'
+
+                            # form #
+                            if item[1] in ElfAnalyzer.DW_FORM_map:
+                                form = ElfAnalyzer.DW_FORM_map[item[1]]
+                            else:
+                                form = 'N/A'
+
+                            printStr += '%4s %-20s %s\n' % (' ', name, form)
 
                 printer(printStr)
                 printer(oneLine)
+
+            # recover original fd #
+            if isCompressed:
+                fd = origFd
+
+        # check debug_str section #
+        if 'DEBUGINFO' in SysMgr.environList and \
+            SysMgr.dwarfEnable and e_shdbgstr >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgstr)
+            # parse string section #
+            fd.seek(sh_offset)
+            dbgstr_section = fd.read(sh_size)
+        else:
+            dbgstr_section = ''
+
+        # check debug_line_str section #
+        if 'DEBUGINFO' in SysMgr.environList and \
+            SysMgr.dwarfEnable and e_shdbglinestr >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbglinestr)
+            # parse string section #
+            fd.seek(sh_offset)
+            dbglinestr_section = fd.read(sh_size)
+        else:
+            dbglinestr_section = ''
+
+        # check debug_info section #
+        if 'DEBUGINFO' in SysMgr.environList and \
+            SysMgr.dwarfEnable and e_shdbginfo >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbginfo)
+
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
+
+            if debug:
+                printer(
+                    '\n[%s Section]\n%s' % (shname, twoLine))
+
+            # set position #
+            fd.seek(sh_offset)
+
+            # decompress section #
+            origFd = fd
+            isCompressed = False
+            if shname.startswith('.z'):
+                decompSect, decompSize = self.unzip(fd, shname)
+                if decompSize:
+                    isCompressed = True
+                    origFd = fd
+                    sh_size = decompSize
+                    fd = MemoryFile(size=sh_offset+sh_size, name=shname)
+                    fd.seek(sh_offset)
+                    fd.write(decompSect)
+
+            # init variables #
+            pos = 0
+            idx = -1
+            error = False
+            pack = struct.pack
+            unpack = struct.unpack
+            table = fd.read(sh_size)
+
+            while 1:
+                # check final end #
+                if pos >= sh_size:
+                    break
+
+                # length #
+                size = unpack('I', table[pos:pos+4])[0]
+                pos += 4
+                addrPos = 4
+                # extended length 8 bytes are needed #
+                if size == 0xffffffff:
+                    size = unpack('Q', table[pos:pos+8])[0]
+                    pos += 8
+                    addrPos += 8
+
+                # format #
+                dwarfFormat = 64 if size == 0xFFFFFFFF else 32
+
+                # data #
+                startPos = pos - addrPos
+
+                # version #
+                ver = unpack('H', table[pos:pos+2])[0]
+                pos += 2
+
+                if ver >= 5:
+                    # unit type #
+                    unitType = unpack('B', table[pos:pos+1])[0]
+                    pos += 1
+
+                    # address size #
+                    addrSize = unpack('B', table[pos:pos+1])[0]
+                    pos += 1
+
+                    # debug_abbrev_offset #
+                    if dwarfFormat == 32:
+                        dao = unpack('I', table[pos:pos+4])[0]
+                        pos += 4
+                    else:
+                        dao = unpack('Q', table[pos:pos+8])[0]
+                        pos += 8
+                else:
+                    # unit type #
+                    unitType = None
+
+                    # debug_abbrev_offset #
+                    if dwarfFormat == 32:
+                        dao = unpack('I', table[pos:pos+4])[0]
+                        pos += 4
+                    else:
+                        dao = unpack('Q', table[pos:pos+8])[0]
+                        pos += 8
+
+                    # address size #
+                    addrSize = unpack('B', table[pos:pos+1])[0]
+                    pos += 1
+
+                if debug:
+                    printStr = '\nCompilation Unit @ offset 0x%x\n' % startPos
+                    printStr += '%-13s: 0x%x (%s-Bit)\n' % \
+                        ('Length', size, dwarfFormat)
+                    printStr += '%-13s: %s\n' % ('Version', ver)
+                    printStr += '%-13s: 0x%x\n' % ('Abbrev Offset', dao)
+                    printStr += '%-13s: %s\n' % ('Pointer Size', addrSize)
+                    if unitType:
+                        printStr += '%-13s: %s\n' % ('Unit Type', unitType)
+                    printer(printStr)
+                    printStr = '\n'
+
+                # update variables #
+                depth = 0
+                if idx+1 < len(abbrevDict):
+                    idx += 1
+
+                while 1:
+                    # abbrev_code #
+                    data = table[pos:pos+1024].decode('latin-1')
+                    abbrevCode, nsize = UtilMgr.decodeULEB128(data)
+                    origPos = pos
+                    pos += nsize
+
+                    # check end #
+                    if abbrevCode == 0:
+                        depth -= 1
+
+                        if debug:
+                            printer(' <%s><%x>: Abbrev Number: %s' % \
+                                (depth+1, origPos, abbrevCode))
+
+                        if depth == 0:
+                            break
+                        else:
+                            continue
+
+                    try:
+                        # get a DIE #
+                        if not abbrevCode in abbrevDict[idx]:
+                            raise Exception('no table')
+                        value = abbrevDict[idx][abbrevCode]
+                        tag = ElfAnalyzer.DW_TAG_map[value['tag']]
+                        child = value['child']
+                        attrs = value['attrs']
+
+                        # print #
+                        if debug:
+                            printStr = ' <%s><%x>: Abbrev Number: %s (%s)\n' % \
+                                (depth, origPos, abbrevCode, tag)
+
+                        # increase depth #
+                        if child:
+                            depth += 1
+
+                        # get data from FORM attributes #
+                        for attr in attrs:
+                            # name #
+                            if attr[0] in ElfAnalyzer.DW_AT_map:
+                                name = ElfAnalyzer.DW_AT_map[attr[0]]
+                            else:
+                                name = 'Unknown AT'
+
+                            # form #
+                            form = attr[1]
+                            if form in ElfAnalyzer.DW_FORM_map:
+                                formstr = ElfAnalyzer.DW_FORM_map[form]
+                            elif form in ElfAnalyzer.DW_AT_map:
+                                formstr = ElfAnalyzer.DW_AT_map[form]
+                            else:
+                                raise Exception('no form')
+                                sys.exit(0)
+
+                            # save original pos #
+                            origPos = pos
+
+                            # addr #
+                            if form == 0x1:
+                                sig = 'I' if addrSize == 32 else 'Q'
+                                value = unpack(
+                                    sig, table[pos:pos+addrSize])[0]
+                                pos += addrSize
+                            # addrx/udata/ref_udata/indirect #
+                            elif form in (0x1b, 0x0f, 0x15, 0x16):
+                                data = table[pos:pos+1024].decode('latin-1')
+                                value, nsize = UtilMgr.decodeULEB128(data)
+                                pos += nsize
+                            # addrx1/data1/strx1/flag/ref1 #
+                            elif form in (0x25, 0x0b, 0x25, 0x0c, 0x11):
+                                value = unpack('B', table[pos:pos+1])[0]
+                                pos += 1
+                            # addrx2/data2/strx2/ref2 #
+                            elif form in (0x26, 0x05, 0x26, 0x12):
+                                value = unpack('H', table[pos:pos+2])[0]
+                                pos += 2
+                            # addrx3 #
+                            elif form == 0x27:
+                                value = unpack('3B', table[pos:pos+3])[0]
+                                pos += 3
+                            # addrx4/data4/strx4/ref/ref4 #
+                            elif form in (0x28, 0x06, 0x28, 0x02, 0x13):
+                                value = unpack('I', table[pos:pos+4])[0]
+                                pos += 4
+                            # data8/ref8/ref_sig8 #
+                            elif form in (0x07, 0x14, 0x20):
+                                value = unpack('Q', table[pos:pos+8])[0]
+                                pos += 8
+                            # block/block1/block2/block4 #
+                            elif form in (0x09, 0x0a, 0x03, 0x04):
+                                # block1 #
+                                if form == 0x0a:
+                                    sig = 'B'
+                                    size = 1
+                                # block2 #
+                                elif form == 0x03:
+                                    sig = 'H'
+                                    size = 2
+                                # block4 #
+                                elif form == 0x04:
+                                    sig = 'I'
+                                    size = 4
+
+                                # block #
+                                if form == 0x9:
+                                    data = table[pos:pos+1024].decode('latin-1')
+                                    length, nsize = UtilMgr.decodeULEB128(data)
+                                    pos += nsize
+                                else:
+                                    # get size #
+                                    length = unpack(sig, table[pos:pos+size])[0]
+                                    pos += size
+
+                                # get data #
+                                value = table[pos:pos+length]
+                                pos += length
+                                value = unpack('B'*length, value)
+                            # sdata #
+                            elif form == 0x0d:
+                                data = table[pos:pos+1024].decode('latin-1')
+                                value, nsize = UtilMgr.decodeSLEB128(data)
+                                pos += nsize
+                            # string #
+                            elif form == 0x08:
+                                # convert string #
+                                value, length = self.getString(
+                                    table[pos:], retlen=True)
+                                pos += length+1
+                            # strp/sec_offset/line_strp/strp_alt/ref_alt #
+                            elif form in (0x0e, 0x17, 0x1f, 0x1f21, 0x1f20):
+                                if dwarfFormat == 32:
+                                    value = unpack('I', table[pos:pos+4])[0]
+                                    pos += 4
+                                else:
+                                    value = unpack('Q', table[pos:pos+8])[0]
+                                    pos += 8
+
+                                # strp #
+                                if form == 0x0e:
+                                    value = self.getString(
+                                        dbgstr_section, value)
+                                # line_strp #
+                                elif form == 0x1f:
+                                    value = self.getString(
+                                        dbglinestr_section, value)
+                            # strx3 #
+                            elif form == 0x27:
+                                value = unpack('3B', table[pos:pos+3])[0]
+                                pos += 3
+                            # ref_addr #
+                            elif form == 0x10:
+                                if ver == 2:
+                                    sig = 'I' if addrSize == 32 else 'Q'
+                                    value = unpack(
+                                        sig, table[pos:pos+addrSize])[0]
+                                    pos += addrSize
+                                elif dwarfFormat == 32:
+                                    value = unpack('I', table[pos:pos+4])[0]
+                                    pos += 4
+                                else:
+                                    value = unpack('Q', table[pos:pos+8])[0]
+                                    pos += 8
+                            # exprloc #
+                            elif form == 0x18:
+                                # get size #
+                                data = table[pos:pos+1024].decode('latin-1')
+                                length, nsize = UtilMgr.decodeULEB128(data)
+                                pos += nsize
+
+                                # get data #
+                                value = table[pos:pos+length]
+                                pos += length
+                                value = list(map(long, unpack('B'*length, value)))
+                            # flag_present #
+                            elif form == 0x19:
+                                value = 1
+                            else:
+                                SysMgr.printErr((
+                                    'failed to recognize %s(0x%x) attributes '
+                                    'from debug_info') % \
+                                        (form, form), True)
+                                sys.exit(0)
+
+                            # print #
+                            if debug:
+                                printStr += '    <%x>   %-18s: %s' % \
+                                    (origPos, name, value)
+                                printer(printStr)
+                                printStr = ''
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        error = True
+                        SysMgr.printErr((
+                            'failed to get %s(0x%x) attributes '
+                            'from debug_info') % \
+                                (abbrevCode, abbrevCode), True)
+                        break
+
+                # check error #
+                if error:
+                    break
+
+            if debug:
+                printer('%s\n' % oneLine)
+
+            # recover original fd #
+            if isCompressed:
+                fd = origFd
 
         # remove useless data #
         del self.attr['dynsymList']
