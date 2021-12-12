@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211210"
+__revision__ = "211212"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4659,15 +4659,20 @@ class UtilMgr(object):
     def decodeSLEB128(obj):
         size = 1
         value = 0
-        for b in obj:
-            value = (value << 7) + (ord(b) & 0x7F)
-            if (ord(b) & 0x80) == 0:
-                break
+
+        # get size #
+        for i, b in enumerate(obj):
+            b = ord(b)
+            value += ((b & 0x7F) << (i * 7))
+            if (b & 0x80) == 0: break
             size += 1
+
+        # decode data #
         obj = obj[:size]
         if ord(obj[-1]) & 0x40:
             # negative -> sign extend
             value |= - (1 << (7 * len(obj)))
+
         return value, size
 
 
@@ -4679,8 +4684,7 @@ class UtilMgr(object):
 
         # get size #
         for b in obj:
-            if (ord(b) & 0x80) == 0:
-                break
+            if (ord(b) & 0x80) == 0: break
             size += 1
 
         # decode data #
@@ -66148,8 +66152,7 @@ class ElfAnalyzer(object):
         'DW_OP_call_frame_cfa', 'DW_OP_stack_value',
         'DW_OP_GNU_push_tls_address'] + \
         ['DW_OP_lit%s' % idx for idx in range(32)] + \
-        ['DW_OP_reg%s' % idx for idx in range(32)] + \
-        ['DW_OP_breg%s' % idx for idx in range(32)]
+        ['DW_OP_reg%s' % idx for idx in range(32)]
     )
 
     DW_OPS_DEC_ARGS = set([
@@ -70568,6 +70571,103 @@ Section header string table index: %d
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbginfo)
 
+            def _decodeOp(value, dwarfFormat):
+                if not value:
+                    return None, None, ''
+
+                # check opcode #
+                op = value[0]
+                if not op in ElfAnalyzer.DW_OPS_NAMES_MAP:
+                    return None, None, ''
+
+                opcode = ElfAnalyzer.DW_OPS_NAMES_MAP[op]
+
+                # print data #
+                if debug:
+                    verbStr = "%s byte block: " % len(value)
+                    verbStr += ' '.join(list(map(hex, value)))
+                else:
+                    verbStr = None
+
+                # convert value type to bytes #
+                if not opcode in ElfAnalyzer.DW_OPS_NOARGS:
+                    vals = bytes(value[1:])
+
+                # decode value #
+                if opcode in ElfAnalyzer.DW_OPS_NOARGS:
+                    opval = None
+                elif opcode == 'DW_OP_addr':
+                    sig = 'I' if addrSize == 32 else 'Q'
+                    opval = unpack(sig, vals)[0]
+                elif opcode == 'DW_OP_addrx' or \
+                    opcode == 'DW_OP_constu' or \
+                    opcode == 'DW_OP_plus_uconst' or \
+                    opcode == 'DW_OP_regx' or \
+                    opcode == 'DW_OP_piece' or \
+                    opcode == 'DW_OP_GNU_convert':
+                    opval, nsize = UtilMgr.decodeULEB128(vals)
+                elif opcode == 'DW_OP_const1u' or \
+                    opcode == 'DW_OP_pick':
+                    opval = unpack('B', vals)[0]
+                elif opcode == 'DW_OP_const1s' or \
+                    opcode == 'DW_OP_deref_size' or \
+                    opcode == 'DW_OP_xderef_size':
+                    opval = unpack('b', vals)[0]
+                elif opcode == 'DW_OP_const2u' or \
+                    opcode == 'DW_OP_call2':
+                    opval = unpack('H', vals)[0]
+                elif opcode == 'DW_OP_const2s' or \
+                    opcode == 'DW_OP_bra' or \
+                    opcode == 'DW_OP_skip':
+                    opval = unpack('h', vals)[0]
+                elif opcode == 'DW_OP_const4u' or \
+                    opcode == 'DW_OP_call4':
+                    opval = unpack('I', vals)[0]
+                elif opcode == 'DW_OP_const4s':
+                    opval = unpack('i', vals)[0]
+                elif opcode == 'DW_OP_const8u':
+                    opval = unpack('Q', vals)[0]
+                elif opcode == 'DW_OP_const8s':
+                    opval = unpack('q', vals)[0]
+                elif opcode == 'DW_OP_call_ref' or \
+                    opcode == 'DW_OP_GNU_parameter_ref':
+                    sig = 'I' if dwarfFormat == 32 else 'Q'
+                    opval = unpack(sig, vals)[0]
+                elif opcode == 'DW_OP_fbreg' or \
+                    opcode.startswith('DW_OP_breg'):
+                    vals = vals.decode('latin-1')
+                    opval, nsize = UtilMgr.decodeSLEB128(vals)
+                # toDo: implement below codes #
+                elif opcode == 'DW_OP_bit_piece' or \
+                    opcode == 'DW_OP_GNU_regval_type':
+                    opval = None
+                elif opcode == 'DW_OP_bregx':
+                    opval = None
+                elif opcode == 'DW_OP_implicit_value':
+                    opval = None
+                elif opcode == 'DW_OP_GNU_entry_value':
+                    opval = None
+                elif opcode == 'DW_OP_GNU_const_type':
+                    opval = None
+                elif opcode == 'DW_OP_GNU_deref_type':
+                    opval = None
+                elif opcode == 'DW_OP_GNU_implicit_pointer':
+                    opval = None
+                else:
+                    SysMgr.printWarn(
+                        "failed to decode '%s' because no implementation" % \
+                            opcode)
+                    opval = None
+
+                if debug:
+                    if opval and not opcode in ElfAnalyzer.DW_OPS_DEC_ARGS:
+                        opval = hex(opval)
+
+                    verbStr += ' (%s%s)' % \
+                        (opcode, ': %s' % opval if opval else '')
+
+                return opcode, opval, verbStr
+
             # get symbol string #
             shname = self.getString(str_section, sh_name)
 
@@ -70718,6 +70818,8 @@ Section header string table index: %d
 
                         # get data from FORM attributes #
                         for attr in attrs:
+                            addStr = ''
+
                             # name #
                             if attr[0] in ElfAnalyzer.DW_AT_MAP:
                                 name = ElfAnalyzer.DW_AT_MAP[attr[0]]
@@ -70744,7 +70846,7 @@ Section header string table index: %d
                                 pos += addrSize
                             # addrx/udata/ref_udata/indirect #
                             elif form in (0x1b, 0x0f, 0x15, 0x16):
-                                data = table[pos:pos+1024].decode('latin-1')
+                                data = table[pos:pos+512].decode('latin-1')
                                 value, nsize = UtilMgr.decodeULEB128(data)
                                 pos += nsize
                             # addrx1/data1/strx1/flag/ref1 #
@@ -70763,6 +70865,9 @@ Section header string table index: %d
                             elif form in (0x28, 0x06, 0x28, 0x02, 0x13):
                                 value = unpack('I', table[pos:pos+4])[0]
                                 pos += 4
+
+                                if debug:
+                                    addStr += '<%x>' % value
                             # data8/ref8/ref_sig8 #
                             elif form in (0x07, 0x14, 0x20):
                                 value = unpack('Q', table[pos:pos+8])[0]
@@ -70784,29 +70889,29 @@ Section header string table index: %d
 
                                 # block #
                                 if form == 0x9:
-                                    data = table[pos:pos+1024].decode('latin-1')
-                                    length, nsize = UtilMgr.decodeULEB128(data)
+                                    data = table[pos:pos+512].decode('latin-1')
+                                    sz, nsize = UtilMgr.decodeULEB128(data)
                                     pos += nsize
                                 else:
                                     # get size #
-                                    length = unpack(sig, table[pos:pos+bsize])[0]
+                                    sz = unpack(sig, table[pos:pos+bsize])[0]
                                     pos += bsize
 
                                 # get data #
-                                value = table[pos:pos+length]
-                                pos += length
-                                value = unpack('B'*length, value)
+                                value = table[pos:pos+sz]
+                                pos += sz
+                                value = unpack('B'*sz, value)
                             # sdata #
                             elif form == 0x0d:
-                                data = table[pos:pos+1024].decode('latin-1')
+                                data = table[pos:pos+512].decode('latin-1')
                                 value, nsize = UtilMgr.decodeSLEB128(data)
                                 pos += nsize
                             # string #
                             elif form == 0x08:
                                 # convert string #
-                                value, length = self.getString(
+                                value, sz = self.getString(
                                     table[pos:], retlen=True)
-                                pos += length+1
+                                pos += sz+1
                             # strp/sec_offset/line_strp/strp_alt/ref_alt #
                             elif form in (0x0e, 0x17, 0x1f, 0x1f21, 0x1f20):
                                 if dwarfFormat == 32:
@@ -70844,14 +70949,19 @@ Section header string table index: %d
                             # exprloc #
                             elif form == 0x18:
                                 # get size #
-                                data = table[pos:pos+1024].decode('latin-1')
-                                length, nsize = UtilMgr.decodeULEB128(data)
+                                data = table[pos:pos+512].decode('latin-1')
+                                sz, nsize = UtilMgr.decodeULEB128(data)
                                 pos += nsize
 
                                 # get data #
-                                value = table[pos:pos+length]
-                                pos += length
-                                value = list(map(long, unpack('B'*length, value)))
+                                value = table[pos:pos+sz]
+                                pos += sz
+                                value = list(map(long, unpack('B'*sz, value)))
+
+                                # decode data #
+                                opcode, opval, verbStr = \
+                                    _decodeOp(value, dwarfFormat)
+                                addStr += verbStr
                             # flag_present #
                             elif form == 0x19:
                                 value = 1
@@ -70865,7 +70975,7 @@ Section header string table index: %d
                             # print #
                             if debug:
                                 printStr += '    <%x>   %-18s: %s' % \
-                                    (origPos, name, value)
+                                    (origPos, name, addStr if addStr else value)
                                 printer(printStr)
                                 printStr = ''
                     except SystemExit:
