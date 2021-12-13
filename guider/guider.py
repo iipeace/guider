@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211212"
+__revision__ = "211213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -65872,6 +65872,56 @@ class ElfAnalyzer(object):
     }
     DW_AT_MAP = {v: k for k, v in DW_AT.items()}
 
+    DW_LANG = {
+        "DW_LANG_C89":0x0001,
+        "DW_LANG_C":0x0002,
+        "DW_LANG_Ada83":0x0003,
+        "DW_LANG_C_plus_plus":0x0004,
+        "DW_LANG_Cobol74":0x0005,
+        "DW_LANG_Cobol85":0x0006,
+        "DW_LANG_Fortran77":0x0007,
+        "DW_LANG_Fortran90":0x0008,
+        "DW_LANG_Pascal83":0x0009,
+        "DW_LANG_Modula2":0x000a,
+        "DW_LANG_Java":0x000b,
+        "DW_LANG_C99":0x000c,
+        "DW_LANG_Ada95":0x000d,
+        "DW_LANG_Fortran95":0x000e,
+        "DW_LANG_PLI":0x000f,
+        "DW_LANG_ObjC":0x0010,
+        "DW_LANG_ObjC_plus_plus":0x0011,
+        "DW_LANG_UPC":0x0012,
+        "DW_LANG_D":0x0013,
+        "DW_LANG_Python":0x0014,
+        "DW_LANG_OpenCL":0x0015,
+        "DW_LANG_Go":0x0016,
+        "DW_LANG_Modula3":0x0017,
+        "DW_LANG_Haskell":0x0018,
+        "DW_LANG_C_plus_plus_03":0x0019,
+        "DW_LANG_C_plus_plus_11":0x001a,
+        "DW_LANG_OCaml":0x001b,
+        "DW_LANG_Rust":0x001c,
+        "DW_LANG_C11":0x001d,
+        "DW_LANG_Swift":0x001e,
+        "DW_LANG_Julia":0x001f,
+        "DW_LANG_Dylan":0x0020,
+        "DW_LANG_C_plus_plus_14":0x0021,
+        "DW_LANG_Fortran03":0x0022,
+        "DW_LANG_Fortran08":0x0023,
+        "DW_LANG_RenderScript":0x0024,
+        "DW_LANG_BLISS":0x0025,
+        "DW_LANG_Mips_Assembler":0x8001,
+        "DW_LANG_Upc":0x8765,
+        "DW_LANG_HP_Bliss":0x8003,
+        "DW_LANG_HP_Basic91":0x8004,
+        "DW_LANG_HP_Pascal91":0x8005,
+        "DW_LANG_HP_IMacro":0x8006,
+        "DW_LANG_HP_Assembler":0x8007,
+        "DW_LANG_GOOGLE_RenderScript":0x8e57,
+        "DW_LANG_BORLAND_Delphi":0xb000,
+    }
+    DW_LANG_MAP = {v: k for k, v in DW_LANG.items()}
+
     DW_FORM = {
         "DW_FORM_null":0x00,
         "DW_FORM_addr":0x01,
@@ -70697,6 +70747,8 @@ Section header string table index: %d
             error = False
             pack = struct.pack
             unpack = struct.unpack
+            decULEB = UtilMgr.decodeULEB128
+            decSLEB = UtilMgr.decodeSLEB128
             table = fd.read(sh_size)
 
             while 1:
@@ -70778,8 +70830,8 @@ Section header string table index: %d
 
                 while 1:
                     # abbrev_code #
-                    data = table[pos:pos+128].decode('latin-1')
-                    abbrevCode, nsize = UtilMgr.decodeULEB128(data)
+                    data = table[pos:pos+64].decode('latin-1')
+                    abbrevCode, nsize = decULEB(data)
                     origPos = pos
                     pos += nsize
 
@@ -70813,8 +70865,7 @@ Section header string table index: %d
                                 (depth, origPos, abbrevCode, tag)
 
                         # increase depth #
-                        if child:
-                            depth += 1
+                        if child: depth += 1
 
                         # get data from FORM attributes #
                         for attr in attrs:
@@ -70846,8 +70897,8 @@ Section header string table index: %d
                                 pos += addrSize
                             # addrx/udata/ref_udata/indirect #
                             elif form in (0x1b, 0x0f, 0x15, 0x16):
-                                data = table[pos:pos+512].decode('latin-1')
-                                value, nsize = UtilMgr.decodeULEB128(data)
+                                data = table[pos:pos+64].decode('latin-1')
+                                value, nsize = decULEB(data)
                                 pos += nsize
                             # addrx1/data1/strx1/flag/ref1 #
                             elif form in (0x25, 0x0b, 0x25, 0x0c, 0x11):
@@ -70865,9 +70916,6 @@ Section header string table index: %d
                             elif form in (0x28, 0x06, 0x28, 0x02, 0x13):
                                 value = unpack('I', table[pos:pos+4])[0]
                                 pos += 4
-
-                                if debug:
-                                    addStr += '<%x>' % value
                             # data8/ref8/ref_sig8 #
                             elif form in (0x07, 0x14, 0x20):
                                 value = unpack('Q', table[pos:pos+8])[0]
@@ -70889,8 +70937,8 @@ Section header string table index: %d
 
                                 # block #
                                 if form == 0x9:
-                                    data = table[pos:pos+512].decode('latin-1')
-                                    sz, nsize = UtilMgr.decodeULEB128(data)
+                                    data = table[pos:pos+64].decode('latin-1')
+                                    sz, nsize = decULEB(data)
                                     pos += nsize
                                 else:
                                     # get size #
@@ -70901,10 +70949,15 @@ Section header string table index: %d
                                 value = table[pos:pos+sz]
                                 pos += sz
                                 value = unpack('B'*sz, value)
+
+                                # decode data #
+                                opcode, opval, verbStr = \
+                                    _decodeOp(value, dwarfFormat)
+                                addStr += verbStr
                             # sdata #
                             elif form == 0x0d:
-                                data = table[pos:pos+512].decode('latin-1')
-                                value, nsize = UtilMgr.decodeSLEB128(data)
+                                data = table[pos:pos+64].decode('latin-1')
+                                value, nsize = decSLEB(data)
                                 pos += nsize
                             # string #
                             elif form == 0x08:
@@ -70949,8 +71002,8 @@ Section header string table index: %d
                             # exprloc #
                             elif form == 0x18:
                                 # get size #
-                                data = table[pos:pos+512].decode('latin-1')
-                                sz, nsize = UtilMgr.decodeULEB128(data)
+                                data = table[pos:pos+64].decode('latin-1')
+                                sz, nsize = decULEB(data)
                                 pos += nsize
 
                                 # get data #
@@ -70974,6 +71027,30 @@ Section header string table index: %d
 
                             # print #
                             if debug:
+                                if name == 'DW_AT_type' or \
+                                    name == 'DW_AT_sibling' or \
+                                    name == 'DW_AT_abstract_origin':
+                                    try:
+                                        addStr += '<%x>' % value
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        pass
+                                elif name == 'DW_AT_low_pc' or \
+                                    name == 'DW_AT_high_pc' or \
+                                    name == 'DW_AT_ranges' or \
+                                    name == 'DW_AT_location':
+                                    try:
+                                        addStr += hex(value)
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        pass
+                                elif name == 'DW_AT_language':
+                                    if value in ElfAnalyzer.DW_LANG_MAP:
+                                        lang = ElfAnalyzer.DW_LANG_MAP[value]
+                                        addStr += lang.lstrip('DW_LANG_')
+
                                 printStr += '    <%x>   %-18s: %s' % \
                                     (origPos, name, addStr if addStr else value)
                                 printer(printStr)
