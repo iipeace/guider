@@ -66239,6 +66239,18 @@ class ElfAnalyzer(object):
     }
     DW_OPS_NAMES_MAP = {v: k for k, v in DW_OPS_NAMES.items()}
 
+    DW_UT = {
+        "DW_UT_compile":0x01,
+        "DW_UT_type":0x02,
+        "DW_UT_partial":0x03,
+        "DW_UT_skeleton":0x04,
+        "DW_UT_split_compile":0x05,
+        "DW_UT_split_type":0x06,
+        "DW_UT_lo_user":0x80,
+        "DW_UT_hi_user":0xff,
+    }
+    DW_UT_MAP = {v: k for k, v in DW_UT.items()}
+
     DW_OPS_NOARGS = dict.fromkeys([
         'DW_OP_deref', 'DW_OP_dup', 'DW_OP_drop', 'DW_OP_over',
         'DW_OP_swap', 'DW_OP_swap', 'DW_OP_rot', 'DW_OP_xderef',
@@ -70543,6 +70555,7 @@ Section header string table index: %d
             # init variables #
             idx = 0
             abbrevDict = [{}]
+            typeDict = [{}]
 
             # data #
             pos = 0
@@ -70554,18 +70567,19 @@ Section header string table index: %d
                     break
 
                 # abbrev_code #
-                data = table[pos:pos+1024].decode('latin-1')
+                data = table[pos:pos+64].decode('latin-1')
                 abbrevCode, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
 
                 # create a new table #
                 if abbrevCode == 0:
                     abbrevDict.append({})
+                    typeDict.append({})
                     idx += 1
                     continue
 
                 # tag #
-                data = table[pos:pos+1024].decode('latin-1')
+                data = table[pos:pos+64].decode('latin-1')
                 tag, nsize = UtilMgr.decodeULEB128(data)
                 pos += nsize
 
@@ -70581,12 +70595,12 @@ Section header string table index: %d
 
                 while 1:
                     # name data #
-                    data = table[pos:pos+1024].decode('latin-1')
+                    data = table[pos:pos+64].decode('latin-1')
                     name, nsize = UtilMgr.decodeULEB128(data)
                     pos += nsize
 
                     # form data #
-                    data = table[pos:pos+1024].decode('latin-1')
+                    data = table[pos:pos+64].decode('latin-1')
                     form, nsize = UtilMgr.decodeULEB128(data)
                     pos += nsize
 
@@ -70606,7 +70620,7 @@ Section header string table index: %d
                         if value['child']:
                             children = 'has children'
                         else:
-                            chidlren = 'no children'
+                            children = 'no children'
 
                          # tag name #
                         if value['tag'] in ElfAnalyzer.DW_TAG_MAP:
@@ -70698,29 +70712,35 @@ Section header string table index: %d
                 elif opcode == 'DW_OP_addr':
                     sig = 'I' if addrSize == 32 else 'Q'
                     opval = unpack(sig, vals)[0]
-                elif opcode == 'DW_OP_addrx' or \
-                    opcode == 'DW_OP_constu' or \
-                    opcode == 'DW_OP_plus_uconst' or \
-                    opcode == 'DW_OP_regx' or \
-                    opcode == 'DW_OP_piece' or \
-                    opcode == 'DW_OP_GNU_convert':
+                elif opcode in (
+                    'DW_OP_addrx',
+                    'DW_OP_constu',
+                    'DW_OP_plus_uconst',
+                    'DW_OP_regx',
+                    'DW_OP_piece',
+                    'DW_OP_GNU_convert'):
                     opval, nsize = UtilMgr.decodeULEB128(vals)
-                elif opcode == 'DW_OP_const1u' or \
-                    opcode == 'DW_OP_pick':
+                elif opcode in (
+                    'DW_OP_const1u',
+                    'DW_OP_pick'):
                     opval = unpack('B', vals)[0]
-                elif opcode == 'DW_OP_const1s' or \
-                    opcode == 'DW_OP_deref_size' or \
-                    opcode == 'DW_OP_xderef_size':
+                elif opcode in (
+                    'DW_OP_const1s',
+                    'DW_OP_deref_size',
+                    'DW_OP_xderef_size'):
                     opval = unpack('b', vals)[0]
-                elif opcode == 'DW_OP_const2u' or \
-                    opcode == 'DW_OP_call2':
+                elif opcode in (
+                    'DW_OP_const2u',
+                    'DW_OP_call2'):
                     opval = unpack('H', vals)[0]
-                elif opcode == 'DW_OP_const2s' or \
-                    opcode == 'DW_OP_bra' or \
-                    opcode == 'DW_OP_skip':
+                elif opcode in (
+                    'DW_OP_const2s',
+                    'DW_OP_bra',
+                    'DW_OP_skip'):
                     opval = unpack('h', vals)[0]
-                elif opcode == 'DW_OP_const4u' or \
-                    opcode == 'DW_OP_call4':
+                elif opcode in (
+                    'DW_OP_const4u',
+                    'DW_OP_call4'):
                     opval = unpack('I', vals)[0]
                 elif opcode == 'DW_OP_const4s':
                     opval = unpack('i', vals)[0]
@@ -70728,30 +70748,33 @@ Section header string table index: %d
                     opval = unpack('Q', vals)[0]
                 elif opcode == 'DW_OP_const8s':
                     opval = unpack('q', vals)[0]
-                elif opcode == 'DW_OP_call_ref' or \
-                    opcode == 'DW_OP_GNU_parameter_ref':
+                elif opcode in (
+                    'DW_OP_call_ref',
+                    'DW_OP_GNU_parameter_ref'):
                     sig = 'I' if dwarfFormat == 32 else 'Q'
                     opval = unpack(sig, vals)[0]
                 elif opcode == 'DW_OP_fbreg' or \
                     opcode.startswith('DW_OP_breg'):
                     vals = vals.decode('latin-1')
                     opval, nsize = UtilMgr.decodeSLEB128(vals)
-                # toDo: implement below codes #
-                elif opcode == 'DW_OP_bit_piece' or \
-                    opcode == 'DW_OP_GNU_regval_type':
-                    opval = None
-                elif opcode == 'DW_OP_bregx':
-                    opval = None
-                elif opcode == 'DW_OP_implicit_value':
-                    opval = None
-                elif opcode == 'DW_OP_GNU_entry_value':
-                    opval = None
-                elif opcode == 'DW_OP_GNU_const_type':
-                    opval = None
-                elif opcode == 'DW_OP_GNU_deref_type':
-                    opval = None
-                elif opcode == 'DW_OP_GNU_implicit_pointer':
-                    opval = None
+                # toDo: implement below code #
+                    '''
+                    elif opcode == 'DW_OP_bit_piece' or \
+                        opcode == 'DW_OP_GNU_regval_type':
+                        opval = None
+                    elif opcode == 'DW_OP_bregx':
+                        opval = None
+                    elif opcode == 'DW_OP_implicit_value':
+                        opval = None
+                    elif opcode == 'DW_OP_GNU_entry_value':
+                        opval = None
+                    elif opcode == 'DW_OP_GNU_const_type':
+                        opval = None
+                    elif opcode == 'DW_OP_GNU_deref_type':
+                        opval = None
+                    elif opcode == 'DW_OP_GNU_implicit_pointer':
+                        opval = None
+                    '''
                 else:
                     SysMgr.printWarn(
                         "failed to decode '%s' because no implementation" % \
@@ -70798,6 +70821,7 @@ Section header string table index: %d
             unpack = struct.unpack
             decULEB = UtilMgr.decodeULEB128
             decSLEB = UtilMgr.decodeSLEB128
+            lstrip = UtilMgr.lstrip
             table = fd.read(sh_size)
 
             while 1:
@@ -70868,7 +70892,11 @@ Section header string table index: %d
                     printStr += '%-13s: 0x%x\n' % ('Abbrev Offset', dao)
                     printStr += '%-13s: %s\n' % ('Pointer Size', addrSize)
                     if unitType:
-                        printStr += '%-13s: %s\n' % ('Unit Type', unitType)
+                        addStr = ElfAnalyzer.DW_UT_MAP[unitType] \
+                            if unitType in ElfAnalyzer.DW_UT_MAP else ''
+                        addStr = ' (%s)' % addStr if addStr else ''
+                        printStr += '%-13s: %s%s\n' % \
+                            ('Unit Type', unitType, addStr)
                     printer(printStr)
                     printStr = '\n'
 
@@ -70904,7 +70932,8 @@ Section header string table index: %d
                         if not abbrevCode in abbrevDict[idx]:
                             raise Exception('no table')
                         value = abbrevDict[idx][abbrevCode]
-                        tag = ElfAnalyzer.DW_TAG_MAP[value['tag']]
+                        tagid = value['tag']
+                        tag = ElfAnalyzer.DW_TAG_MAP[tagid]
                         child = value['child']
                         attrs = value['attrs']
 
@@ -70912,6 +70941,10 @@ Section header string table index: %d
                         if debug:
                             printStr = ' <%s><%x>: Abbrev Number: %s (%s)\n' % \
                                 (depth, origPos, abbrevCode, tag)
+
+                        # base_type #
+                        if tagid == 0x24:
+                            pass
 
                         # increase depth #
                         if child: depth += 1
@@ -70921,8 +70954,9 @@ Section header string table index: %d
                             addStr = ''
 
                             # name #
-                            if attr[0] in ElfAnalyzer.DW_AT_MAP:
-                                name = ElfAnalyzer.DW_AT_MAP[attr[0]]
+                            at = attr[0]
+                            if at in ElfAnalyzer.DW_AT_MAP:
+                                name = ElfAnalyzer.DW_AT_MAP[at]
                             else:
                                 name = 'Unknown AT'
 
@@ -71076,33 +71110,37 @@ Section header string table index: %d
 
                             # print #
                             if debug:
-                                if name == 'DW_AT_type' or \
-                                    name == 'DW_AT_sibling' or \
-                                    name == 'DW_AT_abstract_origin':
+                                # type/sibling/abstract_origin #
+                                if at in (0x49,0x01,0x31):
                                     try:
                                         addStr += '<%x>' % value
                                     except SystemExit:
                                         sys.exit(0)
                                     except:
                                         pass
-                                elif name == 'DW_AT_low_pc' or \
-                                    name == 'DW_AT_high_pc' or \
-                                    name == 'DW_AT_ranges' or \
-                                    name == 'DW_AT_location':
+                                # low_pc/high_pc/ranges/location #
+                                elif at in (0x11, 0x12, 0x55, 0x02):
                                     try:
                                         addStr += hex(value)
                                     except SystemExit:
                                         sys.exit(0)
                                     except:
                                         pass
-                                elif name == 'DW_AT_language':
+                                # language #
+                                elif at == 0x13:
                                     if value in ElfAnalyzer.DW_LANG_MAP:
                                         lang = ElfAnalyzer.DW_LANG_MAP[value]
-                                        addStr += UtilMgr.lstrip(
-                                            lang, 'DW_LANG_')
+                                        addStr += lstrip(lang, 'DW_LANG_')
+                                # encoding #
+                                elif at == 0x3e:
+                                    if value in ElfAnalyzer.DW_ATE_MAP:
+                                        enc = ElfAnalyzer.DW_ATE_MAP[value]
+                                        addStr += '%s (%s)' % \
+                                            (value, lstrip(enc, 'DW_ATE_'))
 
                                 printStr += '    <%x>   %-18s: %s' % \
-                                    (origPos, name, addStr if addStr else value)
+                                    (origPos, name, addStr \
+                                        if addStr else value)
                                 printer(printStr)
                                 printStr = ''
                     except SystemExit:
