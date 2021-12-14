@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211213"
+__revision__ = "211214"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4335,6 +4335,54 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def lstrip(string, wordList):
+        '''
+        str.lstrip() removes all heading characters including all characters
+        in the string argument.
+        ex) '12345'.lstrip('321') -> '45'
+        ex) '12345'.lstrip('31') -> '2345'
+        '''
+
+        if type(wordList) != list:
+            wordList = [wordList]
+
+        for word in wordList:
+            if string.startswith(word):
+                string = string[len(word):]
+
+        return string
+
+
+
+    @staticmethod
+    def rstrip(string, wordList):
+        '''
+        str.rstrip() removes all ending characters including all characters
+        in the string argument.
+        ex) '12345'.rstrip('543') -> '12'
+        ex) '12345'.rstrip('53') -> '1234'
+        '''
+
+        if type(wordList) != list:
+            wordList = [wordList]
+
+        for word in wordList:
+            if string.endswith(word):
+                return string[:-len(word)]
+
+        return string
+
+
+
+    @staticmethod
+    def strip(string, wordList):
+        ret = UtilMgr.lstrip(string, wordList)
+        ret = UtilMgr.rstrip(string, wordList)
+        return ret
+
+
+
+    @staticmethod
     def getInodes(
         path, inodeFilter=[], nameFilter=[], fileAttr=None, verb=True):
 
@@ -6604,15 +6652,15 @@ class NetworkMgr(object):
                     return res
 
         def _onList(req):
-            SysMgr.printInfo(req.lstrip('LIST:'))
+            SysMgr.printInfo(UtilMgr.lstrip(req, 'LIST:'))
             return True
 
         def _onClear(req):
-            SysMgr.printInfo(req.lstrip('CLEAR:'))
+            SysMgr.printInfo(UtilMgr.lstrip(req, 'CLEAR:'))
             return True
 
         def _onJobs(req):
-            SysMgr.printInfo(req.lstrip('JOBS:'))
+            SysMgr.printInfo(UtilMgr.lstrip(req, 'JOBS:'))
             return True
 
         def _onRun(req, onlySocket):
@@ -7018,7 +7066,7 @@ class NetworkMgr(object):
                 return True
             elif msg.startswith('MSG:'):
                 # print message in the packet #
-                SysMgr.printInfo(msg.strip('MSG:'))
+                SysMgr.printInfo(UtilMgr.lstrip(msg, 'MSG:'))
 
                 # send ACK to prevent receiving two packegs at once #
                 connObj.send('ACK')
@@ -28575,7 +28623,7 @@ Copyright:
         successCnt = 0
         cpuPath = '/sys/devices/system/cpu'
         cpuList = \
-            [ coreId.strip('cpu') for coreId in os.listdir(cpuPath) \
+            [ UtilMgr.lstrip(coreId, 'cpu') for coreId in os.listdir(cpuPath) \
             if coreId.startswith('cpu') ]
 
         for item in cpuList:
@@ -34263,7 +34311,7 @@ Copyright:
                         lineLen += (len(item) + 5)
 
                     SysMgr.printPipe(
-                        "%3s) %s  " % (idx, item.lstrip('sys_')),
+                        "%3s) %s  " % (idx, UtilMgr.lstrip(item, 'sys_')),
                         newline=newline)
 
                 SysMgr.printPipe()
@@ -35999,7 +36047,7 @@ Copyright:
             # launch Guider #
             if cmd.startswith('GUIDER '):
                 # build command list #
-                cmdList = UtilMgr.parseCommand(cmd.lstrip('GUIDER '))
+                cmdList = UtilMgr.parseCommand(UtilMgr.lstrip(cmd, 'GUIDER '))
 
                 # launch command #
                 try:
@@ -37945,7 +37993,7 @@ Copyright:
                 cmd = 'ping'
 
             # get args #
-            args = uinput.strip(cmd).strip(cmd.upper())
+            args = UtilMgr.lstrip(uinput, [cmd, cmd.upper()])
             if args and not args[0].isdigit():
                 args = args[1:]
 
@@ -38565,7 +38613,7 @@ Copyright:
                 if line.startswith('[Response Time]'):
                     for item in line.split('['):
                         if item.startswith('Task:'):
-                            task = item.lstrip('Task:').strip().rstrip(']')
+                            task = item[5:].strip().rstrip(']')
                     startPos = idx+4
                     break
 
@@ -42715,7 +42763,7 @@ Copyright:
             def __setRepeat(uinput):
                 try:
                     cmd = 'repeat:'
-                    count = uinput.strip(cmd).strip(cmd.upper())
+                    count = UtilMgr.lstrip(uinput, [cmd, cmd.upper()])
 
                     # set repeat count #
                     SysMgr.repeatCount = long(count)
@@ -49475,7 +49523,8 @@ class DbusMgr(object):
                 envList = SysMgr.getEnv(tid)
                 for env in envList:
                     if env.startswith(ADDRENV):
-                        address = c_char_p(env.lstrip(ADDRENV)[1:].encode())
+                        renv = UtilMgr.lstrip(env, ADDRENV)[1:].encode()
+                        address = c_char_p(renv)
                         conn = dbusObj.dbus_connection_open(
                             address, DbusMgr.getErrP())
                         break
@@ -51560,13 +51609,13 @@ class DbusMgr(object):
                         for item in fd.readlines():
                             item = item.strip()
                             if item.startswith('<listen>'):
-                                item = item.lstrip('<listen>')
-                                item = item.split('</listen>')[0]
+                                item = UtilMgr.lstrip(item, '<listen>')
+                                item = UtilMgr.rstrip(item, '</listen>')
                                 item = item.strip()
                                 listen = item
                             if item.startswith('<type>'):
-                                item = item.lstrip('<type>')
-                                item = item.split('</type>')[0]
+                                item = UtilMgr.lstrip(item, '<type>')
+                                item = UtilMgr.rstrip(item, '</type>')
                                 item = item.strip()
                                 bus = item
                 except SystemExit:
@@ -60379,7 +60428,7 @@ typedef struct {
                                 'symbol': origSym,
                                 'return': retstr.lstrip('='),
                                 'elapsed': elapsed.lstrip('/'),
-                                'caller': addStr.lstrip('-> ')
+                                'caller': UtilMgr.lstrip(addStr, '-> ')
                             }
                         else:
                             callString = '\n%s %s%s%s%s[%s]%s%s%s' % \
@@ -60397,7 +60446,7 @@ typedef struct {
                             'symbol': sym,
                             'return': retstr.lstrip('='),
                             'elapsed': elapsed.lstrip('/'),
-                            'caller': addStr.lstrip('-> ')
+                            'caller': UtilMgr.lstrip(addStr, '-> ')
                         }
                     # build string output #
                     else:
@@ -71049,7 +71098,8 @@ Section header string table index: %d
                                 elif name == 'DW_AT_language':
                                     if value in ElfAnalyzer.DW_LANG_MAP:
                                         lang = ElfAnalyzer.DW_LANG_MAP[value]
-                                        addStr += lang.lstrip('DW_LANG_')
+                                        addStr += UtilMgr.lstrip(
+                                            lang, 'DW_LANG_')
 
                                 printStr += '    <%x>   %-18s: %s' % \
                                     (origPos, name, addStr if addStr else value)
