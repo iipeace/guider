@@ -538,7 +538,7 @@ Output
 
 >>>
            
-    # python3 guider/guider.py  btrace -g yes -H -c \|getret
+    # python3 guider/guider.py  btrace -g yes -H -c "*|getret"
 
     0.532473       0x2cf0/0x560d7fd28cf0(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
     0.532488         0x4c40/0x560d7fd2ac40(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
@@ -905,34 +905,34 @@ Output
                ID                 OPT    NrDev        INODE         Size           FS PATH                                                                       
     ==========================================================================================================================================================
               TOTAL             WRITE                              16.0K 
-                                         253:0                     16.0K         ext4 / <rw,relatime>                                                            
-                                                          0        16.0K                                                                                         
-                                 READ                             131.8M 
-                                           0:3                      1.4M            ? ?                                                                          
-                                                          0         1.4M                                                                                         
-                                         253:0                    130.4M         ext4 / <rw,relatime>                                                            
-                                                   24520383       100.0M              /home/peacelee/guider/guider/TEST2[100.0M]                                 
-                                                   24520372        20.0M              /home/peacelee/guider/guider/TEST[20.0M]                                   
-                                                   24520353        10.0M              /home/peacelee/guider/guider/TEST3[10.0M]                                  
-                                                    6030383        84.0K                                                                                         
-                                                    6819964        72.0K                                                                                         
-                                                    6029790        68.0K                                                                                         
-                                                    6031485        44.0K                                                                                         
-                                                    6031543        40.0K                                                                                         
-                                                    6819797        16.0K                                                                                         
-                                                    6035523        16.0K                                                                                         
-                                                          0        16.0K                                                                                         
-                                                    6818557         4.0K                                                                                         
-                                                    6818689         4.0K                                                                                         
-                                                    7078584         4.0K                                                                                         
+                                         253:0                     16.0K         ext4 / <rw,relatime>
+                                                          0        16.0K
+                                 READ                             131.8M
+                                           0:3                      1.4M            ? ?
+                                                          0         1.4M
+                                         253:0                    130.4M         ext4 / <rw,relatime>
+                                                   24520383       100.0M              /home/peacelee/guider/guider/TEST2[100.0M]
+                                                   24520372        20.0M              /home/peacelee/guider/guider/TEST[20.0M]
+                                                   24520353        10.0M              /home/peacelee/guider/guider/TEST3[10.0M]
+                                                    6030383        84.0K
+                                                    6819964        72.0K
+                                                    6029790        68.0K
+                                                    6031485        44.0K
+                                                    6031543        40.0K
+                                                    6819797        16.0K
+                                                    6035523        16.0K
+                                                          0        16.0K
+                                                    6818557         4.0K
+                                                    6818689         4.0K
+                                                    7078584         4.0K
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-              guider(4011197)    READ                             100.0M 
-                                         253:0                    100.0M         ext4 / <rw,relatime>                                                            
-                                                   24520383       100.0M              /home/peacelee/guider/guider/TEST2[100.0M]                                 
+              guider(4011197)    READ                             100.0M
+                                         253:0                    100.0M         ext4 / <rw,relatime>
+                                                   24520383       100.0M              /home/peacelee/guider/guider/TEST2[100.0M]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-              guider(4011193)    READ                              20.0M 
-                                         253:0                     20.0M         ext4 / <rw,relatime>                                                            
-                                                   24520372        20.0M              /home/peacelee/guider/guider/TEST[20.0M]                                   
+              guider(4011193)    READ                              20.0M
+                                         253:0                     20.0M         ext4 / <rw,relatime>
+                                                   24520372        20.0M              /home/peacelee/guider/guider/TEST[20.0M]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
        
 >>>

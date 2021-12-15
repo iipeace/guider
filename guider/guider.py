@@ -70832,6 +70832,10 @@ Section header string table index: %d
                 if pos >= sh_size:
                     break
 
+                # pos variables #
+                parentPos = None
+                posStack = []
+
                 # length #
                 size = unpack('I', table[pos:pos+4])[0]
                 pos += 4
@@ -70918,6 +70922,10 @@ Section header string table index: %d
                     # check end #
                     if abbrevCode == 0:
                         depth -= 1
+                        if posStack:
+                            parentPos = posStack.pop()
+                        else:
+                            parentPos = None
 
                         # print #
                         if debug:
@@ -70942,15 +70950,36 @@ Section header string table index: %d
 
                         # print #
                         if debug:
-                            printStr = ' <%s><%x>: Abbrev Number: %s (%s)\n' % \
+                            printStr = \
+                                ' <%s><%x>: Abbrev Number: %s (%s)\n' % \
                                 (depth, origPos, abbrevCode, tag)
 
-                        # base_type #
-                        if tagid == 0x24:
-                            pass
-
                         # increase depth #
-                        if child: depth += 1
+                        if child:
+                            depth += 1
+                            if parentPos:
+                                posStack.append(parentPos)
+                            parentPos = origPos
+
+                        # register variable type #
+                        typeAttr = typeDict[idx][origPos] = {'type': tagid}
+
+                        # register member/formal_parameter to parent #
+                        if tagid in (0x0d, 0x05, 0x34):
+                            # set name #
+                            if tagid  == 0x0d:
+                                arg = 'member'
+                            elif tagid == 0x05:
+                                arg = 'param'
+                            elif tagid == 0x34:
+                                arg = 'var'
+
+                            # register value #
+                            typeAttr['parent'] = parentPos
+                            if parentPos in typeDict[idx]:
+                                parent = typeDict[idx][parentPos]
+                                parent.setdefault(arg, [])
+                                parent[arg].append(origPos)
 
                         # get data from FORM attributes #
                         for attr in attrs:
@@ -71111,12 +71140,43 @@ Section header string table index: %d
                                         (form, form), True)
                                 sys.exit(0)
 
+                            # add variable attributes #
+                            if not typeAttr:
+                                pass
+                            # byte_size #
+                            elif at == 0x0b:
+                                typeAttr['size'] = value
+                            # encoding #
+                            elif at == 0x3e:
+                                typeAttr['encoding'] = value
+                            # name #
+                            elif at == 0x03:
+                                typeAttr['name'] = value
+                            # type #
+                            elif at == 0x49:
+                                typeAttr['type'] = value
+                            # sibling #
+                            elif at == 0x01:
+                                typeAttr['sibling'] = value
+                            # member_location #
+                            elif at == 0x38:
+                                typeAttr['offset'] = value
+                            # const_value #
+                            elif at == 0x1c:
+                                typeAttr['value'] = value
+                            # frame_base #
+                            elif at == 0x40:
+                                typeAttr['frame'] = value
+                            # location #
+                            elif at == 0x02:
+                                typeAttr['location'] = value
+
                             # print #
                             if debug:
                                 # type/sibling/abstract_origin #
                                 if at in (0x49,0x01,0x31):
                                     try:
-                                        addStr += '<%x>' % value
+                                        addStr += '<0x%x>' % value
                                     except SystemExit:
                                         sys.exit(0)
                                     except:
@@ -71166,6 +71226,9 @@ Section header string table index: %d
 
             if debug:
                 printer('%s\n' % oneLine)
+                if 'DEBUGINFODICT' in SysMgr.environList:
+                    SysMgr.printPipe(UtilMgr.convDict2Str(
+                        typeDict, pretty=True))
 
             # recover original fd #
             if isCompressed:
@@ -79335,14 +79398,14 @@ class TaskAnalyzer(object):
                     # build final string #
                     inodeStr = '%s%s' % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                        "{5:>12} {6:<75}\n").format(
+                        "{5:>12} {6:<1}\n").format(
                             ' ', ' ', ' ', inode, size, ' ', path))
 
                 opSize += totalSize
 
                 devStr = '%s%s' % (devStr, ((
                     "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                    "{5:>12} {6:<75}\n").format(
+                    "{5:>12} {6:<1}\n").format(
                         '', '', did, '', convSize(totalSize), fs, dev)))
                 devStr += inodeStr
 
@@ -79407,14 +79470,14 @@ class TaskAnalyzer(object):
                         # build final string #
                         inodeStr = '%s%s' % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                            "{5:>12} {6:<75}\n").format(
+                            "{5:>12} {6:<1}\n").format(
                                 ' ', ' ', ' ', inode, size, ' ', path))
 
                     opSize += totalSize
 
                     devStr = '%s%s' % (devStr, ((
                         "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                        "{5:>12} {6:<75}\n").format(
+                        "{5:>12} {6:<1}\n").format(
                             '', '', did, '', convSize(totalSize), fs, dev)))
                     devStr += inodeStr
 
@@ -80721,9 +80784,10 @@ class TaskAnalyzer(object):
     @staticmethod
     def parseProcLine(index, procLine):
         TA = TaskAnalyzer
+        procIndexData = TA.procIntData[index]
 
         # Get time info #
-        if 'time' not in TA.procIntData[index]:
+        if 'time' not in procIndexData:
             m = re.match((
                 r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+'
                 r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+'
@@ -80733,12 +80797,12 @@ class TaskAnalyzer(object):
                 r'/(?P<nrThread>[0-9]+)'), procLine)
             if m:
                 d = m.groupdict()
-                TA.procIntData[index]['time'] = d['time']
-                TA.procIntData[index]['nrCtxt'] = d['nrCtxt']
-                TA.procIntData[index]['nrIrq'] = d['nrIrq']
-                TA.procIntData[index]['nrCore'] = d['nrCore']
-                TA.procIntData[index]['nrProc'] = d['nrProc']
-                TA.procIntData[index]['nrThread'] = d['nrThread']
+                procIndexData['time'] = d['time']
+                procIndexData['nrCtxt'] = d['nrCtxt']
+                procIndexData['nrIrq'] = d['nrIrq']
+                procIndexData['nrCore'] = d['nrCore']
+                procIndexData['nrProc'] = d['nrProc']
+                procIndexData['nrThread'] = d['nrThread']
             return
 
         # define converter #
@@ -80748,7 +80812,7 @@ class TaskAnalyzer(object):
         tokenList = procLine.split('|')
 
         # Get Total resource usage #
-        if 'total' not in TA.procIntData[index] and \
+        if 'total' not in procIndexData and \
             tokenList[0].startswith('Total'):
 
             # CPU & BLOCK stat #
@@ -80777,19 +80841,19 @@ class TaskAnalyzer(object):
             elif TA.procTotData['total']['cpuMin'] > cpu:
                 TA.procTotData['total']['cpuMin'] = cpu
 
-            TA.procIntData[index]['total'] = dict(TA.init_procIntData)
+            procIndexData['total'] = dict(TA.init_procIntData)
 
             # save CPU usage on this interval #
             try:
-                TA.procIntData[index]['total']['cpu'] = cpu
+                procIndexData['total']['cpu'] = cpu
             except:
-                TA.procIntData[index]['total']['cpu'] = 0
+                procIndexData['total']['cpu'] = 0
 
             # save blkwait on this interval #
             try:
-                TA.procIntData[index]['total']['blkwait'] = long(d['block'])
+                procIndexData['total']['blkwait'] = long(d['block'])
             except:
-                TA.procIntData[index]['total']['blkwait'] = 0
+                procIndexData['total']['blkwait'] = 0
 
             # MEM stat #
             m = re.match((
@@ -80820,16 +80884,16 @@ class TaskAnalyzer(object):
             if TA.procTotData['total']['maxMem'] < freeMem:
                 TA.procTotData['total']['maxMem'] = freeMem
 
-            TA.procIntData[index]['total']['mem'] = freeMem
-            TA.procIntData[index]['total']['memper'] = freeMemPer
-            TA.procIntData[index]['total']['anonmem'] = anonMem
-            TA.procIntData[index]['total']['cachemem'] = cacheMem
-            TA.procIntData[index]['total']['kernelmem'] = kernelMem
+            procIndexData['total']['mem'] = freeMem
+            procIndexData['total']['memper'] = freeMemPer
+            procIndexData['total']['anonmem'] = anonMem
+            procIndexData['total']['cachemem'] = cacheMem
+            procIndexData['total']['kernelmem'] = kernelMem
 
             try:
-                TA.procIntData[index]['total']['blk'] = tokenList[5]
+                procIndexData['total']['blk'] = tokenList[5]
             except:
-                TA.procIntData[index]['total']['blk'] = '-'
+                procIndexData['total']['blk'] = '-'
 
             m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokenList[3])
             if not m:
@@ -80837,22 +80901,22 @@ class TaskAnalyzer(object):
 
             d = m.groupdict()
 
-            TA.procIntData[index]['total']['swap'] = long(d['swap'])
+            procIndexData['total']['swap'] = long(d['swap'])
 
             try:
-                TA.procIntData[index]['total']['rclm'] = tokenList[4].strip()
+                procIndexData['total']['rclm'] = tokenList[4].strip()
             except:
-                TA.procIntData[index]['total']['rclm'] = '-'
+                procIndexData['total']['rclm'] = '-'
 
             try:
-                TA.procIntData[index]['total']['nrFlt'] = long(tokenList[6])
+                procIndexData['total']['nrFlt'] = long(tokenList[6])
             except:
-                TA.procIntData[index]['total']['nrFlt'] = '-'
+                procIndexData['total']['nrFlt'] = '-'
 
             try:
-                TA.procIntData[index]['total']['netIO'] = tokenList[11].strip()
+                procIndexData['total']['netIO'] = tokenList[11].strip()
             except:
-                TA.procIntData[index]['total']['netIO'] = '-'
+                procIndexData['total']['netIO'] = '-'
 
             return
 
@@ -80866,8 +80930,7 @@ class TaskAnalyzer(object):
                 gpu = d['gpu'].strip()
                 usage = long(d['usage'])
 
-                TA.procIntData[index]['total'].setdefault(
-                    'gpu', {})
+                procIndexData['total'].setdefault('gpu', {})
                 TA.procTotData['total'].setdefault('gpu', {})
 
                 try:
@@ -80884,7 +80947,7 @@ class TaskAnalyzer(object):
                     TA.procTotData['total']['gpu'][gpu]['max'] = usage
 
                 try:
-                    TA.procIntData[index]['total']['gpu'][gpu] = usage
+                    procIndexData['total']['gpu'][gpu] = usage
                 except:
                     pass
 
@@ -80892,8 +80955,7 @@ class TaskAnalyzer(object):
 
         # Get Storage resource usage #
         elif len(tokenList) == 12 and tokenList[0][0] == '/':
-            TA.procIntData[index]['total'].setdefault('storage', {})
-
+            procIndexData['total'].setdefault('storage', {})
             TA.procTotData['total'].setdefault('storage', {})
 
             try:
@@ -80901,7 +80963,7 @@ class TaskAnalyzer(object):
                 dev = tokenList[0].strip()
                 dev = dev[dev.rfind('/')+1:]
 
-                TA.procIntData[index]['total']['storage'].setdefault(dev, {})
+                procIndexData['total']['storage'].setdefault(dev, {})
                 TA.procTotData['total']['storage'].setdefault(dev, {})
 
                 # get busy time and average queue-length #
@@ -80917,28 +80979,28 @@ class TaskAnalyzer(object):
 
                 # busy #
                 try:
-                    TA.procIntData[index]['total']['storage'][dev]['busy'] = busy
+                    procIndexData['total']['storage'][dev]['busy'] = busy
                     TA.procTotData['total']['storage'][dev]['busy'] += busy
                 except:
                     TA.procTotData['total']['storage'][dev]['busy'] = busy
 
                 # avq #
                 try:
-                    TA.procIntData[index]['total']['storage'][dev]['avq'] = avq
+                    procIndexData['total']['storage'][dev]['avq'] = avq
                     TA.procTotData['total']['storage'][dev]['avq'] += avq
                 except:
                     TA.procTotData['total']['storage'][dev]['avq'] = avq
 
                 # read #
                 try:
-                    TA.procIntData[index]['total']['storage'][dev]['read'] = read
+                    procIndexData['total']['storage'][dev]['read'] = read
                     TA.procTotData['total']['storage'][dev]['read'] += read
                 except:
                     TA.procTotData['total']['storage'][dev]['read'] = read
 
                 # write #
                 try:
-                    TA.procIntData[index]['total']['storage'][dev]['write'] = \
+                    procIndexData['total']['storage'][dev]['write'] = \
                         write
                     TA.procTotData['total']['storage'][dev]['write'] += write
                 except:
@@ -80946,7 +81008,7 @@ class TaskAnalyzer(object):
 
                 # freediff #
                 try:
-                    TA.procIntData[index]['total']['storage'][dev]['free'] = \
+                    procIndexData['total']['storage'][dev]['free'] = \
                         freeDiff
                     TA.procTotData['total']['storage'][dev]['free'] += freeDiff
                 except:
@@ -80966,15 +81028,14 @@ class TaskAnalyzer(object):
                 tokenList[0].strip() == 'Dev':
                 return
 
-            TA.procIntData[index]['total'].setdefault('netdev', {})
-
+            procIndexData['total'].setdefault('netdev', {})
             TA.procTotData['total'].setdefault('netdev', {})
 
             try:
                 # get device name #
                 dev = tokenList[0].strip()
 
-                TA.procIntData[index]['total']['netdev'].setdefault(dev, {})
+                procIndexData['total']['netdev'].setdefault(dev, {})
                 TA.procTotData['total']['netdev'].setdefault(dev, {})
 
                 # get storage stats in MB #
@@ -80983,14 +81044,14 @@ class TaskAnalyzer(object):
 
                 # recv #
                 try:
-                    TA.procIntData[index]['total']['netdev'][dev]['recv'] = recv
+                    procIndexData['total']['netdev'][dev]['recv'] = recv
                     TA.procTotData['total']['netdev'][dev]['recv'] += recv
                 except:
                     TA.procTotData['total']['netdev'][dev]['recv'] = recv
 
                 # tran #
                 try:
-                    TA.procIntData[index]['total']['netdev'][dev]['tran'] = tran
+                    procIndexData['total']['netdev'][dev]['tran'] = tran
                     TA.procTotData['total']['netdev'][dev]['tran'] += tran
                 except:
                     TA.procTotData['total']['netdev'][dev]['tran'] = tran
@@ -81017,7 +81078,6 @@ class TaskAnalyzer(object):
 
             try:
                 TA.procTotData['total'].setdefault(target, {})
-
                 TA.procTotData['total'][target][system]['usage'] += usage
 
                 if TA.procTotData['total'][target][system]['min'] > usage:
@@ -81031,8 +81091,8 @@ class TaskAnalyzer(object):
                 TA.procTotData['total'][target][system]['max'] = usage
 
             try:
-                TA.procIntData[index]['total'].setdefault(target, {})
-                TA.procIntData[index]['total'][target][system] = usage
+                procIndexData['total'].setdefault(target, {})
+                procIndexData['total'][target][system] = usage
             except:
                 pass
 
@@ -81059,8 +81119,8 @@ class TaskAnalyzer(object):
                 TA.procTotData['total'][target][system]['max'] = usage
 
             try:
-                TA.procIntData[index]['total'].setdefault(target, {})
-                TA.procIntData[index]['total'][target][system] = usage
+                procIndexData['total'].setdefault(target, {})
+                procIndexData['total'][target][system] = usage
             except:
                 pass
 
@@ -81202,16 +81262,16 @@ class TaskAnalyzer(object):
             TA.procTotData[pid]['lastMem'] = rss
 
         # save process stats on this interval #
-        if pid not in TA.procIntData[index]:
-            TA.procIntData[index][pid] = dict(TA.init_procIntData)
-            TA.procIntData[index][pid]['cpu'] = cpu
-            TA.procIntData[index][pid]['dly'] = dly
-            TA.procIntData[index][pid]['vss'] = vss
-            TA.procIntData[index][pid]['blk'] = blk
-            TA.procIntData[index][pid]['blkrd'] = blkrd
-            TA.procIntData[index][pid]['blkwr'] = blkwr
-            TA.procIntData[index][pid]['mem'] = rss
-            TA.procIntData[index][pid]['memDiff'] = \
+        if pid not in procIndexData:
+            procIndexData[pid] = dict(TA.init_procIntData)
+            procIndexData[pid]['cpu'] = cpu
+            procIndexData[pid]['dly'] = dly
+            procIndexData[pid]['vss'] = vss
+            procIndexData[pid]['blk'] = blk
+            procIndexData[pid]['blkrd'] = blkrd
+            procIndexData[pid]['blkwr'] = blkwr
+            procIndexData[pid]['mem'] = rss
+            procIndexData[pid]['memDiff'] = \
                 rss - TA.procTotData[pid]['lastMem']
             TA.procTotData[pid]['lastMem'] = rss
 
