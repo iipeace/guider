@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211214"
+__revision__ = "211215"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24533,14 +24533,17 @@ Examples:
         # {0:1} {1:1} -J
         # {0:1} {1:1} -J -Q
 
-    - {3:1} for specific TID
+    - {3:1} for specific threads having specific TID
         # {0:1} {1:1} -g 1234 -q ONLYPID
 
-    - {3:1} for specific task name
+    - {3:1} for specific threads having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYCOMM
 
     - {3:1} using merged symbols for specific threads
         # {0:1} {1:1} -g a.out -q ALLSYM
+
+    - {3:1} without using sample cache for specific threads
+        # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
@@ -53075,6 +53078,7 @@ class Debugger(object):
         'ONLYFAIL': False,
         'WAITCLONE': False,
         'COMPLETECALL': False,
+        'NOSAMPLECACHE': False,
     }
 
     def getSigStruct(self):
@@ -59387,8 +59391,8 @@ typedef struct {
                 self.callTable[sym]['err'] += 1
             except:
                 pass
-
-            return
+            finally:
+                return
 
         # add sample #
         if not realtime:
@@ -59627,7 +59631,6 @@ typedef struct {
 
     def getBacktrace(self, limit=32, cur=False, force=False, native=False):
         try:
-            # use backtrace cache #
             if not force and self.btList:
                 return self.btList
             # prevent recursive backtrace call #
@@ -61476,7 +61479,7 @@ typedef struct {
                 return
 
         # check previous function boundary #
-        if not self.prevCallInfo:
+        if not self.prevCallInfo or Debugger.envFlags['NOSAMPLECACHE']:
             pass
         elif self.isRealtime:
             if self.pc == self.prevCallInfo[5]:
