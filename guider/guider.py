@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211215"
+__revision__ = "211217"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4710,7 +4710,7 @@ class UtilMgr(object):
 
         # get size #
         for i, b in enumerate(obj):
-            b = ord(b)
+            b = b if type(b) == long else ord(b)
             value += ((b & 0x7F) << (i * 7))
             if (b & 0x80) == 0: break
             size += 1
@@ -4729,15 +4729,18 @@ class UtilMgr(object):
     def decodeULEB128(obj):
         size = 1
         value = 0
+        items = []
 
         # get size #
         for b in obj:
-            if (ord(b) & 0x80) == 0: break
+            val = b if type(b) == long else ord(b)
+            items.append(val)
+            if (val & 0x80) == 0: break
             size += 1
 
         # decode data #
-        for b in reversed(obj[:size]):
-            value = (value << 7) + (ord(b) & 0x7F)
+        for b in reversed(items):
+            value = (value << 7) + (b & 0x7F)
 
         return value, size
 
@@ -68524,14 +68527,14 @@ Section header string table index: %d
                 e_phentsize, e_shnum, e_shentsize, e_shnum,
                 e_shstrndx, twoLine))
 
-        # parse section header #
-        sh_name, sh_type, sh_flags, sh_addr, sh_offset,\
-            sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
-            self.getSectionInfo(fd, e_shoff + e_shentsize * e_shstrndx)
-
         # parse string section #
-        fd.seek(sh_offset)
-        str_section = fd.read(sh_size)
+        str_section = ''
+        if e_shstrndx > 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset,\
+                sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shstrndx)
+            fd.seek(sh_offset)
+            str_section = fd.read(sh_size)
 
         # define program info #
         self.attr['progHeader'] = []
@@ -68661,11 +68664,10 @@ Section header string table index: %d
                 (twoLine, "Name", "Type", "Address", "Offset", "Size(%)",
                 "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
-        # parse section header #
+        # parse section headers #
         for i in range(e_shnum):
-            sh_name, sh_type, sh_flags, sh_addr,\
-                sh_offset, sh_size, sh_link, sh_info,\
-                sh_addralign, sh_entsize = \
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * i)
 
             # check permission #
@@ -68766,9 +68768,8 @@ Section header string table index: %d
         # parse .gnu.version table #
         if e_shversym >= 0:
             # get .gnu.version section info #
-            sh_name, sh_type, sh_flags, sh_addr,\
-                sh_offset, sh_size, sh_link, sh_info,\
-                sh_addralign, sh_entsize = \
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shversym)
 
             # read .gnu.version data #
@@ -68790,9 +68791,8 @@ Section header string table index: %d
             self.attr['sectionHeader']['.dynsym']['type'] != 'NOBITS' and \
             self.attr['sectionHeader']['.dynstr']['type'] != 'NOBITS':
             # get .dynstr section info #
-            sh_name, sh_type, sh_flags, sh_addr,\
-                sh_offset, sh_size, sh_link, sh_info,\
-                sh_addralign, sh_entsize = \
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynstr)
 
             # backup .dynstr offset #
@@ -68821,9 +68821,8 @@ Section header string table index: %d
             # parse .gnu.version_d table #
             if e_shverdef >= 0:
                  # get .gnu.version_d section info #
-                sh_name, sh_type, sh_flags, sh_addr,\
-                    sh_offset, sh_size, sh_link, sh_info,\
-                    sh_addralign, sh_entsize = \
+                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                    sh_link, sh_info, sh_addralign, sh_entsize = \
                     self.getSectionInfo(fd, e_shoff + e_shentsize * e_shverdef)
 
                 # read .gnu.version_d data #
@@ -68861,9 +68860,8 @@ Section header string table index: %d
             # parse .gnu.version_r table #
             if e_shverneed >= 0:
                 # get .gnu.version_r section info #
-                sh_name, sh_type, sh_flags, sh_addr,\
-                    sh_offset, sh_size, sh_link, sh_info,\
-                    sh_addralign, sh_entsize = \
+                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                    sh_link, sh_info, sh_addralign, sh_entsize = \
                     self.getSectionInfo(
                         fd, e_shoff + e_shentsize * e_shverneed)
 
@@ -69742,7 +69740,8 @@ Section header string table index: %d
                                   'DW_CFA_restore_extended',
                                   'DW_CFA_undefined', 'DW_CFA_same_value',
                                   'DW_CFA_def_cfa_register'):
-                        s += ' %s: %s\n' % (name, _convRegName(args[0], regList))
+                        s += ' %s: %s\n' % (
+                            name, _convRegName(args[0], regList))
                     elif name == 'DW_CFA_register':
                         s += ' %s: %s in %s' % (
                             name, _convRegName(args[0], regList),
@@ -70011,9 +70010,9 @@ Section header string table index: %d
                         augdatastr = None
 
                         if not 'fdeEncoding' in augdict:
-                            SysMgr.printErr(
-                                "failed to find FDE encoding data from CIE %x" % \
-                                    cie['id'])
+                            SysMgr.printErr((
+                                "failed to find FDE encoding data "
+                                "from CIE %x") % cie['id'])
                             sys.exit(0)
                     else:
                         augstr = ''
@@ -70525,9 +70524,37 @@ Section header string table index: %d
 
                 _readNoteSection(fd, sh_offset, sh_size)
 
-        # check debug_abbrev section #
-        if 'DEBUGINFO' in SysMgr.environList and \
-            SysMgr.dwarfEnable and e_shdbginfo >= 0:
+        # check debug option #
+        if not 'DEBUGINFO' in SysMgr.environList or \
+            not SysMgr.dwarfEnable:
+            debuginfo = False
+        else:
+            debuginfo = True
+
+        # parse debug_str section #
+        if debuginfo and e_shdbgstr >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgstr)
+            # parse string section #
+            fd.seek(sh_offset)
+            dbgstr_section = fd.read(sh_size)
+        else:
+            dbgstr_section = ''
+
+        # parse debug_line_str section #
+        if debuginfo and e_shdbglinestr >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbglinestr)
+            # parse string section #
+            fd.seek(sh_offset)
+            dbglinestr_section = fd.read(sh_size)
+        else:
+            dbglinestr_section = ''
+
+        # prase debug_abbrev section #
+        if debuginfo and e_shdbginfo >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgabbrev)
@@ -70559,6 +70586,20 @@ Section header string table index: %d
             idx = 0
             abbrevDict = [{}]
             typeDict = [{}]
+            attrDict = {
+                "DW_AT_byte_size": 'size',
+                "DW_AT_encoding": 'encoding',
+                "DW_AT_name": 'name',
+                "DW_AT_type": 'type',
+                "DW_AT_sibling": 'sibling',
+                "DW_AT_data_member_location": 'offset',
+                "DW_AT_const_value": 'value',
+                "DW_AT_frame_base": 'frame',
+                "DW_AT_location": 'loc',
+                "DW_AT_low_pc": 'addr',
+                "DW_AT_decl_file": 'file',
+                "DW_AT_decl_line": 'line',
+            }
 
             # data #
             pos = 0
@@ -70656,33 +70697,8 @@ Section header string table index: %d
             if isCompressed:
                 fd = origFd
 
-        # check debug_str section #
-        if 'DEBUGINFO' in SysMgr.environList and \
-            SysMgr.dwarfEnable and e_shdbgstr >= 0:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
-                sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgstr)
-            # parse string section #
-            fd.seek(sh_offset)
-            dbgstr_section = fd.read(sh_size)
-        else:
-            dbgstr_section = ''
-
-        # check debug_line_str section #
-        if 'DEBUGINFO' in SysMgr.environList and \
-            SysMgr.dwarfEnable and e_shdbglinestr >= 0:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
-                sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbglinestr)
-            # parse string section #
-            fd.seek(sh_offset)
-            dbglinestr_section = fd.read(sh_size)
-        else:
-            dbglinestr_section = ''
-
-        # check debug_info section #
-        if 'DEBUGINFO' in SysMgr.environList and \
-            SysMgr.dwarfEnable and e_shdbginfo >= 0:
+        # parse debug_info section #
+        if debuginfo and e_shdbginfo >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbginfo)
@@ -70713,8 +70729,13 @@ Section header string table index: %d
                 if opcode in ElfAnalyzer.DW_OPS_NOARGS:
                     opval = None
                 elif opcode == 'DW_OP_addr':
-                    sig = 'I' if addrSize == 32 else 'Q'
-                    opval = unpack(sig, vals)[0]
+                    if dwarfFormat == 32:
+                        sig = 'I'
+                        sz = 4
+                    else:
+                        sig = 'Q'
+                        sz = 8
+                    opval = unpack(sig, vals[:sz])[0]
                 elif opcode in (
                     'DW_OP_addrx',
                     'DW_OP_constu',
@@ -70726,41 +70747,47 @@ Section header string table index: %d
                 elif opcode in (
                     'DW_OP_const1u',
                     'DW_OP_pick'):
-                    opval = unpack('B', vals)[0]
+                    opval = unpack('B', vals[:1])[0]
                 elif opcode in (
                     'DW_OP_const1s',
                     'DW_OP_deref_size',
                     'DW_OP_xderef_size'):
-                    opval = unpack('b', vals)[0]
+                    opval = unpack('b', vals[:1])[0]
                 elif opcode in (
                     'DW_OP_const2u',
                     'DW_OP_call2'):
-                    opval = unpack('H', vals)[0]
+                    opval = unpack('H', vals[:2])[0]
                 elif opcode in (
                     'DW_OP_const2s',
                     'DW_OP_bra',
                     'DW_OP_skip'):
-                    opval = unpack('h', vals)[0]
+                    opval = unpack('h', vals[:2])[0]
                 elif opcode in (
                     'DW_OP_const4u',
                     'DW_OP_call4'):
-                    opval = unpack('I', vals)[0]
+                    opval = unpack('I', vals[:4])[0]
                 elif opcode == 'DW_OP_const4s':
-                    opval = unpack('i', vals)[0]
+                    opval = unpack('i', vals[:4])[0]
                 elif opcode == 'DW_OP_const8u':
-                    opval = unpack('Q', vals)[0]
+                    opval = unpack('Q', vals[:8])[0]
                 elif opcode == 'DW_OP_const8s':
-                    opval = unpack('q', vals)[0]
+                    opval = unpack('q', vals[:8])[0]
                 elif opcode in (
                     'DW_OP_call_ref',
                     'DW_OP_GNU_parameter_ref'):
-                    sig = 'I' if dwarfFormat == 32 else 'Q'
-                    opval = unpack(sig, vals)[0]
+                    if dwarfFormat == 32:
+                        sig = 'I'
+                        sz = 4
+                    else:
+                        sig = 'Q'
+                        sz = 8
+                    opval = unpack(sig, vals[:sz])[0]
                 elif opcode == 'DW_OP_fbreg' or \
                     opcode.startswith('DW_OP_breg'):
                     vals = vals.decode('latin-1')
                     opval, nsize = UtilMgr.decodeSLEB128(vals)
-                # toDo: implement below code #
+                else:
+                    # toDo: implement below code #
                     '''
                     elif opcode == 'DW_OP_bit_piece' or \
                         opcode == 'DW_OP_GNU_regval_type':
@@ -70778,7 +70805,6 @@ Section header string table index: %d
                     elif opcode == 'DW_OP_GNU_implicit_pointer':
                         opval = None
                     '''
-                else:
                     SysMgr.printWarn(
                         "failed to decode '%s' because no implementation" % \
                             opcode)
@@ -71141,35 +71167,8 @@ Section header string table index: %d
                                 sys.exit(0)
 
                             # add variable attributes #
-                            if not typeAttr:
-                                pass
-                            # byte_size #
-                            elif at == 0x0b:
-                                typeAttr['size'] = value
-                            # encoding #
-                            elif at == 0x3e:
-                                typeAttr['encoding'] = value
-                            # name #
-                            elif at == 0x03:
-                                typeAttr['name'] = value
-                            # type #
-                            elif at == 0x49:
-                                typeAttr['type'] = value
-                            # sibling #
-                            elif at == 0x01:
-                                typeAttr['sibling'] = value
-                            # member_location #
-                            elif at == 0x38:
-                                typeAttr['offset'] = value
-                            # const_value #
-                            elif at == 0x1c:
-                                typeAttr['value'] = value
-                            # frame_base #
-                            elif at == 0x40:
-                                typeAttr['frame'] = value
-                            # location #
-                            elif at == 0x02:
-                                typeAttr['location'] = value
+                            if typeAttr and name in attrDict:
+                                typeAttr[attrDict[name]] = value
 
                             # print #
                             if debug:
