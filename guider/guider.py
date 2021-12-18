@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211217"
+__revision__ = "211218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4729,17 +4729,16 @@ class UtilMgr(object):
     def decodeULEB128(obj):
         size = 1
         value = 0
-        items = []
 
         # get size #
         for b in obj:
             val = b if type(b) == long else ord(b)
-            items.append(val)
             if (val & 0x80) == 0: break
             size += 1
 
         # decode data #
-        for b in reversed(items):
+        for b in reversed(obj[:size]):
+            b = b if type(b) == long else ord(b)
             value = (value << 7) + (b & 0x7F)
 
         return value, size
@@ -6524,20 +6523,21 @@ class NetworkMgr(object):
         if portList:
             newPortList = []
             for item in portList:
-                if '-' in item:
-                    try:
-                        start, end = item.split('-')
-                        if end == '': end = 65535
-                        for idx in range(long(start), long(end)+1):
-                            newPortList.append(idx)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            'failed to bind client socket', True)
-                        return False
-                else:
+                if not '-' in item:
                     newPortList.append(long(item))
+                    continue
+
+                try:
+                    start, end = item.split('-')
+                    if end == '': end = 65535
+                    for idx in range(long(start), long(end)+1):
+                        newPortList.append(idx)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        'failed to bind client socket', True)
+                    return False
 
             portList = list(set(newPortList))
         else:
