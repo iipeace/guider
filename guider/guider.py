@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211218"
+__revision__ = "211219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24548,6 +24548,10 @@ Examples:
     - {3:1} without using sample cache for specific threads
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
+    - {3:1} with debug info for specific threads
+        # {0:1} {1:1} -g a.out -q DEBUGINFO
+        # {0:1} {1:1} -g a.out -q DEBUGINFO:/usr/lib/libc.so
+
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
 
@@ -26067,6 +26071,9 @@ Examples:
 
     - Print ELF information of a specific file with debug information
         # {0:1} {1:1} -q DEBUGINFO
+
+    - Print ELF information of a specific file without using debug files
+        # {0:1} {1:1} -q NODEBUG
                     '''.format(cmd, mode)
 
                 # log #
@@ -59877,11 +59884,11 @@ typedef struct {
             return None
 
         # get function address from CFA index table #
-        idx = UtilMgr.bisect_left(\
-            fobj.attr['dwarf']['CFAIndex'], foffset) - 1
-        faddr = fobj.attr['dwarf']['CFAIndex'][idx]
+        dwarf = fobj.attr['dwarf']
+        idx = UtilMgr.bisect_left(dwarf['CFAIndex'], foffset) - 1
+        faddr = dwarf['CFAIndex'][idx]
         # TODO: check function scope from faddr #
-        if not faddr in fobj.attr['dwarf']['CFATable']:
+        if not faddr in dwarf['CFATable']:
             SysMgr.printWarn(
                 'failed to find CFA table info for %s(%s) in %s' % \
                     (sym, hex(faddr), fname))
@@ -59889,7 +59896,7 @@ typedef struct {
 
         # get effective CFA rule #
         rule = None
-        for line in fobj.attr['dwarf']['CFATable'][faddr]:
+        for line in dwarf['CFATable'][faddr]:
             if foffset < line['pc']:
                 break
             rule = line
@@ -67891,8 +67898,8 @@ class ElfAnalyzer(object):
 
 
     def __init__(
-        self, path=None, debug=False, onlyHeader=False,
-        fd=None, size=sys.maxsize, incArg=False, printer=False):
+        self, path=None, debug=False, onlyHeader=False, fd=None,
+        size=sys.maxsize, incArg=False, printer=False, origPath=None):
 
         def _printer(item):
             if not hasattr(self, 'logstr'):
@@ -68298,26 +68305,43 @@ class ElfAnalyzer(object):
         self.loadAddr = 0
 
         if fd is None:
-            # check debug file #
-            dirname, filename = UtilMgr.getPath(path)
-            debugPath = '%s/.debug/%s' % (dirname, filename)
-            if not os.path.isfile(debugPath):
-                debugPath = '/usr/lib/debug%s' % path
+            if 'NODEBUG' in SysMgr.environList:
+                debugPath = None
+            else:
+                # check debug file #
+                dirname, filename = UtilMgr.getPath(path)
+                # .debug #
+                debugPath = '%s/.debug/%s' % (dirname, filename)
                 if not os.path.isfile(debugPath):
-                    debugPath = None
+                    # /usr/lib/debug/usr #
+                    debugPath = '/usr/lib/debug%s' % path
+                    if not os.path.isfile(debugPath):
+                        try:
+                            # /usr/lib/debug/lib #
+                            newPos = path.find('/', 2)
+                            debugPath = '/usr/lib/debug%s' % path[newPos:]
+                            if not os.path.isfile(debugPath):
+                                debugPath = None
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
 
             # merge a debug file #
             if debugPath:
                 SysMgr.printInfo(
                     "merge %s's debug symbols" % debugPath)
 
-                dobj = ElfAnalyzer(debugPath, debug=debug)
+                dobj = ElfAnalyzer(debugPath, debug=debug, origPath=self.path)
                 if dobj:
                     dobj.mergeSymTable()
                     self.addrTable.update(dobj.addrTable)
                     dobj.addrTable.clear()
                 self.attr['symTable'] = deepcopy(dobj.attr['symTable'])
                 self.attr['dynsymTable'] = deepcopy(dobj.attr['dynsymTable'])
+                if 'dwarf' in dobj.attr:
+                    self.attr['dwarf'] = deepcopy(dobj.attr['dwarf'])
+                del dobj
 
             # check file #
             if not os.path.exists(path):
@@ -69287,17 +69311,18 @@ Section header string table index: %d
             self.attr['dwarfEnabled'] = False
 
         # check frame section #
-        if '.eh_frame' in self.attr['sectionHeader'] and \
-            self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
+        sectionHeader = self.attr['sectionHeader']
+        if '.eh_frame' in sectionHeader and \
+            sectionHeader['.eh_frame']['type'] != 'NOBITS':
             frameSectName = 'eh_frame'
             e_shframe = e_shehframe
-        elif '.debug_frame' in self.attr['sectionHeader'] and \
-            self.attr['sectionHeader']['.debug_frame']['type'] != 'NOBITS':
+        elif '.debug_frame' in sectionHeader and \
+            sectionHeader['.debug_frame']['type'] != 'NOBITS':
             # TODO: need to implement more for DWARF v4 #
             frameSectName = 'debug_frame'
             e_shframe = e_shdbgframe
-        elif '.zdebug_frame' in self.attr['sectionHeader'] and \
-            self.attr['sectionHeader']['.zdebug_frame']['type'] != 'NOBITS':
+        elif '.zdebug_frame' in sectionHeader and \
+            sectionHeader['.zdebug_frame']['type'] != 'NOBITS':
             frameSectName = 'debug_frame'
             e_shframe = e_shdbgframe
         else:
@@ -70164,7 +70189,7 @@ Section header string table index: %d
 
             # remove useless data #
             for name in list(self.attr['dwarf']):
-                if not name in ('CFAIndex', 'CFATable'):
+                if not name in ('CFAIndex', 'CFATable', 'info', 'abbrev'):
                     del self.attr['dwarf'][name]
 
             if debug:
@@ -70525,41 +70550,48 @@ Section header string table index: %d
                 _readNoteSection(fd, sh_offset, sh_size)
 
         # check debug option #
-        if not 'DEBUGINFO' in SysMgr.environList or \
-            not SysMgr.dwarfEnable:
+        if not 'DEBUGINFO' in SysMgr.environList or not SysMgr.dwarfEnable:
             debuginfo = False
+        elif 'DEBUGINFO' in SysMgr.environList:
+            if SysMgr.environList['DEBUGINFO'][0] == 'SET' or \
+                self.path in SysMgr.environList['DEBUGINFO'] or \
+                origPath in SysMgr.environList['DEBUGINFO']:
+                debuginfo = True
+            else:
+                debuginfo = False
         else:
             debuginfo = True
 
-        # parse debug_str section #
+        # check debug_str section #
         if debuginfo and e_shdbgstr >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgstr)
-            # parse string section #
+
+            # parse debug_str section #
             fd.seek(sh_offset)
             dbgstr_section = fd.read(sh_size)
         else:
             dbgstr_section = ''
 
-        # parse debug_line_str section #
+        # check debug_line_str section #
         if debuginfo and e_shdbglinestr >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbglinestr)
-            # parse string section #
+            # parse debug_line_str section #
             fd.seek(sh_offset)
             dbglinestr_section = fd.read(sh_size)
         else:
             dbglinestr_section = ''
 
-        # prase debug_abbrev section #
+        # check debug_abbrev section #
         if debuginfo and e_shdbginfo >= 0:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdbgabbrev)
 
-            # get symbol string #
+            # get debug_abbrev string #
             shname = self.getString(str_section, sh_name)
 
             if debug:
@@ -70584,8 +70616,11 @@ Section header string table index: %d
 
             # init variables #
             idx = 0
-            abbrevDict = [{}]
             typeDict = [{}]
+            abbrevDict = [{}]
+            self.attr.setdefault('dwarf', {})
+            self.attr['dwarf']['info'] = {}
+            self.attr['dwarf']['abbrev'] = typeDict
             attrDict = {
                 "DW_AT_byte_size": 'size',
                 "DW_AT_encoding": 'encoding',
@@ -71094,7 +71129,7 @@ Section header string table index: %d
                                 # decode data #
                                 opcode, opval, verbStr = \
                                     _decodeOp(value, dwarfFormat)
-                                addStr += verbStr
+                                if verbStr: addStr += verbStr
                             # sdata #
                             elif form == 0x0d:
                                 data = table[pos:pos+64].decode('latin-1')
@@ -71155,7 +71190,7 @@ Section header string table index: %d
                                 # decode data #
                                 opcode, opval, verbStr = \
                                     _decodeOp(value, dwarfFormat)
-                                addStr += verbStr
+                                if verbStr: addStr += verbStr
                             # flag_present #
                             elif form == 0x19:
                                 value = 1
@@ -71169,6 +71204,11 @@ Section header string table index: %d
                             # add variable attributes #
                             if typeAttr and name in attrDict:
                                 typeAttr[attrDict[name]] = value
+                                # register subprograms to info table #
+                                if name == 'DW_AT_low_pc' and tagid == 0x2e:
+                                    dwarfInfo = self.attr['dwarf']['info']
+                                    dwarfInfo[value] = typeAttr
+                                    dwarfInfo[value]['abbrev'] = idx
 
                             # print #
                             if debug:
