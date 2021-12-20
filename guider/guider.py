@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211219"
+__revision__ = "211220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4052,6 +4052,17 @@ class UtilMgr(object):
             return newList
         else:
             return targetList
+
+
+
+    @staticmethod
+    def genRangeDict(prefix, startIdx, endIdx, valStart):
+        dictList = {}
+        for index in range(startIdx, endIdx+1):
+            name = '%s%s' % (prefix, index)
+            value = valStart + index - startIdx
+            dictList[name] = value
+        return dictList
 
 
 
@@ -59923,6 +59934,67 @@ typedef struct {
         offset = cfaInfo[offsetIdx]
         cfa = regval + offset
 
+        # get parameter #
+        # TODO: get params from frame + offset #
+        '''
+        if 'info' in dwarf and faddr in dwarf['info']:
+            if 'param' in dwarf['info'][faddr]:
+                abbrevIdx = dwarf['info'][faddr]['abbrev']
+                abbrev = dwarf['abbrev'][abbrevIdx]
+                for item in dwarf['info'][faddr]['param']:
+                    # name #
+                    if 'name' in abbrev[item]:
+                        name = abbrev[item]['name']
+                    else:
+                        name = '??'
+
+                    # size #
+                    if 'size' in abbrev[item]:
+                        size = abbrev[typeNum]['size']
+                    else:
+                        size = 0
+
+                    # type element #
+                    typeName = ''
+                    if 'type' in abbrev[item]:
+                        typeNum = abbrev[item]['type']
+                    else:
+                        typeNum = -1
+
+                    # expand type #
+                    typeName = ''
+                    while 1:
+                        if not typeNum in abbrev:
+                            break
+
+                        # add a type attribute #
+                        if 'name' in abbrev[typeNum]:
+                            typeName = '%s %s' % \
+                                (typeName, abbrev[typeNum]['name'])
+
+                        if not 'type' in abbrev[typeNum]:
+                            break
+
+                        typeNum = abbrev[typeNum]['type']
+
+                    # location #
+                    if 'locDec' in abbrev[item]:
+                        # sec_offset #
+                        if type(abbrev[item]['locDec']) is long:
+                            paramVal = None
+                        # exprloc(reg) #
+                        elif len(abbrev[item]['locDec']) == 1:
+                            paramVal = None
+                        # exprloc(offset) #
+                        elif len(abbrev[item]['locDec']) == 2:
+                            paramAddr = abbrev[item]['locDec'][1]
+                            paramVal = self.readMem(cfa+paramAddr, size)
+                        else:
+                            paramVal = None
+                    else:
+                        paramVal = None
+        '''
+
         # recover registers #
         argIdx = ElfAnalyzer.RegisterRule.ARG
         for num, value in rule.items():
@@ -66250,6 +66322,9 @@ class ElfAnalyzer(object):
         "DW_OP_GNU_parameter_ref":0xfa,
         "DW_OP_hi_user":0xff,
     }
+    DW_OPS_NAMES.update(UtilMgr.genRangeDict('DW_OP_lit', 0, 31, 0x30))
+    DW_OPS_NAMES.update(UtilMgr.genRangeDict('DW_OP_reg', 0, 31, 0x50))
+    DW_OPS_NAMES.update(UtilMgr.genRangeDict('DW_OP_breg', 0, 31, 0x70))
     DW_OPS_NAMES_MAP = {v: k for k, v in DW_OPS_NAMES.items()}
 
     DW_UT = {
@@ -71197,18 +71272,31 @@ Section header string table index: %d
                             else:
                                 SysMgr.printErr((
                                     'failed to recognize %s(0x%x) attributes '
-                                    'from debug_info') % \
-                                        (form, form), True)
+                                    'from debug_info') % (form, form), True)
                                 sys.exit(0)
 
                             # add variable attributes #
                             if typeAttr and name in attrDict:
                                 typeAttr[attrDict[name]] = value
-                                # register subprograms to info table #
-                                if name == 'DW_AT_low_pc' and tagid == 0x2e:
+                                # subprogram #
+                                if tagid == 0x2e and at == 0x11:
                                     dwarfInfo = self.attr['dwarf']['info']
                                     dwarfInfo[value] = typeAttr
                                     dwarfInfo[value]['abbrev'] = idx
+                                # pointer type #
+                                elif tagid == 0x0f:
+                                    typeAttr['name'] = '*'
+                                # const type #
+                                elif tagid == 0x26:
+                                    typeAttr['name'] = 'const'
+                                # location #
+                                elif at == 0x02:
+                                    # exprloc #
+                                    if form == 0x18:
+                                        typeAttr['locDec'] = [opcode, opval]
+                                    # sec_offset #
+                                    elif form == 0x17:
+                                        typeAttr['locDec'] = value
 
                             # print #
                             if debug:
@@ -71240,9 +71328,9 @@ Section header string table index: %d
                                         addStr += '%s (%s)' % \
                                             (value, lstrip(enc, 'DW_ATE_'))
 
+                                helper = addStr if addStr else value
                                 printStr += '    <%x>   %-18s: %s' % \
-                                    (origPos, name, addStr \
-                                        if addStr else value)
+                                    (origPos, name, helper)
                                 printer(printStr)
                                 printStr = ''
                     except SystemExit:
