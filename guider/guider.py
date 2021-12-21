@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211220"
+__revision__ = "211221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4292,6 +4292,9 @@ class UtilMgr(object):
             string = string.lower()
 
         for cond in list(key):
+            if not cond:
+                continue
+
             if ignCap:
                 cond = cond.lower()
 
@@ -6004,7 +6007,7 @@ function format_percent(n) {
         try:
             with open(path, 'r') as fd:
                 for line in fd:
-                    print(line)
+                    print(line.rstrip())
         except SystemExit:
             sys.exit(0)
         except:
@@ -19927,6 +19930,7 @@ Commands:
         if path:
             return CDLL(lib)
 
+        # search ld.so.cache #
         target = SysMgr.findLib(lib)
         if not target:
             target = ['%s.so' % lib]
@@ -19934,6 +19938,7 @@ Commands:
             if ret:
                 target.append(ret)
 
+        # load libraries #
         for item in target:
             try:
                 res = cdll.LoadLibrary(item)
@@ -23386,6 +23391,7 @@ Examples:
 
     - Draw graphs and timeline segments for specific tasks
         # {0:1} {1:1} guider.dat -g task3
+        # {0:1} {1:1} guider.dat -g "*"
 
     - Draw graphs and timeline segments for specific tasks and their siblings
         # {0:1} {1:1} guider.dat -g task3 -P
@@ -72804,7 +72810,7 @@ class TaskAnalyzer(object):
                 # no tid #
                 if not item['id'] in self.threadData:
                     continue
-                # other group task #
+                # other progress group #
                 elif SysMgr.isExceptTarget(
                     item['id'], self.threadData, plist=plist):
                     continue
@@ -72814,10 +72820,11 @@ class TaskAnalyzer(object):
 
             # filter thread data #
             for key in list(self.threadData):
-                # except for core #
+                # except for cores #
                 if key.startswith('0['):
                     continue
 
+                # except for process group #
                 if not SysMgr.isExceptTarget(
                     key, self.threadData, plist=plist):
                     continue
@@ -75051,7 +75058,7 @@ class TaskAnalyzer(object):
 
                 #------------------- Process CPU usage -------------------#
                 # total Process CPU usage filtered #
-                if not delay and \
+                if not delay and SysMgr.filterGroup and \
                     "[ TOTAL ]" in cpuProcUsage and \
                     cpuProcUsage["[ TOTAL ]"]['count'] > 1:
                     totalUsage = cpuProcUsage["[ TOTAL ]"]['usage'].split()
@@ -79032,7 +79039,7 @@ class TaskAnalyzer(object):
                 prevData = self.syscallData[icount-1]
                 nowData = self.syscallData[icount]
 
-                if nowData[1] == -1:
+                if nowData[1] == -1 or not nowData[2] in self.threadData:
                     continue
 
                 if len(self.syscallData) > icount + 1:
@@ -85055,10 +85062,6 @@ class TaskAnalyzer(object):
             args = d['args']
             td = threadData
 
-            # apply thread filter #
-            if SysMgr.isExceptTarget(thread, self.threadData):
-                return time
-
             # update futex lock stat #
             if nr == ConfigMgr.sysList.index("sys_futex"):
                 n = re.match((
@@ -85185,10 +85188,6 @@ class TaskAnalyzer(object):
             nrstr = str(nr)
             ret = d['ret']
             td = threadData
-
-            # apply filter #
-            if SysMgr.isExceptTarget(thread, self.threadData):
-                return time
 
             # handle wrong syscall number #
             if nr < 0 and td['lastNrSyscall'] >= 0:
