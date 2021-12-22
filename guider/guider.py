@@ -59957,9 +59957,16 @@ typedef struct {
         cfa = regval + offset
 
         # get parameter #
-        # TODO: get params from frame + offset #
+        # TODO: get params using frame base + offset #
         '''
         if 'info' in dwarf and faddr in dwarf['info']:
+            # frame base #
+            if 'frame' in dwarf['info'][faddr]:
+                base = dwarf['info'][faddr]['frame']
+            else:
+                base = 0
+
+            # params #
             if 'param' in dwarf['info'][faddr]:
                 abbrevIdx = dwarf['info'][faddr]['abbrev']
                 abbrev = dwarf['abbrev'][abbrevIdx]
@@ -59972,7 +59979,7 @@ typedef struct {
 
                     # size #
                     if 'size' in abbrev[item]:
-                        size = abbrev[typeNum]['size']
+                        size = abbrev[item]['size']
                     else:
                         size = 0
 
@@ -59983,33 +59990,44 @@ typedef struct {
                     else:
                         typeNum = -1
 
-                    # expand type #
-                    typeName = ''
-                    while 1:
-                        if not typeNum in abbrev:
-                            break
+                    # get full type #
+                    if typeNum in ElfAnalyzer.cachedTypes:
+                        typeName, size = ElfAnalyzer.cachedTypes[typeNum]
+                    else:
+                        typeNumOrig = typeNum
+                        typeName = ''
+                        while 1:
+                            if not typeNum in abbrev:
+                                break
 
-                        # add a type attribute #
-                        if 'name' in abbrev[typeNum]:
-                            typeName = '%s %s' % \
-                                (typeName, abbrev[typeNum]['name'])
+                            # add a type attribute #
+                            if 'name' in abbrev[typeNum]:
+                                typeName = '%s %s' % \
+                                    (typeName, abbrev[typeNum]['name'])
 
-                        if not 'type' in abbrev[typeNum]:
-                            break
+                            # size #
+                            if 'size' in abbrev[typeNum]:
+                                size = abbrev[typeNum]['size']
 
-                        typeNum = abbrev[typeNum]['type']
+                            if not 'type' in abbrev[typeNum]:
+                                break
+
+                            typeNum = abbrev[typeNum]['type']
+
+                        # save type info #
+                        ElfAnalyzer.cachedTypes[typeNumOrig] = [typeName, size]
 
                     # location #
-                    if 'locDec' in abbrev[item]:
+                    if 'loc' in abbrev[item]:
                         # sec_offset #
-                        if type(abbrev[item]['locDec']) is long:
+                        if type(abbrev[item]['loc']) is long:
                             paramVal = None
                         # exprloc(reg) #
-                        elif len(abbrev[item]['locDec']) == 1:
+                        elif len(abbrev[item]['loc']) == 1:
                             paramVal = None
                         # exprloc(offset) #
-                        elif len(abbrev[item]['locDec']) == 2:
-                            paramAddr = abbrev[item]['locDec'][1]
+                        elif len(abbrev[item]['loc']) == 2:
+                            paramAddr = abbrev[item]['loc'][1]
                             paramVal = self.readMem(cfa+paramAddr, size)
                         else:
                             paramVal = None
@@ -66736,6 +66754,7 @@ class ElfAnalyzer(object):
 
     cachedFiles = {}
     cachedHeaderFiles = {}
+    cachedTypes = {}
     strippedFiles = {}
     failedFiles = {}
     relocTypes = {}
@@ -70851,8 +70870,9 @@ Section header string table index: %d
                     vals = bytes(value[1:])
 
                 # decode value #
+                opval = None
                 if opcode in ElfAnalyzer.DW_OPS_NOARGS:
-                    opval = None
+                    pass
                 elif opcode == 'DW_OP_addr':
                     if dwarfFormat == 32:
                         sig = 'I'
@@ -70900,6 +70920,7 @@ Section header string table index: %d
                 elif opcode in (
                     'DW_OP_call_ref',
                     'DW_OP_GNU_parameter_ref'):
+                    sys.exit(0)
                     if dwarfFormat == 32:
                         sig = 'I'
                         sz = 4
@@ -70907,37 +70928,56 @@ Section header string table index: %d
                         sig = 'Q'
                         sz = 8
                     opval = unpack(sig, vals[:sz])[0]
-                elif opcode == 'DW_OP_fbreg' or \
+                elif opcode in (
+                    'DW_OP_fbreg',
+                    'DW_OP_consts') or \
                     opcode.startswith('DW_OP_breg'):
                     vals = vals.decode('latin-1')
                     opval, nsize = UtilMgr.decodeSLEB128(vals)
+                elif opcode == 'DW_OP_GNU_entry_value':
+                    osize, nsize = UtilMgr.decodeULEB128(vals)
+                    olist = vals[nsize:nsize+osize]
+                    if olist:
+                        for b in olist:
+                            b = b if type(b) == long else ord(b)
+                            if not b in ElfAnalyzer.DW_OPS_NAMES_MAP:
+                                break
+                            opval = ElfAnalyzer.DW_OPS_NAMES_MAP[b]
+                            # TODO: implement nested code parser #
+                            break
+                elif opcode == 'DW_OP_implicit_value':
+                    osize, nsize = UtilMgr.decodeULEB128(vals)
+                    # TODO: read blob of osize #
+                elif opcode == 'DW_OP_bregx':
+                    try:
+                        osize, nsize = UtilMgr.decodeULEB128(vals)
+                        osize, nsize = UtilMgr.decodeSLEB128(vals[osize:])
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
                 else:
-                    # toDo: implement below code #
+                    # TODO: implement below code #
                     '''
-                    elif opcode == 'DW_OP_bit_piece' or \
-                        opcode == 'DW_OP_GNU_regval_type':
-                        opval = None
-                    elif opcode == 'DW_OP_bregx':
-                        opval = None
-                    elif opcode == 'DW_OP_implicit_value':
-                        opval = None
-                    elif opcode == 'DW_OP_GNU_entry_value':
-                        opval = None
-                    elif opcode == 'DW_OP_GNU_const_type':
-                        opval = None
-                    elif opcode == 'DW_OP_GNU_deref_type':
-                        opval = None
+                    elif opcode == 'DW_OP_bit_piece':
+                    elif opcode == 'DW_OP_GNU_regval_type':
                     elif opcode == 'DW_OP_GNU_implicit_pointer':
-                        opval = None
+                    elif opcode == 'DW_OP_GNU_const_type':
+                    elif opcode == 'DW_OP_GNU_deref_type':
                     '''
                     SysMgr.printWarn(
                         "failed to decode '%s' because no implementation" % \
                             opcode)
-                    opval = None
 
+                # print data expression #
                 if debug:
                     if opval and not opcode in ElfAnalyzer.DW_OPS_DEC_ARGS:
-                        opval = hex(opval)
+                        try:
+                            opval = hex(opval)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
 
                     verbStr += ' (%s%s)' % \
                         (opcode, ': %s' % opval if opval else '')
@@ -71305,13 +71345,16 @@ Section header string table index: %d
                                 elif tagid == 0x26:
                                     typeAttr['name'] = 'const'
                                 # location #
+                                elif at == 0x40:
+                                    typeAttr['frame'] = opcode
+                                # location #
                                 elif at == 0x02:
                                     # exprloc #
                                     if form == 0x18:
-                                        typeAttr['locDec'] = [opcode, opval]
+                                        typeAttr['loc'] = [opcode, opval]
                                     # sec_offset #
                                     elif form == 0x17:
-                                        typeAttr['locDec'] = value
+                                        typeAttr['loc'] = value
 
                             # print #
                             if debug:
