@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211221"
+__revision__ = "211222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32309,6 +32309,19 @@ Copyright:
 
 
     @staticmethod
+    def addOption(option):
+        if not SysMgr.optionList:
+            SysMgr.parseOption()
+
+        if type(SysMgr.optionList) is not list:
+            return
+
+        if not option in SysMgr.optionList:
+            SysMgr.optionList.append(option)
+
+
+
+    @staticmethod
     def parseOption(option=None):
         if not "ISMAIN" in os.environ:
             return
@@ -46663,7 +46676,8 @@ Copyright:
             if SysMgr.signalCmd:
                 try:
                     if SysMgr.intervalEnable > 0:
-                        SysMgr.signalCmd += 'sleep %s\n' % SysMgr.intervalEnable
+                        SysMgr.signalCmd += 'sleep %s\n' % \
+                            SysMgr.intervalEnable
                     else:
                         SysMgr.signalCmd += 'sleep 32767\n'
                     SysMgr.cmdFd.write(SysMgr.signalCmd)
@@ -51747,6 +51761,8 @@ class DbusMgr(object):
                 SysMgr.filterGroup = [tid]
                 SysMgr.jsonEnable = True
                 Debugger.dbusEnable = True
+                SysMgr.streamEnable = True
+                SysMgr.addOption('Q')
 
                 # wait for parent to create all childs #
                 if syncLock:
@@ -60590,12 +60606,10 @@ typedef struct {
             if btstr:
                 jsonData['backtrace'] = btstr.lstrip().split('\n')
 
-            # set pretty flag #
-            pretty = not SysMgr.findOption('Q')
-
             # print output #
             SysMgr.printPipe(
-                UtilMgr.convDict2Str(jsonData, pretty=pretty), flush=True)
+                UtilMgr.convDict2Str(jsonData, pretty=self.pretty),
+                flush=True)
         elif callString:
             # add backtrace #
             if btstr:
@@ -61444,11 +61458,9 @@ typedef struct {
 
         # JSON output #
         if jsonData:
-            # set pretty flag #
-            pretty = not SysMgr.findOption('Q')
-
             SysMgr.printPipe(
-                UtilMgr.convDict2Str(jsonData, pretty=pretty), flush=True)
+                UtilMgr.convDict2Str(jsonData, pretty=self.pretty),
+                flush=True)
         # file output #
         elif SysMgr.outPath:
             self.addSample(
@@ -61833,11 +61845,8 @@ typedef struct {
                 return
 
             try:
-                # set pretty flag #
-                pretty = not SysMgr.findOption('Q')
-
                 SysMgr.printPipe(
-                    str(UtilMgr.convDict2Str(jsonData, pretty=pretty)))
+                    str(UtilMgr.convDict2Str(jsonData, pretty=self.pretty)))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -62180,12 +62189,9 @@ typedef struct {
                         jsonData = entryData
                     jsonData["type"] = "complete"
 
-                # set pretty flag #
-                pretty = not SysMgr.findOption('Q')
-
                 # print context #
                 SysMgr.printPipe(
-                    str(UtilMgr.convDict2Str(jsonData, pretty=pretty)))
+                    str(UtilMgr.convDict2Str(jsonData, pretty=self.pretty)))
 
                 self.clearArgs()
 
@@ -62749,6 +62755,9 @@ typedef struct {
         self.prevSym = None
         self.prevPySym = None
         self.prevPyIndent = {}
+        self.pretty = not SysMgr.findOption('Q')
+
+        # context variables #
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
@@ -71957,14 +71966,15 @@ class TaskAnalyzer(object):
         convColor = UtilMgr.convColor
 
         # define color description #
-        colors = '[Color: %s|%s|%s]' % (
+        colors = '(Color: %s|%s|%s)' % (
             convColor('Increased', 'RED'),
             convColor('Decreased', 'GREEN'),
             convColor('Removed', 'WARNING'))
 
         # print CPU diff #
         SysMgr.printPipe(
-            '\n[Diff CPU Info] %s\n%s' % (colors, twoLine))
+            '\n[Diff CPU Info] (NrTask: %s) %s\n%s' % \
+                (convNum(len(unionCpuList)-2), colors, twoLine))
 
         emptyCpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             ('-', '-', '-', '-', '-', '-')
@@ -72150,7 +72160,8 @@ class TaskAnalyzer(object):
 
         # print memory diff #
         SysMgr.printPipe(
-            '\n[Diff %s Info] %s\n%s' % (mtype, colors, twoLine))
+            '\n[Diff %s Info] (NrTask: %s) %s\n%s' % \
+                (mtype, convNum(len(unionRssList)-1), colors, twoLine))
 
         emptyRssStat = "%7s(%2s)(%7s/%7s/%7s) |" % \
             ('-', '-', '-', '-', '-')
@@ -86509,7 +86520,8 @@ class TaskAnalyzer(object):
             handleSpecialEvents = True
 
         # custom event #
-        if any([True for event in SysMgr.customEventList if func.startswith(event)]):
+        if any([True for event in SysMgr.customEventList \
+            if func.startswith(event)]):
             self.customEventData.append(
                 [func, comm, thread, allTime, etc.strip()])
 
