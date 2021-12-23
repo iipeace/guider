@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211222"
+__revision__ = "211223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13944,8 +13944,7 @@ class FunctionAnalyzer(object):
             return
 
         SysMgr.clearPrint()
-        SysMgr.printPipe(
-            '[Function Syscall History] [Cnt: %s]' % \
+        SysMgr.printPipe('[Function Syscall History] [Cnt: %s]' % \
             convertNum(self.syscallCnt))
 
         SysMgr.printPipe(twoLine)
@@ -14159,10 +14158,9 @@ class FunctionAnalyzer(object):
             return
 
         SysMgr.clearPrint()
-        SysMgr.printPipe(
-            '[Function %s History] [Cnt: %s] [Total: %s]' % \
+        SysMgr.printPipe('[Function %s History] [Cnt: %s] [Total: %s]' % \
             (customList, convertNum(self.customTotal),
-            convertNum(self.customCnt)))
+                convertNum(self.customCnt)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -15108,8 +15106,7 @@ class FunctionAnalyzer(object):
             return
 
         SysMgr.clearPrint()
-        SysMgr.printPipe(
-            '[%s History] [Cnt: %s]' % \
+        SysMgr.printPipe('[%s History] [Cnt: %s]' % \
             (title, UtilMgr.convNum(len(self.heapTable))))
 
         SysMgr.printPipe(twoLine)
@@ -54418,7 +54415,7 @@ typedef struct {
                             self.readMem(targetAddr, retWord=True)
 
                 retval = "0x%x" % ret
-                SysMgr.addPrint("\n[%s] %s" % (cmdstr, retval))
+                SysMgr.addPrint("\n[%s] %s(%s)" % (cmdstr, ret, retval))
 
                 # set register values #
                 self.setRet(ret)
@@ -55636,6 +55633,8 @@ typedef struct {
                 valueList = value.split('|')
                 if len(valueList) > 1 and valueList[1].startswith('start'):
                     newlist.append(value)
+
+        # update symbol list #
         if newlist:
             symlist = newlist
 
@@ -55663,7 +55662,6 @@ typedef struct {
 
             # symbol #
             symbol, inc, start, end = ElfAnalyzer.getFilterFlags(value)
-
             ret = self.getAddrBySymbol(
                 symbol, binary=binlist, inc=inc, start=start, end=end)
             if ret:
@@ -59548,7 +59546,7 @@ typedef struct {
             elif len(item) > 1:
                 # check skip condition #
                 if exceptFilter and \
-                    not UtilMgr.isValidStr(item[1], exceptFilter):
+                    UtilMgr.isValidStr(item[1], exceptFilter, inc=True):
                     continue
 
                 args = self.readArgs()
@@ -62726,14 +62724,15 @@ typedef struct {
             dobj.targetBpList = self.targetBpList
             dobj.targetBpFileList = self.targetBpFileList
             dobj.exceptBpFileList = self.exceptBpFileList
+            dobj.isRunning = False
 
         # apply original attribute #
         dobj.myNum = self.myNum
         dobj.childNum = self.childNum
 
         # load symbols and inject breakpoints #
-        if (dobj.mode != 'syscall' and dobj.mode != 'signal') or \
-            SysMgr.funcDepth > 0:
+        if SysMgr.funcDepth > 0 or \
+            (dobj.mode != 'syscall' and dobj.mode != 'signal'):
             if dobj.loadSymbols():
                 dobj.updateBpList()
 
@@ -77343,8 +77342,8 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread CUSTOM Event History]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:^10} {2:>16}({3:>7}) {4:<1}".\
-                format('EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
+                "{0:^32} {1:^10} {2:>16}({3:>7}) {4:<1}".format(
+                    'EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
             SysMgr.printPipe(twoLine)
 
             cnt = 0
@@ -77514,9 +77513,9 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
             "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
-            "{5:^22} {6:>10} {7:<1}").\
-            format('EVENT', 'TYPE', 'TIME', 'COMM',
-            'TID', 'CALLER', 'ELAPSED', 'ARG'))
+            "{5:^22} {6:>10} {7:<1}").format(
+                'EVENT', 'TYPE', 'TIME', 'COMM',
+                'TID', 'CALLER', 'ELAPSED', 'ARG'))
         SysMgr.printPipe(twoLine)
 
         cnt = 0
@@ -78647,17 +78646,17 @@ class TaskAnalyzer(object):
         if not SysMgr.showAll:
             return
 
-        SysMgr.printPipe(
-            '\n[Thread Futex Lock History] (Unit: Sec/NR)')
+        SysMgr.printPipe('\n[Thread Futex Lock History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
             "{0:>12} {1:>16}({2:>7}/{3:>7}) {4:>4} {5:^24} " + \
-            "{6:^10} {7:>12} {8:>16} {9:>16} {10:>16}").\
-            format("Time", "Name", "Tid", "Pid", "Core", "Operation",
-             "Type", "Elapsed", "Target", "Value", "Timer"))
+            "{6:^10} {7:>12} {8:>16} {9:>16} {10:>16}").format(
+                "Time", "Name", "Tid", "Pid", "Core", "Operation",
+                "Type", "Elapsed", "Target", "Value", "Timer"))
         SysMgr.printPipe(twoLine)
 
         cnt = 0
+        prevCnt = -1
         for icount in range(len(self.futexData)):
             try:
                 value = self.futexData[icount]
@@ -78666,7 +78665,7 @@ class TaskAnalyzer(object):
                     continue
 
                 atime = float(value[1])
-                time = '%.6f' % (atime - float(SysMgr.startTime))
+                stime = '%.6f' % (atime - float(SysMgr.startTime))
 
                 comm = self.threadData[value[0]]['comm']
                 tid = '(%7s/%7s)' % \
@@ -78674,45 +78673,53 @@ class TaskAnalyzer(object):
                 core = value[2]
 
                 try:
-                    if icount > 0:
-                        if self.futexData[icount-1][2] == value[2]:
-                            core = ''
+                    if prevCnt < 0:
+                        raise Exception('no previous item')
 
-                        if self.futexData[icount-1][0] == value[0]:
-                            tid = comm = ''
+                    if self.futexData[prevCnt][2] == value[2]:
+                        core = ''
+
+                    if self.futexData[prevCnt][0] == value[0]:
+                        tid = comm = '.'
                 except SystemExit:
                     sys.exit(0)
                 except:
                     pass
 
+                nextCnt = icount + 1
                 if icount + 1 <= len(self.futexData) and \
-                    self.futexData[icount+1][0] == value[0] and \
+                    self.futexData[nextCnt][0] == value[0] and \
                     self.futexData[icount][4].startswith('ENT') and \
-                    self.futexData[icount+1][4].endswith('RET'):
+                    self.futexData[nextCnt][4].endswith('RET'):
                     otype = '{0:^10}'.format('ALL')
-                    elapsed = self.futexData[icount+1][5]
-                    self.futexData[icount+1][1] = -1
+                    elapsed = self.futexData[nextCnt][5]
+                    self.futexData[nextCnt][1] = -1
                 else:
                     otype = value[4]
                     elapsed = value[5]
 
                 # convert error code #
-                ret = long(value[7])
-                if ret < 0:
-                    try:
-                        ret = '%s' % ConfigMgr.ERR_TYPE[abs(ret+1)]
-                    except:
-                        pass
+                try:
+                    ret = long(value[7])
+                    if ret < 0:
+                        try:
+                            ret = '%s' % ConfigMgr.ERR_TYPE[abs(ret+1)]
+                        except:
+                            pass
+                except:
+                    ret = value[7]
 
                 SysMgr.printPipe((
                     "{0:>12} {1:>16}{2:>17} {3:>4} {4:<24} " + \
                     "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").format(
-                        time, comm, tid, core, value[3],
+                        stime, comm, tid, core, value[3],
                         otype, elapsed, value[6], ret, value[8]))
 
+                prevCnt = icount
                 cnt += 1
             except:
                 pass
+
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
@@ -78756,27 +78763,30 @@ class TaskAnalyzer(object):
         if not SysMgr.showAll:
             return
 
-        SysMgr.printPipe(
-            '\n[Thread File Lock History] (Unit: Sec/NR)')
+        SysMgr.printPipe('\n[Thread File Lock History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:>16}({1:>6}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
             .format("Name", "TID", "Time", "Core",
-            "Type", "Device", "Inode", "Context"))
+                "Type", "Device", "Inode", "Context"))
         SysMgr.printPipe(twoLine)
 
         cnt = 0
+        prevCnt = -1
         for icount in range(len(self.flockData)):
             try:
+                if not self.flockData[icount][0] in self.threadData:
+                    continue
+
                 pos = self.flockData[icount][4].rfind('0x')
                 dev = self.flockData[icount][4][:pos]
                 inode = self.flockData[icount][4][pos:]
                 atime = float(self.flockData[icount][1])
                 time = '%.3f' % (atime - float(SysMgr.startTime))
 
-                if icount > 0 and \
-                    self.flockData[icount-1][0] == self.flockData[icount][0]:
-                    tid = comm = ''
+                if prevCnt > -1 and \
+                    self.flockData[prevCnt][0] == self.flockData[icount][0]:
+                    tid = comm = '.'
                 else:
                     comm = self.threadData[self.flockData[icount][0]]['comm']
                     tid = '(%6s)' % self.flockData[icount][0]
@@ -78787,9 +78797,12 @@ class TaskAnalyzer(object):
                         comm, tid, time,
                         self.flockData[icount][2], self.flockData[icount][3],
                         dev, inode, self.flockData[icount][5]))
+
+                prevCnt = icount
                 cnt += 1
             except:
                 continue
+
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
@@ -79086,11 +79099,12 @@ class TaskAnalyzer(object):
                     break
 
         cnt = 0
+        prevCnt = -1
         proto = ConfigMgr.SYSCALL_PROTOTYPES
         startTime = float(SysMgr.startTime)
         for icount in range(len(self.syscallData)):
             try:
-                prevData = self.syscallData[icount-1]
+                prevData = self.syscallData[prevCnt]
                 nowData = self.syscallData[icount]
 
                 if nowData[1] == -1 or not nowData[2] in self.threadData:
@@ -79174,7 +79188,8 @@ class TaskAnalyzer(object):
                         param = ' '
                     except:
                         SysMgr.printWarn(
-                            "failed to analyze syscall info", True, reason=True)
+                            "failed to analyze syscall info",
+                            True, reason=True)
 
                 elif nowData[0] == 'RET':
                     eventType = nowData[0]
@@ -79199,27 +79214,25 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
-                if icount > 0 and prevData[2] == nowData[2]:
-                    tid = comm = ''
+                if prevCnt > -1 and prevData[2] == nowData[2]:
+                    tid = comm = '.'
                 else:
-                    if nowData[2] in self.threadData:
-                        comm = self.threadData[nowData[2]]['comm']
-                    else:
-                        comm = '??'
+                    comm = self.threadData[nowData[2]]['comm']
                     tid = '(%7s)' % nowData[2]
 
-                if icount > 0 and prevData[3] == nowData[3]:
+                if prevCnt > -1 and prevData[3] == nowData[3]:
                     core = ''
                 else:
                     core = nowData[3]
 
                 SysMgr.printPipe(
                     ("{0:>10} {1:>16}{2:>9} {3:>4} {4:>18} {5:>3} "
-                    "{6:>5} {7:>10} {8:>16} {9:<1}").\
-                    format('%.6f' % eventTime, comm, tid,
-                    core, syscall[4:], nowData[4],
-                    eventType, elapsed, ret, param))
+                    "{6:>5} {7:>10} {8:>16} {9:<1}").format(
+                        '%.6f' % eventTime, comm, tid,
+                        core, syscall[4:], nowData[4],
+                        eventType, elapsed, ret, param))
 
+                prevCnt = icount
                 cnt += 1
             except SystemExit:
                 sys.exit(0)
