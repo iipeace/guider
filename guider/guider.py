@@ -32230,6 +32230,8 @@ Copyright:
         if suffix:
             try:
                 print(log)
+            except SystemExit:
+                sys.exit(0)
             except:
                 return
         else:
@@ -89542,7 +89544,7 @@ class TaskAnalyzer(object):
 
         SysMgr.addPrint(totalCoreStat)
 
-        # get processor temperature #
+        # get CPU/GPU temperature #
         if SysMgr.isLinux and (SysMgr.cpuEnable or SysMgr.gpuEnable):
             coreTempData = {}
             tempDirList = []
@@ -89624,8 +89626,7 @@ class TaskAnalyzer(object):
                                 tfd = open(tempDir, 'r')
                                 self.tempFdList[tempDir] = tfd
 
-                            tempData[coreId] = \
-                                long(tfd.readline()[:-4])
+                            tempData[coreId] = long(tfd.readline()[:-4])
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -89913,9 +89914,9 @@ class TaskAnalyzer(object):
                             phyId = long(fd.readline()[:-1])
                             self.cpuData[idx]['pidFd'] = fd
                         else:
-                            newPidFd = open(pidPath, 'r')
                             pidPath = '%s%s/topology/physical_package_id' % \
                                 (freqPath, idx)
+                            newPidFd = open(pidPath, 'r')
 
                             self.cpuData[idx]['pidFd'] = newPidFd
                             phyId = long(newPidFd.readline()[:-1])
@@ -89957,6 +89958,8 @@ class TaskAnalyzer(object):
                     try:
                         coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                             format(cid, coreTempData['CPU'], coreFreq)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         if cid:
                             coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
@@ -90352,7 +90355,8 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printErr(
-                        "failed to parse function info from '%s'" % item, True)
+                        "failed to parse function info from '%s'" % item,
+                        True)
                     sys.exit(0)
 
                 # call function #
