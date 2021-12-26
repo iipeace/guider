@@ -18076,6 +18076,7 @@ class LogMgr(object):
         size = c_size_t(0)
         usec = c_uint64(0)
         timeout = c_uint64(10000)
+        quitFlag = SysMgr.findOption('Q')
 
         # set fields #
         if SysMgr.inputParam:
@@ -18101,7 +18102,12 @@ class LogMgr(object):
                 if res == 0:
                     ret = systemdObj.sd_journal_wait(jrl, timeout)
                     # SD_JOURNAL_NOP / SD_JOURNAL_APPEND / SD_JOURNAL_INVALID #
-                    if ret == 0 or ret == 1 or ret == 2:
+                    if ret == 0:
+                        if quitFlag:
+                            break
+                        else:
+                            continue
+                    elif ret == 1 or ret == 2:
                         continue
                     elif ret < 0:
                         break
@@ -18270,6 +18276,8 @@ class LogMgr(object):
         try:
             if not SysMgr.kmsgFd:
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'r')
+                if SysMgr.findOption('Q'):
+                    SysMgr.setNonBlock(SysMgr.kmsgFd)
         except SystemExit:
             sys.exit(0)
         except:
@@ -18363,6 +18371,8 @@ class LogMgr(object):
         while 1:
             jsonResult = {}
             log = SysMgr.kmsgFd.readline()
+            if not log:
+                break
 
             # apply filter #
             if not UtilMgr.isValidStr(log):
@@ -20617,6 +20627,24 @@ Commands:
         SysMgr.impGlbPkg[pkg] = True
 
         return True
+
+
+
+    @staticmethod
+    def setNonBlock(fd):
+        fcntl = SysMgr.getPkg('fcntl', False)
+
+        try:
+            if not fcntl:
+                raise Exception('no fcntl')
+
+            flag = fcntl.fcntl(fd.fileno(), fcntl.F_GETFL)
+            fcntl.fcntl(fd.fileno(), fcntl.F_SETFL, flag | os.O_NONBLOCK)
+            return True
+        except:
+            SysMgr.printWarn(
+                'failed to set NONBLOCK attribute to the socket', reason=True)
+            return False
 
 
 
@@ -23848,6 +23876,7 @@ Options:
     -R  <TIME>                  set timer
     -o  <DIR|FILE>              set output path
     -X  <REQ@IP:PORT>           set request address
+    -Q                          print all rows in a stream
 
 Examples:
     - Print logs in real-time
@@ -23858,6 +23887,9 @@ Examples:
 
     - Print logs in real-time for 3 seconds
         # {0:1} {1:1} -R 3s
+
+    - Print logs in real-time until no log
+        # {0:1} {1:1} -Q
                     '''.format(cmd, mode)
 
                 # function record #
@@ -53020,10 +53052,13 @@ class DltAnalyzer(object):
         signal.signal(signal.SIGALRM, DltAnalyzer.onAlarm)
         SysMgr.updateTimer()
 
+        # set flag and print mode #
+        quitFlag = False
         if mode == 'top':
             SysMgr.printInfo(
                 "start collecting DLT log... [ STOP(Ctrl+c) ]")
         elif mode == 'print':
+            quitFlag = SysMgr.findOption('Q')
             SysMgr.printInfo(
                 "start printing DLT log... [ STOP(Ctrl+c) ]\n")
 
@@ -53055,12 +53090,15 @@ class DltAnalyzer(object):
                         byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),
                         c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verb))
                     if ret != 0:
+                        if quitFlag:
+                            sys.exit(0)
+
                         # move receiver buffer pointer to start of the buffer #
                         ret = dltObj.dlt_receiver_move_to_begin(
                             byref(dltReceiver))
                         if ret < 0:
                             SysMgr.printErr(
-                                "failed to move the pointer to receiver buffer")
+                                "failed to move pointer to receiver buffer")
                             sys.exit(0)
 
                         break
