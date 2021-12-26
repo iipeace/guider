@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211223"
+__revision__ = "211226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6035,14 +6035,18 @@ function format_percent(n) {
 
     @staticmethod
     def which(cmd):
+        if not 'PATH' in os.environ:
+            return None
+
         pathList = []
         for path in os.environ["PATH"].split(os.pathsep):
             if os.path.exists(os.path.join(path, cmd)):
                 pathList.append(os.path.join(path, cmd))
-        if not pathList:
-            return None
-        else:
+
+        if pathList:
             return pathList
+        else:
+            return None
 
 
 
@@ -11997,12 +12001,11 @@ class FunctionAnalyzer(object):
 
             return None
 
-            # get system addr2line path #
+            # get addr2line path #
             addr2linePath = UtilMgr.which('addr2line')
-
             if not addr2linePath:
                 SysMgr.printErr((
-                    "failed to find addr2line to analyze user-level functions, "
+                    "failed to find addr2line to analyze functions, "
                     "use -q option with ADDR2LINE to set binary path"))
                 sys.exit(0)
 
@@ -17804,6 +17807,8 @@ class LogMgr(object):
 
 
     def __init__(self, target='error'):
+        self.errFd = None
+
         if target == 'error':
             self.terminal = sys.stderr
             self.notified = False
@@ -17852,29 +17857,38 @@ class LogMgr(object):
                 SysMgr.cacheDirPath = '/tmp'
 
         # set file path for error log #
-        errorFile = '%s/guider.err' % SysMgr.cacheDirPath
-        if not SysMgr.isWritable(errorFile):
-            SysMgr.printWarn((
-                'failed to get write permission for %s '
-                'so that use /tmp/guider.err') % errorFile, True)
-            SysMgr.cacheDirPath = '/tmp'
+        if not self.errFd:
             errorFile = '%s/guider.err' % SysMgr.cacheDirPath
+            if not SysMgr.isWritable(errorFile):
+                SysMgr.printWarn((
+                    'failed to get write permission for %s '
+                    'so that use /tmp/guider.err') % errorFile, True)
+                SysMgr.cacheDirPath = '/tmp'
+                errorFile = '%s/guider.err' % SysMgr.cacheDirPath
+
+            try:
+                self.errFd = open(errorFile, 'a')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(errorFile)
+                self.error = True
 
         try:
-            if not self.notified:
+            if hasattr(self, 'notified') and not self.notified:
                 SysMgr.printErr((
                     'please report %s file to '
                     'https://github.com/iipeace/guider/issues') % \
-                        errorFile)
+                        self.errFd.name if self.errFd else 'error')
                 self.notified = True
 
-            with open(errorFile, 'a') as fd:
-                SysMgr.writeErr(fd, message)
+            # write log to the file #
+            if self.errFd:
+                SysMgr.writeErr(self.errFd, message)
         except SystemExit:
             sys.exit(0)
         except:
-            self.error = True
-            SysMgr.printOpenErr(errorFile)
+            pass
 
 
 
@@ -19000,12 +19014,14 @@ Commands:
     @staticmethod
     def writeErr(fd, log):
         LogMgr.lock(fd)
+
         try:
             fd.write(log)
         except SystemExit:
             sys.exit(0)
         except:
             return
+
         LogMgr.unlock(fd)
 
 
@@ -19795,9 +19811,11 @@ Commands:
 
         # background #
         elif SysMgr.checkMode('bgtop'):
+            # check condition #
             if not SysMgr.checkBgTopCond():
                 sys.exit(0)
 
+            # check permission #
             if SysMgr.isRoot():
                 SysMgr.blockEnable = True
             else:
@@ -27712,7 +27730,10 @@ Copyright:
 
         try:
             if SysMgr.isWindows:
-                arch = os.environ["PROCESSOR_ARCHITECTURE"]
+                if "PROCESSOR_ARCHITECTURE" in os.environ:
+                    arch = os.environ["PROCESSOR_ARCHITECTURE"]
+                else:
+                    arch = 'N/A'
             else:
                 arch = os.uname()[4]
 
@@ -32158,11 +32179,11 @@ Copyright:
         log = '%s%s%s%s' % ('[ERROR] ', proc, line, rstring)
         log = '\n%s\n' % (UtilMgr.convColor(log, 'FAIL', force=True))
 
-        # write log #
+        # write log to stdout #
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
 
-        # write log #
+        # write log to stderr #
         if 'REMOTERUN' in os.environ:
             print(log.replace('\n', ''))
         else:
@@ -47928,7 +47949,7 @@ Copyright:
         if SysMgr.isDarwin:
             command = ["diskutil", "list"]
             shell = False
-        else:
+        elif 'PATH' in os.environ:
             # find powershell path #
             powershellPath = None
             for item in os.environ['PATH'].split(';'):
@@ -47940,6 +47961,8 @@ Copyright:
 
             command = [powershellPath, "get-partition"]
             shell = True
+        else:
+            shell = False
 
         # start diskutil process #
         try:
@@ -62724,7 +62747,11 @@ typedef struct {
             dobj.targetBpList = self.targetBpList
             dobj.targetBpFileList = self.targetBpFileList
             dobj.exceptBpFileList = self.exceptBpFileList
+
+        # initialize variables #
+        if dobj.mode == 'break':
             dobj.isRunning = False
+            ElfAnalyzer.cachedFiles = {}
 
         # apply original attribute #
         dobj.myNum = self.myNum
@@ -89057,11 +89084,9 @@ class TaskAnalyzer(object):
         try:
             slabReclm = vmData['nr_slab_reclaimable'] >> 8
             slabUnReclm = vmData['nr_slab_unreclaimable'] >> 8
-            slabReclmDiff = \
-                vmData['nr_slab_reclaimable'] - \
+            slabReclmDiff = vmData['nr_slab_reclaimable'] - \
                 self.prevVmData['nr_slab_reclaimable']
-            slabUnReclmDiff = \
-                vmData['nr_slab_unreclaimable'] - \
+            slabUnReclmDiff = vmData['nr_slab_unreclaimable'] - \
                 self.prevVmData['nr_slab_unreclaimable']
             totalSlabMem = \
                 (vmData['nr_slab_reclaimable'] + \
@@ -89118,16 +89143,15 @@ class TaskAnalyzer(object):
             swapTotal = vmData['swapTotal'] >> 10
             swapUsage = vmData['swapUsed'] >> 10
             swapFree = swapTotal - swapUsage
+            prevVmData = self.prevVmData
             if swapTotal:
                 swapUsagePer = long(swapUsage / float(swapTotal) * 100)
             else:
                 swapUsagePer = 0
             swapUsageDiff = \
-                (self.prevVmData['swapUsed'] - vmData['swapUsed']) >> 10
-            swapInMem = \
-                (vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
-            swapOutMem = \
-                (vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
+                (prevVmData['swapUsed'] - vmData['swapUsed']) >> 10
+            swapInMem = (vmData['pswpin'] - prevVmData['pswpin']) >> 10
+            swapOutMem = (vmData['pswpout'] - prevVmData['pswpout']) >> 10
         except SystemExit:
             sys.exit(0)
         except:
@@ -89290,8 +89314,7 @@ class TaskAnalyzer(object):
 
         # set context switch #
         try:
-            nrCtxSwc = \
-                self.cpuData['ctxt']['ctxt'] - \
+            nrCtxSwc = self.cpuData['ctxt']['ctxt'] - \
                 self.prevCpuData['ctxt']['ctxt']
             if nrCtxSwc < 0:
                 nrCtxSwc = 0
@@ -89301,8 +89324,7 @@ class TaskAnalyzer(object):
             nrCtxSwc = 0
 
         try:
-            nrIrq = \
-                self.cpuData['intr']['intr'] - \
+            nrIrq = self.cpuData['intr']['intr'] - \
                 self.prevCpuData['intr']['intr']
             if nrIrq < 0:
                 nrIrq = 0
@@ -89312,8 +89334,7 @@ class TaskAnalyzer(object):
             nrIrq = 0
 
         try:
-            nrSoftIrq = \
-                self.cpuData['softirq']['softirq'] - \
+            nrSoftIrq = self.cpuData['softirq']['softirq'] - \
                 self.prevCpuData['softirq']['softirq']
             if nrSoftIrq < 0:
                 nrSoftIrq = 0
@@ -89521,7 +89542,7 @@ class TaskAnalyzer(object):
 
         SysMgr.addPrint(totalCoreStat)
 
-        # get temperature #
+        # get processor temperature #
         if SysMgr.isLinux and (SysMgr.cpuEnable or SysMgr.gpuEnable):
             coreTempData = {}
             tempDirList = []
@@ -89758,10 +89779,10 @@ class TaskAnalyzer(object):
                     reading current frequency will take quite some time.
                     '''
                     try:
-                        self.prevCpuData[idx]['curFd'].seek(0)
-                        curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
-                        self.cpuData[idx]['curFd'] = \
-                            self.prevCpuData[idx]['curFd']
+                        prevCurFd = self.prevCpuData[idx]['curFd']
+                        prevCurFd.seek(0)
+                        curFreq = prevCurFd.readline()[:-1]
+                        self.cpuData[idx]['curFd'] = prevCurFd
                         perCoreStats[idx]['curFreq'] = curFreq
                     except SystemExit:
                         sys.exit(0)
@@ -89777,20 +89798,21 @@ class TaskAnalyzer(object):
                             curPath = None
 
                         try:
-                            self.cpuData[idx]['curFd'] = open(curPath, 'r')
-                            curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
+                            newCurFd = open(curPath, 'r')
+                            self.cpuData[idx]['curFd'] = newCurFd
+                            curFreq = newCurFd.readline()[:-1]
                             perCoreStats[idx]['curFreq'] = curFreq
                         except SystemExit:
                             sys.exit(0)
                         except:
                             curFreq = None
 
-                    # get min frequency #
+                    # get min CPU frequency #
                     try:
-                        self.prevCpuData[idx]['minFd'].seek(0)
-                        minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
-                        self.cpuData[idx]['minFd'] = \
-                            self.prevCpuData[idx]['minFd']
+                        prevMinFd = self.prevCpuData[idx]['minFd']
+                        prevMinFd.seek(0)
+                        minFreq = prevMinFd.readline()[:-1]
+                        self.cpuData[idx]['minFd'] = prevMinFd
                         perCoreStats[idx]['minFreq'] = minFreq
                     except SystemExit:
                         sys.exit(0)
@@ -89806,20 +89828,21 @@ class TaskAnalyzer(object):
                             minPath = None
 
                         try:
-                            self.cpuData[idx]['minFd'] = open(minPath, 'r')
-                            minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
+                            newMinFd = open(minPath, 'r')
+                            self.cpuData[idx]['minFd'] = newMinFd
+                            minFreq = newMinFd.readline()[:-1]
                             perCoreStats[idx]['minFreq'] = minFreq
                         except SystemExit:
                             sys.exit(0)
                         except:
                             minFreq = None
 
-                    # get max frequency #
+                    # get max CPU frequency #
                     try:
-                        self.prevCpuData[idx]['maxFd'].seek(0)
-                        maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
-                        self.cpuData[idx]['maxFd'] = \
-                            self.prevCpuData[idx]['maxFd']
+                        prevMaxFd = self.prevCpuData[idx]['maxFd']
+                        prevMaxFd.seek(0)
+                        maxFreq = prevMaxFd.readline()[:-1]
+                        self.cpuData[idx]['maxFd'] = prevMaxFd
                         perCoreStats[idx]['maxFreq'] = maxFreq
                     except SystemExit:
                         sys.exit(0)
@@ -89835,8 +89858,9 @@ class TaskAnalyzer(object):
                             maxPath = None
 
                         try:
-                            self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
-                            maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
+                            newMaxFd = open(maxPath, 'r')
+                            self.cpuData[idx]['maxFd'] = newMaxFd
+                            maxFreq = newMaxFd.readline()[:-1]
                             perCoreStats[idx]['maxFreq'] = maxFreq
                         except SystemExit:
                             sys.exit(0)
@@ -89873,10 +89897,10 @@ class TaskAnalyzer(object):
                             self.cpuData[idx]['cidFd'] = fd
                         else:
                             cidPath = '%s%s/topology/core_id' % (freqPath, idx)
+                            newCidFd = open(cidPath, 'r')
 
-                            self.cpuData[idx]['cidFd'] = open(cidPath, 'r')
-                            coreId = \
-                                long(self.cpuData[idx]['cidFd'].readline()[:-1])
+                            self.cpuData[idx]['cidFd'] = newCidFd
+                            coreId = long(newCidFd.readline()[:-1])
 
                         if coreId < 0:
                             coreId = '?'
@@ -89889,13 +89913,12 @@ class TaskAnalyzer(object):
                             phyId = long(fd.readline()[:-1])
                             self.cpuData[idx]['pidFd'] = fd
                         else:
-                            pidPath = \
-                                '%s%s/topology/physical_package_id' % \
-                                    (freqPath, idx)
+                            newPidFd = open(pidPath, 'r')
+                            pidPath = '%s%s/topology/physical_package_id' % \
+                                (freqPath, idx)
 
-                            self.cpuData[idx]['pidFd'] = open(pidPath, 'r')
-                            phyId = \
-                                long(self.cpuData[idx]['pidFd'].readline()[:-1])
+                            self.cpuData[idx]['pidFd'] = newPidFd
+                            phyId = long(newPidFd.readline()[:-1])
 
                         if phyId < 0:
                             phyId = '?'
@@ -89916,7 +89939,8 @@ class TaskAnalyzer(object):
                         coreFreq = '? Mhz'
                     if minFreq and maxFreq:
                         coreFreq = '%s [%d-%d]' % \
-                            (coreFreq, long(minFreq) >> 10, long(maxFreq) >> 10)
+                            (coreFreq, long(minFreq) >> 10,
+                                long(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
                 except SystemExit:
                     sys.exit(0)
@@ -90044,7 +90068,8 @@ class TaskAnalyzer(object):
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                         origCoreGraph = coreGraph
                         coreGraph = convCpuColor(totalGpuUsage, coreGraph)
-                        coreGraph += (' ' * (len(coreGraph) - len(origCoreGraph)))
+                        coreGraph += \
+                            (' ' * (len(coreGraph) - len(origCoreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
 
