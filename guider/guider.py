@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211226"
+__revision__ = "211227"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3933,8 +3933,7 @@ class UtilMgr(object):
 
             # call the function and return #
             return func(args)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to call '%s()' from '%s'" % (func, path), True)
@@ -3974,11 +3973,13 @@ class UtilMgr(object):
 
         try:
             num = long(num)
+        except SystemExit: sys.exit(0)
         except:
             num = long(num, 16)
 
         try:
             bits = long(bits)
+        except SystemExit: sys.exit(0)
         except:
             bits = long(bits, 16)
 
@@ -4003,8 +4004,7 @@ class UtilMgr(object):
                         result.append(str(num))
                 else:
                     raise Exception()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("wrong number range '%s'" % item, True)
                 sys.exit(0)
@@ -4210,8 +4210,7 @@ class UtilMgr(object):
                     newDict[key].append(value)
                 else:
                     newDict[key] = [value]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to parse %s by seperator %s" % (item, sep))
@@ -4339,8 +4338,7 @@ class UtilMgr(object):
     def convWord2Str(word):
         try:
             return struct.pack('L', word)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to convert word %s to string" % word, True)
@@ -4425,8 +4423,7 @@ class UtilMgr(object):
                     fstat = os.stat(fpath)
                     if not fstat:
                         continue
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to get stat for %s' % fpath, reason=True)
@@ -4570,8 +4567,7 @@ class UtilMgr(object):
     def decodeArg(value):
         try:
             text = repr(value.decode())
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             text = value
 
@@ -4606,8 +4602,7 @@ class UtilMgr(object):
                 return dictList
 
             return strList
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to convert '%s' to strings" % path, True)
             return False
@@ -4667,8 +4662,7 @@ class UtilMgr(object):
                     break
                 elif numVal & bit:
                     string = '%s%s|' % (string, flist[bit])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to get flag info for %s" % value, reason=True)
@@ -4695,8 +4689,7 @@ class UtilMgr(object):
 
         try:
             return base64.b64encode(value)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return value
 
@@ -4765,8 +4758,7 @@ class UtilMgr(object):
         if fname:
             try:
                 fd = open(fname, 'rb')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
@@ -4797,8 +4789,7 @@ class UtilMgr(object):
 
         try:
             return base64.b64decode(value)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return value
 
@@ -4808,13 +4799,11 @@ class UtilMgr(object):
     def encodeStr(value):
         try:
             return value.encode()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 return value.encode('utf8', 'surrogateescape')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return value
 
@@ -4842,8 +4831,7 @@ class UtilMgr(object):
             try:
                 float(value)
                 return True
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return False
         else:
@@ -4864,8 +4852,7 @@ class UtilMgr(object):
                     return True
                 else:
                     return False
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return False
         else:
@@ -4903,8 +4890,7 @@ class UtilMgr(object):
 
             compressor = SysMgr.getPkg('gzip', False)
             fd = compressor.open(fname, 'rt')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             fd = None
 
@@ -4912,8 +4898,7 @@ class UtilMgr(object):
         try:
             if not fd:
                 fd = open(fname, 'r', encoding='utf-8')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             fd = open(fname, 'r')
 
@@ -4924,8 +4909,7 @@ class UtilMgr(object):
         # get total size #
         try:
             totalSize = os.stat(fname).st_size
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             totalSize = 0
 
@@ -4937,8 +4921,7 @@ class UtilMgr(object):
                 if not data:
                     break
                 buf.append(data)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 break
 
@@ -5008,8 +4991,7 @@ class UtilMgr(object):
     def convStr2Word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to convert string %s to word" % bstring)
@@ -5049,8 +5031,7 @@ class UtilMgr(object):
                 string = long(string)
             else:
                 string = long(string, 16)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if verb:
                 SysMgr.printErr(
@@ -5068,8 +5049,7 @@ class UtilMgr(object):
                 return format(round(float(number),1), ",")
             else:
                 return format(long(number), ",")
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return number
 
@@ -5112,8 +5092,7 @@ class UtilMgr(object):
         try:
             return '%s%s%s' % \
                 (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to convert color for %s' % color, reason=True)
@@ -5131,8 +5110,7 @@ class UtilMgr(object):
         # convert to ABS value #
         try:
             sizeAbs = abs(size)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return '?'
 
@@ -5149,8 +5127,7 @@ class UtilMgr(object):
                     return '%dK' % (size >> 10)
                 else:
                     return '%d' % size
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return '?'
         # Float type #
@@ -5166,8 +5143,7 @@ class UtilMgr(object):
                     return '%.1fK' % (size / 1024.0)
                 else:
                     return '%d' % (size)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return '?'
 
@@ -5194,8 +5170,7 @@ class UtilMgr(object):
                 d = ''
 
             ctime = "%s%02d:%02d:%02d" % (d, h, m, s)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             ctime = "%s%02s:%02s:%02s" % ('', '?', '?', '?')
 
@@ -5238,8 +5213,7 @@ class UtilMgr(object):
                 SysMgr.printInfo(
                     "renamed '%s' to '%s' for backup" % \
                         (outputFile, oldPath))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to backup '%s' to '%s'" % \
@@ -5312,8 +5286,7 @@ class UtilMgr(object):
                 "failed to convert %s to size" % value)
 
             assert False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except AssertionError:
             raise Exception('wrong number unit')
         except:
@@ -5328,8 +5301,7 @@ class UtilMgr(object):
                 if trunc:
                     fd.seek(0, 0)
                     fd.truncate()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -5337,8 +5309,7 @@ class UtilMgr(object):
                 fd.write(jsonObj)
 
                 fd.flush()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to write JSON format data", reason=True)
@@ -5354,8 +5325,7 @@ class UtilMgr(object):
         try:
             with open(path, perm) as fd:
                 fd.write(jsonObj)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to write JSON format data to %s" % path, True)
@@ -5391,8 +5361,7 @@ class UtilMgr(object):
                     pickle.dump(obj, fd, -1)
             os.chmod(path, 0o777)
             return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to save %s object to %s" % \
@@ -5427,8 +5396,7 @@ class UtilMgr(object):
             else:
                 with open(path, 'rb') as fd:
                     return pickle.load(fd)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -5453,8 +5421,7 @@ class UtilMgr(object):
         else:
             try:
                 div = round((current / float(dest)) * 100, 1)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 div = 0
 
@@ -5473,8 +5440,7 @@ class UtilMgr(object):
             UtilMgr.progressStr = progressStr
             sys.stdout.write(progressStr)
             sys.stdout.flush()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -5972,8 +5938,7 @@ function format_percent(n) {
 
             SysMgr.printInfo(
                 "saved flamegraph into '%s'%s successfully" % (path, fsize))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to write flamegraph to %s' % path, True)
@@ -5989,8 +5954,7 @@ function format_percent(n) {
                 return UtilMgr.convSize2Unit(fsize)
             else:
                 return fsize
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get file size for '%s'" % path)
@@ -6008,8 +5972,7 @@ function format_percent(n) {
             with open(path, 'r') as fd:
                 for line in fd:
                     print(line.rstrip())
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to print %s" % path, reason=True)
@@ -6026,8 +5989,7 @@ function format_percent(n) {
         # handle reentrant call exception #
         try:
             sys.stdout.flush()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -6063,8 +6025,7 @@ function format_percent(n) {
 
             if pretty:
                 return jsonStr
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn("failed to convert dict to string", reason=True)
 
@@ -6097,14 +6058,12 @@ function format_percent(n) {
     def convStr2Dict(strObj, verb=False):
         try:
             return SysMgr.getPkg('json').loads(strObj)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 strObj = strObj.replace("'", '"')
                 return SysMgr.getPkg('json').loads(strObj)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to convert %s to dict" % [strObj],
@@ -6244,8 +6203,7 @@ class NetworkMgr(object):
                             self.socket.bind((self.ip, self.port))
                         else:
                             raise e
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         self.socket.bind((self.ip, self.port))
 
@@ -6550,8 +6508,7 @@ class NetworkMgr(object):
                     if end == '': end = 65535
                     for idx in range(long(start), long(end)+1):
                         newPortList.append(idx)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         'failed to bind client socket', True)
@@ -6576,8 +6533,7 @@ class NetworkMgr(object):
                             (ip, port))
                     isBound = True
                     break
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to bind client socket to %s:%s' % \
@@ -6837,8 +6793,7 @@ class NetworkMgr(object):
             elif self.status != 'ALWAYS':
                 self.status = 'SENT'
             return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to send data to %s:%d as server" % \
@@ -6864,8 +6819,7 @@ class NetworkMgr(object):
         try:
             self.socket.sendto(message, (ip, port))
             return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to send data to %s:%d as client" % \
@@ -6890,8 +6844,7 @@ class NetworkMgr(object):
 
         try:
             return self.socket.recv(size)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to receive data from %s:%d as client" % \
@@ -6937,8 +6890,7 @@ class NetworkMgr(object):
 
                 if len(output) < self.recvSize and output[-1] == '\n':
                     break
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to get data from %s:%d as client" % \
@@ -6994,8 +6946,7 @@ class NetworkMgr(object):
                 return None
             except KeyboardInterrupt:
                 sys.exit(0)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 if verb:
                     SysMgr.printWarn(
@@ -7192,8 +7143,7 @@ class NetworkMgr(object):
                 try:
                     connObj.connect()
                     break
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to connect to %s:%s" % (ip, port),
@@ -7210,8 +7160,7 @@ class NetworkMgr(object):
                     SysMgr.exitFlag = origFlag
 
             return connObj
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if verb:
                 SysMgr.printErr(
@@ -7477,8 +7426,7 @@ class NetworkMgr(object):
             fcntl = SysMgr.getPkg('fcntl', False)
             socket = SysMgr.getPkg('socket', False)
             sobj = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -7496,8 +7444,7 @@ class NetworkMgr(object):
                 ipaddr = socket.inet_ntoa(res[20:24])
                 if ipaddr == ip:
                     return dev
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -7509,8 +7456,7 @@ class NetworkMgr(object):
 
         try:
             devices = os.listdir(dirPath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(dirPath)
             return
@@ -7522,8 +7468,7 @@ class NetworkMgr(object):
                 dev = NetworkMgr.getDevByIp(ip)
                 if dev:
                     return (dev, ip)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -7537,8 +7482,7 @@ class NetworkMgr(object):
                 with open(target, 'r') as fd:
                     addr = fd.readline()[:-1]
                     return (dev, addr)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(target)
 
@@ -7578,8 +7522,7 @@ class NetworkMgr(object):
                     cacheList[addr] = None
                     ip = SysMgr.convertCIDR(addr)
                     effectiveList[ip] = None
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(path)
 
@@ -7603,8 +7546,7 @@ class NetworkMgr(object):
 
                 gw = '%s.1' % ip[:ip.rfind('.')]
                 gateways[gw] = None
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -7619,8 +7561,7 @@ class NetworkMgr(object):
         # remove IP for all IPv4 addresses #
         try:
             ipList.remove('0.0.0.0')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -7651,8 +7592,7 @@ class NetworkMgr(object):
                     [items[0], SysMgr.convertCIDR(items[1])])
 
             return effectiveList
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(routePath)
             return effectiveList
@@ -7690,8 +7630,7 @@ class NetworkMgr(object):
             s.connect(("8.8.8.8", 53))
 
             ret = s.getsockname()[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn("failed to get public IP address")
 
@@ -9611,8 +9550,7 @@ class Ext4Analyzer(object):
         # open target file #
         try:
             self.fd = open(path, 'rb')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to open %s' % path, reason=True)
@@ -9621,8 +9559,7 @@ class Ext4Analyzer(object):
         # init volume object #
         try:
             self.volume = Volume(self.fd)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to init EXT4 object for %s'" % path, reason=True)
@@ -9677,8 +9614,7 @@ class Ext4Analyzer(object):
                 dirnode = start.open_dir(path=path)
                 if not dirnode:
                     self.failDirList.setdefault(path, None)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.failDirList.setdefault(path, None)
                 SysMgr.printWarn(
@@ -10456,8 +10392,7 @@ class PageAnalyzer(object):
             pids = SysMgr.getTids(pid[0], isThread=False)
             if not pids:
                 raise Exception('no task')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if pid:
                 targetStr = " for '%s'" % ', '.join(pid)
@@ -10496,8 +10431,7 @@ class PageAnalyzer(object):
                     else:
                         addrs = long(vrange[0])
                         addre = addrs
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to recognize address, "
@@ -10520,8 +10454,7 @@ class PageAnalyzer(object):
                             "failed to recognize address, "
                             "input bigger second address than first address")
                         sys.exit(0)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to recognize address, "
@@ -10592,8 +10525,7 @@ class PageAnalyzer(object):
             else:
                 with open(fpath, 'r') as fd:
                     buf = fd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(fpath)
             sys.exit(0)
@@ -10663,8 +10595,7 @@ class PageAnalyzer(object):
                     SysMgr.printPipe('%18s %18s %4s %8s %6s %12s %s' % \
                         (soffset, eoffset, info['perm'], info['offset'],\
                         info['devid'], info['inode'], fname))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -10704,8 +10635,7 @@ class PageAnalyzer(object):
 
                 SysMgr.printPipe('%18s %18s %s' % \
                     (soffset, eoffset, ' '.join(target[1:])))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -11324,8 +11254,7 @@ class FunctionAnalyzer(object):
                     break
 
                 self.pageTable.pop(pfnv, None)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 # this page is allocated before starting profile #
 
@@ -11464,8 +11393,7 @@ class FunctionAnalyzer(object):
                         val[pageAllocIndex] -= 1
                         val[argIndex][subStackPageInfoIdx] -= 1
                         break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.pageTable[pfnv] = dict(self.init_pageLinkData)
 
@@ -11967,8 +11895,7 @@ class FunctionAnalyzer(object):
                                 self.posData[idx]['symbol'] = 'NoFile'
                                 self.posData[idx]['src'] = 'NoFile'
                                 break
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to find address %s" % addr)
@@ -11993,8 +11920,7 @@ class FunctionAnalyzer(object):
                     symbolList.append('??')
 
                     _updateSymbol(offset, symbol, '??', relocated)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to get symbol from %s" % binPath, True)
@@ -12041,8 +11967,7 @@ class FunctionAnalyzer(object):
                     workload = offsetList[offset:offset+maxArgLine-1]
                     proc = subprocess.Popen(args + workload,
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to execute %s to pick symbols from binary" % \
@@ -12061,8 +11986,7 @@ class FunctionAnalyzer(object):
 
                     # Cancel alarm after addr2line respond #
                     signal.alarm(0)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'no response of addr2line for %s' % binPath)
@@ -12073,8 +11997,7 @@ class FunctionAnalyzer(object):
                     addr = proc.stdout.readline().decode().replace('\n', '')[2:]
                     try:
                         addr = hex(long(addr, 16)).rstrip('L')
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -13801,8 +13724,7 @@ class FunctionAnalyzer(object):
                     appliedIndentLen = 0
 
                 symbolStack += symbolSet
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -13995,8 +13917,7 @@ class FunctionAnalyzer(object):
                             nowLen = indentLen + len(nextCall)
                     except:
                         pass
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -14210,8 +14131,7 @@ class FunctionAnalyzer(object):
                             nowLen = indentLen + len(nextCall)
                     except:
                         pass
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -14237,8 +14157,7 @@ class FunctionAnalyzer(object):
                             nowLen = indentLen + len(nextCall)
                     except:
                         pass
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -15437,8 +15356,7 @@ class FunctionAnalyzer(object):
                             nowLen = indentLen + len(nextCall)
                     except:
                         pass
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -15747,8 +15665,7 @@ class LeakAnalyzer(object):
         try:
             stat = os.stat(file)
             size = UtilMgr.convSize2Unit(stat.st_size)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             size = '??'
 
@@ -15758,8 +15675,7 @@ class LeakAnalyzer(object):
                 "start loading '%s' [%s]" % (file, size))
 
             fd = open(file, 'r')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(file)
             sys.exit(0)
@@ -15771,8 +15687,7 @@ class LeakAnalyzer(object):
         # Get process object #
         try:
             proc = Debugger(pid=int(pid), attach=False)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to analyze leakage", True)
@@ -15802,8 +15717,7 @@ class LeakAnalyzer(object):
             vss = convert(long(mlist[vssIdx]) << 12)
             rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
             rss = convert(long(mlist[rssIdx]) << 12)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             vss = rss = '?'
 
@@ -15947,8 +15861,7 @@ class LeakAnalyzer(object):
                 self.symData[sym]['size'] += val['size']
                 self.symData[sym]['lastPosCnt'] += val['lastPosCnt']
                 self.symData[sym]['lastPosSize'] += val['lastPosSize']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.symData[sym] = dict(self.init_symData)
                 self.symData[sym]['offset'] = val['offset']
@@ -15979,8 +15892,7 @@ class LeakAnalyzer(object):
                 self.fileData[path]['size'] += val['size']
                 self.fileData[path]['lastPosCnt'] += val['lastPosCnt']
                 self.fileData[path]['lastPosSize'] += val['lastPosSize']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.fileData[path] = dict(self.init_fileData)
                 self.fileData[path]['count'] = val['count']
@@ -16048,8 +15960,7 @@ class LeakAnalyzer(object):
         while 1:
             try:
                 line = fd.readline()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -16072,8 +15983,7 @@ class LeakAnalyzer(object):
             for content in items[1:]:
                 try:
                     name, body = content.split('=', 1)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -16095,8 +16005,7 @@ class LeakAnalyzer(object):
                 try:
                     self.posData[pos]['count'] += 1
                     self.posData[pos]['size'] += long(item['size'])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     self.posData[pos] = dict(self.init_posData)
                     self.posData[pos]['count'] = 1
@@ -16187,8 +16096,7 @@ class FileAnalyzer(object):
                     elif os.path.isfile(fname):
                         fdList.append(open(fname, 'r'))
                         targetFiles.append(os.path.abspath(fname))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to open '%s'" % fname, reason=True)
@@ -16272,8 +16180,7 @@ class FileAnalyzer(object):
             for name in list(ConfigMgr.FGRECLAIMSTAT):
                 if name in vmData:
                     self.pgRclmFg += vmData[name]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to get system reclaim stat', True)
@@ -16661,8 +16568,7 @@ class FileAnalyzer(object):
         try:
             path = '%s/%s/maps' % (SysMgr.procPath, pid)
             return open(path, 'r')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(path, verb)
             return None
@@ -16723,8 +16629,7 @@ class FileAnalyzer(object):
         try:
             if FileAnalyzer.procMapStrCache[pid] == mapBuf:
                 return FileAnalyzer.procMapCache[pid]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         finally:
@@ -16776,8 +16681,7 @@ class FileAnalyzer(object):
                     dataObj[fileName]['size'] = newSize
 
                 dataObj[fileName]['offset'] = newOffset
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             dataObj[fileName] = dict(FileAnalyzer.init_mapData)
             dataObj[fileName]['offset'] = newOffset
@@ -16857,8 +16761,7 @@ class FileAnalyzer(object):
                     offset = UtilMgr.convUnit2Size(finfo[1])
                     if finfo[2]:
                         size = UtilMgr.convUnit2Size(finfo[2])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 fname = SysMgr.environList['RAADDLIST'][0]
                 SysMgr.printErr(
@@ -16900,8 +16803,7 @@ class FileAnalyzer(object):
         try:
             raFd = open(raPath, 'wb')
             os.chmod(raPath, 0o777)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(raPath)
             sys.exit(0)
@@ -16977,8 +16879,7 @@ class FileAnalyzer(object):
             SysMgr.printInfo(
                 "saved the readahead list to '%s'%s successfuly" % \
                     (raFd.name, fsize))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to save the readahead list to '%s'" % raFd.name, True)
@@ -17011,8 +16912,7 @@ class FileAnalyzer(object):
             try:
                 raMin = SysMgr.environList['RAMIN'][0]
                 raMin = long(raMin)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr((
                     "failed to set the minimum size to '%s'"
@@ -17033,8 +16933,7 @@ class FileAnalyzer(object):
                     raAllowList = fd.readlines()
                     raAllowList = \
                         list(map(lambda x: x.rstrip(), raAllowList))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
@@ -17054,8 +16953,7 @@ class FileAnalyzer(object):
                     raDenyList = fd.readlines()
                     raDenyList = \
                         list(map(lambda x: x.rstrip(), raDenyList))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
@@ -17075,8 +16973,7 @@ class FileAnalyzer(object):
                     raAddList = fd.readlines()
                     raAddList = \
                         list(map(lambda x: x.rstrip(), raAddList))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
@@ -17334,8 +17231,7 @@ class FileAnalyzer(object):
             try:
                 ret = procObj.saveProcData(procPath, pid)
                 pidComm = procObj.procData[pid]['comm']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(procPath)
                 continue
@@ -17349,8 +17245,7 @@ class FileAnalyzer(object):
 
             try:
                 tids = os.listdir(taskPath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(taskPath)
                 continue
@@ -17369,8 +17264,7 @@ class FileAnalyzer(object):
                 try:
                     ret = procObj.saveProcData(threadPath, tid)
                     comm = procObj.procData[tid]['comm']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printOpenWarn(threadPath)
                     continue
@@ -17397,8 +17291,7 @@ class FileAnalyzer(object):
                         fdlist = []
                         fdlistPath = '%s/fd' % procPath
                         fdlist = os.listdir(fdlistPath)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printOpenWarn(fdlistPath)
 
@@ -17427,8 +17320,7 @@ class FileAnalyzer(object):
                             procMap[fname] = dict(FileAnalyzer.init_mapData)
                             procMap[fname]['size'] = size
                             procMap[fname]['nrOpen'] = 1
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -17538,8 +17430,7 @@ class FileAnalyzer(object):
                     val['totalSize'] = fileInfo['totalSize']
 
                     val['isRep'] = fileInfo['isRep']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -17624,8 +17515,7 @@ class FileAnalyzer(object):
 
                     # open file #
                     val['fd'] = open(fileName, "r")
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     self.profFailedCnt += 1
                     if SysMgr.warnEnable:
@@ -17690,8 +17580,7 @@ class FileAnalyzer(object):
                     if SysMgr.maxKeepFd < fd:
                         val['fd'].close()
                         val['fd'] = None
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn('failed to access %s' % fileName)
                     val['fileMap'] = None
@@ -17822,8 +17711,7 @@ class LogMgr(object):
                 self.terminal = open(target, 'w')
                 os.chmod(target, 0o777)
                 self.error = True
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to open %s" % target, True)
@@ -17834,8 +17722,7 @@ class LogMgr(object):
         try:
             self.terminal.write(message)
             self.terminal.flush()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -17846,8 +17733,7 @@ class LogMgr(object):
         if not os.path.exists(SysMgr.cacheDirPath):
             try:
                 os.makedirs(SysMgr.cacheDirPath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 err = SysMgr.getErrMsg()
                 SysMgr.printWarn((
@@ -17868,8 +17754,7 @@ class LogMgr(object):
 
             try:
                 self.errFd = open(errorFile, 'a')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(errorFile)
                 self.error = True
@@ -17885,8 +17770,7 @@ class LogMgr(object):
             # write log to the file #
             if self.errFd:
                 SysMgr.writeErr(self.errFd, message)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -17911,8 +17795,7 @@ class LogMgr(object):
         try:
             SysMgr.importPkgItems('fcntl')
             lockf(fd, LOCK_EX, 1, 0, 0)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             name = fd.name if fd else 'logger'
             reason = SysMgr.getErrMsg()
@@ -17930,8 +17813,7 @@ class LogMgr(object):
         try:
             SysMgr.importPkgItems('fcntl')
             lockf(fd, LOCK_UN, 1, 0, 0)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             name = fd.name if fd else 'logger'
             reason = SysMgr.getErrMsg()
@@ -18186,8 +18068,7 @@ class LogMgr(object):
                             print(decstr)
 
                         SysMgr.printPipe(decstr, flush=True)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printPipe(jrlStr, flush=True)
 
@@ -18229,8 +18110,7 @@ class LogMgr(object):
             try:
                 data = os.read(fd, SysMgr.PAGESIZE).decode()
                 logs.append(data)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 break
 
@@ -18278,8 +18158,7 @@ class LogMgr(object):
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'r')
                 if SysMgr.findOption('Q'):
                     SysMgr.setNonBlock(SysMgr.kmsgFd)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             sys.exit(0)
@@ -18290,8 +18169,7 @@ class LogMgr(object):
         # check device node #
         try:
             SysMgr.kmsgFd.readline()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.kmsgFd = None
 
@@ -18329,8 +18207,7 @@ class LogMgr(object):
                             ts, line = line.split(' ', 1)
 
                             line = '%s <%s> %s' % (ts, level, line)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -18362,8 +18239,7 @@ class LogMgr(object):
         # change file position #
         try:
             SysMgr.kmsgFd.seek(0)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -18447,8 +18323,7 @@ class LogMgr(object):
         try:
             if not SysMgr.kmsgFd:
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'w')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             return -1
@@ -18459,8 +18334,7 @@ class LogMgr(object):
             for line in msgList:
                 SysMgr.kmsgFd.write('guider: %s\n' % line)
                 SysMgr.kmsgFd.flush()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to write kmsg", reason=True)
@@ -18512,8 +18386,7 @@ class LogMgr(object):
             if not hasattr(SysMgr.systemdObj, func):
                 raise Exception(
                     'no %s in %s' % (func, SysMgr.libsystemdPath))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to log journal", True)
@@ -19027,8 +18900,7 @@ Commands:
 
         try:
             fd.write(log)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -19055,8 +18927,7 @@ Commands:
                     SysMgr.pidDigit = len(maxPid)
 
                 SysMgr.maxPid = long(maxPid)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -19080,8 +18951,7 @@ Commands:
                     sys.exit(0)
                 else:
                     return False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return False
 
@@ -19162,8 +19032,7 @@ Commands:
             else:
                 pids = list(map(str, SysMgr.getPkg('psutil').pids()))
             return pids
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.procPath)
             return []
@@ -19178,8 +19047,7 @@ Commands:
 
             pgrp = os.getpgid(procObj.pid)
             os.killpg(pgrp, signal.SIGINT)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -19216,8 +19084,7 @@ Commands:
             # update the number of maximum open file #
             SysMgr.maxFd = ret[0]
             SysMgr.maxKeepFd = SysMgr.maxFd - 16
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get the maximum file descriptor", reason=True)
@@ -19293,8 +19160,7 @@ Commands:
                 try:
                     item = line.strip().split()
                     newDict.setdefault(item[0], long(item[1]))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -19354,8 +19220,7 @@ Commands:
                 'perm': perm,
             }
             return SysMgr.fdCache[fname]['fd']
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if verb:
                 SysMgr.printOpenErr(fname)
@@ -19460,8 +19325,7 @@ Commands:
         # start analyzing files #
         try:
             pi = FileAnalyzer()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to analyze memory-mapped files", reason=True)
@@ -19496,8 +19360,7 @@ Commands:
                 for cnt in range(SysMgr.repeatInterval):
                     UtilMgr.printProgress(cnt, SysMgr.repeatInterval)
                     time.sleep(1)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -19577,8 +19440,7 @@ Commands:
             path = '/sys/kernel/debug/nvmap/iovmm/clients'
             with open(path, 'rb') as fd:
                 gpuInfo = fd.readlines()[1:]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(path)
             return
@@ -19589,8 +19451,7 @@ Commands:
         for item in gpuInfo:
             try:
                 comm, pid, size = item.decode().split()[1:]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -19661,8 +19522,7 @@ Commands:
                         print(val)
                     else:
                         raise Exception()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         finally:
@@ -19899,14 +19759,12 @@ Commands:
                         value = libList[idx+1]
                         libDict.setdefault(item, [])
                         libDict[item].append(value)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
             SysMgr.libCache = libDict
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn('failed to load library cache', reason=True)
             return False
@@ -19969,8 +19827,7 @@ Commands:
                 res = cdll.LoadLibrary(item)
                 if res:
                     return res
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -20023,8 +19880,7 @@ Commands:
                     flag = 'ONCE'
 
                 SysMgr.killFilter.append([tid, sig, flag])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to set signal", True)
@@ -20076,8 +19932,7 @@ Commands:
                     flag = 'ONCE'
 
                 SysMgr.affinityFilter.append([tid, mask, flag])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "wrong option value '%s'" % origVal, True)
@@ -20157,8 +20012,7 @@ Commands:
                     try:
                         name = "MS_%s" % item.upper()
                         flags |= ConfigMgr.MOUNT_TYPE[name]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -20185,8 +20039,7 @@ Commands:
                 SysMgr.printErr(
                     "failed to mount '%s' because %s" % \
                         (':'.join(origVal), errReason))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to mount '%s'" % ':'.join(origVal), True)
@@ -20220,8 +20073,7 @@ Commands:
                     try:
                         name = "MNT_%s" % item.upper()
                         flags |= ConfigMgr.UMOUNT_TYPE[name]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -20247,8 +20099,7 @@ Commands:
                 SysMgr.printErr(
                     "failed to unmount '%s' because %s" % \
                         (':'.join(origVal), errReason))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to unmount '%s'" % ':'.join(origVal), True)
@@ -20392,8 +20243,7 @@ Commands:
             memBuf = None
             SysMgr.memFd.seek(0)
             memBuf = SysMgr.memFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
@@ -20423,8 +20273,7 @@ Commands:
                 resource.prlimit(pid, rtype, (slim, hlim))
                 soft, hard = resource.prlimit(pid, rtype)
                 return (soft, hard)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -20487,8 +20336,7 @@ Commands:
                 raise Exception('no function')
 
             return (rlim.rlim_cur, rlim.rlim_max)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to change %s to (%s,%s)' % (rname, slim, hlim),
@@ -20567,8 +20415,7 @@ Commands:
                 env = deepcopy(os.environ)
 
             os.execvpe(cmd[0], cmd, env)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to restart %s' % __module__, True)
@@ -20613,8 +20460,7 @@ Commands:
 
         try:
             importList = module.__all__
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except AttributeError:
             importList = \
                 [name for name in moduleDict if not name.startswith('_')]
@@ -20750,8 +20596,7 @@ Commands:
                 if item['apply'] == 'true' and item['perm'] == 'root':
                     SysMgr.checkRootPerm(
                         msg='check threshold for %s' % item)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -20791,8 +20636,7 @@ Commands:
                     SysMgr.blockEnable = True
                     SysMgr.sort = 'b'
                     break
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -20800,8 +20644,7 @@ Commands:
         try:
             if _checkResource(confData['storage']):
                 SysMgr.diskEnable = True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -20809,8 +20652,7 @@ Commands:
         try:
             if _checkResource(confData['net']):
                 SysMgr.networkEnable = True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -20820,8 +20662,7 @@ Commands:
             if not SysMgr.taskEnable:
                 SysMgr.printWarn(
                     'disabled monitoring tasks because of no threshold', True)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to check task monitoring', reason=True)
@@ -20881,8 +20722,7 @@ Commands:
                     SysMgr.printInfo(
                         'the CPU affinity of %s(%s) is %s' % \
                             (SysMgr.getComm(tid), tid, mask))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to get the CPU affinity of task", True)
@@ -20955,8 +20795,7 @@ Commands:
                 if SysMgr.guiderObj:
                     guiderObj = SysMgr.guiderObj
                     ret = guiderObj.sched_setaffinity(long(pid), mask) # pylint: disable=no-member
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -20969,8 +20808,7 @@ Commands:
 
                 ret = SysMgr.libcObj.sched_setaffinity(
                     c_int(long(pid)), c_ulong(nrCore), byref(cmask))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 ret = -1
                 SysMgr.printWarn(
@@ -20993,8 +20831,7 @@ Commands:
         try:
             return '0x%X' % \
                 SysMgr.guiderObj.sched_getaffinity(pid) # pylint: disable=no-member
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -21025,8 +20862,7 @@ Commands:
                 raise Exception('wrong affinity')
 
             return hex(mask[0]).rstrip('L')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get CPU affinity for %s(%s)" % \
@@ -21040,8 +20876,7 @@ Commands:
         try:
             with open(maxThdPath, 'r') as fd:
                 return long(fd.readline()[:-1])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to read %s" % maxThdPath, reason=True)
@@ -21066,8 +20901,7 @@ Commands:
         try:
             with open(oomPath, 'w') as fd:
                 fd.write(pri)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to write %s" % oomPath, reason=True)
@@ -21466,8 +21300,7 @@ Commands:
             try:
                 _doPing(urlList, timeout, seq=seq)
                 time.sleep(interval)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to send ping to %s', True)
@@ -21491,15 +21324,13 @@ Commands:
         try:
             SysMgr.netdevFd.seek(0)
             data = SysMgr.netdevFd.readlines()[2:]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 devPath = '%s/net/dev' % SysMgr.procPath
                 SysMgr.netdevFd = open(devPath, 'r')
                 data = SysMgr.netdevFd.readlines()[2:]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(devPath)
                 return
@@ -21570,8 +21401,7 @@ Commands:
                     targetList.append(line)
 
             return ConfigMgr.confData
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if verb:
                 SysMgr.printErr(
@@ -21607,8 +21437,7 @@ Commands:
                         FileAnalyzer.getMapFilePath(SysMgr.pid, libName)
 
             return SysMgr.pyLibPath
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get path for python library", reason=True)
@@ -21625,16 +21454,14 @@ Commands:
                     return psutil.Process(long(pid)).exe()
                 else:
                     return None
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return None
 
         try:
             exePath = '%s/%s/exe' % (SysMgr.procPath, pid)
             return os.readlink(exePath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if verb:
                 SysMgr.printWarn(
@@ -21657,8 +21484,7 @@ Commands:
                     return cmdline
                 else:
                     return ' '.join(cmdline)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     'failed to get cmdline for task %s' % pid, reason=True)
@@ -21677,8 +21503,7 @@ Commands:
                     return res.split("\x00")
                 else:
                     return res.replace("\x00", " ").strip()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(cmdlinePath)
             if retList:
@@ -21696,8 +21521,7 @@ Commands:
                 for line in fd.readlines():
                     if line.startswith('TracerPid'):
                         return long(line.split(':')[1].split()[0])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return 0
 
@@ -21721,8 +21545,7 @@ Commands:
                         idx = 3
 
                     return long(line.split(':')[1].split()[idx])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             comm = SysMgr.getComm(pid)
             SysMgr.printErr(
@@ -21741,8 +21564,7 @@ Commands:
                 for line in fd.readlines():
                     if line.startswith('Tgid'):
                         return line.split(':')[1].split()[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -21784,8 +21606,7 @@ Commands:
             commList = ['%s(%s)' % \
                 (SysMgr.getComm(pid), pid) for pid in pidList]
             return ', '.join(commList)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return ', '.join(pidList)
 
@@ -21799,8 +21620,7 @@ Commands:
         try:
             fdPath = '%s/%s/fd/%s' % (SysMgr.procPath, pid, fd)
             return os.readlink(fdPath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to read file name from fd(%s) for %s(%s)" % \
@@ -21818,16 +21638,14 @@ Commands:
                     return psutil.Process(long(pid)).environ()['PWD']
                 else:
                     return None
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return None
 
         try:
             pwdPath = '%s/%s/cwd' % (SysMgr.procPath, pid)
             pwd = os.readlink(pwdPath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -21849,8 +21667,7 @@ Commands:
                 if save:
                     SysMgr.commCache[pid] = comm
                 return comm
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -21862,8 +21679,7 @@ Commands:
                     return psutil.Process(long(pid)).name()
                 else:
                     return None
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return None
 
@@ -21887,8 +21703,7 @@ Commands:
                 SysMgr.commFdCache[pid] = fd
             else:
                 fd.close()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -21911,8 +21726,7 @@ Commands:
                 return varDict[var]
             else:
                 return varDict
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get python config", True, True)
@@ -21988,8 +21802,7 @@ Commands:
         try:
             SysMgr.guiderObj.prctl(15, comm, 0, 0, 0) # pylint: disable=no-member
             return
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -22000,8 +21813,7 @@ Commands:
         try:
             SysMgr.libcObj.prctl(
                 15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to set comm to '%s'" % comm, True, reason=True)
@@ -22033,8 +21845,7 @@ Commands:
                 return False
             else:
                 return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return False
 
@@ -22045,8 +21856,7 @@ Commands:
         # check cache #
         try:
             return SysMgr.impPkg[name]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -22057,8 +21867,7 @@ Commands:
         # import package #
         try:
             obj = __import__(name, fromlist = [name] if isRoot else [None])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to import python package: %s " % name, isExit)
@@ -22189,8 +21998,7 @@ Commands:
                     path = os.path.abspath(
                         os.path.join(nodePath, os.readlink(path)))
                 self.devNodeInfo[item] = path
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -22202,15 +22010,13 @@ Commands:
             SysMgr.diskStatsFd.seek(0)
             SysMgr.prevDiskStats = SysMgr.diskStats
             SysMgr.diskStats = SysMgr.diskStatsFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 diskstatPath = '%s/diskstats' % SysMgr.procPath
                 SysMgr.diskStatsFd = open(diskstatPath, 'r')
                 SysMgr.diskStats = SysMgr.diskStatsFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(diskstatPath)
 
@@ -22224,8 +22030,7 @@ Commands:
 
             SysMgr.mountFd.seek(0)
             return SysMgr.mountFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 mountPath = '%s/%s/mountinfo' % (SysMgr.procPath, pid)
@@ -22233,8 +22038,7 @@ Commands:
                 if pid == 'self':
                     SysMgr.mountFd = mountFd
                 return mountFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(mountPath)
 
@@ -22246,8 +22050,7 @@ Commands:
             statmPath = "%s/%s/statm" % (SysMgr.procPath, pid)
             with open(statmPath, 'r') as fd:
                 return fd.readlines()[0].split()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(statmPath)
             return
@@ -22274,8 +22077,7 @@ Commands:
                             cmd += "common_pid <= %s || " % long(cond[1:])
                         elif rdir == len(cond) - 1:
                             cmd += "common_pid >= %s || " % long(cond[:-1])
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -22325,8 +22127,7 @@ Commands:
                     elif tgid == tdata[item]['tgid'] or \
                         tgid == SysMgr.savedProcTree[item]:
                         return False
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -22406,8 +22207,7 @@ Commands:
                 return True
 
             return False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return False
 
@@ -22469,8 +22269,7 @@ Commands:
             SysMgr.printInfo(
                 "renamed '%s' to '%s' for backup" % \
                     (origFile, newFile))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to backup '%s' to '%s'" % \
@@ -22503,8 +22302,7 @@ Commands:
                     rpath = '^' + rpath
 
                 nlist.append(rpath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 if os.path.exists(path):
                     if exflag:
@@ -22552,8 +22350,7 @@ Commands:
                 raise Exception('no errorno')
             code = errno.errorcode[num]
             return '%s (%s)' % (code, os.strerror(num))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn('failed to get error reason', reason=True)
             return 'N/A'
@@ -22569,8 +22366,7 @@ Commands:
         for pid in pids:
             try:
                 long(pid)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -22583,8 +22379,7 @@ Commands:
 
             try:
                 tids = os.listdir(taskPath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(taskPath)
                 continue
@@ -22600,8 +22395,7 @@ Commands:
                         SysMgr.getComm(tid, save=True)
 
                         procTree[tid] = pid
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -22680,8 +22474,7 @@ Commands:
 
         try:
             f = open(path, 'r')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(path)
             return None
@@ -22794,8 +22587,7 @@ Commands:
                 if not "LANG" in os.environ or \
                     'tty' in os.ttyname(sys.stdout.fileno()):
                     SysMgr.encodeEnable = False
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -22860,8 +22652,7 @@ Commands:
                 lang = os.getenv('LANG')
                 if not lang or not 'UTF' in lang:
                     SysMgr.encodeEnable = False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -22910,8 +22701,7 @@ Commands:
             try:
                 SysMgr.printWarn('terminated by timer\n', True)
                 os.kill(SysMgr.pid, signal.SIGINT)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printSigError(SysMgr.pid, 'SIGINT')
 
@@ -24472,6 +24262,9 @@ Examples:
     - {2:1} except for no symbol backtraces for specific threads
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
+    - {2:1} for specific threads with interval summary
+        # {0:1} {1:1} -g a.out -q INTERCALL
+
     - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
@@ -25295,6 +25088,9 @@ Examples:
 
     - {3:1} for specific threads without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
+
+    - {3:1} for specific threads with interval info
+        # {0:1} {1:1} -g a.out -q INTERCALL
 
     - {3:1} for specific threads and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
@@ -27748,8 +27544,7 @@ Copyright:
             SysMgr.kernelVersion = kernelVersion
 
             return kernelVersion
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -27783,8 +27578,7 @@ Copyright:
                 SysMgr.arch = 'x86'
             else:
                 SysMgr.arch = arch
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.arch = 'arm'
 
@@ -27842,8 +27636,7 @@ Copyright:
                         break
                 if finished:
                     break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 break
 
@@ -27985,8 +27778,7 @@ Copyright:
             try:
                 rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
                 revents.append([wlist[wd], rtypes, fname])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -28029,8 +27821,7 @@ Copyright:
             try:
                 nrParams = \
                     len(ConfigMgr.SYSCALL_PROTOTYPES[nmSyscall[4:]][1])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to get the number of arguments for %s" % nmSyscall)
@@ -28067,8 +27858,7 @@ Copyright:
                         args[4], args[5])
 
             return ret
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to call %s syscall' % syscall, True, reason=True)
@@ -28118,8 +27908,7 @@ Copyright:
                 nrConfig = ConfigMgr.PERF_SW_EVENT_TYPE.index(econfig)
             else:
                 raise Exception('wrong perf event')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to recognize '%s' as the perf event type" % econfig)
@@ -28496,8 +28285,7 @@ Copyright:
 
                     # add value to list #
                     retList.append(value)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     retList.append(None)
 
@@ -28636,8 +28424,7 @@ Copyright:
                 # cast buffer to data #
                 retList.append(
                     cast(pbuf, POINTER(c_ulong)).contents.value)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 retList.append(None)
 
@@ -28678,8 +28465,7 @@ Copyright:
                         'change value of %s from %s to -1 '
                         'to read all perf events') % \
                         (attrPath, paranoid))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "enable CONFIG_PERF_EVENTS kernel option")
@@ -28846,8 +28632,7 @@ Copyright:
             ipc = inst / float(cpucycle)
             perfbuf = '%sIPC: %s / ' % \
                 (perfbuf, convColor('%.2f' % ipc, 'YELLOW'))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -28859,8 +28644,7 @@ Copyright:
             perfbuf = '%sCacheMiss : %s(%s) / ' % \
                 (perfbuf, convSize(cachemiss),
                     convColor('%s%%' % cachemissrate, 'YELLOW'))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -28872,8 +28656,7 @@ Copyright:
             perfbuf = '%sBrcMiss: %s(%s) / ' % \
                 (perfbuf, convSize(branchmiss),
                     convColor('%s%%' % branchmissrate, 'YELLOW'))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -28882,8 +28665,7 @@ Copyright:
             perfbuf = '%sClk: %s / ' % \
                 (perfbuf, convSize(
                     value['PERF_COUNT_SW_CPU_CLOCK']))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -28893,16 +28675,14 @@ Copyright:
             faultmaj = value['PERF_COUNT_SW_PAGE_FAULTS_MAJ']
             perfbuf = '%sMinFlt: %s / MajFlt: %s / ' % \
                 (perfbuf, format(faultmin, ','), format(faultmaj, ','))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
         try:
             if perfbuf:
                 perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -28999,8 +28779,7 @@ Copyright:
 
                     # add argument command to entry command #
                     sCmd = '%s %s' % (sCmd, tVal)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -29042,8 +28821,7 @@ Copyright:
                             ('+0(' * wCnt, '$retval', ')' * wCnt, tVal[wCnt:])
                     else:
                         sCmd = 'NONE'
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -29304,8 +29082,7 @@ Copyright:
         try:
             if not err.args or err.args[0] == 0:
                 return '%s%s' % (sys.exc_info()[0].__name__, linestr)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if to:
                 return 'N/A%s' % linestr
@@ -29315,8 +29092,7 @@ Copyright:
         # error code #
         try:
             code = '%s-' % errno.errorcode[err.args[0]]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             code = ''
 
@@ -29576,8 +29352,7 @@ Copyright:
         try:
             with open(udsPath, 'r') as fd:
                 udsBuf = fd.read().split('\n')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(udsPath)
             return udsBuf
@@ -29595,8 +29370,7 @@ Copyright:
                 item = "UDS>%s" % uds[pathIdx]
 
                 SysMgr.udsListCache[uds[inodeIdx]] = item
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -29629,8 +29403,7 @@ Copyright:
             try:
                 with open(udpPath, 'r') as fd:
                     udpBuf = fd.read().split('\n')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(udpPath)
                 continue
@@ -29659,15 +29432,13 @@ Copyright:
                         if long(rip, 16) > 0 and rport > 0:
                             rip = SysMgr.convertCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
                     # cache string #
                     SysMgr.udpListCache[udp[inodeIdx]] = item
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to parse UDP data '%s'" % line, reason=True)
@@ -29703,8 +29474,7 @@ Copyright:
             try:
                 with open(tcpPath, 'r') as fd:
                     tcpBuf = fd.read().split('\n')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(tcpPath)
                 continue
@@ -29733,8 +29503,7 @@ Copyright:
                         if long(rip, 16) > 0 and rport > 0:
                             rip = SysMgr.convertCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -29750,8 +29519,7 @@ Copyright:
 
                     # cache string #
                     SysMgr.tcpListCache[tcp[inodeIdx]] = item
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to parse TCP data '%s'" % line, reason=True)
@@ -30509,8 +30277,7 @@ Copyright:
                 else:
                     with open(rpath, 'r') as fr:
                         lines = fr.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(rpath)
                 sys.exit(0)
@@ -30619,8 +30386,7 @@ Copyright:
             SysMgr.printInfo(
                 "finish saving trace data into '%s'%s successfully" % \
                 (outputFile, fsize))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to write trace data to '%s'" % outputFile, True)
@@ -30701,8 +30467,7 @@ Copyright:
                         (SysMgr.debugfsPath, SysMgr.nullPath))
                     SysMgr.cmdFd.write(
                         'echo "\n[Info] start recording... [ STOP(Ctrl+c) ]\n"\n')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printOpenErr(SysMgr.cmdEnable)
                     return -1
@@ -30713,8 +30478,7 @@ Copyright:
                         (str(val), SysMgr.mountPath, path, SysMgr.nullPath)
                     SysMgr.cmdFd.write(cmd)
                     SysMgr.cmdFd.flush()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to write command", True)
                     return -1
@@ -30741,8 +30505,7 @@ Copyright:
                 if not fd:
                     fd = open(target, perm)
                     SysMgr.cmdFileCache[target] = fd
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             fpos = path.rfind('/')
             try:
@@ -30785,8 +30548,7 @@ Copyright:
                 elif val == '0':
                     SysMgr.sysInstance.\
                         cmdList[path[:path.rfind('/enable')]] = False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.cmdFileCache.pop(target, None)
             SysMgr.printWarn(
@@ -31010,8 +30772,7 @@ Copyright:
 
                     dirs = line.lstrip(attr)[1:].split(':')
                     overlayList[point][attr] = dirs
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -31228,8 +30989,7 @@ Copyright:
                 archPosEnd = infoBuf.find('\n', archPosStart)
                 arch = infoBuf[archPosStart:archPosEnd].split()[1]
                 SysMgr.setArch(arch)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -31421,8 +31181,7 @@ Copyright:
             try:
                 SysMgr.eventLogFd = \
                     open(SysMgr.eventLogPath, 'w')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(
                     "failed to open %s" % SysMgr.eventLogPath)
@@ -31441,8 +31200,7 @@ Copyright:
                     pass
 
                 return True
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to write %s event" % (message), reason=True)
@@ -31507,8 +31265,7 @@ Copyright:
                         'time_end': float(x)+0.000001,
                     })
 
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         'failed to recognize event for timeline', reason=True)
@@ -31556,8 +31313,7 @@ Copyright:
             timeline.draw(dwg, start=start, annotation=annotation, yval=yval)
 
             dwg.save()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to draw timeline', reason=True)
@@ -31952,8 +31708,7 @@ Copyright:
                 elif sys.platform.startswith('win'):
                     try:
                         SysMgr.pipeForPager = os.popen('more', 'w')
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
                 else:
@@ -31963,8 +31718,7 @@ Copyright:
                 SysMgr.encodeEnable = False
 
                 SysMgr.setPipeHandler()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to use pager", True, reason=True)
@@ -31979,8 +31733,7 @@ Copyright:
                         SysMgr.pipeForPager.write('\n')
 
                 return
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to print to pager\n", True)
@@ -32038,8 +31791,7 @@ Copyright:
                     SysMgr.printInfo(
                         "start writing statistics to '%s'" % \
                             SysMgr.inputFile)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(SysMgr.inputFile)
                 sys.exit(0)
@@ -32055,8 +31807,7 @@ Copyright:
 
                 if flush:
                     SysMgr.printFd.flush()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to write to %s" % SysMgr.printFd.name, True)
@@ -32091,8 +31842,7 @@ Copyright:
                 else:
                     line = '\n'.join(
                         [nline[:cols-1] for nline in line.split('\n')])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn("failed to print to console", reason=True)
                 return
@@ -32103,8 +31853,7 @@ Copyright:
             # print string to console #
             try:
                 sys.stdout.write(nline)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 if SysMgr.encodeEnable:
                     SysMgr.encodeEnable = False
@@ -32201,8 +31950,7 @@ Copyright:
 
         try:
             line = line.rstrip('\n')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -32262,16 +32010,14 @@ Copyright:
         if suffix:
             try:
                 print(log)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return
         else:
             try:
                 sys.stdout.write(log)
                 sys.stdout.flush()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to flush stdout', reason=True)
@@ -32339,8 +32085,7 @@ Copyright:
                 raise Exception('wrong request')
 
             return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return False
 
@@ -32500,8 +32245,7 @@ Copyright:
                 else:
                     SysMgr.repeatCount = \
                         long(convTime(cnt) / interval)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr((
                     "wrong value for runtime option because %s, "
@@ -32532,8 +32276,7 @@ Copyright:
                     SysMgr.repeatInterval = interval
                     if applyInterval:
                         SysMgr.intervalEnable = interval
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr((
                     "wrong value for runtime option because %s, "
@@ -32561,8 +32304,7 @@ Copyright:
                 SysMgr.intervalEnable = SysMgr.maxSize
             if SysMgr.repeatInterval == sys.maxsize:
                 SysMgr.repeatInterval = SysMgr.maxSize
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr((
                 "wrong value for interval option because %s, "
@@ -32659,8 +32401,7 @@ Copyright:
                 SysMgr.outputFile = '%s/guider.dat' % value
             else:
                 SysMgr.outputFile = value
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "wrong path '%s'" % os.path.abspath(value), True)
@@ -32749,8 +32490,7 @@ Copyright:
                             "wrong value '%s' for interval, "
                             "input number bigger than 0") % value)
                         sys.exit(0)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr((
                         "wrong value '%s' for interval, "
@@ -33053,8 +32793,7 @@ Copyright:
                             ', '.join(SysMgr.boundaryLine))
 
                         SysMgr.boundaryLine = cval
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             'failed to convert [%s] to number' % \
@@ -33174,8 +32913,7 @@ Copyright:
                                 SysMgr.syscallExceptList.append(nrSyscall)
                             else:
                                 SysMgr.syscallList.append(nrSyscall)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "no %s syscall in %s ABI" % \
@@ -33231,8 +32969,7 @@ Copyright:
                                 SysMgr.ttyRows = rows
                             if cols > 0:
                                 SysMgr.ttyCols = cols
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr((
                         "wrong value for screen size, "
@@ -33264,8 +33001,7 @@ Copyright:
                             "wrong value for buffer size, "
                             "input number bigger than 0") % option)
                         sys.exit(0)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr((
                             "wrong value for buffer size, "
@@ -33512,8 +33248,7 @@ Copyright:
                             "wrong value for buffer size, "
                             "input number bigger than 0")
                         sys.exit(0)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "wrong value for buffer size, "
@@ -33649,8 +33384,7 @@ Copyright:
                             enabledSyscall.append(
                                 ConfigMgr.sysList[nrSyscall])
                             SysMgr.syscallList.append(nrSyscall)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "no %s syscall in %s ABI" % \
@@ -33737,8 +33471,7 @@ Copyright:
             restPath = '%s/sys/kernel/kptr_restrict' % SysMgr.procPath
             with open(restPath, 'w+') as fd:
                 fd.write('0')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -33747,8 +33480,7 @@ Copyright:
             f = open(symPath, 'r')
         except IOError:
             SysMgr.printOpenWarn(symPath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
 
         ret = None
         startPos = len(SysMgr.kerSymTable)
@@ -34095,8 +33827,7 @@ Copyright:
                     jsonStr = UtilMgr.convDict2Str(
                         obj.attr, pretty=not SysMgr.streamEnable)
                     SysMgr.printPipe(jsonStr)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to analyze '%s'" % path, True)
@@ -34284,8 +34015,7 @@ Copyright:
         elif SysMgr.checkMode('comp'):
             try:
                 SysMgr.doCompress()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to compress', True)
@@ -34294,8 +34024,7 @@ Copyright:
         elif SysMgr.checkMode('decomp'):
             try:
                 SysMgr.doDecompress()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to decompress', True)
@@ -34653,8 +34382,7 @@ Copyright:
 
                 SysMgr.reportObject = open(reportPath, perm)
                 os.chmod(reportPath, 0o777)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(reportPath)
                 sys.exit(0)
@@ -34814,8 +34542,7 @@ Copyright:
 
             try:
                 event = sys.stdin.readline()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -34962,8 +34689,7 @@ Copyright:
                     stat = fd.read().split()
                     runtimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
                     SysMgr.startRunTime = float(stat[runtimeIdx]) / 100
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn('failed to get runtime', True, True)
 
@@ -34987,23 +34713,20 @@ Copyright:
                 if not psutil:
                     return -1
                 return time.time() - psutil.boot_time()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return -1
 
         try:
             SysMgr.uptimeFd.seek(0)
             return float(SysMgr.uptimeFd.readlines()[0].split()[0])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 uptimePath = "%s/%s" % (SysMgr.procPath, 'uptime')
                 SysMgr.uptimeFd = open(uptimePath, 'r')
                 return float(SysMgr.uptimeFd.readlines()[0].split()[0])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(uptimePath)
                 return -1
@@ -35197,8 +34920,7 @@ Copyright:
         if 'WAITTASK' in SysMgr.environList:
             try:
                 waitTime = long(SysMgr.environList['WAITTASK'][0]) / 1000
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 waitTime = 0.1
         else:
@@ -35216,8 +34938,7 @@ Copyright:
         # split items #
         try:
             nameList = name.split('|')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nameList = [name]
 
@@ -35237,8 +34958,7 @@ Copyright:
                         pidList.append(pid)
 
                 return pidList
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to find tasks related to '%s'" % name,
@@ -35297,8 +35017,7 @@ Copyright:
                 try:
                     threadPath = "%s/%s/task" % (SysMgr.procPath, pid)
                     tids = os.listdir(threadPath)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -35362,8 +35081,7 @@ Copyright:
                     'failed to mount(%s, %s, %s, %s, %s)' % \
                         (source, path, fs, flags, data))
             return ret
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to call mount(%s, %s, %s, %s, %s)' % \
@@ -35389,8 +35107,7 @@ Copyright:
                 SysMgr.printWarn(
                     'failed to call umount2(%s, %s)' % (target, flags))
             return ret
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to call umount2(%s, %s)' % (target, flags), True, True)
@@ -35418,14 +35135,12 @@ Copyright:
         # get fd #
         try:
             fd = SysMgr.rawFdCache[path]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 fd = os.open(path, os.O_RDONLY)
                 SysMgr.rawFdCache[path] = fd
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(path)
                 return False
@@ -35434,8 +35149,7 @@ Copyright:
         if not size:
             try:
                 size = os.stat(path).st_size
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to get file size for '%s'" % path, True)
@@ -35474,8 +35188,7 @@ Copyright:
         if closeFd:
             try:
                 os.close(fd)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -35506,8 +35219,7 @@ Copyright:
             try:
                 raMax = SysMgr.environList['RAMAX'][0]
                 raMax = long(raMax)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr((
                     "failed to set the maximum size to '%s'"
@@ -35522,8 +35234,7 @@ Copyright:
         # open list #
         try:
             raData = open(path, 'rb').read()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(path)
             sys.exit(0)
@@ -35536,8 +35247,7 @@ Copyright:
             pos = 4
             chunkSize = 20
             nameListSize = struct.unpack('I', raData[:pos])[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to get name list size for readahead', True)
@@ -35548,8 +35258,7 @@ Copyright:
             nameList = raData[pos:pos+nameListSize]
             nameList = nameList.decode().split('#')
             pos = pos+nameListSize
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to get name list for readahead', True)
@@ -35609,8 +35318,7 @@ Copyright:
                     continue
 
                 totalSize += size
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to readahead", True, True)
@@ -35646,8 +35354,7 @@ Copyright:
                 ret = SysMgr.readahead(item, offset, size, raMax=raMax)
 
                 totalSize += size
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 fname = SysMgr.environList['RAADDLIST'][0]
                 SysMgr.printErr(
@@ -35662,8 +35369,7 @@ Copyright:
             dobj.initValues()
             dobj.getCpuUsage()
             cpu = 'using CPU %s%% ' % dobj.prevCpuStat[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             cpu = ''
 
@@ -35747,16 +35453,14 @@ Copyright:
                 try:
                     state = ConfigMgr.PROC_STAT_TYPE[
                         statList[gstatList.index("STATE")]]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     state = 'N/A'
 
                 # rss #
                 rss = long(statList[gstatList.index("RSS")])
                 rss = UtilMgr.convSize2Unit(rss << 12, True)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -35799,16 +35503,14 @@ Copyright:
                     network = '(%s)' % netList[:-1]
                 else:
                     network = ''
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 network = ''
 
             # cmdline #
             try:
                 cmdline = SysMgr.getCmdline(pid)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 cmdline = '?'
 
@@ -35935,8 +35637,7 @@ Copyright:
                 else:
                     sys.stdin.readline()
                     sys.stdout.write("\033[F")
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except IOError:
             SysMgr.printWarn("failed to read user input", reason=True)
             sys.stdin = None
@@ -36099,8 +35800,7 @@ Copyright:
                     tidList = SysMgr.getTids(tid)
                     for tid in tidList:
                         limitList[tid] = long(per)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("wrong input value for task limit info", True)
             sys.exit(0)
@@ -36149,8 +35849,7 @@ Copyright:
                     ret = SysMgr.launchGuider(
                         cmdList, pipe=False, stderr=True,
                         stream=False, logo=False, log=True)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     ret = False
                     SysMgr.printErr(
@@ -36167,8 +35866,7 @@ Copyright:
             try:
                 SysMgr.setIgnoreSignal()
                 os.wait()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
             finally:
@@ -36219,8 +35917,7 @@ Copyright:
                     sys.exit(0)
 
             return myEnv
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to parse enviroment variable', reason=True)
@@ -36242,8 +35939,7 @@ Copyright:
             SysMgr.resetFileTable(mute, closeFd)
 
             os.execvpe(cmd[0], cmd, env)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to execute '%s'" % ' '.join(cmd), True)
@@ -36584,8 +36280,7 @@ Copyright:
         # wait for a specific child #
         try:
             return os.waitpid(pid, flag)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to wait %s task" % pid, reason=True)
@@ -36611,8 +36306,7 @@ Copyright:
                 # save process info #
                 plist.append(p)
                 pidlist.append(p.pid)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to create a new process', reason=True)
@@ -36637,15 +36331,13 @@ Copyright:
         try:
             # fork #
             pid = os.fork()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             # multiprocessing #
             try:
                 ret = SysMgr.spawnProcess(wait=False)
                 if ret: return ret[0]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to create a new process', True)
@@ -36671,8 +36363,7 @@ Copyright:
             # close fd for output #
             try:
                 SysMgr.printFd.close()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
             finally:
@@ -36719,8 +36410,7 @@ Copyright:
             SysMgr.printInfo("redirect fd(%s) to '%s'" % (fileno, path))
             fd = os.open(path, os.O_RDWR|os.O_CREAT|os.O_APPEND)
             os.dup2(fd, fileno)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to redirect %s to '%s'" % (fileno, path), True)
@@ -36733,8 +36423,7 @@ Copyright:
         try:
             if not SysMgr.nullFd:
                 SysMgr.nullFd = open(SysMgr.nullPath, 'w')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn("failed to open '%s'" % SysMgr.nullPath, True)
             return
@@ -36775,8 +36464,7 @@ Copyright:
         try:
             if mute:
                 SysMgr.closeStdFd(stderr=False)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -36794,12 +36482,10 @@ Copyright:
                     fd = long(fd)
                     if fd > 2:
                         os.close(fd)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to get file descriptors in %s" % path,
@@ -36990,8 +36676,7 @@ Copyright:
         try:
             sh = signal.getsignal(sig)
             sh(sig, frame)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if sh == signal.SIG_IGN:
                 reason = ' because %s is ignored' % sig
@@ -37044,8 +36729,7 @@ Copyright:
             try:
                 netinfo = ' [%s/%s]' % \
                     (NetworkMgr.getHostName(), NetworkMgr.getPublicIp())
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 netinfo = ''
 
@@ -37554,8 +37238,7 @@ Copyright:
 
                     # monitor connection #
                     cliObj.recv()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     # print error message #
                     curErrMsg = SysMgr.getErrMsg()
@@ -37574,8 +37257,7 @@ Copyright:
                     try:
                         agentList.pop(
                             "%s:%s" % (cliObj.ip, cliObj.port), None)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -37891,8 +37573,7 @@ Copyright:
                 # restart with all nodes connected #
                 try:
                     _onBroadcast(connObj, request, None, sync=False)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to handle %s command for all nodes' % request,
@@ -37969,8 +37650,7 @@ Copyright:
                 datetime = SysMgr.getPkg('datetime', False)
                 now = datetime.datetime.utcfromtimestamp(time.time())
                 now = now.strftime('%y%m%dT%H%M%S')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 now = long(time.time())
 
@@ -37985,8 +37665,7 @@ Copyright:
         # load config #
         try:
             initCmds, eventHandlers = _loadConfig()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to load config', reason=True)
@@ -38030,8 +37709,7 @@ Copyright:
         try:
             connMan.listen()
             connMan.timeout()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to listen to prepare for connection', True)
@@ -38042,8 +37720,7 @@ Copyright:
             # accept #
             try:
                 sock, addr = connMan.accept()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except IOError as err:
                 if err.errno != errno.EINTR:
                     SysMgr.printWarn(
@@ -38420,8 +38097,7 @@ Copyright:
 
                         if isMulti:
                             break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except KeyboardInterrupt:
                 sys.exit(0)
             except:
@@ -38483,15 +38159,13 @@ Copyright:
             cpuBuf = None
             SysMgr.statFd.seek(0)
             cpuBuf = SysMgr.statFd.readlines()[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 cpuPath = "%s/stat" % SysMgr.procPath
                 SysMgr.statFd = open(cpuPath, 'r')
                 cpuBuf = SysMgr.statFd.readlines()[0]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(cpuPath)
                 return 0
@@ -38512,8 +38186,7 @@ Copyright:
                 nrCore = psutil.cpu_count()
                 SysMgr.nrCore = nrCore
                 return nrCore
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     'failed to get the number of CPU', reason=True)
@@ -38523,15 +38196,13 @@ Copyright:
             cpuBuf = None
             SysMgr.statFd.seek(0)
             cpuBuf = SysMgr.statFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 cpuPath = "%s/stat" % SysMgr.procPath
                 SysMgr.statFd = open(cpuPath, 'r')
                 cpuBuf = SysMgr.statFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(cpuPath)
 
@@ -38624,8 +38295,7 @@ Copyright:
                         value = datetime.datetime.utcfromtimestamp(item/1000)
                         xtickLabel[idx] = value.strftime('%H:%M:%S')
                         xtickLabel[idx] = '%s.%0.3d' % (xtickLabel[idx], ms)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to convert time unit in xticks', reason=True)
@@ -38633,8 +38303,7 @@ Copyright:
                 xtickLabel[-1] = 'Time'
                 ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -38695,8 +38364,7 @@ Copyright:
                 fd = open(path, 'r')
                 data = fd.readlines()
                 fd.close()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to read '%s'" % path, reason=True)
@@ -38786,8 +38454,7 @@ Copyright:
                 if not stat:
                     raise Exception('no data')
                 stats.update(stat)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to get stats from '%s'" % path, reason=True)
@@ -38900,8 +38567,7 @@ Copyright:
             try:
                 with open(affectpath, 'r') as fd:
                     cpulist[cpu]['affect'] = fd.readlines()[0].split()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -38909,8 +38575,7 @@ Copyright:
             try:
                 with open(govpath, 'r') as fd:
                     cpulist[cpu]['governors'] = fd.readlines()[0].split()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -38922,8 +38587,7 @@ Copyright:
                     cpulist[cpu]['avail'].sort()
                     cpulist[cpu]['avail'] = \
                         list(map(str, cpulist[cpu]['avail']))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -38933,8 +38597,7 @@ Copyright:
                     cpulist[cpu]['min'] = fd.readlines()[0]
                 with open(maxfreqpath, 'r') as fd:
                     cpulist[cpu]['max'] = fd.readlines()[0]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 cpulist.pop(cpu, None)
 
@@ -39002,8 +38665,7 @@ Copyright:
                     if gov:
                         with open(curgovpath, 'w') as fd:
                             fd.write(gov)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     if not minres:
                         res = 'min clock'
@@ -39020,8 +38682,7 @@ Copyright:
                 try:
                     with open(curgovpath, 'r') as fd:
                         curgovernor = fd.readlines()[0].split()[0]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     curgovernor = '?'
 
@@ -39370,8 +39031,7 @@ Copyright:
         def _getAttr(fpath):
             try:
                 fd = open(fpath, 'r')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fpath)
                 return
@@ -39388,8 +39048,7 @@ Copyright:
 
                     name, value = line[:-1].split('=', 1)
                     attrList[name.strip()] = value.strip()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to parse line '%s'" % line[:-1], reason=True)
@@ -39666,8 +39325,7 @@ Copyright:
                             if wait:
                                 os.wait()
 
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to watch", reason=True)
                 sys.exit(0)
@@ -39694,15 +39352,13 @@ Copyright:
                     try:
                         if needStop:
                             os.kill(long(pid), signal.SIGSTOP)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
                     procList.setdefault(pid, [])
                     procList[pid].append(tid)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -39729,8 +39385,7 @@ Copyright:
                             eobj.mergeSymTable()
                             if printLog:
                                 printLog = False
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -39739,8 +39394,7 @@ Copyright:
                 if needStop:
                     for pid in pidList:
                         os.kill(pid, signal.SIGCONT)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -39752,8 +39406,7 @@ Copyright:
                 # stop a process #
                 try:
                     os.kill(pid, signal.SIGSTOP)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -40021,8 +39674,7 @@ Copyright:
                 if pid:
                     try:
                         ppid = long(SysMgr.getTgid(pid))
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         ppid = None
 
@@ -40063,8 +39715,7 @@ Copyright:
                 dobj = Debugger(
                     pid=pid, execCmd=execCmd, attach=False, mode=mode)
                 dobj.trace(mode=mode, wait=wait, multi=multi)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "stopped to trace %s" % mode, True)
@@ -40136,8 +39787,7 @@ Copyright:
                 if not binObj:
                     err = SysMgr.getErrMsg()
                     raise Exception(err)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to load '%s' as an ELF object" % filePath, True)
@@ -40150,8 +39800,7 @@ Copyright:
                     resInfo[addr] = [sym, filePath, 'N/A']
                     if maxSymLen < len(sym) < SysMgr.ttyCols/2:
                         maxSymLen = len(sym)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     resInfo[addr] = ['??', filePath, 'N/A']
         # multiple process #
@@ -40168,8 +39817,7 @@ Copyright:
 
             try:
                 dobj = Debugger(pid=pid, attach=False)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to analyze %s" % procInfo, True)
                 sys.exit(0)
@@ -40219,8 +39867,7 @@ Copyright:
             try:
                 fileList = os.listdir(parentPath)
                 parentAbsPath = "%s" % (os.path.abspath(parentPath))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to access %s" % parentPath,
@@ -40406,8 +40053,7 @@ Copyright:
                     # get subdir #
                     try:
                         subdirs = os.listdir(fullPath)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printWarn(
                             "failed to access %s" % fullPath,
@@ -40438,8 +40084,7 @@ Copyright:
                         try:
                             size = os.stat(fullPath).st_size
                             totalSize += size
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printWarn(
                                 "failed to get size for '%s'" % fullPath,
@@ -40456,8 +40101,7 @@ Copyright:
                             else: color = 'CYAN'
                             sizeStr = convSize(size)
                             sizeStr = ' <%s>' % convColor(sizeStr, color)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             sizeStr = ''
 
@@ -40478,8 +40122,7 @@ Copyright:
                                 totalSize += blockSize
                             else:
                                 totalSize += size
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printWarn(
                             "failed to get size for '%s'" % fullPath,
@@ -40504,8 +40147,7 @@ Copyright:
                         else: color = 'CYAN'
                         sizeStr = convSize(size)
                         sizeStr = ' <%s>' % convColor(sizeStr, color)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         sizeStr = ''
 
@@ -40565,8 +40207,7 @@ Copyright:
                 condop = 'BT'
                 try:
                     condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     condval = None
                     error = True
@@ -40574,8 +40215,7 @@ Copyright:
                 condop = 'LT'
                 try:
                     condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     error = True
             else:
@@ -40610,8 +40250,7 @@ Copyright:
         else:
             try:
                 initDir = os.listdir(path)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to access %s" % path, reason=True)
@@ -40702,8 +40341,7 @@ Copyright:
 
                         resInfo['%s|%s' % (item[1], origFilePath)] = \
                             (hex(item[0]), origFilePath, addr, item[1])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to save offset info", True, reason=True)
@@ -40780,8 +40418,7 @@ Copyright:
             # open the target file #
             try:
                 fd = open(path, 'r')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(path)
                 continue
@@ -40791,8 +40428,7 @@ Copyright:
             if tail:
                 try:
                     pos = fd.seek(0, 2)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -40822,8 +40458,7 @@ Copyright:
                         if newPos < 0:
                             newPos = 0
                         fd.seek(newPos, 0)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         continue
 
@@ -40878,8 +40513,7 @@ Copyright:
             # make an ext4 object #
             try:
                 eobj = Ext4Analyzer(path)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to create ext4 object for %s' % path, True)
@@ -40889,8 +40523,7 @@ Copyright:
             try:
                 inodeList = eobj.getInodeList(
                     filters=SysMgr.filterGroup, verb=SysMgr.warnEnable)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to traverse %s' % path, True)
@@ -40972,8 +40605,7 @@ Copyright:
 
                     procList.setdefault(pid, [])
                     procList[pid].append(tid)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -40995,8 +40627,7 @@ Copyright:
                         eobj.mergeSymTable()
                         if printLog:
                             printLog = False
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -41060,8 +40691,7 @@ Copyright:
 
                         if maxSymLen < len(item[1]) < SysMgr.ttyCols/2:
                             maxSymLen = len(item[1])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to get '%s' info" % sym, True)
@@ -41499,8 +41129,7 @@ Copyright:
                     continue
 
                 break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to check signal", reason=True)
 
@@ -41544,8 +41173,7 @@ Copyright:
                 SysMgr.printStat(
                     'sent %s to %s(%s) to start profiling' % \
                         (ConfigMgr.SIG_LIST[startSig], comm, pid))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to send %s to start profiling" % \
@@ -41585,8 +41213,7 @@ Copyright:
                 SysMgr.printStat(
                     'sent %s to %s(%s) to stop profiling' % \
                         (ConfigMgr.SIG_LIST[stopSig], comm, pid))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to send %s to stop profiling" % \
@@ -41599,8 +41226,7 @@ Copyright:
             endTime = SysMgr.uptime
             runtime = UtilMgr.convTime(tobj.procData[pid]['runtime'])
             profiletime = UtilMgr.convTime(endTime - startTime)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             runtime = '?'
             profiletime = '?'
@@ -41633,8 +41259,7 @@ Copyright:
         try:
             lt = LeakAnalyzer(fname, pid)
             lt.printLeakage(runtime, profiletime)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to analyze memory leakage for %s(%s)" % \
@@ -41710,8 +41335,7 @@ Copyright:
                     workload.append([prot, ip, port])
             else:
                 workload.append([prot, ip, port])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 ("wrong value for NETWORK load because %s, "
@@ -41728,8 +41352,7 @@ Copyright:
                     _iotask(workload[idx])
                 else:
                     ioTasks[pid] = workload[idx]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to create process", True)
@@ -41985,8 +41608,7 @@ Copyright:
                                 elif size > 0 and done >= size:
                                     break
                             os.close(fd)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printWarn(
                                 'failed to access %s for %s' % (path, op),
@@ -42008,8 +41630,7 @@ Copyright:
                                     if not piece:
                                         break
                                 os.close(fd)
-                            except SystemExit:
-                                sys.exit(0)
+                            except SystemExit: sys.exit(0)
                             except:
                                 SysMgr.printWarn(
                                     'failed to access %s for %s' % (fpath, op),
@@ -42043,8 +41664,7 @@ Copyright:
                         op, path, size = item
                         try:
                             size = UtilMgr.convUnit2Size(size)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             sys.exit(0)
                     else:
@@ -42091,8 +41711,7 @@ Copyright:
 
                 workload.append({'op': 'read', 'path': mountPoint, 'size': 0})
 
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 ("wrong value for I/O load because %s, "
@@ -42115,8 +41734,7 @@ Copyright:
                         sys.exit(0)
                     else:
                         ioTasks[pid] = workload[idx]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to create process", True)
@@ -42380,8 +41998,7 @@ Copyright:
                     if not 'KEEPALIVE' in SysMgr.environList:
                         raise Exception()
                     obj = requests.Session()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     obj = requests
 
@@ -42441,8 +42058,7 @@ Copyright:
                                 json = UtilMgr.convStr2Dict(data, verb=True)
                             else:
                                 arg = data
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printErr(
                                 "failed to get data from '%s'" % path,
@@ -42471,8 +42087,7 @@ Copyright:
                             fileArgs = tuple(addinfo + fileInfo[1:])
 
                             files.append((name, fileArgs))
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printErr(
                                 "failed to get data from '%s'" % path,
@@ -42686,8 +42301,7 @@ Copyright:
                             # print progress #
                             if mute:
                                 UtilMgr.printProgress(idx, repeat)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             stats['perReqTimeAll'][req].append(
                                 [lastReqTime[0], 0])
@@ -42715,8 +42329,7 @@ Copyright:
                     acpu = convNum(acpu)
                 else:
                     tcpu = acpu = 0
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 tcpu = '?'
                 acpu = '?'
@@ -43012,8 +42625,7 @@ Copyright:
                         _task, (reqs, repeat, delay, cache), SysMgr.utilProc)
             else:
                 _task(reqs, repeat, delay, cache)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to request', reason=True)
@@ -43052,8 +42664,7 @@ Copyright:
             # run mainloop #
             try:
                 procObj.wait()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 duration = time.time() - startTime
 
@@ -43102,8 +42713,7 @@ Copyright:
 
                     try:
                         _iterVarCmd(tcmd, list(var))
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "failed to execute '%s'" % tcmd, True)
@@ -43115,8 +42725,7 @@ Copyright:
                     try:
                         tcmd = cmd.replace(key, item)
                         _iterVarCmd(tcmd, list(var))
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "failed to execute '%s'" % tcmd, True)
@@ -43241,8 +42850,7 @@ Copyright:
                 load = long(totalLoad / nrTask)
 
             nrTask = long(nrTask)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 ("wrong value for CPU load because %s, "
@@ -43286,8 +42894,7 @@ Copyright:
                     _cputask(nrTask, load)
                 else:
                     limitInfo[pid] = load
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to create %s" % taskstr, True)
@@ -43311,8 +42918,7 @@ Copyright:
 
             # ignore SIGCHLD #
             signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -43501,8 +43107,7 @@ Copyright:
             # allocate memory #
             try:
                 SysMgr.procBuffer = bytearray(size)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to allocate memory", True)
@@ -43524,8 +43129,7 @@ Copyright:
             # get system stat #
             try:
                 memstr = _getMeminfo()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to get memory stat", True)
                 return
@@ -43533,8 +43137,7 @@ Copyright:
             # get vmstat #
             try:
                 vmstr = _getVminfo()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to get virtual memory stat", True)
                 return
@@ -43542,8 +43145,7 @@ Copyright:
             # get zone stat #
             try:
                 zonestr = _getZoneinfo()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to get zone memory stat", True)
                 return
@@ -43551,8 +43153,7 @@ Copyright:
             # get LMK stat #
             try:
                 lmkstr = _getLMKinfo()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn("failed to get LMK stat", reason=True)
 
@@ -43644,8 +43245,7 @@ Copyright:
             size = UtilMgr.convUnit2Size(size)
             if not size:
                 raise Exception('wrong size')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             errMsg = ("wrong value for memory load because %s, "
                 "input number in the format SIZE{:INTERVAL:COUNT}") % \
@@ -43680,8 +43280,7 @@ Copyright:
                 if pid == 0:
                     try:
                         _allocMemory(size, wr)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr("failed to alloc memory", True)
                         sys.exit(0)
@@ -43695,8 +43294,7 @@ Copyright:
                     # print stats #
                     try:
                         _printUsage(obj, pid, size)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "failed to print memory stats", reason=True)
@@ -43719,8 +43317,7 @@ Copyright:
                 if pid == 0:
                     try:
                         _allocMemory(size, wr)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr("failed to alloc memory", True)
                         sys.exit(0)
@@ -43734,8 +43331,7 @@ Copyright:
                     # print stats #
                     try:
                         _printUsage(obj, pid, size)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "failed to print memory stats", reason=True)
@@ -43752,15 +43348,13 @@ Copyright:
                 # print stats #
                 try:
                     _printUsage(obj, pid, size)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to print memory stats", reason=True)
 
                 time.sleep(interval)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to alloc memory", True)
                 sys.exit(0)
@@ -43770,8 +43364,7 @@ Copyright:
             while 1:
                 try:
                     _printUsage(obj, pid, size, alloc=False)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to print memory stats", reason=True)
@@ -44149,8 +43742,7 @@ Copyright:
             if not SysMgr.isLinux:
                 try:
                     return SysMgr.getPkg('psutil').Process(long(tid))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return None
 
@@ -44173,8 +43765,7 @@ Copyright:
                     stats = fd.cpu_times()
                     usage = stats[0] + stats[1]
                     return (fd.name(), usage * 100)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return None
 
@@ -44226,8 +43817,7 @@ Copyright:
         try:
             signal.signal(signal.SIGALRM, SysMgr.onAlarm)
             signal.alarm(SysMgr.intervalEnable)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -44434,8 +44024,7 @@ Copyright:
                         isFound = True
 
                 del argList[argList.index(val)]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -44451,8 +44040,7 @@ Copyright:
         # convert target list #
         try:
             argList = UtilMgr.cleanItem((''.join(argList)).split(','))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -44502,8 +44090,7 @@ Copyright:
                 # check pid type #
                 try:
                     pid = long(pid)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to find '%s' as a %s" % (pid, taskType))
@@ -44527,8 +44114,7 @@ Copyright:
                         SysMgr.printInfo(
                             "sent %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     if nrSig in SIG_LIST:
                         signame = SIG_LIST[nrSig]
@@ -44585,8 +44171,7 @@ Copyright:
                     for val in cmdList:
                         if val == '-W':
                             waitStatus = True
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -44606,8 +44191,7 @@ Copyright:
                             SysMgr.printInfo(
                                 "sent %s to %s(%s) %s" % \
                                     (SIG_LIST[nrSig], comm, pid, taskType))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
             else:
@@ -44618,8 +44202,7 @@ Copyright:
                         SysMgr.printInfo(
                             "sent %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
 
@@ -44735,8 +44318,7 @@ Copyright:
                         SysMgr.setIoPriority(task, ioclass, pri, who)
 
                     continue
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 err = map(str, sys.exc_info()[1].args)
                 SysMgr.printErr((
@@ -44761,8 +44343,7 @@ Copyright:
                         task = schedSet[1]
 
                     lastIdx = 3
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     policy = schedSet[0].upper()
                     ConfigMgr.SCHED_POLICY.index(policy)
@@ -44821,8 +44402,7 @@ Copyright:
 
                     # add sched item to list #
                     SysMgr.schedFilter.append([policy, pri, task])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 err = map(str, sys.exc_info()[1].args)
                 SysMgr.printErr((
@@ -44852,8 +44432,7 @@ Copyright:
                     "because kernel version %g is lesser than 3.14") % \
                     (comm, pid, ver))
                 return -1
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             err = sys.exc_info()[1]
             SysMgr.printWarn(
@@ -44959,8 +44538,7 @@ Copyright:
                             (comm, pid))
                     return
                 elist = data[0].split('\x00')[:-1]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             comm = SysMgr.getComm(pid, True)
             SysMgr.printWarn(
@@ -45031,8 +44609,7 @@ Copyright:
                     'changed the I/O scheduling priority '
                     'for %s(%s) to %s(%s)[%s]') % \
                         (comm, pid, nmClass, pri, nmWho))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr((
                 'failed to set the I/O schedling priority '
@@ -45105,8 +44682,7 @@ Copyright:
                     'changed the CPU scheduling priority '
                     'for %s(%s) to %d[%s]') % \
                         (comm, pid, pri, upolicy))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             err = ("failed to set the CPU scheduling priority "
                 "for %s(%s) to %s[%s]") % \
@@ -45150,8 +44726,7 @@ Copyright:
             attr = termios.tcgetattr(fd)
             attr[3] = attr[3] & ~termios.ECHO
             termios.tcsetattr(fd, termios.TCSANOW, attr)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to remove buffer for fd %s" % fd, reason=True)
@@ -45187,8 +44762,7 @@ Copyright:
                 ['stty', 'sane'],
                 stdout=open(os.devnull, 'wb'),
                 stderr=open(os.devnull, 'wb'))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -45225,8 +44799,7 @@ Copyright:
                 (SysMgr.ttyRows, SysMgr.ttyCols))
 
             return
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -45239,8 +44812,7 @@ Copyright:
             os.system('stty cols %d 2> %s' % (long(cols), SysMgr.nullPath))
             SysMgr.ttyRows = rows
             SysMgr.ttyCols = cols
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -45274,8 +44846,7 @@ Copyright:
                 SysMgr.encodeEnable = False
 
             return
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -45288,8 +44859,7 @@ Copyright:
             pd = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
             SysMgr.ttyRows, SysMgr.ttyCols = \
                 list(map(long, pd.stdout.readline().split()))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get terminal info", reason=True)
@@ -45400,8 +44970,7 @@ Copyright:
                     pid, comm = item.split(' ', 1)
                     if not pid in SysMgr.commCache:
                         SysMgr.commCache[pid] = comm.rstrip()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -45429,8 +44998,7 @@ Copyright:
         try:
             with open(OSFile, 'r') as osf:
                 self.osData = osf.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(OSFile)
 
@@ -45458,16 +45026,14 @@ Copyright:
         try:
             self.osData = osf.readlines()
             osf.close()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(OSFile)
 
         try:
             self.devData = devf.readlines()
             devf.close()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(devFile)
 
@@ -45476,8 +45042,7 @@ Copyright:
     def saveCpuInfo(self):
         try:
             self.cpuData = SysMgr.procReadlines('cpuinfo')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to save CPU info", reason=True)
@@ -45520,15 +45085,13 @@ Copyright:
                         self.cpuCacheInfo[core] = '%sL%s(%s)=%s   ' % \
                             (self.cpuCacheInfo[core], level[:-1],
                             type[:-1], size[:-1])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
                 if not self.cpuCacheInfo[core]:
                     del self.cpuCacheInfo[core]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -45559,8 +45122,7 @@ Copyright:
                     target[num].append(item[1])
                 except:
                     target[num] = [item[1]]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to save deice info", reason=True)
@@ -45642,8 +45204,7 @@ Copyright:
 
                             self.devArchInfo.setdefault(subdirname, {})
                             self.devArchInfo[subdirname][rpath] = devid
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -45657,8 +45218,7 @@ Copyright:
                 self.memData['prev'] = lines
             else:
                 self.memData['next'] = lines
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to update memory", reason=True)
@@ -45673,8 +45233,7 @@ Copyright:
             f = open(bufFile, 'r')
             size = f.readlines()
             f.close()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(bufFile)
             return 0
@@ -45860,8 +45419,7 @@ Copyright:
                 remainTasks = childs - termTasks
                 watchList = ['/proc/%s/comm' % tid for tid in remainTasks]
                 SysMgr.inotify(watchList)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -45897,8 +45455,7 @@ Copyright:
                     func(*args)
                 else:
                     func()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except OSError:
                 pass
             except:
@@ -45977,8 +45534,7 @@ Copyright:
                 (os.path.abspath(SysMgr.printFd.name), fsize))
 
             SysMgr.printFd.close()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         finally:
@@ -46515,8 +46071,7 @@ Copyright:
                     pid = long(comm)
                     cmd = "%sprev_pid == %s || next_pid == %s || " % \
                         (cmd, pid, pid)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     try:
                         ldir = comm.find('>')
@@ -46534,8 +46089,7 @@ Copyright:
                         elif rdir == len(comm) - 1:
                             cmd += "prev_pid >= %s || " % long(comm[:-1])
                             cmd += "next_pid >= %s || " % long(comm[:-1])
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -46737,8 +46291,7 @@ Copyright:
                     SysMgr.signalCmd = None
                     SysMgr.printInfo(
                         "write trace commands to '%s'" % SysMgr.cmdEnable)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to write signal commands", True)
 
@@ -46777,8 +46330,7 @@ Copyright:
             # remove exist file #
             try:
                 SysMgr.cmdFd.write('rm -f %s 2> /dev/null\n' % outputPath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -46791,8 +46343,7 @@ Copyright:
                 SysMgr.clearInfoBuffer()
                 SysMgr.cmdFd.write(infoStr)
                 SysMgr.cmdFd.flush()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -46804,8 +46355,7 @@ Copyright:
                         "echo '\n[Info] saved commands for tracing into %s\n'\n" % \
                             outputPath)
                     SysMgr.cmdFd.flush()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to write command", True)
 
@@ -46948,8 +46498,7 @@ Copyright:
                 jsonData[name]['soft'] = items[-3]
                 jsonData[name]['hard'] = items[-2]
                 jsonData[name]['unit'] = items[-1]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -47533,15 +47082,13 @@ Copyright:
         try:
             SysMgr.shmFd.seek(0)
             data = SysMgr.shmFd.readlines()[1:]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 path = '%s/sysvipc/shm' % SysMgr.procPath
                 SysMgr.shmFd = open(path, 'r')
                 data = SysMgr.shmFd.readlines()[1:]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(path)
                 return
@@ -47562,8 +47109,7 @@ Copyright:
                     nattch, uid, gid, cuid, cgid,\
                     atime, dtime, ctime, rss, swap = \
                         line.split()[:16]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -47695,8 +47241,7 @@ Copyright:
         # mac address #
         try:
             self.macAddr = NetworkMgr.getMainMacAddr()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -47799,8 +47344,7 @@ Copyright:
 
                 self.networkInfo[dev]['tran'] = \
                     [tsize, tpacket, terr, tdrop, 0, 0, 0, 0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to get general network info', reason=True)
@@ -47828,8 +47372,7 @@ Copyright:
         try:
             socket = SysMgr.getPkg('socket', False)
             fcntl = SysMgr.getPkg('fcntl', False)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             socket = fcntl = None
 
@@ -47853,8 +47396,7 @@ Copyright:
                         sockObj.socket.fileno(), 0x8915, # SIOCGIFADDR
                         struct.pack('256s', dev[:15].encode('utf-8')))
                     ipaddr = socket.inet_ntoa(res[20:24])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     ipaddr = ''
 
@@ -47895,8 +47437,7 @@ Copyright:
                     self.networkInfo[dev]['inittran'] = tlist
 
                 self.networkInfo[dev]['tran'] = tlist
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -47919,8 +47460,7 @@ Copyright:
                 stats = list(map(long, fd.readline()[:-1].split()))
                 self.openFileData['cur'] = stats[0]
                 self.openFileData['max'] = stats[2]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -47947,8 +47487,7 @@ Copyright:
             path = '/etc/passwd'
             with open(path, 'rb') as fd:
                 data = fd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(path)
             return
@@ -47966,8 +47505,7 @@ Copyright:
                     'home': home,
                     'shell': shell,
                 }
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -48003,8 +47541,7 @@ Copyright:
             proc = subprocess.Popen(
                 command, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, bufsize=-1, shell=shell)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to execute '%s'" % ' '.join(command), reason=True)
@@ -48020,8 +47557,7 @@ Copyright:
             try:
                 # read a line from diskutil process #
                 line = proc.stdout.readline()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to read from '%s'" % ' '.join(command), reason=True)
@@ -48042,8 +47578,7 @@ Copyright:
             # decode data #
             try:
                 line = line.decode()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -48135,8 +47670,7 @@ Copyright:
                     target['total'] = total >> 20
                     target['free'] = free >> 20
                     target['usagePer'] = long(per)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to get disk usage for '%s'" % path, reason=True)
@@ -48171,8 +47705,7 @@ Copyright:
                     target['write'] = value[3] >> 20
                     target['readtime'] = value[4]
                     target['writetime'] = value[5]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     # reset map table #
                     self.storageMapData = {}
@@ -48180,8 +47713,7 @@ Copyright:
                     SysMgr.printWarn(
                         "failed to get disk stat for '%s'" % dev,
                         reason=True)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to get general storage info', reason=True)
@@ -48380,8 +47912,7 @@ Copyright:
                             elif cval == '':
                                 cval = 'none'
                             item[target] = cval
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -48557,8 +48088,7 @@ Copyright:
             cgroupTree = self.getCgroupTree()
             if not cgroupTree:
                 return
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -49084,8 +48614,7 @@ Copyright:
                 if val['fs'] != 'tmpfs' and val['fs'] != '-':
                     totalInfo['read'] += read
                     totalInfo['write'] += write
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -49122,8 +48651,7 @@ Copyright:
                 total = UtilMgr.convSize2Unit(total)
                 free = UtilMgr.convSize2Unit(free)
                 avail = UtilMgr.convSize2Unit(avail)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -49147,8 +48675,7 @@ Copyright:
             try:
                 key = '%s (%s) %s' % \
                     (key, ','.join(self.devInfo['block'][major]), prange)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -49182,8 +48709,7 @@ Copyright:
                     SysMgr.infoBufferPrint(
                         '{0:85} {1:<1}'.format(title, string))
                     title = ' '
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -49201,8 +48727,7 @@ Copyright:
                         'fs': val['fs'],
                         'mount': '%s %s' % (val['path'], val['option']),
                     }
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -49228,8 +48753,7 @@ Copyright:
                 totalInfo['write'] = \
                     UtilMgr.convSize2Unit(totalInfo['write'])
                 totalInfo['use'] = '%d%%' % usage
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 totalInfo['use'] = '?%'
 
@@ -49565,8 +49089,7 @@ class DbusMgr(object):
                 if tid:
                     euidNew = SysMgr.getUid(tid, 'effective')
                     os.seteuid(euidNew)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 comm = SysMgr.getComm(tid, cache=True)
                 SysMgr.printErr(
@@ -50327,8 +49850,7 @@ class DbusMgr(object):
 
         try:
             return '%s(%s)' % (comm, pid.value)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -50414,8 +49936,7 @@ class DbusMgr(object):
             # load standard libdbus library #
             if not SysMgr.libdbusObj:
                 SysMgr.libdbusObj = SysMgr.loadLib(SysMgr.libdbusPath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to load library to analyze D-Bus packets", True)
@@ -50809,8 +50330,7 @@ class DbusMgr(object):
         def _updateTaskInfo(dbusData, sentData, recvData):
             try:
                 taskManager.saveSystemStat()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to update system stat", True)
@@ -50842,8 +50362,7 @@ class DbusMgr(object):
 
                         try:
                             per = long((value['cnt'] / float(dbusCnt)) * 100)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             per = 0
 
@@ -50879,8 +50398,7 @@ class DbusMgr(object):
                             mtype, stats = name.lstrip('[').split(']', 1)
                             mtype = DbusMgr.msgColorList[mtype.strip()]
                             name = '[%s]%s' % (mtype, stats)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -50899,8 +50417,7 @@ class DbusMgr(object):
                     # add D-Bus usage #
                     taskManager.procData[pid]['dbusList'] = dbusList
                     taskManager.procData[pid]['dbusCnt'] = dbusCnt
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to update task info", True, reason=True)
@@ -50943,8 +50460,7 @@ class DbusMgr(object):
             if lock and lock.locked():
                 try:
                     lock.release()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -51042,8 +50558,7 @@ class DbusMgr(object):
                     else:
                         try:
                             signal.pause()
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             break
                 # single-threaded loop #
@@ -51081,8 +50596,7 @@ class DbusMgr(object):
                         _handleMsg(ctype, msgList, jsonData, data)
                 else:
                     return
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to handle %s for %s(%s)" % \
@@ -51277,8 +50791,7 @@ class DbusMgr(object):
                     try:
                         nrType = gioObj.g_dbus_message_get_message_type(addr)
                         mtype = DbusMgr.GDBusMessageType[nrType]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printWarn(
                             "failed to get type of GDBusMessage", reason=True)
@@ -51446,14 +50959,12 @@ class DbusMgr(object):
                     try:
                         TaskAnalyzer.dbusData[tid][name]['cnt'] += \
                             value['count']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         TaskAnalyzer.dbusData[tid][name] = {}
                         TaskAnalyzer.dbusData[tid][name]['cnt'] = \
                             value['count']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to handle %s" % [jsonData], reason=True)
@@ -51466,8 +50977,7 @@ class DbusMgr(object):
                 if lock and lock.locked():
                     try:
                         lock.release()
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -51492,8 +51002,7 @@ class DbusMgr(object):
                         tid = taskList[index]
                         bus = busList[index]
                         service = busServiceList[tid][bus]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -51505,16 +51014,14 @@ class DbusMgr(object):
                         elif output == '':
                             try:
                                 rdPipeList.remove(robj)
-                            except SystemExit:
-                                sys.exit(0)
+                            except SystemExit: sys.exit(0)
                             except:
                                 pass
                         elif output and len(output) > 0:
                             _updateData((tid, output, bus, service))
 
                         break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 comm = SysMgr.getComm(tid, cache=True)
 
@@ -51716,8 +51223,7 @@ class DbusMgr(object):
                                 item = UtilMgr.rstrip(item, '</type>')
                                 item = item.strip()
                                 bus = item
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to get D-Bus config", reason=True)
@@ -52227,8 +51733,7 @@ class DltAnalyzer(object):
             if not SysMgr.dltObj:
                 raise Exception('no DLT library')
             dltObj = SysMgr.dltObj
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(
@@ -52656,8 +52161,7 @@ class DltAnalyzer(object):
                 raise Exception('no DLT library')
 
             dltObj = SysMgr.dltObj
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(
@@ -52680,8 +52184,7 @@ class DltAnalyzer(object):
 
         try:
             from socket import SOL_SOCKET, SO_RCVBUF, create_connection
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to import socket", True)
@@ -52816,8 +52319,7 @@ class DltAnalyzer(object):
             DltAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
             DltAnalyzer.dbgObj.initValues()
             DltAnalyzer.dbgObj.getCpuUsage(system=True)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to read CPU usage', reason=True)
@@ -52933,8 +52435,7 @@ class DltAnalyzer(object):
 
             SysMgr.printInfo(
                 'use %s:%s as dlt-daemon' % (servIp, servPort))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to get the address of dlt-daemon", True)
@@ -52950,8 +52451,7 @@ class DltAnalyzer(object):
 
             # set blocking #
             connSock.setblocking(1) # pylint: disable=no-member
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to connect to dlt-daemon with %s:%s" % \
@@ -53010,8 +52510,7 @@ class DltAnalyzer(object):
                 SysMgr.printErr(
                     "failed to initialize DLT receiver")
                 sys.exit(0)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to initialize connection", True)
@@ -53137,8 +52636,7 @@ class DltAnalyzer(object):
                             msg.storageheader, c_char_p(''.encode()))
 
                     DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verb)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to process DLT message", True, reason=True)
@@ -53182,6 +52680,7 @@ class Debugger(object):
         'WAITCLONE': False,
         'COMPLETECALL': False,
         'NOSAMPLECACHE': False,
+        'INTERCALL': False,
     }
 
     def getSigStruct(self):
@@ -53461,7 +52960,9 @@ class Debugger(object):
         # timestamp variables #
         self.current = 0
         self.dstart = 0
+        self.dvalue = 0
         self.vdiff = 0
+        self.interDiff = 0
         self.updateCurrent()
 
         self.args = []
@@ -53739,8 +53240,7 @@ typedef struct {
             for item in SysMgr.environList['TARGETNUM']:
                 try:
                     Debugger.targetNums.setdefault(long(item), None)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to add '%s' target number list" % item, True)
@@ -53831,8 +53331,7 @@ typedef struct {
             procInfo = '%s(%s)' % (comm, pid)
             dobj = Debugger(pid=pid, attach=False)
             dobj.initValues()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to hook for %s" % procInfo, True)
             sys.exit(0)
@@ -54147,8 +53646,7 @@ typedef struct {
             if size != 0:
                 Debugger.gLockObj.truncate(size)
 
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to create %s for lock" % Debugger.gLockPath, True)
@@ -54294,8 +53792,7 @@ typedef struct {
             if type(item) is str and item.startswith('@'):
                 try:
                     argList[idx] = self.retList[item[1:]]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -54599,8 +54096,7 @@ typedef struct {
 
                     try:
                         val = args[long(item)]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         val = 'None'
 
@@ -54876,14 +54372,12 @@ typedef struct {
                 if cmd == 'dist':
                     try:
                         idx = long(math.sqrt(val))
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         try:
                             import math
                             idx = long(math.sqrt(val))
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printErr(
                                 "failed to import python package: math")
@@ -54953,8 +54447,7 @@ typedef struct {
                 # update return #
                 try:
                     ret = ret.decode()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -54966,8 +54459,7 @@ typedef struct {
                     try:
                         ret = ret.split("\x00")[0]
                         size = len(ret)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -54978,8 +54470,7 @@ typedef struct {
                     for item in binary:
                         binstr += '%x' % item
                     binstr += ']'
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     binstr = ''
 
@@ -55042,8 +54533,7 @@ typedef struct {
                         self.repeatCntList.pop(sym, None)
                         again = False
                     rstr = ': %s' % convNum(self.repeatCntList[sym])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     rstr = ''
 
@@ -55091,8 +54581,7 @@ typedef struct {
                 # convert to hex format #
                 try:
                     hexData = '(%s)' % hex(long(data)).rstrip('L')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     hexData = ''
 
@@ -55300,6 +54789,7 @@ typedef struct {
 
                 SysMgr.addPrint("\n[%s] %g sec" % (cmdstr, val))
                 _flushPrint(newline=False)
+                self.dvalue += val
 
                 time.sleep(val)
 
@@ -55614,13 +55104,11 @@ typedef struct {
             else:
                 try:
                     val = long(val, 16)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     try:
                         val = float(val)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "failed to recognize '%s' as a number" % val, True)
@@ -55896,8 +55384,7 @@ typedef struct {
                     addr = long(addr)
                     if addr < len(args):
                         addr = args[addr]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to convert %s to number in filter" % addr)
@@ -55912,8 +55399,7 @@ typedef struct {
             if UtilMgr.isNumber(addr):
                 try:
                     addr = long(addr, 16)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     addr = long(addr)
 
@@ -55921,8 +55407,7 @@ typedef struct {
             if UtilMgr.isNumber(val):
                 try:
                     val = long(val, 16)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     val = long(val)
 
@@ -55984,8 +55469,7 @@ typedef struct {
 
                 try:
                     val = long(val)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     val = long(val, 16)
 
@@ -56019,8 +55503,7 @@ typedef struct {
             fobj.seek(offset)
 
             return fobj.read(ConfigMgr.wordSize)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to read original data from %s" % \
@@ -56269,8 +55752,7 @@ typedef struct {
                 os.kill(pid, signal.SIGSTOP)
 
                 return 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printSigError(pid, 'SIGSTOP')
             return -1
@@ -56416,8 +55898,7 @@ typedef struct {
             if exeName.startswith('python'):
                 self.pyLibPath = exePath
                 return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -56933,8 +56414,7 @@ typedef struct {
         # check target is running #
         try:
             os.kill(pid, 0)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if not self.isAlive():
                 errMsg = \
@@ -57112,8 +56592,7 @@ typedef struct {
                     riov = (self.iovec*1)()[0]
                     riov.iov_base = c_void_p(addr)
                     riov.iov_len = size
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return None
 
@@ -57126,8 +56605,7 @@ typedef struct {
                             (self.comm, self.pid, self.errmsg))
                     raise Exception()
                 return ret
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.supportProcessVmWr = False
 
@@ -57285,8 +56763,7 @@ typedef struct {
                     riov = (self.iovec*1)()[0]
                     riov.iov_base = c_void_p(addr)
                     riov.iov_len = size
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return None
 
@@ -57307,8 +56784,7 @@ typedef struct {
                     return UtilMgr.convStr2Word(data)
                 else:
                     return data
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.supportProcessVmRd = False
 
@@ -57372,8 +56848,7 @@ typedef struct {
 
                 strList.append(string.decode())
                 pos += ConfigMgr.wordSize
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     'failed to read string from list for %s(%s)' % \
@@ -57415,8 +56890,7 @@ typedef struct {
                 idx = string.index(b'\0')
                 ret += string[:idx]
                 return ret
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 if string:
                     ret += string
@@ -57665,8 +57139,7 @@ typedef struct {
             if ref and argname == "msg":
                 try:
                     return self.readMsgHdr(value)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to get msghdr for %s" % \
@@ -57680,8 +57153,7 @@ typedef struct {
                         if ret != argset['msg']:
                             self.changeArg('msg', ret)
                     return value
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to get mmsghdr for %s" % \
@@ -57721,16 +57193,14 @@ typedef struct {
         elif syscall == "ptrace" and argname == "request":
             try:
                 return ConfigMgr.PTRACE_TYPE[value]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return value
         elif syscall == "socketcall":
             if argname == "call":
                 try:
                     return ConfigMgr.SOCKETCALL[value]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return value
             elif argname == "args":
@@ -57750,43 +57220,38 @@ typedef struct {
             if argname == "op":
                 try:
                     return ConfigMgr.EPOLL_CMD_TYPE[value]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return value
             elif ref and argname.startswith("event"):
                 try:
-                    value = self.readMem(value, 4)
-                    value = struct.unpack('I', value)[0]
+                    value = self.readMem(value)
+                    value = struct.unpack(self.decodeChar, value)[0]
                     value = UtilMgr.getFlagString(
                         value, ConfigMgr.EPOLL_EVENT_TYPE)
                     return ' %s ' % value
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return value
         elif syscall == 'bpf':
             if argname == 'cmd':
                 try:
                     return ConfigMgr.BPF_CMD[value]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return value
         elif syscall == 'prctl':
             if argname == 'option':
                 try:
                     return ConfigMgr.PRCTL_TYPE[value]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return value
         elif syscall.startswith('madvise'):
             if argname == 'behavior':
                 try:
                     return ConfigMgr.MADV_TYPE[int(value)]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return value
         elif syscall == 'mount':
@@ -57812,8 +57277,7 @@ typedef struct {
                 path = os.readlink('%s/%s/fd/%s' % \
                     (SysMgr.procPath, self.pid, value))
                 return "%s>%s" % (value, path)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return str(value)
 
@@ -57838,8 +57302,7 @@ typedef struct {
                 if ret != argset['vec']:
                     self.changeArg('vec', ret)
                 return value
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to read iovector for %s" % \
@@ -57881,8 +57344,7 @@ typedef struct {
 
             try:
                 return repr(value)[1:-1][:cutLen]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 return repr(value)
 
@@ -58010,8 +57472,7 @@ typedef struct {
                             callList[sample] += cnt
                         else:
                             callList[sample] = cnt
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to get call sample from '%s'" % fname, True)
@@ -58025,8 +57486,7 @@ typedef struct {
         # convert list to tree for call samples #
         try:
             callTree, callCnt, depth = Debugger.convCallList2Tree(callList)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to convert call samples from '%s'" % inputName, True)
@@ -58035,8 +57495,7 @@ typedef struct {
         # make svg string #
         try:
             svgStr = Debugger.makeSvgString(callTree, callCnt)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to make flame graph from '%s'" % inputName, True)
@@ -58045,8 +57504,7 @@ typedef struct {
         # write svg code to the file #
         try:
             UtilMgr.writeFlamegraph(outputPath, svgStr, title, depth)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to save flamegraph from '%s' to '%s'" % \
@@ -58098,8 +57556,7 @@ typedef struct {
         # get file handle #
         try:
             fd = UtilMgr.getTextLines(logFile, verb=verb, retfd=True)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to read %s\n" % logFile)
             sys.exit(0)
@@ -58413,7 +57870,10 @@ typedef struct {
         # set table name #
         if self.mode == 'syscall':
             ctype = 'Syscall'
-            addInfo = '<Elapsed>'
+            if Debugger.envFlags['INTERCALL']:
+                addInfo = '<Interval>'
+            else:
+                addInfo = '<Elapsed>'
             sampleStr = ''
         elif self.mode == 'break':
             ctype = 'Breakcall'
@@ -58815,8 +58275,7 @@ typedef struct {
         try:
             if mapstr == FileAnalyzer.procMapStrCache[self.pid]:
                 return False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         finally:
@@ -58863,8 +58322,7 @@ typedef struct {
                     return symTable[idx][0], size, path
 
                 idx += 1
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return '??', '??', '??'
 
@@ -58879,8 +58337,7 @@ typedef struct {
         if not self.jmapFd:
             try:
                 self.jmapFd = open(self.jmapPath, 'r')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(self.jmapPath)
                 return False
@@ -58888,8 +58345,7 @@ typedef struct {
         # get map size #
         try:
             mapSize = os.fstat(self.jmapFd.fileno()).st_size
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get size for '%s' for %s(%s)" % \
@@ -58929,8 +58385,7 @@ typedef struct {
                     addr, sym, size = item
                     self.jmapAddrTable.append(addr)
                     self.jmapSymTable.append([sym, size, '??'])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to load JIT-compiled symbols from '%s' for %s(%s)" % \
@@ -59206,8 +58661,7 @@ typedef struct {
             ret = [sym, fname, hex(offset).rstrip('L'), vstart, vend, size]
             self.symbolCacheList[vaddr] = ret
             return ret
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to get symbol via %s for %s(%s)' % \
@@ -59256,8 +58710,7 @@ typedef struct {
         try:
             idx = UtilMgr.bisect_left(self.addrList, vaddr)
             return self.fileList[idx]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -59314,8 +58767,7 @@ typedef struct {
                             rvalue = '"%s"' % rvalue.decode("utf-8")
                             rvalue = re.sub('\W+','', rvalue)
                             rvalue = rvalue.encode()
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             rvalue = hex(UtilMgr.convStr2Word(rvalue))
                             rvalue = rvalue.rstrip('L')
@@ -59356,8 +58808,7 @@ typedef struct {
                     '\tSignal Info [%s]\n%s\n' % (taskInfo, oneLine))
                 SysMgr.addPrint(
                     '%s: %s\n%s\n' % (self.lastSig, signame, twoLine))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -59404,8 +58855,7 @@ typedef struct {
                 self.updateRegs()
 
             return True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return False
 
@@ -59419,8 +58869,7 @@ typedef struct {
                 ret = getattr(self.regs, self.retreg)
 
             return c_long(ret).value
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -59432,8 +58881,7 @@ typedef struct {
                 nrSyscall = long(syscall)
             else:
                 nrSyscall = ConfigMgr.sysList.index(syscall)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to get syscall number", reason=True)
             sys.exit(0)
@@ -59445,8 +58893,7 @@ typedef struct {
     def getNrSyscall(self):
         try:
             return getattr(self.regs, self.sysreg)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -59559,8 +59006,7 @@ typedef struct {
         if btStr:
             try:
                 self.callTable[sym]['backtrace'][btStr] += 1
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 if sym in self.callTable:
                     self.callTable[sym]['backtrace'][btStr] = 1
@@ -59875,8 +59321,7 @@ typedef struct {
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
 
             return self.btList
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             if self.pc:
                 addr = ' from %x' % self.pc
@@ -60107,8 +59552,7 @@ typedef struct {
                     continue
                 rval = self.readWord(cfa+offset)
                 setattr(self.regs, reg, rval)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -60137,8 +59581,7 @@ typedef struct {
         # return next IP from stack #
         try:
             return self.readWord(raddr)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -60188,8 +59631,7 @@ typedef struct {
                 if value > 0:
                     try:
                         btList.append(long(value))
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -60201,8 +59643,7 @@ typedef struct {
 
                 if nextFp < self.startAddr:
                     break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 break
 
@@ -60244,8 +59685,7 @@ typedef struct {
                 nextFp = self.readWord(nextFp)
                 if nextFp < self.startAddr:
                     break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 break
 
@@ -60301,8 +59741,7 @@ typedef struct {
 
                 if nextFp <= 0:
                     break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 break
 
@@ -60357,8 +59796,7 @@ typedef struct {
 
             self.brkcallStat[sym] = \
                 [self.current, ttotal, tmin, tmax]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             self.brkcallStat[sym] = [self.current, 0, 0, 0]
 
@@ -60380,8 +59818,7 @@ typedef struct {
                         commonPos -= 1
                         continue
                     break
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -60576,8 +60013,7 @@ typedef struct {
                     if prevSymInfo:
                         try:
                             prevAddr = hex(prevSymInfo[3]).rstrip('L')
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             prevAddr = prevSymInfo[3]
 
@@ -60639,8 +60075,7 @@ typedef struct {
                         callString = '\n%s %s%s%s%s%s%s' % \
                             (diffstr, tinfo, indent, sym, retstr,
                                 elapsed, addStr)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 elapsed = ''
                 isRetBp = False
@@ -60923,8 +60358,7 @@ typedef struct {
                 try:
                     self.handleBp(printStat=SysMgr.printEnable)
                     break
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except IOError:
                     SysMgr.printWarn(
                         "failed to handle breakpoint for %s(%s)" % \
@@ -61000,8 +60434,7 @@ typedef struct {
         try:
             name = ConfigMgr.SIG_LIST[sig]
             signame = UtilMgr.convColor(name, 'GREEN', 7, 'left')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             name = sig
             signame = 'UNKNOWN(%s)' % sig
@@ -61059,8 +60492,7 @@ typedef struct {
                             comm = SysMgr.getComm(pid, cache=True)
                             if comm:
                                 pid = '%s(%s)' % (comm, pid)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -61070,8 +60502,7 @@ typedef struct {
                         if SysMgr.showAll:
                             userData = SysMgr.sysInstance.userData
                             uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -61421,8 +60852,7 @@ typedef struct {
                 self.prevPySym = call
                 self.prevPyFile = fname
                 self.prevPyLine = line
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to get python stack for %s(%s)' % \
@@ -61722,8 +61152,7 @@ typedef struct {
                 # anon range #
                 else:
                     vstart, vend = self.getAnonRangeByOffset(offset, fname)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 vstart = vend = 0
 
@@ -61852,8 +61281,7 @@ typedef struct {
                         text = long(arg[2])
                     else:
                         text = arg[2]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     text = arg[2]
             else:
@@ -61926,8 +61354,7 @@ typedef struct {
             try:
                 SysMgr.printPipe(
                     str(UtilMgr.convDict2Str(jsonData, pretty=self.pretty)))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to convert %s to JSON for marshalling" % \
@@ -61943,7 +61370,7 @@ typedef struct {
             elif args:
                 argText = ', '.join(\
                     hex(arg).rstrip('L') if isinstance(arg, (int, long)) \
-                    else str(arg) for arg in args)
+                    else str(arg).strip('" ') for arg in args)
             else:
                 argText = ', '.join(str(arg[2]) for arg in self.args)
 
@@ -62040,8 +61467,7 @@ typedef struct {
 
             # update times #
             self.syscallStat[name] = [ttotal, tmax]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             self.syscallStat[name] = [diff, diff]
 
@@ -62090,8 +61516,7 @@ typedef struct {
         # get syscall name #
         try:
             self.syscall = name = ConfigMgr.sysList[nrSyscall][4:]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -62106,6 +61531,15 @@ typedef struct {
             # check wait condition #
             if self.wait:
                 return
+
+            # update interval between syscalls #
+            if Debugger.envFlags['INTERCALL']:
+                try:
+                    self.interDiff = self.vdiff - self.syscallTime[name]
+                    self.updateSyscallStat(name, self.interDiff)
+                except SystemExit: sys.exit(0)
+                except:
+                    pass
 
             args = []
             self.syscallTime[name] = self.vdiff
@@ -62157,8 +61591,7 @@ typedef struct {
             # get diff #
             try:
                 diff = self.vdiff - self.syscallTime[name]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 diff = 0
 
@@ -62216,8 +61649,7 @@ typedef struct {
                         return
 
                     self.addSample(name, '??', err=retval)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     err = ''
             else:
@@ -62233,15 +61665,15 @@ typedef struct {
                 # build return string #
                 try:
                     retstr = '%s(%s)' % (retval, hex(retval).rstrip('L'))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     retstr = retval
                 err = ''
 
             # update stats #
             if self.isRealtime:
-                self.updateSyscallStat(name, diff)
+                if not Debugger.envFlags['INTERCALL']:
+                    self.updateSyscallStat(name, diff)
                 self.clearArgs()
                 return
             # print context in JSON format #
@@ -62287,6 +61719,15 @@ typedef struct {
             else:
                 diffStr = UtilMgr.convColor(diffStr, 'CYAN')
 
+            # add interval time #
+            if Debugger.envFlags['INTERCALL'] and self.interDiff:
+                interdiffStr = ' [%.6f]' % self.interDiff
+                if self.interDiff > self.retTime:
+                    diffStr += UtilMgr.convColor(interdiffStr, 'RED')
+                else:
+                    diffStr += UtilMgr.convColor(interdiffStr, 'CYAN')
+                self.interDiff = 0
+
             # add newline after backtrace #
             if self.btStr or self.prevBtStr:
                 newline = '\n ' + (' ' * self.indentLen)
@@ -62305,7 +61746,8 @@ typedef struct {
                     self.callPrint.append(callString)
 
                 # update stats #
-                self.updateSyscallStat(name, diff)
+                if not Debugger.envFlags['INTERCALL']:
+                    self.updateSyscallStat(name, diff)
 
                 # print to stdout #
                 if SysMgr.streamEnable:
@@ -62326,16 +61768,14 @@ typedef struct {
         try:
             self.kernelFd.seek(0)
             stat = self.kernelFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 kernelPath = "%s/%s/task/%s/stack" % \
                     (SysMgr.procPath, self.pid, self.pid)
                 self.kernelFd = open(kernelPath, 'r')
                 stat = self.kernelFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(kernelPath)
                 return None
@@ -62350,16 +61790,14 @@ typedef struct {
         try:
             self.statFd.seek(0)
             stat = self.statFd.read()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 statPath = "%s/%s/task/%s/stat" % \
                     (SysMgr.procPath, self.pid, self.pid)
                 self.statFd = open(statPath, 'r')
                 stat = self.statFd.read()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(statPath)
                 return None
@@ -62373,8 +61811,7 @@ typedef struct {
                 return stat.split(') ', 1)[1][0]
             else:
                 return stat.split(')')[1].split()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -62687,8 +62124,7 @@ typedef struct {
             try:
                 os.close(wr)
                 os.fdopen(rd, 'r').read()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to wait for tracer of %s(%s)" % \
@@ -62731,8 +62167,7 @@ typedef struct {
             try:
                 os.close(rd)
                 os.fdopen(wr, 'w').write('0')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to notify initialization to %s(%s)" % \
@@ -62771,8 +62206,7 @@ typedef struct {
         # close fd for output #
         try:
             SysMgr.printFd.close()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         finally:
@@ -62941,8 +62375,7 @@ typedef struct {
         # get original symbol #
         try:
             origSym = sym[:-len(Debugger.RETSTR)]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             origSym = sym
 
@@ -63007,8 +62440,7 @@ typedef struct {
                 sys.exit(0)
 
             hasRetFilter = True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to check return filter for %s for %s(%s)" % \
@@ -63056,8 +62488,7 @@ typedef struct {
                 ret = self.removeBp(addr, lock=True)
 
             return "=%s(%s)" % (hex(retval).rstrip('L'), retval)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             errMsg = "failed to get return value for %s" % sym
             SysMgr.printWarn(errMsg, reason=True)
@@ -63071,8 +62502,7 @@ typedef struct {
                 pos = self.lr
             else:
                 pos = self.getBacktrace(limit=1, cur=False)[0][0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'no backtrace for %s(%s)' % (sym, fname), reason=True)
@@ -63217,7 +62647,9 @@ typedef struct {
                 # update time #
                 self.updateCurrent()
                 if updateTime:
-                    self.vdiff = self.current - self.dstart
+                    delay = self.dstart - self.dvalue
+                    delay = 0 if delay < 0 else delay
+                    self.vdiff = self.current - delay
 
                 # check clone event #
                 if not Debugger.dbusEnable and \
@@ -63521,8 +62953,7 @@ typedef struct {
             # check the process is running #
             try:
                 os.kill(self.pid, 0)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 ereason = SysMgr.getErrMsg()
                 if ereason != '0':
@@ -63539,8 +62970,7 @@ typedef struct {
                 SysMgr.funcDepth > 0:
                 try:
                     self.loadSymbols()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to load symbols", True)
@@ -63563,8 +62993,7 @@ typedef struct {
                 not SysMgr.isTopMode():
                 try:
                     self.handleUsercall()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return
 
@@ -63773,7 +63202,10 @@ typedef struct {
         # check mode and define type variables #
         if instance.mode == 'syscall':
             ctype = 'Syscall'
-            addInfo = '<Elapsed>'
+            if Debugger.envFlags['INTERCALL']:
+                addInfo = '<Interval>'
+            else:
+                addInfo = '<Elapsed>'
         elif instance.mode == 'break':
             ctype = 'Breakcall'
             addInfo = '[PATH] <Elapsed>'
@@ -64131,8 +63563,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             ret = dobj.dumpMemory(meminfo, output)
             if ret == 0:
                 raise Exception('N/A')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to dump memory for %s(%s)' % \
@@ -64358,8 +63789,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
                 raise Exception('setregset failure')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             self.supportSetRegset = False
 
@@ -64467,8 +63897,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
                 raise Exception('getregset failure')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             self.supportGetRegset = False
 
@@ -64685,8 +64114,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 try:
                     ret = SysMgr.libcObj.waitpid(
                         pid, pointer(status), 0x40000000)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -64698,8 +64126,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 break
 
             return ret, status.value
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'fail to call waitpid', reason=True)
@@ -64715,8 +64142,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # try to call native ptrace call #
         try:
             return SysMgr.guiderObj.ptrace(req, pid, addr, data)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         '''
@@ -64738,8 +64164,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 return -1
             else:
                 return ret
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to call ptrace', reason=True)
@@ -67011,8 +66436,7 @@ class ElfAnalyzer(object):
             if otime > ctime:
                 SysMgr.printWarn(
                     "'%s' is more recent than the cache '%s'" % (path, cpath))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -67115,8 +66539,7 @@ class ElfAnalyzer(object):
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
                 SysMgr.printInfo("[done]", prefix=False, title=False)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 ElfAnalyzer.failedFiles[path] = True
 
@@ -67307,8 +66730,7 @@ class ElfAnalyzer(object):
             if origStat == 0:
                 try:
                     dmSymbol = str(retc.value.decode())
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     dmSymbol = str(retc.value)
             else:
@@ -67373,8 +66795,7 @@ class ElfAnalyzer(object):
             demangledSym = '%s%s' % (dmSymbol, version)
             ElfAnalyzer.cachedDemangleTable[origSym] = demangledSym
             return demangledSym
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             err = SysMgr.getErrMsg()
             SysMgr.printWarn((
@@ -67426,8 +66847,7 @@ class ElfAnalyzer(object):
 
                 offsets = binObj.getOffsetBySymbol(
                     symbol, inc=inc, start=start, end=end, onlyFunc=False)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     'failed to get offset for %s from %s' % \
@@ -67463,8 +66883,7 @@ class ElfAnalyzer(object):
             proc = subprocess.Popen(
                 args, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, bufsize=-1)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to execute %s to get address from binary" % objdumpPath)
@@ -67474,8 +66893,7 @@ class ElfAnalyzer(object):
             try:
                 # read a line from objdump process #
                 line = proc.stdout.readline()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to read output from objdump", True)
@@ -67535,8 +66953,7 @@ class ElfAnalyzer(object):
             else:
                 ElfAnalyzer.relocTypes[path] = False
                 return False
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to check relocatable format", reason=True)
@@ -67717,8 +67134,7 @@ class ElfAnalyzer(object):
                 end = addrTable[idx + 1] - 1
 
             return [start, end]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return [0, 0]
 
@@ -67761,8 +67177,7 @@ class ElfAnalyzer(object):
                     return symTable[idx][0], size
 
                 idx += 1
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return '??', '??'
 
@@ -67788,8 +67203,7 @@ class ElfAnalyzer(object):
                     clist.append([val[0], offset])
                 elif (symbol == val[0] or symbol == target):
                     return offset
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return None
 
@@ -68024,8 +67438,7 @@ class ElfAnalyzer(object):
         else:
             try:
                 symbol = strtable[start:idx].decode()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 symbol = strtable[start:idx]
 
@@ -68497,8 +67910,7 @@ class ElfAnalyzer(object):
                             debugPath = '/usr/lib/debug%s' % path[newPos:]
                             if not os.path.isfile(debugPath):
                                 debugPath = None
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -69142,8 +68554,7 @@ Section header string table index: %d
                             (symbol, self.attr['versionTable'][vsIdx])
                     else:
                         symbol = ''
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -69585,8 +68996,7 @@ Section header string table index: %d
 
                     try:
                         data = ord(augdata[augpos])
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         data = augdata[augpos]
 
@@ -69867,8 +69277,7 @@ Section header string table index: %d
                     # remove return address register #
                     try:
                         regOrder.remove(rar)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -71018,8 +70427,7 @@ Section header string table index: %d
                     try:
                         osize, nsize = UtilMgr.decodeULEB128(vals)
                         osize, nsize = UtilMgr.decodeSLEB128(vals[osize:])
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
                 else:
@@ -71040,8 +70448,7 @@ Section header string table index: %d
                     if opval and not opcode in ElfAnalyzer.DW_OPS_DEC_ARGS:
                         try:
                             opval = hex(opval)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -71428,16 +70835,14 @@ Section header string table index: %d
                                 if at in (0x49,0x01,0x31):
                                     try:
                                         addStr += '<0x%x>' % value
-                                    except SystemExit:
-                                        sys.exit(0)
+                                    except SystemExit: sys.exit(0)
                                     except:
                                         pass
                                 # low_pc/high_pc/ranges/location #
                                 elif at in (0x11, 0x12, 0x55, 0x02):
                                     try:
                                         addStr += hex(value)
-                                    except SystemExit:
-                                        sys.exit(0)
+                                    except SystemExit: sys.exit(0)
                                     except:
                                         pass
                                 # language #
@@ -71457,8 +70862,7 @@ Section header string table index: %d
                                     (origPos, name, helper)
                                 printer(printStr)
                                 printStr = ''
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         error = True
                         SysMgr.printErr((
@@ -71663,8 +71067,7 @@ class TaskAnalyzer(object):
         # print summary #
         try:
             TaskAnalyzer.printIntervalUsage()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to print interval summary", reason=True)
@@ -71831,8 +71234,7 @@ class TaskAnalyzer(object):
                 for pname in list(unionCpuList):
                     try:
                         unionCpuList[pname] = cpuStats[pname]['average']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
             elif idx == nrFiles-1 and nrFiles > 1:
@@ -71940,8 +71342,7 @@ class TaskAnalyzer(object):
                     for pname in list(unionGpuList):
                         try:
                             unionGpuList[pname] = gpuStats[pname]['average']
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
                 elif idx == nrFiles and nrFiles > 1:
@@ -72044,8 +71445,7 @@ class TaskAnalyzer(object):
                 for pname in list(unionRssList):
                     try:
                         unionRssList[pname] = memStats[pname]['maxRss']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
             elif idx == nrFiles-1 and nrFiles > 1:
@@ -72656,8 +72056,7 @@ class TaskAnalyzer(object):
             if SysMgr.fileTopEnable:
                 try:
                     self.runFileTop()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to monitor files", reason=True)
             # DLT mode #
@@ -72670,8 +72069,7 @@ class TaskAnalyzer(object):
             elif SysMgr.cgTopEnable:
                 try:
                     self.runCgTop()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to monitor cgroup", reason=True)
 
@@ -72694,8 +72092,7 @@ class TaskAnalyzer(object):
             except KeyboardInterrupt:
                 SysMgr.stopHandler()
                 sys.exit(0)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr("failed to monitor tasks", reason=True)
 
@@ -73355,8 +72752,7 @@ class TaskAnalyzer(object):
         # get file handle #
         try:
             fd = UtilMgr.getTextLines(logFile, verb=verb, retfd=True)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to read %s\n" % logFile)
             sys.exit(0)
@@ -74093,8 +73489,7 @@ class TaskAnalyzer(object):
                         condMax = long(trim[1])
                     else:
                         condMax = long(SysMgr.maxSize)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to recognize '%s' as the START:END time" % \
@@ -74453,8 +73848,7 @@ class TaskAnalyzer(object):
             for lfile in flist:
                 try:
                     gstats, cstats = TaskAnalyzer.getStatsFile(lfile)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -74490,8 +73884,7 @@ class TaskAnalyzer(object):
         try:
             if not onlyChart:
                 self.drawGraph(graphStats, logFile, outFile=outFile)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to draw graph", True)
@@ -74501,8 +73894,7 @@ class TaskAnalyzer(object):
         try:
             if not onlyGraph:
                 self.drawChart(chartStats, logFile, outFile=outFile)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to draw chart", True)
@@ -74609,8 +74001,7 @@ class TaskAnalyzer(object):
                 ax = subplot2grid(
                     (height,2), (ypos,xpos), rowspan=1, colspan=1)
                 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -74703,8 +74094,7 @@ class TaskAnalyzer(object):
                         "failed to draw graph "
                         "because %s graph is duplicated" % target)
                     sys.exit(0)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     layoutDict[target] = True
 
@@ -74713,8 +74103,7 @@ class TaskAnalyzer(object):
 
                 total += size
                 layoutList.append([target, long(size)])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to draw graph "
@@ -74759,8 +74148,7 @@ class TaskAnalyzer(object):
                     _drawEvent(graphStats)
 
                 pos += size
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 err = SysMgr.getErrMsg()
                 raise Exception(err)
@@ -74782,8 +74170,7 @@ class TaskAnalyzer(object):
                     xlim([xtickLabel[0], xtickLabel[-1]])
                     xtickLabel[-1] = '   TIME(Sec)'
                     ax.set_xticklabels(xtickLabel)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
         elif xtype == 3:
@@ -74799,14 +74186,12 @@ class TaskAnalyzer(object):
                         try:
                             xtickLabel[seq] = \
                                 effectProcList[timeline.index(long(cnt))]
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             xtickLabel[seq] = ' '
                 xtickLabel[-1] = '   RUN(NR)'
                 ax.set_xticklabels(xtickLabel)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
         elif xtype == 2:
@@ -74817,14 +74202,12 @@ class TaskAnalyzer(object):
                 for seq, cnt in enumerate(xtickLabel):
                     try:
                         xtickLabel[seq] = nrTask[timeline.index(long(cnt))]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         xtickLabel[seq] = ' '
                 xtickLabel[-1] = '   TASK(NR)'
                 ax.set_xticklabels(xtickLabel)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -74873,8 +74256,7 @@ class TaskAnalyzer(object):
                     bbox=dict(boxstyle=feature, facecolor='gold',
                     alpha=0.7))
 
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to draw events', reason=True)
@@ -74891,8 +74273,7 @@ class TaskAnalyzer(object):
         try:
             boundaryList = \
                 list(map(UtilMgr.convUnit2Size, SysMgr.boundaryLine))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to set boundary line", True)
@@ -74913,8 +74294,7 @@ class TaskAnalyzer(object):
                 labelList.append(
                     '[ Boundary %s ]' % \
                         UtilMgr.convSize2Unit(boundary))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -74974,8 +74354,7 @@ class TaskAnalyzer(object):
 
                         axvline(x=timeline[tm], linewidth=1,
                             linestyle='--', color='green')
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -75271,8 +74650,7 @@ class TaskAnalyzer(object):
                             blkUsage = list(map(long, blkUsage))
                             for interval, value in enumerate(blkUsage):
                                 usage[interval] += value
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -75365,8 +74743,7 @@ class TaskAnalyzer(object):
                 ytickLabel = ['%s%%' % val for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -75864,8 +75241,7 @@ class TaskAnalyzer(object):
                 if ytickLabel[-1] == '0':
                     ax.set_ylim(top=1)
                     ax.get_yaxis().set_visible(False)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -76171,8 +75547,7 @@ class TaskAnalyzer(object):
                         try:
                             rssList = item['rssUsage'].split()
                             usage = list(map(long, rssList))[:lent]
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             continue
 
@@ -76183,15 +75558,13 @@ class TaskAnalyzer(object):
 
                         try:
                             minIdx = usage.index(min(usage))
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             minIdx = 0
 
                         try:
                             maxIdx = usage.index(item['maxRss'])
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             maxIdx = 0
 
@@ -76326,8 +75699,7 @@ class TaskAnalyzer(object):
                         lastTick = ytick
 
                 ax.set_yticklabels(ytickLabel)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -76408,8 +75780,7 @@ class TaskAnalyzer(object):
                 self.figure.text(
                     0, 1, SysMgr.systemInfoBuffer,
                         va='top', ha='left', size=2)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to write system info", True, reason=True)
@@ -76643,8 +76014,7 @@ class TaskAnalyzer(object):
                         blkUsage = list(map(long, blkUsage))
                         for interval, value in enumerate(blkUsage):
                             usage[interval] += value
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -76715,8 +76085,7 @@ class TaskAnalyzer(object):
 
                 # remove space between axis and label #
                 tick_params(pad=1)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -76947,8 +76316,7 @@ class TaskAnalyzer(object):
 
                 # remove space between axis and label #
                 tick_params(pad=1)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -77013,8 +76381,7 @@ class TaskAnalyzer(object):
             SysMgr.printStat(
                 "wrote resource %s into '%s'%s" %
                     (itype, outputFile, fsize))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to draw image to '%s'" % outputFile, True)
@@ -77040,8 +76407,7 @@ class TaskAnalyzer(object):
                 try:
                     item['fd'].seek(0)
                     stack = item['fd'].read()
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     self.stackTable.pop(idx, None)
                     continue
@@ -77058,8 +76424,7 @@ class TaskAnalyzer(object):
                 try:
                     item['total'] += 1
                     item['stack'][stack] += 1
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     item['stack'][stack] = 1
 
@@ -78748,8 +78113,7 @@ class TaskAnalyzer(object):
 
                     if self.futexData[prevCnt][0] == value[0]:
                         tid = comm = '.'
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -79069,8 +78433,7 @@ class TaskAnalyzer(object):
                         convertNum(val['count']), convertNum(val['err']),
                         '%.6f' % val['min'], '%.6f' % val['max'],
                         val['average'])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -79099,8 +78462,7 @@ class TaskAnalyzer(object):
 
                     totalInfo[sysId]['average'] = \
                         totalInfo[sysId]['usage'] / totalInfo[sysId]['count']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -79155,13 +78517,11 @@ class TaskAnalyzer(object):
         for icount in range(len(self.syscallData)):
             try:
                 self.threadData[self.syscallData[icount][2]]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 try:
                     del self.syscallData[icount]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     break
 
@@ -79184,8 +78544,7 @@ class TaskAnalyzer(object):
 
                 try:
                     syscall = ConfigMgr.sysList[int(nowData[4])]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to recognize syscall %s for %s number' % \
@@ -79249,8 +78608,7 @@ class TaskAnalyzer(object):
                                     -(val & 0x80000000) | (val & 0x7fffffff)
 
                         param = '(%s)' % ', '.join(list(map(str, paramlist)))
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except AssertionError:
                         param = ' '
                     except:
@@ -79266,8 +78624,7 @@ class TaskAnalyzer(object):
 
                     try:
                         elapsed = '%6.6f' % nowData[6]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         elapsed = ' ' * 8
 
@@ -79276,8 +78633,7 @@ class TaskAnalyzer(object):
                     nrRet = long(ret)
                     if nrRet < 0:
                         ret = ConfigMgr.ERR_TYPE[abs(nrRet) - 1]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -79301,8 +78657,7 @@ class TaskAnalyzer(object):
 
                 prevCnt = icount
                 cnt += 1
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to analyze syscall info", True)
@@ -79406,16 +78761,14 @@ class TaskAnalyzer(object):
                         dev = mountInfo[num]['dev']
                     else:
                         dev = mountdata
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     dev = '?'
                     fs = '?'
 
                 try:
                     seqPer = round((val[3] / float(val[0])) * 100, 1)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     seqPer = '?'
 
@@ -79615,8 +78968,7 @@ class TaskAnalyzer(object):
                         dev = mountInfo[did]['dev']
                     else:
                         dev = mountdata
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     dev = '?'
                     fs = '?'
@@ -79714,8 +79066,7 @@ class TaskAnalyzer(object):
                             dev = mountInfo[did]['dev']
                         else:
                             dev = mountdata
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         dev = '?'
                         fs = '?'
@@ -80177,8 +79528,7 @@ class TaskAnalyzer(object):
                         per = (100 - self.intData[icount][key]['cpuPer'])
                         timeLine += '%3d ' % per
                         cpuAvgUsage[icount] += per
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     timeLine += '%3s ' % '0'
 
@@ -80956,8 +80306,7 @@ class TaskAnalyzer(object):
                 outDiff = nowOut - prevOut
 
                 return (inDiff, outDiff)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -80985,8 +80334,7 @@ class TaskAnalyzer(object):
             TaskAnalyzer.printProcTree(
                 instance=obj.procData, printFunc=SysMgr.infoBufferPrint,
                 color=color)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
         finally:
@@ -81020,8 +80368,7 @@ class TaskAnalyzer(object):
                     lines.append('%s\n' % item)
 
                 return lines
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(fname)
             sys.exit(0)
@@ -81281,8 +80628,7 @@ class TaskAnalyzer(object):
                     TA.procTotData['total']['storage'][dev]['free'] += freeDiff
                 except:
                     TA.procTotData['total']['storage'][dev]['free'] = freeDiff
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -81456,8 +80802,7 @@ class TaskAnalyzer(object):
                     TA.lifecycleData[rcomm][7] += 1
 
                 return
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -81480,8 +80825,7 @@ class TaskAnalyzer(object):
             blkwr = long(d['blkwr'])
 
             SysMgr.blockEnable = True
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             blkrd = blkwr = 0
 
@@ -82363,8 +81707,7 @@ class TaskAnalyzer(object):
                    convSize2Unit(val['read'], True),
                    convSize2Unit(val['write'], True),
                    convSize2Unit(val['free'], True))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -82386,8 +81729,7 @@ class TaskAnalyzer(object):
                         convSize2Unit(stats['read'], True),
                         convSize2Unit(stats['write'], True),
                         convSize2Unit(stats['free'], True))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     usage = '0/0/0/0'
 
@@ -82617,8 +81959,7 @@ class TaskAnalyzer(object):
                 if SysMgr.printFd.name == SysMgr.nullPath or \
                     SysMgr.outPath == 'NUL':
                     return
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -82683,8 +82024,7 @@ class TaskAnalyzer(object):
         try:
             _printMenu(' Kernel Message ')
             SysMgr.printPipe(LogMgr.getKmsg(SysMgr.kmsgLine))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to save kernel message', reason=True)
@@ -82757,22 +82097,19 @@ class TaskAnalyzer(object):
 
             try:
                 vss = convertFunc(long(stat[vssIdx]))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 vss = '-'
 
             try:
                 rss = convertFunc(long(stat[rssIdx]) << 12)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 rss = '-'
 
             try:
                 shm = convertFunc(long(statm[shrIdx]) << 12)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 shm = '-'
 
@@ -82839,8 +82176,7 @@ class TaskAnalyzer(object):
 
             # convert items to integer #
             pids = list(map(str, pids))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to convert items to get descendants', reason=True)
@@ -82866,8 +82202,7 @@ class TaskAnalyzer(object):
         # get task tree #
         try:
             procTree = TaskAnalyzer.getProcTreeFromList(obj.procData, kernel)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return taskList
 
@@ -82914,8 +82249,7 @@ class TaskAnalyzer(object):
         # get task tree #
         try:
             procTree = TaskAnalyzer.getProcTreeFromList(instance)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             printFunc("\n\tNone")
             return
@@ -82930,8 +82264,7 @@ class TaskAnalyzer(object):
         try:
             netinfo = ' [%s/%s]' % \
                 (NetworkMgr.getHostName(), NetworkMgr.getPublicIp())
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             netinfo = ''
 
@@ -82964,8 +82297,7 @@ class TaskAnalyzer(object):
                     if SysMgr.filterGroup and \
                         UtilMgr.isValidStr(comm, ignCap=True):
                         comm = UtilMgr.convColor(comm, 'RED')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     comm = '?'
 
@@ -82988,8 +82320,7 @@ class TaskAnalyzer(object):
                         runtime = current - runtime
 
                     runtimestr = UtilMgr.convTime(runtime)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     runtime = '?'
                     runtimestr = '?'
@@ -83008,8 +82339,7 @@ class TaskAnalyzer(object):
                     ttimestr = UtilMgr.convTime(ttime)
                     if ttime > 0:
                         ttimestr = UtilMgr.convColor(ttimestr, 'YELLOW')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     ttime = '?'
                     ttimestr = '?'
@@ -83026,8 +82356,7 @@ class TaskAnalyzer(object):
                         cpuPer = UtilMgr.convColor(cpuPer, 'GREEN', 5)
                     else:
                         cpuPer = '%5s' % 0
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     cpuPer = '%5s' % 0
 
@@ -83118,8 +82447,7 @@ class TaskAnalyzer(object):
             sortedList = sorted(SysMgr.procInstance.items(),
                 key=lambda e: long(e[1]['stat'][statList.index("RSS")]),
                 reverse=True)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 "failed to get memory details because of sort error")
@@ -83179,60 +82507,70 @@ class TaskAnalyzer(object):
                 try:
                     vmem = item['Size:'] >> 10
                     totalVmem += vmem
+                except SystemExit: sys.exit(0)
                 except:
                     vmem = 0
 
                 try:
                     rss = item['Rss:'] >> 10
                     totalRss += rss
+                except SystemExit: sys.exit(0)
                 except:
                     rss = 0
 
                 try:
                     pss = item['Pss:'] >> 10
                     totalPss += pss
+                except SystemExit: sys.exit(0)
                 except:
                     pss = 0
 
                 try:
                     swap = item['Swap:'] >> 10
                     totalSwap += swap
+                except SystemExit: sys.exit(0)
                 except:
                     swap = 0
 
                 try:
                     huge = item['AnonHugePages:'] >> 10
                     totalHuge += huge
+                except SystemExit: sys.exit(0)
                 except:
                     huge = 0
 
                 try:
                     lock = item['Locked:']
                     totalLock += lock
+                except SystemExit: sys.exit(0)
                 except:
                     lock = 0
 
                 try:
                     pdirty = item['Private_Dirty:']
                     totalPdirty += pdirty
+                except SystemExit: sys.exit(0)
                 except:
                     pdirty = 0
 
                 try:
                     sdirty = item['Shared_Dirty:']
                     totalSdirty += sdirty
+                except SystemExit: sys.exit(0)
                 except:
                     sdirty = 0
 
                 try:
                     ref = item['Referenced:']
                     totalRef += ref
+                except SystemExit: sys.exit(0)
                 except:
                     ref = 0
 
                 try:
                     none = item['NOPM']
                     totalNone += none
+                except SystemExit: sys.exit(0)
                 except:
                     none = 0
 
@@ -83271,8 +82609,7 @@ class TaskAnalyzer(object):
         else:
             try:
                 fd = open(fname, 'rb')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
@@ -83287,8 +82624,7 @@ class TaskAnalyzer(object):
                     compressor = None
                     fd.close()
                     fd = None
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.compressEnable = False
                 compressor = None
@@ -83332,14 +82668,12 @@ class TaskAnalyzer(object):
                     try:
                         fd = UtilMgr.getTextLines(
                             fname, verb, retfd=True, load=False)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printErr(
                             "failed to read '%s'\n" % fname, reason=True)
                         sys.exit(0)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(fname)
                 sys.exit(0)
@@ -83348,8 +82682,7 @@ class TaskAnalyzer(object):
             try:
                 fd.read(1)
                 fd.seek(0)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to read '%s'\n" % fname)
@@ -83361,8 +82694,7 @@ class TaskAnalyzer(object):
                 # decode line #
                 try:
                     line = line.decode('utf-8')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -83441,8 +82773,7 @@ class TaskAnalyzer(object):
                     targetTable[did][4] += 1
 
                 targetTable[did][2] = blkOffset
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 sizeTable = {}
                 targetTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
@@ -83498,8 +82829,7 @@ class TaskAnalyzer(object):
                         minor = mid.split(':')[1]
                         did = '%s:%s' % (major, minor)
                         break
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -83560,19 +82890,16 @@ class TaskAnalyzer(object):
 
             try:
                 self.intData[index]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.intData.append(dict())
 
             try:
                 self.intData[index]['toTal']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.intData[index]['toTal'] = {
-                    'totalBr': 0, 'totalBw': 0,
-                    'totalMem': 0, 'totalKmem': 0
+                    'totalBr': 0, 'totalBw': 0, 'totalMem': 0, 'totalKmem': 0
                 }
 
                 # make total custom event list #
@@ -83597,8 +82924,7 @@ class TaskAnalyzer(object):
                             dict(self.init_eventData)
 
             # set thread in this interval #
-            self.intData[index].setdefault(
-                key, dict(self.init_intData))
+            self.intData[index].setdefault(key, dict(self.init_intData))
 
             # define thread alias in this interval #
             curIntval = self.intData[index][key]
@@ -83609,31 +82935,25 @@ class TaskAnalyzer(object):
             # make interval list #
             try:
                 self.intData[nextIndex]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.intData.append({})
 
             # set thread in next interval #
-            self.intData[nextIndex].setdefault(
-                key, dict(self.init_intData))
+            self.intData[nextIndex].setdefault(key, dict(self.init_intData))
+
+            # define shortcut variable for thread data #
+            tdata = self.threadData[key]
 
             # save total usage in this interval #
-            curIntval['totalUsage'] = \
-                float(self.threadData[key]['usage'])
-            curIntval['totalPreempted'] = \
-                float(self.threadData[key]['cpuWait'])
-            curIntval['totalCoreSchedCnt'] = \
-                long(self.threadData[key]['coreSchedCnt'])
-            curIntval['totalBrUsage'] = \
-                long(self.threadData[key]['reqRdBlock'])
+            curIntval['totalUsage'] = float(tdata['usage'])
+            curIntval['totalPreempted'] = float(tdata['cpuWait'])
+            curIntval['totalCoreSchedCnt'] = long(tdata['coreSchedCnt'])
+            curIntval['totalBrUsage'] = long(tdata['reqRdBlock'])
             curIntval['totalBwUsage'] = \
-                long(self.threadData[key]['writeBlock']) + \
-                (long(self.threadData[key]['awriteBlock']) << 3)
-            curIntval['totalMemUsage'] = \
-                long(self.threadData[key]['nrPages'])
-            curIntval['totalKmemUsage'] = \
-                long(self.threadData[key]['remainKmem'])
+                long(tdata['writeBlock']) + (long(tdata['awriteBlock']) << 3)
+            curIntval['totalMemUsage'] = long(tdata['nrPages'])
+            curIntval['totalKmemUsage'] = long(tdata['remainKmem'])
 
             # add core time not calculated yet in this interval #
             for idx, val in self.lastTidPerCore.items():
@@ -83651,10 +82971,10 @@ class TaskAnalyzer(object):
                     (float(time) - float(self.threadData[val]['start']))
 
             # mark life flag #
-            if self.threadData[key]['new'] != ' ':
-                curIntval['new'] = self.threadData[key]['new']
-            if self.threadData[key]['die'] != ' ':
-                curIntval['die'] = self.threadData[key]['die']
+            if tdata['new'] != ' ':
+                curIntval['new'] = tdata['new']
+            if tdata['die'] != ' ':
+                curIntval['die'] = tdata['die']
 
             # initialize custom event list #
             if SysMgr.customEventList:
@@ -83667,9 +82987,8 @@ class TaskAnalyzer(object):
                         dict(self.init_eventData)
                     try:
                         curIntval['totalCustomEvent'][evt]['count'] = \
-                            self.threadData[key]['customEvent'][evt]['count']
-                    except SystemExit:
-                        sys.exit(0)
+                            tdata['customEvent'][evt]['count']
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -83678,18 +82997,16 @@ class TaskAnalyzer(object):
                 curIntval['userEvent'] = {}
                 curIntval['totalUserEvent'] = {}
                 for evt in SysMgr.userEventList:
-                    curIntval['userEvent'][evt] = \
-                        dict(self.init_eventData)
+                    curIntval['userEvent'][evt] = dict(self.init_eventData)
                     curIntval['totalUserEvent'][evt] = \
                         dict(self.init_eventData)
                     try:
                         curIntval['totalUserEvent'][evt]['count'] = \
-                            self.threadData[key]['userEvent'][evt]['count']
+                            tdata['userEvent'][evt]['count']
 
                         curIntval['totalUserEvent'][evt]['usage'] = \
-                            self.threadData[key]['userEvent'][evt]['usage']
-                    except SystemExit:
-                        sys.exit(0)
+                            tdata['userEvent'][evt]['usage']
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -83698,45 +83015,35 @@ class TaskAnalyzer(object):
                 curIntval['kernelEvent'] = {}
                 curIntval['totalKernelEvent'] = {}
                 for evt in SysMgr.kernelEventList:
-                    curIntval['kernelEvent'][evt] = \
-                        dict(self.init_eventData)
+                    curIntval['kernelEvent'][evt] = dict(self.init_eventData)
                     curIntval['totalKernelEvent'][evt] = \
                         dict(self.init_eventData)
                     try:
                         curIntval['totalKernelEvent'][evt]['count'] = \
-                            self.threadData[key]['kernelEvent'][evt]['count']
+                            tdata['kernelEvent'][evt]['count']
 
                         curIntval['totalKernelEvent'][evt]['usage'] = \
-                            self.threadData[key]['kernelEvent'][evt]['usage']
-                    except SystemExit:
-                        sys.exit(0)
+                            tdata['kernelEvent'][evt]['usage']
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
             # first interval #
             if SysMgr.intervalNow == intervalEnable:
-                curIntval['cpuUsage'] = \
-                    float(self.threadData[key]['usage'])
-                curIntval['preempted'] = \
-                    float(self.threadData[key]['cpuWait'])
-                curIntval['coreSchedCnt'] = \
-                    float(self.threadData[key]['coreSchedCnt'])
-                curIntval['brUsage'] = \
-                    long(self.threadData[key]['reqRdBlock'])
-                curIntval['bwUsage'] = \
-                    long(self.threadData[key]['writeBlock']) + \
-                    (long(self.threadData[key]['awriteBlock']) << 3)
-                curIntval['memUsage'] = \
-                    long(self.threadData[key]['nrPages'])
-                curIntval['kmemUsage'] = \
-                    long(self.threadData[key]['remainKmem'])
+                curIntval['cpuUsage'] = float(tdata['usage'])
+                curIntval['preempted'] = float(tdata['cpuWait'])
+                curIntval['coreSchedCnt'] = float(tdata['coreSchedCnt'])
+                curIntval['brUsage'] = long(tdata['reqRdBlock'])
+                curIntval['bwUsage'] = long(tdata['writeBlock']) + \
+                    (long(tdata['awriteBlock']) << 3)
+                curIntval['memUsage'] = long(tdata['nrPages'])
+                curIntval['kmemUsage'] = long(tdata['remainKmem'])
 
             # later intervals #
             else:
                 try:
                     self.intData[index - 1][key]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     self.intData[index - 1][key] = dict(self.init_intData)
 
@@ -83745,26 +83052,20 @@ class TaskAnalyzer(object):
 
                 # calculate resource usage in this interval #
                 curIntval['cpuUsage'] += \
-                    curIntval['totalUsage'] - \
-                        prevIntval['totalUsage']
+                    curIntval['totalUsage'] - prevIntval['totalUsage']
                 curIntval['preempted'] += \
-                    curIntval['totalPreempted'] - \
-                        prevIntval['totalPreempted']
+                    curIntval['totalPreempted'] - prevIntval['totalPreempted']
                 curIntval['coreSchedCnt'] = \
                     curIntval['totalCoreSchedCnt'] - \
                         prevIntval['totalCoreSchedCnt']
                 curIntval['brUsage'] = \
-                    curIntval['totalBrUsage'] - \
-                        prevIntval['totalBrUsage']
+                    curIntval['totalBrUsage'] - prevIntval['totalBrUsage']
                 curIntval['bwUsage'] = \
-                    curIntval['totalBwUsage'] - \
-                        prevIntval['totalBwUsage']
+                    curIntval['totalBwUsage'] - prevIntval['totalBwUsage']
                 curIntval['memUsage'] = \
-                    curIntval['totalMemUsage'] - \
-                        prevIntval['totalMemUsage']
+                    curIntval['totalMemUsage'] - prevIntval['totalMemUsage']
                 curIntval['kmemUsage'] = \
-                    curIntval['totalKmemUsage'] - \
-                        prevIntval['totalKmemUsage']
+                    curIntval['totalKmemUsage'] - prevIntval['totalKmemUsage']
 
             # calculate custom event usage in this interval #
             if 'totalCustomEvent' in curIntval:
@@ -83773,8 +83074,7 @@ class TaskAnalyzer(object):
                         curIntval['customEvent'][evt]['count'] = \
                             curIntval['totalCustomEvent'][evt]['count'] - \
                                 prevIntval['totalCustomEvent'][evt]['count']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         curIntval['customEvent'][evt]['count'] = \
                             curIntval['totalCustomEvent'][evt]['count']
@@ -83793,8 +83093,7 @@ class TaskAnalyzer(object):
                         curIntval['userEvent'][evt]['usage'] = \
                             curIntval['totalUserEvent'][evt]['usage'] - \
                                 prevIntval['totalUserEvent'][evt]['usage']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         curIntval['userEvent'][evt]['count'] = \
                             curIntval['totalUserEvent'][evt]['count']
@@ -83819,8 +83118,7 @@ class TaskAnalyzer(object):
                         curIntval['kernelEvent'][evt]['usage'] = \
                             curIntval['totalKernelEvent'][evt]['usage'] - \
                                 prevIntval['totalKernelEvent'][evt]['usage']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         curIntval['kernelEvent'][evt]['count'] = \
                             curIntval['totalKernelEvent'][evt]['count']
@@ -83851,7 +83149,7 @@ class TaskAnalyzer(object):
                 else:
                     for idx in range(index - 1, -1, -1):
                         if ftime > 0:
-                            self.thisInterval = float(time) -ftime
+                            self.thisInterval = float(time) - ftime
                             break
                     if self.thisInterval != intervalEnable:
                         self.thisInterval = \
@@ -83864,16 +83162,14 @@ class TaskAnalyzer(object):
                         long(curIntval['cpuUsage'] / intervalEnable), -1, -1):
                         try:
                             self.intData[idx][key]
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             if not idx in self.intData:
                                 continue
                             self.intData[idx][key] = dict(self.init_intData)
                         try:
                             self.intData[idx - 1][key]
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             if not idx - 1 in self.intData:
                                 continue
@@ -83881,13 +83177,12 @@ class TaskAnalyzer(object):
                         prevIntervalData = self.intData[idx - 1][key]
 
                         # make previous intervals of core there was no context switching #
-                        longRunCore = self.threadData[key]['longRunCore']
+                        longRunCore = tdata['longRunCore']
                         if longRunCore >= 0:
                             longRunCoreId = '0[%s]' % longRunCore
                             try:
                                 self.intData[idx][longRunCoreId]
-                            except SystemExit:
-                                sys.exit(0)
+                            except SystemExit: sys.exit(0)
                             except:
                                 self.intData[idx][longRunCoreId] = \
                                     dict(self.init_intData)
@@ -83939,15 +83234,13 @@ class TaskAnalyzer(object):
                 for idx in range(index + 1, -1, -1):
                     try:
                         self.intData[idx][key]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         self.intData[idx][key] = dict(self.init_intData)
 
                     try:
                         self.intData[idx - 1][key]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         self.intData[idx - 1][key] = dict(self.init_intData)
 
@@ -84047,8 +83340,7 @@ class TaskAnalyzer(object):
                 self.trimStart = float(start.strip())
             if end.strip():
                 self.trimStop = float(end.strip())
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to parse TRIM variable', True)
@@ -84198,8 +83490,7 @@ class TaskAnalyzer(object):
         # make core thread entity in advance for total irq per core #
         try:
             self.threadData[coreId]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.nrCore += 1
             self.threadData[coreId] = dict(self.init_threadData)
@@ -84252,8 +83543,7 @@ class TaskAnalyzer(object):
 
                     self.threadData[tid]['usage'] += usage
                     self.threadData[tid]['start'] = ftime
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -84442,8 +83732,7 @@ class TaskAnalyzer(object):
                     self.futexData.append(
                         [prev_id, time, core, opt, otype,
                         '', locks, '', ''])
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -85302,8 +84591,7 @@ class TaskAnalyzer(object):
 
                     self.syscallData.append(
                         ['ENT', time, thread, core, nrstr, args])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
             else:
@@ -85440,8 +84728,7 @@ class TaskAnalyzer(object):
 
                         self.wakeupData['time'] = allTime
                         self.lastJob[core]['prevWakeupTid'] = thread
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -85467,8 +84754,7 @@ class TaskAnalyzer(object):
 
                 try:
                     text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn('wrong syscall number %s' % nr)
                     return time
@@ -85999,8 +85285,7 @@ class TaskAnalyzer(object):
                 SysMgr.printWarn((
                     "failed to handle a new task %s(%s) "
                     "because it is already exist") % (data['comm'], pid))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 self.threadData[pid] = dict(self.init_threadData)
                 self.threadData[pid]['comm'] = d['comm']
@@ -87058,8 +86343,7 @@ class TaskAnalyzer(object):
                         uds = SysMgr.getUdsList([obj])
                         if uds:
                             path = '%s (%s)' % (path, uds[0])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -87131,8 +86415,7 @@ class TaskAnalyzer(object):
                         path = '%s (%s)' % (path, attr)
                 except AssertionError:
                     pass
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to read attributes from %s' % fdinfoPath,
@@ -87204,8 +86487,7 @@ class TaskAnalyzer(object):
         # remove myself info #
         try:
             pids.remove(str(SysMgr.pid))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87232,16 +86514,14 @@ class TaskAnalyzer(object):
                 try:
                     fdlistPath = "%s/fd" % (procPath)
                     fdlist = os.listdir(fdlistPath)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printOpenWarn(fdlistPath)
                     continue
             else:
                 try:
                     fdlist = self.procData[pid]['open_files']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -87253,8 +86533,7 @@ class TaskAnalyzer(object):
                     else:
                         filename, fd = fd
                         fdPath = 'N/A'
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -87300,8 +86579,7 @@ class TaskAnalyzer(object):
                             self.procData[pid]['fdInfo']['PROC'] += 1
                         else:
                             self.procData[pid]['fdInfo']['NORMAL'] += 1
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     self.nrFd -= 1
                     SysMgr.printOpenWarn(fdPath)
@@ -87352,16 +86630,14 @@ class TaskAnalyzer(object):
             irqBuf = None
             SysMgr.irqFd.seek(0)
             irqBuf = SysMgr.irqFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 irqPath = "%s/%s" % (SysMgr.procPath, 'interrupts')
                 SysMgr.irqFd = open(irqPath, 'r')
 
                 irqBuf = SysMgr.irqFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(irqPath)
 
@@ -87371,8 +86647,7 @@ class TaskAnalyzer(object):
             SysMgr.softirqFd.seek(0)
             sirqBuf = SysMgr.softirqFd.readlines()
             irqBuf += sirqBuf[1:]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 sirqPath = "%s/%s" % (SysMgr.procPath, 'softirqs')
@@ -87380,8 +86655,7 @@ class TaskAnalyzer(object):
 
                 sirqBuf = SysMgr.softirqFd.readlines()
                 irqBuf += sirqBuf[1:]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(sirqPath)
 
@@ -87449,8 +86723,7 @@ class TaskAnalyzer(object):
                         # save stat #
                         root[sub].setdefault(dpath, {})
                         root[sub][dpath][item] = stat
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printWarn(
                             'failed to read stat from %s' % subfile,
@@ -87462,8 +86735,7 @@ class TaskAnalyzer(object):
         # get cgroup list #
         try:
             systems = os.listdir(SysMgr.cgroupPath)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.cgroupPath)
             sys.exit(0)
@@ -87502,8 +86774,7 @@ class TaskAnalyzer(object):
         for pid in pids:
             try:
                 nrPid = long(pid)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 continue
 
@@ -87537,8 +86808,7 @@ class TaskAnalyzer(object):
             # save info per thread #
             try:
                 tids = os.listdir(taskPath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(taskPath)
                 continue
@@ -87546,8 +86816,7 @@ class TaskAnalyzer(object):
             for tid in tids:
                 try:
                     nrTid = long(tid)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -87659,8 +86928,7 @@ class TaskAnalyzer(object):
         # load #
         try:
             SysMgr.loadavg = psutil.getloadavg()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87681,8 +86949,7 @@ class TaskAnalyzer(object):
             self.vmData['active'] = mem[5]
             self.vmData['inactive'] = mem[6]
             self.vmData['wired'] = mem[7]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87696,8 +86963,7 @@ class TaskAnalyzer(object):
             self.vmData['swapPer'] = swap[3]
             self.vmData['pswpin'] = swap[4] >> 10
             self.vmData['pswpout'] = swap[5] >> 10
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87717,8 +86983,7 @@ class TaskAnalyzer(object):
         try:
             raise Exception()
             temp = psutil.sensors_temperatures(fahrenheit=False)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87726,8 +86991,7 @@ class TaskAnalyzer(object):
         try:
             raise Exception()
             fan = psutil.sensors_fans()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87736,8 +87000,7 @@ class TaskAnalyzer(object):
             battery = psutil.sensors_battery()
             if battery:
                 SysMgr.battery = battery
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87745,8 +87008,7 @@ class TaskAnalyzer(object):
         try:
             raise Exception()
             user = psutil.users()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -87834,8 +87096,7 @@ class TaskAnalyzer(object):
                     try:
                         pri = str(procInfo['nice']).strip('Priority.') # pylint: disable=bad-str-strip-call
                         now[pid]['nice'] = ConfigMgr.SCHED_POLICY_WINDOWS[pri]
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         now[pid]['nice'] = ' '
                 else:
@@ -87946,15 +87207,13 @@ class TaskAnalyzer(object):
             cpuBuf = None
             SysMgr.statFd.seek(0)
             cpuBuf = SysMgr.statFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 cpuPath = "%s/stat" % SysMgr.procPath
                 SysMgr.statFd = open(cpuPath, 'r')
                 cpuBuf = SysMgr.statFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     'failed to read %s' % cpuPath, True)
@@ -88022,16 +87281,14 @@ class TaskAnalyzer(object):
             vmBuf = None
             SysMgr.vmstatFd.seek(0)
             vmBuf = SysMgr.vmstatFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
                 SysMgr.vmstatFd = open(vmstatPath, 'r')
 
                 vmBuf = SysMgr.vmstatFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(vmstatPath)
 
@@ -88049,16 +87306,14 @@ class TaskAnalyzer(object):
             swapBuf = None
             SysMgr.swapFd.seek(0)
             swapBuf = SysMgr.swapFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 swapPath = "%s/%s" % (SysMgr.procPath, 'swaps')
                 SysMgr.swapFd = open(swapPath, 'r')
 
                 swapBuf = SysMgr.swapFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(swapPath)
 
@@ -88096,15 +87351,13 @@ class TaskAnalyzer(object):
             SysMgr.netstatFd.seek(0)
             SysMgr.prevNetstat = SysMgr.netstat
             SysMgr.netstat = SysMgr.netstatFd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 netstatPath = "%s/%s" % (SysMgr.procPath, 'net/netstat')
                 SysMgr.netstatFd = open(netstatPath, 'r')
                 SysMgr.netstat = SysMgr.netstatFd.readlines()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(netstatPath)
 
@@ -88112,15 +87365,13 @@ class TaskAnalyzer(object):
         try:
             SysMgr.loadavgFd.seek(0)
             SysMgr.loadavg = SysMgr.loadavgFd.readlines()[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 loadavgPath = "%s/%s" % (SysMgr.procPath, 'loadavg')
                 SysMgr.loadavgFd = open(loadavgPath, 'r')
                 SysMgr.loadavg = SysMgr.loadavgFd.readlines()[0]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(loadavgPath)
 
@@ -88133,16 +87384,14 @@ class TaskAnalyzer(object):
             SysMgr.battery = {}
             '''
             pass
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 batteryPath = "/sys/class/power_supply/?/capacity"
                 SysMgr.batteryFd = open(batteryPath, 'r')
                 battery = SysMgr.batteryFd.readlines()[0]
                 SysMgr.battery = {}
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(loadavgPath)
 
@@ -88199,8 +87448,7 @@ class TaskAnalyzer(object):
 
                     if long(tmpid) == 0 or orig == tmpid:
                         return relationList
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     return relationList
 
@@ -88286,8 +87534,7 @@ class TaskAnalyzer(object):
         try:
             with open(fpath, 'r') as fd:
                 buf = fd.readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.procInstance[tid]['maps'] = None
             SysMgr.printOpenWarn(fpath)
@@ -88362,8 +87609,7 @@ class TaskAnalyzer(object):
                                 ptable[mtype]['NOPM'] += val
                             except:
                                 ptable[mtype]['NOPM'] = val
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -88393,8 +87639,7 @@ class TaskAnalyzer(object):
                 self.procData[tid]['wchan'] = 'RUNNING'
             else:
                 self.procData[tid]['wchan'] = wchanBuf[0]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             self.procData[tid]['wchan'] = ''
 
@@ -88501,8 +87746,7 @@ class TaskAnalyzer(object):
                         fd.seek(0)
                         self.gpuData[target]['CUR_LOAD'] = \
                             long(fd.readline()[:-3])
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         self.gpuCoreList[cand]['load'] = \
                             open('%s/gpu_load' % cand, 'r')
@@ -88537,8 +87781,7 @@ class TaskAnalyzer(object):
                 fd.seek(0)
                 self.gpuData[target]['MAX_FREQ'] = \
                     long(fd.readline()[:-1]) / 1000000
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -88562,8 +87805,7 @@ class TaskAnalyzer(object):
             self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
             self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
             self.procData[tid]['nrSlice'] = float(SCHED_POLICY[2])
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             return
 
@@ -88621,8 +87863,7 @@ class TaskAnalyzer(object):
             self.prevProcData[tid][fd].seek(0)
             self.procData[tid][fd] = self.prevProcData[tid][fd]
             buf = self.procData[tid][fd].readlines()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 newPath = "%s/%s" % (path, name)
@@ -88634,8 +87875,7 @@ class TaskAnalyzer(object):
                     newFd.close()
                     self.procData[tid][fd] = None
                     self.reclaimFds()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(newPath)
 
@@ -88696,8 +87936,7 @@ class TaskAnalyzer(object):
                         statusList = line.split(':', 1)
                         self.procData[tid]['status'][statusList[0]] = \
                             statusList[1].strip()
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -88767,8 +88006,7 @@ class TaskAnalyzer(object):
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = _getStatBuf(self, statPath, tid)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenWarn(statPath)
             self.procData.pop(tid, None)
@@ -88845,8 +88083,7 @@ class TaskAnalyzer(object):
                     flag = item[2]
                     if flag != 'CONT':
                         SysMgr.affinityFilter.remove(item)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -88867,8 +88104,7 @@ class TaskAnalyzer(object):
                             (ConfigMgr.SIG_LIST[sig], comm, tid))
                     if flag != 'CONT':
                         SysMgr.killFilter.remove(item)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -88937,8 +88173,7 @@ class TaskAnalyzer(object):
 
                     # update task info #
                     self.procData[tid]['ns'] += '%s:%s/' % (node, value)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             comm = self.procData[tid]['stat'][self.commIdx][1:-1]
             SysMgr.printWarn(
@@ -88967,8 +88202,7 @@ class TaskAnalyzer(object):
             self.procData[tid]['oomFd'] = self.prevProcData[tid]['oomFd']
             self.procData[tid]['oomScore'] = \
                 long(self.procData[tid]['oomFd'].readline())
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             try:
                 oomPath = "%s/%s" % (path, 'oom_score')
@@ -88987,8 +88221,7 @@ class TaskAnalyzer(object):
                             self.procData[tid]['oomScore']
                         self.procData[mainID]['oomFd'] = \
                             self.procData[tid]['oomFd']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenWarn(oomPath)
 
@@ -89013,8 +88246,7 @@ class TaskAnalyzer(object):
 
                     val[item] = None
                     nrRclm += 1
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -89034,8 +88266,7 @@ class TaskAnalyzer(object):
         # total memory #
         try:
             totalMem = memData['MemTotal'] >> 10
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             totalMem = 0
             failedStat.append('MemTotal')
@@ -89044,8 +88275,7 @@ class TaskAnalyzer(object):
         try:
             freeMem = memData['MemFree'] >> 10
             freeMemDiff = freeMem - (prevMemData['MemFree'] >> 10)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             freeMem = freeMemDiff = 0
             failedStat.append('MemFree')
@@ -89070,8 +88300,7 @@ class TaskAnalyzer(object):
                 availMemDiff = 0
 
             availMemPer = long(availMem / float(totalMem) * 100)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.freeMemEnable = True
             availMem = availMemDiff = 0
@@ -89083,8 +88312,7 @@ class TaskAnalyzer(object):
             totalAnonMem = vmData['nr_anon_pages'] >> 8
             anonMemDiff = (vmData['nr_anon_pages'] - \
                 self.prevVmData['nr_anon_pages']) >> 8
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = 0
             failedStat.append('MemAnon')
@@ -89096,8 +88324,7 @@ class TaskAnalyzer(object):
             totalFileMem = vmData['nr_file_pages'] >> 8
             fileMemDiff = (vmData['nr_file_pages'] - \
                 self.prevVmData['nr_file_pages']) >> 8
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
             failedStat.append('MemFile')
@@ -89114,8 +88341,7 @@ class TaskAnalyzer(object):
                 long((vmData['nr_dirty'] / \
                 float(vmData['nr_dirty_background_threshold'])) * 100)
             '''
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pgDirty = 0
             failedStat.append('MemDirty')
@@ -89132,8 +88358,7 @@ class TaskAnalyzer(object):
                 (vmData['nr_slab_reclaimable'] + \
                 vmData['nr_slab_unreclaimable']) >> 8
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             slabReclm = slabUnReclm = slabReclmDiff = \
                 slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
@@ -89145,8 +88370,7 @@ class TaskAnalyzer(object):
         try:
             totalKernelMem = \
                 totalMem - (totalAnonMem + totalCacheMem + freeMem)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             totalKernelMem = 0
 
@@ -89155,8 +88379,7 @@ class TaskAnalyzer(object):
             nrMajFault = vmData['pgmajfault'] - self.prevVmData['pgmajfault']
             nrTotalFault = vmData['pgfault'] - self.prevVmData['pgfault']
             nrMinFault = nrTotalFault - nrMajFault
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrMajFault = nrTotalFault = nrMinFault = 0
             failedStat.append('MemFault')
@@ -89172,8 +88395,7 @@ class TaskAnalyzer(object):
 
             pgInMemDiff = (vmData['pgpgin'] - prevpgpgin) >> 10
             pgOutMemDiff = (vmData['pgpgout'] - prevpgpgout) >> 10
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pgInMemDiff = pgOutMemDiff = 0
             failedStat.append('MemPg')
@@ -89192,8 +88414,7 @@ class TaskAnalyzer(object):
                 (prevVmData['swapUsed'] - vmData['swapUsed']) >> 10
             swapInMem = (vmData['pswpin'] - prevVmData['pswpin']) >> 10
             swapOutMem = (vmData['pswpout'] - prevVmData['pswpout']) >> 10
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             swapTotal = swapUsage = swapUsageDiff = swapUsagePer = \
                 swapInMem = swapOutMem = 0
@@ -89226,12 +88447,10 @@ class TaskAnalyzer(object):
                 nrBgReclaim = \
                     vmData['pageoutrun'] - \
                     self.prevVmData['pageoutrun']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 nrBgReclaim = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pgRclmBg = nrBgReclaim = 0
             failedStat.append('MemBgReclaim')
@@ -89261,12 +88480,10 @@ class TaskAnalyzer(object):
             try:
                 nrDrReclaim = \
                     vmData['allocstall'] - self.prevVmData['allocstall']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 nrDrReclaim = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pgRclmFg = nrDrReclaim = 0
             failedStat.append('MemFgReclaim')
@@ -89302,8 +88519,7 @@ class TaskAnalyzer(object):
                     cmaDevMem = 0
             else:
                 cmaTotalMem = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             cmaTotalMem = cmaFreeMem = cmaDevMem = 0
             failedStat.append('MemCma')
@@ -89358,8 +88574,7 @@ class TaskAnalyzer(object):
                 self.prevCpuData['ctxt']['ctxt']
             if nrCtxSwc < 0:
                 nrCtxSwc = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrCtxSwc = 0
 
@@ -89368,8 +88583,7 @@ class TaskAnalyzer(object):
                 self.prevCpuData['intr']['intr']
             if nrIrq < 0:
                 nrIrq = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrIrq = 0
 
@@ -89378,8 +88592,7 @@ class TaskAnalyzer(object):
                 self.prevCpuData['softirq']['softirq']
             if nrSoftIrq < 0:
                 nrSoftIrq = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrSoftIrq = 0
 
@@ -89387,8 +88600,7 @@ class TaskAnalyzer(object):
         try:
             nowData = self.cpuData['all']
             prevData = self.prevCpuData['all']
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to get system CPU stat")
@@ -89469,8 +88681,7 @@ class TaskAnalyzer(object):
                 # check core filter #
                 if SysMgr.perCoreList and not idx in SysMgr.perCoreList:
                     coreStats.pop(idx, None)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -89509,8 +88720,7 @@ class TaskAnalyzer(object):
             netIO = '%s/%s' % \
                 (UtilMgr.convSize2Unit(netIn, True),
                     UtilMgr.convSize2Unit(netOut, True))
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             netIO = '-/-'
 
@@ -89602,8 +88812,7 @@ class TaskAnalyzer(object):
                     devPath = '%s/%s/device/name' % (tempPath, item)
                     if os.path.isfile(devPath):
                         tempDirList.append(devPath)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -89619,8 +88828,7 @@ class TaskAnalyzer(object):
 
                     if fd.readline()[:-1] == 'coretemp':
                         tempPath.append(os.path.dirname(tempDir))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -89628,8 +88836,7 @@ class TaskAnalyzer(object):
             for hwPath in tempPath:
                 try:
                     hwdirs = os.listdir(hwPath)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -89665,8 +88872,7 @@ class TaskAnalyzer(object):
                                 self.tempFdList[tempDir] = tfd
 
                             tempData[coreId] = long(tfd.readline()[:-4])
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
 
@@ -89681,8 +88887,7 @@ class TaskAnalyzer(object):
                     [ '%s/%s' % (tempPath, item) \
                     for item in os.listdir(tempPath) \
                     if item.startswith('thermal_zone') ]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 tempDirList = []
 
@@ -89698,8 +88903,7 @@ class TaskAnalyzer(object):
                             coreTempData['CPU'] = long(fd.readline()[:-4])
                         elif 'GPU' in ctype:
                             coreTempData['GPU'] = long(fd.readline()[:-4])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -89726,8 +88930,7 @@ class TaskAnalyzer(object):
                     freqList = SysMgr.getPkg('psutil').cpu_freq(percpu=True)
                     if freqList and len(freqList) == 1:
                         freqList = [freqList[0]] * len(self.cpuData)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     freqList = []
 
@@ -89781,8 +88984,7 @@ class TaskAnalyzer(object):
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalCoreUsageStr,
                         userCoreUsage, kerCoreUsage, ioCoreUsage, irqCoreUsage)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -89804,8 +89006,7 @@ class TaskAnalyzer(object):
                             minFreq = long(freq[1]) << 10
                         if len(freq) > 2:
                             maxFreq = long(freq[2]) << 10
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         pass
                 else:
@@ -89823,8 +89024,7 @@ class TaskAnalyzer(object):
                         curFreq = prevCurFd.readline()[:-1]
                         self.cpuData[idx]['curFd'] = prevCurFd
                         perCoreStats[idx]['curFreq'] = curFreq
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         infoPath = '%s/cpuinfo_cur_freq' % defPath
                         scalingPath = '%s/scaling_cur_freq' % defPath
@@ -89841,8 +89041,7 @@ class TaskAnalyzer(object):
                             self.cpuData[idx]['curFd'] = newCurFd
                             curFreq = newCurFd.readline()[:-1]
                             perCoreStats[idx]['curFreq'] = curFreq
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             curFreq = None
 
@@ -89853,8 +89052,7 @@ class TaskAnalyzer(object):
                         minFreq = prevMinFd.readline()[:-1]
                         self.cpuData[idx]['minFd'] = prevMinFd
                         perCoreStats[idx]['minFreq'] = minFreq
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         infoPath = '%s/cpuinfo_min_freq' % defPath
                         scalingPath = '%s/scaling_min_freq' % defPath
@@ -89871,8 +89069,7 @@ class TaskAnalyzer(object):
                             self.cpuData[idx]['minFd'] = newMinFd
                             minFreq = newMinFd.readline()[:-1]
                             perCoreStats[idx]['minFreq'] = minFreq
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             minFreq = None
 
@@ -89883,8 +89080,7 @@ class TaskAnalyzer(object):
                         maxFreq = prevMaxFd.readline()[:-1]
                         self.cpuData[idx]['maxFd'] = prevMaxFd
                         perCoreStats[idx]['maxFreq'] = maxFreq
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         infoPath = '%s/cpuinfo_max_freq' % defPath
                         scalingPath = '%s/scaling_max_freq' % defPath
@@ -89901,8 +89097,7 @@ class TaskAnalyzer(object):
                             self.cpuData[idx]['maxFd'] = newMaxFd
                             maxFreq = newMaxFd.readline()[:-1]
                             perCoreStats[idx]['maxFreq'] = maxFreq
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             maxFreq = None
 
@@ -89913,8 +89108,7 @@ class TaskAnalyzer(object):
                         self.cpuData[idx]['govFd'] = \
                             self.prevCpuData[idx]['govFd']
                         perCoreStats[idx]['governor'] = gov
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         govPath = '%s/scaling_governor' % defPath
 
@@ -89964,8 +89158,7 @@ class TaskAnalyzer(object):
 
                         cid = '%s-%s' % (phyId, coreId)
                         perCoreStats[idx]['id'] = cid
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         perCoreStats[idx]['id'] = None
 
@@ -89981,8 +89174,7 @@ class TaskAnalyzer(object):
                             (coreFreq, long(minFreq) >> 10,
                                 long(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -89990,14 +89182,12 @@ class TaskAnalyzer(object):
                 try:
                     coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                         format(cid, coreTempData[cid], coreFreq)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     try:
                         coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                             format(cid, coreTempData['CPU'], coreFreq)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         if cid:
                             coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
@@ -90008,8 +89198,7 @@ class TaskAnalyzer(object):
                 # merge governor info #
                 try:
                     coreFreq = '{0:^13} | {1:>1}'.format(gov, coreFreq)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -90044,8 +89233,7 @@ class TaskAnalyzer(object):
 
                     SysMgr.addPrint(
                         '%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -90116,8 +89304,7 @@ class TaskAnalyzer(object):
 
                     SysMgr.addPrint(
                         '%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -90174,8 +89361,7 @@ class TaskAnalyzer(object):
             self.reportData['system']['load1m'] = loads[0]
             self.reportData['system']['load5m'] = loads[1]
             self.reportData['system']['load15m'] = loads[2]
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -90221,8 +89407,7 @@ class TaskAnalyzer(object):
             self.reportData['mem']['cmaTotal'] = cmaTotalMem
             self.reportData['mem']['cmaFree'] = cmaFreeMem
             self.reportData['mem']['cmaDev'] = cmaDevMem
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -90325,56 +89510,49 @@ class TaskAnalyzer(object):
                 # get read size on this interval #
                 try:
                     value['read'] -= prevStorageData[dev]['read']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['read'] = 0
 
                 # get write size on this interval #
                 try:
                     value['write'] -= prevStorageData[dev]['write']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['write'] = 0
 
                 # get readtime on this interval #
                 try:
                     value['readtime'] -= prevStorageData[dev]['readtime']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['readtime'] = 0
 
                 # get writetime on this interval #
                 try:
                     value['writetime'] -= prevStorageData[dev]['writetime']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['writetime'] = 0
 
                 # get iotime on this interval #
                 try:
                     value['iotime'] -= prevStorageData[dev]['iotime']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['iotime'] = 0
 
                 # get iowtime on this interval #
                 try:
                     value['iowtime'] -= prevStorageData[dev]['iowtime']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['iowtime'] = 0
 
                 # get avq on this interval #
                 try:
                     value['avq'] = value['iowtime'] / value['iotime']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['avq'] = 0
         else:
@@ -90389,8 +89567,7 @@ class TaskAnalyzer(object):
                     path, func = values[:2]
                     if len(values) > 2: args = values[2:]
                     else: args = []
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to parse function info from '%s'" % item,
@@ -90403,8 +89580,7 @@ class TaskAnalyzer(object):
                     self.reportData.setdefault('custom', {})
                     fname = '%s(%s)' % (func, args)
                     self.reportData['custom'][fname] = ret
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to get custom data from '%s'" % item, True)
@@ -90529,8 +89705,7 @@ class TaskAnalyzer(object):
                 if value['ttime'] + value['btime'] > 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 # set flags for new task #
                 if SysMgr.totalEnable and \
@@ -90751,8 +89926,7 @@ class TaskAnalyzer(object):
             nrNewThreads = \
                 self.cpuData['processes']['processes'] - \
                 self.prevCpuData['processes']['processes']
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrNewThreads = 0
 
@@ -90764,8 +89938,7 @@ class TaskAnalyzer(object):
             for idx, load in enumerate(loadlist):
                 loadlist[idx] = str('%d' % float(load))
             loadavg = '/'.join(loadlist)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             loadavg = '?'
 
@@ -90775,8 +89948,7 @@ class TaskAnalyzer(object):
                 oomstr = ' [OOM: %d] ' % oom_kill
             else:
                 oomstr = ' '
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             oomstr = ' '
             oom_kill = 0
@@ -90786,16 +89958,14 @@ class TaskAnalyzer(object):
                 self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
             if nrCtxt < 0:
                 nrCtxt = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrCtxt = 0
 
         try:
             nrTermThreads = \
                 abs(self.nrThread - nrNewThreads - self.nrPrevThread)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrTermThreads = 0
 
@@ -90804,24 +89974,21 @@ class TaskAnalyzer(object):
                 self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
             if nrIrq < 0:
                 nrIrq = 0
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             nrIrq = 0
 
         try:
             memTotal = UtilMgr.convSize2Unit(
                 self.memData['MemTotal'] << 10)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             memTotal = 0
 
         try:
             swapTotal = UtilMgr.convSize2Unit(
                 self.memData['SwapTotal'] << 10)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             swapTotal = 0
 
@@ -90833,8 +90000,7 @@ class TaskAnalyzer(object):
                     UtilMgr.convTime(SysMgr.battery[1]),
                     '+' if SysMgr.battery[2] else '-'
                 )
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -90871,8 +90037,7 @@ class TaskAnalyzer(object):
                         'leftsec': SysMgr.battery[1],
                         'plugged': 'true' if SysMgr.battery[2] else 'false'
                     }
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -91065,8 +90230,7 @@ class TaskAnalyzer(object):
                 totalStat['tdiff'][2] += tdiff[2]
                 totalStat['tdiff'][3] += tdiff[3]
                 totalStat['tdiff'][4] += tdiff[-1]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 rdiff = [0 for i in range(len(val['recv']))]
                 tdiff = [0 for i in range(len(val['tran']))]
@@ -91098,8 +90262,7 @@ class TaskAnalyzer(object):
                         tranSize, convertFunc(tdiff[1]), tranErr,
                         convertFunc(tdiff[3]), convertFunc(tdiff[-1])))
                 cnt += 1
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -91189,8 +90352,7 @@ class TaskAnalyzer(object):
             try:
                 readtime = value['readtime'] - \
                     prevStorageData[origDev]['readtime']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 readtime = 0
 
@@ -91198,8 +90360,7 @@ class TaskAnalyzer(object):
             try:
                 writetime = value['writetime'] - \
                     prevStorageData[origDev]['writetime']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 writetime = 0
 
@@ -91214,8 +90375,7 @@ class TaskAnalyzer(object):
                 busytime = '%3s%%' % busyper
                 if busyper > 0:
                     busytime = UtilMgr.convColor(busytime, 'RED')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 busytime = '0%'
 
@@ -91225,8 +90385,7 @@ class TaskAnalyzer(object):
                     prevStorageData[origDev]['iowtime']
 
                 avq = '%.1f' % (iowtime / iotime)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 avq = '0'
 
@@ -91236,8 +90395,7 @@ class TaskAnalyzer(object):
                     prevStorageData[origDev]['read']
 
                 readSize = convSize2Unit(readSize << 20)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 readSize = 0
 
@@ -91247,8 +90405,7 @@ class TaskAnalyzer(object):
                     prevStorageData[origDev]['write']
 
                 writeSize = convSize2Unit(writeSize << 20)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 writeSize = 0
 
@@ -91263,8 +90420,7 @@ class TaskAnalyzer(object):
                     favail = '%7s' % convSize2Unit(value['favail'])
                     if value['favail'] == 0:
                         favail = UtilMgr.convColor(favail, 'RED')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     favail = '%7s' % 0
             else:
@@ -91284,8 +90440,7 @@ class TaskAnalyzer(object):
 
                 freeDiff = '%s%s' % \
                     (op, convSize2Unit(long(abs(freeDiff)) << 20))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 freeDiff = 0
 
@@ -91462,8 +90617,7 @@ class TaskAnalyzer(object):
                             pvalue = prevData[system][group][name]
                             prevStat = long(pvalue.split('\n')[2].split()[1])
                             stat = stat - prevStat
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             stat = 0
                     else:
@@ -91475,8 +90629,7 @@ class TaskAnalyzer(object):
                                 prevStat = prevData[system][group][name]
                                 prevStat = long(prevStat.rstrip())
                                 stat = stat - prevStat
-                            except SystemExit:
-                                sys.exit(0)
+                            except SystemExit: sys.exit(0)
                             except:
                                 pass
 
@@ -91529,8 +90682,7 @@ class TaskAnalyzer(object):
                     pass
                 else:
                     cpu = UtilMgr.convCpuColor(usage, cpu)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 cpu = 0
 
@@ -91538,8 +90690,7 @@ class TaskAnalyzer(object):
             try:
                 throttle = long(value['cpu.stat'] / 10000000)
                 throttle = UtilMgr.convCpuColor(usage, throttle, 3)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 throttle = 0
 
@@ -91547,8 +90698,7 @@ class TaskAnalyzer(object):
             try:
                 mem = value['memory.usage_in_bytes']
                 mem = UtilMgr.convSize2Unit(mem)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 mem = 0
 
@@ -91556,8 +90706,7 @@ class TaskAnalyzer(object):
             try:
                 proc = value['cgroup.procs']
                 task = value['tasks']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 proc = 0
                 task = 0
@@ -91725,8 +90874,7 @@ class TaskAnalyzer(object):
                     prevCtx = \
                         long(prevStat['voluntary_ctxt_switches']) + \
                         long(prevStat['nonvoluntary_ctxt_switches'])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     prevCtx = 0
 
@@ -91973,8 +91121,7 @@ class TaskAnalyzer(object):
 
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('TOTAL_USAGE', cpuTotalStr))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -92135,8 +91282,7 @@ class TaskAnalyzer(object):
                         self.stackTable[idx]['fd'] = open(spath, 'r')
                         self.stackTable[idx]['stack'] = {}
                         self.stackTable[idx]['total'] = 0
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printOpenWarn(spath)
                         self.stackTable.pop(idx, None)
@@ -92199,16 +91345,14 @@ class TaskAnalyzer(object):
             try:
                 swapSize = \
                     long(value['status']['VmSwap'].split()[0]) >> 10
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 swapSize = '-'
 
             # shared #
             try:
                 shr = long(value['statm'][self.shrIdx]) >> 8
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 shr = '-'
 
@@ -92218,8 +91362,7 @@ class TaskAnalyzer(object):
                         value['status']['voluntary_ctxt_switches']
                     value['preempted'] = \
                         value['status']['nonvoluntary_ctxt_switches']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     value['yield'] = '-'
                     value['preempted'] = '-'
@@ -92233,8 +91376,7 @@ class TaskAnalyzer(object):
                     userData = SysMgr.sysInstance.userData
                     uid = value['status']['Uid'].split()[0]
                     value['user'] = userData[uid]['name']
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 value['user'] = '-'
 
@@ -92244,8 +91386,7 @@ class TaskAnalyzer(object):
                 fdstr = value['fdsize']
                 if fdstr.isdigit() and long(fdstr) > 1000:
                     fdstr = convColor(fdstr, 'RED', 4)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 fdstr = value['fdsize'] = '-'
 
@@ -92259,8 +91400,7 @@ class TaskAnalyzer(object):
                 # user #
                 try:
                     prtd = value['user'][:6]
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     prtd = '-'
             else:
@@ -92272,8 +91412,7 @@ class TaskAnalyzer(object):
                         prevStatus = self.prevProcData[idx]['status']
                         yld = long(value['yield']) - \
                             long(prevStatus['voluntary_ctxt_switches'])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     yld = '-'
 
@@ -92285,8 +91424,7 @@ class TaskAnalyzer(object):
                         prevStatus = self.prevProcData[idx]['status']
                         prtd = long(value['preempted']) - \
                             long(prevStatus['nonvoluntary_ctxt_switches'])
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     prtd = '-'
 
@@ -92311,8 +91449,7 @@ class TaskAnalyzer(object):
 
                 if dtime > 0:
                     dtime = convColor('%3s' % dtime, 'RED')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 dtime = '-'
 
@@ -92325,8 +91462,7 @@ class TaskAnalyzer(object):
                 writeSize = value['write'] >> 20
                 if writeSize > 0:
                     writeSize = convColor('%4s' % writeSize, 'RED')
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 readSize = '-'
                 writeSize = '-'
@@ -92347,23 +91483,20 @@ class TaskAnalyzer(object):
                 else:
                     pgid = procData[idx]['stat'][self.ppidIdx]
                     etc = '%s(%s)' % (procData[pgid]['comm'], pgid)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 etc = '-'
 
             try:
                 sched = '%s%s' % \
                     (SCHED_POLICY[int(stat[self.policyIdx])], schedValue)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 sched = '?'
 
             try:
                 vss = long(stat[self.vssIdx]) >> 20
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 vss = 0
 
@@ -92419,8 +91552,7 @@ class TaskAnalyzer(object):
                         shr = convColor(shr, 'RED', 3)
                     else:
                         shr = convColor(shr, 'YELLOW', 3)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -92436,8 +91568,7 @@ class TaskAnalyzer(object):
                         sched = convColor(sched, 'YELLOW', 4)
                     else:
                         sched = convColor(sched, 'RED', 4)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -92472,8 +91603,7 @@ class TaskAnalyzer(object):
                 totalStats['btime'] += value['btime']
                 totalStats['majflt'] += value['majflt']
                 totalStats['task'] += 1
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 totalStats['ttime'] = value['ttime']
                 totalStats['utime'] = value['utime']
@@ -92488,8 +91618,7 @@ class TaskAnalyzer(object):
                 try:
                     totalStats['yld'] += yld
                     totalStats['prtd'] += prtd
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
             else:
@@ -92500,14 +91629,12 @@ class TaskAnalyzer(object):
                 try:
                     totalStats['read'] += value['read']
                     totalStats['write'] += value['write']
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     try:
                         totalStats['read'] = value['read']
                         totalStats['write'] = value['write']
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         totalStats['read'] = '-'
                         totalStats['write'] = '-'
@@ -92526,8 +91653,7 @@ class TaskAnalyzer(object):
                             "{0:>40}| {1:1}\n".format('PERF', perfString))
                         if not ret:
                             return
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     self.procData[idx]['perfFds'] = \
                         SysMgr.initProcPerfEvents(long(idx))
@@ -92590,8 +91716,7 @@ class TaskAnalyzer(object):
                             vmsize = long(memset[item].split()[0]) << 10
                             memstr += \
                                 '%s: %s, ' % (item, convertFunc(vmsize))
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             pass
 
@@ -92648,8 +91773,7 @@ class TaskAnalyzer(object):
             # print delay #
             try:
                 _printDelay(self, value)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
 
@@ -92665,15 +91789,13 @@ class TaskAnalyzer(object):
                     if _printStackSamples(idx) == -1:
                         SysMgr.addPrint('---more---')
                         return
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
                 try:
                     self.stackTable[idx]['total'] = 0
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -92825,8 +91947,7 @@ class TaskAnalyzer(object):
                 schedPolicy = \
                     ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
                     str(schedValue)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 schedPolicy = '?'
 
@@ -92835,8 +91956,7 @@ class TaskAnalyzer(object):
                 lifeTime = UtilMgr.convTime(runtime)
                 if len(lifeTime.split(':')) > 3:
                     lifeTime = lifeTime[:lifeTime.rfind(':')]
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 lifeTime = '?'
 
@@ -93018,8 +92138,7 @@ class TaskAnalyzer(object):
         # reply ACK to server #
         try:
             self.replyService(ip, port)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to send ACK to server")
 
@@ -93091,8 +92210,7 @@ class TaskAnalyzer(object):
                         SysMgr.remoteServObj.request)
             else:
                 SysMgr.printStat("wait for input from server")
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to send request '%s'" % \
@@ -93250,8 +92368,7 @@ class TaskAnalyzer(object):
             # close fd for output #
             try:
                 SysMgr.printFd.close()
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 pass
             finally:
@@ -93268,8 +92385,7 @@ class TaskAnalyzer(object):
             try:
                 timeunit = cmd.strip('SAVE_')
                 sec = UtilMgr.convUnit2Time(timeunit)
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 sec = timeunit
 
@@ -93368,8 +92484,7 @@ class TaskAnalyzer(object):
                         ret = SysMgr.launchGuider(
                             cmdList, pipe=False, stderr=True,
                             stream=False, logo=False, log=True)
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         ret = False
                         SysMgr.printErr(
@@ -93450,32 +92565,28 @@ class TaskAnalyzer(object):
         # check CPU #
         try:
             self.checkThreshold('cpu', 'total', 'CPU', 'big')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
         # check memory #
         try:
             self.checkThreshold('mem', 'available', 'MEM', 'less')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
         # check swap #
         try:
             self.checkThreshold('swap', 'usagePer', 'SWAP', 'big')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
         # check iowait #
         try:
             self.checkThreshold('block', 'ioWait', 'IO', 'big')
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -93506,12 +92617,10 @@ class TaskAnalyzer(object):
                     self.checkThreshold(
                         'storage', 'usagePer', 'STORAGE', 'big',
                         target, dev, addval=vals)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     continue
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -93549,8 +92658,7 @@ class TaskAnalyzer(object):
                     # send #
                     self.checkThreshold(
                         'net', 'trans', 'NETWORK', 'big', trans, 'DEVICE')
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
 
@@ -93563,12 +92671,10 @@ class TaskAnalyzer(object):
                     # send #
                     self.checkThreshold(
                         'net', 'trans', 'NETWORK', 'big', trans, dev)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     pass
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
@@ -93599,16 +92705,14 @@ class TaskAnalyzer(object):
                 target = '_'.join(abnormalList)
                 self.checkThreshold(
                     'task', 'abnormal', 'ABNORMAL', None, target)
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             pass
 
         # check task #
         try:
             self.checkTaskThreshold()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
                 'failed to check task thresholds', reason=True)
@@ -93840,8 +92944,7 @@ class TaskAnalyzer(object):
                             self.checkThreshold(
                                 resource, cattr, event, comp,
                                     value, 'TASK', intval, append)
-                        except SystemExit:
-                            sys.exit(0)
+                        except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printWarn(
                                 'failed to check task thresholds', reason=True)
@@ -93853,8 +92956,7 @@ class TaskAnalyzer(object):
                         self.checkThreshold(
                             resource, cattr, event, comp,
                                 value, comm, intval, append)
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         'failed to check task thresholds', reason=True)
@@ -93926,8 +93028,7 @@ class TaskAnalyzer(object):
                     try:
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) >> 20
-                    except SystemExit:
-                        sys.exit(0)
+                    except SystemExit: sys.exit(0)
                     except:
                         text = 0
 
@@ -94026,8 +93127,7 @@ class TaskAnalyzer(object):
                     "saved the results based monitoring into "
                     "'%s'%s successfully") % \
                     (filePath, fsize))
-            except SystemExit:
-                sys.exit(0)
+            except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "failed to rename %s to %s" % \
@@ -94387,8 +93487,7 @@ class TaskAnalyzer(object):
                     path, func = values[:2]
                     if len(values) > 2: args = values[2:]
                     else: args = []
-                except SystemExit:
-                    sys.exit(0)
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr(
                         "failed to parse function info from '%s'" % item, True)
@@ -94513,8 +93612,7 @@ def main(args=None):
         # THREAD & FUNCTION MODE #
         try:
             SysMgr.execRecordLoop()
-        except SystemExit:
-            sys.exit(0)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("terminated recording", reason=True)
 
