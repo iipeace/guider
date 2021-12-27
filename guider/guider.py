@@ -3804,9 +3804,9 @@ class ConfigMgr(object):
     @staticmethod
     def getMmapId():
         if SysMgr.arch == 'arm':
-            return ConfigMgr.sysList.index('sys_mmap2')
+            return SysMgr.getNrSyscall('sys_mmap2')
         else:
-            return ConfigMgr.sysList.index('sys_mmap')
+            return SysMgr.getNrSyscall('sys_mmap')
 
 
 
@@ -12856,7 +12856,7 @@ class FunctionAnalyzer(object):
                     return False
 
                 # heap decreasement event #
-                elif long(b['nr']) == ConfigMgr.sysList.index('sys_munmap'):
+                elif long(b['nr']) == SysMgr.getNrSyscall('sys_munmap'):
                     self.heapEnabled = True
 
                     try:
@@ -12874,7 +12874,7 @@ class FunctionAnalyzer(object):
                         pass
 
                 # lock event #
-                elif long(b['nr']) == ConfigMgr.sysList.index('sys_futex'):
+                elif long(b['nr']) == SysMgr.getNrSyscall('sys_futex'):
                     n = re.match((
                         r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                         r'(?P<val>\S+), (?P<timer>\S+),'), b['args'])
@@ -12968,7 +12968,7 @@ class FunctionAnalyzer(object):
                         pass
 
                 # heap decreasement event #
-                elif nr == ConfigMgr.sysList.index('sys_brk'):
+                elif nr == SysMgr.getNrSyscall('sys_brk'):
                     self.heapEnabled = True
 
                     addr = long(b['ret'])
@@ -18578,6 +18578,7 @@ class SysMgr(object):
     fdCache = {}
     libCache = {}
     rawFdCache = {}
+    syscallCache = {}
     netAddrCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
@@ -27794,6 +27795,18 @@ Copyright:
 
 
     @staticmethod
+    def getNrSyscall(name):
+        try:
+            return SysMgr.syscallCache[name]
+        except SystemExit: sys.exit(0)
+        except:
+            num = ConfigMgr.sysList.index(name)
+            SysMgr.syscallCache[name] = num
+            return num
+
+
+
+    @staticmethod
     def syscall(syscall, *args):
         if not SysMgr.isLinux:
             return None
@@ -27814,7 +27827,7 @@ Copyright:
                 else:
                     nmSyscall = 'sys_%s' % val
 
-                nrSyscall = ConfigMgr.sysList.index(nmSyscall)
+                nrSyscall = SysMgr.getNrSyscall(nmSyscall)
             else:
                 raise Exception('wrong syscall')
 
@@ -28250,7 +28263,7 @@ Copyright:
         '''
         # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
         fd = SysMgr.libcObj.syscall(
-            ConfigMgr.sysList.index('sys_perf_event_open'),
+            SysMgr.getNrSyscall('sys_perf_event_open'),
             pointer(perf_attr), pid, cpu, -1, 0)
 
         if fd < 0:
@@ -29018,7 +29031,7 @@ Copyright:
                 for item in defaultList:
                     try:
                         scmd = "%s || ( id == %s )" % \
-                            (scmd, ConfigMgr.sysList.index(item))
+                            (scmd, SysMgr.getNrSyscall(item))
                     except:
                         continue
             elif pfilter:
@@ -29030,7 +29043,7 @@ Copyright:
             for item in defaultList:
                 try:
                     scmd = "%s || ( id == %s )" % \
-                        (scmd, ConfigMgr.sysList.index(item))
+                        (scmd, SysMgr.getNrSyscall(item))
                 except:
                     continue
             scmd = scmd[scmd.find("("):]
@@ -32898,7 +32911,7 @@ Copyright:
                                 if UtilMgr.isValidStr(syscall, [val]):
                                     nrList.append(idx)
                         else:
-                            nrList = [ConfigMgr.sysList.index(val)]
+                            nrList = [SysMgr.getNrSyscall(val)]
 
                         # classify syscall #
                         for nrSyscall in nrList:
@@ -33377,7 +33390,7 @@ Copyright:
                                 if UtilMgr.isValidStr(syscall, [val]):
                                     nrList.append(idx)
                         else:
-                            nrList = [ConfigMgr.sysList.index(val)]
+                            nrList = [SysMgr.getNrSyscall(val)]
 
                         # classify syscall #
                         for nrSyscall in nrList:
@@ -44470,7 +44483,7 @@ Copyright:
         ]
 
         # get the number of sched_setattr syscall #
-        nrSyscall = ConfigMgr.sysList.index('sys_sched_setattr')
+        nrSyscall = SysMgr.getNrSyscall('sys_sched_setattr')
 
         # define syscall parameters for sched_setattr() #
         SysMgr.libcObj.syscall.argtypes = \
@@ -46000,11 +46013,11 @@ Copyright:
                 # heap events #
                 if SysMgr.heapEnable:
                     if SysMgr.arch == 'arm':
-                        mmapId = ConfigMgr.sysList.index('sys_mmap2')
+                        mmapId = SysMgr.getNrSyscall('sys_mmap2')
                     else:
-                        mmapId = ConfigMgr.sysList.index('sys_mmap')
+                        mmapId = SysMgr.getNrSyscall('sys_mmap')
 
-                    brkId = ConfigMgr.sysList.index('sys_brk')
+                    brkId = SysMgr.getNrSyscall('sys_brk')
 
                     SysMgr.syscallList.append(mmapId)
                     SysMgr.syscallList.append(brkId)
@@ -46013,7 +46026,7 @@ Copyright:
 
                 # lock events #
                 if SysMgr.lockEnable:
-                    futexId = ConfigMgr.sysList.index('sys_futex')
+                    futexId = SysMgr.getNrSyscall('sys_futex')
 
                     SysMgr.syscallList.append(futexId)
 
@@ -46174,66 +46187,66 @@ Copyright:
         if SysMgr.depEnable:
             ecmd = \
                 "(id == %s || id == %s" % \
-                (ConfigMgr.sysList.index("sys_write"),
-                ConfigMgr.sysList.index("sys_futex"))
+                (SysMgr.getNrSyscall("sys_write"),
+                SysMgr.getNrSyscall("sys_futex"))
             rcmd = \
                 "((id == %s || id == %s" % \
-                (ConfigMgr.sysList.index("sys_write"),
-                ConfigMgr.sysList.index("sys_futex"))
+                (SysMgr.getNrSyscall("sys_write"),
+                SysMgr.getNrSyscall("sys_futex"))
 
             if SysMgr.arch == 'arm':
                 ecmd = \
                     ("%s || id == %s || id == %s || id == %s || "
                     "id == %s || id == %s || id == %s || id == %s)") % \
-                    (ecmd, ConfigMgr.sysList.index("sys_recv"),
-                    ConfigMgr.sysList.index("sys_epoll_wait"),
-                    ConfigMgr.sysList.index("sys_poll"),
-                    ConfigMgr.sysList.index("sys_select"),
-                    ConfigMgr.sysList.index("sys_recvfrom"),
-                    ConfigMgr.sysList.index("sys_recvmmsg"),
-                    ConfigMgr.sysList.index("sys_recvmsg"))
+                    (ecmd, SysMgr.getNrSyscall("sys_recv"),
+                    SysMgr.getNrSyscall("sys_epoll_wait"),
+                    SysMgr.getNrSyscall("sys_poll"),
+                    SysMgr.getNrSyscall("sys_select"),
+                    SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
+                    SysMgr.getNrSyscall("sys_recvmsg"))
                 rcmd = \
                     ("%s || id == %s || id == %s || id == %s || "
                     "id == %s || id == %s || id == %s || id == %s) && ret > 0)") % \
-                    (rcmd, ConfigMgr.sysList.index("sys_recv"),
-                    ConfigMgr.sysList.index("sys_poll"),
-                    ConfigMgr.sysList.index("sys_epoll_wait"),
-                    ConfigMgr.sysList.index("sys_select"),
-                    ConfigMgr.sysList.index("sys_recvfrom"),
-                    ConfigMgr.sysList.index("sys_recvmmsg"),
-                    ConfigMgr.sysList.index("sys_recvmsg"))
+                    (rcmd, SysMgr.getNrSyscall("sys_recv"),
+                    SysMgr.getNrSyscall("sys_poll"),
+                    SysMgr.getNrSyscall("sys_epoll_wait"),
+                    SysMgr.getNrSyscall("sys_select"),
+                    SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
+                    SysMgr.getNrSyscall("sys_recvmsg"))
             elif SysMgr.arch == 'aarch64':
                 ecmd = "%s || id == %s || id == %s || id == %s)" % \
-                    (ecmd, ConfigMgr.sysList.index("sys_recvfrom"),
-                    ConfigMgr.sysList.index("sys_recvmmsg"),
-                    ConfigMgr.sysList.index("sys_recvmsg"))
+                    (ecmd, SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
+                    SysMgr.getNrSyscall("sys_recvmsg"))
                 rcmd = "%s || id == %s || id == %s || id == %s) && ret > 0)" % \
-                    (rcmd, ConfigMgr.sysList.index("sys_recvfrom"),
-                    ConfigMgr.sysList.index("sys_recvmmsg"),
-                    ConfigMgr.sysList.index("sys_recvmsg"))
+                    (rcmd, SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
+                    SysMgr.getNrSyscall("sys_recvmsg"))
             else:
                 ecmd = ("%s || id == %s || id == %s || id == %s || "
                 "id == %s || id == %s || id == %s)") % \
-                    (ecmd, ConfigMgr.sysList.index("sys_recvfrom"),
-                    ConfigMgr.sysList.index("sys_poll"),
-                    ConfigMgr.sysList.index("sys_epoll_wait"),
-                    ConfigMgr.sysList.index("sys_select"),
-                    ConfigMgr.sysList.index("sys_recvmmsg"),
-                    ConfigMgr.sysList.index("sys_recvmsg"))
+                    (ecmd, SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_poll"),
+                    SysMgr.getNrSyscall("sys_epoll_wait"),
+                    SysMgr.getNrSyscall("sys_select"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
+                    SysMgr.getNrSyscall("sys_recvmsg"))
                 rcmd = \
                     ("%s || id == %s || id == %s || id == %s || "
                     "id == %s || id == %s || id == %s) && ret > 0)") % \
-                    (rcmd, ConfigMgr.sysList.index("sys_recvfrom"),
-                    ConfigMgr.sysList.index("sys_poll"),
-                    ConfigMgr.sysList.index("sys_epoll_wait"),
-                    ConfigMgr.sysList.index("sys_select"),
-                    ConfigMgr.sysList.index("sys_recvmmsg"),
-                    ConfigMgr.sysList.index("sys_recvmsg"))
+                    (rcmd, SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_poll"),
+                    SysMgr.getNrSyscall("sys_epoll_wait"),
+                    SysMgr.getNrSyscall("sys_select"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
+                    SysMgr.getNrSyscall("sys_recvmsg"))
 
             SysMgr.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
             SysMgr.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
         elif SysMgr.lockEnable:
-            nrFutex = ConfigMgr.sysList.index("sys_futex")
+            nrFutex = SysMgr.getNrSyscall("sys_futex")
             if nrFutex not in SysMgr.syscallList:
                 SysMgr.syscallList.append(nrFutex)
         else:
@@ -51154,14 +51167,10 @@ class DbusMgr(object):
 
         # set target syscalls #
         if not onlyDaemon:
-            SysMgr.syscallList.append(
-                ConfigMgr.sysList.index('sys_recvmsg'))
-            SysMgr.syscallList.append(
-                ConfigMgr.sysList.index('sys_recvmmsg'))
-        SysMgr.syscallList.append(
-            ConfigMgr.sysList.index('sys_sendmsg'))
-        SysMgr.syscallList.append(
-            ConfigMgr.sysList.index('sys_sendmmsg'))
+            SysMgr.syscallList.append(SysMgr.getNrSyscall('sys_recvmsg'))
+            SysMgr.syscallList.append(SysMgr.getNrSyscall('sys_recvmmsg'))
+        SysMgr.syscallList.append(SysMgr.getNrSyscall('sys_sendmsg'))
+        SysMgr.syscallList.append(SysMgr.getNrSyscall('sys_sendmmsg'))
 
         # set colors for each message types #
         DbusMgr.msgColorList = {
@@ -53034,7 +53043,7 @@ class Debugger(object):
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
-        self.tkillIdx = ConfigMgr.sysList.index('sys_tkill')
+        self.tkillIdx = SysMgr.getNrSyscall('sys_tkill')
 
         plist = ConfigMgr.PTRACE_TYPE
         self.contCmd = plist.index('PTRACE_CONT')
@@ -56259,7 +56268,7 @@ typedef struct {
                 sysid = ConfigMgr.getMmapId()
             else:
                 try:
-                    sysid = ConfigMgr.sysList.index(syscall)
+                    sysid = SysMgr.getNrSyscall(syscall)
                 except:
                     SysMgr.printErr("failed to find %s" % syscall, True)
                     return -1
@@ -58880,7 +58889,7 @@ typedef struct {
             if UtilMgr.isNumber(syscall):
                 nrSyscall = long(syscall)
             else:
-                nrSyscall = ConfigMgr.sysList.index(syscall)
+                nrSyscall = SysMgr.getNrSyscall(syscall)
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr("failed to get syscall number", reason=True)
@@ -84486,7 +84495,7 @@ class TaskAnalyzer(object):
             td = threadData
 
             # update futex lock stat #
-            if nr == ConfigMgr.sysList.index("sys_futex"):
+            if nr == SysMgr.getNrSyscall("sys_futex"):
                 n = re.match((
                     r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                     r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
@@ -84552,7 +84561,7 @@ class TaskAnalyzer(object):
                 self.wakeupData['time'] = allTime
 
             # write syscall #
-            if nr == ConfigMgr.sysList.index("sys_write"):
+            if nr == SysMgr.getNrSyscall("sys_write"):
                 self.wakeupData['tid'] = thread
                 self.wakeupData['nr'] = nrstr
                 self.wakeupData['args'] = args
@@ -84616,7 +84625,7 @@ class TaskAnalyzer(object):
                 nr = td['lastNrSyscall']
 
             # update futex lock stat #
-            if nr == ConfigMgr.sysList.index("sys_futex"):
+            if nr == SysMgr.getNrSyscall("sys_futex"):
                 lockEnter = td['ftxEnter']
                 lockStat = td['ftxStat']
 
@@ -84693,13 +84702,13 @@ class TaskAnalyzer(object):
             try:
                 if not SysMgr.depEnable:
                     raise Exception('skip dependency analysis')
-                elif nr == ConfigMgr.sysList.index("sys_write") and \
+                elif nr == SysMgr.getNrSyscall("sys_write") and \
                     self.wakeupData['valid'] > 0:
                     self.wakeupData['valid'] -= 1
                 elif SysMgr.arch != 'aarch64' and \
-                    (nr == ConfigMgr.sysList.index("sys_poll") or \
-                    nr == ConfigMgr.sysList.index("sys_select") or \
-                    nr == ConfigMgr.sysList.index("sys_epoll_wait")):
+                    (nr == SysMgr.getNrSyscall("sys_poll") or \
+                    nr == SysMgr.getNrSyscall("sys_select") or \
+                    nr == SysMgr.getNrSyscall("sys_epoll_wait")):
                     if (self.lastJob[core]['job'] == "sched_switch" or \
                         self.lastJob[core]['job'] == "sched_wakeup" or \
                         self.lastJob[core]['job'] == "sched_wakeup_new") and \
@@ -84714,10 +84723,10 @@ class TaskAnalyzer(object):
                         self.wakeupData['time'] = allTime
                         self.lastJob[core]['prevWakeupTid'] = thread
                 elif (SysMgr.arch == 'arm' and \
-                    nr == ConfigMgr.sysList.index("sys_recv")) or \
-                    nr == ConfigMgr.sysList.index("sys_recvfrom") or \
-                    nr == ConfigMgr.sysList.index("sys_recvmsg") or \
-                    nr == ConfigMgr.sysList.index("sys_recvmmsg"):
+                    nr == SysMgr.getNrSyscall("sys_recv")) or \
+                    nr == SysMgr.getNrSyscall("sys_recvfrom") or \
+                    nr == SysMgr.getNrSyscall("sys_recvmsg") or \
+                    nr == SysMgr.getNrSyscall("sys_recvmmsg"):
                     if self.lastJob[core]['prevWakeupTid'] != thread:
                         ttime = allTime
                         itime = ttime - float(self.wakeupData['time'])
