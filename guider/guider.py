@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211227"
+__revision__ = "211228"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -321,6 +321,16 @@ class ConfigMgr(object):
         0x20000: "MAP_STACK",
         0x40000: "MAP_HUGETLB",
         0x80000: "MAP_SYNC",
+    }
+
+    # FAT type #
+    FAT_TYPE = {
+        -100 : "AT_FDCWD",
+        0x100: "AT_SYMLINK_NOFOLLOW",
+        0x200: "AT_REMOVEDIR",
+        0x400: "AT_SYMLINK_FOLLOW",
+        0x800: "AT_NO_AUTOMOUNT",
+        0x1000: "AT_EMPTY_PATH",
     }
 
     # mmap prot type #
@@ -24734,23 +24744,26 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor DLT logs
+    - {2:1}
         # {0:1} {1:1}
 
-    - Monitor DLT logs using libdlt.so from specific path
+    - {2:1} using libdlt.so from specific path
         # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
 
     - Change default log level to be printed
         # {0:1} {1:1} -c INFO
 
-    - Monitor DLT logs including specific string
+    - {2:1} including specific string
         # {0:1} {1:1} -g test
 
-    - Monitor DLT logs from specific address for dlt-daemon
+    - {2:1} from specific address for dlt-daemon
         # {0:1} {1:1} -X 127.0.0.1:12345
 
+    - {2:1} with connection retry to dlt-daemon every 1,000 ms
+        # {0:1} {1:1} -q RETRYCONN:1000
+
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, "Monitor DLT logs")
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -25999,29 +26012,32 @@ Examples:
                     # printdlt #
                     if SysMgr.checkMode('printdlt'):
                         helpStr += '''
-    - Print DLT messages from specific files
+    - {2:1} from specific files
         # {0:1} {1:1} "./*.dlt"
         # {0:1} {1:1} -I "./*.dlt"
 
-    - Print DLT messages from specific files from current directory to all sub-directories
+    - {2:1} from specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*.dlt"
 
-    - Print DLT messages including specific words
+    - {2:1} including specific words
         # {0:1} {1:1} -g test
 
     - Change default log level to be printed
         # {0:1} {1:1} -c INFO
 
-    - Print DLT messages using libdlt.so from specific path
+    - {2:1} using libdlt.so from specific path
         # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
 
-    - Print DLT messages sorted by line from specific files
+    - {2:1} sorted by line from specific files
         # {0:1} {1:1} "./*.dlt" -S
         # {0:1} {1:1} -I "./*.dlt" -S
 
-    - Print DLT messages from specific address for dlt-daemon
+    - {2:1} from specific address for dlt-daemon
         # {0:1} {1:1} -X 127.0.0.1:12345
-                    '''.format(cmd, mode)
+
+    - {2:1} with connection retry to dlt-daemon every 1,000 ms
+        # {0:1} {1:1} -q RETRYCONN:1000
+                    '''.format(cmd, mode, 'Print DLT messages')
 
                 # printsig #
                 elif SysMgr.checkMode('printsig'):
@@ -30051,7 +30067,7 @@ Copyright:
         if SysMgr.exitFlag:
             os._exit(0)
 
-        # masking signal #
+        # mask signal #
         if signum:
             signal.signal(signum, signal.SIG_IGN)
 
@@ -30098,7 +30114,7 @@ Copyright:
 
             SysMgr.releaseResource()
 
-            # re-enable signal again #
+            # unmask signal #
             if signum:
                 signal.signal(signum, SysMgr.stopHandler)
 
@@ -30131,7 +30147,7 @@ Copyright:
         SysMgr.printStat(
             'ready to save and analyze... [ STOP(Ctrl+c) ]')
 
-        # enable signal again #
+        # unmask signal #
         if signum:
             signal.signal(signum, SysMgr.stopHandler)
 
@@ -51585,18 +51601,25 @@ class DltAnalyzer(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        if DltAnalyzer.dltData['cnt'] == 0 and \
-            not SysMgr.inWaitStatus:
+        if DltAnalyzer.dltData['cnt'] or SysMgr.inWaitStatus:
+            DltAnalyzer.printSummary()
+        elif not SysMgr.condExit:
             SysMgr.printWarn(
                 "no DLT message received", True)
-        else:
-            DltAnalyzer.printSummary()
+
+        if SysMgr.condExit:
+            return
 
         # check term condition #
         SysMgr.progressCnt += 1
         if 0 < SysMgr.repeatCount <= SysMgr.progressCnt:
             SysMgr.printWarn('terminated by timer\n', True)
-            sys.exit(0)
+            os.kill(SysMgr.pid, signal.SIGINT)
+
+        # print progress #
+        if SysMgr.repeatCount:
+            UtilMgr.printProgress(
+                SysMgr.progressCnt, SysMgr.repeatCount)
 
         SysMgr.updateTimer()
 
@@ -52450,22 +52473,44 @@ class DltAnalyzer(object):
                 "failed to get the address of dlt-daemon", True)
             sys.exit(0)
 
+        # get retry interval #
+        retry = 0
+        if 'RETRYCONN' in SysMgr.environList:
+            value = SysMgr.environList['RETRYCONN'][0]
+            if value == 'SET':
+                retry = 1
+            else:
+                try:
+                    retry = float(value) / 1000
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        'failed to convert %s to retry connection interval' % \
+                            value)
+                    sys.exit(0)
+
         # connect to server #
-        try:
-            servIpStr = string_at(servIp.encode())
-            connSock = create_connection((servIpStr, servPort), timeout=1)
+        while 1:
+            try:
+                servIpStr = string_at(servIp.encode())
+                connSock = create_connection((servIpStr, servPort), timeout=1)
+                if not connSock:
+                    raise Exception('no connection')
 
-            if not connSock:
-                raise Exception('no connection')
+                # set blocking #
+                connSock.setblocking(1) # pylint: disable=no-member
 
-            # set blocking #
-            connSock.setblocking(1) # pylint: disable=no-member
-        except SystemExit: sys.exit(0)
-        except:
-            SysMgr.printErr(
-                "failed to connect to dlt-daemon with %s:%s" % \
-                    (servIp, servPort), True)
-            sys.exit(0)
+                break
+            except SystemExit: sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to connect to dlt-daemon with %s:%s" % \
+                        (servIp, servPort), True)
+
+                if retry:
+                    time.sleep(retry)
+                else:
+                    sys.exit(0)
 
         # initialize client #
         dltClient = DltClient()
@@ -52563,10 +52608,16 @@ class DltAnalyzer(object):
         # set flag and print mode #
         quitFlag = False
         if mode == 'top':
+            # set handler for exit #
+            signal.signal(signal.SIGINT, SysMgr.exitHandler)
+            SysMgr.addExitFunc(DltAnalyzer.onAlarm, [0, 0])
+            SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
+
             SysMgr.printInfo(
                 "start collecting DLT log... [ STOP(Ctrl+c) ]")
         elif mode == 'print':
             quitFlag = SysMgr.findOption('Q')
+
             SysMgr.printInfo(
                 "start printing DLT log... [ STOP(Ctrl+c) ]\n")
 
@@ -57196,7 +57247,7 @@ typedef struct {
                     return ConfigMgr.FUTEX_TYPE[value]
 
                 # check _PRIVATE FLAG #
-                value = value & 0x16
+                value = value & 0xf
                 if value < len(ConfigMgr.FUTEX_TYPE):
                     return ConfigMgr.FUTEX_TYPE[value] + '_PRIVATE'
         elif syscall == "ptrace" and argname == "request":
@@ -57236,9 +57287,8 @@ typedef struct {
                 try:
                     value = self.readMem(value)
                     value = struct.unpack(self.decodeChar, value)[0]
-                    value = UtilMgr.getFlagString(
+                    return UtilMgr.getFlagString(
                         value, ConfigMgr.EPOLL_EVENT_TYPE)
-                    return ' %s ' % value
                 except SystemExit: sys.exit(0)
                 except:
                     return value
@@ -57259,7 +57309,7 @@ typedef struct {
         elif syscall.startswith('madvise'):
             if argname == 'behavior':
                 try:
-                    return ConfigMgr.MADV_TYPE[int(value)]
+                    return ConfigMgr.MADV_TYPE[c_int(value).value]
                 except SystemExit: sys.exit(0)
                 except:
                     return value
@@ -57320,7 +57370,11 @@ typedef struct {
 
         # convert position #
         if argname == 'whence':
-            return ConfigMgr.SEEK_TYPE[int(value)]
+            return ConfigMgr.SEEK_TYPE[c_int(value).value]
+
+        # convert at #
+        if argname == 'dfd':
+            return ConfigMgr.FAT_TYPE[c_int(value).value]
 
         # convert pointer to buffer #
         if buf and argname == "buf" and syscall in ConfigMgr.SYSCALL_REFBUF:
@@ -57365,14 +57419,11 @@ typedef struct {
 
         # convert signal #
         if argname == "signum" or argname == "sig":
-            return ConfigMgr.SIG_LIST[int(value)]
+            return ConfigMgr.SIG_LIST[c_int(value).value]
 
         # remove const prefix #
         if argtype.startswith("const "):
             argtype = argtype[6:]
-
-        # TODO: handle file path #
-        pass
 
         # TODO: handle pointer data type #
         if argtype[-1] == '*':
@@ -61281,7 +61332,7 @@ typedef struct {
                         len(text) > self.pbufsize:
                         text = r'"%s..."' % text[:self.pbufsize]
                     else:
-                        text = r'"%s"' % text[:-1]
+                        text = r'"%s"' % text.rstrip()
                 else:
                     text = arg[2]
             elif arg[0].endswith('int') or arg[0].endswith('long'):
@@ -61379,7 +61430,7 @@ typedef struct {
             elif args:
                 argText = ', '.join(\
                     hex(arg).rstrip('L') if isinstance(arg, (int, long)) \
-                    else str(arg).strip('" ') for arg in args)
+                    else str(arg) for arg in args)
             else:
                 argText = ', '.join(str(arg[2]) for arg in self.args)
 
