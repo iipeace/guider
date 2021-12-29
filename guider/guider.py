@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211228"
+__revision__ = "211229"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18493,7 +18493,7 @@ class SysMgr(object):
     maxInterval = 0
     ipAddr = None
 
-    # watermark threshold #
+    # watermark constants #
     cpuPerHighThreshold = 80
     cpuPerLowThreshold = 10
     memAvailPerThreshold = 10
@@ -18510,6 +18510,20 @@ class SysMgr(object):
         BLKRDCOND = -1,
         BLKWRCOND = -1,
     )
+
+    # lifecycle condition #
+    startUptime = 0
+    deadlineUptime = 0
+    startCondCpuMore = -1
+    startCondCpuLess = -1
+    startCondMemMore = -1
+    startCondMemLess = -1
+    exitCondCpuMore = -1
+    exitCondCpuLess = -1
+    exitCondMemMore = -1
+    exitCondMemLess = -1
+    cpuUsage = -1
+    memAvail = -1
 
     # path #
     procPath = '/proc'
@@ -18642,8 +18656,6 @@ class SysMgr(object):
     dbgEventLine = 0
     uptime = 0
     prevUptime = 0
-    deadlineUptime = 0
-    startUptime = 0
     uptimeDiff = 0
     diskStats = []
     prevDiskStats = []
@@ -18941,6 +18953,55 @@ Commands:
         except SystemExit: sys.exit(0)
         except:
             pass
+
+
+
+    @staticmethod
+    def waitForResource(cpuRes=-1, cpuCond='MORE', memRes=-1, memCond='MORE'):
+        # check condition #
+        if cpuRes >= 0:
+            SysMgr.printInfo(
+                'wait for system CPU usage %s than %s%%' % \
+                    (cpuCond, UtilMgr.convNum(cpuRes)))
+        elif memRes >= 0:
+            SysMgr.printInfo((
+                'wait for system available memory %s than %s MB') % \
+                    (memCond, UtilMgr.convNum(memRes)))
+        else:
+            return False
+
+        # convert condition #
+        if cpuCond:
+            cpuCond = cpuCond.upper()
+        if memCond:
+            memCond = memCond.upper()
+
+        # init variables #
+        dobj = Debugger(SysMgr.pid, attach=False)
+        dobj.initValues()
+
+        while 1:
+            if cpuRes >= 0:
+                cpuStat = dobj.getCpuUsage(system=True)
+                if cpuStat and cpuStat[3]:
+                    cpuUsage = 100 - (cpuStat[3] / SysMgr.uptimeDiff)
+                    SysMgr.cpuUsage = cpuUsage
+                    if cpuCond == 'MORE' and cpuUsage >= cpuRes:
+                        return True
+                    elif cpuCond == 'LESS' and cpuUsage <= cpuRes:
+                        return True
+
+            if memRes >= 0:
+                memAvail = SysMgr.getAvailMemInfo(retstr=False)
+                if memAvail:
+                    SysMgr.memAvail = memAvail = memAvail >> 20
+                    if memCond == 'MORE' and memAvail >= memRes:
+                        return True
+                    elif memCond == 'LESS' and memAvail <= memRes:
+                        return True
+
+            time.sleep(1)
+            SysMgr.updateUptime()
 
 
 
@@ -20218,7 +20279,7 @@ Commands:
 
 
     @staticmethod
-    def getAvailMemInfo():
+    def getAvailMemInfo(retstr=True):
         try:
             # read memory stats #
             memBuf = SysMgr.getMemInfo()
@@ -20240,7 +20301,11 @@ Commands:
             else:
                 sysMemStr = 0
 
+            if not retstr:
+                return sysMemStr
+
             sysMemStr = UtilMgr.convSize2Unit(sysMemStr, True)
+        except SystemExit: sys.exit(0)
         except:
             sysMemStr = 0
         finally:
@@ -22700,17 +22765,29 @@ Commands:
             return
 
         # check uptime deadline #
-        meetDeadline = SysMgr.progressCnt > 0 and \
-            SysMgr.deadlineUptime > 0 and \
-            SysMgr.deadlineUptime <= SysMgr.uptime
+        exitCond = SysMgr.progressCnt > 0 and (
+            0 < SysMgr.deadlineUptime <= SysMgr.uptime or \
+            0 < SysMgr.exitCondCpuMore <= SysMgr.cpuUsage or \
+            0 < SysMgr.exitCondCpuLess >= SysMgr.cpuUsage or \
+            0 < SysMgr.exitCondMemMore <= SysMgr.memAvail or \
+            0 < SysMgr.exitCondMemLess >= SysMgr.memAvail
+            )
 
-        if SysMgr.progressCnt >= SysMgr.repeatCount or meetDeadline:
+        # check reason #
+        if exitCond:
+            reason = 'condition'
+        elif SysMgr.progressCnt >= SysMgr.repeatCount:
+            reason = 'timer'
+        else:
+            reason = None
+
+        if reason:
             # remove progress #
             UtilMgr.deleteProgress()
 
             # send signal to myself #
             try:
-                SysMgr.printWarn('terminated by timer\n', True)
+                SysMgr.printWarn('terminated by %s\n' % reason, True)
                 os.kill(SysMgr.pid, signal.SIGINT)
             except SystemExit: sys.exit(0)
             except:
@@ -23088,10 +23165,20 @@ Examples:
         # {0:1} {1:1} -a -q TASKSTREAM -S c:1
 
     - Monitor status of all {2:2} from 100 seconds of uptime
-        # {0:1} {1:1} -a -q START:100 -W
+        # {0:1} {1:1} -a -q STARTCONDTIME:100 -W
 
     - Monitor status of all {2:2} until 100 seconds of uptime
-        # {0:1} {1:1} -a -q DEADLINE:100 -R
+        # {0:1} {1:1} -a -q EXITCONDTIME:100 -R
+
+    - Monitor status of all {2:2} with specific condition
+        # {0:1} {1:1} -a -q STARTCONDCPUMORE:10 -R
+        # {0:1} {1:1} -a -q STARTCONDCPULESS:90 -R
+        # {0:1} {1:1} -a -q STARTCONDMEMMORE:1000 -R
+        # {0:1} {1:1} -a -q STARTCONDMEMLESS:90 -R
+        # {0:1} {1:1} -a -q EXITCONDCPUMORE:10 -R
+        # {0:1} {1:1} -a -q EXITCONDCPULESS:90 -R
+        # {0:1} {1:1} -a -q EXITCONDMEMMORE:1000 -R
+        # {0:1} {1:1} -a -q EXITCONDMEMLESS:90 -R
 
     - Monitor status and GPU memory of all {2:2}
         # {0:1} {1:1} -a -q GPUMEM
@@ -32388,21 +32475,58 @@ Copyright:
 
     @staticmethod
     def applyEnvironVars():
-        if 'DEADLINE' in SysMgr.environList:
-            var = SysMgr.environList['DEADLINE'][0]
-            if var.isdigit():
-                SysMgr.deadlineUptime = long(var)
+        def _applyVar(name, tobj, tvar):
+            if not name in SysMgr.environList:
+                return
+
+            var = SysMgr.environList[name][0]
+            if var.strip().isdigit():
+                if hasattr(tobj, tvar):
+                    setattr(tobj, tvar, long(var))
+                else:
+                    SysMgr.printErr('no %s in %s' % (tvar, tobj))
+                    sys.exit(0)
             else:
-                SysMgr.printErr('wrong value for DEADLINE %s' % var)
+                SysMgr.printErr('wrong value %s for %s' % (var, name))
                 sys.exit(0)
 
-        if 'START' in SysMgr.environList:
-            var = SysMgr.environList['START'][0]
-            if var.isdigit():
-                SysMgr.startUptime = long(var)
-            else:
-                SysMgr.printErr('wrong value for START %s' % var)
-                sys.exit(0)
+        # define variable list #
+        varList = [
+            ('STARTCONDTIME', 'startUptime'),
+            ('STARTCONDCPUMORE', 'startCondCpuMore'),
+            ('STARTCONDCPULESS', 'startCondCpuLess'),
+            ('STARTCONDMEMMORE', 'startCondMemMore'),
+            ('STARTCONDMEMLESS', 'startCondMemLess'),
+            ('EXITCONDTIME', 'deadlineUptime'),
+            ('EXITCONDCPUMORE', 'exitCondCpuMore'),
+            ('EXITCONDCPULESS', 'exitCondCpuLess'),
+            ('EXITCONDMEMMORE', 'exitCondMemMore'),
+            ('EXITCONDMEMLESS', 'exitCondMemLess'),
+        ]
+
+        # apply items #
+        for item in varList:
+            _applyVar(item[0], SysMgr, item[1])
+
+        # wait for CPU condition #
+        if SysMgr.startCondCpuMore:
+            SysMgr.waitForResource(
+                cpuRes=SysMgr.startCondCpuMore, cpuCond='MORE')
+
+        # wait for CPU condition #
+        if SysMgr.startCondCpuLess:
+            SysMgr.waitForResource(
+                cpuRes=SysMgr.startCondCpuLess, cpuCond='LESS')
+
+        # wait for memory condition #
+        if SysMgr.startCondMemMore:
+            SysMgr.waitForResource(
+                memRes=SysMgr.startCondMemMore, memCond='MORE')
+
+        # wait for memory condition #
+        if SysMgr.startCondMemLess:
+            SysMgr.waitForResource(
+                memRes=SysMgr.startCondMemLess, memCond='LESS')
 
 
 
@@ -33148,7 +33272,7 @@ Copyright:
         elif option == 'q':
             SysMgr.checkOptVal(option, value)
 
-            # already parsed in SysMgr.initEnvironment() #
+            # NOTE: variables are already parsed in SysMgr.initEnvironment() #
 
             # apply environ variables #
             SysMgr.applyEnvironVars()
@@ -61954,10 +62078,12 @@ typedef struct {
             SysMgr.printWarn(
                 "failed to get CPU usage for %s(%s)" % \
                     (self.comm, self.pid))
+            self.prevCpuStat[3] = itime
             return [0, 0, 0, ctime]
 
         # check stat change #
         if self.prevStat == stat:
+            self.prevCpuStat[3] = itime
             return [0, 0, 0, ctime]
 
         self.prevStat = stat
@@ -71586,10 +71712,7 @@ class TaskAnalyzer(object):
                         prevCpuProcList and \
                         pname in prevCpuProcList:
 
-                        diff = -(prevCpuProcList[pname][item])
-                        if SysMgr.cpuAvgEnable:
-                            diff = '%6.1f%%' % diff
-
+                        diff = '%6.1f%%' % -(prevCpuProcList[pname][item])
                         diff = convColor(diff, 'WARNING', 6)
                         printBuf = '%s %6s%s' % \
                             (printBuf, diff, emptyCpuStat[7:])
@@ -71674,10 +71797,7 @@ class TaskAnalyzer(object):
                     if idx > 0 and prevGpuProcList and \
                         pname in prevGpuProcList:
 
-                        diff = -(prevGpuProcList[pname][item])
-                        if SysMgr.cpuAvgEnable:
-                            diff = '%6.1f%%' % diff
-
+                        diff = '%6.1f%%' % -(prevGpuProcList[pname][item])
                         diff = convColor(diff, 'WARNING', 6)
                         printBuf = '%s %6s%s' % \
                             (printBuf, diff, emptyGpuStat[7:])
@@ -87305,9 +87425,8 @@ class TaskAnalyzer(object):
                             'irq': long(statList[6]),
                             'softirq': long(statList[7])
                         }
-                else:
-                    if not cpuId in self.cpuData:
-                        self.cpuData[cpuId] = {cpuId: long(statList[1])}
+                elif not cpuId in self.cpuData:
+                    self.cpuData[cpuId] = {cpuId: long(statList[1])}
 
             # set the number of core #
             SysMgr.nrCore = 0
@@ -87315,6 +87434,7 @@ class TaskAnalyzer(object):
                 try:
                     SysMgr.maxCore = long(idx)
                     SysMgr.nrCore += 1
+                except SystemExit: sys.exit(0)
                 except:
                     continue
 
@@ -88761,6 +88881,7 @@ class TaskAnalyzer(object):
             totalUsage = 0
 
         # add CPU interval #
+        SysMgr.cpuUsage = totalUsage
         self.addSysInterval('cpu', totalUsage)
 
         # get network usage in bytes #
@@ -88790,6 +88911,7 @@ class TaskAnalyzer(object):
             availMemDiff = freeMemDiff
 
         # add memory interval #
+        SysMgr.memAvail = availMem
         self.addSysInterval('available', availMem)
 
         # convert color for CPU usage #
