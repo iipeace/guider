@@ -23520,6 +23520,9 @@ Examples:
     - {3:1} and their injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEBP
 
+    - {3:1} without using file cache for specific threads
+        # {0:1} {1:1} -g a.out -q NOFILECACHE
+
     - {3:1} and print context combined both entry and exit
         # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
 
@@ -24502,6 +24505,9 @@ Examples:
 
     - {3:1} without using sample cache for specific threads
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
+
+    - {3:1} without using file cache for specific threads
+        # {0:1} {1:1} -g a.out -q NOFILECACHE
 
     - {3:1} with debug info for specific threads
         # {0:1} {1:1} -g a.out -q DEBUGINFO
@@ -59724,6 +59730,13 @@ typedef struct {
 
                             typeNum = abbrev[typeNum]['type']
 
+                        # change pointer location #
+                        if typeName.startswith(' * '):
+                            typeName = '%s *' % typeName.lstrip('* ')
+
+                        # remove heading space #
+                        typeName = typeName.lstrip()
+
                         # save type info #
                         ElfAnalyzer.cachedTypes[typeNumOrig] = [typeName, size]
 
@@ -66630,6 +66643,10 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def loadObject(path):
+        # ignore file cache #
+        if 'NOFILECACHE' in SysMgr.environList:
+            return None
+
         # build cache path #
         cpath = ElfAnalyzer.getCachedFilename(path)
 
