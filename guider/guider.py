@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211229"
+__revision__ = "211230"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31702,10 +31702,16 @@ Copyright:
         if not SysMgr.isLinux:
             return
 
-        if interval:
-            signal.alarm(long(interval))
-        else:
-            signal.alarm(SysMgr.intervalEnable)
+        try:
+            if interval:
+                signal.alarm(long(interval))
+            else:
+                signal.alarm(SysMgr.intervalEnable)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'failed to set interval timer', reason=True)
+            sys.exit(0)
 
 
 
@@ -50476,8 +50482,6 @@ class DbusMgr(object):
 
 
 
-
-
     @staticmethod
     def runDbusSnooper(mode='top'):
         def _updateTaskInfo(dbusData, sentData, recvData):
@@ -50577,12 +50581,19 @@ class DbusMgr(object):
 
         def _printSummary(signum, frame):
             def _checkRepeatCnt():
-                if SysMgr.repeatCount > 0:
-                    SysMgr.progressCnt += 1
-                    if SysMgr.repeatCount <= SysMgr.progressCnt:
-                        SysMgr.printWarn('terminated by timer\n', True)
-                        os.kill(SysMgr.pid, signal.SIGINT)
-                        sys.exit(0)
+                if SysMgr.condExit:
+                    if SysMgr.repeatCount == 0:
+                        SysMgr.printWarn('terminated by user\n', True)
+                    os.kill(SysMgr.pid, signal.SIGINT)
+                    return
+                elif SysMgr.repeatCount == 0:
+                    return
+
+                SysMgr.progressCnt += 1
+                if SysMgr.repeatCount <= SysMgr.progressCnt:
+                    SysMgr.printWarn('terminated by timer\n', True)
+                    os.kill(SysMgr.pid, signal.SIGINT)
+                    sys.exit(0)
 
             # check repeat count #
             if SysMgr.checkMode('printdbus'):
@@ -50697,6 +50708,12 @@ class DbusMgr(object):
                 # set timer #
                 signal.signal(signal.SIGALRM, _printSummary)
                 SysMgr.updateTimer()
+
+                # set handler for exit #
+                if mode == 'top':
+                    signal.signal(signal.SIGINT, SysMgr.exitHandler)
+                    SysMgr.addExitFunc(_printSummary, [0, 0])
+                    SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
 
             while 1:
                 if not rdPipeList:
@@ -51161,6 +51178,9 @@ class DbusMgr(object):
 
                     # handle data arrived #
                     while 1:
+                        if SysMgr.condExit:
+                            return
+
                         output = robj.readline()
                         if output == '\n':
                             continue
