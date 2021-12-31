@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211230"
+__revision__ = "211231"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -59490,6 +59490,7 @@ typedef struct {
                     ip -= self.prevInstOffset
 
                 # add current symbol #
+                argList = []
                 if cur:
                     btList = [ip]
                 else:
@@ -59497,7 +59498,7 @@ typedef struct {
 
                 while 1:
                     # get return address #
-                    raddr = self.getRetAddr(ip)
+                    raddr = self.getRetAddr(ip, argList)
                     if not raddr:
                         break
 
@@ -59596,7 +59597,7 @@ typedef struct {
 
 
 
-    def getRetAddr(self, vaddr):
+    def getRetAddr(self, vaddr, argList=[]):
         # get file name #
         fname = self.getFileFastFromMap(vaddr)
         if not fname:
@@ -59674,7 +59675,6 @@ typedef struct {
 
         # get parameter #
         # TODO: get params using frame base + offset #
-        '''
         if 'info' in dwarf and faddr in dwarf['info']:
             # frame base #
             if 'frame' in dwarf['info'][faddr]:
@@ -59684,6 +59684,7 @@ typedef struct {
 
             # params #
             if 'param' in dwarf['info'][faddr]:
+                paramList = []
                 abbrevIdx = dwarf['info'][faddr]['abbrev']
                 abbrev = dwarf['abbrev'][abbrevIdx]
                 for item in dwarf['info'][faddr]['param']:
@@ -59710,8 +59711,10 @@ typedef struct {
                     if typeNum in ElfAnalyzer.cachedTypes:
                         typeName, size = ElfAnalyzer.cachedTypes[typeNum]
                     else:
-                        typeNumOrig = typeNum
                         typeName = ''
+                        typeNumOrig = typeNum
+
+                        # build type name #
                         while 1:
                             if not typeNum in abbrev:
                                 break
@@ -59730,10 +59733,6 @@ typedef struct {
 
                             typeNum = abbrev[typeNum]['type']
 
-                        # change pointer location #
-                        if typeName.startswith(' * '):
-                            typeName = '%s *' % typeName.lstrip('* ')
-
                         # remove heading space #
                         typeName = typeName.lstrip()
 
@@ -59741,6 +59740,7 @@ typedef struct {
                         ElfAnalyzer.cachedTypes[typeNumOrig] = [typeName, size]
 
                     # location #
+                    paramVal = None
                     if 'loc' in abbrev[item]:
                         # sec_offset #
                         if type(abbrev[item]['loc']) is long:
@@ -59752,11 +59752,13 @@ typedef struct {
                         elif len(abbrev[item]['loc']) == 2:
                             paramAddr = abbrev[item]['loc'][1]
                             paramVal = self.readMem(cfa+paramAddr, size)
-                        else:
-                            paramVal = None
-                    else:
-                        paramVal = None
-        '''
+
+                    # add a parameter info #
+                    paramList.append(
+                        [typeName, name, size, paramAddr, paramVal])
+
+                # add parameters to list #
+                argList.append(paramList)
 
         # recover registers #
         argIdx = ElfAnalyzer.RegisterRule.ARG
