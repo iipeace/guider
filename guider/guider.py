@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2021, Guider"
+__copyright__ = "Copyright 2015-2022, Guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "211231"
+__revision__ = "220101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15885,7 +15885,7 @@ class LeakAnalyzer(object):
             if val['callList']:
                 for time in list(val['callList']):
                     callinfo = self.callData[time]
-                    substack = dobj.getBacktraceStr(callinfo['symstack'][1:])
+                    substack = dobj.getBtStr(callinfo['symstack'][1:])
                     dobj.btStr = None
 
                     try:
@@ -23544,6 +23544,9 @@ Examples:
     - {3:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
+    - {3:1} with backtrace excluding arguments for specific threads
+        # {0:1} {1:1} -g a.out -H -q NOBTARG
+
     - {5:1} for specific threads
         # {0:1} {1:1} -g 1234 -c printPeace
 
@@ -24511,6 +24514,7 @@ Examples:
 
     - {3:1} with debug info for specific threads
         # {0:1} {1:1} -g a.out -q DEBUGINFO
+        # {0:1} {1:1} -g a.out -q DEBUGINFO -H
         # {0:1} {1:1} -g a.out -q DEBUGINFO:/usr/lib/libc.so
 
     - {3:1} and standard output from a specific binary
@@ -24590,6 +24594,9 @@ Examples:
 
     - {3:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
+
+    - {3:1} with backtrace excluding arguments for specific threads
+        # {0:1} {1:1} -g a.out -H -q NOBTARG
 
     - {3:1} for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
@@ -53218,6 +53225,7 @@ class Debugger(object):
         }
         self.btList = None
         self.btStr = None
+        self.btArgList = []
         self.csBtList = None
         self.csBtSymList = None
         self.csContext = None
@@ -59194,7 +59202,7 @@ typedef struct {
 
         # add backtrace #
         if bt:
-            btStr = self.getBacktraceStr(bt)
+            btStr = self.getBtStr(bt)
         else:
             btStr = None
 
@@ -59295,7 +59303,7 @@ typedef struct {
 
 
 
-    def getBacktraceStr(self, bt, indent=None, maximum=0, force=False):
+    def getBtStr(self, bt, indent=None, maximum=0, force=False):
         if not force and self.btStr:
             return self.btStr
         elif not bt:
@@ -59322,7 +59330,14 @@ typedef struct {
             else:
                 maximum = SysMgr.ttyCols
 
+        # get arg list #
+        if self.btArgList and not 'NOBTARG' in SysMgr.environList:
+            argList = list(self.btArgList)
+        else:
+            argList = []
+
         for item in bt:
+            # get symbol and file info #
             if item[1] == item[2] == '??':
                 sym = hex(item[0]).rstrip('L')
             else:
@@ -59344,6 +59359,12 @@ typedef struct {
                 cnt = 0
             else:
                 cntStr = ''
+
+            # add arg list #
+            if argList and argList[0][0][0] == item[0]:
+                args = [ '%s=%s' % (arg[2], arg[4]) for arg in argList[0] ]
+                sym = '%s(%s)' % (sym, ', '.join(args))
+                argList.pop(0)
 
             # build a new string #
             newStr = ' <- %s[%s]%s' % (sym, fname, cntStr)
@@ -59452,6 +59473,7 @@ typedef struct {
                 if not self.csBtSymList:
                     self.csBtSymList = (self.btsym * limit)()
                 btsyms = self.csBtSymList
+                symsAddr = addressof(btsyms)
 
                 # convert addresses to symbols #
                 libcc.get_backtrace_symbols_ptrace(
@@ -59461,7 +59483,7 @@ typedef struct {
                 self.btList = []
                 for idx in range(frames):
                     offset = idx * sizeof(self.btsym)
-                    obj = cast(addressof(btsyms)+offset, self.btsym_ptr).contents
+                    obj = cast(symsAddr+offset, self.btsym_ptr).contents
 
                     # get symbol #
                     if obj.demangled_name:
@@ -59480,6 +59502,10 @@ typedef struct {
                     self.btList.append([obj.relative_pc, symbol, fname])
             # unwind stack using DWARF #
             elif SysMgr.dwarfEnable:
+                # init arg list for backtraces #
+                argList = []
+                self.btArgList = None
+
                 # backup registers #
                 self.backupRegs(bt=True)
                 restored = False
@@ -59490,7 +59516,6 @@ typedef struct {
                     ip -= self.prevInstOffset
 
                 # add current symbol #
-                argList = []
                 if cur:
                     btList = [ip]
                 else:
@@ -59499,9 +59524,11 @@ typedef struct {
                 while 1:
                     # get return address #
                     raddr = self.getRetAddr(ip, argList)
+                    self.btArgList = argList
                     if not raddr:
                         break
 
+                    # add return addresses #
                     if type(raddr) is list:
                         btList += raddr
                     else:
@@ -59683,10 +59710,11 @@ typedef struct {
                 base = 0
 
             # params #
+            paramList = []
             if 'param' in dwarf['info'][faddr]:
-                paramList = []
                 abbrevIdx = dwarf['info'][faddr]['abbrev']
                 abbrev = dwarf['abbrev'][abbrevIdx]
+
                 for item in dwarf['info'][faddr]['param']:
                     # name #
                     if 'name' in abbrev[item]:
@@ -59739,6 +59767,10 @@ typedef struct {
                         # save type info #
                         ElfAnalyzer.cachedTypes[typeNumOrig] = [typeName, size]
 
+                    # change size #
+                    if typeName.startswith('*'):
+                        size = ConfigMgr.wordSize
+
                     # location #
                     paramVal = None
                     if 'loc' in abbrev[item]:
@@ -59755,9 +59787,8 @@ typedef struct {
 
                     # add a parameter info #
                     paramList.append(
-                        [typeName, name, size, paramAddr, paramVal])
+                        [vaddr, typeName, name, size, paramVal])
 
-                # add parameters to list #
                 argList.append(paramList)
 
         # recover registers #
@@ -60021,7 +60052,7 @@ typedef struct {
 
 
 
-    def getBtStr(
+    def getTraceBtStr(
         self, diffstr, tinfo, cont=True, cur=False,
         addBt=[], backtrace=[], python=False):
 
@@ -60073,18 +60104,34 @@ typedef struct {
 
         self.prevStack = backtrace
 
+        # get arg list #
+        if self.btArgList and not 'NOBTARG' in SysMgr.environList:
+            argList = list(self.btArgList)
+        else:
+            argList = []
+
         btStr = ''
         for sidx, item in enumerate(reversed(stack)):
-            if python:
-                btStr += '\n%s %s%s%s [%s:%s]' % \
-                    (diffindent, tinfoindent,
-                        (sidx-(commonPos)) * '  ',
-                        item[1], item[2], item[0])
+            # get arg list #
+            if argList and argList[-1][0][0] == item[0]:
+                args = '(%s)' % ', '.join(
+                    [ '%s=%s' % (arg[2], arg[4]) for arg in argList[-1] ])
+                argList.pop()
             else:
-                btStr += '\n%s %s%s%s/%s [%s]' % \
+                args = ''
+
+            # add context to string #
+            if python:
+                btStr += '\n%s %s%s%s%s [%s:%s]' % \
                     (diffindent, tinfoindent,
                         (sidx-(commonPos)) * '  ',
-                        item[1], hex(item[0]).rstrip('L'), item[2])
+                        item[1], args, item[2], item[0])
+            else:
+                btStr += '\n%s %s%s%s%s/%s [%s]' % \
+                    (diffindent, tinfoindent,
+                        (sidx-(commonPos)) * '  ',
+                        item[1], args, hex(item[0]).rstrip('L'), item[2])
+
         return btStr, depth
 
 
@@ -60153,7 +60200,7 @@ typedef struct {
             addBt = [addr] if isRetBp else []
 
             # get backtrace tree #
-            btstr, depth = self.getBtStr(
+            btstr, depth = self.getTraceBtStr(
                 diffstr, tinfo, not SysMgr.showAll, addBt=addBt)
 
             indent = '  ' * depth
@@ -61149,7 +61196,7 @@ typedef struct {
                     cont = True
 
                 # get backtrace tree #
-                btstr, depth = self.getBtStr(
+                btstr, depth = self.getTraceBtStr(
                     diffstr, tinfo, cont, backtrace=bt, python=True)
 
                 indent = '  ' * depth
@@ -61531,7 +61578,7 @@ typedef struct {
             backtrace = self.getBacktrace(limit=SysMgr.funcDepth, cur=True)
 
             # convert list to string #
-            bts = self.getBacktraceStr(backtrace)
+            bts = self.getBtStr(backtrace)
             if bts:
                 bts = '\n%s%s ' % (' ' * 20, bts)
         else:
