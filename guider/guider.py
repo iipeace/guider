@@ -23559,8 +23559,8 @@ Examples:
     - {3:1} with arguments using DWARF for specific threads
         # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
 
-    - {3:1} with backtrace excluding arguments for specific threads
-        # {0:1} {1:1} -g a.out -H -q NOBTARG
+    - {3:1} with backtrace including arguments using DWARF for specific threads
+        # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
 
     - {5:1} for specific threads
         # {0:1} {1:1} -g 1234 -c printPeace
@@ -24613,8 +24613,8 @@ Examples:
     - {3:1} with arguments using DWARF for specific threads
         # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
 
-    - {3:1} with backtrace excluding arguments for specific threads
-        # {0:1} {1:1} -g a.out -H -q NOBTARG
+    - {3:1} with backtrace including arguments using DWARF for specific threads
+        # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
 
     - {3:1} for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
@@ -59351,7 +59351,7 @@ typedef struct {
                 maximum = SysMgr.ttyCols
 
         # get arg list #
-        if self.btArgList and not 'NOBTARG' in SysMgr.environList:
+        if self.btArgList and 'PRINTBTARG' in SysMgr.environList:
             argList = list(self.btArgList)
         else:
             argList = []
@@ -59785,16 +59785,17 @@ typedef struct {
                         typeName = typeName.lstrip()
 
                         # decide size and decoding type #
-                        if typeName.startswith('*'):
+                        isAddr = False
+                        if size == 0:
+                            decChar = None
+                        elif typeName.startswith('*'):
                             size = ConfigMgr.wordSize
                             decChar = self.decChar
                             isAddr = True
                         elif 'unsigned' in typeName:
                             decChar = ConfigMgr.UNPACK_TYPE['U%s' % size]
-                            isAddr = False
                         else:
                             decChar = ConfigMgr.UNPACK_TYPE['S%s' % size]
-                            isAddr = False
 
                         # save type info #
                         ElfAnalyzer.cachedTypes[typeNumOrig] = [
@@ -59802,19 +59803,21 @@ typedef struct {
                         ]
 
                     # location #
-                    paramVal = None
-                    if cur and len(paramList) < 6:
+                    paramVal = '??'
+                    if size == 0:
+                        pass
+                    elif cur and len(paramList) < 6:
                         paramVal = self.readArgs()[len(paramList)]
                         if isAddr: paramVal = hex(paramVal)
                     elif 'loc' in abbrev[item]:
                         # sec_offset #
                         # TODO: handle this attribute #
                         if type(abbrev[item]['loc']) is long:
-                            paramVal = None
+                            paramVal = '??'
                         # exprloc(reg) #
                         # TODO: handle this attribute #
                         elif len(abbrev[item]['loc']) == 1:
-                            paramVal = None
+                            paramVal = '??'
                         # exprloc(offset) #
                         elif len(abbrev[item]['loc']) == 2:
                             paramAddr = abbrev[item]['loc'][1]
@@ -60146,7 +60149,7 @@ typedef struct {
         self.prevStack = backtrace
 
         # get arg list #
-        if self.btArgList and not 'NOBTARG' in SysMgr.environList:
+        if self.btArgList and 'PRINTBTARG' in SysMgr.environList:
             argList = list(self.btArgList)
         else:
             argList = []
