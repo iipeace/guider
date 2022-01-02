@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220101"
+__revision__ = "220102"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -714,6 +714,18 @@ class ConfigMgr(object):
         'BPF_SK_SKB_STREAM_VERDICT',
         '__MAX_BPF_ATTACH_TYPE',
     ]
+
+    # unpack types #
+    UNPACK_TYPE = {
+        'U1': 'B',
+        'U2': 'H',
+        'U4': 'I',
+        'U8': 'Q',
+        'S1': 'b',
+        'S2': 'h',
+        'S4': 'i',
+        'S8': 'q',
+    }
 
     # syscall prototypes #
     SYSCALL_DEFFERABLE = {
@@ -53170,9 +53182,9 @@ class Debugger(object):
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
-            self.decodeChar = 'I'
+            self.decChar = 'I'
         else:
-            self.decodeChar = 'Q'
+            self.decChar = 'Q'
 
         # timestamp variables #
         self.current = 0
@@ -57444,7 +57456,7 @@ typedef struct {
             elif ref and argname.startswith("event"):
                 try:
                     value = self.readMem(value)
-                    value = struct.unpack(self.decodeChar, value)[0]
+                    value = struct.unpack(self.decChar, value)[0]
                     return UtilMgr.getFlagString(
                         value, ConfigMgr.EPOLL_EVENT_TYPE)
                 except SystemExit: sys.exit(0)
@@ -59701,7 +59713,6 @@ typedef struct {
         cfa = regval + offset
 
         # get parameter #
-        # TODO: get params using frame base + offset #
         if 'info' in dwarf and faddr in dwarf['info']:
             # frame base #
             if 'frame' in dwarf['info'][faddr]:
@@ -59737,7 +59748,8 @@ typedef struct {
 
                     # get full type #
                     if typeNum in ElfAnalyzer.cachedTypes:
-                        typeName, size = ElfAnalyzer.cachedTypes[typeNum]
+                        typeName, size, decChar, isAddr = \
+                            ElfAnalyzer.cachedTypes[typeNum]
                     else:
                         typeName = ''
                         typeNumOrig = typeNum
@@ -59764,26 +59776,40 @@ typedef struct {
                         # remove heading space #
                         typeName = typeName.lstrip()
 
-                        # save type info #
-                        ElfAnalyzer.cachedTypes[typeNumOrig] = [typeName, size]
+                        # decide size and decoding type #
+                        if typeName.startswith('*'):
+                            size = ConfigMgr.wordSize
+                            decChar = self.decChar
+                            isAddr = True
+                        elif 'unsigned' in typeName:
+                            decChar = ConfigMgr.UNPACK_TYPE['U%s' % size]
+                            isAddr = False
+                        else:
+                            decChar = ConfigMgr.UNPACK_TYPE['S%s' % size]
+                            isAddr = False
 
-                    # change size #
-                    if typeName.startswith('*'):
-                        size = ConfigMgr.wordSize
+                        # save type info #
+                        ElfAnalyzer.cachedTypes[typeNumOrig] = [
+                            typeName, size, decChar, isAddr
+                        ]
 
                     # location #
                     paramVal = None
                     if 'loc' in abbrev[item]:
                         # sec_offset #
+                        # TODO: handle this attribute #
                         if type(abbrev[item]['loc']) is long:
                             paramVal = None
                         # exprloc(reg) #
+                        # TODO: handle this attribute #
                         elif len(abbrev[item]['loc']) == 1:
                             paramVal = None
                         # exprloc(offset) #
                         elif len(abbrev[item]['loc']) == 2:
                             paramAddr = abbrev[item]['loc'][1]
                             paramVal = self.readMem(cfa+paramAddr, size)
+                            paramVal = struct.unpack(decChar, paramVal)[0]
+                            if isAddr: paramVal = hex(paramVal)
 
                     # add a parameter info #
                     paramList.append(
