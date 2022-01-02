@@ -23556,6 +23556,9 @@ Examples:
     - {3:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
+    - {3:1} with arguments using DWARF for specific threads
+        # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
+
     - {3:1} with backtrace excluding arguments for specific threads
         # {0:1} {1:1} -g a.out -H -q NOBTARG
 
@@ -24606,6 +24609,9 @@ Examples:
 
     - {3:1} with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -H -q PYSTACK
+
+    - {3:1} with arguments using DWARF for specific threads
+        # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
 
     - {3:1} with backtrace excluding arguments for specific threads
         # {0:1} {1:1} -g a.out -H -q NOBTARG
@@ -52900,6 +52906,8 @@ class Debugger(object):
         'EXCEPTLD': False,
         'NOMUTE': False,
         'NOSTRIP': False,
+        'PRINTARG': False,
+        'CONVARG': False,
         'NOARG': False,
         'CONTALONE': False,
         'INCNATIVE': False,
@@ -53900,7 +53908,7 @@ typedef struct {
                     regs.r3, regs.r4, regs.r5, regs.r6)
         elif arch == 'x64':
             ret = (regs.rdi, regs.rsi, regs.rdx,
-                    regs.r10, regs.r8, regs.r9)
+                    regs.rcx, regs.r8, regs.r9)
         elif arch == 'x86':
             ret = (regs.ebx, regs.ecx, regs.edx,
                     regs.esi, regs.edi, regs.ebp)
@@ -59210,7 +59218,7 @@ typedef struct {
         # check wait status #
         if not self.runStatus and \
             (self.mode == 'sample' or self.mode == 'pycall'):
-            sym = 'WAIT(%s)' % sym
+            sym = 'WAIT{%s}' % sym
 
         # add backtrace #
         if bt:
@@ -59636,7 +59644,7 @@ typedef struct {
 
 
 
-    def getRetAddr(self, vaddr, argList=[]):
+    def getRetAddr(self, vaddr, argList=[], onlyArg=False, cur=False):
         # get file name #
         fname = self.getFileFastFromMap(vaddr)
         if not fname:
@@ -59795,7 +59803,10 @@ typedef struct {
 
                     # location #
                     paramVal = None
-                    if 'loc' in abbrev[item]:
+                    if cur and len(paramList) < 6:
+                        paramVal = self.readArgs()[len(paramList)]
+                        if isAddr: paramVal = hex(paramVal)
+                    elif 'loc' in abbrev[item]:
                         # sec_offset #
                         # TODO: handle this attribute #
                         if type(abbrev[item]['loc']) is long:
@@ -59816,6 +59827,10 @@ typedef struct {
                         [vaddr, typeName, name, size, paramVal])
 
                 argList.append(paramList)
+
+        # check only argument requirement #
+        if onlyArg:
+            return None
 
         # recover registers #
         argIdx = ElfAnalyzer.RegisterRule.ARG
@@ -60190,7 +60205,14 @@ typedef struct {
         symColor = 'GREEN'
 
         # convert args #
-        if 'CONVARG' in SysMgr.environList and \
+        if Debugger.envFlags['PRINTARG']:
+            args = []
+            raddr = self.getRetAddr(addr, args, onlyArg=True, cur=True)
+            if args: args = args[0]
+            argstr = '(%s)' % ', '.join(
+                [ '%s=%s' % (arg[2], arg[4]) for arg in args ])
+        # convert args #
+        elif Debugger.envFlags['CONVARG'] and \
             sym.split('@', 1)[0] in ConfigMgr.SYSCALL_PROTOTYPES:
             # convert args #
             self.syscall = sym.split('@', 1)[0]
@@ -61425,6 +61447,14 @@ typedef struct {
             elif self.prevCallInfo[0].startswith('mmap'):
                 # enable memory update flag #
                 self.needMapScan = True
+
+        # convert args #
+        if Debugger.envFlags['PRINTARG']:
+            args = []
+            raddr = self.getRetAddr(self.pc, args, onlyArg=True)
+            if args: args = args[0]
+            sym += '(%s)' % ', '.join(
+                [ '%s=%s' % (arg[2], arg[4]) for arg in args ])
 
         # update callstack #
         if self.isRealtime:
