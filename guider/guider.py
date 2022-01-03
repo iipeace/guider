@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220102"
+__revision__ = "220103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6962,12 +6962,12 @@ class NetworkMgr(object):
             except socket.timeout:
                 if noTimeout:
                     continue
-                SysMgr.printWarn(
-                    "failed to receive data from %s:%d as client because of %s" % \
-                    (self.ip, self.port, 'timeout'))
+
+                SysMgr.printWarn((
+                    "failed to receive data from %s:%d as client"
+                    "because of %s") % (self.ip, self.port, 'timeout'))
                 return None
-            except KeyboardInterrupt:
-                sys.exit(0)
+            except KeyboardInterrupt: sys.exit(0)
             except SystemExit: sys.exit(0)
             except:
                 if verb:
@@ -22323,12 +22323,8 @@ Commands:
         try:
             signal.pause()
         except SystemExit:
-            if exit:
-                sys.exit(0)
-            elif forceExit:
-                os._exit(0)
-            else:
-                pass
+            if exit: sys.exit(0)
+            elif forceExit: os._exit(0)
         except:
             pass
 
@@ -23495,9 +23491,13 @@ Examples:
     - {3:1} and convert syscall args for specific threads
         # {0:1} {1:1} -g a.out -q CONVARG
 
+    - {3:1} for specific processes
+        # {0:1} {1:1} -g a.out -q ONLYPROC
+
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
     - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
@@ -24364,7 +24364,7 @@ Examples:
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
     - {2:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -24442,6 +24442,7 @@ Examples:
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
 
     - {2:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
@@ -24518,6 +24519,9 @@ Examples:
     - {3:1} for specific threads having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYCOMM
 
+    - {3:1} for specific processes having specific task name
+        # {0:1} {1:1} -g 1234 -q ONLYPROC
+
     - {3:1} using merged symbols for specific threads
         # {0:1} {1:1} -g a.out -q ALLSYM
 
@@ -24559,6 +24563,7 @@ Examples:
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
 
     - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
@@ -25202,6 +25207,7 @@ Examples:
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
     - {4:1} from a specific binary with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
@@ -25310,6 +25316,7 @@ Examples:
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
     - {2:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -25395,6 +25402,7 @@ Examples:
     - {3:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
     - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
@@ -25578,6 +25586,7 @@ Examples:
     - Replace standard malloc function calls with customized malloc function calls in libhook.so for specific processes (wait for new target if no task)
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK, NOPIDCACHE
                     '''.format(cmd, mode)
 
                 # printbind #
@@ -25660,6 +25669,7 @@ Examples:
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
     - {2:1} for a specific thread even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -25994,6 +26004,7 @@ Examples:
     - Send SIGSTOP signal to specific tasks until one gets the signal
         # {0:1} {1:1} -sigstop a.out -q WAITTASK
         # {0:1} {1:1} -sigstop a.out -q WAITTASK:1
+        # {0:1} {1:1} -sigstop a.out -q WAITTASK, NOPIDCACHE
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
@@ -26648,6 +26659,7 @@ Examples:
     - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection (wait for new process if no process)
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
 
     - Print funtions caused memory leakage of a specific process
         # {0:1} {1:1} -I ./leaks.out -g a.out
@@ -26973,6 +26985,7 @@ Examples:
     - Limit CPU usage for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:20 -q WAITTASK
         # {0:1} {1:1} yes:20 -q WAITTASK:1
+        # {0:1} {1:1} yes:20 -q WAITTASK, NOPIDCACHE
 
     - Limit CPU usage of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
@@ -27152,6 +27165,7 @@ Examples:
     - Set the CPU scheduler policy(CFS), priority(-20) for specific threads (wait for new target if no task)
         # {0:1} {1:1} "-20:a.out" -q WAITTASK
         # {0:1} {1:1} "-20:a.out" -q WAITTASK:1
+        # {0:1} {1:1} "-20:a.out" -q WAITTASK, NOPIDCACHE
 
     - Set the CPU scheduler policy(CFS), priority(-20) for specific threads after 5 seconds
         # {0:1} {1:1} "-20:a.out" -W 5s
@@ -27217,6 +27231,7 @@ Examples:
     - Set CPU affinity of a specific thread to use only CPU 1 (wait for new target if no task)
         # {0:1} {1:1} a.out:2 -q WAITTASK
         # {0:1} {1:1} a.out:2 -q WAITTASK:1
+        # {0:1} {1:1} a.out:2 -q WAITTASK, NOPIDCACHE
 
     - Set CPU affinity of a specific thread to use only CPU 1 every 2 seconds
         # {0:1} {1:1} a.out:1 -i 2
@@ -31508,6 +31523,7 @@ Copyright:
             err = sys.exc_info()[1]
             SysMgr.printWarn(
                 "failed to import python package: %s" % err.args[0])
+        except SystemExit: sys.exit(0)
 
         # load bmp plugin instead of jpeg #
         try:
@@ -31519,6 +31535,7 @@ Copyright:
             SysMgr.printErr(
                 "failed to import python package: %s" % err.args[0])
             return
+        except SystemExit: sys.exit(0)
 
         if not SysMgr.imagePath:
             SysMgr.printErr("failed to load image path")
@@ -35100,7 +35117,8 @@ Copyright:
                 return False
 
             SysMgr.printWarn(
-                "wait for '%s' because no task yet" % name)
+                "wait for '%s' for %s sec because no task yet" % \
+                    (name, waitTime))
 
             time.sleep(waitTime)
 
@@ -35185,11 +35203,18 @@ Copyright:
         if not nameList or 'ONLYPID' in SysMgr.environList:
             return pidList
 
+        # define ONLYPROC variable #
+        onlyProc = True if 'ONLYPROC' in SysMgr.environList else False
+
+        # define PIDCACHE variable #
+        pidcache = False if 'NOPIDCACHE' in SysMgr.environList else True
+
         while 1:
             # set check list #
             targetList = SysMgr.getPidList()
             curList = set(targetList) - set(prevTargetList)
-            prevTargetList = targetList
+            if pidcache:
+                prevTargetList = targetList
 
             for pid in curList:
                 if not pid.isdigit():
@@ -35226,8 +35251,12 @@ Copyright:
                         break
 
                     # include the main thread #
-                    if main:
+                    if main or onlyProc:
                         pidList.append(pid)
+
+                        # skip other threads #
+                        if onlyProc:
+                            continue
 
                     # include a thread #
                     pidList.append(tid)
@@ -35828,11 +35857,10 @@ Copyright:
                     sys.stdin.readline()
                     sys.stdout.write("\033[F")
         except SystemExit: sys.exit(0)
-        except IOError:
+        except Exception as ex:
             SysMgr.printWarn("failed to read user input", reason=True)
-            sys.stdin = None
-        except:
-            SysMgr.printWarn("failed to read user input", reason=True)
+            if type(ex).__name__ == 'IOError':
+                sys.stdin = None
         finally:
             SysMgr.inWaitStatus = False
 
@@ -37291,8 +37319,7 @@ Copyright:
                     # execute a command from the agent #
                     rcmd = '%s|%s' % (addr, cmd)
                     SysMgr.runClientMode(rcmd, connObj)
-                except SystemExit:
-                    pass
+                except SystemExit: pass
                 except:
                     SysMgr.logEnable = True
                     SysMgr.printErr(
@@ -37372,8 +37399,7 @@ Copyright:
                     # execute a command from a remote node #
                     rcmd = '%s|%s' % (addr, cmd)
                     SysMgr.runClientMode(rcmd, connObj)
-                except SystemExit:
-                    pass
+                except SystemExit: pass
                 except:
                     SysMgr.logEnable = True
                     SysMgr.printErr(
@@ -37628,8 +37654,7 @@ Copyright:
                         try:
                             rcmd = '%s|%s' % (addr, cmd)
                             SysMgr.runClientMode(rcmd)
-                        except SystemExit:
-                            continue
+                        except SystemExit: continue
                         except:
                             SysMgr.printErr(
                                 "failed to execute remote command '%s'" % rcmd,
@@ -37652,8 +37677,7 @@ Copyright:
                                 pcmd = pipeCmds[0]
                                 rcmd = '%s|%s' % (addr, pcmd)
                                 SysMgr.runClientMode(rcmd)
-                            except SystemExit:
-                                continue
+                            except SystemExit: continue
                             except:
                                 SysMgr.printErr(
                                     "failed to execute remote command '%s'" % \
@@ -37916,8 +37940,7 @@ Copyright:
                     SysMgr.printWarn(
                         'failed to accept the connection request', reason=True)
                 continue
-            except socket.timeout:
-                continue
+            except socket.timeout: continue
             except:
                 SysMgr.printWarn(
                     'failed to accept the connection request', reason=True)
@@ -38099,12 +38122,9 @@ Copyright:
                     if printFlag:
                         print(output[:-1])
                 except SystemExit:
-                    if SysMgr.isLinux:
-                        pass
-                    else:
+                    if not SysMgr.isLinux:
                         break
-                except KeyboardInterrupt:
-                    break
+                except KeyboardInterrupt: break
                 except:
                     SysMgr.printErr(SysMgr.getErrMsg())
                     break
@@ -38288,8 +38308,7 @@ Copyright:
                         if isMulti:
                             break
             except SystemExit: sys.exit(0)
-            except KeyboardInterrupt:
-                sys.exit(0)
+            except KeyboardInterrupt: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to handle multiple commands", reason=True)
@@ -38336,8 +38355,7 @@ Copyright:
 
                 # execute an user command #
                 _execUserCmd(uinput)
-            except SystemExit:
-                return
+            except SystemExit: return
             except:
                 pass
 
@@ -42722,8 +42740,7 @@ Copyright:
 
                     # request #
                     SysMgr.doRequest(uinput)
-                except SystemExit:
-                    return
+                except SystemExit: return
                 except:
                     SysMgr.printErr(
                         'failed to request URL', True)
@@ -43460,8 +43477,7 @@ Copyright:
                     rd, wr = os.pipe()
 
                     pid = SysMgr.createProcess()
-                except SystemExit:
-                    pass
+                except SystemExit: pass
                 except:
                     SysMgr.printErr(
                         "failed to start process", True)
@@ -43497,8 +43513,7 @@ Copyright:
 
                 try:
                     pid = SysMgr.createProcess()
-                except SystemExit:
-                    pass
+                except SystemExit: pass
                 except:
                     SysMgr.printErr(
                         "failed to start process", True)
@@ -44106,8 +44121,7 @@ Copyright:
                                     SysMgr.printSigError(tid, 'SIGCONT')
 
                 time.sleep(SLEEP_SEC)
-        except SystemExit:
-            pass
+        except SystemExit: pass
         except:
             SysMgr.printWarn(
                 'failed to limit CPU for tasks', reason=True)
@@ -44119,8 +44133,7 @@ Copyright:
                             os.kill(tid, signal.SIGCONT)
                         else:
                             val['fd'].resume()
-                    except SystemExit:
-                        pass
+                    except SystemExit: pass
                     except:
                         SysMgr.printSigError(tid, 'SIGCONT')
 
@@ -45646,8 +45659,7 @@ Copyright:
                 else:
                     func()
             except SystemExit: sys.exit(0)
-            except OSError:
-                pass
+            except OSError: pass
             except:
                 SysMgr.printErr(
                     "failed to execute %s" % func, True)
@@ -47229,10 +47241,8 @@ Copyright:
                         if attr['major'] == major and attr['minor'] == minor:
                             raise MountException
                     continue
-            except MountException:
-                pass
-            except:
-                continue
+            except MountException: pass
+            except: continue
 
             # save mount info #
             self.mountInfo[rpath] = {
@@ -60676,15 +60686,12 @@ typedef struct {
                     self.handleBp(printStat=SysMgr.printEnable)
                     break
                 except SystemExit: sys.exit(0)
-                except IOError:
+                except Exception as ex:
                     SysMgr.printWarn(
                         "failed to handle breakpoint for %s(%s)" % \
                             (self.comm, self.pid), True, reason=True)
-                    sys.exit(0)
-                except:
-                    SysMgr.printWarn(
-                        "failed to handle breakpoint for %s(%s)" % \
-                            (self.comm, self.pid), True, reason=True)
+                    if type(ex).__name__ == 'IOError':
+                        sys.exit(0)
 
             if self.cont(check=True) < 0:
                 sys.exit(0)
@@ -62980,12 +62987,17 @@ typedef struct {
 
                 # check clone event #
                 if not Debugger.dbusEnable and \
-                    SysMgr.cloneEnable and \
+                    (SysMgr.cloneEnable or self.isBreakMode) and \
                     self.checkCloned(ostat):
 
                     # check clone/fork event #
                     if self.isForked(ostat):
-                        forked = True
+                        # skip handling fork in break mode #
+                        if not SysMgr.cloneEnable:
+                            self.cont()
+                            continue
+                        else:
+                            forked = True
                     else:
                         forked = False
 
@@ -62994,6 +63006,9 @@ typedef struct {
                     # failure for handling clone #
                     if ret == self.pid:
                         self.cont()
+                    # mute non-target tasks cloned in break mode #
+                    elif not SysMgr.cloneEnable:
+                        SysMgr.printEnable = False
 
                     # continue to exit event for clone syscall #
                     if not syscallMode:
@@ -63160,8 +63175,7 @@ typedef struct {
                     # stop target for next syscall #
                     if syscallMode:
                         self.stop()
-            except SystemExit:
-                return
+            except SystemExit: return
             except:
                 if not self.isAlive():
                     SysMgr.printErr(
@@ -63617,8 +63631,7 @@ typedef struct {
                     instance.stop(check=True)
 
                 return
-            except:
-                pass
+            except: pass
 
         UtilMgr.deleteProgress()
 
@@ -63958,8 +63971,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     break
 
             SysMgr.printErr("no target thread")
-        except SystemExit:
-            return
+        except SystemExit: return
         except:
             SysMgr.printErr(
                 'failed to pause thread %s' % lastTid, True)
@@ -64396,7 +64408,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 option |= 1 << plist.index('PTRACE_EVENT_EXIT')
             elif req == 'PTRACE_O_TRACESECCOMP':
                 option |= 1 << plist.index('PTRACE_EVENT_SECCOMP')
-            elif SysMgr.cloneEnable:
+            elif SysMgr.cloneEnable or self.isBreakMode:
                 if req == 'PTRACE_O_TRACEFORK':
                     option |= 1 << plist.index('PTRACE_EVENT_FORK')
                 elif req == 'PTRACE_O_TRACEVFORK':
@@ -74198,8 +74210,7 @@ class TaskAnalyzer(object):
                 graphStats = self.getAvgStats(fnameList, graphStats)
                 graphStats['fileList'] = fnameList
                 self.drawAvgGraph(graphStats, logFile, outFile=outFile)
-            except SystemExit:
-                return
+            except SystemExit: return
             except:
                 SysMgr.printErr(
                     "failed to draw history graph", True)
@@ -78274,8 +78285,9 @@ class TaskAnalyzer(object):
         convertNum = UtilMgr.convNum
 
         outputCnt = 0
-        SysMgr.printPipe(
-            '\n[Thread Futex Lock Info] [Elapsed: %.3f] (Unit: Sec/NR)' % \
+        SysMgr.printPipe((
+                '\n[Thread Futex Lock Info] [Elapsed: %.3f] '
+                '(Unit: Sec/NR) (LBlock: LOCK_PI)') % \
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
@@ -78286,7 +78298,7 @@ class TaskAnalyzer(object):
             'LBlock', 'NrLBlock', 'LastStat'))
         SysMgr.printPipe(twoLine)
 
-        totalInfo = {
+        tinfo = {
             'ftxTotal': 0, 'ftxMax': 0,
             'ftxLock': 0, 'ftxLockMax': 0, 'ftxLockCnt': 0,
             'ftxWaitCnt': 0, 'ftxProcess': 0,
@@ -78319,43 +78331,49 @@ class TaskAnalyzer(object):
             ftxWaitCall = convertNum(value['ftxWaitCnt'])
 
             # set total info #
-            totalInfo['ftxTotal'] += value['ftxTotal']
-            totalInfo['ftxLock'] += value['ftxLock']
-            totalInfo['ftxLockCnt'] += value['ftxLockCnt']
-            totalInfo['ftxWaitCnt'] += value['ftxWaitCnt']
-            if totalInfo['ftxMax'] == 0 or \
-                totalInfo['ftxMax'] < value['ftxMax']:
-                totalInfo['ftxMax'] = value['ftxMax']
-            if totalInfo['ftxLockMax'] == 0 or \
-                totalInfo['ftxLockMax'] < value['ftxLockMax']:
-                totalInfo['ftxLockMax'] = value['ftxLockMax']
+            tinfo['ftxTotal'] += value['ftxTotal']
+            tinfo['ftxLock'] += value['ftxLock']
+            tinfo['ftxLockCnt'] += value['ftxLockCnt']
+            tinfo['ftxWaitCnt'] += value['ftxWaitCnt']
+            if tinfo['ftxMax'] == 0 or \
+                tinfo['ftxMax'] < value['ftxMax']:
+                tinfo['ftxMax'] = value['ftxMax']
+            if tinfo['ftxLockMax'] == 0 or \
+                tinfo['ftxLockMax'] < value['ftxLockMax']:
+                tinfo['ftxLockMax'] = value['ftxLockMax']
 
             if SysMgr.cpuEnable:
                 ftxProcess = '%.3f' % float(value['ftxProcess'])
                 ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
                 ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
                 ftxBlockCall = convertNum(value['ftxBlockCnt'])
-                ftxLSwitch = value['ftxLSwitch']
+                ftxLSwitch = convertNum(value['ftxLSwitch'])
 
-                totalInfo['ftxProcess'] += value['ftxProcess']
-                totalInfo['ftxBlockTotal'] += value['ftxBlockTotal']
-                totalInfo['ftxLBlockTotal'] += value['ftxLBlockTotal']
-                totalInfo['ftxBlockCnt'] += value['ftxBlockCnt']
-                totalInfo['ftxLSwitch'] += value['ftxLSwitch']
+                tinfo['ftxProcess'] += value['ftxProcess']
+                tinfo['ftxBlockTotal'] += value['ftxBlockTotal']
+                tinfo['ftxLBlockTotal'] += value['ftxLBlockTotal']
+                tinfo['ftxBlockCnt'] += value['ftxBlockCnt']
+                tinfo['ftxLSwitch'] += value['ftxLSwitch']
             else:
-                ftxProcess = totalInfo['ftxProcess'] = '-'
-                ftxBlock = totalInfo['ftxBlockTotal'] = '-'
-                ftxLBlock = totalInfo['ftxLBlockTotal'] = '-'
-                ftxBlockCall = totalInfo['ftxBlockCnt'] = '-'
-                ftxLSwitch = totalInfo['ftxLSwitch'] = '-'
+                ftxProcess = tinfo['ftxProcess'] = '-'
+                ftxBlock = tinfo['ftxBlockTotal'] = '-'
+                ftxLBlock = tinfo['ftxLBlockTotal'] = '-'
+                ftxBlockCall = tinfo['ftxBlockCnt'] = '-'
+                ftxLSwitch = tinfo['ftxLSwitch'] = '-'
 
             futexInfo = \
                 ('{0:>16}({1:>7}/{2:>7}) {3:>9} {4:>9} {5:>9} ' + \
                 '{6:>8} {7:>10} {8:>10} {9:>10} {10:>8} ' + \
                 '{11:>8} {12:>10} {13:>8} {14:>10}').\
-                format(value['comm'], key, pid, ftxTotal, ftxProcess, ftxBlock,
-                ftxBlockCall, ftxMax, ftxLock, ftxLockMax, ftxLockCall,
-                ftxWaitCall, ftxLBlock, ftxLSwitch, status)
+                format(value['comm'], key, pid, ftxTotal,
+                ftxProcess, ftxBlock, ftxBlockCall,
+                ftxMax if value['ftxMax'] else '-',
+                ftxLock if value['ftxLock'] else '-',
+                ftxLockMax if value['ftxLockMax'] else '-',
+                ftxLockCall if value['ftxLockCnt'] else '-',
+                ftxWaitCall if value['ftxWaitCnt'] else '-',
+                ftxLBlock if value['ftxLBlockTotal'] else '-',
+                ftxLSwitch if value['ftxLSwitch'] else '-', status)
 
             SysMgr.addPrint('%s\n%s\n' % (futexInfo, oneLine))
             outputCnt += 1
@@ -78364,35 +78382,40 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\tNone\n%s' % oneLine)
         else:
             # print total info #
-            totalInfo['ftxTotal'] = '%.3f' % totalInfo['ftxTotal']
-            totalInfo['ftxMax'] = '%.3f' % totalInfo['ftxMax']
-            totalInfo['ftxLock'] = '%.3f' % totalInfo['ftxLock']
-            totalInfo['ftxLockMax'] = '%.3f' % totalInfo['ftxLockMax']
-            totalInfo['ftxLockCnt'] = convertNum(totalInfo['ftxLockCnt'])
-            totalInfo['ftxWaitCnt'] = convertNum(totalInfo['ftxWaitCnt'])
+            tinfo['ftxTotal'] = '%.3f' % tinfo['ftxTotal']
+            tinfo['ftxMax'] = '%.3f' % tinfo['ftxMax']
+            tinfo['ftxLock'] = '%.3f' % tinfo['ftxLock']
+            tinfo['ftxLockMax'] = '%.3f' % tinfo['ftxLockMax']
+            tinfo['ftxLockCnt'] = convertNum(tinfo['ftxLockCnt'])
+            tinfo['ftxWaitCnt'] = convertNum(tinfo['ftxWaitCnt'])
 
-            if totalInfo['ftxProcess'] != '-':
-                totalInfo['ftxProcess'] = '%.3f' % totalInfo['ftxProcess']
-            if totalInfo['ftxBlockTotal'] != '-':
-                totalInfo['ftxBlockTotal'] = '%.3f' % totalInfo['ftxBlockTotal']
-            if totalInfo['ftxLBlockTotal'] != '-':
-                totalInfo['ftxLBlockTotal'] = '%.3f' % totalInfo['ftxLBlockTotal']
-            if totalInfo['ftxBlockCnt'] != '-':
-                totalInfo['ftxBlockCnt'] = convertNum(totalInfo['ftxBlockCnt'])
-            if totalInfo['ftxLSwitch'] != '-':
-                totalInfo['ftxLSwitch'] = convertNum(totalInfo['ftxLSwitch'])
+            # convert format for total info #
+            if tinfo['ftxProcess'] != '-':
+                tinfo['ftxProcess'] = '%.3f' % tinfo['ftxProcess']
+            if tinfo['ftxBlockTotal'] != '-':
+                tinfo['ftxBlockTotal'] = '%.3f' % tinfo['ftxBlockTotal']
+            if tinfo['ftxLBlockTotal'] != '-':
+                tinfo['ftxLBlockTotal'] = '%.3f' % tinfo['ftxLBlockTotal']
+            if tinfo['ftxBlockCnt'] != '-':
+                tinfo['ftxBlockCnt'] = convertNum(tinfo['ftxBlockCnt'])
+            if tinfo['ftxLSwitch'] != '-':
+                tinfo['ftxLSwitch'] = convertNum(tinfo['ftxLSwitch'])
+
+            def _convItem(name):
+                val = float(tinfo[name].replace(',',''))
+                return tinfo[name] if val else '-'
 
             totalFutexInfo = \
                 ('{0:>33} {1:>9} {2:>9} {3:>9} ' \
                 '{4:>8} {5:>10} {6:>10} {7:>10} {8:>8} ' \
                 '{9:>8} {10:>10} {11:>8} {12:>10}').\
                 format('[ TOTAL ]',
-                totalInfo['ftxTotal'], totalInfo['ftxProcess'],
-                totalInfo['ftxBlockTotal'], totalInfo['ftxBlockCnt'],
-                totalInfo['ftxMax'], totalInfo['ftxLock'],
-                totalInfo['ftxLockMax'], totalInfo['ftxLockCnt'],
-                totalInfo['ftxWaitCnt'], totalInfo['ftxLBlockTotal'],
-                totalInfo['ftxLSwitch'], '-')
+                tinfo['ftxTotal'], tinfo['ftxProcess'],
+                tinfo['ftxBlockTotal'], tinfo['ftxBlockCnt'],
+                _convItem('ftxMax'), _convItem('ftxLock'),
+                _convItem('ftxLockMax'), _convItem('ftxLockCnt'),
+                _convItem('ftxWaitCnt'), _convItem('ftxLBlockTotal'),
+                _convItem('ftxLSwitch'), '-')
 
             SysMgr.printPipe('%s\n%s' % (totalFutexInfo, oneLine))
 
@@ -86738,8 +86761,7 @@ class TaskAnalyzer(object):
                     # append attributes #
                     if attr:
                         path = '%s (%s)' % (path, attr)
-                except AssertionError:
-                    pass
+                except AssertionError: pass
                 except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
