@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220103"
+__revision__ = "220104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17372,10 +17372,8 @@ class FileAnalyzer(object):
 
                 # convert address and size to index in mapping table #
                 offset = mapInfo['offset'] - self.fileData[fileName]['offset']
-                offset = \
-                    long((offset + pageSize - 1) / pageSize)
-                size = \
-                    long((mapInfo['size'] + pageSize - 1) / pageSize)
+                offset = long((offset + pageSize - 1) / pageSize)
+                size = long((mapInfo['size'] + pageSize - 1) / pageSize)
 
                 mapInfo['fileMap'] = \
                     list(self.fileData[fileName]['fileMap'][offset:size])
@@ -17554,7 +17552,7 @@ class FileAnalyzer(object):
             # prepare variables for mincore syscall #
             fd = val['fd'].fileno()
             offset = val['offset']
-            size = val['size']
+            size = val['totalSize']
 
             if SysMgr.guiderObj:
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
@@ -23476,6 +23474,9 @@ Examples:
 
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
+
+    - {3:1} with interval info
+        # {0:1} {1:1} "ls" -q INTERCALL
 
     - {3:1} excluding specific environment variable
         # {0:1} {1:1} "ls" -q REMOVEENV:MAIL
@@ -60082,20 +60083,18 @@ typedef struct {
 
 
 
-    def addBrkStat(self, sym):
+    def updateBrkStat(self, sym):
         # apply stat #
         try:
             prev, ttotal, tmin, tmax = self.brkcallStat[sym]
 
-            tdiff = self.current - prev
-
+            self.interDiff = tdiff = self.current - prev
             ttotal += tdiff
 
             if tmax < tdiff:
                 tmax = tdiff
 
-            if tmin == 0 or \
-                tmin > tdiff:
+            if tmin == 0 or tmin > tdiff:
                 tmin = tdiff
 
             self.brkcallStat[sym] = \
@@ -60304,7 +60303,7 @@ typedef struct {
             self.addSample(
                 sym, fname, realtime=True, bt=backtrace)
 
-            self.addBrkStat(sym)
+            self.updateBrkStat(sym)
 
             return isRetBp
 
@@ -60452,6 +60451,16 @@ typedef struct {
                 UtilMgr.convDict2Str(jsonData, pretty=self.pretty),
                 flush=True)
         elif callString:
+            # update interval between calls #
+            if Debugger.envFlags['INTERCALL']:
+                self.updateBrkStat(sym)
+                interdiffStr = ' [%.6f]' % self.interDiff
+                if self.interDiff > self.retTime:
+                    callString += UtilMgr.convColor(interdiffStr, 'RED')
+                else:
+                    callString += UtilMgr.convColor(interdiffStr, 'CYAN')
+                self.interDiff = 0
+
             # add backtrace #
             if btstr:
                 callString = '%s%s' % (btstr, callString)
@@ -64438,21 +64447,20 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             # init variables #
             ret = 0
             status = c_uint(0)
+            waitpid = SysMgr.libcObj.waitpid
             if not pid:
                 pid = self.pid
 
             # type converting #
             if not self.initWaitpid:
-                SysMgr.libcObj.waitpid.argtypes = \
-                    (c_int, POINTER(None), c_int)
-                SysMgr.libcObj.waitpid.restype = c_int
+                waitpid.argtypes = (c_int, POINTER(None), c_int)
+                waitpid.restype = c_int
                 self.initWaitpid = True
 
             while 1:
                 # wait for child #
                 try:
-                    ret = SysMgr.libcObj.waitpid(
-                        pid, pointer(status), 0x40000000)
+                    ret = waitpid(pid, pointer(status), 0x40000000)
                 except SystemExit: sys.exit(0)
                 except:
                     pass
@@ -64466,9 +64474,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             return ret, status.value
         except SystemExit: sys.exit(0)
-        except:
+        except Exception as ex:
+            # handle exception error during exit #
+            if type(ex).__name__ == 'TypeError':
+                sys.exit(0)
+
             SysMgr.printWarn(
-                'fail to call waitpid', reason=True)
+                'failed to call waitpid', reason=True)
+
             return 0, 0
 
 
