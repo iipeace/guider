@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220104"
+__revision__ = "220105"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4099,6 +4099,7 @@ class UtilMgr(object):
         statmin = table.pop('min', None)
         statmax = table.pop('max', None)
         statcnt = table.pop('cnt', None)
+        statsum = table.pop('sum', None)
 
         SysMgr.printPipe(
             '\n[%s Histogram] (unit:%s)\n%s' % (title, unit, twoLine))
@@ -4122,6 +4123,7 @@ class UtilMgr(object):
         SysMgr.printPipe('{0:^21}   {1:>17}'.format('Min', convNum(statmin)))
         SysMgr.printPipe('{0:^21}   {1:>17}'.format('Max', convNum(statmax)))
         SysMgr.printPipe('{0:^21}   {1:>17}'.format('Cnt', convNum(statcnt)))
+        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Sum', convNum(statsum)))
         SysMgr.printPipe(oneLine)
 
 
@@ -4159,7 +4161,8 @@ class UtilMgr(object):
         histDict = {
             'max': max(items),
             'min': min(items),
-            'cnt': len(items)
+            'cnt': len(items),
+            'sum': sum(items)
         }
 
         for value in items:
@@ -4955,8 +4958,7 @@ class UtilMgr(object):
 
         try:
             fd.close()
-        except:
-            pass
+        except: pass
 
         return buf
 
@@ -5324,8 +5326,7 @@ class UtilMgr(object):
                     fd.seek(0, 0)
                     fd.truncate()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             try:
                 fd.write(jsonObj)
@@ -6610,8 +6611,7 @@ class NetworkMgr(object):
             finally:
                 try:
                     self.close()
-                except:
-                    pass
+                except: pass
                 finally:
                     return res
 
@@ -6645,8 +6645,7 @@ class NetworkMgr(object):
                 try:
                     self.send('@DONE#0'.encode())
                     self.close()
-                except:
-                    pass
+                except: pass
                 finally:
                     return res
 
@@ -6713,8 +6712,7 @@ class NetworkMgr(object):
             # close connection #
             try:
                 self.close()
-            except:
-                pass
+            except: pass
 
 
 
@@ -6907,8 +6905,7 @@ class NetworkMgr(object):
                 # decode data #
                 try:
                     output = output.decode()
-                except:
-                    pass
+                except: pass
 
                 if len(output) < self.recvSize and output[-1] == '\n':
                     break
@@ -7071,8 +7068,7 @@ class NetworkMgr(object):
                 reply = (msg,)
             elif msg.startswith('NOTIFY:'):
                 return True
-        except:
-            pass
+        except: pass
 
         # handle reply from server #
         try:
@@ -7216,16 +7212,14 @@ class NetworkMgr(object):
                     ip = addrList[0]
                 if addrList[1]:
                     port = long(addrList[1])
-            except:
-                pass
+            except: pass
         else:
             try:
                 if '.' in addrList[0]:
                     ip = addrList[0]
                 else:
                     port = long(addrList[0])
-            except:
-                pass
+            except: pass
 
         return (service, ip, port)
 
@@ -7364,8 +7358,7 @@ class NetworkMgr(object):
             if iplist:
                 SysMgr.printWarn(
                     'available IP list [ %s ]' % ', '.join(iplist), verb)
-        except:
-            pass
+        except: pass
 
         # check server setting #
         localObj = SysMgr.localServObj
@@ -7467,8 +7460,7 @@ class NetworkMgr(object):
                 if ipaddr == ip:
                     return dev
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
 
 
@@ -7491,8 +7483,7 @@ class NetworkMgr(object):
                 if dev:
                     return (dev, ip)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         for dev in devices:
             # skip virtual device #
@@ -7569,8 +7560,7 @@ class NetworkMgr(object):
                 gw = '%s.1' % ip[:ip.rfind('.')]
                 gateways[gw] = None
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         return list(gateways)
 
@@ -7584,8 +7574,7 @@ class NetworkMgr(object):
         try:
             ipList.remove('0.0.0.0')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # return main IP #
         if not ipList:
@@ -7668,8 +7657,7 @@ class NetworkMgr(object):
     def __del__(self):
         try:
             self.close()
-        except:
-            pass
+        except: pass
 
 
 
@@ -10618,8 +10606,7 @@ class PageAnalyzer(object):
                         (soffset, eoffset, info['perm'], info['offset'],\
                         info['devid'], info['inode'], fname))
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             if lastLine:
                 SysMgr.printPipe(oneLine)
@@ -10658,8 +10645,7 @@ class PageAnalyzer(object):
                 SysMgr.printPipe('%18s %18s %s' % \
                     (soffset, eoffset, ' '.join(target[1:])))
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             count += 1
 
@@ -12020,8 +12006,7 @@ class FunctionAnalyzer(object):
                     try:
                         addr = hex(long(addr, 16)).rstrip('L')
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     symbol = proc.stdout.readline().decode().replace('\n', '')
                     src = proc.stdout.readline().decode().replace('\n', '')
@@ -12589,16 +12574,14 @@ class FunctionAnalyzer(object):
             try:
                 if long(value) > long(condVal):
                     return long(value)
-            except:
-                pass
+            except: pass
 
             return 0
         elif condOp == '<':
             try:
                 if long(value) < long(condVal):
                     return long(value)
-            except:
-                pass
+            except: pass
 
             return 0
         elif condOp == '==':
@@ -12892,8 +12875,7 @@ class FunctionAnalyzer(object):
                             'HEAP_REDUCE', size, [addr, time, core, tid])
 
                         return False
-                    except:
-                        pass
+                    except: pass
 
                 # lock event #
                 elif long(b['nr']) == SysMgr.getNrSyscall('sys_futex'):
@@ -12986,8 +12968,7 @@ class FunctionAnalyzer(object):
                             'HEAP_EXPAND', size, [addr, time, core, tid])
 
                         return False
-                    except:
-                        pass
+                    except: pass
 
                 # heap decreasement event #
                 elif nr == SysMgr.getNrSyscall('sys_brk'):
@@ -13242,8 +13223,7 @@ class FunctionAnalyzer(object):
                     try:
                         threadData[thread]['tgid'] = \
                             SysMgr.savedProcTree[thread]
-                    except:
-                        pass
+                    except: pass
 
         return threadData
 
@@ -13279,8 +13259,7 @@ class FunctionAnalyzer(object):
                 try:
                     self.threadData[thread]['tgid'] = \
                         SysMgr.savedProcTree[thread]
-                except:
-                    pass
+                except: pass
 
             # increase event count #
             self.threadData[thread]['eventCnt'] += 1
@@ -13747,8 +13726,7 @@ class FunctionAnalyzer(object):
 
                 symbolStack += symbolSet
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         return symbolStack
 
@@ -13937,11 +13915,9 @@ class FunctionAnalyzer(object):
                             userCall = '%s\n%s %s' % \
                                 (userCall, ' ' * indentLen, nextCall)
                             nowLen = indentLen + len(nextCall)
-                    except:
-                        pass
+                    except: pass
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             SysMgr.printPipe(
                 "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
@@ -14151,11 +14127,9 @@ class FunctionAnalyzer(object):
                             userCall = '%s\n%s %s' % \
                                 (userCall, ' ' * indentLen, nextCall)
                             nowLen = indentLen + len(nextCall)
-                    except:
-                        pass
+                    except: pass
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # Make kernel call info #
             indentLen = 32
@@ -14177,11 +14151,9 @@ class FunctionAnalyzer(object):
                                 '%s\n%s %s' % \
                                 (kernelCall, ' ' * indentLen, nextCall)
                             nowLen = indentLen + len(nextCall)
-                    except:
-                        pass
+                    except: pass
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             SysMgr.printPipe(
                 "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
@@ -14401,8 +14373,7 @@ class FunctionAnalyzer(object):
                             ridx = subStack.index(pos)
                             if ridx >= 0 and ridx > maxIdx:
                                 maxIdx = ridx
-                        except:
-                            pass
+                        except: pass
 
                     # Remove a redundant part #
                     if maxIdx >= 0:
@@ -14584,8 +14555,7 @@ class FunctionAnalyzer(object):
                     for ptype, cnt in item['valueList'].items():
                         try:
                             typeList[ptype] += cnt
-                        except:
-                            pass
+                        except: pass
 
                 try:
                     avrTime = \
@@ -14694,8 +14664,7 @@ class FunctionAnalyzer(object):
                 for ptype, cnt in item['valueList'].items():
                     try:
                         typeList[ptype] += cnt
-                    except:
-                        pass
+                    except: pass
 
             try:
                 avrTime = float(value['pagePairTotal'] / value['pagePairCnt'])
@@ -15112,10 +15081,8 @@ class FunctionAnalyzer(object):
                             userCall = '%s\n%s %s' % \
                                 (userCall, ' ' * indentLen, nextCall)
                             nowLen = indentLen + len(nextCall)
-                    except:
-                        pass
-            except:
-                pass
+                    except: pass
+            except: pass
 
             # Make kernel call info #
             indentLen = 32
@@ -15147,10 +15114,8 @@ class FunctionAnalyzer(object):
                             kernelCall = '%s\n%s %s' % \
                                 (kernelCall, ' ' * indentLen, nextCall)
                             nowLen = indentLen + len(nextCall)
-                    except:
-                        pass
-            except:
-                pass
+                    except: pass
+            except: pass
 
             if userCall != ' 0':
                 SysMgr.printPipe(
@@ -15376,11 +15341,9 @@ class FunctionAnalyzer(object):
                             userCall = '%s\n%s %s' % \
                                 (userCall, ' ' * indentLen, nextCall)
                             nowLen = indentLen + len(nextCall)
-                    except:
-                        pass
+                    except: pass
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             SysMgr.printPipe(
                 "{0:>32}|{1:<121}".format('[User] ', userCall))
@@ -16652,8 +16615,7 @@ class FileAnalyzer(object):
             if FileAnalyzer.procMapStrCache[pid] == mapBuf:
                 return FileAnalyzer.procMapCache[pid]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         finally:
             FileAnalyzer.procMapStrCache[pid] = mapBuf
 
@@ -17343,8 +17305,7 @@ class FileAnalyzer(object):
                             procMap[fname]['size'] = size
                             procMap[fname]['nrOpen'] = 1
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
                 # update threadData #
                 if not tid in self.procData[pid]['tids']:
@@ -17451,8 +17412,7 @@ class FileAnalyzer(object):
 
                     val['isRep'] = fileInfo['isRep']
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 if not val['isRep']:
                     continue
@@ -17791,8 +17751,7 @@ class LogMgr(object):
             if self.errFd:
                 SysMgr.writeErr(self.errFd, message)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -18228,8 +18187,7 @@ class LogMgr(object):
 
                             line = '%s <%s> %s' % (ts, level, line)
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
                     # print to console #
                     if SysMgr.outPath and console:
@@ -18260,8 +18218,7 @@ class LogMgr(object):
         try:
             SysMgr.kmsgFd.seek(0)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # kmsg node #
         while 1:
@@ -18961,8 +18918,7 @@ Commands:
 
                 SysMgr.maxPid = long(maxPid)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -19130,8 +19086,7 @@ Commands:
             pgrp = os.getpgid(procObj.pid)
             os.killpg(pgrp, signal.SIGINT)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -19201,8 +19156,7 @@ Commands:
         if SysMgr.repeatInterval > 0:
             try:
                 time.sleep(SysMgr.repeatInterval)
-            except:
-                pass
+            except: pass
         # wait for user input #
         else:
             SysMgr.waitEvent()
@@ -19243,8 +19197,7 @@ Commands:
                     item = line.strip().split()
                     newDict.setdefault(item[0], long(item[1]))
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             return newDict
 
@@ -19443,8 +19396,7 @@ Commands:
                     UtilMgr.printProgress(cnt, SysMgr.repeatInterval)
                     time.sleep(1)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # real-time copy from pipe to file #
             if SysMgr.pipeEnable:
@@ -19605,8 +19557,7 @@ Commands:
                     else:
                         raise Exception()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         finally:
             duration = time.time() - startTime
 
@@ -19842,8 +19793,7 @@ Commands:
                         libDict.setdefault(item, [])
                         libDict[item].append(value)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             SysMgr.libCache = libDict
         except SystemExit: sys.exit(0)
@@ -19910,8 +19860,7 @@ Commands:
                 if res:
                     return res
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
 
 
@@ -19924,8 +19873,7 @@ Commands:
             import guider
             guider.check() # pylint: disable=no-member
             SysMgr.guiderObj = guider
-        except:
-            pass
+        except: pass
 
 
 
@@ -20095,8 +20043,7 @@ Commands:
                         name = "MS_%s" % item.upper()
                         flags |= ConfigMgr.MOUNT_TYPE[name]
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                 # update flags #
                 value[3] = flags
@@ -20156,8 +20103,7 @@ Commands:
                         name = "MNT_%s" % item.upper()
                         flags |= ConfigMgr.UMOUNT_TYPE[name]
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                 # update flags #
                 value[1] = flags
@@ -20360,8 +20306,7 @@ Commands:
                 soft, hard = resource.prlimit(pid, rtype)
                 return (soft, hard)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # get ctypes object #
         if not SysMgr.importPkgItems('ctypes', False):
@@ -20683,8 +20628,7 @@ Commands:
                     SysMgr.checkRootPerm(
                         msg='check threshold for %s' % item)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             if type(item) is list:
                 for value in item:
@@ -20723,24 +20667,21 @@ Commands:
                     SysMgr.sort = 'b'
                     break
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check storage #
         try:
             if _checkResource(confData['storage']):
                 SysMgr.diskEnable = True
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check network #
         try:
             if _checkResource(confData['net']):
                 SysMgr.networkEnable = True
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check task #
         try:
@@ -20882,8 +20823,7 @@ Commands:
                     guiderObj = SysMgr.guiderObj
                     ret = guiderObj.sched_setaffinity(long(pid), mask) # pylint: disable=no-member
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             try:
                 # define function prototype #
@@ -20918,8 +20858,7 @@ Commands:
             return '0x%X' % \
                 SysMgr.guiderObj.sched_getaffinity(pid) # pylint: disable=no-member
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # get ctypes object #
         if not SysMgr.importPkgItems('ctypes', False):
@@ -21232,8 +21171,7 @@ Commands:
                     sockInfo[name].append(timeout)
                 try:
                     attr[0].close()
-                except:
-                    pass
+                except: pass
 
             # check return condition #
             if not verb:
@@ -21754,8 +21692,7 @@ Commands:
                     SysMgr.commCache[pid] = comm
                 return comm
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # use psutil #
         if not SysMgr.isLinux:
@@ -21864,8 +21801,7 @@ Commands:
 
         try:
             path = path.encode()
-        except:
-            pass
+        except: pass
 
         try:
             func = '__libc_dlopen_mode'
@@ -21889,8 +21825,7 @@ Commands:
             SysMgr.guiderObj.prctl(15, comm, 0, 0, 0) # pylint: disable=no-member
             return
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # load libc #
         if not SysMgr.loadLibcObj():
@@ -21943,8 +21878,7 @@ Commands:
         try:
             return SysMgr.impPkg[name]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check blacklist #
         if not isExit and name in SysMgr.skipImpPkg:
@@ -22085,8 +22019,7 @@ Commands:
                         os.path.join(nodePath, os.readlink(path)))
                 self.devNodeInfo[item] = path
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -22164,8 +22097,7 @@ Commands:
                         elif rdir == len(cond) - 1:
                             cmd += "common_pid >= %s || " % long(cond[:-1])
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
             if cmd != "":
                 cmd = "(" + cmd[:cmd.rfind('||')] + ")"
@@ -22214,8 +22146,7 @@ Commands:
                         tgid == SysMgr.savedProcTree[item]:
                         return False
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         return True
 
@@ -22323,8 +22254,7 @@ Commands:
         except SystemExit:
             if exit: sys.exit(0)
             elif forceExit: os._exit(0)
-        except:
-            pass
+        except: pass
 
         # restore SIGINT handler #
         if SysMgr.waitEnable and block:
@@ -22670,8 +22600,7 @@ Commands:
                     'tty' in os.ttyname(sys.stdout.fileno()):
                     SysMgr.encodeEnable = False
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # set force color flag #
             SysMgr.forceColorEnable = SysMgr.isTraceMode()
@@ -22735,8 +22664,7 @@ Commands:
                 if not lang or not 'UTF' in lang:
                     SysMgr.encodeEnable = False
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check python #
         if sys.version_info < (2, 6):
@@ -27930,8 +27858,7 @@ Copyright:
                 rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
                 revents.append([wlist[wd], rtypes, fname])
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             i += (size + flen)
 
@@ -28796,8 +28723,7 @@ Copyright:
             perfbuf = '%sIPC: %s / ' % \
                 (perfbuf, convColor('%.2f' % ipc, 'YELLOW'))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # CACHE stats #
         try:
@@ -28808,8 +28734,7 @@ Copyright:
                 (perfbuf, convSize(cachemiss),
                     convColor('%s%%' % cachemissrate, 'YELLOW'))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # BRANCH stats #
         try:
@@ -28820,8 +28745,7 @@ Copyright:
                 (perfbuf, convSize(branchmiss),
                     convColor('%s%%' % branchmissrate, 'YELLOW'))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # CPU stats #
         try:
@@ -28829,8 +28753,7 @@ Copyright:
                 (perfbuf, convSize(
                     value['PERF_COUNT_SW_CPU_CLOCK']))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # FAULT stats #
         try:
@@ -28839,15 +28762,13 @@ Copyright:
             perfbuf = '%sMinFlt: %s / MajFlt: %s / ' % \
                 (perfbuf, format(faultmin, ','), format(faultmaj, ','))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         try:
             if perfbuf:
                 perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         return perfbuf
 
@@ -28943,8 +28864,7 @@ Copyright:
                     # add argument command to entry command #
                     sCmd = '%s %s' % (sCmd, tVal)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # apply entry command #
             if sCmd != ' NONE':
@@ -28985,8 +28905,7 @@ Copyright:
                     else:
                         sCmd = 'NONE'
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # apply return command #
             if sCmd != 'NONE':
@@ -29534,8 +29453,7 @@ Copyright:
 
                 SysMgr.udsListCache[uds[inodeIdx]] = item
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         return _getStats(addrList)
 
@@ -29596,8 +29514,7 @@ Copyright:
                             rip = SysMgr.convertCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     # cache string #
                     SysMgr.udpListCache[udp[inodeIdx]] = item
@@ -29667,8 +29584,7 @@ Copyright:
                             rip = SysMgr.convertCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     # define status #
                     try:
@@ -30167,8 +30083,7 @@ Copyright:
     def chldHandler(signum, frame):
         try:
             os.waitpid(-1, os.WNOHANG)
-        except:
-            pass
+        except: pass
 
 
 
@@ -30325,8 +30240,7 @@ Copyright:
             # close an output file to sync #
             try:
                 SysMgr.printFd.close()
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.printFd = None
 
@@ -30681,8 +30595,7 @@ Copyright:
 
             try:
                 SysMgr.sysInstance.cmdList[epath] = False
-            except:
-                pass
+            except: pass
 
             SysMgr.printWarn(
                 "failed to use %s event" % epath, reason=True)
@@ -30694,14 +30607,12 @@ Copyright:
                 os.write(fd, bytes(UtilMgr.encodeStr(val)))
                 try:
                     os.fsync(fd)
-                except:
-                    pass
+                except: pass
             else:
                 fd.write(val)
                 try:
                     fd.flush()
-                except:
-                    pass
+                except: pass
 
             # modify flags in command list #
             if path.endswith('/enable'):
@@ -30801,8 +30712,7 @@ Copyright:
 
             SysMgr.bufferString = target[:start + 1]
             SysMgr.bufferRows -= newline
-        except:
-            pass
+        except: pass
 
 
 
@@ -30826,8 +30736,6 @@ Copyright:
             sys.stdout.write("\x1b[2J\x1b[H")
         elif sys.platform.startswith('win'):
             os.system('cls')
-        else:
-            pass
 
 
 
@@ -31024,8 +30932,7 @@ Copyright:
                 nrItem = len(line.split())
                 if 1 < nrItem < 4:
                     mountTable.append('%s %s' % (line, tempTable[idx+1]))
-        except:
-            pass
+        except: pass
 
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
 
@@ -31052,8 +30959,7 @@ Copyright:
                 start, end = d['range'].split('-')
                 SysMgr.savedMountTree[mid]['start'] = long(start)
                 SysMgr.savedMountTree[mid]['end'] = long(end)
-            except:
-                pass
+            except: pass
 
 
 
@@ -31142,8 +31048,7 @@ Copyright:
                 SysMgr.printWarn(
                     "data version %s is different from current software %s" % \
                     (__version__, recVer), True)
-        except:
-            pass
+        except: pass
 
         # apply arch type #
         if not SysMgr.archOption:
@@ -31153,8 +31058,7 @@ Copyright:
                 arch = infoBuf[archPosStart:archPosEnd].split()[1]
                 SysMgr.setArch(arch)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # add anlaysis option #
         archPosStart = infoBuf.find('Arch')
@@ -31359,8 +31263,7 @@ Copyright:
 
                 try:
                     SysMgr.eventLogFd.flush()
-                except:
-                    pass
+                except: pass
 
                 return True
             except SystemExit: sys.exit(0)
@@ -31644,8 +31547,7 @@ Copyright:
                 if pid == 0:
                     try:
                         SysMgr.printFd.close()
-                    except:
-                        pass
+                    except: pass
                     finally:
                         SysMgr.printFd = None
 
@@ -31880,8 +31782,7 @@ Copyright:
                     try:
                         SysMgr.pipeForPager = os.popen('more', 'w')
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
                 else:
                     # no supported OS #
                     SysMgr.pipeForPager = None
@@ -32060,8 +31961,7 @@ Copyright:
                         reload(sys)
                         sys.setdefaultencoding('utf-8')
                         SysMgr.encoding = sys.getdefaultencoding()
-                    except:
-                        pass
+                    except: pass
 
             return newline
         except:
@@ -32122,8 +32022,7 @@ Copyright:
         try:
             line = line.rstrip('\n')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         proc = SysMgr.getProcInfo()
 
@@ -33046,8 +32945,7 @@ Copyright:
                 else:
                     try:
                         SysMgr.utilProc = long(value)
-                    except:
-                        pass
+                    except: pass
 
             elif option == 'O':
                 SysMgr.checkOptVal(option, value)
@@ -33680,8 +33578,7 @@ Copyright:
             with open(restPath, 'w+') as fd:
                 fd.write('0')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         try:
             symPath = '%s/kallsyms' % SysMgr.procPath
@@ -34666,8 +34563,7 @@ Copyright:
         # slice last 64bits for IPv6 #
         try:
             addr = addr[-8:]
-        except:
-            pass
+        except: pass
 
         # check 0 #
         if long(addr, 16) == 0:
@@ -35409,8 +35305,7 @@ Copyright:
             try:
                 os.close(fd)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # remove cache #
             SysMgr.rawFdCache.pop(path, None)
@@ -35681,8 +35576,7 @@ Copyright:
                 rss = long(statList[gstatList.index("RSS")])
                 rss = UtilMgr.convSize2Unit(rss << 12, True)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # runtime #
             if runtime != '?':
@@ -36033,8 +35927,7 @@ Copyright:
         try:
             import warnings
             warnings.simplefilter("ignore", UserWarning)
-        except:
-            pass
+        except: pass
 
 
 
@@ -36086,8 +35979,7 @@ Copyright:
                 SysMgr.setIgnoreSignal()
                 os.wait()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.setNormalSignal()
 
@@ -36478,8 +36370,7 @@ Copyright:
             while 1:
                 try:
                     os.waitpid(-1, 0)
-                except:
-                    pass
+                except: pass
 
                 if SysMgr.condExit:
                     break
@@ -36583,8 +36474,7 @@ Copyright:
             try:
                 SysMgr.printFd.close()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.printFd = None
 
@@ -36684,8 +36574,7 @@ Copyright:
             if mute:
                 SysMgr.closeStdFd(stderr=False)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         if not closeFd:
             return
@@ -36702,8 +36591,7 @@ Copyright:
                     if fd > 2:
                         os.close(fd)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
@@ -36939,8 +36827,7 @@ Copyright:
                 if not NetworkMgr.requestPing(addr, verb=SysMgr.warnEnable):
                     try:
                         nodeList[addr]['sock'].close()
-                    except:
-                        pass
+                    except: pass
                     finally:
                         nodeList.pop(addr, None)
 
@@ -37005,8 +36892,7 @@ Copyright:
                 try:
                     netObj.send('@DONE#0'.encode())
                     netObj.close()
-                except:
-                    pass
+                except: pass
 
         def _onUpload(netObj, value, response):
             try:
@@ -37126,14 +37012,12 @@ Copyright:
                 # update service node list #
                 ret = _updateNodeList(ret=True)
                 connObj.send('LIST:' + ret.strip())
-            except:
-                pass
+            except: pass
 
         def _onPing(connObj, value, response):
             try:
                 connObj.send('PONG')
-            except:
-                pass
+            except: pass
 
         def _onRun(connObj, value, response):
             def _enableSigPipe():
@@ -37196,8 +37080,7 @@ Copyright:
                     try:
                         readChunkSize = \
                             long(SysMgr.environList['READCHUNK'][0])
-                    except:
-                        pass
+                    except: pass
                 else:
                     readChunkSize = None
 
@@ -37252,8 +37135,7 @@ Copyright:
 
                     connObj.socket.shutdown(socket.SHUT_RDWR)
                     connObj.close()
-                except:
-                    pass
+                except: pass
 
         def _onNotify(netObj, value, response):
             # send message packet #
@@ -37475,8 +37357,7 @@ Copyright:
                         agentList.pop(
                             "%s:%s" % (cliObj.ip, cliObj.port), None)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     # close invalid socket #
                     if cliObj.connected:
@@ -37797,12 +37678,11 @@ Copyright:
                 # close sockets #
                 try:
                     connMan.close()
-                except:
-                    pass
+                except: pass
+
                 try:
                     connObj.close()
-                except:
-                    pass
+                except: pass
 
                 # restart server #
                 SysMgr.restart()
@@ -38136,8 +38016,7 @@ Copyright:
             # close running remote task #
             try:
                 pipe.close()
-            except:
-                pass
+            except: pass
 
             # disable alarm handler #
             _unsetAlarm()
@@ -38357,8 +38236,7 @@ Copyright:
                 # execute an user command #
                 _execUserCmd(uinput)
             except SystemExit: return
-            except:
-                pass
+            except: pass
 
 
 
@@ -38453,8 +38331,7 @@ Copyright:
                     # apply formatter #
                     ax.set_yticks(ax.get_yticks().tolist())
                     ax.set_yticklabels(ytickLabel)
-                except:
-                    pass
+                except: pass
 
                 # draw grid #
                 xticks(fontsize=4)
@@ -38513,8 +38390,7 @@ Copyright:
                 ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             _drawMeta(labelList)
 
@@ -38560,8 +38436,7 @@ Copyright:
                 for idx in range(1, len(totalStats)+1):
                     xtickLabel[idx] = 'Min/Avg/Max'
                 ax.set_xticklabels(xtickLabel)
-            except:
-                pass
+            except: pass
 
             _drawMeta(None)
 
@@ -38777,16 +38652,14 @@ Copyright:
                 with open(affectpath, 'r') as fd:
                     cpulist[cpu]['affect'] = fd.readlines()[0].split()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # available_governors #
             try:
                 with open(govpath, 'r') as fd:
                     cpulist[cpu]['governors'] = fd.readlines()[0].split()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # available_freq #
             try:
@@ -38797,8 +38670,7 @@ Copyright:
                     cpulist[cpu]['avail'] = \
                         list(map(str, cpulist[cpu]['avail']))
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # freq #
             try:
@@ -39562,14 +39434,12 @@ Copyright:
                         if needStop:
                             os.kill(long(pid), signal.SIGSTOP)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     procList.setdefault(pid, [])
                     procList[pid].append(tid)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             pidList = list(map(long, procList))
 
@@ -39595,8 +39465,7 @@ Copyright:
                             if printLog:
                                 printLog = False
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
             # continue target #
             try:
@@ -39604,8 +39473,7 @@ Copyright:
                     for pid in pidList:
                         os.kill(pid, signal.SIGCONT)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             if mode != 'breakcall' and mode != 'pytrace':
                 return
@@ -39851,8 +39719,7 @@ Copyright:
                         # remove lock file #
                         try:
                             os.remove(lockPath.name)
-                        except:
-                            pass
+                        except: pass
 
                 sys.exit(0)
         else:
@@ -40638,8 +40505,7 @@ Copyright:
                 try:
                     pos = fd.seek(0, 2)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # set path #
                 pathList = [
@@ -40815,8 +40681,7 @@ Copyright:
                     procList.setdefault(pid, [])
                     procList[pid].append(tid)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             pidList = list(map(long, procList))
 
@@ -40837,8 +40702,7 @@ Copyright:
                         if printLog:
                             printLog = False
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
 
 
@@ -42259,8 +42123,7 @@ Copyright:
                                 data = fd.read()
                                 try:
                                     data = data.decode()
-                                except:
-                                    pass
+                                except: pass
 
                             # convert string to dictionary #
                             if orig.startswith('JSONFILE:'):
@@ -42523,8 +42386,7 @@ Copyright:
 
                     elapsed = time.time() - before
                     stats['perCycleTime'].append(elapsed)
-            except:
-                pass
+            except: pass
 
             totalElapsed = time.time() - start
 
@@ -42758,9 +42620,9 @@ Copyright:
         try:
             urllib3 = requests.packages.urllib3
             urllib3.util.ssl_.DEFAULT_CIPHERS += ':DES-CBC3-SHA'
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        except:
-            pass
+            urllib3.disable_warnings(
+                urllib3.exceptions.InsecureRequestWarning)
+        except: pass
 
         # get requests #
         if reqstr:
@@ -43007,8 +42869,7 @@ Copyright:
         def _cputask(idx, load):
             try:
                 SysMgr.setDefaultSignal()
-            except:
-                pass
+            except: pass
 
             # print profile #
             if SysMgr.isLinux:
@@ -43127,8 +42988,7 @@ Copyright:
             # ignore SIGCHLD #
             signal.signal(signal.SIGCHLD, signal.SIG_DFL)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # limit CPU usage of tasks #
         SysMgr.doLimitCpu(limitInfo, verb=False)
@@ -44024,8 +43884,7 @@ Copyright:
             signal.signal(signal.SIGALRM, SysMgr.onAlarm)
             signal.alarm(SysMgr.intervalEnable)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         try:
             while 1:
@@ -44182,8 +44041,7 @@ Copyright:
         if exceptMe:
             try:
                 finalList.remove(SysMgr.pid)
-            except:
-                pass
+            except: pass
 
         return finalList
 
@@ -44229,8 +44087,7 @@ Copyright:
 
                 del argList[argList.index(val)]
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # check type #
         if not isFound:
@@ -44245,8 +44102,7 @@ Copyright:
         try:
             argList = UtilMgr.cleanItem((''.join(argList)).split(','))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # convert items to pid #
         targets = SysMgr.convTaskList(
@@ -44285,8 +44141,7 @@ Copyright:
             for pid in pidList:
                 try:
                     pid = pid.strip()
-                except:
-                    pass
+                except: pass
 
                 if not pid:
                     continue
@@ -44967,8 +44822,7 @@ Copyright:
                 stdout=open(os.devnull, 'wb'),
                 stderr=open(os.devnull, 'wb'))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -45004,8 +44858,7 @@ Copyright:
 
             return
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # set terminal size by command #
         try:
@@ -45051,8 +44904,7 @@ Copyright:
 
             return
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # update tty info by stty #
         try:
@@ -45110,8 +44962,7 @@ Copyright:
                     self.systemInfo['time'] = timeEntity[2]
                 elif timeEntity[0] == 'rtc_date':
                     self.systemInfo['date'] = timeEntity[2]
-        except:
-            pass
+        except: pass
 
 
 
@@ -45175,8 +45026,7 @@ Copyright:
                     if not pid in SysMgr.commCache:
                         SysMgr.commCache[pid] = comm.rstrip()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -45215,13 +45065,11 @@ Copyright:
 
         try:
             osf = open(OSFile, 'r')
-        except:
-            pass
+        except: pass
 
         try:
             devf = open(devFile, 'r')
-        except:
-            pass
+        except: pass
 
         # check webOS #
         if not osf and not devf:
@@ -45290,14 +45138,12 @@ Copyright:
                             (self.cpuCacheInfo[core], level[:-1],
                             type[:-1], size[:-1])
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 if not self.cpuCacheInfo[core]:
                     del self.cpuCacheInfo[core]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -45409,8 +45255,7 @@ Copyright:
                             self.devArchInfo.setdefault(subdirname, {})
                             self.devArchInfo[subdirname][rpath] = devid
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
 
 
@@ -45577,8 +45422,7 @@ Copyright:
             if not SysMgr.isAlive(pid):
                 try:
                     os.waitpid(pid, os.WNOHANG)
-                except:
-                    pass
+                except: pass
 
                 SysMgr.childList.pop(pid, None)
 
@@ -45624,8 +45468,7 @@ Copyright:
                 watchList = ['/proc/%s/comm' % tid for tid in remainTasks]
                 SysMgr.inotify(watchList)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
 
 
@@ -45692,20 +45535,17 @@ Copyright:
     def flushAllForPrint():
         try:
             sys.stdout.flush()
-        except:
-            pass
+        except: pass
 
         if SysMgr.pipeForPager:
             try:
                 SysMgr.pipeForPager.flush()
-            except:
-                pass
+            except: pass
 
         if SysMgr.printFd:
             try:
                 SysMgr.printFd.flush()
-            except:
-                pass
+            except: pass
 
 
 
@@ -45714,8 +45554,7 @@ Copyright:
         if SysMgr.pipeForPager:
             try:
                 SysMgr.pipeForPager.close()
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.pipeForPager = None
 
@@ -45738,8 +45577,7 @@ Copyright:
 
             SysMgr.printFd.close()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         finally:
             SysMgr.printFd = None
 
@@ -46293,8 +46131,7 @@ Copyright:
                             cmd += "prev_pid >= %s || " % long(comm[:-1])
                             cmd += "next_pid >= %s || " % long(comm[:-1])
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
             cmd = cmd[0:cmd.rfind("||")].strip()
             if SysMgr.writeCmd('sched/sched_switch/filter', cmd) < 0:
@@ -46337,8 +46174,7 @@ Copyright:
                             cmd += "pid <= %s || " % long(comm[1:])
                         elif rdir == len(comm) - 1:
                             cmd += "pid >= %s || " % long(comm[:-1])
-                    except:
-                        pass
+                    except: pass
 
             cmd = cmd[0:cmd.rfind("||")]
         else:
@@ -46534,8 +46370,7 @@ Copyright:
             try:
                 SysMgr.cmdFd.write('rm -f %s 2> /dev/null\n' % outputPath)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # write system info #
             try:
@@ -46547,8 +46382,7 @@ Copyright:
                 SysMgr.cmdFd.write(infoStr)
                 SysMgr.cmdFd.flush()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # write save command #
             if SysMgr.saveCmd:
@@ -46662,8 +46496,7 @@ Copyright:
 
                 if SysMgr.jsonEnable:
                     jsonData[name] = value
-        except:
-            pass
+        except: pass
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -46702,8 +46535,7 @@ Copyright:
                 jsonData[name]['hard'] = items[-2]
                 jsonData[name]['unit'] = items[-1]
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -46729,8 +46561,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['launch'] = launchOption
-        except:
-            pass
+        except: pass
 
         # version #
         try:
@@ -46739,8 +46570,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['version'] = __version__
-        except:
-            pass
+        except: pass
 
         # python #
         try:
@@ -46750,8 +46580,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['python'] = pv
-        except:
-            pass
+        except: pass
 
         # hostname #
         try:
@@ -46761,8 +46590,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['host'] = hostname
-        except:
-            pass
+        except: pass
 
         # IP #
         try:
@@ -46772,8 +46600,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['ip'] = ip
-        except:
-            pass
+        except: pass
 
         # MAC #
         try:
@@ -46786,8 +46613,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['mac'] = macStr
-        except:
-            pass
+        except: pass
 
         # CPU #
         try:
@@ -46796,8 +46622,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['arch'] = SysMgr.arch
-        except:
-            pass
+        except: pass
 
         # OS #
         try:
@@ -46807,8 +46632,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['os'] = osInfo
-        except:
-            pass
+        except: pass
 
         # kernel #
         try:
@@ -46818,8 +46642,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['kernel'] = kernelInfo
-        except:
-            pass
+        except: pass
 
         # release #
         try:
@@ -46829,8 +46652,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['release'] = releaseInfo
-        except:
-            pass
+        except: pass
 
         # user #
         try:
@@ -46841,8 +46663,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['user'] = self.userData[uid]['name']
-        except:
-            pass
+        except: pass
 
         # datetime #
         try:
@@ -46854,8 +46675,7 @@ Copyright:
             if SysMgr.jsonEnable:
                 jsonData['date'] = self.systemInfo['date']
                 jsonData['time'] = self.systemInfo['time']
-        except:
-            pass
+        except: pass
 
         # uptime #
         try:
@@ -46867,8 +46687,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['uptime'] = uptime
-        except:
-            pass
+        except: pass
 
         # runtime #
         try:
@@ -46881,8 +46700,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['runtime'] = runtime
-        except:
-            pass
+        except: pass
 
         # init overhead for python #
         try:
@@ -46896,8 +46714,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['initOverhead'] = overhead
-        except:
-            pass
+        except: pass
 
         # recording overhead #
         try:
@@ -46909,8 +46726,7 @@ Copyright:
 
                 if SysMgr.jsonEnable:
                     jsonData['recOverhead'] = overhead
-        except:
-            pass
+        except: pass
 
         # load #
         try:
@@ -46924,8 +46740,7 @@ Copyright:
                 jsonData['load1m'] = self.loadData[0]
                 jsonData['load5m'] = self.loadData[1]
                 jsonData['load15m'] = self.loadData[2]
-        except:
-            pass
+        except: pass
 
         # task #
         try:
@@ -46945,8 +46760,7 @@ Copyright:
             if SysMgr.jsonEnable:
                 jsonData['nrRunTask'] = running
                 jsonData['nrTotalTask'] = total
-        except:
-            pass
+        except: pass
 
         # last PID #
         try:
@@ -46955,8 +46769,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['lastPid'] = self.loadData[4]
-        except:
-            pass
+        except: pass
 
         # open files #
         try:
@@ -46968,8 +46781,7 @@ Copyright:
             if SysMgr.jsonEnable:
                 jsonData['nrCurOpenFile'] = self.openFileData['cur']
                 jsonData['nrMaxOpenFile'] = self.openFileData['max']
-        except:
-            pass
+        except: pass
 
         # kernel args #
         try:
@@ -46985,8 +46797,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['cmdline'] = self.cmdlineData
-        except:
-            pass
+        except: pass
 
         # memo #
         try:
@@ -47000,8 +46811,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['memo'] = memo
-        except:
-            pass
+        except: pass
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -47034,10 +46844,8 @@ Copyright:
 
                     if SysMgr.jsonEnable:
                         jsonData[core[3:]] = info.strip()
-                except:
-                    pass
-        except:
-            pass
+                except: pass
+        except: pass
 
         if cnt == 0:
             SysMgr.infoBufferPrint("{0:^16}".format('None'))
@@ -47078,8 +46886,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['physical'] = physical
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
@@ -47087,8 +46894,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['corePerCPU'] = self.cpuInfo['cpu cores']
-        except:
-            pass
+        except: pass
 
         try:
             logical = long(self.cpuInfo['processor']) + 1
@@ -47097,8 +46903,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['logical'] = logical
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
@@ -47106,8 +46911,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['vendor'] = self.cpuInfo['vendor_id']
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
@@ -47115,8 +46919,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['model'] = self.cpuInfo['model name']
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
@@ -47124,8 +46927,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['cacheL2'] = self.cpuInfo['cache size']
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
@@ -47133,8 +46935,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['perf'] = self.cpuInfo['bogomips']
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
@@ -47142,8 +46943,7 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData['address'] = self.cpuInfo['address sizes']
-        except:
-            pass
+        except: pass
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -47297,8 +47097,7 @@ Copyright:
         # backup shm data #
         try:
             self.prevIpcData['shm'] = self.ipcData['shm']
-        except:
-            pass
+        except: pass
 
         # initialize shm variable #
         self.ipcData['shm'] = {}
@@ -47353,8 +47152,7 @@ Copyright:
         # backup msgq data #
         try:
             self.prevIpcData['msgq'] = self.ipcData['msgq']
-        except:
-            pass
+        except: pass
 
         # initialize msgq variable #
         self.ipcData['msgq'] = {}
@@ -47366,8 +47164,7 @@ Copyright:
                     lspid, lrpid, uid, gid, cuid, cgid,\
                     stime, rtime, ctime = \
                         line.split()
-            except:
-                pass
+            except: pass
 
             msgqData = self.ipcData['msgq'][msgqid] = {}
             msgqData['key'] = key
@@ -47405,8 +47202,7 @@ Copyright:
         # backup sem data #
         try:
             self.prevIpcData['sem'] = self.ipcData['sem']
-        except:
-            pass
+        except: pass
 
         # initialize sem variable #
         self.ipcData['sem'] = {}
@@ -47417,8 +47213,7 @@ Copyright:
                 key, semid, perms, nsems,\
                     uid, gid, cuid, cgid, otime, ctime = \
                         line.split()
-            except:
-                pass
+            except: pass
 
             semData = self.ipcData['sem'][semid] = {}
             semData['key'] = key
@@ -47443,8 +47238,7 @@ Copyright:
         try:
             self.macAddr = NetworkMgr.getMainMacAddr()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -47662,8 +47456,7 @@ Copyright:
                 self.openFileData['cur'] = stats[0]
                 self.openFileData['max'] = stats[2]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
 
 
@@ -47673,8 +47466,7 @@ Copyright:
 
         try:
             self.uname = os.uname()
-        except:
-            pass
+        except: pass
 
 
 
@@ -47707,8 +47499,7 @@ Copyright:
                     'shell': shell,
                 }
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
 
 
@@ -47770,8 +47561,7 @@ Copyright:
                 if err:
                     try:
                         proc.terminate()
-                    except:
-                        pass
+                    except: pass
                     SysMgr.printErr(err[err.find(':') + 2:])
                     sys.exit(0)
                 break
@@ -47780,8 +47570,7 @@ Copyright:
             try:
                 line = line.decode()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # MacOS #
             if SysMgr.isDarwin:
@@ -48014,8 +47803,7 @@ Copyright:
                 if val['fs'] != 'tmpfs':
                     storageData['total']['read'] += read
                     storageData['total']['write'] += write
-            except:
-                pass
+            except: pass
 
             # get device stat #
             try:
@@ -48043,8 +47831,7 @@ Copyright:
                     storageData['total']['total'] += total
                     storageData['total']['free'] += free
                     storageData['total']['favail'] += avail
-            except:
-                pass
+            except: pass
 
         # set total storage stat #
         try:
@@ -48054,8 +47841,7 @@ Copyright:
             storageData['total']['usagePer'] = \
                 long((total['total'] - total['free']) / \
                 float(total['total']) * 100)
-        except:
-            pass
+        except: pass
 
         return storageData
 
@@ -48114,8 +47900,7 @@ Copyright:
                                 cval = 'none'
                             item[target] = cval
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         def _getPaths(root, path):
             for dirpath, subdirs, subfiles in path:
@@ -48402,8 +48187,7 @@ Copyright:
                 try:
                     user = self.userData[stats['uid']]['name']
                     owner = '%s[%s]' % (owner, user)
-                except:
-                    pass
+                except: pass
 
                 if cnt > 0:
                     SysMgr.infoBufferPrint(oneLine)
@@ -48418,8 +48202,7 @@ Copyright:
                         convertSizeFunc(ownerData[pid]['rss'], True),
                         convertSizeFunc(ownerData[pid]['swap'], True),
                         ' '))
-            except:
-                pass
+            except: pass
 
             # key #
             key = hex(long(stats['key']))
@@ -48462,8 +48245,7 @@ Copyright:
                         convTimeFunc(ctime)[:10]))
 
                 cnt += 1
-            except:
-                pass
+            except: pass
 
         # check output count #
         if cnt == 0:
@@ -48703,8 +48485,7 @@ Copyright:
                         'compressed': convertFunc(tlist[6]),
                         'multicast': convertFunc(tlist[7]),
                     }
-            except:
-                pass
+            except: pass
 
         if cnt == 1:
             SysMgr.infoBufferPrint("\tNone")
@@ -48816,8 +48597,7 @@ Copyright:
                     totalInfo['read'] += read
                     totalInfo['write'] += write
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # get device stat #
             try:
@@ -48846,15 +48626,13 @@ Copyright:
                         totalInfo['total'] += total
                         totalInfo['free'] += free
                         totalInfo['favail'] += avail
-                except:
-                    pass
+                except: pass
 
                 total = UtilMgr.convSize2Unit(total)
                 free = UtilMgr.convSize2Unit(free)
                 avail = UtilMgr.convSize2Unit(avail)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # update device number #
             if major == '?' and minor == '?':
@@ -48877,8 +48655,7 @@ Copyright:
                 key = '%s (%s) %s' % \
                     (key, ','.join(self.devInfo['block'][major]), prange)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # print device info #
             SysMgr.infoBufferPrint("{0:<16}".format(key))
@@ -48911,8 +48688,7 @@ Copyright:
                         '{0:85} {1:<1}'.format(title, string))
                     title = ' '
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             try:
                 if SysMgr.jsonEnable:
@@ -48929,8 +48705,7 @@ Copyright:
                         'mount': '%s %s' % (val['path'], val['option']),
                     }
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # print total I/O size #
         if outputCnt == 0:
@@ -49409,8 +49184,7 @@ class DbusMgr(object):
             # recover EUID #
             try:
                 os.seteuid(euidOrig)
-            except:
-                pass
+            except: pass
 
             # save connection cache #
             if ret:
@@ -50598,8 +50372,7 @@ class DbusMgr(object):
                             mtype = DbusMgr.msgColorList[mtype.strip()]
                             name = '[%s]%s' % (mtype, stats)
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
                         if data['max'] > 0:
                             name = ('%s {Min: %.3f, Avr: %.3f, Max: %.3f%s}'
@@ -50667,8 +50440,7 @@ class DbusMgr(object):
                 try:
                     lock.release()
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             convertNum = UtilMgr.convNum
 
@@ -51190,8 +50962,7 @@ class DbusMgr(object):
                     try:
                         lock.release()
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
         def _updateDataFromPipe(rdPipeList):
             # merge dbus data #
@@ -51215,8 +50986,7 @@ class DbusMgr(object):
                         bus = busList[index]
                         service = busServiceList[tid][bus]
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     # handle data arrived #
                     while 1:
@@ -51230,8 +51000,7 @@ class DbusMgr(object):
                             try:
                                 rdPipeList.remove(robj)
                             except SystemExit: sys.exit(0)
-                            except:
-                                pass
+                            except: pass
                         elif output and len(output) > 0:
                             _updateData((tid, output, bus, service))
 
@@ -54042,8 +53811,7 @@ typedef struct {
                 try:
                     argList[idx] = self.retList[item[1:]]
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         return argList
 
@@ -54395,8 +54163,7 @@ typedef struct {
                 # convert address from registers #
                 try:
                     addr = args[addr]
-                except:
-                    pass
+                except: pass
 
                 # get address #
                 addr = UtilMgr.convStr2Num(addr)
@@ -54675,8 +54442,7 @@ typedef struct {
                 # convert address from registers #
                 try:
                     addr = args[addr]
-                except:
-                    pass
+                except: pass
 
                 # get address #
                 if UtilMgr.isNumber(addr):
@@ -54697,8 +54463,7 @@ typedef struct {
                 try:
                     ret = ret.decode()
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 self.retList[addr] = ret
                 self.prevReturn = ret
@@ -54709,8 +54474,7 @@ typedef struct {
                         ret = ret.split("\x00")[0]
                         size = len(ret)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                 # convert to binary #
                 try:
@@ -54837,8 +54601,7 @@ typedef struct {
                 # convert data format #
                 try:
                     data = repr(data)
-                except:
-                    pass
+                except: pass
 
                 output = "\n[%s] %s = %s%s" % (cmdstr, var, data, hexData)
                 SysMgr.addPrint(output)
@@ -56148,8 +55911,7 @@ typedef struct {
                 self.pyLibPath = exePath
                 return True
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check memory map #
         self.pyLibPath = self.getMapFilePathFast('libpython')
@@ -57362,8 +57124,7 @@ typedef struct {
                         cmsgdata = struct.unpack('Q', cmsgdata)[0]
                     else:
                         raise Exception()
-                except:
-                    pass
+                except: pass
                 finally:
                     msginfo['msg_control']['cmsg_data'] = cmsgdata
 
@@ -58147,8 +57908,7 @@ typedef struct {
                     if sig != signal.SIGSTOP and \
                         self.cont(check=True, sig=sig) == 0:
                         needStop = True
-                except:
-                    pass
+                except: pass
 
         # define variables #
         nrTotal = float(self.totalCall)
@@ -58525,8 +58285,7 @@ typedef struct {
             if mapstr == FileAnalyzer.procMapStrCache[self.pid]:
                 return False
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         finally:
             self.prevPmap = self.pmap
 
@@ -58722,8 +58481,7 @@ typedef struct {
                     self.cont()
 
                 sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # update file and addr lists from memory map #
         self.fileList, self.addrList = self.getAddrLists()
@@ -59058,8 +58816,7 @@ typedef struct {
                 SysMgr.addPrint(
                     '%s: %s\n%s\n' % (self.lastSig, signame, twoLine))
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # print backtrace #
         if bt:
@@ -59189,8 +58946,7 @@ typedef struct {
         if err:
             try:
                 self.callTable[sym]['err'] += 1
-            except:
-                pass
+            except: pass
             finally:
                 return
 
@@ -59858,8 +59614,7 @@ typedef struct {
                 rval = self.readWord(cfa+offset)
                 setattr(self.regs, reg, rval)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # get CFA offset for return address #
         pcIdx = ConfigMgr.pcRegIndex[SysMgr.arch]
@@ -59937,8 +59692,7 @@ typedef struct {
                     try:
                         btList.append(long(value))
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                 # get FP #
                 if readaheadStack:
@@ -60122,8 +59876,7 @@ typedef struct {
                         continue
                     break
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             return commonPos
 
@@ -60807,8 +60560,7 @@ typedef struct {
                     code = ConfigMgr.SIGFPE_CODE[code]
                 else:
                     raise Exception('no signal code')
-            except:
-                pass
+            except: pass
 
             callString = '%s {%ssi_code=%s' % (callString, errinfo, code)
 
@@ -60826,8 +60578,7 @@ typedef struct {
                             if comm:
                                 pid = '%s(%s)' % (comm, pid)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     # uid #
                     try:
@@ -60836,8 +60587,7 @@ typedef struct {
                             userData = SysMgr.sysInstance.userData
                             uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     if name == 'SIGCHLD':
                         # status #
@@ -61879,8 +61629,7 @@ typedef struct {
                     self.interDiff = self.vdiff - self.syscallTime[name]
                     self.updateSyscallStat(name, self.interDiff)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             args = []
             self.syscallTime[name] = self.vdiff
@@ -62550,8 +62299,7 @@ typedef struct {
         try:
             SysMgr.printFd.close()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         finally:
             SysMgr.printFd = None
 
@@ -63579,8 +63327,7 @@ typedef struct {
                     if sig != signal.SIGSTOP and \
                         instance.cont(check=True, sig=sig) == 0:
                         needStop = True
-                except:
-                    pass
+                except: pass
 
         if instance.isRealtime:
             mtype = 'Top'
@@ -63989,8 +63736,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             for tid in tlist:
                 try:
                     SysMgr.syscall('tkill', tid, signal.SIGCONT)
-                except:
-                    pass
+                except: pass
 
 
 
@@ -64462,8 +64208,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 try:
                     ret = waitpid(pid, pointer(status), 0x40000000)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # check termination #
                 if ret == -1:
@@ -64495,8 +64240,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         try:
             return SysMgr.guiderObj.ptrace(req, pid, addr, data)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         '''
 
         try:
@@ -64589,8 +64333,7 @@ class EventAnalyzer(object):
             SysMgr.printPipe(twoLine)
             try:
                 EventAnalyzer.printEvent()
-            except:
-                pass
+            except: pass
             SysMgr.printPipe(twoLine)
 
 
@@ -64622,8 +64365,7 @@ class EventAnalyzer(object):
                         'max: %3d, first: %7.3f, last: %7.3f]') % \
                         (msg, n[0], n[1], n[2], n[3], n[4],
                         float(n[5]) - startTime, float(n[6]) - startTime)
-                except:
-                    pass
+                except: pass
 
                 SysMgr.printPipe("%s" % string)
 
@@ -66793,8 +66535,7 @@ class ElfAnalyzer(object):
                 SysMgr.printWarn(
                     "'%s' is more recent than the cache '%s'" % (path, cpath))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # load object from file #
         obj = UtilMgr.loadObjectFromFile(cpath)
@@ -67135,8 +66876,7 @@ class ElfAnalyzer(object):
             if not incArg:
                 try:
                     dmSymbol = dmSymbol.split('(', 1)[0]
-                except:
-                    pass
+                except: pass
 
             # demangle symbols for rust #
             if isRust:
@@ -67260,8 +67000,7 @@ class ElfAnalyzer(object):
                 if err:
                     try:
                         proc.terminate()
-                    except:
-                        pass
+                    except: pass
                     SysMgr.printErr(err[err.find(':') + 2:])
                     sys.exit(0)
                 break
@@ -67278,8 +67017,7 @@ class ElfAnalyzer(object):
             if d['symbol'] == symbol:
                 try:
                     proc.terminate()
-                except:
-                    pass
+                except: pass
                 return d['offset']
             elif symbol in d['symbol']:
                 syms.append([d['symbol'], d['offset']])
@@ -68267,8 +68005,7 @@ class ElfAnalyzer(object):
                             if not os.path.isfile(debugPath):
                                 debugPath = None
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
             # merge a debug file #
             if debugPath:
@@ -68310,8 +68047,7 @@ class ElfAnalyzer(object):
             abspath = os.path.abspath(fd.name)
             if os.path.exists(abspath):
                 self.path = abspath
-        except:
-            pass
+        except: pass
 
         # define default file type #
         e_type = e_class = 'dummpy'
@@ -68911,8 +68647,7 @@ Section header string table index: %d
                     else:
                         symbol = ''
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # add symbol to table #
                 self.attr['dynsymTable'][symbol] = {
@@ -69634,8 +69369,7 @@ Section header string table index: %d
                     try:
                         regOrder.remove(rar)
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                     # define default title #
                     if not self.cfaTableTitle:
@@ -70784,8 +70518,7 @@ Section header string table index: %d
                         osize, nsize = UtilMgr.decodeULEB128(vals)
                         osize, nsize = UtilMgr.decodeSLEB128(vals[osize:])
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
                 else:
                     # TODO: implement below code #
                     '''
@@ -70805,8 +70538,7 @@ Section header string table index: %d
                         try:
                             opval = hex(opval)
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
                     verbStr += ' (%s%s)' % \
                         (opcode, ': %s' % opval if opval else '')
@@ -71192,15 +70924,13 @@ Section header string table index: %d
                                     try:
                                         addStr += '<0x%x>' % value
                                     except SystemExit: sys.exit(0)
-                                    except:
-                                        pass
+                                    except: pass
                                 # low_pc/high_pc/ranges/location #
                                 elif at in (0x11, 0x12, 0x55, 0x02):
                                     try:
                                         addStr += hex(value)
                                     except SystemExit: sys.exit(0)
-                                    except:
-                                        pass
+                                    except: pass
                                 # language #
                                 elif at == 0x13:
                                     if value in ElfAnalyzer.DW_LANG_MAP:
@@ -71520,8 +71250,7 @@ class TaskAnalyzer(object):
                 try:
                     cpuProcUsage[pinfo]['usage'] = list(map(long,
                         cpuProcUsage[pinfo]['usage'].split()))
-                except:
-                    pass
+                except: pass
 
                 # register the first task #
                 if prevTask != pname:
@@ -71591,8 +71320,7 @@ class TaskAnalyzer(object):
                     try:
                         unionCpuList[pname] = cpuStats[pname]['average']
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
             elif idx == nrFiles-1 and nrFiles > 1:
                 prevProcList = statFileList[flist[-2]]['cpuProcUsage']
                 lastProcList = statFileList[flist[-1]]['cpuProcUsage']
@@ -71628,8 +71356,7 @@ class TaskAnalyzer(object):
                         'usage': gusage,
                         }
                     gstats['gpuProcUsage'][pinfo] = gpuProcUsage[pinfo]
-                except:
-                    pass
+                except: pass
 
                 # register the first task #
                 if prevTask != pname:
@@ -71699,8 +71426,7 @@ class TaskAnalyzer(object):
                         try:
                             unionGpuList[pname] = gpuStats[pname]['average']
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
                 elif idx == nrFiles and nrFiles > 1:
                     unionGpuList[pname] = value['diff']
 
@@ -71802,8 +71528,7 @@ class TaskAnalyzer(object):
                     try:
                         unionRssList[pname] = memStats[pname]['maxRss']
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
             elif idx == nrFiles-1 and nrFiles > 1:
                 prevProcList = statFileList[flist[-2]]['memProcUsage']
                 lastProcList = statFileList[flist[-1]]['memProcUsage']
@@ -73170,8 +72895,7 @@ class TaskAnalyzer(object):
 
                     try:
                         totalRam = convSize(sline[1][:-1])
-                    except:
-                        pass
+                    except: pass
 
                     try:
                         totalSwap = convSize(sline[3][:-1])
@@ -73305,8 +73029,7 @@ class TaskAnalyzer(object):
 
                     idx = timeline.index(time)
                     eventList[idx].append('%s [%.2fs]' % (event, dtime))
-                except:
-                    pass
+                except: pass
 
             # CPU #
             elif context == 'CPU':
@@ -73745,14 +73468,12 @@ class TaskAnalyzer(object):
                     try:
                         chartStats[pname][sline[1].strip()] = \
                             list(map(long, sline[2:-1]))
-                    except:
-                        pass
+                    except: pass
                 elif long(pid) > 0:
                     try:
                         chartStats[pname][sline[1].strip()] = \
                             list(map(long, sline[2:-1]))
-                    except:
-                        pass
+                    except: pass
 
             # Cgroup.cpu Details #
             elif context == 'Cgroup.CPU':
@@ -74107,8 +73828,7 @@ class TaskAnalyzer(object):
             # apply formatter #
             ax.set_yticks(ax.get_yticks().tolist())
             ax.set_yticklabels(ytickLabel)
-        except:
-            pass
+        except: pass
 
 
 
@@ -74520,8 +74240,7 @@ class TaskAnalyzer(object):
                     xtickLabel[-1] = '   TIME(Sec)'
                     ax.set_xticklabels(xtickLabel)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
         elif xtype == 3:
             # draw the number of running tasks #
             try:
@@ -74541,8 +74260,7 @@ class TaskAnalyzer(object):
                 xtickLabel[-1] = '   RUN(NR)'
                 ax.set_xticklabels(xtickLabel)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
         elif xtype == 2:
             # draw the number of total tasks (proc/thread) #
             try:
@@ -74557,8 +74275,7 @@ class TaskAnalyzer(object):
                 xtickLabel[-1] = '   TASK(NR)'
                 ax.set_xticklabels(xtickLabel)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
 
 
@@ -74704,8 +74421,7 @@ class TaskAnalyzer(object):
                         axvline(x=timeline[tm], linewidth=1,
                             linestyle='--', color='green')
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
         def _drawCpu(graphStats, xtype, pos, size, delay=False):
             # draw title #
@@ -74776,8 +74492,7 @@ class TaskAnalyzer(object):
                         try:
                             if min(stat) == max(stat):
                                 continue
-                        except:
-                            pass
+                        except: pass
 
                         # set color #
                         if prefix:
@@ -75000,8 +74715,7 @@ class TaskAnalyzer(object):
                             for interval, value in enumerate(blkUsage):
                                 usage[interval] += value
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
                     # increase effectProcList count #
                     for seq, cnt in enumerate(usage):
@@ -75093,8 +74807,7 @@ class TaskAnalyzer(object):
 
                 ax.set_yticklabels(ytickLabel)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # set name #
             if delay:
@@ -75557,8 +75270,7 @@ class TaskAnalyzer(object):
 
             try:
                 ticklabel_format(useOffset=False)
-            except:
-                pass
+            except: pass
 
             # draw name #
             TaskAnalyzer.drawName(ax, 'I/O')
@@ -75591,8 +75303,7 @@ class TaskAnalyzer(object):
                     ax.set_ylim(top=1)
                     ax.get_yaxis().set_visible(False)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
@@ -75799,8 +75510,7 @@ class TaskAnalyzer(object):
                             if long(first) >= long(last):
                                 item['vssDiff'] = 0
                                 continue
-                        except:
-                            pass
+                        except: pass
 
                         # get minimum value #
                         try:
@@ -76023,8 +75733,7 @@ class TaskAnalyzer(object):
             elif ymin == 0:
                 try:
                     ax.set_ylim(bottom=0)
-                except:
-                    pass
+                except: pass
 
             # update yticks #
             TaskAnalyzer.drawYticks(ax, ymax)
@@ -76049,8 +75758,7 @@ class TaskAnalyzer(object):
 
                 ax.set_yticklabels(ytickLabel)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             xticks(fontsize=4)
             if len(timeline) > 1:
@@ -76225,8 +75933,7 @@ class TaskAnalyzer(object):
                     try:
                         if min(stat) == max(stat):
                             continue
-                    except:
-                        pass
+                    except: pass
 
                     # draw total GPU graph #
                     plot(timeline, stat, '-', c='olive', linestyle='-',
@@ -76364,8 +76071,7 @@ class TaskAnalyzer(object):
                         for interval, value in enumerate(blkUsage):
                             usage[interval] += value
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                 # update the maximum ytick #
                 maxusage = max(usage)
@@ -76435,8 +76141,7 @@ class TaskAnalyzer(object):
                 # remove space between axis and label #
                 tick_params(pad=1)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # draw name #
             TaskAnalyzer.drawName(ax, 'CPU')
@@ -76666,8 +76371,7 @@ class TaskAnalyzer(object):
                 # remove space between axis and label #
                 tick_params(pad=1)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # set xticks attributes #
             ax.set_xticklabels(_convNameLabel(graphStats['fileList']))
@@ -76766,8 +76470,7 @@ class TaskAnalyzer(object):
                     if SysMgr.funcDepth > 0:
                         nth = _findNthStr(stack, '\n', SysMgr.funcDepth)
                         stack = stack[:nth]
-                except:
-                    pass
+                except: pass
 
                 # count sampled stack #
                 try:
@@ -77226,8 +76929,7 @@ class TaskAnalyzer(object):
                     cid = '%s%s' % (val[1], val[3])
                     try:
                         elapsed = '%.6f' % (val[4] - callTable[cid])
-                    except:
-                        pass
+                    except: pass
 
                 cnt += 1
                 SysMgr.printPipe((
@@ -77321,8 +77023,7 @@ class TaskAnalyzer(object):
                 cid = '%s%s' % (val[1], val[4])
                 try:
                     elapsed = '%.6f' % (val[5] - callTable[cid])
-                except:
-                    pass
+                except: pass
 
             cnt += 1
             args = (' '.join(val[7].split(' arg'))).replace('=','>')
@@ -77516,8 +77217,7 @@ class TaskAnalyzer(object):
                         value['pri'] = 'D99'
                     else:
                         value['pri'] = 'R%2s' % abs(prio + 21)
-                except:
-                    pass
+                except: pass
 
                 continue
 
@@ -77959,16 +77659,14 @@ class TaskAnalyzer(object):
             totalPreemptedCnt = '%5s' % convertFunc(totalPreemptedCnt)
             totalPreemptionCnt = '%5s' % convertFunc(totalPreemptionCnt)
             totalMigrateCnt = '%4s' % convertFunc(totalMigrateCnt)
-        except:
-            pass
+        except: pass
 
         try:
             if precise:
                 totalIrqTime = '%5.6f' % totalIrqTime
             else:
                 totalIrqTime = '%5.2f' % totalIrqTime
-        except:
-            pass
+        except: pass
 
         try:
             if precise:
@@ -77982,8 +77680,7 @@ class TaskAnalyzer(object):
             else:
                 totalIoWrWait = '%5.2f' % totalIoWrWait
             totalWriteBlock = '%3d' % totalWriteBlock
-        except:
-            pass
+        except: pass
 
         try:
             totalUsedMem = '%4d' % totalUsedMem
@@ -77997,8 +77694,7 @@ class TaskAnalyzer(object):
                 totalDreclaimedTime = '%4.6f' % totalDreclaimedTime
             else:
                 totalDreclaimedTime = '%4.2f' % totalDreclaimedTime
-        except:
-            pass
+        except: pass
 
         lastField = "%3s|%3s|%4s(%2s)" % \
             (totalReclaimedMem, totalWastedMem,
@@ -78475,8 +78171,7 @@ class TaskAnalyzer(object):
                     if self.futexData[prevCnt][0] == value[0]:
                         tid = comm = '.'
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 nextCnt = icount + 1
                 if icount + 1 <= len(self.futexData) and \
@@ -78496,8 +78191,7 @@ class TaskAnalyzer(object):
                     if ret < 0:
                         try:
                             ret = '%s' % ConfigMgr.ERR_TYPE[abs(ret+1)]
-                        except:
-                            pass
+                        except: pass
                 except:
                     ret = value[7]
 
@@ -78509,8 +78203,7 @@ class TaskAnalyzer(object):
 
                 prevCnt = icount
                 cnt += 1
-            except:
-                pass
+            except: pass
 
         if cnt == 0:
             SysMgr.printPipe("\tNone")
@@ -78795,8 +78488,7 @@ class TaskAnalyzer(object):
                         '%.6f' % val['min'], '%.6f' % val['max'],
                         val['average'])
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # add total info #
                 try:
@@ -78824,8 +78516,7 @@ class TaskAnalyzer(object):
                     totalInfo[sysId]['average'] = \
                         totalInfo[sysId]['usage'] / totalInfo[sysId]['count']
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             if syscallInfo != '':
                 outputCnt += 1
@@ -78995,8 +78686,7 @@ class TaskAnalyzer(object):
                     if nrRet < 0:
                         ret = ConfigMgr.ERR_TYPE[abs(nrRet) - 1]
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 if prevCnt > -1 and prevData[2] == nowData[2]:
                     tid = comm = '.'
@@ -80186,8 +79876,7 @@ class TaskAnalyzer(object):
                     [convertNum(val << 20, True) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
-            except:
-                pass
+            except: pass
 
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize=5)
@@ -80324,8 +80013,7 @@ class TaskAnalyzer(object):
                 if inc == 0:
                     inc = 1
                 yticks(range(0, long(ymax + inc), inc), fontsize=5)
-            except:
-                pass
+            except: pass
 
             suptitle('Guider Thread Graph', fontsize=8)
 
@@ -80696,8 +80384,7 @@ class TaskAnalyzer(object):
                 instance=obj.procData, printFunc=SysMgr.infoBufferPrint,
                 color=color)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
         finally:
             SysMgr.processEnable = orig
 
@@ -80924,8 +80611,7 @@ class TaskAnalyzer(object):
 
                 try:
                     procIndexData['total']['gpu'][gpu] = usage
-                except:
-                    pass
+                except: pass
 
                 return
 
@@ -80990,8 +80676,7 @@ class TaskAnalyzer(object):
                 except:
                     TA.procTotData['total']['storage'][dev]['free'] = freeDiff
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             return
 
@@ -81030,8 +80715,7 @@ class TaskAnalyzer(object):
                     TA.procTotData['total']['netdev'][dev]['tran'] += tran
                 except:
                     TA.procTotData['total']['netdev'][dev]['tran'] = tran
-            except:
-                pass
+            except: pass
 
             return
 
@@ -81068,8 +80752,7 @@ class TaskAnalyzer(object):
             try:
                 procIndexData['total'].setdefault(target, {})
                 procIndexData['total'][target][system] = usage
-            except:
-                pass
+            except: pass
 
             # Memory #
             target = 'cgroup.mem'
@@ -81096,8 +80779,7 @@ class TaskAnalyzer(object):
             try:
                 procIndexData['total'].setdefault(target, {})
                 procIndexData['total'][target][system] = usage
-            except:
-                pass
+            except: pass
 
             return
 
@@ -81164,8 +80846,7 @@ class TaskAnalyzer(object):
 
                 return
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check pid in list #
         if pid not in TA.procTotData:
@@ -81814,8 +81495,7 @@ class TaskAnalyzer(object):
             if maxRss - minRss > 0:
                 try:
                     procInfo = procInfo.replace(' (', '^(', 1)
-                except:
-                    pass
+                except: pass
 
             SysMgr.printPipe(
                 ("{0:1} {1:1}\n").format(procInfo, timeLine))
@@ -81943,8 +81623,7 @@ class TaskAnalyzer(object):
             if maxVss - minVss > 0:
                 try:
                     procInfo = procInfo.replace(' (', '^(', 1)
-                except:
-                    pass
+                except: pass
 
             SysMgr.printPipe(
                 ("{0:1} {1:1}\n").format(procInfo, timeLine))
@@ -82321,8 +82000,7 @@ class TaskAnalyzer(object):
                     SysMgr.outPath == 'NUL':
                     return
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # ftop mode #
         if SysMgr.fileTopEnable:
@@ -83056,8 +82734,7 @@ class TaskAnalyzer(object):
                 try:
                     line = line.decode('utf-8')
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # check system info #
                 if end == -1:
@@ -83191,8 +82868,7 @@ class TaskAnalyzer(object):
                         did = '%s:%s' % (major, minor)
                         break
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         # map data to total table #
         if opt == 'R':
@@ -83350,8 +83026,7 @@ class TaskAnalyzer(object):
                         curIntval['totalCustomEvent'][evt]['count'] = \
                             tdata['customEvent'][evt]['count']
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
             # initialize user event list #
             if SysMgr.userEventList:
@@ -83368,8 +83043,7 @@ class TaskAnalyzer(object):
                         curIntval['totalUserEvent'][evt]['usage'] = \
                             tdata['userEvent'][evt]['usage']
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
             # initialize kernel event list #
             if SysMgr.kernelEventList:
@@ -83386,8 +83060,7 @@ class TaskAnalyzer(object):
                         curIntval['totalKernelEvent'][evt]['usage'] = \
                             tdata['kernelEvent'][evt]['usage']
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
             # first interval #
             if SysMgr.intervalNow == intervalEnable:
@@ -84094,8 +83767,7 @@ class TaskAnalyzer(object):
                         [prev_id, time, core, opt, otype,
                         '', locks, '', ''])
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # update total block time with lock by futex #
             if self.threadData[next_id]['ftxLBlock'] > 0:
@@ -84302,8 +83974,7 @@ class TaskAnalyzer(object):
                 try:
                     nextIdx = SysMgr.preemptGroup.index(next_id)
                     self.preemptData[nextIdx][0] = False
-                except:
-                    pass
+                except: pass
 
                 # add preempted time to list for histogram #
                 if not next_id.startswith('0['):
@@ -84889,8 +84560,7 @@ class TaskAnalyzer(object):
                         # remove already unlocked futex #
                         try:
                             td['futexObj'].pop(addr, None)
-                        except:
-                            pass
+                        except: pass
                     # wait #
                     elif maskedOp == flist.index("FUTEX_WAIT") or \
                         maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
@@ -84953,8 +84623,7 @@ class TaskAnalyzer(object):
                     self.syscallData.append(
                         ['ENT', time, thread, core, nrstr, args])
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
             else:
                 self.syscallData.append(
                     ['ENT', time, thread, core, nrstr, args])
@@ -85090,8 +84759,7 @@ class TaskAnalyzer(object):
                         self.wakeupData['time'] = allTime
                         self.lastJob[core]['prevWakeupTid'] = thread
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # register syscall #
             try:
@@ -85164,8 +84832,7 @@ class TaskAnalyzer(object):
                 try:
                     self.syscallData.append(
                         ['RET', time, thread, core, nrstr, ret, diff])
-                except:
-                    pass
+                except: pass
             else:
                 self.syscallData.append(
                     ['RET', time, thread, core, nrstr, ret, diff])
@@ -85360,8 +85027,7 @@ class TaskAnalyzer(object):
 
                             # remove bio request in table #
                             self.ioData.pop(mbio, None)
-                        except:
-                            pass
+                        except: pass
 
                         # recreate partial ioData uncompleted #
                         bio = '%s/%s/%s/%s' % \
@@ -85938,8 +85604,7 @@ class TaskAnalyzer(object):
                 flags = long(flags, 16)
                 oneway = 0x1 & flags
                 flags = hex(flags)
-            except:
-                pass
+            except: pass
 
             # sender thread #
             sthr = '%s(%s)' % (comm, thread)
@@ -86257,8 +85922,7 @@ class TaskAnalyzer(object):
                     self.threadData[scoreId]['lastOff'] = float(ed['time'])
                     self.threadData[scoreId]['start'] = float(ed['time'])
                     self.threadData[scoreId]['lastStatus'] = 'R'
-                except:
-                    pass
+                except: pass
 
             # save consol log #
             self.consoleData.append([d['thread'], core, time, etc])
@@ -86705,8 +86369,7 @@ class TaskAnalyzer(object):
                         if uds:
                             path = '%s (%s)' % (path, uds[0])
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # apply filter #
                 if fileFilter:
@@ -86848,8 +86511,7 @@ class TaskAnalyzer(object):
         try:
             pids.remove(str(SysMgr.pid))
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # get psutil object #
         if SysMgr.isLinux:
@@ -87030,8 +86692,7 @@ class TaskAnalyzer(object):
                     irqSum = sum(list(map(long, irqList[1:cpuCnt])))
                     if irqSum > 0:
                         self.irqData[irqList[0][:-1]] = irqSum
-                except:
-                    pass
+                except: pass
 
 
 
@@ -87289,8 +86950,7 @@ class TaskAnalyzer(object):
         try:
             SysMgr.loadavg = psutil.getloadavg()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # memory #
         try:
@@ -87310,8 +86970,7 @@ class TaskAnalyzer(object):
             self.vmData['inactive'] = mem[6]
             self.vmData['wired'] = mem[7]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # swap #
         try:
@@ -87324,8 +86983,7 @@ class TaskAnalyzer(object):
             self.vmData['pswpin'] = swap[4] >> 10
             self.vmData['pswpout'] = swap[5] >> 10
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # disk #
         if SysMgr.diskEnable:
@@ -87344,16 +87002,14 @@ class TaskAnalyzer(object):
             raise Exception()
             temp = psutil.sensors_temperatures(fahrenheit=False)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # fan #
         try:
             raise Exception()
             fan = psutil.sensors_fans()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # battery #
         try:
@@ -87361,16 +87017,14 @@ class TaskAnalyzer(object):
             if battery:
                 SysMgr.battery = battery
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # users #
         try:
             raise Exception()
             user = psutil.users()
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # process #
         self.saveProcStatGen()
@@ -87882,8 +87536,7 @@ class TaskAnalyzer(object):
                 SysMgr.procInstance[tid]['maps'] = \
                     SysMgr.procInstance[ppid]['maps']
                 return
-        except:
-            pass
+        except: pass
 
         try:
             SysMgr.procInstance[tid]['maps'] = ptable
@@ -87970,8 +87623,7 @@ class TaskAnalyzer(object):
                             except:
                                 ptable[mtype]['NOPM'] = val
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         # save the number of mapping #
         ptable['FILE']['count'] = len(ftable)
@@ -87982,8 +87634,7 @@ class TaskAnalyzer(object):
             ppid = SysMgr.procInstance[tid]['mainID']
             SysMgr.procInstance[ppid]['maps'] = \
                 SysMgr.procInstance[tid]['maps']
-        except:
-            pass
+        except: pass
 
 
 
@@ -88142,8 +87793,7 @@ class TaskAnalyzer(object):
                 self.gpuData[target]['MAX_FREQ'] = \
                     long(fd.readline()[:-1]) / 1000000
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
 
 
@@ -88297,8 +87947,7 @@ class TaskAnalyzer(object):
                         self.procData[tid]['status'][statusList[0]] = \
                             statusList[1].strip()
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
         # PID/statm #
         stat = 'statm'
@@ -88444,8 +88093,7 @@ class TaskAnalyzer(object):
                     if flag != 'CONT':
                         SysMgr.affinityFilter.remove(item)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         # send signal #
         if SysMgr.killFilter:
@@ -88465,8 +88113,7 @@ class TaskAnalyzer(object):
                     if flag != 'CONT':
                         SysMgr.killFilter.remove(item)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         # save I/O data #
         if SysMgr.blockEnable:
@@ -88607,8 +88254,7 @@ class TaskAnalyzer(object):
                     val[item] = None
                     nrRclm += 1
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             # return the number of closed files #
             if nrRclm >= nrReq:
@@ -89042,8 +88688,7 @@ class TaskAnalyzer(object):
                 if SysMgr.perCoreList and not idx in SysMgr.perCoreList:
                     coreStats.pop(idx, None)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         # divide total CPU usage by the number of cores #
         userUsage = long(userUsage / nrCore)
@@ -89175,8 +88820,7 @@ class TaskAnalyzer(object):
                     if os.path.isfile(devPath):
                         tempDirList.append(devPath)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             tempPath = []
             for tempDir in tempDirList:
@@ -89191,8 +88835,7 @@ class TaskAnalyzer(object):
                     if fd.readline()[:-1] == 'coretemp':
                         tempPath.append(os.path.dirname(tempDir))
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             # /sys/class/hwmon #
             for hwPath in tempPath:
@@ -89235,8 +88878,7 @@ class TaskAnalyzer(object):
 
                             tempData[coreId] = long(tfd.readline()[:-4])
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
 
                 for idx, val in sorted(
                     tempData.items(), key=lambda x:long(x[0])):
@@ -89266,8 +88908,7 @@ class TaskAnalyzer(object):
                         elif 'GPU' in ctype:
                             coreTempData['GPU'] = long(fd.readline()[:-4])
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
         # print CPU stats #
         perCoreStats = {}
@@ -89369,8 +89010,7 @@ class TaskAnalyzer(object):
                         if len(freq) > 2:
                             maxFreq = long(freq[2]) << 10
                     except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    except: pass
                 else:
                     # set default path #
                     defPath = '%s%s/cpufreq' % (freqPath, idx)
@@ -89537,8 +89177,7 @@ class TaskAnalyzer(object):
                                 long(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # merge temperature info #
                 try:
@@ -89561,8 +89200,7 @@ class TaskAnalyzer(object):
                 try:
                     coreFreq = '{0:^13} | {1:>1}'.format(gov, coreFreq)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # print final output for a core #
                 try:
@@ -89596,8 +89234,7 @@ class TaskAnalyzer(object):
                     SysMgr.addPrint(
                         '%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             # print remain core stats #
             if shortCoreStats:
@@ -89724,8 +89361,7 @@ class TaskAnalyzer(object):
             self.reportData['system']['load5m'] = loads[1]
             self.reportData['system']['load15m'] = loads[2]
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # CPU #
         self.reportData['cpu'] = {
@@ -89770,8 +89406,7 @@ class TaskAnalyzer(object):
             self.reportData['mem']['cmaFree'] = cmaFreeMem
             self.reportData['mem']['cmaDev'] = cmaDevMem
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # swap #
         self.reportData['swap'] = {
@@ -90208,8 +89843,7 @@ class TaskAnalyzer(object):
             try:
                 prop = 'Shared_Clean:'
                 sss += item[prop]
-            except:
-                pass
+            except: pass
 
             try:
                 prop = 'Shared_Dirty:'
@@ -90259,8 +89893,7 @@ class TaskAnalyzer(object):
                             (SysMgr.procPath, idx)
                         with open(path, 'w') as fd:
                             fd.write('1')
-                    except:
-                        pass
+                    except: pass
 
                 # update WSS history #
                 try:
@@ -90363,8 +89996,7 @@ class TaskAnalyzer(object):
                     '+' if SysMgr.battery[2] else '-'
                 )
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # print stats #
         SysMgr.addPrint(UtilMgr.convColor((
@@ -90400,8 +90032,7 @@ class TaskAnalyzer(object):
                         'plugged': 'true' if SysMgr.battery[2] else 'false'
                     }
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
 
 
@@ -90625,8 +90256,7 @@ class TaskAnalyzer(object):
                         convertFunc(tdiff[3]), convertFunc(tdiff[-1])))
                 cnt += 1
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
         if cnt == 0:
             SysMgr.addPrint('\tNone\n')
@@ -90992,8 +90622,7 @@ class TaskAnalyzer(object):
                                 prevStat = long(prevStat.rstrip())
                                 stat = stat - prevStat
                             except SystemExit: sys.exit(0)
-                            except:
-                                pass
+                            except: pass
 
                     # save stat #
                     stats[group].setdefault(name, stat)
@@ -91435,8 +91064,7 @@ class TaskAnalyzer(object):
                             line = ' ' * initIndent
 
                         line = '%s%s <- ' % (line, astack)
-                    except:
-                        pass
+                    except: pass
 
                 fullstack += line
                 fullstack = fullstack.rstrip(' <- ')
@@ -91484,8 +91112,7 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('TOTAL_USAGE', cpuTotalStr))
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # get total delay #
             cpuDelay = val['cpu_delay_total']
@@ -91915,8 +91542,7 @@ class TaskAnalyzer(object):
                     else:
                         shr = convColor(shr, 'YELLOW', 3)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # convert color for BTIME #
             if float(btime) > 0:
@@ -91931,8 +91557,7 @@ class TaskAnalyzer(object):
                     else:
                         sched = convColor(sched, 'RED', 4)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # print stats of a process #
             ret = SysMgr.addPrint(
@@ -91981,8 +91606,7 @@ class TaskAnalyzer(object):
                     totalStats['yld'] += yld
                     totalStats['prtd'] += prtd
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
             else:
                 totalStats['yld'] = '-'
                 totalStats['prtd'] = '-'
@@ -92079,8 +91703,7 @@ class TaskAnalyzer(object):
                             memstr += \
                                 '%s: %s, ' % (item, convertFunc(vmsize))
                         except SystemExit: sys.exit(0)
-                        except:
-                            pass
+                        except: pass
 
                     if memstr:
                         SysMgr.addPrint(
@@ -92136,8 +91759,7 @@ class TaskAnalyzer(object):
             try:
                 _printDelay(self, value)
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
 
             # print D-Bus #
             if 'dbusList' in value and value['dbusList']:
@@ -92152,14 +91774,12 @@ class TaskAnalyzer(object):
                         SysMgr.addPrint('---more---')
                         return
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 try:
                     self.stackTable[idx]['total'] = 0
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
             procCnt += 1
             if SysMgr.memEnable:
@@ -92278,8 +91898,7 @@ class TaskAnalyzer(object):
 
             try:
                 jsonData[idx] = value
-            except:
-                pass
+            except: pass
 
             # set comm #
             comm = stat[self.commIdx][1:-1]
@@ -92476,8 +92095,7 @@ class TaskAnalyzer(object):
         if type(data) is bytes:
             try:
                 data = data.decode()
-            except:
-                pass
+            except: pass
 
         if not UtilMgr.isString(data):
             SysMgr.printErr("failed to recognize data from server")
@@ -92731,8 +92349,7 @@ class TaskAnalyzer(object):
             try:
                 SysMgr.printFd.close()
             except SystemExit: sys.exit(0)
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.printFd = None
 
@@ -92769,8 +92386,7 @@ class TaskAnalyzer(object):
             try:
                 SysMgr.termFlag = False
                 SysMgr.stopHandler()
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.termFlag = True
 
@@ -92928,29 +92544,25 @@ class TaskAnalyzer(object):
         try:
             self.checkThreshold('cpu', 'total', 'CPU', 'big')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check memory #
         try:
             self.checkThreshold('mem', 'available', 'MEM', 'less')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check swap #
         try:
             self.checkThreshold('swap', 'usagePer', 'SWAP', 'big')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check iowait #
         try:
             self.checkThreshold('block', 'ioWait', 'IO', 'big')
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check storage #
         try:
@@ -92983,8 +92595,7 @@ class TaskAnalyzer(object):
                 except:
                     continue
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check network #
         try:
@@ -93021,8 +92632,7 @@ class TaskAnalyzer(object):
                     self.checkThreshold(
                         'net', 'trans', 'NETWORK', 'big', trans, 'DEVICE')
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
 
                 # a specific device #
                 try:
@@ -93034,11 +92644,9 @@ class TaskAnalyzer(object):
                     self.checkThreshold(
                         'net', 'trans', 'NETWORK', 'big', trans, dev)
                 except SystemExit: sys.exit(0)
-                except:
-                    pass
+                except: pass
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check sched #
         try:
@@ -93068,8 +92676,7 @@ class TaskAnalyzer(object):
                 self.checkThreshold(
                     'task', 'abnormal', 'ABNORMAL', None, target)
         except SystemExit: sys.exit(0)
-        except:
-            pass
+        except: pass
 
         # check task #
         try:
@@ -93410,15 +93017,13 @@ class TaskAnalyzer(object):
                     try:
                         self.reportData['mem']['procs'][pid]['swap'] = \
                             long(data['status']['VmSwap'].split()[0]) >> 10
-                    except:
-                        pass
+                    except: pass
 
                     # shared #
                     try:
                         self.reportData['mem']['procs'][pid]['shared'] = \
                             long(data['statm'][self.shrIdx]) >> 8
-                    except:
-                        pass
+                    except: pass
 
                     rank += 1
 
@@ -93461,8 +93066,7 @@ class TaskAnalyzer(object):
             # sync and close output file #
             try:
                 SysMgr.printFd.close()
-            except:
-                pass
+            except: pass
             finally:
                 SysMgr.printFd = None
 
