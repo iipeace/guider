@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220105"
+__revision__ = "220106"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5125,7 +5125,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convSize2Unit(size, isInt=False):
+    def convSize2Unit(size, isInt=False, unit=None):
         sizeKB = long(1024)
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
@@ -5137,6 +5137,29 @@ class UtilMgr(object):
         except SystemExit: sys.exit(0)
         except:
             return '?'
+
+        if unit:
+            factor = 1 if isInt else 1.0
+
+            if unit.upper() == 'K':
+                val = size / sizeKB * factor
+            elif unit.upper() == 'M':
+                val = size / sizeMB * factor
+            elif unit.upper() == 'G':
+                val = size / sizeGB * factor
+            elif unit.upper() == 'T':
+                val = size / sizeTB * factor
+            else:
+                SysMgr.printErr(
+                    "no support size unit '%s'" % unit)
+                sys.exit(0)
+
+            if isInt:
+                num = UtilMgr.convNum(long(val))
+            else:
+                num = UtilMgr.convNum(round(float(val), 1), isFloat=True)
+
+            return '%s%s' % (num, unit.upper())
 
         # Int type #
         if isInt:
@@ -7694,14 +7717,12 @@ class Timeline(object):
 
     class Config(object):
         def _conv_palette(self, palette):
-            # get svgwrite object #
-            svgwrite = SysMgr.getPkg('svgwrite')
-
             plist = []
             for palette_entry in palette:
                 rgb = [int(rgb_value) for rgb_value in \
                     re.findall("\d+", palette_entry)]
-                plist.append(svgwrite.rgb(rgb[0], rgb[1], rgb[2]))
+                color = 'rgb%s' % palette_entry
+                plist.append(color)
             return plist
 
         def __init__(self):
@@ -15790,6 +15811,11 @@ class LeakAnalyzer(object):
             SysMgr.printPipe('\tNone')
         SysMgr.printPipe(oneLine)
 
+        # check exit condition #
+        if not self.callData:
+            SysMgr.printWarn("no sample data", True)
+            return
+
         # draw flamegraph #
         if SysMgr.inputFile:
             inputFile = SysMgr.inputFile
@@ -15800,7 +15826,7 @@ class LeakAnalyzer(object):
         Debugger.drawFlame(inputFile, stackList, titleStr)
 
         # check exit condition #
-        if not SysMgr.showAll or not self.callData:
+        if not SysMgr.showAll:
             return
 
         # leakage history #
@@ -15857,6 +15883,8 @@ class LeakAnalyzer(object):
                 self.symData[sym]['lastPosSize'] = val['lastPosSize']
                 self.symData[sym]['substack'] = {}
 
+            # merge by backtrace #
+            path = val['path']
             if val['callList']:
                 for time in list(val['callList']):
                     callinfo = self.callData[time]
@@ -15871,7 +15899,6 @@ class LeakAnalyzer(object):
                             long(callinfo['size'])
 
             # merge by file #
-            path = val['path']
             try:
                 self.fileData[path]['count'] += val['count']
                 self.fileData[path]['size'] += val['size']
@@ -15976,7 +16003,11 @@ class LeakAnalyzer(object):
                     time = body
                 elif name == 'stack':
                     # split callstack #
-                    item[name] = body.split()
+                    try:
+                        item[name] = body.split()
+                        item[name] = item[name][1:]
+                    except SystemExit: sys.exit(0)
+                    except: pass
                 else:
                     item[name] = body
 
@@ -19708,6 +19739,10 @@ Commands:
         elif SysMgr.checkMode('systop'):
             SysMgr.doTrace('syscall')
 
+        # kernelcall #
+        elif SysMgr.checkMode('ktop'):
+            SysMgr.doTrace('kernel')
+
         # network #
         elif SysMgr.checkMode('ntop'):
             SysMgr.networkEnable = True
@@ -22771,6 +22806,7 @@ Commands:
                 'disktop': ('Storage', 'Linux/MacOS/Windows'),
                 'dlttop': ('DLT', 'Linux/MacOS'),
                 'ftop': ('File', 'Linux/MacOS'),
+                'ktop': ('Kernel', 'Linux'),
                 'mtop': ('Memory', 'Linux'),
                 'ntop': ('Network', 'Linux/MacOS/Windows'),
                 'ptop': ('PMU', 'Linux'),
@@ -24410,6 +24446,108 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
+                # kernel top #
+                elif SysMgr.checkMode('ktop'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Monitor kernel function calls
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - {2:1} for specific threads
+        # {0:1} {1:1} -g a.out
+
+    - {2:1} from a specific binary
+        # {0:1} {1:1} a.out
+        # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
+        # {0:1} {1:1} -I a.out
+
+    - {2:1} and report the result to ./guider.out when SIGINT signal arrives
+        # {0:1} {1:1} -o .
+
+    - {2:1} and report the result in JSON format
+        # {0:1} {1:1} -J
+        # {0:1} {1:1} -J -Q
+
+    - {2:1} for specific threads having specific TID
+        # {0:1} {1:1} -g 1234 -q ONLYPID
+
+    - {2:1} for specific threads having specific task name
+        # {0:1} {1:1} -g 1234 -q ONLYCOMM
+
+    - {2:1} for specific processes having specific task name
+        # {0:1} {1:1} -g 1234 -q ONLYPROC
+
+    - {2:1} without using sample cache for specific threads
+        # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
+
+    - {2:1} and standard output from a specific binary
+        # {0:1} {1:1} a.out -q NOMUTE
+
+    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+
+    - {2:1} from a specific binary excluding specific environment variable
+        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
+
+    - {2:1} for specific threads from a specific binary
+        # {0:1} {1:1} a.out -g a.out
+        # {0:1} {1:1} -I a.out -g a.out
+
+    - {2:1} for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -q WAITCLONE
+
+    - {2:1} for specific threads (wait for new target if no task)
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
+
+    - {2:1} for specific threads even if the master tracer is terminated
+        # {0:1} {1:1} a.out -g a.out -q CONTALONE
+
+    - {2:1} except for wait status for specific threads
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+
+    - {2:1} for specific threads consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
+    - {2:1} for 4th and 5th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
+
+    - {2:1} for a specific binary execution with enviornment variables
+        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+
+    - {2:1} for specific threads after user input
+        # {0:1} {1:1} -g a.out -W
+
+    - {2:1} for specific threads after 5 seconds
+        # {0:1} {1:1} -g a.out -W 5s
+
+    - {2:1} for specific threads from 100 seconds of uptime
+        # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
+
+    - {2:1} for specific threads until 100 seconds of uptime
+        # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
+
+    - {2:1} for specific threads every 2 second for 1 minute with 1 ms sampling
+        # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
+
+    - Monitor CPU usage on whole system of native function calls for specific threads
+        # {0:1} {1:1} -g a.out -e c
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode, 'Monitor kernel function calls')
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
                 # usercall top #
                 elif SysMgr.checkMode('utop'):
                     helpStr = '''
@@ -24530,10 +24668,10 @@ Examples:
         # {0:1} {1:1} -g a.out -W 5s
 
     - {3:1} for specific threads from 100 seconds of uptime
-        # {0:1} {1:1} -g a.out -q START:100 -W
+        # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
 
     - {3:1} for specific threads until 100 seconds of uptime
-        # {0:1} {1:1} -g a.out -q DEADLINE:100 -R
+        # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
 
     - {3:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
@@ -26551,9 +26689,11 @@ Description:
         LEAKTRACER_ONSIG_REPORT=36 EXEC
 
     If the target process is on secure-execution mode,
-    libleaktracer.so should be in standard search directoriesspecified in /etc/ld.so.conf,
+    libleaktracer.so should be in standard search directories specified in /etc/ld.so.conf,
     And all slashes in it's preload path will be ignored
     Otherwise add the library path to /etc/ld.so.preload
+
+    Once leaktrace starts, the memory usage of the target process will increase rapidly due to logging data.
 
 Options:
     -I  <DIR|FILE>              set input path
@@ -33702,25 +33842,26 @@ Copyright:
     @staticmethod
     def isTopMode():
         if SysMgr.checkMode('top') or \
+            SysMgr.checkMode('atop') or \
+            SysMgr.checkMode('bgtop') or \
+            SysMgr.checkMode('btop') or \
+            SysMgr.checkMode('cgtop') or \
+            SysMgr.checkMode('ctop') or \
+            SysMgr.checkMode('dbustop') or \
+            SysMgr.checkMode('disktop') or \
+            SysMgr.checkMode('dlttop') or \
+            SysMgr.checkMode('ftop') or \
+            SysMgr.checkMode('ktop') or \
+            SysMgr.checkMode('mtop') or \
+            SysMgr.checkMode('ntop') or \
+            SysMgr.checkMode('ptop') or \
+            SysMgr.checkMode('pytop') or \
+            SysMgr.checkMode('rtop') or \
+            SysMgr.checkMode('stacktop') or \
+            SysMgr.checkMode('systop') or \
             SysMgr.checkMode('ttop') or \
             SysMgr.checkMode('utop') or \
-            SysMgr.checkMode('btop') or \
-            SysMgr.checkMode('systop') or \
-            SysMgr.checkMode('pytop') or \
-            SysMgr.checkMode('ftop') or \
-            SysMgr.checkMode('stacktop') or \
-            SysMgr.checkMode('ptop') or \
-            SysMgr.checkMode('mtop') or \
-            SysMgr.checkMode('wtop') or \
-            SysMgr.checkMode('rtop') or \
-            SysMgr.checkMode('bgtop') or \
-            SysMgr.checkMode('atop') or \
-            SysMgr.checkMode('ctop') or \
-            SysMgr.checkMode('ntop') or \
-            SysMgr.checkMode('dlttop') or \
-            SysMgr.checkMode('cgtop') or \
-            SysMgr.checkMode('dbustop') or \
-            SysMgr.checkMode('disktop'):
+            SysMgr.checkMode('wtop'):
             return True
         else:
             return False
@@ -39599,11 +39740,9 @@ Copyright:
         Debugger.globalEvent = SysMgr.createShm()
 
         # check symbol requirement #
-        needSymbol = (
-            SysMgr.funcDepth > 0 or \
-            mode == 'usercall' or mode == 'sample' or \
-            mode == 'breakcall' or mode == 'hook' or \
-            mode == 'pytrace' or mode == 'bind')
+        needSymbol = SysMgr.funcDepth > 0 or \
+            mode in ('usercall', 'sample', 'breakcall',
+                'hook', 'pytrace', 'bind')
 
         # set dwarf flag #
         SysMgr.setDwarfFlag()
@@ -39734,7 +39873,10 @@ Copyright:
 
         # start tracing #
         try:
-            if mode == 'usercall':
+            if mode == 'kernelcall':
+                dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                dobj.trace(mode='kernel', wait=wait, multi=multi)
+            elif mode == 'usercall':
                 # tracing #
                 if SysMgr.isTraceMode():
                     dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
@@ -40869,6 +41011,8 @@ Copyright:
     @staticmethod
     def doLeaktrace():
         def _waitAndKill(tobj, pid, comm, cond, sig, purpose, hookCmd=None):
+            conv = UtilMgr.convSize2Unit
+
             # define RSS index #
             rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
             vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
@@ -40876,9 +41020,9 @@ Copyright:
 
             # check destination value #
             if cond == sys.maxsize or cond == SysMgr.maxSize:
-                condUnit = ''
+                conds = ''
             else:
-                condUnit = '/%s' % UtilMgr.convSize2Unit(cond)
+                conds = '/%s' % conv(cond, unit='M')
 
             # wait for RSS #
             previous = None
@@ -40893,14 +41037,21 @@ Copyright:
                             "failed to get RSS of %s(%s)" % (comm, pid))
                     return -1
 
+                # get time #
+                SysMgr.updateUptime()
+                diff = '[%d]' % SysMgr.uptime
+
+                # get memory usage #
                 procData = tobj.procData[pid]['stat']
-                vss = UtilMgr.convSize2Unit(long(procData[vssIdx]))
+                vss = conv(long(procData[vssIdx]), unit='M')
                 rss = long(procData[rssIdx]) << 12
-                rssUnit = UtilMgr.convSize2Unit(rss)
+                rssUnit = conv(rss, unit='M')
+
+                # print memory usage #
                 if previous != rssUnit:
                     SysMgr.printInfo(
-                        '%s(%s)\'s VSS(%s), RSS(%s%s) for %s' % \
-                            (comm, pid, vss, rssUnit, condUnit, purpose),
+                        '%s %s(%s)\'s VSS(%s), RSS(%s%s) for %s' % \
+                            (diff, comm, pid, vss, rssUnit, conds, purpose),
                                 prefix=False)
                 previous = rssUnit
 
@@ -43099,8 +43250,8 @@ Copyright:
                     memData[zone] = {}
                 elif item == 'pages' and zl[1] == 'free':
                     memData[zone]['free'] = long(zl[2])
-                elif item == 'min' or item == 'low' or item == 'high' or \
-                    item == 'spanned' or item == 'present' or item == 'managed':
+                elif item in (
+                    'min', 'low', 'high', 'spanned', 'present', 'managed'):
                     memData[zone][item] = long(zl[1])
                 elif item == 'protection:':
                     values = []
@@ -44699,7 +44850,7 @@ Copyright:
                 argPolicy = c_int(argPolicy)
 
             # set default priority #
-            if upolicy == 'I' or upolicy == 'C' or upolicy == 'B':
+            if upolicy in ('I', 'C', 'B'):
                 argPriority = 0
             else:
                 argPriority = pri
@@ -51609,7 +51760,7 @@ class DltAnalyzer(object):
             if filterGroup:
                 skipFlag = True
                 for cond in filterGroup:
-                    if cond == ecuId or cond == apId or cond == ctxId:
+                    if cond in (ecuId, apId, ctxId):
                         skipFlag = False
                         break
                 if skipFlag:
@@ -51649,10 +51800,7 @@ class DltAnalyzer(object):
             if filterGroup:
                 skipFlag = True
                 for cond in filterGroup:
-                    if cond == ecuId or \
-                        cond == apId or \
-                        cond == ctxId or \
-                        cond in string:
+                    if cond in (ecuId, apId, ctxId) or cond in string:
                         skipFlag = False
                         break
                 if skipFlag:
@@ -52937,6 +53085,7 @@ class Debugger(object):
         self.mapFd = None
         self.pmap = None
         self.prevPmap = None
+        self.stackFd = None
         self.amap = []
         self.jmapFd = None
         self.jmapPath = None
@@ -53216,7 +53365,7 @@ typedef struct {
         # execute #
         elif self.execCmd:
             self.execute(self.execCmd)
-            if mode == 'signal':
+            if mode in ('signal', 'kernel'):
                 # wait for PTRACE_TRACEME of the child #
                 time.sleep(0.1)
 
@@ -53588,18 +53737,21 @@ typedef struct {
                 # read updated address for verification #
                 newAddr = dobj.readWord(slotAddr)
 
+                # set symbol info #
+                srcInfo = '"%s[%s@%s]"' % \
+                    (targetSym, hex(targetAddr), fpath)
+                desInfo = '"%s[%s@%s]"' % \
+                    (hookSym, hex(hookAddr), hookBin)
+
                 # check update result #
                 if hookAddr == newAddr:
                     SysMgr.printInfo(
-                        "updated %s(%s@%s) to %s(%s@%s) for %s" % \
-                            (targetSym, hex(targetAddr), fpath, hookSym,
-                                hex(hookAddr), hookBin, procInfo),
-                                    prefix=False)
+                        'updated %s to %s for %s' % \
+                            (srcInfo, desInfo, procInfo), prefix=False)
                 else:
                     SysMgr.printErr(
-                        "failed to update %s(%s@%s) to %s(%s@%s) for %s" % \
-                            (targetSym, hex(targetAddr), fpath,
-                                hookSym, hex(hookAddr), hookBin, procInfo))
+                        'failed to update %s to %s for %s' % \
+                            (srcInfo, desInfo, procInfo))
 
         # continue target #
         SysMgr.sendSignalProcs(signal.SIGCONT, [pid], verb=False)
@@ -57893,6 +58045,10 @@ typedef struct {
             ctype = 'Pycall'
             addInfo = '[PATH] <Sample>'
             sampleStr = ' [Freq: %g]' % self.sampleTime
+        elif self.mode == 'kernel':
+            ctype = 'Kernelcall'
+            addInfo = '<Sample>'
+            sampleStr = ' [Freq: %g]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
@@ -58957,7 +59113,7 @@ typedef struct {
 
         self.totalCall += 1
 
-        if not SysMgr.showAll and bt:
+        if not SysMgr.showAll and bt and type(bt[0]) is list:
             # remove anonymous symbol #
             while 1:
                 if sym != '??':
@@ -58984,7 +59140,7 @@ typedef struct {
 
         # check wait status #
         if not self.runStatus and \
-            (self.mode == 'sample' or self.mode == 'pycall'):
+            self.mode in ('sample', 'kernel', 'pycall'):
             sym = 'WAIT{%s}' % sym
 
         # add backtrace #
@@ -59123,14 +59279,30 @@ typedef struct {
         else:
             argList = []
 
-        for item in bt:
-            # get symbol and file info #
-            if item[1] == item[2] == '??':
-                sym = hex(item[0]).rstrip('L')
-            else:
-                sym = item[1]
+        if type(bt[0]) is list:
+            isUser = True
+        else:
+            isUser = False
 
-            fname = item[2]
+        for item in bt:
+            # user #
+            if isUser:
+                # get symbol and file info #
+                if item[1] == item[2] == '??':
+                    sym = hex(item[0]).rstrip('L')
+                else:
+                    sym = item[1]
+
+                fname = item[2]
+            # kernel #
+            else:
+                # skip no symbol item #
+                if not item:
+                    continue
+
+                sample = item.split('] ', 1)
+                sym = sample[1] if len(sample) > 1 else item
+                fname = 'KERNEL'
 
             # remove redundant symbols #
             if prevSym == sym and prevFile == fname:
@@ -59170,6 +59342,57 @@ typedef struct {
             self.btStr = btStr
 
         return self.btStr
+
+
+
+    def startSamplingKernel(self):
+        while 1:
+            # wait for sampling time #
+            if self.runStatus:
+                time.sleep(self.sampleTime)
+            else:
+                time.sleep(self.sampleTime*2)
+
+            try:
+                self.stackFd.seek(0)
+                sample = self.stackFd.read()
+                if sample: sample = sample.split('\n')
+            except SystemExit: sys.exit(0)
+            except:
+                if not SysMgr.isAlive(self.pid):
+                    SysMgr.printErr(
+                        "%s(%s) is terminated" % (self.comm, self.pid))
+                    sys.exit(0)
+                elif not self.stackFd:
+                    self.stackFd = open('%s/%s/stack' % \
+                        (SysMgr.procPath, self.pid))
+                else:
+                    SysMgr.printErr(
+                        'failed to read kernel stack data for %s(%s)' % \
+                            (self.comm, self.pid), True)
+                    continue
+
+                sample = self.stackFd.read()
+                if sample: sample = sample.split('\n')
+
+            if sample:
+                sym = sample[0].split('] ', 1)
+                sym = sym[1] if len(sym) > 1 else sample[0]
+                if len(sample) > 1:
+                    bt = sample[1:]
+                else:
+                    bt = None
+            else:
+                sym = 'N/A'
+                bt = None
+
+            # add sample #
+            self.addSample(sym, 'KERNEL', realtime=True, bt=bt)
+
+            # check run status #
+            self.runStatus = self.isInRun()
+
+        sys.exit(0)
 
 
 
@@ -61925,7 +62148,7 @@ typedef struct {
             return None
 
         # check status #
-        if stat == 'T' or stat == 't' or stat == 'D':
+        if stat in ('T', 't', 'D'):
             return True
         else:
             return False
@@ -62324,13 +62547,12 @@ typedef struct {
 
         # load symbols and inject breakpoints #
         if SysMgr.funcDepth > 0 or \
-            (dobj.mode != 'syscall' and dobj.mode != 'signal'):
+            not dobj.mode in ('syscall', 'signal', 'kernel'):
             if dobj.loadSymbols():
                 dobj.updateBpList()
 
         # continue target #
-        if dobj.mode != 'syscall' and \
-            dobj.mode != 'signal' and \
+        if not dobj.mode in ('syscall', 'signal', 'kernel') and \
             dobj.isStopped():
             if dobj.cont(check=True):
                 sys.exit(0)
@@ -62684,6 +62906,8 @@ typedef struct {
             syscallMode = True
         elif self.mode == 'inst':
             instMode = True
+        elif self.mode == 'kernel':
+            self.startSamplingKernel()
 
         # timestamp variables #
         self.updateCurrent()
@@ -62710,7 +62934,7 @@ typedef struct {
             # set status #
             if self.status == 'stop':
                 self.status = 'enter'
-            elif self.status == 'ready' or self.status == 'wait':
+            elif self.status in ('ready', 'wait'):
                 pass
             else:
                 # wait for sample calls #
@@ -62880,7 +63104,7 @@ typedef struct {
                     self.status = 'stop'
                     SysMgr.printWarn(
                         'blocked %s(%s) because of %s' % \
-                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
+                            (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # continue #
                     if self.isBreakMode:
@@ -63006,7 +63230,7 @@ typedef struct {
             # set alarm handler #
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
 
-            if self.mode == 'sample' or self.mode == 'pycall':
+            if self.mode in ('sample', 'pycall', 'kernel'):
                 # set sampling rate to 100 us #
                 sampleTime = SysMgr.getOption('T')
                 if sampleTime:
@@ -63043,7 +63267,7 @@ typedef struct {
                         UtilMgr.convNum(SysMgr.funcDepth))
 
         # init python environment #
-        if self.mode == 'pycall' or self.mode == 'pybreak':
+        if self.mode in ('pycall', 'pybreak'):
             self.initPyEnv()
 
         # prepare environment for the running target #
@@ -63061,11 +63285,11 @@ typedef struct {
                 sys.exit(0)
 
             # initialize environment for python #
-            if mode == 'pycall' or mode == 'pybreak':
+            if mode in ('pycall', 'pybreak'):
                 pass
             # load user symbols #
-            elif (mode != 'syscall' and mode != 'signal') or \
-                SysMgr.funcDepth > 0:
+            elif SysMgr.funcDepth > 0 or \
+                mode not in ('syscall', 'signal', 'kernel'):
                 try:
                     self.loadSymbols()
                 except SystemExit: sys.exit(0)
@@ -63087,8 +63311,7 @@ typedef struct {
             ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
-            if (self.mode == 'inst' or self.mode == 'sample') and \
-                not SysMgr.isTopMode():
+            if self.mode in ('inst', 'sample') and not SysMgr.isTopMode():
                 try:
                     self.handleUsercall()
                 except SystemExit: sys.exit(0)
@@ -63109,7 +63332,7 @@ typedef struct {
                 SysMgr.printErr(
                     "not supported on %s" % self.arch.upper())
                 sys.exit(0)
-        elif self.mode == 'sample' or self.mode == 'pycall':
+        elif self.mode in ('sample', 'pycall'):
             self.cmd = None
         elif self.isBreakMode:
             if self.isRunning:
@@ -63126,7 +63349,7 @@ typedef struct {
                         'terminated %s(%s)' % (self.comm, self.pid))
                 elif stat == 'S':
                     SysMgr.syscall(self.tkillIdx, self.pid, signal.SIGCONT)
-        elif self.mode == 'signal':
+        elif self.mode in ('signal', 'kernel'):
             if self.isStopped():
                 if self.cont(check=True):
                     sys.exit(0)
@@ -83909,8 +84132,7 @@ class TaskAnalyzer(object):
                         self.preemptData[index][2] = ftime
                         self.preemptData[index][3] = core
 
-            elif prev_state == 'S' or prev_state == 'D' or \
-                prev_state == 't' or prev_state == 'T':
+            elif prev_state in ('S', 'D', 't', 'T'):
                 # increase yield count except for core sched event #
                 if prev_id != coreId:
                     self.threadData[prev_id]['yield'] += 1
@@ -86638,8 +86860,8 @@ class TaskAnalyzer(object):
                 self.zoneData[zone] = {}
             elif item == 'pages' and zl[1] == 'free':
                 self.zoneData[zone]['free'] = long(zl[2])
-            elif item == 'min' or item == 'low' or item == 'high' or \
-                item == 'spanned' or item == 'present' or item == 'managed':
+            elif item in (
+                'min', 'low', 'high', 'spanned', 'present', 'managed'):
                 self.zoneData[zone][item] = long(zl[1])
             else:
                 continue
