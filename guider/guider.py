@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220106"
+__revision__ = "220107"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25633,7 +25633,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Replace specific functions with a custom function
+    Replace target functions with specific functions for specific processes
 
 Options:
     -u                          run in the background
@@ -25663,7 +25663,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Print bind status of functions
+    Print bind status of functions for specific processes
 
 Options:
     -u                          run in the background
@@ -26694,6 +26694,7 @@ Description:
     Otherwise add the library path to /etc/ld.so.preload
 
     Once leaktrace starts, the memory usage of the target process will increase rapidly due to logging data.
+    And specific allocators and deallocators called inside libstdc++ can't be traced.
 
 Options:
     -I  <DIR|FILE>              set input path
@@ -39751,13 +39752,18 @@ Copyright:
         if tid:
             allpids = pids = [tid]
         elif not inputParam:
+            if mode in ('hook', 'bind'):
+                isThread = False
+            else:
+                isThread = True
+
             # convert comm to pid #
             pids = SysMgr.convTaskList(
-                SysMgr.filterGroup, isThread=True,
+                SysMgr.filterGroup, isThread=isThread,
                     sibling=SysMgr.groupProcEnable)
 
             # get pids of process groups #
-            if mode == 'breakcall' or mode == 'pytrace':
+            if mode in ('breakcall', 'pytrace'):
                 allpids = SysMgr.convTaskList(
                     SysMgr.filterGroup, isThread=True, sibling=True)
             else:
@@ -41144,9 +41150,25 @@ Copyright:
             'realloc',
             'free',
             'operator new(unsigned long)',
+            'operator new(unsigned long\, std::align_val_t)',
+            'operator new(unsigned long\, std::align_val_t\, std::nothrow_t const&)',
+            'operator new(unsigned long\, std::nothrow_t const&)',
             'operator new[](unsigned long)',
+            'operator new[](unsigned long\, std::align_val_t)',
+            'operator new[](unsigned long\, std::align_val_t\, std::nothrow_t const&)',
+            'operator new[](unsigned long\, std::nothrow_t const&)',
             'operator delete(void*)',
+            'operator delete(void*\, std::align_val_t)',
+            'operator delete(void*\, std::align_val_t\, std::nothrow_t const&)',
+            'operator delete(void*\, std::nothrow_t const&)',
+            'operator delete(void*\, unsigned long)',
+            'operator delete(void*\, unsigned long\, std::align_val_t)',
             'operator delete[](void*)',
+            'operator delete[](void*\, std::align_val_t)',
+            'operator delete[](void*\, std::align_val_t\, std::nothrow_t const&)',
+            'operator delete[](void*\, std::nothrow_t const&)',
+            'operator delete[](void*\, unsigned long)',
+            'operator delete[](void*\, unsigned long\, std::align_val_t)',
         ]
 
         # check preload result #
@@ -53703,15 +53725,11 @@ typedef struct {
 
                 # hook info #
                 hook = item[1][0]
-                hookAddr = hook[0]
-                hookSym = hook[1]
-                hookBin = hook[2]
+                hookAddr, hookSym, hookBin = hook[:3]
 
                 # target info #
                 target = item[0][0]
-                targetAddr = target[0]
-                targetSym = target[1]
-                targetBin = target[2]
+                targetAddr, targetSym, targetBin = target[:3]
 
                 # read original address for target #
                 slotAddr = vstart + attr['value']
@@ -55096,7 +55114,7 @@ typedef struct {
             except SystemExit:
                 _flushPrint()
                 sys.exit(0)
-            except:
+            except Exception as ex:
                 _flushPrint()
                 SysMgr.printErr(
                     "failed to handle '%s' command" % cmd, True)
@@ -55953,6 +55971,7 @@ typedef struct {
                 (item.startswith('"') and item.endswith('"')):
                 try:
                     args[idx] = long(item, 16)
+                except SystemExit: sys.exit(0)
                 except:
                     addr = self.calloc(string=item, temp=False)
                     if not addr:
@@ -55986,9 +56005,10 @@ typedef struct {
                 return None
 
         # use a temporary page #
-        addr = None
         if temp:
             addr = self.getTempPage()
+        else:
+            addr = None
 
         # use a new memory segment #
         if not addr:
@@ -62276,9 +62296,12 @@ typedef struct {
                 continue
 
             # get ELF object #
-            fcache = ElfAnalyzer.getObject(mfile)
-            if not fcache:
-                continue
+            try:
+                fcache = ElfAnalyzer.getObject(mfile)
+                if not fcache:
+                    continue
+            except SystemExit: sys.exit(0)
+            except: continue
 
             # get offset #
             offset = fcache.getOffsetBySymbol(
