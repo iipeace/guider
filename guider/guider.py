@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220107"
+__revision__ = "220109"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8888,9 +8888,9 @@ class Ext4Analyzer(object):
                 while idx < len(entries):
                     while (idx + 1 < len(entries)) and \
                         (entries[idx].fileBlkIdx + entries[idx].blkCnt == \
-                            entries[idx + 1].fileBlkIdx) and \
+                            entries[idx+1].fileBlkIdx) and \
                         (entries[idx].diskBlkIdx + entries[idx].blkCnt == \
-                            entries[idx + 1].diskBlkIdx):
+                            entries[idx+1].diskBlkIdx):
                         tmp = entries.pop(idx + 1)
                         entries[idx].blkCnt += tmp.blkCnt
 
@@ -10566,12 +10566,12 @@ class PageAnalyzer(object):
                 comm = SysMgr.getComm(pid)
 
             # get mem stat #
-            convert = UtilMgr.convSize2Unit
+            convSize = UtilMgr.convSize2Unit
             mlist = SysMgr.getMemStat(pid)
             vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
-            vss = convert(long(mlist[vssIdx]) << 12)
+            vss = convSize(long(mlist[vssIdx]) << 12)
             rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-            rss = convert(long(mlist[rssIdx]) << 12)
+            rss = convSize(long(mlist[rssIdx]) << 12)
             SysMgr.printPipe(
                 "\n[Mem Info] [Proc: %s(%s)] [VSS: %s] [RSS: %s]" % \
                     (comm, pid, vss, rss))
@@ -13459,12 +13459,12 @@ class FunctionAnalyzer(object):
         if self.syscallCnt == 0:
             return
 
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         SysMgr.clearPrint()
         SysMgr.printPipe(
             '[Function Syscall Info] [Cnt: %s]' % \
-            convertNum(self.syscallCnt))
+            convNum(self.syscallCnt))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             '{0:>16}({1:>7}/{2:>7}) {3:>30}({4:>3}) {5:>12}'.format(
@@ -13504,7 +13504,7 @@ class FunctionAnalyzer(object):
                 syscallInfo = \
                     ('{0:1} {1:>30}({2:>3}) {3:>12}\n').format(
                     '%s%s' % (syscallInfo, ' ' * len(threadInfo)),
-                    syscall, sysId, convertNum(val))
+                    syscall, sysId, convNum(val))
 
             if syscallInfo != '':
                 outputCnt += 1
@@ -13520,11 +13520,10 @@ class FunctionAnalyzer(object):
 
     def printUsage(self):
         targetCnt = 0
-        self.totalTime = \
-            float(self.finishTime) - float(SysMgr.startTime)
+        self.totalTime = float(self.finishTime) - float(SysMgr.startTime)
 
-        convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
 
         SysMgr.printLogo(big=True)
 
@@ -13544,7 +13543,7 @@ class FunctionAnalyzer(object):
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %s ]" % \
             ('Function Thread Info', 'Elapsed', round(self.totalTime, 7),
             'Start', round(float(SysMgr.startTime), 7),
-             len(self.threadData), convertFunc(SysMgr.logSize)))
+             len(self.threadData), convSize(SysMgr.logSize)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^6}|{6:_^8}|".\
@@ -13637,21 +13636,21 @@ class FunctionAnalyzer(object):
                 cpuPer = '-'
 
             if self.sysEnabled:
-                cval = '%s' % convertNum(value['nrSyscall'])
+                cval = '%s' % convNum(value['nrSyscall'])
             elif self.heapEnabled:
-                cval = '%s' % convertFunc(value['heapSize'])
+                cval = '%s' % convSize(value['heapSize'])
             else:
                 cval = '-'
 
             if self.memEnabled:
-                allocMem = '%s' % convertFunc(value['nrPages'] << 12)
-                userMem = '%s' % convertFunc(value['userPages'] << 12)
-                cacheMem = '%s' % convertFunc(value['cachePages'] << 12)
-                kernelMem = '%s' % convertFunc(value['kernelPages'] << 12)
+                allocMem = '%s' % convSize(value['nrPages'] << 12)
+                userMem = '%s' % convSize(value['userPages'] << 12)
+                cacheMem = '%s' % convSize(value['cachePages'] << 12)
+                kernelMem = '%s' % convSize(value['kernelPages'] << 12)
                 knownFreeMem = '%s' % \
-                    convertFunc(value['nrKnownFreePages'] << 12)
+                    convSize(value['nrKnownFreePages'] << 12)
                 unknownFreeMem = '%s' % \
-                    convertFunc(value['nrUnknownFreePages'] << 12)
+                    convSize(value['nrUnknownFreePages'] << 12)
             else:
                 allocMem = '-'
                 userMem = '-'
@@ -13661,22 +13660,22 @@ class FunctionAnalyzer(object):
                 unknownFreeMem = '-'
 
             if self.breadEnabled:
-                readBlock = '%s' % convertFunc(value['nrRdBlocks'] << 9)
+                readBlock = '%s' % convSize(value['nrRdBlocks'] << 9)
             else:
                 readBlock = '-'
 
             if self.bwriteEnabled:
-                writeBlock = '%s' % convertFunc(value['nrWrBlocks'] << 9)
+                writeBlock = '%s' % convSize(value['nrWrBlocks'] << 9)
             else:
                 writeBlock = '-'
 
             if self.lockEnabled:
-                nrLock = convertNum(value['nrLockTry'])
+                nrLock = convNum(value['nrLockTry'])
             else:
                 nrLock = '-'
 
             if self.customTotal > 0:
-                nrCustom = convertNum(value['customTotal'])
+                nrCustom = convNum(value['customTotal'])
             else:
                 nrCustom = '-'
 
@@ -13807,13 +13806,13 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('SYSCALL')
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         # Print syscall event #
         SysMgr.clearPrint()
         SysMgr.printPipe(
             '[Function Syscall Info] [Cnt: %s] (USER)' % \
-            convertNum(self.syscallCnt))
+            convNum(self.syscallCnt))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -13828,7 +13827,7 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>7}  |{1:^47}| {2:48}| {3:37}".format(
-                convertNum(value['syscallCnt']), idx,
+                convNum(value['syscallCnt']), idx,
                 self.posData[value['pos']]['origBin'],
                 self.posData[value['pos']]['src']))
 
@@ -13851,7 +13850,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "\t\t +{0:>7} |{1:32}".format(
-                    convertNum(eventCnt), symbolStack))
+                    convNum(eventCnt), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -13860,7 +13859,7 @@ class FunctionAnalyzer(object):
         # Print syscall file #
         SysMgr.printPipe(
             '[Function Syscall File Info] [Cnt: %s] (USER)' % \
-            convertNum(self.syscallCnt))
+            convNum(self.syscallCnt))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^144}".\
@@ -13875,7 +13874,7 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>8} | {1:<142}".format(
-                convertNum(value['syscallCnt']), idx))
+                convNum(value['syscallCnt']), idx))
 
             SysMgr.printPipe(oneLine)
 
@@ -13891,7 +13890,7 @@ class FunctionAnalyzer(object):
 
         SysMgr.clearPrint()
         SysMgr.printPipe('[Function Syscall History] [Cnt: %s]' % \
-            convertNum(self.syscallCnt))
+            convNum(self.syscallCnt))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -13957,7 +13956,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('CUSTOM')
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         # Make custom event list #
         customList = ', '.join(list(self.customEventTable))
@@ -13967,8 +13966,8 @@ class FunctionAnalyzer(object):
             SysMgr.clearPrint()
             SysMgr.printPipe(
                 '[Function %s Info] [Cnt: %s] [Total: %s] (USER)' % \
-                (customList, convertNum(self.customTotal),
-                convertNum(self.customCnt)))
+                (customList, convNum(self.customTotal),
+                convNum(self.customCnt)))
 
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -13983,7 +13982,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "{0:>7}  |{1:^47}| {2:48}| {3:37}".format(
-                    convertNum(value['customCnt']), idx,
+                    convNum(value['customCnt']), idx,
                     self.posData[value['pos']]['origBin'],
                     self.posData[value['pos']]['src']))
 
@@ -14006,7 +14005,7 @@ class FunctionAnalyzer(object):
 
                     SysMgr.printPipe(
                         "\t\t +{0:>7} |{1:32}".format(
-                        convertNum(eventCnt), symbolStack))
+                        convNum(eventCnt), symbolStack))
 
                 SysMgr.printPipe(oneLine)
 
@@ -14015,8 +14014,8 @@ class FunctionAnalyzer(object):
             # Print custom event file in user space #
             SysMgr.printPipe(
                 '[Function %s File Info] [Cnt: %s] [Total: %s] (USER)' % \
-                (customList, convertNum(self.customTotal),
-                convertNum(self.customCnt)))
+                (customList, convNum(self.customTotal),
+                convNum(self.customCnt)))
 
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe("{0:_^9}|{1:_^144}".\
@@ -14031,7 +14030,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "{0:>8} | {1:<142}".format(
-                    convertNum(value['customCnt']), idx))
+                    convNum(value['customCnt']), idx))
 
                 SysMgr.printPipe(oneLine)
 
@@ -14044,8 +14043,8 @@ class FunctionAnalyzer(object):
         SysMgr.clearPrint()
         SysMgr.printPipe(
             '[Function %s Info] [Cnt: %s] [Total: %s] (KERNEL)' % \
-            (customList, convertNum(self.customTotal),
-            convertNum(self.customCnt)))
+            (customList, convNum(self.customTotal),
+            convNum(self.customCnt)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -14061,7 +14060,7 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>7}  |{1:^134}".format(
-                convertNum(value['customCnt']), idx))
+                convNum(value['customCnt']), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -14089,7 +14088,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "\t\t +{0:>7} |{1:32}".format(
-                    convertNum(eventCnt), symbolStack))
+                    convNum(eventCnt), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -14102,8 +14101,8 @@ class FunctionAnalyzer(object):
 
         SysMgr.clearPrint()
         SysMgr.printPipe('[Function %s History] [Cnt: %s] [Total: %s]' % \
-            (customList, convertNum(self.customTotal),
-                convertNum(self.customCnt)))
+            (customList, convNum(self.customTotal),
+                convNum(self.customCnt)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -14449,8 +14448,8 @@ class FunctionAnalyzer(object):
         title = 'Function Free-Only-Page Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
-        convertFunc = UtilMgr.convSize2Unit
-        size = convertFunc(self.pageUnknownFreeCnt << 12)
+        convSize = UtilMgr.convSize2Unit
+        size = convSize(self.pageUnknownFreeCnt << 12)
 
         if SysMgr.userEnable:
             # Print memory reduce by page free in user space #
@@ -14468,7 +14467,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SysMgr.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
-                    format(convertFunc(value['unknownPageFreeCnt'] << 12),
+                    format(convSize(value['unknownPageFreeCnt'] << 12),
                     idx, self.posData[value['pos']]['origBin'],
                     self.posData[value['pos']]['src']))
 
@@ -14490,7 +14489,7 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
-                        format(convertFunc(pageFreeCnt << 12), symbolStack))
+                        format(convSize(pageFreeCnt << 12), symbolStack))
 
                 SysMgr.printPipe(oneLine)
 
@@ -14514,7 +14513,7 @@ class FunctionAnalyzer(object):
                 break
 
             SysMgr.printPipe("{0:>8} |{1:^144}".\
-                format(convertFunc(value['unknownPageFreeCnt'] << 12), idx))
+                format(convSize(value['unknownPageFreeCnt'] << 12), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -14536,7 +14535,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
-                    format(convertFunc(pageFreeCnt << 12), symbolStack))
+                    format(convSize(pageFreeCnt << 12), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -14549,8 +14548,8 @@ class FunctionAnalyzer(object):
         title = 'Function Alloc-Free-Page Info'
         lineLength = SysMgr.lineLength
         diff = self.pageAllocCnt - self.pageUsageCnt
-        convertFunc = UtilMgr.convSize2Unit
-        size = convertFunc(diff << 12)
+        convSize = UtilMgr.convSize2Unit
+        size = convSize(diff << 12)
 
         # Print page alloc-free pair in user space #
         if SysMgr.userEnable:
@@ -14589,10 +14588,10 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}".\
-                    format(convertFunc(value['pagePairCnt'] << 12),
-                    convertFunc(typeList['USER'] << 12),
-                    convertFunc(typeList['CACHE'] << 12),
-                    convertFunc(typeList['KERNEL'] << 12), idx,
+                    format(convSize(value['pagePairCnt'] << 12),
+                    convSize(typeList['USER'] << 12),
+                    convSize(typeList['CACHE'] << 12),
+                    convSize(typeList['KERNEL'] << 12), idx,
                     lifeTime, self.posData[value['pos']]['origBin']))
 
                 for pairId, item in sorted(value['pagePair'].items(),
@@ -14614,10 +14613,10 @@ class FunctionAnalyzer(object):
                     allocCall, freeCall = pairId.split('#')
 
                     printBuf = "{0:4}+ {1:>7}({2:>6}/{3:>6}/{4:>6})| ".\
-                        format(' ', convertFunc(item['size'] << 12),
-                        convertFunc(userPages << 12),
-                        convertFunc(cachePages << 12),
-                        convertFunc(kernelPages <<12))
+                        format(' ', convSize(item['size'] << 12),
+                        convSize(userPages << 12),
+                        convSize(cachePages << 12),
+                        convSize(kernelPages <<12))
 
                     indentLen = len(printBuf)
                     appliedIndentLen = indentLen
@@ -14697,10 +14696,10 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:^75}".\
-                format(convertFunc(value['pagePairCnt'] << 12),
-                convertFunc(typeList['USER'] << 12),
-                convertFunc(typeList['CACHE'] << 12),
-                convertFunc(typeList['KERNEL'] << 12), idx, lifeTime))
+                format(convSize(value['pagePairCnt'] << 12),
+                convSize(typeList['USER'] << 12),
+                convSize(typeList['CACHE'] << 12),
+                convSize(typeList['KERNEL'] << 12), idx, lifeTime))
 
             for pairId, item in sorted(value['pagePair'].items(),
                 key=lambda e: e[1]['size'], reverse=True):
@@ -14721,10 +14720,10 @@ class FunctionAnalyzer(object):
                 allocCall, freeCall = pairId.split('#')
 
                 printBuf = "{0:4}+ {1:>7}({2:>6}/{3:>6}/{4:>6})| ".\
-                    format(' ', convertFunc(item['size'] << 12),
-                    convertFunc(userPages << 12),
-                    convertFunc(cachePages << 12),
-                    convertFunc(kernelPages << 12))
+                    format(' ', convSize(item['size'] << 12),
+                    convSize(userPages << 12),
+                    convSize(cachePages << 12),
+                    convSize(kernelPages << 12))
 
                 indentLen = len(printBuf)
                 appliedIndentLen = indentLen
@@ -14780,10 +14779,10 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
-        convertFunc = UtilMgr.convSize2Unit
-        userSize = convertFunc(self.pageUsageCnt << 12)
-        allocSize = convertFunc(self.pageAllocCnt << 12)
-        freeSize = convertFunc(self.pageFreeCnt << 12)
+        convSize = UtilMgr.convSize2Unit
+        userSize = convSize(self.pageUsageCnt << 12)
+        allocSize = convSize(self.pageAllocCnt << 12)
+        freeSize = convSize(self.pageFreeCnt << 12)
         allocCnt = UtilMgr.convNum(self.pageAllocEventCnt)
         freeCnt = UtilMgr.convNum(self.pageFreeEventCnt)
 
@@ -14846,10 +14845,10 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}".\
-                    format(convertFunc(value['pageCnt'] << 12),
-                    convertFunc(value['userPageCnt'] << 12),
-                    convertFunc(value['cachePageCnt'] << 12),
-                    convertFunc(value['kernelPageCnt'] << 12), idx,
+                    format(convSize(value['pageCnt'] << 12),
+                    convSize(value['userPageCnt'] << 12),
+                    convSize(value['cachePageCnt'] << 12),
+                    convSize(value['kernelPageCnt'] << 12), idx,
                     lifeTime, self.posData[value['pos']]['origBin']))
 
                 # Set target stack #
@@ -14874,10 +14873,10 @@ class FunctionAnalyzer(object):
 
                     SysMgr.printPipe(
                         "\t+ {0:>7}({1:>6}/{2:>6}/{3:>6})|{4:32}".\
-                        format(convertFunc(pageCnt << 12),
-                        convertFunc(userPageCnt << 12),
-                        convertFunc(cachePageCnt << 12),
-                        convertFunc(kernelPageCnt << 12),
+                        format(convSize(pageCnt << 12),
+                        convSize(userPageCnt << 12),
+                        convSize(cachePageCnt << 12),
+                        convSize(kernelPageCnt << 12),
                         symbolStack))
 
                 SysMgr.printPipe(oneLine)
@@ -14916,10 +14915,10 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:^76}".\
-                format(convertFunc(value['pageCnt'] << 12),
-                convertFunc(value['userPageCnt'] << 12),
-                convertFunc(value['cachePageCnt'] << 12),
-                convertFunc(value['kernelPageCnt'] << 12),
+                format(convSize(value['pageCnt'] << 12),
+                convSize(value['userPageCnt'] << 12),
+                convSize(value['cachePageCnt'] << 12),
+                convSize(value['kernelPageCnt'] << 12),
                 idx, lifeTime))
 
             # Sort stacks by usage #
@@ -14945,10 +14944,10 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     "\t+ {0:>7}({1:>6}/{2:>6}/{3:>6})|{4:32}".format(
-                    convertFunc(pageCnt << 12),
-                    convertFunc(userPageCnt << 12),
-                    convertFunc(cachePageCnt << 12),
-                    convertFunc(kernelPageCnt << 12), symbolStack))
+                    convSize(pageCnt << 12),
+                    convSize(userPageCnt << 12),
+                    convSize(cachePageCnt << 12),
+                    convSize(kernelPageCnt << 12), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -14974,17 +14973,17 @@ class FunctionAnalyzer(object):
         title = 'Function Expand-Heap'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
-        convertFunc = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
 
         # Print heap usage in user space #
         SysMgr.clearPrint()
         SysMgr.printPipe(
             '[%s Info] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)' % \
             (title,
-            convertFunc(self.heapExpSize - self.heapRedSize),
-            convertFunc(self.heapExpSize),
+            convSize(self.heapExpSize - self.heapRedSize),
+            convSize(self.heapExpSize),
             UtilMgr.convNum(self.heapExpEventCnt),
-            convertFunc(self.heapRedSize),
+            convSize(self.heapRedSize),
             UtilMgr.convNum(self.heapRedEventCnt)))
 
         SysMgr.printPipe(twoLine)
@@ -15001,7 +15000,7 @@ class FunctionAnalyzer(object):
             binary = self.posData[value['pos']]['origBin']
             source = self.posData[value['pos']]['src']
             SysMgr.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
-                format(convertFunc(value['heapSize']), idx, binary, source))
+                format(convSize(value['heapSize']), idx, binary, source))
 
             if idx == value['pos']:
                 SysMgr.printPipe(oneLine)
@@ -15025,7 +15024,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeUserSymList(subStack, indentLen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
-                    format(convertFunc(heapSize), symbolStack))
+                    format(convSize(heapSize), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -15066,7 +15065,7 @@ class FunctionAnalyzer(object):
 
             title = \
                 "{0:^32}| {1:>10} | {2:>16}({3:>7})| {4:>6} | {5:>15} |".\
-                format(addr, convertFunc(size),
+                format(addr, convSize(size),
                 self.threadData[tid]['comm'], tid, long(core), time)
             SysMgr.printPipe('%s\n%s' % (title, len(title) * '-'))
 
@@ -15382,16 +15381,16 @@ class FunctionAnalyzer(object):
         title = 'Function Write-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
-        convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convNum
-        size = convertFunc(self.blockWrUsageCnt << 9)
+        convSize = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
+        size = convSize(self.blockWrUsageCnt << 9)
 
         # Print block write in user space #
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             SysMgr.printPipe(
                 '[%s] [Size: %s] [Cnt: %s] (USER)' % \
-                (title, size, convertNum(self.blockWrEventCnt)))
+                (title, size, convNum(self.blockWrEventCnt)))
 
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -15407,7 +15406,7 @@ class FunctionAnalyzer(object):
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
                 SysMgr.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
-                    format(convertFunc(value['blockWrCnt'] << 9),
+                    format(convSize(value['blockWrCnt'] << 9),
                     idx, binary, source))
 
                 # Set target stack #
@@ -15428,7 +15427,7 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
-                        format(convertFunc(blockWrCnt << 9), symbolStack))
+                        format(convSize(blockWrCnt << 9), symbolStack))
 
                 SysMgr.printPipe(oneLine)
 
@@ -15441,7 +15440,7 @@ class FunctionAnalyzer(object):
         SysMgr.clearPrint()
         SysMgr.printPipe(
             '[%s] [Size: %s] [Cnt: %s] (KERNEL)' % \
-            (title, size, convertNum(self.blockWrEventCnt)))
+            (title, size, convNum(self.blockWrEventCnt)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -15455,7 +15454,7 @@ class FunctionAnalyzer(object):
                 break
 
             SysMgr.printPipe("{0:>8} |{1:^134}".\
-                format(convertFunc(value['blockWrCnt'] << 9), idx))
+                format(convSize(value['blockWrCnt'] << 9), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -15477,7 +15476,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
-                    format(convertFunc(blockWrCnt << 9), symbolStack))
+                    format(convSize(blockWrCnt << 9), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -15531,16 +15530,16 @@ class FunctionAnalyzer(object):
         title = 'Function Read-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
-        convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convNum
-        size = convertFunc(self.blockRdUsageCnt << 9)
+        convSize = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
+        size = convSize(self.blockRdUsageCnt << 9)
 
         # Print block read in user space #
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             SysMgr.printPipe(
                 '[%s] [Size: %s] [Cnt: %s] (USER)' % \
-                (title, size, convertNum(self.blockRdEventCnt)))
+                (title, size, convNum(self.blockRdEventCnt)))
 
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -15556,7 +15555,7 @@ class FunctionAnalyzer(object):
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
                 SysMgr.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
-                    format(convertFunc(value['blockRdCnt'] << 9),
+                    format(convSize(value['blockRdCnt'] << 9),
                     idx, binary, source))
 
                 # Set target stack #
@@ -15577,7 +15576,7 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SysMgr.printPipe("\t+ {0:8} |{1:32}".\
-                        format(convertFunc(blockRdCnt << 9), symbolStack))
+                        format(convSize(blockRdCnt << 9), symbolStack))
 
                 SysMgr.printPipe(oneLine)
 
@@ -15587,7 +15586,7 @@ class FunctionAnalyzer(object):
         SysMgr.clearPrint()
         SysMgr.printPipe(
             '[%s] [Size: %s] [Cnt: %s] (KERNEL)' % \
-            (title, size, convertNum(self.blockRdEventCnt)))
+            (title, size, convNum(self.blockRdEventCnt)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -15601,7 +15600,7 @@ class FunctionAnalyzer(object):
                 break
 
             SysMgr.printPipe("{0:>8} |{1:^144}".\
-                format(convertFunc(value['blockRdCnt'] << 9), idx))
+                format(convSize(value['blockRdCnt'] << 9), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -15623,7 +15622,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
-                    format(convertFunc(blockRdCnt << 9), symbolStack))
+                    format(convSize(blockRdCnt << 9), symbolStack))
 
             SysMgr.printPipe(oneLine)
 
@@ -15715,14 +15714,14 @@ class LeakAnalyzer(object):
         SysMgr.printLogo(big=True)
 
         # define shortcut #
-        convert = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
 
         try:
             mlist = SysMgr.getMemStat(self.pid)
             vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
-            vss = convert(long(mlist[vssIdx]) << 12)
+            vss = convSize(long(mlist[vssIdx]) << 12)
             rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-            rss = convert(long(mlist[rssIdx]) << 12)
+            rss = convSize(long(mlist[rssIdx]) << 12)
         except SystemExit: sys.exit(0)
         except:
             vss = rss = '?'
@@ -15736,8 +15735,7 @@ class LeakAnalyzer(object):
             ('\n\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] '
             '[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]') % \
                 (title, proc, runtime, profiletime, vss, rss,
-                convert(self.totalLeakSize),
-                convert(len(self.callData)))
+                convSize(self.totalLeakSize), convSize(len(self.callData)))
         SysMgr.printPipe(titleStr)
 
         SysMgr.printPipe(twoLine)
@@ -15756,16 +15754,16 @@ class LeakAnalyzer(object):
                 break
 
             SysMgr.printPipe(
-                "{0:>7} | {1:>7} | {2:>7} | {3:<122} ".\
-                    format(convert(val['lastPosSize']), convert(val['count']),
-                    convert(long(val['lastPosSize'] / val['count'])),
+                "{0:>7} | {1:>7} | {2:>7} | {3:<122} ".format(
+                    convSize(val['lastPosSize']), convSize(val['count']),
+                    convSize(long(val['lastPosSize'] / val['count'])),
                     '%s[%s]' % (sym, val['path'])))
 
             for substack, size in sorted(val['substack'].items(),
                 key=lambda e: e[1], reverse=True):
                 SysMgr.printPipe(
-                    "{0:>7} | {1:>7} | {2:<132} ".\
-                        format('', convert(size), substack))
+                    "{0:>7} | {1:>7} | {2:<132} ".format(
+                        '', convSize(size), substack))
 
                 # register fullstack to the list for flamegraph #
                 fullStack = ' '.join(
@@ -15785,8 +15783,7 @@ class LeakAnalyzer(object):
             '\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] '
             '[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]') % \
                 (title, proc, runtime, profiletime, vss, rss,
-                convert(self.totalLeakSize),
-                convert(len(self.callData))))
+                convSize(self.totalLeakSize), convSize(len(self.callData))))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -15802,8 +15799,8 @@ class LeakAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
-                    convert(val['lastPosSize']), convert(val['count']),
-                    convert(long(val['lastPosSize'] / val['count'])), file))
+                    convSize(val['lastPosSize']), convSize(val['count']),
+                    convSize(long(val['lastPosSize'] / val['count'])), file))
 
             count += 1
 
@@ -15833,8 +15830,8 @@ class LeakAnalyzer(object):
         title = 'Leakage History'
         SysMgr.printPipe(
             '\n[%s] [Total: %s] [CallCount: %s]' % \
-                (title, convert(self.totalLeakSize, True),
-                    convert(len(self.callData), True)))
+                (title, convSize(self.totalLeakSize, True),
+                    convSize(len(self.callData), True)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -15849,8 +15846,7 @@ class LeakAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
-                    format(time,
-                    convert(long(items['size'])),
+                    format(time, convSize(long(items['size'])),
                     items['data'][:-1], ' <- '.join(stack)))
             count += 1
         SysMgr.printPipe(oneLine)
@@ -16256,18 +16252,20 @@ class FileAnalyzer(object):
 
         # define alias #
         pageSize = SysMgr.PAGESIZE
-        convert = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
+        convNum = UtilMgr.convNum
         uptime = UtilMgr.convTime(SysMgr.updateUptime())
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
-            " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
-                ('File Process Info', UtilMgr.convNum(len(self.procList)),
-                convert(self.profPageCnt * 4 << 10),
-                convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10), uptime, twoLine))
+            "[%s] [ Process : %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] "
+            "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ] "
+            "[ Capture: Ctrl+\\ ]\n%s") % \
+                ('File Process Info', convNum(len(self.procList)),
+                convSize(self.profPageCnt * 4 << 10),
+                convSize(self.pgRclmBg * 4 << 10),
+                convSize(self.pgRclmFg * 4 << 10), uptime, twoLine))
         SysMgr.printPipe(
             "{0:_^16}({1:_^7})|{2:_^12}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "MaxRAM", "ThreadName", "TID"))
@@ -16290,7 +16288,7 @@ class FileAnalyzer(object):
                 continue
 
             if rsize > 0:
-                rsize = convColor(convert(rsize), 'YELLOW', 11)
+                rsize = convColor(convSize(rsize), 'YELLOW', 11)
 
             printMsg = "{0:>16}({1:>7})|{2:>11} |".\
                 format(val['comm'][:SysMgr.commLen], pid, rsize)
@@ -16322,10 +16320,10 @@ class FileAnalyzer(object):
         SysMgr.printPipe((
             "[%s] [ File: %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] "
             "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ]\n%s") % \
-                ('File Usage Info', UtilMgr.convNum(len(self.fileList)),
-                convert(self.profPageCnt * 4 << 10),
-                convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10), uptime, twoLine))
+                ('File Usage Info', convNum(len(self.fileList)),
+                convSize(self.profPageCnt * 4 << 10),
+                convSize(self.pgRclmBg * 4 << 10),
+                convSize(self.pgRclmFg * 4 << 10), uptime, twoLine))
 
         printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format(
             "InitRAM", "File", "%")
@@ -16367,7 +16365,7 @@ class FileAnalyzer(object):
                 per = 0
 
             if memSize > 0:
-                memSize = convColor(convert(memSize), 'YELLOW', 10)
+                memSize = convColor(convSize(memSize), 'YELLOW', 10)
 
             # check whether this file was profiled or not #
             isRep = False
@@ -16375,7 +16373,7 @@ class FileAnalyzer(object):
                 if fileName in fileData and fileData[fileName]['isRep']:
                     printMsg = \
                         "{0:>10} |{1:>7} |{2:>3}|".format(
-                            memSize, convert(fileSize), per)
+                            memSize, convSize(fileSize), per)
                     isRep = True
                     break
 
@@ -16393,9 +16391,10 @@ class FileAnalyzer(object):
                             self.intervalFileData[idx][fileName]['fileMap']
                     except:
                         nowFileMap = None
+
                     try:
                         prevFileMap = \
-                            self.intervalFileData[idx - 1][fileName]['fileMap']
+                            self.intervalFileData[idx-1][fileName]['fileMap']
                     except:
                         prevFileMap = None
 
@@ -16403,7 +16402,7 @@ class FileAnalyzer(object):
 
                     if not nowFileMap:
                         if prevFileMap:
-                            diffDel = fileData[idx - 1][fileName]['pageCnt']
+                            diffDel = fileData[idx-1][fileName]['pageCnt']
                     else:
                         if not prevFileMap:
                             diffNew = fileData[idx][fileName]['pageCnt']
@@ -16417,13 +16416,13 @@ class FileAnalyzer(object):
 
                     if diffNew > 0:
                         diffNew = convColor(
-                            convert(diffNew * pageSize), 'RED', 6)
+                            convSize(diffNew * pageSize), 'RED', 6)
                     else:
                         diffNew = ' '
 
                     if diffDel > 0:
                         diffDel = convColor(
-                            convert(diffDel * pageSize), 'RED', 6)
+                            convSize(diffDel * pageSize), 'RED', 6)
                     else:
                         diffDel = ' '
 
@@ -16441,7 +16440,7 @@ class FileAnalyzer(object):
 
             if totalMemSize > 0:
                 totalMemSize = convColor(
-                    convert(totalMemSize), 'YELLOW', 11)
+                    convSize(totalMemSize), 'YELLOW', 11)
 
             printMsg += \
                 "{0:>10} |{1:>3}| {2:1}".format(totalMemSize, per, fileName)
@@ -30851,7 +30850,7 @@ Copyright:
                 start = target.rfind('\n', start - 1)
                 pos -= 1
 
-            SysMgr.bufferString = target[:start + 1]
+            SysMgr.bufferString = target[:start+1]
             SysMgr.bufferRows -= newline
         except: pass
 
@@ -32416,7 +32415,7 @@ Copyright:
     @staticmethod
     def parseRuntimeOption(value):
         SysMgr.countEnable = True
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
         convTime = UtilMgr.convUnit2Time
 
         # split params #
@@ -32529,14 +32528,14 @@ Copyright:
             SysMgr.termFlag = False
             SysMgr.printInfo(
                 "run every %s sec %s time" % \
-                (convertNum(SysMgr.intervalEnable),
-                convertNum(SysMgr.repeatCount)))
+                (convNum(SysMgr.intervalEnable),
+                convNum(SysMgr.repeatCount)))
         else:
             interval = SysMgr.intervalEnable
             repeat = SysMgr.repeatCount
-            totalSec = convertNum(interval)
-            totalCnt = convertNum(repeat)
-            totalTime = convertNum(long(interval * repeat))
+            totalSec = convNum(interval)
+            totalCnt = convNum(repeat)
+            totalTime = convNum(long(interval * repeat))
             SysMgr.printInfo(
                 "run only %s times in %s sec for a total of %s sec" %
                     (totalCnt, totalSec, totalTime))
@@ -48548,7 +48547,7 @@ Copyright:
                 "Dev", "TYPE", "Size", "Packet", "Error", "Drop", "Multicast"))
         SysMgr.infoBufferPrint(twoLine)
 
-        convertFunc = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
 
         cnt = 1
         totalStat = {
@@ -48591,12 +48590,12 @@ Copyright:
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(
                         dev[-16:], 'DIFF',
-                        convertFunc(rdiff[0]), convertFunc(rdiff[1]),
-                        convertFunc(rdiff[2]), convertFunc(rdiff[3]),
-                        convertFunc(rdiff[-1]),
-                        convertFunc(tdiff[0]), convertFunc(tdiff[1]),
-                        convertFunc(tdiff[2]), convertFunc(tdiff[3]),
-                        convertFunc(tdiff[-1])))
+                        convSize(rdiff[0]), convSize(rdiff[1]),
+                        convSize(rdiff[2]), convSize(rdiff[3]),
+                        convSize(rdiff[-1]),
+                        convSize(tdiff[0]), convSize(tdiff[1]),
+                        convSize(tdiff[2]), convSize(tdiff[3]),
+                        convSize(tdiff[-1])))
 
                 # per-device total stats #
                 rlist = val['recv']
@@ -48619,12 +48618,12 @@ Copyright:
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(
                         ' ', 'TOTAL',
-                        convertFunc(rlist[0]), convertFunc(rlist[1]),
-                        convertFunc(rlist[2]), convertFunc(rlist[3]),
-                        convertFunc(rlist[-1]),
-                        convertFunc(tlist[0]), convertFunc(tlist[1]),
-                        convertFunc(tlist[2]), convertFunc(tlist[3]),
-                        convertFunc(tlist[-1])))
+                        convSize(rlist[0]), convSize(rlist[1]),
+                        convSize(rlist[2]), convSize(rlist[3]),
+                        convSize(rlist[-1]),
+                        convSize(tlist[0]), convSize(tlist[1]),
+                        convSize(tlist[2]), convSize(tlist[3]),
+                        convSize(tlist[-1])))
 
                 if cnt < len(self.networkInfo):
                     SysMgr.infoBufferPrint(
@@ -48638,25 +48637,25 @@ Copyright:
                     jsonData[dev]['ipaddr'] = val['ipaddr']
 
                     jsonData[dev]['recv'] = {
-                        'bytes': convertFunc(rlist[0]),
-                        'packets': convertFunc(rlist[1]),
-                        'errs': convertFunc(rlist[2]),
-                        'drop': convertFunc(rlist[3]),
-                        'fifo': convertFunc(rlist[4]),
-                        'frame': convertFunc(rlist[5]),
-                        'compressed': convertFunc(rlist[6]),
-                        'multicast': convertFunc(rlist[7]),
+                        'bytes': convSize(rlist[0]),
+                        'packets': convSize(rlist[1]),
+                        'errs': convSize(rlist[2]),
+                        'drop': convSize(rlist[3]),
+                        'fifo': convSize(rlist[4]),
+                        'frame': convSize(rlist[5]),
+                        'compressed': convSize(rlist[6]),
+                        'multicast': convSize(rlist[7]),
                     }
 
                     jsonData[dev]['trans'] = {
-                        'bytes': convertFunc(tlist[0]),
-                        'packets': convertFunc(tlist[1]),
-                        'errs': convertFunc(tlist[2]),
-                        'drop': convertFunc(tlist[3]),
-                        'fifo': convertFunc(tlist[4]),
-                        'frame': convertFunc(tlist[5]),
-                        'compressed': convertFunc(tlist[6]),
-                        'multicast': convertFunc(tlist[7]),
+                        'bytes': convSize(tlist[0]),
+                        'packets': convSize(tlist[1]),
+                        'errs': convSize(tlist[2]),
+                        'drop': convSize(tlist[3]),
+                        'fifo': convSize(tlist[4]),
+                        'frame': convSize(tlist[5]),
+                        'compressed': convSize(tlist[6]),
+                        'multicast': convSize(tlist[7]),
                     }
             except: pass
 
@@ -48670,12 +48669,12 @@ Copyright:
                 "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                 "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(
                     '[ TOTAL ]', 'DIFF',
-                    convertFunc(rdiff[0]), convertFunc(rdiff[1]),
-                    convertFunc(rdiff[2]), convertFunc(rdiff[3]),
-                    convertFunc(rdiff[-1]),
-                    convertFunc(tdiff[0]), convertFunc(tdiff[1]),
-                    convertFunc(tdiff[2]), convertFunc(tdiff[3]),
-                    convertFunc(tdiff[-1]), oneLine))
+                    convSize(rdiff[0]), convSize(rdiff[1]),
+                    convSize(rdiff[2]), convSize(rdiff[3]),
+                    convSize(rdiff[-1]),
+                    convSize(tdiff[0]), convSize(tdiff[1]),
+                    convSize(tdiff[2]), convSize(tdiff[3]),
+                    convSize(tdiff[-1]), oneLine))
 
             rtotal = totalStat['rtotal']
             ttotal = totalStat['ttotal']
@@ -48684,12 +48683,12 @@ Copyright:
                 "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                 "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(
                     ' ', 'TOTAL',
-                    convertFunc(rtotal[0]), convertFunc(rtotal[1]),
-                    convertFunc(rtotal[2]), convertFunc(rtotal[3]),
-                    convertFunc(rtotal[-1]),
-                    convertFunc(ttotal[0]), convertFunc(ttotal[1]),
-                    convertFunc(ttotal[2]), convertFunc(ttotal[3]),
-                    convertFunc(ttotal[-1])))
+                    convSize(rtotal[0]), convSize(rtotal[1]),
+                    convSize(rtotal[2]), convSize(rtotal[3]),
+                    convSize(rtotal[-1]),
+                    convSize(ttotal[0]), convSize(ttotal[1]),
+                    convSize(ttotal[2]), convSize(ttotal[3]),
+                    convSize(ttotal[-1])))
 
         SysMgr.infoBufferPrint("%s" % twoLine)
 
@@ -48967,7 +48966,7 @@ Copyright:
             after['Mlocked'] = '0'
 
         # define convert function #
-        convertFunc = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
 
         # print memory info #
         SysMgr.infoBufferPrint('\n[System Memory Info]')
@@ -48981,16 +48980,16 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
         SysMgr.infoBufferPrint("[ TOTAL] %10s %10s" % \
-            (convertFunc(long(before['MemTotal']) << 10),
-            convertFunc(long(before['SwapTotal']) << 10)))
+            (convSize(long(before['MemTotal']) << 10),
+            convSize(long(before['SwapTotal']) << 10)))
 
         SysMgr.infoBufferPrint("[ FREE ] %10s %10s" % \
-            (convertFunc(long(before['MemFree']) << 10),
-            convertFunc(long(before['SwapFree']) << 10)))
+            (convSize(long(before['MemFree']) << 10),
+            convSize(long(before['SwapFree']) << 10)))
         if 'MemAvailable' in before:
             SysMgr.infoBufferPrint("[ AVAIL] %10s %10s" % \
-                (convertFunc(long(before['MemAvailable']) << 10),
-                convertFunc(long(before['SwapFree']) << 10)))
+                (convSize(long(before['MemAvailable']) << 10),
+                convSize(long(before['SwapFree']) << 10)))
         SysMgr.infoBufferPrint(oneLine)
 
         if 'MemAvailable' in before:
@@ -49015,65 +49014,65 @@ Copyright:
         SysMgr.infoBufferPrint((
             "[ FIRST] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
-                (convertFunc(memBeforeUsage << 10),
-                convertFunc(swapBeforeUsage << 10),
-                convertFunc(long(before['Buffers']) << 10),
-                convertFunc(long(before['Cached']) << 10),
-                convertFunc(long(before['Shmem']) << 10),
-                convertFunc(long(before['Mapped']) << 10),
-                convertFunc(long(before['Active']) << 10),
-                convertFunc(long(before['Inactive']) << 10),
-                convertFunc(long(before['PageTables']) << 10),
-                convertFunc(long(before['Slab']) << 10),
-                convertFunc(long(before['SReclaimable']) << 10),
-                convertFunc(long(before['SUnreclaim']) << 10),
-                convertFunc(long(before['Mlocked']) << 10)))
+                (convSize(memBeforeUsage << 10),
+                convSize(swapBeforeUsage << 10),
+                convSize(long(before['Buffers']) << 10),
+                convSize(long(before['Cached']) << 10),
+                convSize(long(before['Shmem']) << 10),
+                convSize(long(before['Mapped']) << 10),
+                convSize(long(before['Active']) << 10),
+                convSize(long(before['Inactive']) << 10),
+                convSize(long(before['PageTables']) << 10),
+                convSize(long(before['Slab']) << 10),
+                convSize(long(before['SReclaimable']) << 10),
+                convSize(long(before['SUnreclaim']) << 10),
+                convSize(long(before['Mlocked']) << 10)))
 
         SysMgr.infoBufferPrint((
             "[ LAST ] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
-                (convertFunc(memAfterUsage << 10),
-                convertFunc(swapAfterUsage << 10),
-                convertFunc(long(after['Buffers']) << 10),
-                convertFunc(long(after['Cached']) << 10),
-                convertFunc(long(after['Shmem']) << 10),
-                convertFunc(long(after['Mapped']) << 10),
-                convertFunc(long(after['Active']) << 10),
-                convertFunc(long(after['Inactive']) << 10),
-                convertFunc(long(after['PageTables']) << 10),
-                convertFunc(long(after['Slab']) << 10),
-                convertFunc(long(after['SReclaimable']) << 10),
-                convertFunc(long(after['SUnreclaim']) << 10),
-                convertFunc(long(after['Mlocked']) << 10)))
+                (convSize(memAfterUsage << 10),
+                convSize(swapAfterUsage << 10),
+                convSize(long(after['Buffers']) << 10),
+                convSize(long(after['Cached']) << 10),
+                convSize(long(after['Shmem']) << 10),
+                convSize(long(after['Mapped']) << 10),
+                convSize(long(after['Active']) << 10),
+                convSize(long(after['Inactive']) << 10),
+                convSize(long(after['PageTables']) << 10),
+                convSize(long(after['Slab']) << 10),
+                convSize(long(after['SReclaimable']) << 10),
+                convSize(long(after['SUnreclaim']) << 10),
+                convSize(long(after['Mlocked']) << 10)))
 
         SysMgr.infoBufferPrint(oneLine)
 
         SysMgr.infoBufferPrint((
             "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
-                (convertFunc((memAfterUsage - memBeforeUsage ) << 10),
-                convertFunc((swapAfterUsage - swapBeforeUsage) << 10),
-                convertFunc((long(after['Buffers']) - \
+                (convSize((memAfterUsage - memBeforeUsage ) << 10),
+                convSize((swapAfterUsage - swapBeforeUsage) << 10),
+                convSize((long(after['Buffers']) - \
                     long(before['Buffers'])) << 10),
-                convertFunc((long(after['Cached']) - \
+                convSize((long(after['Cached']) - \
                     long(before['Cached'])) << 10),
-                convertFunc((long(after['Shmem']) - \
+                convSize((long(after['Shmem']) - \
                     long(before['Shmem'])) << 10),
-                convertFunc((long(after['Mapped']) - \
+                convSize((long(after['Mapped']) - \
                     long(before['Mapped'])) << 10),
-                convertFunc((long(after['Active']) - \
+                convSize((long(after['Active']) - \
                     long(before['Active'])) << 10),
-                convertFunc((long(after['Inactive']) - \
+                convSize((long(after['Inactive']) - \
                     long(before['Inactive'])) << 10),
-                convertFunc((long(after['PageTables']) - \
+                convSize((long(after['PageTables']) - \
                     long(before['PageTables'])) << 10),
-                convertFunc((long(after['Slab']) - \
+                convSize((long(after['Slab']) - \
                     long(before['Slab'])) << 10),
-                convertFunc((long(after['SReclaimable']) - \
+                convSize((long(after['SReclaimable']) - \
                     long(before['SReclaimable'])) << 10),
-                convertFunc((long(after['SUnreclaim']) - \
+                convSize((long(after['SUnreclaim']) - \
                     long(before['SUnreclaim'])) << 10),
-                convertFunc((long(after['Mlocked']) - \
+                convSize((long(after['Mlocked']) - \
                     long(before['Mlocked'])) << 10)))
 
         SysMgr.infoBufferPrint(twoLine)
@@ -49082,28 +49081,28 @@ Copyright:
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', {})
             SysMgr.jsonData['general']['mem'] = {
-                'memTotal': convertFunc(long(after['MemTotal']) << 10),
-                'memFree': convertFunc(long(after['MemFree']) << 10),
-                'swapTotal': convertFunc(long(after['SwapTotal']) << 10),
-                'swapFree': convertFunc(long(after['SwapFree']) << 10),
-                'buffer': convertFunc(long(after['Buffers']) << 10),
-                'cache': convertFunc(long(after['Cached']) << 10),
-                'shmem': convertFunc(long(after['Shmem']) << 10),
-                'mapped': convertFunc(long(after['Mapped']) << 10),
-                'active': convertFunc(long(after['Active']) << 10),
-                'inactive': convertFunc(long(after['Inactive']) << 10),
-                'pagetable': convertFunc(long(after['PageTables']) << 10),
-                'slab': convertFunc(long(after['Slab']) << 10),
+                'memTotal': convSize(long(after['MemTotal']) << 10),
+                'memFree': convSize(long(after['MemFree']) << 10),
+                'swapTotal': convSize(long(after['SwapTotal']) << 10),
+                'swapFree': convSize(long(after['SwapFree']) << 10),
+                'buffer': convSize(long(after['Buffers']) << 10),
+                'cache': convSize(long(after['Cached']) << 10),
+                'shmem': convSize(long(after['Shmem']) << 10),
+                'mapped': convSize(long(after['Mapped']) << 10),
+                'active': convSize(long(after['Active']) << 10),
+                'inactive': convSize(long(after['Inactive']) << 10),
+                'pagetable': convSize(long(after['PageTables']) << 10),
+                'slab': convSize(long(after['Slab']) << 10),
                 'sreclaimable': \
-                    convertFunc(long(after['SReclaimable']) << 10),
+                    convSize(long(after['SReclaimable']) << 10),
                 'sunreclaimable': \
-                    convertFunc(long(after['SUnreclaim']) << 10),
-                'mlock': convertFunc(long(after['Mlocked']) << 10),
+                    convSize(long(after['SUnreclaim']) << 10),
+                'mlock': convSize(long(after['Mlocked']) << 10),
             }
 
             if 'MemAvailable' in after:
                 SysMgr.jsonData['general']['mem']['memAvailable'] = \
-                    convertFunc(long(after['MemAvailable']) << 10)
+                    convSize(long(after['MemAvailable']) << 10)
 
 
 
@@ -50481,7 +50480,7 @@ class DbusMgr(object):
                 SysMgr.printErr(
                     "failed to update system stat", True)
 
-            convertNum = UtilMgr.convNum
+            convNum = UtilMgr.convNum
             convertSize = UtilMgr.convSize2Unit
             convertColor = UtilMgr.convColor
 
@@ -50496,8 +50495,8 @@ class DbusMgr(object):
                     dbusCnt = dbusData[pid]['totalCnt']
                     dbusList.append(
                         '[TOTAL]: %s / [TYPE]: %s' % \
-                            (convertNum(dbusCnt),
-                            convertNum(len(dbusData[pid])-1)))
+                            (convNum(dbusCnt),
+                            convNum(len(dbusData[pid])-1)))
 
                     for name, value in sorted(dbusData[pid].items(),
                         key=lambda x:x[1]['cnt'] if x[0] != 'totalCnt' else 0,
@@ -50552,7 +50551,7 @@ class DbusMgr(object):
                                 '%s') % (name, data['min'], avr, data['max'],
                                     errstr, wstat)
 
-                        count = convertNum(value['cnt'])
+                        count = convNum(value['cnt'])
                         size = convertSize(data['size'], isInt=True)
 
                         dbusList.append(
@@ -50615,7 +50614,7 @@ class DbusMgr(object):
                 except SystemExit: sys.exit(0)
                 except: pass
 
-            convertNum = UtilMgr.convNum
+            convNum = UtilMgr.convNum
 
             # update CPU usage of tasks #
             _updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
@@ -50648,16 +50647,16 @@ class DbusMgr(object):
             # set error #
             nrErr = prevDbusData['totalErr']
             if nrErr > 0:
-                nrErr = UtilMgr.convColor(convertNum(nrErr), 'RED')
+                nrErr = UtilMgr.convColor(convNum(nrErr), 'RED')
             else:
-                nrErr = convertNum(nrErr)
+                nrErr = convNum(nrErr)
 
             # print title #
             SysMgr.addPrint(
                 ("[%s] [Time: %7.3f] [Interval: %.1f] "
                 "[NrMsg: %s] [NrErr: %s] [SYS: %s/%s] [%s(%s): %s/%s] \n") % \
                     ('D-Bus Info', SysMgr.uptime, SysMgr.uptimeDiff,
-                    convertNum(prevDbusData['totalCnt']), nrErr, sysCpuStr,
+                    convNum(prevDbusData['totalCnt']), nrErr, sysCpuStr,
                     sysMemStr, DbusMgr.dbgObj.comm, DbusMgr.dbgObj.pid,
                     mcpuStr, rssStr))
 
@@ -51598,7 +51597,7 @@ class DltAnalyzer(object):
     @staticmethod
     def printSummary():
         quitLoop = False
-        convertFunc = UtilMgr.convNum
+        convSize = UtilMgr.convNum
 
         # update uptime #
         SysMgr.updateUptime()
@@ -51637,7 +51636,7 @@ class DltAnalyzer(object):
             "[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s] "
             "[SYS: %s/%s] [%s: %s/%s]\n") % \
                 ('DLT Info', SysMgr.uptime, SysMgr.uptimeDiff,
-                convertFunc(DltAnalyzer.dltData['cnt']),
+                convSize(DltAnalyzer.dltData['cnt']),
                 sysCpuStr, sysMemStr, procInfo, mcpuStr, rssStr))
 
         # update daemon stat #
@@ -51674,7 +51673,7 @@ class DltAnalyzer(object):
             ecuCnt = ecuItem['cnt']
             ecuPer = ecuCnt / float(DltAnalyzer.dltData['cnt']) * 100
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(
-                ecuId, convertFunc(ecuCnt), ecuPer)
+                ecuId, convSize(ecuCnt), ecuPer)
             SysMgr.addPrint(ecuStr)
             dltCnt += 1
 
@@ -51693,7 +51692,7 @@ class DltAnalyzer(object):
                 apCnt = apItem['cnt']
                 apPer = apCnt / float(ecuCnt) * 100
                 apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(
-                    depth, apId, convertFunc(apCnt), apPer)
+                    depth, apId, convSize(apCnt), apPer)
                 SysMgr.addPrint(apStr)
 
                 for ctxId, ctxItem in sorted(apItem.items(),
@@ -51711,7 +51710,7 @@ class DltAnalyzer(object):
                     ctxCnt = ctxItem['cnt']
                     ctxPer = ctxCnt / float(apCnt) * 100
                     ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(
-                        depth, ctxId, convertFunc(ctxCnt), ctxPer)
+                        depth, ctxId, convSize(ctxCnt), ctxPer)
                     SysMgr.addPrint(ctxStr)
 
         if dltCnt == 0:
@@ -67471,7 +67470,7 @@ class ElfAnalyzer(object):
                     end = addrTable[idx] - 1
             else:
                 start = addrTable[idx] + symTable[idx][1] + 1
-                end = addrTable[idx + 1] - 1
+                end = addrTable[idx+1] - 1
 
             return [start, end]
         except SystemExit: sys.exit(0)
@@ -74068,8 +74067,8 @@ class TaskAnalyzer(object):
             ytickLabel = list(map(long, ytickLabel))
 
             # convert label units #
-            convertNum = UtilMgr.convNum
-            ytickLabel = [convertNum(val) for val in ytickLabel]
+            convNum = UtilMgr.convNum
+            ytickLabel = [convNum(val) for val in ytickLabel]
 
             # apply formatter #
             ax.set_yticks(ax.get_yticks().tolist())
@@ -76794,7 +76793,7 @@ class TaskAnalyzer(object):
 
 
     def printComInfo(self):
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         # print thread tree by creation #
         if SysMgr.showAll and self.nrNewTask > 0:
@@ -76939,18 +76938,18 @@ class TaskAnalyzer(object):
                 totalCnt += item['scount']
                 totalUsage += item['usage']
                 avg = item['usage'] / item['rcount']
-                tasks = convertNum(len(item['task']))
+                tasks = convNum(len(item['task']))
                 SysMgr.addPrint(
                     ("{0:<32} {1:>12} {2:>10.6f} {3:>10.6f} "
                     "{4:>10.6f} {5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>6}\n").\
-                    format(item['name'], convertNum(item['scount']),
+                    format(item['name'], convNum(item['scount']),
                     item['usage'], avg, item['max'], item['min'],
                     item['maxPeriod'], item['minPeriod'], tasks))
 
             SysMgr.printPipe(
                 "%s# WORKQUEUE(%s) / Total(%6.3f) / Cnt(%s)\n\n" % \
-                    ('', convertNum(len(wqData)),
-                    totalUsage, convertNum(totalCnt)))
+                    ('', convNum(len(wqData)),
+                    totalUsage, convNum(totalCnt)))
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
 
@@ -76983,7 +76982,7 @@ class TaskAnalyzer(object):
                     "{5:>10.6f} {6:>10.6f} {7:>10.6f}\n").\
                     format(key,
                     ' | '.join(list(self.irqData[key]['name'])),
-                    convertNum(self.irqData[key]['count']),
+                    convNum(self.irqData[key]['count']),
                     self.irqData[key]['usage'],
                     self.irqData[key]['max'], self.irqData[key]['min'],
                     self.irqData[key]['maxPeriod'],
@@ -76999,7 +76998,7 @@ class TaskAnalyzer(object):
                     ("{0:>16} {1:<62} {2:>12} {3:>10.6f} {4:>10.6f} "
                     "{5:>10.6f} {6:>10.6f} {7:>10.6f}\n").format(
                     key, ' | '.join(list(self.irqData[key]['name'])),
-                    convertNum(self.irqData[key]['count']),
+                    convNum(self.irqData[key]['count']),
                     self.irqData[key]['usage'],
                     self.irqData[key]['max'], self.irqData[key]['min'],
                     self.irqData[key]['maxPeriod'],
@@ -77007,8 +77006,8 @@ class TaskAnalyzer(object):
 
             SysMgr.printPipe(
                 "%s# IRQ(%s) / Total(%6.3f) / Cnt(%s)\n\n" % \
-                    ('', convertNum(len(self.irqData)),
-                    totalUsage, convertNum(totalCnt)))
+                    ('', convNum(len(self.irqData)),
+                    totalUsage, convNum(totalCnt)))
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
 
@@ -77368,8 +77367,8 @@ class TaskAnalyzer(object):
         # print system information #
         SysMgr.printInfoBuffer()
 
-        convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
 
         # check trace event #
         if not (SysMgr.cpuEnable or \
@@ -77383,9 +77382,9 @@ class TaskAnalyzer(object):
             "[ ContextSwitch: %s ] [ LogSize: %s ] (Unit: Sec/MB/NR)") % \
             (title, 'Elapsed', round(float(self.totalTime), 7),
             'Start', round(float(SysMgr.startTime), 7),
-            convertNum(self.getRunTaskNum()),
-            convertNum(self.cxtSwitch),
-            convertFunc(SysMgr.logSize)))
+            convNum(self.getRunTaskNum()),
+            convNum(self.cxtSwitch),
+            convSize(SysMgr.logSize)))
         SysMgr.printPipe(twoLine)
 
         lastAField = "{0:_^17}|{1:_^16}".format("Mem Info", "Process")
@@ -77512,10 +77511,10 @@ class TaskAnalyzer(object):
                 else:
                     schedLatency = '%5.2f' % schedVal
 
-                yieldCnt = '%5s' % convertFunc(value['yield'])
-                preemptedCnt = '%5s' % convertFunc(value['preempted'])
-                preemptionCnt = '%5s' % convertFunc(value['preemption'])
-                migrateCnt = '%4s' % convertFunc(value['migrate'])
+                yieldCnt = '%5s' % convSize(value['yield'])
+                preemptedCnt = '%5s' % convSize(value['preempted'])
+                preemptionCnt = '%5s' % convSize(value['preemption'])
+                migrateCnt = '%4s' % convSize(value['migrate'])
             else:
                 cpuTime = '-'
                 cpuPer = '-'
@@ -77709,16 +77708,16 @@ class TaskAnalyzer(object):
 
                 pri = value['pri']
 
-                yieldCnt = '%5s' % convertFunc(value['yield'])
+                yieldCnt = '%5s' % convSize(value['yield'])
                 totalYieldCnt += value['yield']
 
-                preemptedCnt = '%5s' % convertFunc(value['preempted'])
+                preemptedCnt = '%5s' % convSize(value['preempted'])
                 totalPreemptedCnt += value['preempted']
 
-                preemptionCnt = '%5s' % convertFunc(value['preemption'])
+                preemptionCnt = '%5s' % convSize(value['preemption'])
                 totalPreemptionCnt += value['preemption']
 
-                migrateCnt = '%4s' % convertFunc(value['migrate'])
+                migrateCnt = '%4s' % convSize(value['migrate'])
                 totalMigrateCnt += value['migrate']
             else:
                 cpuTime = '-'
@@ -77901,10 +77900,10 @@ class TaskAnalyzer(object):
                 totalCpuTime = '%5.2f' % totalCpuTime
                 totalPrtTime = '%5.2f' % totalPrtTime
                 totalSchedLatency = '%5.2f' % totalSchedLatency
-            totalYieldCnt = '%5s' % convertFunc(totalYieldCnt)
-            totalPreemptedCnt = '%5s' % convertFunc(totalPreemptedCnt)
-            totalPreemptionCnt = '%5s' % convertFunc(totalPreemptionCnt)
-            totalMigrateCnt = '%4s' % convertFunc(totalMigrateCnt)
+            totalYieldCnt = '%5s' % convSize(totalYieldCnt)
+            totalPreemptedCnt = '%5s' % convSize(totalPreemptedCnt)
+            totalPreemptionCnt = '%5s' % convSize(totalPreemptionCnt)
+            totalMigrateCnt = '%4s' % convSize(totalMigrateCnt)
         except: pass
 
         try:
@@ -77962,7 +77961,7 @@ class TaskAnalyzer(object):
         if normCnt > 0:
             SysMgr.printPipe(
                 "%s# %s: %s\n%s\n%s" % \
-                    ('', 'Hot', convertNum(normCnt), normThreadString, oneLine))
+                    ('', 'Hot', convNum(normCnt), normThreadString, oneLine))
         else:
             SysMgr.printPipe("\tNone\n%s" % oneLine)
 
@@ -77970,13 +77969,13 @@ class TaskAnalyzer(object):
         if newCnt > 0:
             SysMgr.printPipe(
                 "%s# %s: %s\n%s\n%s" % \
-                    ('', 'New', convertNum(newCnt), newThreadString, oneLine))
+                    ('', 'New', convNum(newCnt), newThreadString, oneLine))
 
         # print die thread info #
         if dieCnt > 0:
             SysMgr.printPipe(
                 "%s# %s: %s\n%s\n%s" % \
-                    ('', 'Die', convertNum(dieCnt), dieThreadString, oneLine))
+                    ('', 'Die', convNum(dieCnt), dieThreadString, oneLine))
 
         # print thread preempted information after sorting by time of CPU usage #
         for val in SysMgr.preemptGroup:
@@ -78237,7 +78236,7 @@ class TaskAnalyzer(object):
         if not self.futexData:
             return
 
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         outputCnt = 0
         SysMgr.printPipe((
@@ -78282,8 +78281,8 @@ class TaskAnalyzer(object):
             ftxMax = '%.3f' % float(value['ftxMax'])
             ftxLock = '%.3f' % float(value['ftxLock'])
             ftxLockMax = '%.3f' % float(value['ftxLockMax'])
-            ftxLockCall = convertNum(value['ftxLockCnt'])
-            ftxWaitCall = convertNum(value['ftxWaitCnt'])
+            ftxLockCall = convNum(value['ftxLockCnt'])
+            ftxWaitCall = convNum(value['ftxWaitCnt'])
 
             # set total info #
             tinfo['ftxTotal'] += value['ftxTotal']
@@ -78301,8 +78300,8 @@ class TaskAnalyzer(object):
                 ftxProcess = '%.3f' % float(value['ftxProcess'])
                 ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
                 ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
-                ftxBlockCall = convertNum(value['ftxBlockCnt'])
-                ftxLSwitch = convertNum(value['ftxLSwitch'])
+                ftxBlockCall = convNum(value['ftxBlockCnt'])
+                ftxLSwitch = convNum(value['ftxLSwitch'])
 
                 tinfo['ftxProcess'] += value['ftxProcess']
                 tinfo['ftxBlockTotal'] += value['ftxBlockTotal']
@@ -78341,8 +78340,8 @@ class TaskAnalyzer(object):
             tinfo['ftxMax'] = '%.3f' % tinfo['ftxMax']
             tinfo['ftxLock'] = '%.3f' % tinfo['ftxLock']
             tinfo['ftxLockMax'] = '%.3f' % tinfo['ftxLockMax']
-            tinfo['ftxLockCnt'] = convertNum(tinfo['ftxLockCnt'])
-            tinfo['ftxWaitCnt'] = convertNum(tinfo['ftxWaitCnt'])
+            tinfo['ftxLockCnt'] = convNum(tinfo['ftxLockCnt'])
+            tinfo['ftxWaitCnt'] = convNum(tinfo['ftxWaitCnt'])
 
             # convert format for total info #
             if tinfo['ftxProcess'] != '-':
@@ -78352,9 +78351,9 @@ class TaskAnalyzer(object):
             if tinfo['ftxLBlockTotal'] != '-':
                 tinfo['ftxLBlockTotal'] = '%.3f' % tinfo['ftxLBlockTotal']
             if tinfo['ftxBlockCnt'] != '-':
-                tinfo['ftxBlockCnt'] = convertNum(tinfo['ftxBlockCnt'])
+                tinfo['ftxBlockCnt'] = convNum(tinfo['ftxBlockCnt'])
             if tinfo['ftxLSwitch'] != '-':
-                tinfo['ftxLSwitch'] = convertNum(tinfo['ftxLSwitch'])
+                tinfo['ftxLSwitch'] = convNum(tinfo['ftxLSwitch'])
 
             def _convItem(name):
                 val = float(tinfo[name].replace(',',''))
@@ -78676,7 +78675,7 @@ class TaskAnalyzer(object):
         if not self.syscallData:
             return
 
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         outputCnt = 0
         SysMgr.printPipe(
@@ -78730,7 +78729,7 @@ class TaskAnalyzer(object):
                         '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n').format(
                         '%s%s' % (syscallInfo, ' ' * len(threadInfo)),
                         syscall, sysId, '%.6f' % val['usage'],
-                        convertNum(val['count']), convertNum(val['err']),
+                        convNum(val['count']), convNum(val['err']),
                         '%.6f' % val['min'], '%.6f' % val['max'],
                         val['average'])
                 except SystemExit: sys.exit(0)
@@ -78788,8 +78787,8 @@ class TaskAnalyzer(object):
                     ('{0:1} {1:>30}({2:>3}) {3:>12} '
                     '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}').format(
                     ' ' * len(totalStrInfo), syscall, sysId,
-                    '%.6f' % val['usage'], convertNum(val['count']),
-                    convertNum(val['err']), '%.6f' % val['min'],
+                    '%.6f' % val['usage'], convNum(val['count']),
+                    convNum(val['err']), '%.6f' % val['min'],
                     '%.6f' % val['max'], '%.6f' % val['average'])
 
                 SysMgr.printPipe(syscallInfo)
@@ -80117,9 +80116,9 @@ class TaskAnalyzer(object):
                 ytickLabel = list(map(long, ytickLabel))
 
                 # convert label units #
-                convertNum = UtilMgr.convSize2Unit
+                convNum = UtilMgr.convSize2Unit
                 ytickLabel = \
-                    [convertNum(val << 20, True) for val in ytickLabel]
+                    [convNum(val << 20, True) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
             except: pass
@@ -80588,14 +80587,14 @@ class TaskAnalyzer(object):
 
                 nowStat = line.split()
                 nowIn = long(nowStat[SysMgr.netInIndex])
-                nowOut = long(nowStat[SysMgr.netInIndex + 1])
+                nowOut = long(nowStat[SysMgr.netInIndex+1])
 
                 if SysMgr.totalEnable:
                     prevIn = prevOut = 0
                 else:
                     prevStat = prev[idx].split()
                     prevIn = long(prevStat[SysMgr.netInIndex])
-                    prevOut = long(prevStat[SysMgr.netInIndex + 1])
+                    prevOut = long(prevStat[SysMgr.netInIndex+1])
 
                 inDiff = nowIn - prevIn
                 outDiff = nowOut - prevOut
@@ -82330,8 +82329,8 @@ class TaskAnalyzer(object):
             SysMgr.printPipe("\n\tNone")
             return
 
-        convertNum = UtilMgr.convNum
-        convertFunc = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
 
         for pid in tuple(SysMgr.procInstance):
             path = '%s/%s' % (SysMgr.procPath, pid)
@@ -82381,19 +82380,19 @@ class TaskAnalyzer(object):
                 ppid = val['mainID']
 
             try:
-                vss = convertFunc(long(stat[vssIdx]))
+                vss = convSize(long(stat[vssIdx]))
             except SystemExit: sys.exit(0)
             except:
                 vss = '-'
 
             try:
-                rss = convertFunc(long(stat[rssIdx]) << 12)
+                rss = convSize(long(stat[rssIdx]) << 12)
             except SystemExit: sys.exit(0)
             except:
                 rss = '-'
 
             try:
-                shm = convertFunc(long(statm[shrIdx]) << 12)
+                shm = convSize(long(statm[shrIdx]) << 12)
             except SystemExit: sys.exit(0)
             except:
                 shm = '-'
@@ -82402,7 +82401,7 @@ class TaskAnalyzer(object):
                 "{0:>16}({1:>7}/{2:>7}) "
                 "{3:>8} {4:>8} {5:>8} {6:>12} {7:>20}\n").format(
                     comm, pid, ppid, vss, rss, shm,
-                    convertNum(val['oomScore']),
+                    convNum(val['oomScore']),
                     UtilMgr.convTime(runtime)))
 
             cnt += 1
@@ -90033,7 +90032,7 @@ class TaskAnalyzer(object):
         if not maps:
             return [], 0, 0, 0
 
-        convertFunc = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
 
         for key, item in sorted(maps.items(), reverse=True):
             tmpstr = ''
@@ -90044,14 +90043,14 @@ class TaskAnalyzer(object):
             try:
                 prop = 'Size:'
                 tmpstr = "%s%s%7s / " % \
-                    (tmpstr, "VSS:", convertFunc(item[prop] << 10))
+                    (tmpstr, "VSS:", convSize(item[prop] << 10))
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = 'Rss:'
                 tmpstr = "%s%s%7s / " % \
-                    (tmpstr, prop.upper(), convertFunc(item[prop] << 10))
+                    (tmpstr, prop.upper(), convSize(item[prop] << 10))
                 rss += item[prop]
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
@@ -90059,7 +90058,7 @@ class TaskAnalyzer(object):
             try:
                 prop = 'Pss:'
                 tmpstr = "%s%s%7s / " % \
-                    (tmpstr, prop.upper(), convertFunc(item[prop] << 10))
+                    (tmpstr, prop.upper(), convSize(item[prop] << 10))
                 pss += item[prop]
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
@@ -90067,21 +90066,21 @@ class TaskAnalyzer(object):
             try:
                 prop = 'Swap:'
                 tmpstr = "%s%s%7s / " % \
-                    (tmpstr, prop.upper(), convertFunc(item[prop] << 10))
+                    (tmpstr, prop.upper(), convSize(item[prop] << 10))
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = 'AnonHugePages:'
                 tmpstr = "%s%s:%5s / " % \
-                    (tmpstr, 'HUGE', convertFunc(item[prop] << 10, True))
+                    (tmpstr, 'HUGE', convSize(item[prop] << 10, True))
             except:
                 tmpstr = "%s%s:%5s / " % (tmpstr, 'HUGE', 0)
 
             try:
                 prop = 'Locked:'
                 tmpstr = "%s%s%6s / " % \
-                    (tmpstr, 'LOCK:', convertFunc(item[prop] << 10, True))
+                    (tmpstr, 'LOCK:', convSize(item[prop] << 10, True))
             except:
                 tmpstr = "%s%s%6s / " % (tmpstr, 'LOCK:', 0)
 
@@ -90094,14 +90093,14 @@ class TaskAnalyzer(object):
                 prop = 'Shared_Dirty:'
                 sss += item[prop]
                 tmpstr = "%s%s:%7s / " % \
-                    (tmpstr, 'SDRT', convertFunc(item[prop] << 10))
+                    (tmpstr, 'SDRT', convSize(item[prop] << 10))
             except:
                 tmpstr = "%s%s:%7s / " % (tmpstr, 'SDRT', 0)
 
             try:
                 prop = 'Private_Dirty:'
                 tmpstr = "%s%s:%7s" % \
-                    (tmpstr, 'PDRT', convertFunc(item[prop] << 10))
+                    (tmpstr, 'PDRT', convSize(item[prop] << 10))
             except:
                 tmpstr = "%s%s:%7s" % (tmpstr, 'PDRT', 0)
 
@@ -90109,7 +90108,7 @@ class TaskAnalyzer(object):
             try:
                 prop = 'NOPM'
                 tmpstr = "%s%s:%5s" % \
-                    (tmpstr, prop, convertFunc(item[prop] << 10, True))
+                    (tmpstr, prop, convSize(item[prop] << 10, True))
             except:
                 tmpstr = "%s%s:%5s" % (tmpstr, prop, 0)
             '''
@@ -90121,7 +90120,7 @@ class TaskAnalyzer(object):
             if SysMgr.wssEnable:
                 # get current WSS size #
                 try:
-                    wss = convertFunc(item['Referenced:'] << 10, False)
+                    wss = convSize(item['Referenced:'] << 10, False)
                 except:
                     wss = 0
 
@@ -90163,8 +90162,7 @@ class TaskAnalyzer(object):
 
     def printDefaultUsage(self, title):
         try:
-            nrNewThreads = \
-                self.cpuData['processes']['processes'] - \
+            nrNewThreads = self.cpuData['processes']['processes'] - \
                 self.prevCpuData['processes']['processes']
         except SystemExit: sys.exit(0)
         except:
@@ -90175,8 +90173,10 @@ class TaskAnalyzer(object):
                 loadlist = SysMgr.loadavg.split()[:3]
             else:
                 loadlist = list(SysMgr.loadavg)
+
             for idx, load in enumerate(loadlist):
                 loadlist[idx] = str('%d' % float(load))
+
             loadavg = '/'.join(loadlist)
         except SystemExit: sys.exit(0)
         except:
@@ -90194,8 +90194,9 @@ class TaskAnalyzer(object):
             oom_kill = 0
 
         try:
-            nrCtxt = \
-                self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+            nrCtxt = self.cpuData['ctxt']['ctxt'] - \
+                self.prevCpuData['ctxt']['ctxt']
+
             if nrCtxt < 0:
                 nrCtxt = 0
         except SystemExit: sys.exit(0)
@@ -90210,8 +90211,9 @@ class TaskAnalyzer(object):
             nrTermThreads = 0
 
         try:
-            nrIrq = \
-                self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
+            nrIrq = self.cpuData['intr']['intr'] - \
+                self.prevCpuData['intr']['intr']
+
             if nrIrq < 0:
                 nrIrq = 0
         except SystemExit: sys.exit(0)
@@ -90233,13 +90235,14 @@ class TaskAnalyzer(object):
             swapTotal = 0
 
         try:
-            battery = ''
             if SysMgr.battery:
                 battery = ' [Power:%d%%/%s/%s]' % (
                     SysMgr.battery[0],
                     UtilMgr.convTime(SysMgr.battery[1]),
                     '+' if SysMgr.battery[2] else '-'
                 )
+            else:
+                battery = ''
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -90437,7 +90440,7 @@ class TaskAnalyzer(object):
                 "Dev", "IP", "Size", "Packet", "Error", "Drop", "Multicast"))
         SysMgr.addPrint('%s\n' % twoLine)
 
-        convertFunc = UtilMgr.convSize2Unit
+        convSize = UtilMgr.convSize2Unit
 
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('net', {})
@@ -90475,18 +90478,18 @@ class TaskAnalyzer(object):
 
             try:
                 # convert color for network usage #
-                recvSize = '%8s' % convertFunc(rdiff[0])
+                recvSize = '%8s' % convSize(rdiff[0])
                 if rdiff[0] > 0:
                     recvSize = UtilMgr.convColor(recvSize, 'YELLOW')
-                tranSize = '%8s' % convertFunc(tdiff[0])
+                tranSize = '%8s' % convSize(tdiff[0])
                 if tdiff[0] > 0:
                     tranSize = UtilMgr.convColor(tranSize, 'YELLOW')
 
                 # convert color for network error #
-                recvErr = '%8s' % convertFunc(rdiff[2])
+                recvErr = '%8s' % convSize(rdiff[2])
                 if rdiff[2] > 0:
                     recvErr = UtilMgr.convColor(recvErr, 'RED')
-                tranErr = '%8s' % convertFunc(tdiff[2])
+                tranErr = '%8s' % convSize(tdiff[2])
                 if tdiff[2] > 0:
                     tranErr = UtilMgr.convColor(tranErr, 'RED')
 
@@ -90495,10 +90498,10 @@ class TaskAnalyzer(object):
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(
                         dev[-16:], val['ipaddr'][:21],
-                        recvSize, convertFunc(rdiff[1]), recvErr,
-                        convertFunc(rdiff[3]), convertFunc(rdiff[-1]),
-                        tranSize, convertFunc(tdiff[1]), tranErr,
-                        convertFunc(tdiff[3]), convertFunc(tdiff[-1])))
+                        recvSize, convSize(rdiff[1]), recvErr,
+                        convSize(rdiff[3]), convSize(rdiff[-1]),
+                        tranSize, convSize(tdiff[1]), tranErr,
+                        convSize(tdiff[3]), convSize(tdiff[-1])))
                 cnt += 1
             except SystemExit: sys.exit(0)
             except: pass
@@ -90510,18 +90513,18 @@ class TaskAnalyzer(object):
             tdiff = totalStat['tdiff']
 
             # convert color for network usage #
-            recvSize = '%8s' % convertFunc(rdiff[0])
+            recvSize = '%8s' % convSize(rdiff[0])
             if rdiff[0] > 0:
                 recvSize = UtilMgr.convColor(recvSize, 'YELLOW')
-            tranSize = '%8s' % convertFunc(tdiff[0])
+            tranSize = '%8s' % convSize(tdiff[0])
             if tdiff[0] > 0:
                 tranSize = UtilMgr.convColor(tranSize, 'YELLOW')
 
             # convert color for network error #
-            recvErr = '%8s' % convertFunc(rdiff[2])
+            recvErr = '%8s' % convSize(rdiff[2])
             if rdiff[2] > 0:
                 recvErr = UtilMgr.convColor(recvErr, 'RED')
-            tranErr = '%8s' % convertFunc(tdiff[2])
+            tranErr = '%8s' % convSize(tdiff[2])
             if tdiff[2] > 0:
                 tranErr = UtilMgr.convColor(tranErr, 'RED')
 
@@ -90530,10 +90533,10 @@ class TaskAnalyzer(object):
                 "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                 "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(
                     '[ TOTAL ]', ' ',
-                    recvSize, convertFunc(rdiff[1]), recvErr,
-                    convertFunc(rdiff[3]), convertFunc(rdiff[-1]),
-                    tranSize, convertFunc(tdiff[1]), tranErr,
-                    convertFunc(tdiff[3]), convertFunc(tdiff[-1])))
+                    recvSize, convSize(rdiff[1]), recvErr,
+                    convSize(rdiff[3]), convSize(rdiff[-1]),
+                    tranSize, convSize(tdiff[1]), tranErr,
+                    convSize(tdiff[3]), convSize(tdiff[-1])))
 
 
 
@@ -91005,12 +91008,13 @@ class TaskAnalyzer(object):
 
         # print stats #
         printCnt = 0
+        uptimeDiff = SysMgr.uptimeDiff
         for pid, value in sorted(self.procData.items(),
             key=lambda e: e[1]['ttimeDiff'], reverse=True):
             # CPU #
-            ttime = long(value['ttimeDiff'] * 100 / SysMgr.uptimeDiff)
-            stime = long(value['stimeDiff'] * 100 / SysMgr.uptimeDiff)
-            utime = long(value['utimeDiff'] * 100 / SysMgr.uptimeDiff)
+            ttime = long(value['ttimeDiff'] * 100 / uptimeDiff)
+            stime = long(value['stimeDiff'] * 100 / uptimeDiff)
+            utime = long(value['utimeDiff'] * 100 / uptimeDiff)
             btime = 0
 
             ppid = value['ppid']
@@ -91467,8 +91471,8 @@ class TaskAnalyzer(object):
         plist = _getParentList()
 
         # define convert function #
-        convertNum = UtilMgr.convNum
-        convertFunc = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
         convTime = UtilMgr.convTime
         convColor = UtilMgr.convColor
 
@@ -91946,7 +91950,7 @@ class TaskAnalyzer(object):
                         try:
                             vmsize = long(memset[item].split()[0]) << 10
                             memstr += \
-                                '%s: %s, ' % (item, convertFunc(vmsize))
+                                '%s: %s, ' % (item, convSize(vmsize))
                         except SystemExit: sys.exit(0)
                         except: pass
 
@@ -91964,7 +91968,7 @@ class TaskAnalyzer(object):
             if idx in gpuMem:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format(
-                        'GPUMEM', convertFunc(gpuMem[idx]['size'])))
+                        'GPUMEM', convSize(gpuMem[idx]['size'])))
 
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
@@ -91993,7 +91997,7 @@ class TaskAnalyzer(object):
 
                 execStr = 'Exec: %s(%.1f%%)' % (convTime(execTime), execPer)
                 waitStr = 'Wait: %s(%.1f%%)' % (convTime(waitTime), waitPer)
-                sliceStr = 'NrTimeslice: %s' % convertNum(value['nrSlice'])
+                sliceStr = 'NrTimeslice: %s' % convNum(value['nrSlice'])
 
                 schedStr = '%s / %s / %s' % (execStr, waitStr, sliceStr)
 
@@ -92057,6 +92061,16 @@ class TaskAnalyzer(object):
                 if writesize > 0:
                     writesize = convColor(writesize, 'RED', 4)
 
+            # total MEM #
+            tmem = convSize(totalStats['mem'] << 20, True)
+            tmem = convColor(tmem,'YELLOW', 5)
+
+            # total SWAP #
+            tswap = totalStats['swap']
+            if tswap > 0:
+                tswap = convSize(totalStats['swap'] << 20, True)
+                tswap = convColor(tswap,'YELLOW', 5)
+
             # print total stats #
             SysMgr.addPrint(
                 ("{0:>{td}}|"
@@ -92064,14 +92078,12 @@ class TaskAnalyzer(object):
                 "{4:>3}:{5:>5} / {6:>3}:{7:>5})|"
                 "{8:>4}({9:>4}/{10:>4}/{11:>5})|"
                 "{12:>12}|{13:>14}|{14:>21}|\n").\
-                format('[ TOTAL ]', totalTime,
-                totalStats['utime'], totalStats['stime'], mem,
-                convertFunc(totalStats['mem'] << 20, True),
-                'Swp', convertFunc(totalStats['swap'], True),
+                format('[ TOTAL ]', totalTime, totalStats['utime'],
+                totalStats['stime'], mem, tmem, 'Swp', tswap,
                 totalBtime, readsize, writesize, totalStats['majflt'],
-                'Yld: %s' % convertNum(totalStats['yld']),
-                'Prmt: %s' % convertNum(totalStats['prtd']),
-                'Task: %s' % convertNum(totalStats['task']),
+                'Yld: %s' % convNum(totalStats['yld']),
+                'Prmt: %s' % convNum(totalStats['prtd']),
+                'Task: %s' % convNum(totalStats['task']),
                 td=cl+(pd*2)+14))
 
             SysMgr.addPrint("%s\n" % oneLine)
