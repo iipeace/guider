@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220109"
+__revision__ = "220110"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23394,6 +23394,7 @@ Commands:
     getarg   print specific registers [REGS]
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
+    hide     hide tracing
     inter    print interval stats for the function call
     jump     jump to specific function with specific arguments [FUNC#ARGS]
     kill     terminate the target task
@@ -23411,8 +23412,9 @@ Commands:
     setarg   change value for specific register [REG#VAR|VAL]
     setenv   change specific environment variable [VAR:VAR|VAL]
     setret   change return value [VAL:CMD]
+    show     show tracing
     sleep    sleep for seconds [SEC]
-    start    start printing all functions
+    start    start tracing
     stop     pause tracing
     syscall  call a syscall [FUNC#ARGS]
     thread   create a new thread
@@ -23552,10 +23554,10 @@ Examples:
     - {3:1} except for specific files for specific threads
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
-    - {5:1} including specific word for specific threads and stop tracing {4:1}
+    - {5:1} including specific word for specific threads until {4:1}
         # {0:1} {1:1} -g a.out -c "*printPeace|stop"
-        # {0:1} {1:1} -g a.out -c "printPeace*|stop"
-        # {0:1} {1:1} -g a.out -c "*printPeace*|stop"
+        # {0:1} {1:1} -g a.out -c "printPeace*|hide"
+        # {0:1} {1:1} -g a.out -c "*printPeace*|hide"
 
     - {3:1} and sleep for 0.1 second {4:1}
         # {0:1} {1:1} -g a.out -c "*|sleep:0.1"
@@ -23590,10 +23592,10 @@ Examples:
     - {5:1} for specific threads and print return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret"
 
-    - {5:1} for specific threads and stop tracing and save return value to the specific variable {4:1}
+    - {5:1} for specific threads until {4:1} and save return value to the specific variable
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
-    - {5:1} for specific threads and start tracing all calls after return {4:1}
+    - {5:1} for specific threads from when return of specific function calls
         # {0:1} {1:1} -g a.out -c "write|getret:start, *"
 
     - {5:1} for specific threads without truncation
@@ -23659,8 +23661,9 @@ Examples:
     - {5:1} and print 1st and 2nd arguments and save its return value to the specific variable {4:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
-    - {5:1} and start tracing all functions {4:1}
+    - {5:1} from when {4:1}
         # {0:1} {1:1} -g a.out -c "write|start, *"
+        # {0:1} {1:1} -g a.out -c "write|show, *"
 
     - {5:1} and terminate the target thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|exit"
@@ -25479,13 +25482,13 @@ Examples:
     - {3:1} for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - {3:1} for specifics thread without truncation
+    - {3:1} for specific threads without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
 
     - {3:1} with 1/10 instructions for specific threads
         # {0:1} {1:1} -g a.out -H 10
 
-    - {3:1} for specifics thread and report the result to ./guider.out
+    - {3:1} for specific threads and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
     - {3:1} with breakpoint for peace including register info for specific threads
@@ -26731,6 +26734,7 @@ Examples:
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
 
     - Print funtions caused memory leakage of a specific process
+        # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -I ./leaks.out -g a.out
                     '''.format(cmd, mode)
 
@@ -53128,6 +53132,7 @@ class Debugger(object):
         self.errCnt = 0
         self.sampleTime = 0
         self.startProfTime = False
+        self.showStatus = True
 
         # init task number #
         if not hasattr(self, 'myNum'):
@@ -54043,6 +54048,10 @@ typedef struct {
                 cmdformat = "NAME|ADDR:FILE"
             elif cmd == 'start':
                 cmdformat = ""
+            elif cmd == 'show':
+                cmdformat = ""
+            elif cmd == 'hide':
+                cmdformat = ""
             elif cmd == 'exit':
                 cmdformat = ""
             elif cmd == 'condexit':
@@ -54077,6 +54086,10 @@ typedef struct {
                     (cmdset, cmd, cmdformat))
             sys.exit(0)
 
+        def _addPrint(string):
+            if self.showStatus:
+                SysMgr.addPrint(string)
+
         def _handleCmd(cmdset, cmd):
             repeat = True
 
@@ -54105,8 +54118,7 @@ typedef struct {
                     except:
                         data = 'N/A'
 
-                    SysMgr.addPrint(
-                        "\n[%s] %s = %s" % (cmdstr, var, data))
+                    _addPrint("\n[%s] %s = %s" % (cmdstr, var, data))
 
             elif cmd == 'map':
                 SysMgr.addPrint("\n[%s]" % cmdstr)
@@ -54119,8 +54131,7 @@ typedef struct {
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
 
-                SysMgr.addPrint(
-                    "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
+                _addPrint("\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
                 _flushPrint(newline=False)
 
                 # execute commands #
@@ -54161,7 +54172,7 @@ typedef struct {
                             self.readMem(targetAddr, retWord=True)
 
                 retval = "0x%x" % ret
-                SysMgr.addPrint("\n[%s] %s(%s)" % (cmdstr, ret, retval))
+                _addPrint("\n[%s] %s(%s)" % (cmdstr, ret, retval))
 
                 # set register values #
                 self.setRet(ret)
@@ -54218,7 +54229,7 @@ typedef struct {
                     self.setRetList[newSym].append(num)
 
                 # print return value #
-                SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
+                _addPrint("\n[%s] %s" % (cmdstr, val))
 
             elif cmd == 'setarg':
                 if len(cmdset) == 1:
@@ -54259,7 +54270,7 @@ typedef struct {
 
                     argList[long(idx)] = val[0]
 
-                SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
+                _addPrint("\n[%s] %s" % (cmdstr, res))
 
                 # set register values #
                 self.writeArgs(argList)
@@ -54298,7 +54309,7 @@ typedef struct {
                 else:
                     res = argStr[:argStr.rfind(',')]
 
-                SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
+                _addPrint("\n[%s] %s" % (cmdstr, res))
 
             elif cmd == 'wrmem':
                 if len(cmdset) == 1:
@@ -54338,10 +54349,9 @@ typedef struct {
                 addr = UtilMgr.convStr2Num(addr)
                 if addr is None: return repeat
 
-                SysMgr.addPrint(
-                    "\n[%s] %s: %s(%sbyte)" % \
-                        (cmdstr, hex(addr).rstrip('L'),
-                            repr(val[:size]), size))
+                _addPrint("\n[%s] %s: %s(%sbyte)" % \
+                    (cmdstr, hex(addr).rstrip('L'),
+                        repr(val[:size]), size))
 
                 # set register values #
                 ret = self.writeMem(addr, val, size)
@@ -54381,8 +54391,7 @@ typedef struct {
                     self.remoteUsercall('PyEval_RestoreThread', [mainState])
                     self.finishPyLib()
                 else:
-                    SysMgr.addPrint(
-                        "\n[%s] %s(%s)" % (cmdstr, self.comm, self.pid))
+                    _addPrint("\n[%s] %s(%s)" % (cmdstr, self.comm, self.pid))
 
             elif cmd == 'pystr' or cmd == 'pyfile':
                 if len(cmdset) == 1:
@@ -54410,8 +54419,7 @@ typedef struct {
 
                 self.initPyLib()
 
-                SysMgr.addPrint(
-                    "\n[%s] %s [sync=%s]" % (cmdstr, source, sync))
+                _addPrint("\n[%s] %s [sync=%s]" % (cmdstr, source, sync))
 
                 # call python #
                 if cmd == 'pystr':
@@ -54442,10 +54450,10 @@ typedef struct {
                 else:
                     res = 'success'
 
-                SysMgr.addPrint(
-                    "\n[%s] %s(%s)->%s (%s)" % \
-                        (cmdstr, meminfo,
-                            UtilMgr.convSize2Unit(size), output, res))
+                sizestr = UtilMgr.convSize2Unit(size)
+
+                _addPrint("\n[%s] %s(%s)->%s (%s)" % \
+                    (cmdstr, meminfo, sizestr, output, res))
 
             elif cmd == 'check':
                 cmds = ':'.join(cmdset)
@@ -54466,8 +54474,7 @@ typedef struct {
                 else:
                     ret = convColor(ret, 'RED')
 
-                SysMgr.addPrint(
-                    "\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
+                _addPrint("\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
 
                 if skip:
                     raise UserWarning
@@ -54502,8 +54509,7 @@ typedef struct {
                 vmin = self.interList[sym]['min']
                 vmax = self.interList[sym]['max']
 
-                SysMgr.addPrint((
-                    "\n[%s] %.6f {cnt: %s / avg: %.6f / "
+                _addPrint(("\n[%s] %.6f {cnt: %s / avg: %.6f / "
                     "min: %.6f / max: %.6f / total %.6f}") % \
                         (cmdstr, val, convNum(cnt), avg, vmin, vmax, total))
 
@@ -54575,8 +54581,7 @@ typedef struct {
                 else:
                     dist = ''
 
-                SysMgr.addPrint((
-                    "\n[%s] %s: %s(%s) "
+                _addPrint(("\n[%s] %s: %s(%s) "
                     "{cnt: %s / total: %s / avg: %s / "
                     "min: %s / max: %s} %s") % \
                         (cmdstr, name, hex(val).rstrip('L'), val,
@@ -54656,10 +54661,9 @@ typedef struct {
                 except:
                     binstr = ''
 
-                SysMgr.addPrint(
-                    "\n[%s] %s: %s(%sbyte)%s" % \
-                        (cmdstr, hex(addr).rstrip('L'), \
-                            repr(ret), size, binstr))
+                _addPrint("\n[%s] %s: %s(%sbyte)%s" % \
+                    (cmdstr, hex(addr).rstrip('L'), \
+                        repr(ret), size, binstr))
 
             elif cmd == 'pyscript':
                 if len(cmdset) == 1:
@@ -54684,10 +54688,10 @@ typedef struct {
 
                 output = "\n[%s] %s(%s)[%s] = %s" % \
                     (cmdstr, func, argset, path, res)
-                SysMgr.addPrint(output)
+                _addPrint(output)
 
             elif cmd == 'start':
-                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                _addPrint("\n[%s]\n" % (cmdstr))
                 _flushPrint(newline=False)
 
                 # update status flag #
@@ -54698,6 +54702,29 @@ typedef struct {
                 self.updateBpList()
 
                 repeat = False
+
+            elif cmd == 'show':
+                if self.showStatus:
+                    prevStr = ''
+                else:
+                    isRet = True if sym.endswith(Debugger.RETSTR) else False
+                    tinfo, diffstr, arg, argstr, btstr, indent, symColor = \
+                        self.getBpContext(sym, self.pc, self.readArgs(), isRet)
+                    prevStr = ' %s %s%s%s' % (diffstr, tinfo,
+                        UtilMgr.convColor(sym, symColor), argstr)
+
+                # show tracing #
+                self.showStatus = True
+
+                _addPrint("\n[%s]%s" % (cmdstr, prevStr))
+                _flushPrint(newline=False)
+
+            elif cmd == 'hide':
+                _addPrint("\n[%s]" % (cmdstr))
+                _flushPrint(newline=False)
+
+                # hide tracing #
+                self.showStatus = False
 
             elif cmd == 'repeat':
                 if sym in self.repeatCntList:
@@ -54732,7 +54759,7 @@ typedef struct {
                             "return address for %s") % sym)
 
                 output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
-                SysMgr.addPrint(output)
+                _addPrint(output)
 
             elif cmd == 'save':
                 if len(cmdset) == 1:
@@ -54773,7 +54800,7 @@ typedef struct {
                 except: pass
 
                 output = "\n[%s] %s = %s%s" % (cmdstr, var, data, hexData)
-                SysMgr.addPrint(output)
+                _addPrint(output)
 
             elif cmd == 'load':
                 if len(cmdset) == 1:
@@ -54797,7 +54824,7 @@ typedef struct {
                     ret = hex(ret).rstrip('L')
 
                 output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
-                SysMgr.addPrint(output)
+                _addPrint(output)
                 _flushPrint(newline=False)
 
                 # inject all breakpoints again #
@@ -54824,7 +54851,7 @@ typedef struct {
                     argStr = '()'
 
                 output = "\n[%s] %s%s" % (cmdstr, val, argStr)
-                SysMgr.addPrint(output)
+                _addPrint(output)
                 _flushPrint(newline=False)
 
                 # remove a breakpoint for syscall #
@@ -54839,8 +54866,7 @@ typedef struct {
                 self.retList[val] = str(ret)
                 self.prevReturn = str(ret)
 
-                SysMgr.addPrint(' = %s(%s)' % \
-                    (hex(ret).rstrip('L'), ret))
+                _addPrint(' = %s(%s)' % (hex(ret).rstrip('L'), ret))
                 _flushPrint(newline=False)
 
                 # inject a breakpoint for syscall again #
@@ -54886,7 +54912,7 @@ typedef struct {
                 if not skip:
                     self.removeAllBp(verb=False)
 
-                SysMgr.addPrint(output)
+                _addPrint(output)
                 _flushPrint(newline=False)
 
                 if not skip:
@@ -54899,8 +54925,7 @@ typedef struct {
                     self.retList[val] = str(ret)
                     self.prevReturn = str(ret)
 
-                    SysMgr.addPrint(' = %s(%s)' % \
-                        (hex(ret).rstrip('L'), ret))
+                    _addPrint(' = %s(%s)' % (hex(ret).rstrip('L'), ret))
                     _flushPrint(newline=False)
 
                     # inject all breakpoints again #
@@ -54953,7 +54978,7 @@ typedef struct {
                 else:
                     skip = False
 
-                SysMgr.addPrint(output)
+                _addPrint(output)
 
                 # set register values #
                 if not skip:
@@ -54968,7 +54993,7 @@ typedef struct {
                 else:
                     val = float(cmdset[1])
 
-                SysMgr.addPrint("\n[%s] %g sec" % (cmdstr, val))
+                _addPrint("\n[%s] %g sec" % (cmdstr, val))
                 _flushPrint(newline=False)
                 self.dvalue += val
 
@@ -54995,7 +55020,7 @@ typedef struct {
                 # remove all berakpoints #
                 self.removeAllBp(verb=False)
 
-                SysMgr.addPrint(output)
+                _addPrint(output)
                 _flushPrint(newline=False)
 
                 # call function #
@@ -55009,7 +55034,7 @@ typedef struct {
                 self.retList[val] = str(ret)
                 self.prevReturn = str(ret)
 
-                SysMgr.addPrint(' (%s)' % res)
+                _addPrint(' (%s)' % res)
                 _flushPrint(newline=False)
 
                 # inject all breakpoints again #
@@ -55032,7 +55057,7 @@ typedef struct {
                 # remove all berakpoints #
                 self.removeAllBp(verb=False)
 
-                SysMgr.addPrint(output)
+                _addPrint(output)
                 _flushPrint(newline=False)
 
                 # call function #
@@ -55042,21 +55067,21 @@ typedef struct {
                 self.retList[val] = str(ret)
                 self.prevReturn = str(ret)
 
-                SysMgr.addPrint(' = %s' % ret)
+                _addPrint(' = %s' % ret)
                 _flushPrint(newline=False)
 
                 # inject all breakpoints again #
                 self.updateBpList(verb=False)
 
             elif cmd == 'stop':
-                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                _addPrint("\n[%s]\n" % (cmdstr))
                 _flushPrint(newline=False)
 
                 SysMgr.blockSignal(act='unblock')
                 SysMgr.waitEvent(exit=True)
 
             elif cmd == 'kill':
-                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                _addPrint("\n[%s]\n" % (cmdstr))
                 _flushPrint(newline=False)
                 self.kill()
                 sys.exit(0)
@@ -55068,17 +55093,17 @@ typedef struct {
                 # get message #
                 val = cmdset[1]
 
-                SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
+                _addPrint("\n[%s] %s" % (cmdstr, val))
 
             elif cmd == 'condexit':
                 if self.startProfTime:
                     diff = self.vdiff - self.startProfTime
                     diff = convColor('%.6f' % diff, 'RED')
-                    SysMgr.addPrint("\n[%s] %s\n" % (cmdstr, diff))
+                    _addPrint("\n[%s] %s\n" % (cmdstr, diff))
                     sys.exit(0)
 
             elif cmd == 'exit':
-                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                _addPrint("\n[%s]\n" % (cmdstr))
                 sys.exit(0)
 
             else:
@@ -60436,7 +60461,9 @@ typedef struct {
             return isRetBp
 
         # print output #
-        if jsonData:
+        if not self.showStatus:
+            pass
+        elif jsonData:
             # add backtrace #
             if btstr:
                 jsonData['backtrace'] = btstr.lstrip().split('\n')
@@ -60682,12 +60709,14 @@ typedef struct {
         if self.mode =='sample' or self.mode == 'inst':
             self.handleUsercall()
         elif self.isBreakMode:
+            printEnable = SysMgr.printEnable
+
             # block signal #
             SysMgr.blockSignal(act='block')
 
             while 1:
                 try:
-                    self.handleBp(printStat=SysMgr.printEnable)
+                    self.handleBp(printStat=printEnable)
                     break
                 except SystemExit: sys.exit(0)
                 except Exception as ex:
