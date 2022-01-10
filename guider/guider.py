@@ -63555,6 +63555,9 @@ typedef struct {
         # check realtime mode #
         if not SysMgr.outPath or SysMgr.jsonEnable:
             return
+        elif not instance.callList:
+            SysMgr.printWarn('no sample data to summarize')
+            return
 
         # summarize samples after last tick #
         if instance.isRealtime and \
