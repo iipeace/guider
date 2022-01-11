@@ -66637,12 +66637,23 @@ class ElfAnalyzer(object):
 
     cachedFiles = {}
     cachedHeaderFiles = {}
+    cachedCFAs = {}
     cachedTypes = {}
     strippedFiles = {}
     failedFiles = {}
     relocTypes = {}
     cachedDemangleTable = {}
     overlayTable = {}
+
+
+
+    @staticmethod
+    def getCFARule(reg=None, offset=None, expr=None):
+        key = '%s%s%s' % (reg, offset, expr)
+        if not key in ElfAnalyzer.cachedCFAs:
+            ElfAnalyzer.cachedCFAs[key] = \
+                ElfAnalyzer.CFARule(reg, offset, expr)
+        return ElfAnalyzer.cachedCFAs[key]
 
 
 
@@ -69489,13 +69500,14 @@ Section header string table index: %d
                 regIdx = ElfAnalyzer.CFARule.REG
                 offsetIdx = ElfAnalyzer.CFARule.OFFSET
                 exprIdx = ElfAnalyzer.CFARule.EXPR
+                getRule = ElfAnalyzer.getCFARule
 
                 copy = SysMgr.getPkg('copy', False)
 
                 # CIE #
                 if entry == 'CIE':
                     myObj = cie
-                    curLine = dict(pc=0, cfa=CFARule(reg=None, offset=0))
+                    curLine = dict(pc=0, cfa=getRule(reg=None, offset=0))
                     regOrder = []
                 # FDE #
                 else:
@@ -69505,7 +69517,7 @@ Section header string table index: %d
                         cieLastLine = copy.copy(cieTable[-1])
                         curLine = copy.copy(cieLastLine)
                     else:
-                        curLine = dict(cfa=CFARule(reg=None, offset=0))
+                        curLine = dict(cfa=getRule(reg=None, offset=0))
                     curLine['pc'] = myObj['initLoc']
                     regOrder = copy.copy(cie['regOrder'])
 
@@ -69533,22 +69545,22 @@ Section header string table index: %d
                         table.append(copy.copy(curLine))
                         curLine['pc'] += args[0] * cie['caf']
                     elif name == 'DW_CFA_def_cfa':
-                        curLine['cfa'] = CFARule(reg=args[0], offset=args[1])
+                        curLine['cfa'] = getRule(reg=args[0], offset=args[1])
                     elif name == 'DW_CFA_def_cfa_sf':
-                        curLine['cfa'] = CFARule(reg=args[0],
+                        curLine['cfa'] = getRule(reg=args[0],
                             offset=args[1] * cie['daf'])
                     elif name == 'DW_CFA_def_cfa_register':
-                        curLine['cfa'] = CFARule(reg=args[0],
+                        curLine['cfa'] = getRule(reg=args[0],
                             offset=curLine['cfa'][offsetIdx])
                     elif name == 'DW_CFA_def_cfa_offset':
-                        curLine['cfa'] = CFARule(
+                        curLine['cfa'] = getRule(
                             reg=curLine['cfa'][regIdx], offset=args[0])
                     elif name == 'DW_CFA_def_cfa_offset_sf':
-                        curLine['cfa'] = CFARule(
+                        curLine['cfa'] = getRule(
                             reg=curLine['cfa'][regIdx],
                             offset=args[0] * cie['daf'])
                     elif name == 'DW_CFA_def_cfa_expression':
-                        curLine['cfa'] = CFARule(expr=args[0])
+                        curLine['cfa'] = getRule(expr=args[0])
                     elif name == 'DW_CFA_undefined':
                         _add2Order(args[0])
                         curLine[args[0]] = \
