@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220110"
+__revision__ = "220111"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3887,6 +3887,12 @@ class UtilMgr(object):
             ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
             SysMgr.ansiObj = re.compile(ansi)
         return SysMgr.ansiObj.sub('', string)
+
+
+
+    @staticmethod
+    def convFloat2Str(val):
+        return ('%f' % val).rstrip('0')
 
 
 
@@ -23542,6 +23548,7 @@ Examples:
 
     - {5:1} for specific threads and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o .
+        # {0:1} {1:1} -g a.out -c printPeace -o . -q FORCESUMMARY
 
     - {5:1} including specific word for specific threads
         # {0:1} {1:1} -g 1234 -c "*printPeace"
@@ -23663,7 +23670,7 @@ Examples:
 
     - {5:1} from when {4:1}
         # {0:1} {1:1} -g a.out -c "write|start, *"
-        # {0:1} {1:1} -g a.out -c "write|show, *"
+        # {0:1} {1:1} -g a.out -c "write|show, *" -q HIDESYM
 
     - {5:1} and terminate the target thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|exit"
@@ -24577,6 +24584,7 @@ Examples:
 
     - {3:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
+        # {0:1} {1:1} -o . -q FORCESUMMARY
 
     - {3:1} and report the result in JSON format
         # {0:1} {1:1} -J
@@ -44664,8 +44672,8 @@ Copyright:
             if ver < 3.14:
                 SysMgr.printErr((
                     "failed to set the CPU scheduling priority for %s(%s) "
-                    "because kernel version %g is lesser than 3.14") % \
-                    (comm, pid, ver))
+                    "because kernel version %s is lesser than 3.14") % \
+                    (comm, pid, UtilMgr.convFloat2Str(ver)))
                 return -1
         except SystemExit: sys.exit(0)
         except:
@@ -52871,6 +52879,7 @@ class Debugger(object):
         'COMPLETECALL': False,
         'NOSAMPLECACHE': False,
         'INTERCALL': False,
+        'HIDESYM': False,
     }
 
     def getSigStruct(self):
@@ -53451,6 +53460,10 @@ typedef struct {
         for item in list(Debugger.envFlags):
             if item in SysMgr.environList and not Debugger.envFlags[item]:
                 Debugger.envFlags[item] = True
+
+        # apply showing symbol flag #
+        if Debugger.envFlags['HIDESYM']:
+            self.showStatus = False
 
         # print elapsed time for python #
         if 'PYELAPSED' in SysMgr.environList:
@@ -54993,7 +55006,8 @@ typedef struct {
                 else:
                     val = float(cmdset[1])
 
-                _addPrint("\n[%s] %g sec" % (cmdstr, val))
+                _addPrint("\n[%s] %s sec" % \
+                    (cmdstr, UtilMgr.convFloat2Str(val)))
                 _flushPrint(newline=False)
                 self.dvalue += val
 
@@ -58088,15 +58102,15 @@ typedef struct {
         elif self.mode == 'pycall':
             ctype = 'Pycall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [Freq: %g]' % self.sampleTime
+            sampleStr = ' [Freq: %s]' % UtilMgr.convFloat2Str(self.sampleTime)
         elif self.mode == 'kernel':
             ctype = 'Kernelcall'
             addInfo = '<Sample>'
-            sampleStr = ' [Freq: %g]' % self.sampleTime
+            sampleStr = ' [Freq: %s]' % UtilMgr.convFloat2Str(self.sampleTime)
         else:
             ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [Freq: %g]' % self.sampleTime
+            sampleStr = ' [Freq: %s]' % UtilMgr.convFloat2Str(self.sampleTime)
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
@@ -62160,7 +62174,8 @@ typedef struct {
                 stat = self.statFd.read()
             except SystemExit: sys.exit(0)
             except:
-                SysMgr.printOpenWarn(statPath)
+                try: SysMgr.printOpenWarn(statPath)
+                except: pass
                 return None
 
         # return full data #
@@ -63297,7 +63312,8 @@ typedef struct {
 
                 if not self.multi:
                     SysMgr.printInfo(
-                        'do sampling every %g second' % self.sampleTime)
+                        'do sampling every %s second' % \
+                            UtilMgr.convFloat2Str(self.sampleTime))
 
             # set default interval #
             if not SysMgr.findOption('R') and \
@@ -63555,8 +63571,11 @@ typedef struct {
         # check realtime mode #
         if not SysMgr.outPath or SysMgr.jsonEnable:
             return
-        elif not instance.callList:
-            SysMgr.printWarn('no sample data to summarize')
+        elif not instance.callList and \
+            not 'FORCESUMMARY' in SysMgr.environList:
+            SysMgr.printWarn(
+                'no sample data to summarize for %s(%s)' % \
+                    (instance.comm, instance.pid), True)
             return
 
         # summarize samples after last tick #
@@ -63682,8 +63701,10 @@ typedef struct {
         except:
             perSample = '100'
 
+        # get sampling period #
         if instance.sampleTime > 0:
-            samplingStr = ' [Freq: %g] ' % instance.sampleTime
+            samplingStr = ' [Freq: %s] ' % \
+                UtilMgr.convFloat2Str(instance.sampleTime)
             freqStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
