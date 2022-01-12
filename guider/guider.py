@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220111"
+__revision__ = "220112"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27611,7 +27611,7 @@ Usage:
     # {0:1} {1:1} <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Execute remote command
+    Request remote commands
 {2:2}
 Options:
     -x  <IP:PORT>               set local address
@@ -27659,25 +27659,26 @@ Examples:
         # {0:1} {1:1} c
         # {0:1} {1:1} "clear"
 
-    - Execute remote commands in parallel by the server
+    - Request remote commands in parallel by the server
         # {0:1} {1:1} "ls -lha", "date"
         # {0:1} {1:1} "192.168.0.100:5050|vmstat 1, 192.168.0.101:1234|find /"
 
-    - Execute remote commands by all nodes connected to the agent
+    - Request remote commands by all nodes connected to the agent
         # {0:1} {1:1} "b:ls -lha"
         # {0:1} {1:1} "broadcast:ls -lha"
         # {0:1} {1:1} "b:restart"
         # {0:1} {1:1} "b:download:test/*@backup/""
 
-    - Execute remote commands on the central server through the agent
-        # {0:1} {1:1} "s:ls -lha"
-        # {0:1} {1:1} "upstream:ls -lha"
-
     - Notify an event occured to the server
         # {0:1} {1:1} "n:TEST"
         # {0:1} {1:1} "notify:TEST"
 
-    - Execute remote commands by specific nodes connected to the agent
+    - Request remote commands on the central server through the agent
+        # {0:1} {1:1} "s:ls -lha"
+        # {0:1} {1:1} "upstream:ls -lha"
+        # {0:1} {1:1} "upstream:notify:TEST
+
+    - Request remote commands by specific nodes connected to the agent
         # {0:1} {1:1} "b:@192.168.105.86/5589@192.168.105.100/5566:ls -lha"
 
     - Execute a remote commands with no timeout
