@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220112"
+__revision__ = "220113"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4131,6 +4131,50 @@ class UtilMgr(object):
         SysMgr.printPipe('{0:^21}   {1:>17}'.format('Cnt', convNum(statcnt)))
         SysMgr.printPipe('{0:^21}   {1:>17}'.format('Sum', convNum(statsum)))
         SysMgr.printPipe(oneLine)
+
+
+
+    @staticmethod
+    def ungzip(path):
+        gzip = SysMgr.getPkg('gzip')
+        return gzip.open(path, 'rb').read()
+
+
+
+    @staticmethod
+    def unzip(fd, name):
+        # get pkg #
+        zlib = SysMgr.getPkg('zlib', False)
+        if not zlib:
+            return None, None
+
+        # check format #
+        magic = fd.read(4)
+        if magic != b'ZLIB':
+            SysMgr.printWarn(
+                "wrong zlib magic number '%s' for %s section" % (magic, name))
+            return None, None
+
+        compSize = struct.unpack('>Q', fd.read(8))[0]
+
+        uncompBytes = b''
+        decompressor = zlib.decompressobj()
+
+        while 1:
+            chunk = fd.read(SysMgr.PAGESIZE)
+            if not chunk:
+                break
+            uncompBytes += decompressor.decompress(chunk)
+
+        uncompBytes += decompressor.flush()
+
+        if len(uncompBytes) != compSize:
+            SysMgr.printWarn((
+                'failed to decompress %s section because '
+                'decompressed size is wrong [record: %s, actual: %s]') % \
+                    (name, compSize, len(uncompBytes)))
+
+        return uncompBytes, len(uncompBytes)
 
 
 
@@ -10388,32 +10432,32 @@ class PageAnalyzer(object):
 
     # page flags from kernel/include/uapi/linux/kernel-page-flags.h #
     flagList = [
-        'KPF_LOCKED', #0#
-        'KPF_ERROR', #1#
-        'KPF_REFERENCED', #2#
-        'KPF_UPTODATE', #3#
-        'KPF_DIRTY', #4#
-        'KPF_LRU', #5#
-        'KPF_ACTIVE', #6#
-        'KPF_SLAB', #7#
-        'KPF_WRITEBACK', #8#
-        'KPF_RECLAIM', #9#
-        'KPF_BUDDY', #10#
-        'KPF_MMAP', #11#
-        'KPF_ANON', #12#
-        'KPF_SWAPCACHE', #13#
-        'KPF_SWAPBACKED', #14#
+        'KPF_LOCKED',        #0#
+        'KPF_ERROR',         #1#
+        'KPF_REFERENCED',    #2#
+        'KPF_UPTODATE',      #3#
+        'KPF_DIRTY',         #4#
+        'KPF_LRU',           #5#
+        'KPF_ACTIVE',        #6#
+        'KPF_SLAB',          #7#
+        'KPF_WRITEBACK',     #8#
+        'KPF_RECLAIM',       #9#
+        'KPF_BUDDY',         #10#
+        'KPF_MMAP',          #11#
+        'KPF_ANON',          #12#
+        'KPF_SWAPCACHE',     #13#
+        'KPF_SWAPBACKED',    #14#
         'KPF_COMPOUND_HEAD', #15#
         'KPF_COMPOUND_TAIL', #16#
-        'KPF_HUGE', #17#
-        'KPF_UNEVICTABLE', #18#
-        'KPF_HWPOISON', #19#
-        'KPF_NOPAGE', #20#
-        'KPF_KSM', #21#
-        'KPF_THP', #22#
-        'KPF_BALLOON', #23#
-        'KPF_ZERO_PAGE', #24#
-        'KPF_IDLE' #25#
+        'KPF_HUGE',          #17#
+        'KPF_UNEVICTABLE',   #18#
+        'KPF_HWPOISON',      #19#
+        'KPF_NOPAGE',        #20#
+        'KPF_KSM',           #21#
+        'KPF_THP',           #22#
+        'KPF_BALLOON',       #23#
+        'KPF_ZERO_PAGE',     #24#
+        'KPF_IDLE'           #25#
         ]
 
 
@@ -10700,15 +10744,16 @@ class PageAnalyzer(object):
 
     @staticmethod
     def readEntry(path, offset, size=8):
-        with open(path, 'rb') as f:
+        try:
+            f = SysMgr.getFd(path)
             f.seek(offset, 0)
-            try:
-                return struct.unpack('Q', f.read(size))[0]
-            except:
-                SysMgr.printErr(
-                    "failed to read %s byte from %s of %s" % \
-                    (size, offset, path))
-                sys.exit(0)
+            return struct.unpack('Q', f.read(size))[0]
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to read %s byte from %s of %s" % \
+                (size, offset, path), reason=True)
+            sys.exit(0)
 
 
 
@@ -20056,6 +20101,44 @@ Commands:
 
 
     @staticmethod
+    def clearPageRefs(pid, val):
+        '''
+        The /proc/PID/clear_refs is used to reset the PG_Referenced and ACCESSED/YOUNG
+        bits on both physical and virtual pages associated with a process, and the
+        soft-dirty bit on pte (see Documentation/admin-guide/mm/soft-dirty.rst
+        for details).
+
+        To clear the bits for all the pages associated with the process
+            > echo 1 > /proc/PID/clear_refs
+
+        To clear the bits for the anonymous pages associated with the process
+            > echo 2 > /proc/PID/clear_refs
+
+        To clear the bits for the file mapped pages associated with the process
+            > echo 3 > /proc/PID/clear_refs
+
+        To clear the soft-dirty bit
+            > echo 4 > /proc/PID/clear_refs
+
+        To reset the peak resident set size ("high water mark") to the process's
+        current value:
+            > echo 5 > /proc/PID/clear_refs
+
+        Any other value written to /proc/PID/clear_refs will have no effect.
+        '''
+
+        try:
+            path = '%s/%s/clear_refs' % (SysMgr.procPath, pid)
+            with open(path, 'w') as fd:
+                fd.write(val)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to write '%s' to %s" % (val, path), True)
+
+
+
+    @staticmethod
     def doMount(args=None):
         # get argument #
         if args:
@@ -22893,6 +22976,7 @@ Commands:
                 'printenv': ('Env', 'Linux'),
                 'printext': ('Ext4', 'Linux/MacOS/Windows'),
                 'printinfo': ('System', 'Linux'),
+                'printkconf': ('kernel', 'Linux'),
                 'printns': ('Namespace', 'Linux'),
                 'printsig': ('Signal', 'Linux'),
                 'printsvc': ('systemd', 'Linux'),
@@ -27264,6 +27348,34 @@ Examples:
         # {0:1} {1:1} "d:1000000/10000000/10000000:a.out"
                     '''.format(cmd, mode)
 
+                # printkconf #
+                elif SysMgr.checkMode('printkconf'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <OPTION> -I <PATH> [OPTIONS] [--help]
+
+Description:
+    Print kernel config
+
+Options:
+    -g  <OPTION>                set value
+    -I                          set input path
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print all kernel configs
+        # {0:1} {1:1}
+
+    - Print specific kernel configs
+        # {0:1} {1:1} CONFIG_RT_GROUP_SCHED
+        # {0:1} {1:1} -g CONFIG_RT_GROUP_SCHED
+
+    - Print kernel config from the specific file
+        # {0:1} {1:1} -I /boot/config-4.4.0-210-generic
+                    '''.format(cmd, mode)
+
                 # getaffinity #
                 elif SysMgr.checkMode('getafnt'):
                     helpStr = '''
@@ -27756,12 +27868,15 @@ Copyright:
 
 
     @staticmethod
-    def getKernelVersion():
+    def getKernelVersion(name=False):
         if SysMgr.kernelVersion:
             return SysMgr.kernelVersion
 
         try:
             kernel = os.uname()[2]
+            if kernel:
+                return kernel
+
             kernelList = kernel.split('.')
 
             # get kernel major version #
@@ -34438,6 +34553,10 @@ Copyright:
         elif SysMgr.checkMode('printenv'):
             SysMgr.doPrintEnv()
 
+        # PRINTKCONF MODE #
+        elif SysMgr.checkMode('printkconf'):
+            SysMgr.doPrintKconf()
+
         # PRINTNS MODE #
         elif SysMgr.checkMode('printns'):
             SysMgr.doPrintNs()
@@ -38925,7 +39044,7 @@ Copyright:
                 if 'affect' in cpulist[core] and \
                     len(cpulist[core]['affect']) > 1:
                     affectstring = 'and it also affects CPU(%s)' % \
-                        ', '.join(cpulist[core]['affect'])
+                        '-'.join(cpulist[core]['affect'])
                 else:
                     affectstring = ''
 
@@ -38967,6 +39086,52 @@ Copyright:
 
             # wait for next tick #
             time.sleep(SysMgr.intervalEnable)
+
+
+
+    @staticmethod
+    def doPrintKconf():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        # get path argument #
+        if SysMgr.inputParam:
+            inputParam = SysMgr.inputParam.split(',')
+            inputParam = UtilMgr.getFileList(inputParam)
+        elif os.path.exists('/proc/config.gz'):
+            inputParam = '/proc/config.gz'
+        else:
+            inputParam = '/boot/config-%s' % \
+                SysMgr.getKernelVersion(name=True)
+
+        # check config file #
+        if not os.path.exists(inputParam):
+            SysMgr.printErr('no kernel config file (%s)' % inputParam)
+
+        # get filter argument #
+        if SysMgr.hasMainArg():
+            filterGroup = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            filterGroup = SysMgr.filterGroup
+        else:
+            filterGroup = ''
+
+        # get configs #
+        try:
+            if inputParam.endswith('gz'):
+                configs = UtilMgr.ungzip(inputParam)
+                configs = configs.decode().split('\n')
+            else:
+                configs = open(inputParam, 'r').readlines()
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printOpenErr(inputParam)
+            return
+
+        for config in configs:
+            if filterGroup and \
+                not UtilMgr.isValidStr(config, filterGroup, ignCap=True):
+                continue
+            SysMgr.printPipe(config)
 
 
 
@@ -44893,32 +45058,37 @@ Copyright:
             if not SysMgr.guiderObj:
                 argPriority = c_int(argPriority)
 
-            # set scheduler policy #
+            # define object #
             if not SysMgr.guiderObj:
-                ret = SysMgr.libcObj.sched_setscheduler(
-                    pid, argPolicy, byref(argPriority))
+                funcObj = SysMgr.libcObj
             else:
-                func = SysMgr.guiderObj.sched_setscheduler # pylint: disable=no-member
-                ret = func(pid, argPolicy, argPriority)
+                funcObj = SysMgr.guiderObj
 
+            # define sched_setscheduler function #
+            if not hasattr(funcObj, 'sched_setscheduler'):
+                raise Exception('no sched_setscheduler')
+            func = funcObj.sched_setscheduler
+
+            # call sched_setscheduler function #
+            ret = SysMgr.libcObj.sched_setscheduler(
+                pid, argPolicy, byref(argPriority))
             if ret != 0:
                 policy = upolicy
-                raise Exception('no sched_setscheduler')
+                emsg = SysMgr.getErrReason()
+                raise Exception(emsg)
 
             # set nice value #
             if upolicy == 'C' or upolicy == 'B':
-                if not SysMgr.guiderObj:
-                    argPriority = c_int(pri)
-                    ret = SysMgr.libcObj.setpriority(
-                        0, pid, argPriority)
-                else:
-                    argPriority = pri
-                    func = SysMgr.guiderObj.setpriority # pylint: disable=no-member
-                    ret = func(0, pid, argPriority)
+                # check setpriority function #
+                if not hasattr(funcObj, 'setpriority'):
+                    raise Exception('no setpriority')
 
+                # call setpriority function #
+                ret = funcObj.setpriority(0, pid, c_int(pri))
                 if ret != 0:
                     policy = upolicy
-                    raise Exception(SysMgr.getErrReason())
+                    emsg = SysMgr.getErrReason()
+                    raise Exception(emsg)
 
             # print result #
             if verb:
@@ -67785,42 +67955,6 @@ class ElfAnalyzer(object):
 
 
 
-    def unzip(self, fd, name):
-        # get pkg #
-        zlib = SysMgr.getPkg('zlib', False)
-        if not zlib:
-            return None, None
-
-        # check format #
-        magic = fd.read(4)
-        if magic != b'ZLIB':
-            SysMgr.printWarn(
-                "wrong zlib magic number '%s' for %s section" % (magic, name))
-            return None, None
-
-        compSize = struct.unpack('>Q', fd.read(8))[0]
-
-        uncompBytes = b''
-        decompressor = zlib.decompressobj()
-
-        while 1:
-            chunk = fd.read(SysMgr.PAGESIZE)
-            if not chunk:
-                break
-            uncompBytes += decompressor.decompress(chunk)
-
-        uncompBytes += decompressor.flush()
-
-        if len(uncompBytes) != compSize:
-            SysMgr.printWarn((
-                'failed to decompress %s section because '
-                'decompressed size is wrong [record: %s, actual: %s]') % \
-                    (name, compSize, len(uncompBytes)))
-
-        return uncompBytes, len(uncompBytes)
-
-
-
     def getString(self, strtable, start=0, retlen=False):
         if not strtable:
             return ''
@@ -69830,7 +69964,7 @@ Section header string table index: %d
             origFd = fd
             isCompressed = False
             if shname.startswith('.z'):
-                decompSect, decompSize = self.unzip(fd, shname)
+                decompSect, decompSize = UtilMgr.unzip(fd, shname)
                 if decompSize:
                     isCompressed = True
                     origFd = fd
@@ -70590,7 +70724,7 @@ Section header string table index: %d
             origFd = fd
             isCompressed = False
             if shname.startswith('.z'):
-                decompSect, decompSize = self.unzip(fd, shname)
+                decompSect, decompSize = UtilMgr.unzip(fd, shname)
                 if decompSize:
                     isCompressed = True
                     origFd = fd
@@ -70870,7 +71004,7 @@ Section header string table index: %d
             origFd = fd
             isCompressed = False
             if shname.startswith('.z'):
-                decompSect, decompSize = self.unzip(fd, shname)
+                decompSect, decompSize = UtilMgr.unzip(fd, shname)
                 if decompSize:
                     isCompressed = True
                     origFd = fd
@@ -90100,7 +90234,10 @@ class TaskAnalyzer(object):
 
         convSize = UtilMgr.convSize2Unit
 
-        for key, item in sorted(maps.items(), reverse=True):
+        for key, item in sorted(maps.items(),
+            key=lambda e:e[1]['Size:'] if 'Size:' in e[1] else 0,
+            reverse=True):
+
             tmpstr = ''
 
             if not item or item['count'] == 0:
@@ -90198,18 +90335,14 @@ class TaskAnalyzer(object):
                     self.procData[idx].setdefault('wss', {})
 
                     # clear reference bits #
-                    try:
-                        path = '%s/%s/clear_refs' % \
-                            (SysMgr.procPath, idx)
-                        with open(path, 'w') as fd:
-                            fd.write('1')
-                    except: pass
+                    SysMgr.clearPageRefs(idx, val='1')
 
                 # update WSS history #
                 try:
                     history = self.procData[idx]['wss'][key]
                     self.procData[idx]['wss'][key] = \
                         '%s -> %7s' % (history, wss)
+                except SystemExit: sys.exit(0)
                 except:
                     self.procData[idx]['wss'][key] = '[%7s]' % wss
 
@@ -91660,6 +91793,7 @@ class TaskAnalyzer(object):
             except:
                 shr = '-'
 
+            # switch #
             if not SysMgr.processEnable:
                 try:
                     value['yield'] = \
