@@ -24932,6 +24932,9 @@ Examples:
     - Monitor WSS(Working Set Size) of specific processes
         # {0:1} {1:1} chrome
 
+    - Monitor WSS(Working Set Size) of specific processes with all footprints
+        # {0:1} {1:1} chrome -a
+
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
@@ -90356,13 +90359,28 @@ class TaskAnalyzer(object):
                         '%s -> %7s' % (history, wss)
                 except SystemExit: sys.exit(0)
                 except:
-                    self.procData[idx]['wss'][key] = '[%7s]' % wss
+                    self.procData[idx]['wss'][key] = \
+                        '[%s]' % UtilMgr.convColor(wss, 'RED', 7)
 
         # update pss #
         pss = pss >> 2
 
         # update uss #
         uss = (rss - sss) >> 2
+
+        # update history for wss #
+        if SysMgr.wssEnable:
+            unitItems = (('RSS', rss), ('PSS', pss), ('USS', uss))
+            for item in unitItems:
+                name = item[0]
+                unit = UtilMgr.convSize2Unit(item[1] << 10)
+                if name in self.procData[idx]['wss']:
+                    history = self.procData[idx]['wss'][name]
+                    self.procData[idx]['wss'][name] = \
+                        '%s -> %7s' % (history, unit)
+                else:
+                    self.procData[idx]['wss'][name] = \
+                        '[%s]' % UtilMgr.convColor(unit, 'RED', 7)
 
         if not SysMgr.memEnable:
             memBuf = []
@@ -92105,6 +92123,12 @@ class TaskAnalyzer(object):
                     self.procData[idx]['perfFds'] = \
                         SysMgr.initProcPerfEvents(long(idx))
 
+            # insert memory usage stats #
+            if SysMgr.wssEnable:
+                memBuf.insert(0, ['USS', ''])
+                memBuf.insert(0, ['PSS', ''])
+                memBuf.insert(0, ['RSS', ''])
+
             # print memory details #
             for memData in memBuf:
                 mprop = memData[0]
@@ -92126,25 +92150,48 @@ class TaskAnalyzer(object):
                 limit = SysMgr.lineLength - indent
                 pstr = procData[idx]['wss'][mprop]
 
-                while len(pstr) > limit:
-                    slimit = len(pstr[:limit])
-                    des = '%s' % pstr[:slimit]
-                    tstr = '%s%s\n%s' % \
-                        (tstr, des, ' ' * (indent + indenta))
+                if SysMgr.showAll:
+                    while len(pstr) > limit:
+                        slimit = len(pstr[:limit])
+                        des = pstr[:slimit]
+                        tstr = '%s%s\n%s' % \
+                            (tstr, des, ' ' * (indent + indenta))
 
-                    if isFirstLined:
-                        limit -= indenta + lenItem
-                        isFirstLined = False
+                        if isFirstLined:
+                            limit -= indenta + lenItem
+                            isFirstLined = False
 
-                    pstr = '%s' % pstr[slimit:]
+                        pstr = pstr[slimit:]
+                elif len(pstr) > limit:
+                    sizes = pstr.split('->')
+                    sizes.pop(1)
+                    pstr = '->'.join(sizes)
+                    procData[idx]['wss'][mprop] = pstr
+
+                # highlight final size #
+                sizes = pstr.rsplit('->', 1)
+                if len(sizes) > 1:
+                    sizes[1] = UtilMgr.convColor(sizes[1], 'CYAN', 7)
+                    pstr = '->'.join(sizes)
+                elif SysMgr.showAll and not isFirstLined:
+                    pstr = UtilMgr.convColor(pstr, 'CYAN')
 
                 tstr += pstr
 
                 # count newlines #
                 newline = tstr.count('\n')+1
 
+                # set name #
+                if mval:
+                    name = 'WSS'
+                    title = ' '
+                else:
+                    name = mprop
+                    title = 'MEM(%s)' % mprop
+
                 ret = SysMgr.addPrint(
-                    "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
+                    "{0:>39} | {1:3}: {2:1}\n".format(
+                        title, name, tstr), newline)
                 if not ret:
                     return
 
