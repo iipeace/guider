@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220113"
+__revision__ = "220114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23682,6 +23682,7 @@ Examples:
 
     - {5:1} for specific threads and print return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret"
+        # {0:1} {1:1} -g a.out -c "write|getret" -q NORETBP
 
     - {5:1} for specific threads until {4:1} and save return value to the specific variable
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
@@ -53049,6 +53050,7 @@ class Debugger(object):
         'WAITCLONE': False,
         'COMPLETECALL': False,
         'NOSAMPLECACHE': False,
+        'NORETBP': False,
         'INTERCALL': False,
         'HIDESYM': False,
     }
@@ -60315,7 +60317,7 @@ typedef struct {
         self, diffstr, tinfo, cont=True, cur=False,
         addBt=[], backtrace=[], python=False):
 
-        def _getCommonPos(backtrace, cur):
+        def _getCommonPos(backtrace):
             # check contiguous tree presentation #
             try:
                 commonPos = -1
@@ -60353,11 +60355,17 @@ typedef struct {
         tinfoindent = ' ' * len(tinfo)
 
         # calculate common depth for previous stack #
-        commonPos = _getCommonPos(backtrace, cur)
+        commonPos = _getCommonPos(backtrace)
         if commonPos == -1:
             commonPos = 0
             stack = backtrace
         else:
+            if python:
+                if SysMgr.pyFuncFilter:
+                    commonPos += 1
+            else:
+                if SysMgr.customCmd:
+                    commonPos += 1
             stack = backtrace[:commonPos]
 
         self.prevStack = backtrace
@@ -60541,7 +60549,9 @@ typedef struct {
                 if not skip:
                     # get previous symbol info #
                     prevSymInfo = self.getSymbolInfo(addr)
-                    if prevSymInfo:
+                    if Debugger.envFlags['NORETBP']:
+                        addStr = ''
+                    elif prevSymInfo:
                         try:
                             prevAddr = hex(prevSymInfo[3]).rstrip('L')
                         except SystemExit: sys.exit(0)
@@ -88363,10 +88373,12 @@ class TaskAnalyzer(object):
         if SysMgr.minStatEnable or not tid in self.procData:
             return
 
+        isKernelThread = self.isKernelThread(tid)
+
         # PID/status #
         stat = 'status'
         # no memory and context switch stats for kernel threads in process mode #
-        if SysMgr.processEnable and self.isKernelThread(tid):
+        if SysMgr.processEnable and isKernelThread:
             pass
         elif not self.procData[tid][stat]:
             statusBuf = self.saveTaskData(path, tid, stat, False)
@@ -88399,7 +88411,7 @@ class TaskAnalyzer(object):
             mainID = self.procData[tid]['mainID']
 
             # kernel thread #
-            if self.isKernelThread(tid):
+            if isKernelThread:
                 pass
             # sibling thread #
             elif mainID in self.procData and \
