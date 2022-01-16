@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220114"
+__revision__ = "220116"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23530,7 +23530,7 @@ Examples:
     - {3:1} and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
-    - {3:1} with interval info
+    - {3:1} with call interval info
         # {0:1} {1:1} "ls" -q INTERCALL
 
     - {3:1} excluding specific environment variable
@@ -24440,8 +24440,11 @@ Examples:
     - {2:1} except for no symbol backtraces for specific threads
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
-    - {2:1} for specific threads with interval summary
+    - {2:1} for specific threads with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QtWaylandClient::QWaylandWindow::requestUpdate*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QPlatformWindow::deliverUpdateRequest*" -q INTERCALL
 
     - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
@@ -25392,7 +25395,7 @@ Examples:
     - {3:1} for specific threads without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
 
-    - {3:1} for specific threads with interval info
+    - {3:1} for specific threads with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
 
     - {3:1} for specific threads and print strings in specific maximum size
@@ -29403,10 +29406,19 @@ Copyright:
         else:
             printFunc = SysMgr.printErr
 
+        # get comm #
         comm = SysMgr.getComm(tid)
 
+        # get singal name #
+        try:
+            signal = ConfigMgr.SIG_LIST[signal]
+        except: pass
+        if '.' in signal:
+            signal = signal.split('.',2)[1]
+
         printFunc(
-            "failed to send %s to %s(%s)" % (signal, comm, tid), reason=True)
+            "failed to send %s to %s(%s)" % \
+                (signal, comm, tid), reason=True)
 
 
 
@@ -53568,7 +53580,7 @@ typedef struct {
 
             # update comm #
             if not self.comm:
-                self.comm = SysMgr.getComm(self.pid, cache=True)
+                self.comm = SysMgr.getComm(self.pid, cache=True, save=True)
 
             if attach:
                 if self.attach(verb=True) < 0:
@@ -55353,7 +55365,7 @@ typedef struct {
         ret = self.ptrace(cmd)
         if ret != 0:
             if not self.comm:
-                self.comm = SysMgr.getComm(self.pid, cache=True)
+                self.comm = SysMgr.getComm(self.pid, cache=True, save=True)
             SysMgr.printWarn(
                 'failed to apply PTRACE_TRACEME for %s(%s) because %s' % \
                     (self.comm, self.pid, self.errmsg), True)
@@ -56069,7 +56081,7 @@ typedef struct {
             pid = self.pid
 
         if not self.comm:
-            self.comm = SysMgr.getComm(self.pid, cache=True)
+            self.comm = SysMgr.getComm(self.pid, cache=True, save=True)
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(
@@ -58172,7 +58184,7 @@ typedef struct {
 
         # update comm #
         origComm = self.comm
-        self.comm = SysMgr.getComm(self.pid)
+        self.comm = SysMgr.getComm(self.pid, save=True)
         if not self.comm:
             self.comm = origComm
 
@@ -58860,7 +58872,7 @@ typedef struct {
                         printLog = False
                 continue
 
-                # print ELF object size on RAM #
+                # print ELF object size on RAM for test #
                 curRss = Debugger.tracerInstance.getMemUsage(False)
                 rssDiff = UtilMgr.convSize2Unit(curRss-prevRss)
                 print(UtilMgr.convColor('[%s] %s' % (mfile, rssDiff), 'CYAN'))
@@ -60813,7 +60825,7 @@ typedef struct {
 
         # update comm #
         if self.needUpdateComm():
-            comm = SysMgr.getComm(self.pid, cache=True)
+            comm = SysMgr.getComm(self.pid, cache=True, save=True)
             if self.comm != comm:
                 self.comm = comm
                 Debugger.updateCommFlag(False)
@@ -61043,7 +61055,7 @@ typedef struct {
                     try:
                         pid = fields.pid
                         if SysMgr.showAll and pid > 0:
-                            comm = SysMgr.getComm(pid, cache=True)
+                            comm = SysMgr.getComm(pid, cache=True, save=True)
                             if comm:
                                 pid = '%s(%s)' % (comm, pid)
                     except SystemExit: sys.exit(0)
@@ -62419,7 +62431,7 @@ typedef struct {
         stat = self.getStatList(retstr=True)
         if not stat:
             SysMgr.printWarn(
-                "failed to get Memory usage for %s(%s)" % \
+                "failed to get memory usage for %s(%s)" % \
                     (self.comm, self.pid))
             return '0'
 
@@ -62825,7 +62837,7 @@ typedef struct {
 
         # stat variables #
         self.pthreadid = 0
-        self.comm = SysMgr.getComm(self.pid, cache=True)
+        self.comm = SysMgr.getComm(self.pid, cache=True, save=True)
         self.exe = SysMgr.getExeName(self.pid)
         self.start = self.last = time.time()
         self.statFd = None
