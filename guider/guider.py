@@ -4323,7 +4323,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getDrawOutputPath(inputPath, name):
+    def getDrawOutputPath(inputPath, name, suffix=False):
         # set output path #
         if SysMgr.outPath:
             outputPath = SysMgr.outPath
@@ -4332,8 +4332,12 @@ class UtilMgr(object):
             if os.path.isdir(outputPath):
                 outputFileName = '%s.svg' % \
                     os.path.splitext(os.path.basename(inputPath))[0]
-                outputPath = \
-                    os.path.join(outputPath, outputFileName)
+                outputPath = os.path.join(outputPath, outputFileName)
+            elif suffix:
+                dirName = os.path.dirname(os.path.abspath(inputPath))
+                fileName = '%s_%s.svg' % (
+                    os.path.splitext(os.path.basename(inputPath))[0], name)
+                outputPath = os.path.join(dirName, fileName)
         else:
             outputPath = UtilMgr.prepareForImageFile(
                 inputPath, 'flamegraph')
@@ -15791,9 +15795,12 @@ class LeakAnalyzer(object):
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-                "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".\
+                "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".\
                 format("Size", "Count", "Avg", "Function"))
-        SysMgr.printPipe(oneLine)
+        SysMgr.printPipe(
+                "{0:>7} | {1:>7} | {2:<132} |".\
+                format(" ", "Size", "Backtrace"))
+        SysMgr.printPipe(twoLine)
 
         # init flamegraph variable #
         stackList = {}
@@ -15838,9 +15845,9 @@ class LeakAnalyzer(object):
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".format(
+            "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
             "Size", "Count", "Avg", "Path"))
-        SysMgr.printPipe(oneLine)
+        SysMgr.printPipe(twoLine)
 
         count = 0
         for file, val in sorted(self.fileData.items(),
@@ -15871,7 +15878,7 @@ class LeakAnalyzer(object):
             inputFile = 'guider.out'
         inputFile = os.path.abspath(inputFile)
         SysMgr.printStat(r"start drawing flamegraph...")
-        Debugger.drawFlame(inputFile, stackList, titleStr)
+        Debugger.drawFlame(inputFile, stackList, titleStr, suffix=True)
 
         # check exit condition #
         if not SysMgr.showAll:
@@ -26776,26 +26783,32 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Show functions caused memory leakage with leaktracer output
+    Show functions caused memory leakage
 
-    Get libleaktracer.so for various CPU architectures from https://github.com/iipeace/portable/tree/master/leaktracer
-
-    Run the target process with below specific environment variables if you can't inject the hook binary
+    1) Get libleaktracer.so for your CPU architecture from 
+       https://github.com/iipeace/portable/tree/master/leaktracer
+    2) Run the target process with below specific environment variables 
+       if you can't inject the hook binary to the running target process
+    [ Auto start from loader ]
     $ LD_PRELOAD=./libleaktracer.so \\
-        LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
-        LEAKTRACER_ONSIG_REPORT=36 EXEC
+        LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
+        LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
+        LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+    [ Manual start by signal ]
     $ LD_PRELOAD=./libleaktracer.so \\
-        LEAKTRACER_ONSIG_REPORTFILENAME=leaks.out \\
+        LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
         LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
-        LEAKTRACER_ONSIG_REPORT=36 EXEC
-
-    If the target process is on secure-execution mode,
-    libleaktracer.so should be in standard search directories specified in /etc/ld.so.conf,
-    And all slashes in it's preload path will be ignored
-    Otherwise add the library path to /etc/ld.so.preload
-
-    Once leaktrace starts, the memory usage of the target process will increase rapidly due to logging data.
-    And specific allocators and deallocators called inside libstdc++ can't be traced.
+        LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+    3) Check below specification
+    - If the target process is on secure-execution mode,
+      libleaktracer.so should be in standard search directories specified in 
+      /etc/ld.so.conf,
+      And all slashes in the preload path will be ignored.
+      Otherwise add the library path to /etc/ld.so.preload.
+    - Once leaktrace starts, the memory usage of the target process 
+      will increase rapidly due to logging data.
+      And specific allocators and deallocators called inside libstdc++ 
+      can't be traced.
 
 Options:
     -I  <DIR|FILE>              set input path
@@ -26813,6 +26826,7 @@ Options:
 Examples:
     - Report memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
         # {0:1} {1:1} -g a.out
+        # {0:1} {1:1} -g a.out -o ./guider.out
 
     - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
@@ -26822,6 +26836,7 @@ Examples:
 
     - Report memory leakage hints of a specific process after sending signal 36 to stop profiling
         # {0:1} {1:1} -g a.out -k 36
+        # {0:1} {1:1} -g a.out -k SIGRT2
 
     - Report memory leakage hints of a specific process when it's RSS reached the specific size
         # {0:1} {1:1} -g a.out -c 20m
@@ -41292,8 +41307,7 @@ Copyright:
 
         # check output path #
         if not SysMgr.outPath:
-            SysMgr.printErr("no output path")
-            sys.exit(0)
+            SysMgr.outPath = '/tmp/guider.out'
 
         # convert comm to pid #
         pid = None
@@ -56084,8 +56098,9 @@ typedef struct {
             self.comm = SysMgr.getComm(self.pid, cache=True, save=True)
 
         if self.checkPid(pid) < 0:
-            SysMgr.printWarn(
-                'failed to attach %s(%s) to guider(%s) because of wrong pid' % \
+            SysMgr.printWarn((
+                'failed to attach %s(%s) to guider(%s) '
+                'because of wrong pid') % \
                     (self.comm, pid, SysMgr.pid), verb)
             return -1
 
@@ -57828,7 +57843,7 @@ typedef struct {
 
 
     @staticmethod
-    def drawFlame(inputFile=None, callList={}, title=''):
+    def drawFlame(inputFile=None, callList={}, title='', suffix=False):
         if not inputFile and not callList:
             SysMgr.printErr('no input for flamegraph')
             sys.exit(0)
@@ -57849,7 +57864,8 @@ typedef struct {
 
         # set output path #
         if inputList:
-            outputPath = UtilMgr.getDrawOutputPath(fileName, 'flamegraph')
+            outputPath = UtilMgr.getDrawOutputPath(
+                fileName, 'flamegraph', suffix=suffix)
         else:
             outputPath = 'flamegraph.svg'
 
