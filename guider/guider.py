@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220116"
+__revision__ = "220117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25670,9 +25670,11 @@ Options:
                     remoteExamStr = '''
     - Print the context for the target repeatedly 5 times
         # {0:1} {1:1} -g a.out -c print -i 5
+        # {0:1} {1:1} -g a.out -c print -i 5 -q onlyproc
 
     - Control the target to sleep for 0.1 second
         # {0:1} {1:1} -g a.out -c "sleep:0.1"
+        # {0:1} {1:1} -g a.out -c "sleep:0.1" -q onlyproc
 
     - Control the target to be terminated
         # {0:1} {1:1} -g a.out -c "kill"
@@ -26789,16 +26791,16 @@ Description:
        https://github.com/iipeace/portable/tree/master/leaktracer
     2) Run the target process with below specific environment variables 
        if you can't inject the hook binary to the running target process
-    [ Auto start from loader ]
-    $ LD_PRELOAD=./libleaktracer.so \\
-        LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
-        LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
-        LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
-    [ Manual start by signal ]
-    $ LD_PRELOAD=./libleaktracer.so \\
-        LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
-        LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
-        LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+       [ Auto start from loader ]
+       $ LD_PRELOAD=./libleaktracer.so \\
+           LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
+           LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
+           LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+       [ Manual start by signal(SIGRT1) ]
+       $ LD_PRELOAD=./libleaktracer.so \\
+           LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
+           LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
+           LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
     3) Check below specification
     - If the target process is on secure-execution mode,
       libleaktracer.so should be in standard search directories specified in 
@@ -41227,7 +41229,9 @@ Copyright:
         def _waitAndKill(tobj, pid, comm, cond, sig, purpose, hookCmd=None):
             conv = UtilMgr.convSize2Unit
 
-            # define RSS index #
+            # define indexes #
+            utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
+            stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
             rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
             vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
             path = '%s/%s' % (SysMgr.procPath, pid)
@@ -41239,7 +41243,8 @@ Copyright:
                 conds = '/%s' % conv(cond, unit='M')
 
             # wait for RSS #
-            previous = None
+            prevCpu = None
+            prevRss = None
             while 1:
                 ret = tobj.saveProcData(path, pid)
                 if not ret:
@@ -41255,6 +41260,19 @@ Copyright:
                 SysMgr.updateUptime()
                 diff = '[%d]' % SysMgr.uptime
 
+                # get cpu usage #
+                procData = tobj.procData[pid]['stat']
+                utime = long(procData[utimeIdx])
+                stime = long(procData[stimeIdx])
+                ttime = utime + stime
+                if prevCpu != None:
+                    cpu = ttime - prevCpu
+                    cpustr = '%.1f' % (cpu / SysMgr.uptimeDiff)
+                else:
+                    prevCpu = ttime
+                    time.sleep(1)
+                    continue
+
                 # get memory usage #
                 procData = tobj.procData[pid]['stat']
                 vss = conv(long(procData[vssIdx]), unit='M')
@@ -41262,12 +41280,13 @@ Copyright:
                 rssUnit = conv(rss, unit='M')
 
                 # print memory usage #
-                if previous != rssUnit:
+                if prevCpu != cpu or prevRss != rssUnit:
                     SysMgr.printInfo(
-                        '%s %s(%s)\'s VSS(%s), RSS(%s%s) for %s' % \
-                            (diff, comm, pid, vss, rssUnit, conds, purpose),
-                                prefix=False)
-                previous = rssUnit
+                        '%s %s(%s)\'s CPU(%s%%), VSS(%s), RSS(%s%s) for %s' % \
+                            (diff, comm, pid, cpustr, vss, rssUnit, conds, purpose),
+                            prefix=False)
+                prevRss = rssUnit
+                prevCpu = ttime
 
                 if cond <= rss:
                     break
@@ -62853,7 +62872,7 @@ typedef struct {
 
         # stat variables #
         self.pthreadid = 0
-        self.comm = SysMgr.getComm(self.pid, cache=True, save=True)
+        self.comm = SysMgr.getComm(self.pid, cache=True)
         self.exe = SysMgr.getExeName(self.pid)
         self.start = self.last = time.time()
         self.statFd = None
