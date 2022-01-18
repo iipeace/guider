@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220117"
+__revision__ = "220118"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23689,7 +23689,7 @@ Examples:
 
     - {5:1} for specific threads and print return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret"
-        # {0:1} {1:1} -g a.out -c "write|getret" -q NORETBP
+        # {0:1} {1:1} -g a.out -c "write|getret" -q NORETBT
 
     - {5:1} for specific threads until {4:1} and save return value to the specific variable
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
@@ -41242,6 +41242,9 @@ Copyright:
             else:
                 conds = '/%s' % conv(cond, unit='M')
 
+            # reset and save proc instance #
+            tobj.saveProcInstance()
+
             # wait for RSS #
             prevCpu = None
             prevRss = None
@@ -41278,12 +41281,25 @@ Copyright:
                 vss = conv(long(procData[vssIdx]), unit='M')
                 rss = long(procData[rssIdx]) << 12
                 rssUnit = conv(rss, unit='M')
+                tobj.saveProcSmapsData(
+                    tobj.procData[pid]['taskPath'], pid)
+                memBuf, nrss, pss, uss = tobj.getMemDetails(
+                    pid, tobj.procData[pid]['maps'])
+                pss = long(pss) << 12
+                pssUnit = conv(pss, unit='M')
+                uss = long(uss) << 12
+                ussUnit = conv(uss, unit='M')
+
+                # reset and save proc instance #
+                tobj.saveProcInstance()
 
                 # print memory usage #
                 if prevCpu != cpu or prevRss != rssUnit:
-                    SysMgr.printInfo(
-                        '%s %s(%s)\'s CPU(%s%%), VSS(%s), RSS(%s%s) for %s' % \
-                            (diff, comm, pid, cpustr, vss, rssUnit, conds, purpose),
+                    SysMgr.printInfo((
+                        '%s %s(%s)\'s CPU(%s%%), VSS(%s), RSS(%s%s), '
+                        'PSS(%s), USS(%s) for %s') % \
+                            (diff, comm, pid, cpustr, vss, rssUnit,
+                                conds, pssUnit, ussUnit, purpose),
                             prefix=False)
                 prevRss = rssUnit
                 prevCpu = ttime
@@ -41445,6 +41461,7 @@ Copyright:
                 sys.exit(0)
 
         # create a task object #
+        SysMgr.ussEnable = True
         tobj = SysMgr.initTaskMon(pid, update=False)
         path = '%s/%s' % (SysMgr.procPath, pid)
 
@@ -53098,7 +53115,7 @@ class Debugger(object):
         'WAITCLONE': False,
         'COMPLETECALL': False,
         'NOSAMPLECACHE': False,
-        'NORETBP': False,
+        'NORETBT': False,
         'INTERCALL': False,
         'HIDESYM': False,
     }
@@ -59389,7 +59406,7 @@ typedef struct {
 
         # add sample #
         if not realtime:
-            self.callList.append([sym, self.current, filename])
+            self.callList.append([sym, self.vdiff, filename])
             return
 
         self.totalCall += 1
@@ -59473,7 +59490,7 @@ typedef struct {
         if not SysMgr.outPath:
             return
 
-        self.callList.append([sym, self.current, filename])
+        self.callList.append([sym, self.vdiff, filename])
 
 
 
@@ -60346,7 +60363,7 @@ typedef struct {
         try:
             prev, ttotal, tmin, tmax = self.brkcallStat[sym]
 
-            self.interDiff = tdiff = self.current - prev
+            self.interDiff = tdiff = self.vdiff - prev
             ttotal += tdiff
 
             if tmax < tdiff:
@@ -60356,10 +60373,10 @@ typedef struct {
                 tmin = tdiff
 
             self.brkcallStat[sym] = \
-                [self.current, ttotal, tmin, tmax]
+                [self.vdiff, ttotal, tmin, tmax]
         except SystemExit: sys.exit(0)
         except:
-            self.brkcallStat[sym] = [self.current, 0, 0, 0]
+            self.brkcallStat[sym] = [self.vdiff, 0, 0, 0]
 
 
 
@@ -60599,7 +60616,7 @@ typedef struct {
                 if not skip:
                     # get previous symbol info #
                     prevSymInfo = self.getSymbolInfo(addr)
-                    if Debugger.envFlags['NORETBP']:
+                    if Debugger.envFlags['NORETBT']:
                         addStr = ''
                     elif prevSymInfo:
                         try:
@@ -60647,8 +60664,10 @@ typedef struct {
                             callString = '\n%s %s%s%s%s[%s]%s%s%s' % \
                                 (entryData['time'], tinfo, indent,
                                     convColor(origSym, symColor),
-                                    entryData['args'], entryData['file'],
-                                    retstr, elapsed, addStr)
+                                    entryData['args'],
+                                    convColor(entryData['file'], 'YELLOW'),
+                                    convColor(retstr, 'PINK'),
+                                    elapsed, addStr)
                     # build JSON output #
                     elif SysMgr.jsonEnable:
                         jsonData = {
@@ -60664,8 +60683,8 @@ typedef struct {
                     # build string output #
                     else:
                         callString = '\n%s %s%s%s%s%s%s' % \
-                            (diffstr, tinfo, indent, sym, retstr,
-                                elapsed, addStr)
+                            (diffstr, tinfo, indent, sym,
+                                convColor(retstr, 'PINK'), elapsed, addStr)
             except SystemExit: sys.exit(0)
             except:
                 elapsed = ''
@@ -92019,8 +92038,10 @@ class TaskAnalyzer(object):
             memBuf, nrss, pss, uss = self.getMemDetails(idx, value['maps'])
             if SysMgr.pssEnable:
                 mems = pss >> 8
+                value['pss'] = mems
             elif SysMgr.ussEnable:
                 mems = uss >> 8
+                value['uss'] = mems
             else:
                 mems = value['rss']
 
