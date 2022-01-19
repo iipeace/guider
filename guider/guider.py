@@ -23548,6 +23548,9 @@ Examples:
     - {3:1} using merged symbols
         # {0:1} {1:1} "ls" -q ALLSYM
 
+    - {3:1} for specific threads with tracing overhead
+        # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+
     - {3:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
@@ -53121,6 +53124,7 @@ class Debugger(object):
         'NORETBT': False,
         'INTERCALL': False,
         'HIDESYM': False,
+        'PRINTOVERHEAD': False,
     }
 
     def getSigStruct(self):
@@ -60698,7 +60702,9 @@ typedef struct {
                 cmds = self.retCmdList[origSym]
         else:
             # save entry context #
-            if Debugger.envFlags['COMPLETECALL']:
+            if Debugger.envFlags['COMPLETECALL'] and \
+                self.bpList[addr]['cmd'] and \
+                'getret' in self.bpList[addr]['cmd']:
                 self.entryContext[sym] = {
                     'time': diffstr,
                     'args': argstr,
@@ -63273,6 +63279,9 @@ typedef struct {
                 # add tracing overhead to start time #
                 if updateTime:
                     overhead = time.time() - self.current
+                    if Debugger.envFlags['PRINTOVERHEAD']:
+                        SysMgr.printWarn(
+                            '[OVERHEAD] %.6f sec' % overhead, True)
                     self.dstart += overhead
 
                 # wait for target to be stopped #
