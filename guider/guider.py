@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220118"
+__revision__ = "220119"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23184,9 +23184,11 @@ Examples:
 
     - Monitor status of {2:2} having COMM starting with kworker
         # {0:1} {1:1} -g "kworker*"
-
-    - Monitor status of {2:2} having COMM ending in kworker
         # {0:1} {1:1} -g "*kworker"
+
+    - Monitor status of {2:2} with cmdline
+        # {0:1} {1:1} -e L
+        # {0:1} {1:1} -e L -g apps
 
     - Monitor status of {2:2} except the one having COMM test
         # {0:1} {1:1} -g ^test
@@ -24331,6 +24333,7 @@ Examples:
 
     - Monitor open files, sockets, pipes for all processes with cmdline
         # {0:1} {1:1} -a -e L
+        # {0:1} {1:1} -a -e L -g apps
 
     - Report analysis result of open files, sockets, pipes to ./guider.out
         # {0:1} {1:1} -o .
@@ -91455,6 +91458,13 @@ class TaskAnalyzer(object):
             else:
                 exceptFlag = __check2ndFilter(exceptFlag)
 
+            # save cmdline info #
+            if exceptFlag and SysMgr.filterGroup and SysMgr.cmdlineEnable:
+                self.saveCmdlineData(procData[idx]['taskPath'], idx)
+                if TaskAnalyzer.checkFilter(
+                    procData[idx]['cmdline'], idx):
+                    exceptFlag = False
+
             # single mode #
             if not SysMgr.groupProcEnable:
                 return exceptFlag
@@ -92389,20 +92399,23 @@ class TaskAnalyzer(object):
                     writesize = convColor(writesize, 'RED', 4)
 
             # total MEM #
-            tmem = convSize(totalStats['mem'] << 20, True)
-            tmem = convColor(tmem,'YELLOW', 5)
+            tmem = convSize(totalStats['mem'] << 20)
+            tmem = convColor(tmem,'YELLOW', 7)
 
             # total SWAP #
             tswap = totalStats['swap']
-            if tswap > 0:
-                tswap = convSize(totalStats['swap'] << 20, True)
-                tswap = convColor(tswap,'YELLOW', 5)
+            try:
+                if tswap > 0:
+                    tswap = convSize(totalStats['swap'] << 20)
+                    tswap = convColor(tswap,'YELLOW', 6)
+            except SystemExit: sys.exit(0)
+            except: pass
 
             # print total stats #
             SysMgr.addPrint(
                 ("{0:>{td}}|"
                 "{1:>6}({2:>4}/{3:>4})|"
-                "{4:>3}:{5:>5} / {6:>3}:{7:>5})|"
+                "{4:>3}:{5:>7}|{6:>3}:{7:>6}|"
                 "{8:>4}({9:>4}/{10:>4}/{11:>5})|"
                 "{12:>12}|{13:>14}|{14:>21}|\n").\
                 format('[ TOTAL ]', totalTime, totalStats['utime'],
