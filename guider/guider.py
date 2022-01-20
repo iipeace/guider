@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220119"
+__revision__ = "220120"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23248,8 +23248,9 @@ Examples:
         # {0:1} {1:1} -a -q EXITCONDMEMMORE:1000 -R
         # {0:1} {1:1} -a -q EXITCONDMEMLESS:90 -R
 
-    - Monitor status and GPU memory of all {2:2}
+    - Monitor status of all {2:2} with GPU memory
         # {0:1} {1:1} -a -q GPUMEM
+        # {0:1} {1:1} -a -q GPUMEMSUM
 
     - Monitor status of all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
@@ -91752,6 +91753,19 @@ class TaskAnalyzer(object):
         mode, pidType, ppidType, sidType,\
             pgrpType, dprop, etc, mem = _getTypes()
 
+        # check GPU memory sum #
+        if 'GPUMEMSUM' in SysMgr.environList:
+            isGpuMemSum = True
+            mem = 'G' + mem
+        else:
+            isGpuMemSum = False
+
+        # check GPU memory sum #
+        if 'GPUMEM' in SysMgr.environList:
+            isGpuMem = True
+        else:
+            isGpuMem = False
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             jtype = mode.lower()
@@ -91800,7 +91814,7 @@ class TaskAnalyzer(object):
             SysMgr.idList = []
 
         # get per-process GPU memory info #
-        if 'GPUMEM' in SysMgr.environList:
+        if isGpuMemSum or 'GPUMEMSUM' in SysMgr.environList:
             gpuMem = SysMgr.getGpuMem()
         else:
             gpuMem = {}
@@ -92091,6 +92105,10 @@ class TaskAnalyzer(object):
             if value['ttime'] >= SysMgr.cpuPerLowThreshold:
                 ttime = UtilMgr.convCpuColor(value['ttime'], ttime, size=4)
 
+            # add GPU memory #
+            if isGpuMemSum and idx in gpuMem:
+                mems += gpuMem[idx]['size'] >> 20
+
             # convert color for RSS #
             if mems < SysMgr.memLowThreshold:
                 memstr = mems
@@ -92311,10 +92329,10 @@ class TaskAnalyzer(object):
                     "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
             # print GPU memory info #
-            if idx in gpuMem:
+            if isGpuMem and idx in gpuMem:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format(
-                        'GPUMEM', convSize(gpuMem[idx]['size'])))
+                        'GPUMEM', convColor(convSize(gpuMem[idx]['size']), 'CYAN')))
 
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
