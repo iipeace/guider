@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220120"
+__revision__ = "220122"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22718,7 +22718,7 @@ Commands:
                 os.environ['TERM'] = 'xterm'
 
                 # set run type #
-                if "REMOTERUN" in os.environ:
+                if 'REMOTERUN' in os.environ:
                     SysMgr.encodeEnable = False
                     SysMgr.remoteRun = True
                     SysMgr.colorEnable = False
@@ -22726,7 +22726,7 @@ Commands:
                     SysMgr.colorEnable = True
 
                 # check encode condition #
-                if not "LANG" in os.environ or \
+                if not 'LANG' in os.environ or \
                     'tty' in os.ttyname(sys.stdout.fileno()):
                     SysMgr.encodeEnable = False
             except SystemExit: sys.exit(0)
@@ -26833,6 +26833,10 @@ Options:
 
                     helpStr += '''
 Examples:
+    - Report memory leakage hints of a specific process when user input Ctrl + c key after executing the target program
+        # {0:1} {1:1} a.out -T ./libleaktracer.so
+        # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so
+
     - Report memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -g a.out -o ./guider.out
@@ -36928,7 +36932,6 @@ Copyright:
 
         # create a new process #
         pid = SysMgr.createProcess(isDaemon=True)
-
         if pid > 0:
             # wait a minute for child message #
             time.sleep(0.1)
@@ -37355,7 +37358,7 @@ Copyright:
             try:
                 # copy environment variables #
                 myEnv = deepcopy(os.environ)
-                myEnv["REMOTERUN"] = "True"
+                myEnv['REMOTERUN'] = "True"
 
                 # set SIGCHLD #
                 signal.signal(signal.SIGCHLD, signal.SIG_DFL)
@@ -41336,26 +41339,114 @@ Copyright:
 
             return 0
 
+        def _getOutputPath(isMulti, pid):
+                fname = None
+                if SysMgr.inputParam:
+                    fname = os.path.abspath(SysMgr.inputParam)
+                    if os.path.isdir(fname):
+                        if isMulti:
+                            fname = '%s/leaks_%s.out' % (fname, pid)
+                        else:
+                            fname = '%s/leaks.out' % fname
+                elif os.path.exists(SysMgr.tmpPath):
+                    if isMulti:
+                        fname = '%s/leaks_%s.out' % (SysMgr.tmpPath, pid)
+                    else:
+                        fname = '%s/leaks.out' % SysMgr.tmpPath
+                elif SysMgr.isWritable('.'):
+                    current = os.path.abspath('.')
+                    if isMulti:
+                        fname = '%s/leaks_%s.out' % (current, pid)
+                    else:
+                        fname = '%s/leaks.out' % current
+                else:
+                    SysMgr.printErr(
+                        "no input for temporary file path")
+                    sys.exit(0)
+
+                return fname
+
 
 
         # check package #
         SysMgr.getPkg('ctypes')
 
-        # check target ID #
-        targetList = SysMgr.filterGroup
-        if not targetList:
-            SysMgr.printErr("no input for PID or COMM")
-            sys.exit(0)
-
         # check output path #
         if not SysMgr.outPath:
             SysMgr.outPath = '/tmp/guider.out'
 
-        # convert comm to pid #
+        # check target info #
+        if SysMgr.hasMainArg():
+            inputCmd = SysMgr.getMainArg().split()
+            targetList = []
+        else:
+            inputCmd = []
+            targetList = SysMgr.filterGroup
+            if not targetList:
+                SysMgr.printErr("no input for PID or COMM")
+                sys.exit(0)
+
+        # get PID #
         pid = None
         isMulti = False
         startTime = endTime = 0
-        pids = SysMgr.convTaskList(targetList, exceptMe=True)
+        if inputCmd:
+            # set mute flag #
+            if 'MUTE' in SysMgr.environList:
+                mute = True
+            else:
+                mute = False
+
+            # set environment variable #
+            SysMgr.environList.setdefault('ENV', [])
+
+            # set PRELOAD path #
+            libPath = SysMgr.getOption('T')
+            if libPath:
+                # handle special characters in path #
+                newPath = UtilMgr.convPath(libPath)
+                if not newPath:
+                    SysMgr.printErr("wrong path '%s'" % libPath)
+                    sys.exit(0)
+                elif len(newPath) > 1:
+                    SysMgr.printErr(
+                        "found multiple libraries [ %s ]" % \
+                            ', '.join(newPath))
+                    sys.exit(0)
+                else:
+                    # convert to absolute path #
+                    libPath = os.path.abspath(newPath[0])
+                    SysMgr.environList['ENV'].append(
+                        'LD_PRELOAD=%s' % libPath)
+            else:
+                SysMgr.printErr('no path for libleaktracer.so')
+                sys.exit(0)
+
+            # set output path #
+            fname = _getOutputPath(isMulti, pid)
+            SysMgr.environList['ENV'].append(
+                'LEAKTRACER_AUTO_REPORTFILENAME=%s' % fname)
+            SysMgr.environList['ENV'].append(
+                'LEAKTRACER_ONSIG_REPORTFILENAME=%s' % fname)
+
+            # set signal #
+            SysMgr.environList['ENV'].append(
+                'LEAKTRACER_ONSIG_STARTALLTHREAD=%s' % LeakAnalyzer.startSig)
+            SysMgr.environList['ENV'].append(
+                'LEAKTRACER_ONSIG_REPORT=%s' % LeakAnalyzer.stopSig)
+
+            # create the target process #
+            pid = SysMgr.createProcess(inputCmd, mute=mute, chPgid=True)
+            if pid <= 0:
+                sys.exit(0)
+            pids = [str(pid)]
+
+            # wait for initialization of the target #
+            time.sleep(1)
+        else:
+            pids = SysMgr.convTaskList(targetList, exceptMe=True)
+
+        # check PID #
         if not pids:
             SysMgr.printErr("no '%s' process" % ', '.join(targetList))
             sys.exit(0)
@@ -41383,8 +41474,12 @@ Copyright:
 
         # get comm #
         comm = SysMgr.getComm(pid)
+        if not comm and not SysMgr.isAlive(pid):
+            SysMgr.printErr(
+                "%s(%s) is terminated" % (comm, pid))
+            sys.exit(0)
 
-        # get environment variables of target #
+        # get environment variables of the target #
         envList = SysMgr.getEnv(pid, retdict=True)
 
         # check permission #
@@ -41420,7 +41515,7 @@ Copyright:
             'operator delete[](void*\, unsigned long\, std::align_val_t)',
         ]
 
-        # check preload result #
+        # check PRELOAD result #
         libPath = None
         ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
         if ret:
@@ -41432,8 +41527,7 @@ Copyright:
                 # handle special characters in path #
                 newPath = UtilMgr.convPath(libPath)
                 if not newPath:
-                    SysMgr.printErr(
-                        "wrong path '%s'" % libPath)
+                    SysMgr.printErr("wrong path '%s'" % libPath)
                     sys.exit(0)
                 elif len(newPath) > 1:
                     SysMgr.printErr(
@@ -41481,29 +41575,7 @@ Copyright:
             fname = envList['LEAKTRACER_AUTO_REPORTFILENAME']
             startTime = SysMgr.uptime - tobj.procData[pid]['runtime']
         else:
-            fname = None
-            if SysMgr.inputParam:
-                fname = os.path.abspath(SysMgr.inputParam)
-                if os.path.isdir(fname):
-                    if isMulti:
-                        fname = '%s/leaks_%s.out' % (fname, pid)
-                    else:
-                        fname = '%s/leaks.out' % fname
-            elif os.path.exists(SysMgr.tmpPath):
-                if isMulti:
-                    fname = '%s/leaks_%s.out' % (SysMgr.tmpPath, pid)
-                else:
-                    fname = '%s/leaks.out' % SysMgr.tmpPath
-            elif SysMgr.isWritable('.'):
-                current = os.path.abspath('.')
-                if isMulti:
-                    fname = '%s/leaks_%s.out' % (current, pid)
-                else:
-                    fname = '%s/leaks.out' % current
-            else:
-                SysMgr.printErr(
-                    "no input for temporary file path")
-                sys.exit(0)
+            fname = _getOutputPath(isMulti, pid)
 
             # set output file path #
             if fname:
@@ -41750,6 +41822,10 @@ Copyright:
         while not os.path.exists(fname) or \
             os.stat(fname).st_size == 0:
             time.sleep(1)
+            if not SysMgr.isAlive(pid):
+                SysMgr.printErr(
+                    "%s(%s) is terminated" % (comm, pid))
+                sys.exit(0)
 
         # create leaktracer parser #
         try:
