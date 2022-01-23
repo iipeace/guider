@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220122"
+__revision__ = "220123"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23484,7 +23484,7 @@ Examples:
                 cmdListStr = '''
 Commands:
     acc      print accumulation stats for specific values [NAME:VAR|REG|VAL]
-    check    check context and execute next commands [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
+    check    check context and execute next commands [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVT]
     condexit exit if tracing was started
     dist     print distribution stats for specific values [NAME:VAR|REG|VAL]
     dump     dump specific memory range to a file [NAME|ADDR:FILE]
@@ -23810,6 +23810,7 @@ Examples:
 
     - {5:1} and print interval stats for the function call {4:1}
         # {0:1} {1:1} -g a.out -c "malloc|inter"
+        # {0:1} {1:1} -g a.out -c "malloc|inter" -q ELPASED:0.001
 
     - {5:1} and jump to specific function with specific arguments {4:1}
         # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
@@ -54342,80 +54343,51 @@ typedef struct {
             SysMgr.clearPrint()
 
         def _printCmdErr(cmdset, cmd):
-            if cmd == 'print':
-                cmdformat = "VAR"
-            elif cmd == 'exec':
-                cmdformat = "COMMAND"
-            elif cmd == 'ret':
-                cmdformat = "VAL"
-            elif cmd == 'check':
-                cmdformat = \
-                    "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT"
-            elif cmd == 'getret':
-                cmdformat = "CMD"
-            elif cmd == 'setret':
-                cmdformat = "VAL:CMD"
-            elif cmd == 'getarg':
-                cmdformat = "REG:REG"
-            elif cmd == 'inter':
-                cmdformat = "VAL"
-            elif cmd == 'setarg':
-                cmdformat = "REG#VAL:REG#VAL"
-            elif cmd == 'wrmem':
-                cmdformat = "VAR|ADDR|REG:VAL:SIZE"
-            elif cmd == 'rdmem':
-                cmdformat = "VAR|ADDR|REG:SIZE"
-            elif cmd == 'jump':
-                cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
-            elif cmd == 'usercall':
-                cmdformat = "FUNC#ARG0#ARG1"
-            elif cmd == 'syscall':
-                cmdformat = "SYSCALL#ARG0#ARG1"
-            elif cmd == 'load':
-                cmdformat = "PATH"
-            elif cmd == 'save':
-                cmdformat = "VAR:VAL:TYPE"
-            elif cmd == 'acc':
-                cmdformat = "NAME:VAR|REG|VAL"
-            elif cmd == 'dist':
-                cmdformat = "NAME:VAR|REG|VAL"
-            elif cmd == 'dump':
-                cmdformat = "NAME|ADDR:FILE"
-            elif cmd == 'start':
-                cmdformat = ""
-            elif cmd == 'show':
-                cmdformat = ""
-            elif cmd == 'hide':
-                cmdformat = ""
-            elif cmd == 'exit':
-                cmdformat = ""
-            elif cmd == 'condexit':
-                cmdformat = ""
-            elif cmd == 'map':
-                cmdformat = ""
-            elif cmd == 'stop':
-                cmdformat = ""
-            elif cmd == 'setenv':
-                cmdformat = "VAR#VAR|VAL"
-            elif cmd == 'getenv':
-                cmdformat = "VAR"
-            elif cmd == 'repeat':
-                cmdformat = "CNT"
-            elif cmd == 'thread':
-                cmdformat = ""
-            elif cmd == 'pystr':
-                cmdformat = "CODE:SYNC"
-            elif cmd == 'pyfile':
-                cmdformat = "PATH:SYNC"
-            elif cmd == 'pyscript':
-                cmdformat = "PATH:FUNC:ARGS"
-            elif cmd == 'log':
-                cmdformat = "MESSAGE"
+            cmdsetList = {
+                'print': "VAR",
+                'exec': "COMMAND",
+                'ret': "VAL",
+                'check': "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVT",
+                'getret': "CMD",
+                'setret': "VAL:CMD",
+                'getarg': "REG:REG",
+                'inter': "VAL",
+                'setarg': "REG#VAL:REG#VAL",
+                'wrmem': "VAR|ADDR|REG:VAL:SIZE",
+                'rdmem': "VAR|ADDR|REG:SIZE",
+                'jump': "SYMBOL|ADDR#ARG0#ARG1",
+                'usercall': "FUNC#ARG0#ARG1",
+                'syscall': "SYSCALL#ARG0#ARG1",
+                'load': "PATH",
+                'save': "VAR:VAL:TYPE",
+                'acc': "NAME:VAR|REG|VAL",
+                'dist': "NAME:VAR|REG|VAL",
+                'dump': "NAME|ADDR:FILE",
+                'start': "",
+                'show': "",
+                'hide': "",
+                'exit': "",
+                'condexit': "",
+                'map': "",
+                'stop': "",
+                'setenv': "VAR#VAR|VAL",
+                'getenv': "VAR",
+                'repeat': "CNT",
+                'thread': "",
+                'pystr': "CODE:SYNC",
+                'pyfile': "PATH:SYNC",
+                'pyscript': "PATH:FUNC:ARGS",
+                'log': "MESSAGE",
+            }
+
+            if cmd in cmdsetList:
+                cmdformat = cmdsetList[cmd]
             else:
                 cmdformat = ""
 
             if cmdformat:
                 cmdformat = ":%s" % cmdformat
+
             SysMgr.printErr(
                 "wrong command '%s', input in the format {%s%s}" % \
                     (cmdset, cmd, cmdformat))
@@ -54454,33 +54426,6 @@ typedef struct {
                         data = 'N/A'
 
                     _addPrint("\n[%s] %s = %s" % (cmdstr, var, data))
-
-            elif cmd == 'map':
-                SysMgr.addPrint("\n[%s]" % cmdstr)
-                _flushPrint(False)
-                PageAnalyzer.printMemoryArea(
-                    self.pid, comm=self.comm, lastLine=True,
-                    showall=SysMgr.showAll)
-
-            elif cmd == 'exec':
-                if len(cmdset) == 1:
-                    _printCmdErr(cmdval, cmd)
-
-                _addPrint("\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
-                _flushPrint(newline=False)
-
-                # execute commands #
-                for item in cmdset[1].split(':'):
-                    command = item.strip()
-                    if command.endswith('&'):
-                        command = command[:-1]
-                        wait = False
-                    else:
-                        wait = True
-
-                    param = command.split()
-
-                    self.execBgCmd(execCmd=param, mute=False, wait=wait)
 
             elif cmd == 'ret':
                 if len(cmdset) == 1:
@@ -54646,283 +54591,6 @@ typedef struct {
 
                 _addPrint("\n[%s] %s" % (cmdstr, res))
 
-            elif cmd == 'wrmem':
-                if len(cmdset) == 1:
-                    _printCmdErr(cmdval, cmd)
-
-                # get argument info #
-                memset = cmdset[1].split(':')
-                if len(memset) != 2 and len(memset) != 3:
-                    _printCmdErr(cmdval, cmd)
-
-                # convert args for previous return #
-                memset = self.convRetArgs(memset)
-
-                # get addr #
-                addr = UtilMgr.convStr2Num(memset[0])
-                if addr is None: return repeat
-
-                # get value #
-                val = memset[1].encode()
-
-                # get size #
-                if len(memset) == 3:
-                    size = UtilMgr.convStr2Num(memset[2])
-                else:
-                    size = len(val)
-
-                # increase size #
-                if len(val) < size:
-                    val += b' ' * (size - len(val))
-
-                # convert address from registers #
-                try:
-                    addr = args[addr]
-                except: pass
-
-                # get address #
-                addr = UtilMgr.convStr2Num(addr)
-                if addr is None: return repeat
-
-                _addPrint("\n[%s] %s: %s(%sbyte)" % \
-                    (cmdstr, hex(addr).rstrip('L'),
-                        repr(val[:size]), size))
-
-                # set register values #
-                ret = self.writeMem(addr, val, size)
-                if ret is None or ret == -1:
-                    SysMgr.printErr(
-                        "failed to write '%s' to %s" % \
-                            (val.decode(), hex(addr).rstrip('L')))
-                    return repeat
-
-            elif cmd == 'thread':
-                ret = self.loadPyLib()
-                if not ret: return
-
-                self.initPyLib()
-
-                # init thread objects #
-                origPid = self.pid
-                self.remoteUsercall('PyEval_InitThreads')
-                mainState = self.remoteUsercall('PyEval_SaveThread')
-                gilState = self.remoteUsercall('PyGILState_Ensure')
-
-                # create a new python thread #
-                string = (
-                    "import sys, time, threading\n"
-                    "def func():\n"
-                    "\twhile 1:\n"
-                    "\t\ttime.sleep(1)\n"
-                    "tobj = threading.Thread(target=func)\n"
-                    "tobj.daemon = True\n"
-                    "tobj.start();"
-                )
-                self.remotePyCall(string=string, wait=True)
-
-                # release thread objects #
-                if self.pid == origPid:
-                    self.remoteUsercall('PyGILState_Release', [gilState])
-                    self.remoteUsercall('PyEval_RestoreThread', [mainState])
-                    self.finishPyLib()
-                else:
-                    _addPrint("\n[%s] %s(%s)" % (cmdstr, self.comm, self.pid))
-
-            elif cmd == 'pystr' or cmd == 'pyfile':
-                if len(cmdset) == 1:
-                    _printCmdErr(cmdval, cmd)
-
-                # get argument info #
-                memset = cmdset[1].split(':')
-                source = memset[0]
-                if len(memset) > 1:
-                    sync = memset[1]
-                    if not sync:
-                        sync = True
-                    elif sync.upper() == 'FALSE':
-                        sync = False
-                    else:
-                        sync = True
-                else:
-                    sync = True
-
-                # remove all breakpoints #
-                self.removeAllBp(verb=False)
-
-                ret = self.loadPyLib()
-                if not ret: return
-
-                self.initPyLib()
-
-                _addPrint("\n[%s] %s [sync=%s]" % (cmdstr, source, sync))
-
-                # call python #
-                if cmd == 'pystr':
-                    self.remotePyCall(string=source, wait=sync)
-                elif cmd == 'pyfile':
-                    self.remotePyCall(script=source, wait=sync)
-
-                self.finishPyLib()
-
-                # inject all breakpoints again #
-                self.loadSymbols()
-                self.updateBpList(verb=False)
-
-            elif cmd == 'dump':
-                if len(cmdset) == 1:
-                    _printCmdErr(cmdval, cmd)
-
-                # get argument info #
-                memset = cmdset[1].split(':')
-                if len(memset) != 2:
-                    _printCmdErr(cmdval, cmd)
-
-                # dump memory #
-                meminfo, output = memset
-                size = self.dumpMemory(meminfo, output, verb=False)
-                if size == 0:
-                    res = 'fail'
-                else:
-                    res = 'success'
-
-                sizestr = UtilMgr.convSize2Unit(size)
-
-                _addPrint("\n[%s] %s(%s)->%s (%s)" % \
-                    (cmdstr, meminfo, sizestr, output, res))
-
-            elif cmd == 'check':
-                cmds = ':'.join(cmdset)
-                ret = self.checkFilterCond(cmds, args, sym, fname)
-
-                # broadcast event #
-                if ret:
-                    skip = False
-                    params = cmdset[1].split(':')
-                    if len(params) > 4:
-                        SysMgr.broadcastEvent(params[4])
-                else:
-                    skip = True
-
-                # change color for False #
-                if ret:
-                    ret = convColor(ret, 'GREEN')
-                else:
-                    ret = convColor(ret, 'RED')
-
-                _addPrint("\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
-
-                if skip:
-                    raise UserWarning
-                else:
-                    return ret
-
-            elif cmd == 'inter':
-                # get diff #
-                if sym in self.interList:
-                    val = self.vdiff - self.interList[sym]['time']
-                    self.interList[sym]['time'] = self.vdiff
-                    self.interList[sym]['total'] += val
-                else:
-                    val = 0
-
-                # accumulate values #
-                self.interList.setdefault(sym,
-                    dict({'time': self.vdiff, 'cnt': 0,
-                        'total': val, 'min': float(val), 'max': float(val)}))
-
-                self.interList[sym]['cnt'] += 1
-                if self.interList[sym]['min'] == 0 or \
-                    self.interList[sym]['min'] > val:
-                    self.interList[sym]['min'] = val
-                if self.interList[sym]['max'] < val:
-                    self.interList[sym]['max'] = val
-
-                # get variables #
-                cnt = self.interList[sym]['cnt']
-                total = self.interList[sym]['total']
-                avg = total / cnt
-                vmin = self.interList[sym]['min']
-                vmax = self.interList[sym]['max']
-
-                _addPrint(("\n[%s] %.6f {cnt: %s / avg: %.6f / "
-                    "min: %.6f / max: %.6f / total %.6f}") % \
-                        (cmdstr, val, convNum(cnt), avg, vmin, vmax, total))
-
-            elif cmd == 'acc' or cmd == 'dist':
-                if len(cmdset) == 1:
-                    _printCmdErr(cmdval, cmd)
-
-                # get argument info #
-                memset = cmdset[1].split(':')
-
-                # get name #
-                name = memset[0]
-
-                # convert args for previous return #
-                memset = self.convRetArgs(memset)
-
-                # get value #
-                if len(memset) > 1:
-                    data = memset[1]
-
-                    # args #
-                    if isinstance(data, (int, long)):
-                        pass
-                    elif data.isdigit() and long(data) < len(args):
-                        data = args[long(data)]
-                else:
-                    data = '1'
-
-                # convert value #
-                val = UtilMgr.convStr2Num(data)
-                if val is None: return repeat
-
-                # accumulate values #
-                self.accList.setdefault(name,
-                    dict({'cnt': 0, 'total': 0, 'min': val, 'max': val}))
-
-                self.accList[name]['cnt'] += 1
-                self.accList[name]['total'] += val
-                if self.accList[name]['min'] > val:
-                    self.accList[name]['min'] = val
-                if self.accList[name]['max'] < val:
-                    self.accList[name]['max'] = val
-
-                # get variables #
-                cnt = self.accList[name]['cnt']
-                total = self.accList[name]['total']
-                avg = long(total / cnt)
-                vmin = self.accList[name]['min']
-                vmax = self.accList[name]['max']
-
-                if cmd == 'dist':
-                    try:
-                        idx = long(math.sqrt(val))
-                    except SystemExit: sys.exit(0)
-                    except:
-                        try:
-                            import math
-                            idx = long(math.sqrt(val))
-                        except SystemExit: sys.exit(0)
-                        except:
-                            SysMgr.printErr(
-                                "failed to import python package: math")
-                            idx = 0
-                    finally:
-                        self.accList[name].setdefault('dist', {})
-                        self.accList[name]['dist'].setdefault(idx, 0)
-                        self.accList[name]['dist'][idx] += 1
-                        dist = self.accList[name]['dist']
-                else:
-                    dist = ''
-
-                _addPrint(("\n[%s] %s: %s(%s) "
-                    "{cnt: %s / total: %s / avg: %s / "
-                    "min: %s / max: %s} %s") % \
-                        (cmdstr, name, hex(val).rstrip('L'), val,
-                            convNum(cnt), convNum(total), convNum(avg),
-                            convNum(vmin), convNum(vmax), dist))
-
             elif cmd == 'rdmem':
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
@@ -54999,6 +54667,194 @@ typedef struct {
                 _addPrint("\n[%s] %s: %s(%sbyte)%s" % \
                     (cmdstr, hex(addr).rstrip('L'), \
                         repr(ret), size, binstr))
+
+            elif cmd == 'wrmem':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) != 2 and len(memset) != 3:
+                    _printCmdErr(cmdval, cmd)
+
+                # convert args for previous return #
+                memset = self.convRetArgs(memset)
+
+                # get addr #
+                addr = UtilMgr.convStr2Num(memset[0])
+                if addr is None: return repeat
+
+                # get value #
+                val = memset[1].encode()
+
+                # get size #
+                if len(memset) == 3:
+                    size = UtilMgr.convStr2Num(memset[2])
+                else:
+                    size = len(val)
+
+                # increase size #
+                if len(val) < size:
+                    val += b' ' * (size - len(val))
+
+                # convert address from registers #
+                try:
+                    addr = args[addr]
+                except: pass
+
+                # get address #
+                addr = UtilMgr.convStr2Num(addr)
+                if addr is None: return repeat
+
+                _addPrint("\n[%s] %s: %s(%sbyte)" % \
+                    (cmdstr, hex(addr).rstrip('L'),
+                        repr(val[:size]), size))
+
+                # set register values #
+                ret = self.writeMem(addr, val, size)
+                if ret is None or ret == -1:
+                    SysMgr.printErr(
+                        "failed to write '%s' to %s" % \
+                            (val.decode(), hex(addr).rstrip('L')))
+                    return repeat
+
+            elif cmd == 'check':
+                cmds = ':'.join(cmdset)
+                ret = self.checkFilterCond(cmds, args, sym, fname)
+
+                # broadcast event #
+                if ret:
+                    skip = False
+                    params = cmdset[1].split(':')
+                    if len(params) > 4:
+                        SysMgr.broadcastEvent(params[4])
+                else:
+                    skip = True
+
+                # change color for False #
+                if ret:
+                    ret = convColor(ret, 'GREEN')
+                else:
+                    ret = convColor(ret, 'RED')
+
+                _addPrint("\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
+
+                if skip:
+                    raise UserWarning
+                else:
+                    return ret
+
+            elif cmd == 'inter':
+                # get diff #
+                if sym in self.interList:
+                    val = self.vdiff - self.interList[sym]['time']
+                    self.interList[sym]['time'] = self.vdiff
+                    self.interList[sym]['total'] += val
+                else:
+                    val = 0
+
+                # accumulate values #
+                self.interList.setdefault(sym,
+                    dict({'time': self.vdiff, 'cnt': 0,
+                        'total': val, 'min': float(val), 'max': float(val)}))
+
+                self.interList[sym]['cnt'] += 1
+                if self.interList[sym]['min'] == 0 or \
+                    self.interList[sym]['min'] > val:
+                    self.interList[sym]['min'] = val
+                if self.interList[sym]['max'] < val:
+                    self.interList[sym]['max'] = val
+
+                # get variables #
+                cnt = self.interList[sym]['cnt']
+                total = self.interList[sym]['total']
+                avg = total / cnt
+                vmin = self.interList[sym]['min']
+                vmax = self.interList[sym]['max']
+
+                # convert time color #
+                itime = '%.6f' % val
+                if val > self.retTime:
+                    itime = UtilMgr.convColor(itime, 'RED')
+
+                _addPrint(("\n[%s] %s {cnt: %s / avg: %.6f / "
+                    "min: %.6f / max: %.6f / total %.6f}") % \
+                        (cmdstr, itime, convNum(cnt), avg, vmin, vmax, total))
+
+            elif cmd == 'acc' or cmd == 'dist':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+
+                # get name #
+                name = memset[0]
+
+                # convert args for previous return #
+                memset = self.convRetArgs(memset)
+
+                # get value #
+                if len(memset) > 1:
+                    data = memset[1]
+
+                    # args #
+                    if isinstance(data, (int, long)):
+                        pass
+                    elif data.isdigit() and long(data) < len(args):
+                        data = args[long(data)]
+                else:
+                    data = '1'
+
+                # convert value #
+                val = UtilMgr.convStr2Num(data)
+                if val is None: return repeat
+
+                # accumulate values #
+                self.accList.setdefault(name,
+                    dict({'cnt': 0, 'total': 0, 'min': val, 'max': val}))
+
+                self.accList[name]['cnt'] += 1
+                self.accList[name]['total'] += val
+                if self.accList[name]['min'] > val:
+                    self.accList[name]['min'] = val
+                if self.accList[name]['max'] < val:
+                    self.accList[name]['max'] = val
+
+                # get variables #
+                cnt = self.accList[name]['cnt']
+                total = self.accList[name]['total']
+                avg = long(total / cnt)
+                vmin = self.accList[name]['min']
+                vmax = self.accList[name]['max']
+
+                if cmd == 'dist':
+                    try:
+                        idx = long(math.sqrt(val))
+                    except SystemExit: sys.exit(0)
+                    except:
+                        try:
+                            import math
+                            idx = long(math.sqrt(val))
+                        except SystemExit: sys.exit(0)
+                        except:
+                            SysMgr.printErr(
+                                "failed to import python package: math")
+                            idx = 0
+                    finally:
+                        self.accList[name].setdefault('dist', {})
+                        self.accList[name]['dist'].setdefault(idx, 0)
+                        self.accList[name]['dist'][idx] += 1
+                        dist = self.accList[name]['dist']
+                else:
+                    dist = ''
+
+                _addPrint(("\n[%s] %s: %s(%s) "
+                    "{cnt: %s / total: %s / avg: %s / "
+                    "min: %s / max: %s} %s") % \
+                        (cmdstr, name, hex(val).rstrip('L'), val,
+                            convNum(cnt), convNum(total), convNum(avg),
+                            convNum(vmin), convNum(vmax), dist))
 
             elif cmd == 'pyscript':
                 if len(cmdset) == 1:
@@ -55096,6 +54952,127 @@ typedef struct {
                 output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
                 _addPrint(output)
 
+            elif cmd == 'map':
+                SysMgr.addPrint("\n[%s]" % cmdstr)
+                _flushPrint(False)
+                PageAnalyzer.printMemoryArea(
+                    self.pid, comm=self.comm, lastLine=True,
+                    showall=SysMgr.showAll)
+
+            elif cmd == 'exec':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                _addPrint("\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
+                _flushPrint(newline=False)
+
+                # execute commands #
+                for item in cmdset[1].split(':'):
+                    command = item.strip()
+                    if command.endswith('&'):
+                        command = command[:-1]
+                        wait = False
+                    else:
+                        wait = True
+
+                    param = command.split()
+
+                    self.execBgCmd(execCmd=param, mute=False, wait=wait)
+
+            elif cmd == 'thread':
+                ret = self.loadPyLib()
+                if not ret: return
+
+                self.initPyLib()
+
+                # init thread objects #
+                origPid = self.pid
+                self.remoteUsercall('PyEval_InitThreads')
+                mainState = self.remoteUsercall('PyEval_SaveThread')
+                gilState = self.remoteUsercall('PyGILState_Ensure')
+
+                # create a new python thread #
+                string = (
+                    "import sys, time, threading\n"
+                    "def func():\n"
+                    "\twhile 1:\n"
+                    "\t\ttime.sleep(1)\n"
+                    "tobj = threading.Thread(target=func)\n"
+                    "tobj.daemon = True\n"
+                    "tobj.start();"
+                )
+                self.remotePyCall(string=string, wait=True)
+
+                # release thread objects #
+                if self.pid == origPid:
+                    self.remoteUsercall('PyGILState_Release', [gilState])
+                    self.remoteUsercall('PyEval_RestoreThread', [mainState])
+                    self.finishPyLib()
+                else:
+                    _addPrint("\n[%s] %s(%s)" % (cmdstr, self.comm, self.pid))
+
+            elif cmd == 'pystr' or cmd == 'pyfile':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                source = memset[0]
+                if len(memset) > 1:
+                    sync = memset[1]
+                    if not sync:
+                        sync = True
+                    elif sync.upper() == 'FALSE':
+                        sync = False
+                    else:
+                        sync = True
+                else:
+                    sync = True
+
+                # remove all breakpoints #
+                self.removeAllBp(verb=False)
+
+                ret = self.loadPyLib()
+                if not ret: return
+
+                self.initPyLib()
+
+                _addPrint("\n[%s] %s [sync=%s]" % (cmdstr, source, sync))
+
+                # call python #
+                if cmd == 'pystr':
+                    self.remotePyCall(string=source, wait=sync)
+                elif cmd == 'pyfile':
+                    self.remotePyCall(script=source, wait=sync)
+
+                self.finishPyLib()
+
+                # inject all breakpoints again #
+                self.loadSymbols()
+                self.updateBpList(verb=False)
+
+            elif cmd == 'dump':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) != 2:
+                    _printCmdErr(cmdval, cmd)
+
+                # dump memory #
+                meminfo, output = memset
+                size = self.dumpMemory(meminfo, output, verb=False)
+                if size == 0:
+                    res = 'fail'
+                else:
+                    res = 'success'
+
+                sizestr = UtilMgr.convSize2Unit(size)
+
+                _addPrint("\n[%s] %s(%s)->%s (%s)" % \
+                    (cmdstr, meminfo, sizestr, output, res))
+
             elif cmd == 'save':
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
@@ -55155,7 +55132,6 @@ typedef struct {
                 else:
                     # update return #
                     self.prevReturn = str(ret)
-
                     ret = hex(ret).rstrip('L')
 
                 output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
