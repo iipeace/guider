@@ -23495,6 +23495,7 @@ Commands:
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
     hide     hide tracing
+    setinter print interval time between specific function calls
     inter    print interval stats for the function call
     jump     jump to specific function with specific arguments [FUNC#ARGS]
     kill     terminate the target task
@@ -23807,6 +23808,10 @@ Examples:
 
     - {5:1} and print distribution stats for a specific argument {4:1}
         # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0"
+
+    - {5:1} and print interval time between specific function calls {4:1}
+        # {0:1} {1:1} -g a.out -c "malloc|setinter:_exit, _exit"
+        # {0:1} {1:1} -g a.out -c "malloc|setinter:_exit, _exit" -q ELAPSED:0.1
 
     - {5:1} and print interval stats for the function call {4:1}
         # {0:1} {1:1} -g a.out -c "malloc|inter"
@@ -54352,6 +54357,7 @@ typedef struct {
                 'setret': "VAL:CMD",
                 'getarg': "REG:REG",
                 'inter': "VAL",
+                'interval': "FUNC",
                 'setarg': "REG#VAL:REG#VAL",
                 'wrmem': "VAR|ADDR|REG:VAL:SIZE",
                 'rdmem': "VAR|ADDR|REG:SIZE",
@@ -54743,6 +54749,54 @@ typedef struct {
                     raise UserWarning
                 else:
                     return ret
+
+            elif cmd == 'setinter':
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # set timestamp #
+                func = cmdset[1].split(':', 1)[0]
+
+                if not func in self.intervalList:
+                    # get function addr #
+                    ret = self.getAddrBySymbol(func)
+                    if not ret:
+                        SysMgr.printErr(
+                            'no function named %s' % func)
+                        sys.exit(0)
+
+                    # check breakpoint #
+                    addr = ret[0][0]
+                    if not addr in self.bpList:
+                        SysMgr.printErr(
+                            'no breakpoint for %s' % func)
+                        sys.exit(0)
+
+                    # set command for last function #
+                    if not self.bpList[addr]['cmd']:
+                        self.bpList[addr]['cmd'] = []
+                    if not '_interval' in self.bpList[addr]['cmd']:
+                        self.bpList[addr]['cmd'].append('getinter')
+
+                    _addPrint("\n[%s] %s ~ %s(%s)" % \
+                        (cmdstr, sym, func, hex(addr).rstrip('L')))
+
+                    self.intervalList.setdefault(func, {})
+
+                self.intervalList[func][sym] = self.vdiff
+
+            elif cmd == 'getinter':
+                if sym in self.intervalList:
+                    for name, ts in self.intervalList[sym].items():
+                        diff = self.vdiff - ts
+                        diffstr = '%.6f' % diff
+
+                        # convert time color #
+                        if diff > self.retTime:
+                            diffstr = UtilMgr.convColor(diffstr, 'RED')
+
+                        _addPrint("\n[%s] %s -> %s ~ %s" % \
+                            (cmdstr, diffstr, name, sym))
 
             elif cmd == 'inter':
                 # get diff #
@@ -63012,6 +63066,7 @@ typedef struct {
         self.retList = {}
         self.accList = {}
         self.interList = {}
+        self.intervalList = {}
         self.setRetList = {}
         self.regList = {}
         self.repeatCntList = {}
