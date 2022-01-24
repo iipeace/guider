@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220123"
+__revision__ = "220124"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23495,6 +23495,7 @@ Commands:
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
     hide     hide tracing
+    hidden   hide the function call
     setinter print interval time between specific function calls
     inter    print interval stats for the function call
     jump     jump to specific function with specific arguments [FUNC#ARGS]
@@ -23659,10 +23660,13 @@ Examples:
     - {3:1} except for specific files for specific threads
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
+    - {5:1} including specific word in a hidden state
+        # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
+
     - {5:1} including specific word for specific threads until {4:1}
-        # {0:1} {1:1} -g a.out -c "*printPeace|stop"
-        # {0:1} {1:1} -g a.out -c "printPeace*|hide"
-        # {0:1} {1:1} -g a.out -c "*printPeace*|hide"
+        # {0:1} {1:1} -g a.out -c "*, *printPeace|stop"
+        # {0:1} {1:1} -g a.out -c "*, printPeace*|hide"
+        # {0:1} {1:1} -g a.out -c "*, *printPeace*|hide"
 
     - {3:1} and sleep for 0.1 second {4:1}
         # {0:1} {1:1} -g a.out -c "*|sleep:0.1"
@@ -53922,7 +53926,7 @@ typedef struct {
                 if ret == 0:
                     errMsg = ' because remote dlopen failed'
                 else:
-                    errmsg = ''
+                    errMsg = ''
 
                 dobj.loadSymbols()
                 if not fpath in dobj.pmap:
@@ -53968,6 +53972,7 @@ typedef struct {
         # define link list #
         linkList = {}
         convColor = UtilMgr.convColor
+        nrUpdated = 0
 
         for fpath, mapInfo in dobj.pmap.items():
             # skip same binary to prevent infinite recursive call #
@@ -54108,6 +54113,7 @@ typedef struct {
 
                 # check update result #
                 if hookAddr == newAddr:
+                    nrUpdated += 1
                     SysMgr.printInfo(
                         'updated %s to %s for %s' % \
                             (srcInfo, desInfo, procInfo), prefix=False)
@@ -54120,6 +54126,8 @@ typedef struct {
         SysMgr.sendSignalProcs(signal.SIGCONT, [pid], verb=False)
 
         if not linkList:
+            if not nrUpdated:
+                SysMgr.printErr('no hooked function')
             return
 
         # set pager #
@@ -54400,7 +54408,7 @@ typedef struct {
             sys.exit(0)
 
         def _addPrint(string):
-            if self.showStatus:
+            if self.showStatus and not sym in self.hiddenList:
                 SysMgr.addPrint(string)
 
         def _handleCmd(cmdset, cmd):
@@ -54755,7 +54763,7 @@ typedef struct {
                     _printCmdErr(cmdval, cmd)
 
                 # set timestamp #
-                func = cmdset[1].split(':', 1)[0]
+                func = cmdset[1]
 
                 if not func in self.intervalList:
                     # get function addr #
@@ -54794,6 +54802,8 @@ typedef struct {
                         # convert time color #
                         if diff > self.retTime:
                             diffstr = UtilMgr.convColor(diffstr, 'RED')
+                        else:
+                            diffstr = UtilMgr.convColor(diffstr, 'CYAN')
 
                         _addPrint("\n[%s] %s -> %s ~ %s" % \
                             (cmdstr, diffstr, name, sym))
@@ -54963,6 +54973,14 @@ typedef struct {
 
                 _addPrint("\n[%s]%s" % (cmdstr, prevStr))
                 _flushPrint(newline=False)
+
+            elif cmd == 'hidden':
+                if not sym in self.hiddenList:
+                    _addPrint("\n[%s]" % (cmdstr))
+                    _flushPrint(newline=False)
+
+                    # hide function #
+                    self.hiddenList[sym] = True
 
             elif cmd == 'hide':
                 _addPrint("\n[%s]" % (cmdstr))
@@ -60841,7 +60859,7 @@ typedef struct {
             return isRetBp
 
         # print output #
-        if not self.showStatus:
+        if not self.showStatus or sym in self.hiddenList:
             pass
         elif jsonData:
             # add backtrace #
@@ -63067,6 +63085,7 @@ typedef struct {
         self.accList = {}
         self.interList = {}
         self.intervalList = {}
+        self.hiddenList = {}
         self.setRetList = {}
         self.regList = {}
         self.repeatCntList = {}
@@ -63128,8 +63147,8 @@ typedef struct {
         # check entry time #
         if origSym not in self.entryTime:
             SysMgr.printWarn(
-                "no entry time of %s(%s) for %s(%s)" % \
-                    (origSym, sym, self.comm, self.pid))
+                "no entry time of %s for %s(%s)" % \
+                    (origSym, self.comm, self.pid))
             raise Exception('no entry time')
 
         # calculate elapsed time #
@@ -63349,7 +63368,9 @@ typedef struct {
         self.dstart = time.time()
 
         # set update flag for time #
-        if SysMgr.isTraceMode() or self.mode == 'syscall':
+        if SysMgr.isTraceMode() or \
+            self.isBreakMode or \
+            self.mode == 'syscall':
             updateTime = True
         else:
             updateTime = False
@@ -70809,14 +70830,26 @@ Section header string table index: %d
                 # read meta-data #
                 namesz, descsz, ntype = struct.unpack('III', fd.read(12))
 
-                # read name #
+                # get name #
                 if namesz > 0:
+                    # 4-byte alignment #
+                    nameszRemain = namesz % 4
+                    if nameszRemain > 0:
+                        namesz = namesz + 4 - nameszRemain
+
+                    # read name #
                     name = fd.read(namesz).rstrip(b'\x00').decode()
                 else:
                     name = 'N/A'
 
-                # read description #
+                # get description #
                 if descsz > 0:
+                    # 4-byte alignment #
+                    descszRemain = descsz % 4
+                    if descszRemain > 0:
+                        descsz = descsz + 4 - descszRemain
+
+                    # read description #
                     desc = fd.read(descsz)
 
                     # convert description to bytes #
