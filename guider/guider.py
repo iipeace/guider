@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220124"
+__revision__ = "220125"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25762,10 +25762,12 @@ Usage:
 Description:
     Replace target functions with specific functions for specific processes
 
+    Caution) This command will update PLTs in mapped binaries.
+
 Options:
     -u                          run in the background
     -g  <COMM|TID>              set task filter
-    -c  <TARGET#BIN#HOOK>       set command
+    -c  <OSYM#NBIN#NSYM>        set command
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -25774,10 +25776,10 @@ Options:
     -v                          verbose
 
 Examples:
-    - Replace standard malloc function calls with customized malloc function calls in libhook.so for specific processes
-        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc
+    - Replace malloc() calls with mallocHook() calls in libhook.so for specific processes
+        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#mallocHook
 
-    - Replace standard malloc function calls with customized malloc function calls in libhook.so for specific processes (wait for new target if no task)
+    - Replace malloc() calls with mallocHook() calls in libhook.so for specific processes (wait for new target if no task)
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK:1
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK, NOPIDCACHE
@@ -26804,30 +26806,32 @@ Usage:
 Description:
     Show functions caused memory leakage
 
-    1) Get libleaktracer.so for your CPU architecture from 
-       https://github.com/iipeace/portable/tree/master/leaktracer
-    2) Run the target process with below specific environment variables 
-       if you can't inject the hook binary to the running target process
-       [ Auto start from loader ]
-       $ LD_PRELOAD=./libleaktracer.so \\
-           LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
-           LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
-           LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
-       [ Manual start by signal(SIGRT1) ]
-       $ LD_PRELOAD=./libleaktracer.so \\
-           LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
-           LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
-           LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
-    3) Check below specification
-    - If the target process is on secure-execution mode,
-      libleaktracer.so should be in standard search directories specified in 
-      /etc/ld.so.conf,
-      And all slashes in the preload path will be ignored.
-      Otherwise add the library path to /etc/ld.so.preload.
-    - Once leaktrace starts, the memory usage of the target process 
-      will increase rapidly due to logging data.
-      And specific allocators and deallocators called inside libstdc++ 
-      can't be traced.
+    1) Get libleaktracer.so for your CPU architecture from
+       https://github.com/iipeace/portable/tree/master/leaktracer.
+    2) Run the target process with below specific environment variables
+       if you can't inject the hook binary to the running target process.
+       - Auto start from loader
+           $ LD_PRELOAD=./libleaktracer.so \\
+             LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
+             LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
+             LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+       - Manual start by signal(SIGRT1)
+           $ LD_PRELOAD=./libleaktracer.so \\
+             LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
+             LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
+             LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+    3) Check below specification.
+       - If the target process is on secure-execution mode,
+         libleaktracer.so should be in standard search directories
+         specified in  /etc/ld.so.conf,
+         And all slashes in the preload path will be ignored.
+         Otherwise add the library path to /etc/ld.so.preload.
+       - Once leaktrace starts, the memory usage of the target process
+         will increase rapidly due to logging data.
+       - Specific allocators and deallocators called from inside
+         standard libraries such as libstdc++ can't be traced
+         if you injected libleaktracer.so to the target process dynamically.
+         Because using dynamic injection just update PLTs in mapped binaries.
 
 Options:
     -I  <DIR|FILE>              set input path
@@ -53928,6 +53932,7 @@ typedef struct {
                 else:
                     errMsg = ''
 
+                # update and check target map #
                 dobj.loadSymbols()
                 if not fpath in dobj.pmap:
                     SysMgr.printErr(
@@ -54062,7 +54067,8 @@ typedef struct {
                     linkList[fpath].append((
                         convColor(sym, 'YELLOW'),
                         attr['bind'], attr['vis'],
-                        attr['type'], linkInfo))
+                        attr['type'], linkInfo
+                    ))
 
                     continue
 
@@ -56296,10 +56302,12 @@ typedef struct {
                         (self.comm, pid, SysMgr.pid, reason), verb)
 
                 # print solution for docker #
-                SysMgr.printWarn((
-                    "if you use docker then attach "
-                    "'--cap-add=SYS_PTRACE --security-opt seccomp=unconfined'"
-                    " option to the run command"), verb)
+                if tracer == 0:
+                    SysMgr.printWarn((
+                        "if you use docker then attach "
+                        "'--cap-add=SYS_PTRACE --security-opt "
+                        "seccomp=unconfined' option to the run command"),
+                        verb)
 
                 # check return #
                 if exit:
