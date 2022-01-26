@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220125"
+__revision__ = "220126"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23526,84 +23526,88 @@ Commands:
 
                 brkExamStr = '''{2:1}
 Examples:
-    - {3:1} for specific threads
+    - {3:1} {7:1}
         # {0:1} {1:1} -g 1234
         # {0:1} {1:1} -g a.out
 
-    - {3:1} from a specific binary
+    - {3:1} {8:1}
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I "ls"
 
-    - {3:1} and JIT-compiled function calls for specific threads
+    - {3:1} and JIT-compiled function calls {7:1}
 {6:1}
         # {0:1} {1:1} -g node -q JITSYM
 
-    - {3:1} and standard output from a specific binary
+    - {3:1} and standard output {8:1}
         # {0:1} {1:1} "ls" -q NOMUTE
 
-    - {3:1} with call interval info
-        # {0:1} {1:1} "ls" -q INTERCALL
+    - {3:1} {7:1} with call interval info
+        # {0:1} {1:1} -g a.out -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QSGThreadedRenderLoop::polishAndSync*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QCoreApplication::notifyInterval2*" -q INTERCALL -H
+        # {0:1} {1:1} -g a.out -c "QOpenGLContext::swapBuffers*" -q INTERCALL
 
-    - {3:1} excluding specific environment variable
+    - {3:1} {8:1} excluding specific environment variable
         # {0:1} {1:1} "ls" -q REMOVEENV:MAIL
 
-    - {3:1} using merged symbols
+    - {3:1} using merged symbols {8:1}
         # {0:1} {1:1} "ls" -q ALLSYM
 
-    - {3:1} for specific threads with tracing overhead
+    - {3:1} {7:1} with tracing overhead
         # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
 
-    - {3:1} and redirect standard I/O of child tasks to specific files
+    - {3:1} {8:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
-    - {3:1} and convert syscall args for specific threads
+    - {3:1} and convert syscall args {7:1}
         # {0:1} {1:1} -g a.out -q CONVARG
 
     - {3:1} for specific processes
         # {0:1} {1:1} -g a.out -q ONLYPROC
 
-    - {3:1} for specific threads (wait for new target if no task)
+    - {3:1} {7:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
         # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {3:1} for child tasks created by a specific thread
+    - {3:1} only for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - {3:1} except for wait status for specific threads
+    - {3:1} except for wait status {7:1}
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - {3:1} except for register info for specific threads
+    - {3:1} except for register info {7:1}
         # {0:1} {1:1} -g a.out -q NOCONTEXT
 
-    - {3:1} for specific threads consumed CPU more than 10%
+    - {3:1} {7:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - {3:1} for specific threads even if the master tracer is terminated
+    - {3:1} {7:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - {3:1} for specific threads after loading all symbols in stop status
+    - {3:1} {7:1} after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - {3:1} except for no symbol functions for specific threads
+    - {3:1} except for no symbol functions {7:1}
         # {0:1} {1:1} -g a.out -q ONLYSYM
 
-    - {3:1} except for arguments for specific threads
+    - {3:1} except for arguments {7:1}
         # {0:1} {1:1} -g a.out -q NOARG
 
-    - {3:1} except for ld for specific threads
+    - {3:1} except for ld {7:1}
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
-    - {3:1} for specific threads except for DWARF table of specific files
+    - {3:1} {7:1} except for DWARF table of specific files
         # {0:1} {1:1} a.out -q EXCEPTDWARF:"*deno"
 
-    - {3:1} and their injection info for specific threads
+    - {3:1} and their injection info {7:1}
         # {0:1} {1:1} -g a.out -q TRACEBP
 
-    - {3:1} without using file cache for specific threads
+    - {3:1} without using file cache {7:1}
         # {0:1} {1:1} -g a.out -q NOFILECACHE
 
     - {3:1} and print context combined both entry and exit
@@ -23621,49 +23625,49 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - {3:1} with backtrace for specific threads
+    - {3:1} with backtrace {7:1}
         # {0:1} {1:1} -g a.out -H
 
-    - {3:1} with python backtrace for specific threads
+    - {3:1} with python backtrace {7:1}
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - {3:1} with arguments using DWARF for specific threads
+    - {3:1} with arguments using DWARF {7:1}
         # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
 
-    - {3:1} with backtrace including arguments using DWARF for specific threads
+    - {3:1} with backtrace including arguments using DWARF {7:1}
         # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
 
-    - {5:1} for specific threads
+    - {5:1} {7:1}
         # {0:1} {1:1} -g 1234 -c printPeace
 
-    - {3:1} except for printPeace for specific threads
+    - {3:1} except for printPeace {7:1}
         # {0:1} {1:1} -g 1234 -c ^printPeace
 
     - {5:1} from a specific binary
         # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - {5:1} for specific threads only for 2 seconds
+    - {5:1} {7:1} only for 2 seconds
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
-    - {5:1} for specific threads and report the result to ./guider.out
+    - {5:1} {7:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o .
         # {0:1} {1:1} -g a.out -c printPeace -o . -q FORCESUMMARY
 
-    - {5:1} including specific word for specific threads
+    - {5:1} including specific word {7:1}
         # {0:1} {1:1} -g 1234 -c "*printPeace"
         # {0:1} {1:1} -g 1234 -c "printPeace*"
         # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
-    - {3:1} related to specific files for specific threads
+    - {3:1} related to specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
-    - {3:1} except for specific files for specific threads
+    - {3:1} except for specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
     - {5:1} including specific word in a hidden state
         # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
 
-    - {5:1} including specific word for specific threads until {4:1}
+    - {5:1} including specific word {7:1} until {4:1}
         # {0:1} {1:1} -g a.out -c "*, *printPeace|stop"
         # {0:1} {1:1} -g a.out -c "*, printPeace*|hide"
         # {0:1} {1:1} -g a.out -c "*, *printPeace*|hide"
@@ -23671,78 +23675,78 @@ Examples:
     - {3:1} and sleep for 0.1 second {4:1}
         # {0:1} {1:1} -g a.out -c "*|sleep:0.1"
 
-    - {5:1} and sleep for 0.1 second only one time for specific threads {4:1}
+    - {5:1} and sleep for 0.1 second only one time {7:1} {4:1}
         # {0:1} {1:1} -g a.out -c "write|oneshot:sleep:0.1"
 
-    - {5:1} for specific threads and kill the target thread {4:1}
+    - {5:1} {7:1} and kill the target thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|kill"
 
-    - {5:1} for specific threads and modify memory {4:1}
+    - {5:1} {7:1} and modify memory {4:1}
         # {0:1} {1:1} -g a.out -c "write|wrmem:0x1234:aaaa:4"
 
-    - {5:1} for specific threads and modify memory pointed by 1st argument {4:1}
+    - {5:1} {7:1} and modify memory pointed by 1st argument {4:1}
         # {0:1} {1:1} -g a.out -c "write|wrmem:0:aaaa:4"
 
-    - {5:1} for specific threads and print 10-length string pointed by 1st argument {4:1}
+    - {5:1} {7:1} and print 10-length string pointed by 1st argument {4:1}
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0:10"
 
-    - {5:1} for specific threads and print 10-length string from the specific address {4:1}
+    - {5:1} {7:1} and print 10-length string from the specific address {4:1}
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0x1234:10"
 
-    - {5:1} for specific threads and return a specific value immediately {4:1}
+    - {5:1} {7:1} and return a specific value immediately {4:1}
         # {0:1} {1:1} -g a.out -c "write|ret:3"
 
-    - {5:1} for specific threads and dump thread stack to the specific file {4:1}
+    - {5:1} {7:1} and dump thread stack to the specific file {4:1}
         # {0:1} {1:1} -g a.out -c "write|dump:stack:stack.out"
 
-    - {5:1} for specific threads and dump specific memory range to the specific file {4:1}
+    - {5:1} {7:1} and dump specific memory range to the specific file {4:1}
         # {0:1} {1:1} -g a.out -c "write|dump:0x1234-0x4567:dump.out"
 
-    - {5:1} for specific threads and print return value {4:1}
+    - {5:1} {7:1} and print return value {4:1}
         # {0:1} {1:1} -g a.out -c "write|getret"
         # {0:1} {1:1} -g a.out -c "write|getret" -q NORETBT
 
-    - {5:1} for specific threads until {4:1} and save return value to the specific variable
+    - {5:1} {7:1} until {4:1} and save return value to the specific variable
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
-    - {5:1} for specific threads from when return of specific function calls
+    - {5:1} {7:1} from when return of specific function calls
         # {0:1} {1:1} -g a.out -c "write|getret:start, *"
 
-    - {5:1} for specific threads without truncation
+    - {5:1} {7:1} without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
 
-    - {5:1} with colorful elapsed time exceeds 0.1 second for specific threads {4:1}
+    - {5:1} with colorful elapsed time exceeds 0.1 second {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
 
-    - {5:1} for specific threads and call them again repeatedly {4:1}
+    - {5:1} and call them again repeatedly {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|repeat"
         # {0:1} {1:1} -g a.out -c "write|repeat:5"
 
-    - {5:1} for specific threads and modify return value {4:1}
+    - {5:1} and modify return value {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|setret:3"
         # {0:1} {1:1} -g a.out -c "write|setret:3:print"
 
-    - {5:1} for specific threads and modify 1st and 2nd arguments {4:1}
+    - {5:1} and modify 1st and 2nd arguments {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|setarg:0#2:1#5"
 
-    - {5:1} and print call contexts {4:1}
+    - {5:1} and print call contexts {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|print"
 
-    - Trace specific python calls and print call contexts {4:1}
+    - {5:1} and print python contexts {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|print" -q PYSTACK
 
-    - {5:1} and save specific values to specific variables {4:1}
+    - {5:1} and save specific values to specific variables {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|save:VAR1|print:VAR1|save:VAR2:123"
         # {0:1} {1:1} -g a.out -c "write|save:ARG1:1:arg|print:VAR1"
 
-    - {5:1} and print call contexts if specific conditions are met {4:1}
+    - {5:1} and print call contexts if specific conditions are met {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|filter:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:INC:HE"
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:1|filter:1:EQ:1"
 
-    - {5:1} and print call contexts if only the elapsed time exceed 0.0005 second {4:1}
+    - {5:1} and print call contexts if only the elapsed time exceed 0.0005 second {7:1} {4:1}
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005"
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005" -H -a
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005|filter:0:BT:0"
@@ -23750,14 +23754,14 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:sleep:1"
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:dist:0"
 
-    - {5:1} and print call contexts if only the return value is bigger than 1 {4:1}
+    - {5:1} and print call contexts if only the return value is bigger than 1 {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005"
         # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005" -H -a
         # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005|filter:0:BT:0"
         # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005:exit"
         # {0:1} {1:1} -g a.out -c "write|filter:RETVAL:BT:0.0005:sleep:1"
 
-    - {5:1} and check specific conditions {4:1}
+    - {5:1} and check specific conditions {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|check:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|check:*1:EQ:HELLO"
@@ -23765,73 +23769,75 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|check:0:EQ:1|sleep:1"
         # {0:1} {1:1} -g a.out -c "write|check:@RET1:EQ:@RET2:EVENT_CONT"
 
-    - {5:1} and print 1st and 2nd arguments {4:1}
+    - {5:1} and print 1st and 2nd arguments {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1"
 
     - {5:1} and print 1st and 2nd arguments and save its return value to the specific variable {4:1}
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
-    - {5:1} from when {4:1}
+    - {5:1} from {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|start, *"
         # {0:1} {1:1} -g a.out -c "write|show, *" -q HIDESYM
 
     - {5:1} and terminate the target thread {4:1}
         # {0:1} {1:1} -g a.out -c "write|exit"
 
-    - {5:1} within a specific range {4:1}
+    - {5:1} within a specific range {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "open|start|getret:stop, *"
         # {0:1} {1:1} -g a.out -c "open|start|getret:exit, *"
         # {0:1} {1:1} -g a.out -c "open|start, *, close|getret:condexit"
 
-    - {5:1} and call specific functions every time {4:1}
+    - {5:1} and call specific functions every time {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345"
         # {0:1} {1:1} -g a.out -c "write|usercall:getenv#PATH, usercall:write#1#@getenv#1024"
 
-    - {5:1} and call specific syscalls {4:1}
+    - {5:1} and call specific syscalls {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|syscall:getpid"
         # {0:1} {1:1} -g a.out -c "write|syscall:open#test.out#1"
 
-    - {5:1} and load specific library {4:1}
+    - {5:1} and load specific library {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|load:/usr/lib/preload.so"
 
-    - {5:1} and create a new thread {4:1}
+    - {5:1} and create a new thread {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|thread"
 
-    - {5:1} and execute specific python function {4:1}
+    - {5:1} and execute specific python function {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|pyscript:test.py:test_func"
         # {0:1} {1:1} -g a.out -c "write|pyscript:test.py:test_func:1:2:3"
 
-    - {5:1} and execute specific python code {4:1}
+    - {5:1} and execute specific python code {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
         # {0:1} {1:1} -g a.out -c "write|pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
-    - {5:1} and print accumulated stats for a specific argument {4:1}
+    - {5:1} and print accumulated stats for a specific argument {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "malloc|acc:CHUNK:0"
 
-    - {5:1} and print distribution stats for a specific argument {4:1}
+    - {5:1} and print distribution stats for a specific argument {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0"
 
-    - {5:1} and print interval time between specific function calls {4:1}
+    - {5:1} and print interval time between specific function calls {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "malloc|setinter:_exit, _exit"
         # {0:1} {1:1} -g a.out -c "malloc|setinter:_exit, _exit" -q ELAPSED:0.1
 
-    - {5:1} and print interval stats for the function call {4:1}
+    - {5:1} and print interval stats for the function call {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "malloc|inter"
         # {0:1} {1:1} -g a.out -c "malloc|inter" -q ELPASED:0.001
 
-    - {5:1} and jump to specific function with specific arguments {4:1}
+    - {5:1} and jump to specific function with specific arguments {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
 
-    - {3:1} and execute specific commands {4:1}
+    - {3:1} and execute specific commands {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
                 '''.format(cmd, mode, cmdListStr,
                     'Trace all native calls',
                     'when specific calls detected',
                     'Trace specific native calls',
-                    jitProfStr)
+                    jitProfStr,
+                    'for specific threads',
+                    'from a specific binary')
 
                 logCommonStr = '''
 Usage:
@@ -24466,9 +24472,6 @@ Examples:
 
     - {2:1} for specific threads with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QtWaylandClient::QWaylandWindow::requestUpdate*" -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QPlatformWindow::deliverUpdateRequest*" -q INTERCALL
 
     - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
@@ -58642,7 +58645,8 @@ typedef struct {
 
                     addVal = \
                     "<Cnt: %s, Tot: %.6f, Avg: %s, Max: %s, Err: %s>" % \
-                        (cntstr, total, avgtime, maxtime, errstr)
+                        (convColor(cntstr, 'YELLOW'), total, avgtime, maxtime,
+                            convColor(errstr, 'RED') if err else errstr)
 
                 # merge total stats #
                 for syscall in self.syscallStat:
@@ -58684,7 +58688,8 @@ typedef struct {
 
                     addVal = \
                         '[%s] <Cnt: %s, Avg: %s, Min: %.6f, Max: %s>' % \
-                            (value['path'], cntstr, avgtime, tmin, maxtime)
+                            (value['path'], convColor(cntstr, 'YELLOW'),
+                                avgtime, tmin, maxtime)
             # OTHERS #
             else:
                 # merge stats #
@@ -58694,7 +58699,8 @@ typedef struct {
                         'count': cnt,
                     }
                 else:
-                    addVal = '[%s] <Cnt: %s>' % (value['path'], cntstr)
+                    addVal = '[%s] <Cnt: %s>' % \
+                        (value['path'], convColor(cntstr, 'YELLOW'))
 
             if not SysMgr.jsonEnable:
                 # check cut condition #
@@ -58703,7 +58709,7 @@ typedef struct {
 
                 ret = SysMgr.addPrint(
                     '{0:>7} | {1:<144}\n'.format(
-                        '%.1f%%' % per, '%s %s' % \
+                        convColor('%.1f%%' % per, 'YELLOW', 7), '%s %s' % \
                             (convColor(sym, 'CYAN'), addVal)))
                 if not ret:
                     break
@@ -58749,7 +58755,9 @@ typedef struct {
 
                     ret = SysMgr.addPrint(
                         '{0:>17} | {1:<1} <Cnt: {2:1}>\n'.format(
-                            '%.1f%%' % bper, bt, convert(bcnt)), newline=nline)
+                            convColor('%.1f%%' % bper, 'BLUE', 17), bt,
+                            convColor(convert(bcnt), 'YELLOW')),
+                        newline=nline)
                     if not ret:
                         break
 
@@ -60798,7 +60806,7 @@ typedef struct {
                                 'symbol': origSym,
                                 'return': retstr.lstrip('='),
                                 'elapsed': elapsed.lstrip('/'),
-                                'caller': UtilMgr.lstrip(addStr, '-> ')
+                                'caller': addStr.lstrip('-> ')
                             }
                         else:
                             callString = '\n%s %s%s%s%s[%s]%s%s%s' % \
@@ -60818,7 +60826,7 @@ typedef struct {
                             'symbol': sym,
                             'return': retstr.lstrip('='),
                             'elapsed': elapsed.lstrip('/'),
-                            'caller': UtilMgr.lstrip(addStr, '-> ')
+                            'caller': addStrlstrip('-> ')
                         }
                     # build string output #
                     else:
