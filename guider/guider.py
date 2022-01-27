@@ -20075,10 +20075,13 @@ Commands:
 
         # check condition #
         if not inputParam:
-            SysMgr.printErr("no input for memory info")
+            SysMgr.printErr("no input for COMM or PID")
             sys.exit(0)
         elif not SysMgr.outPath:
-            SysMgr.printErr("no input for path")
+            SysMgr.printErr("no output path")
+            sys.exit(0)
+        elif not SysMgr.inputParam:
+            SysMgr.printErr("no input for memory area")
             sys.exit(0)
 
         # convert comm to pid #
@@ -20101,6 +20104,8 @@ Commands:
         pid = targetList[0]
         meminfo = SysMgr.inputParam
         output = SysMgr.outPath
+        if os.path.isdir(output):
+            output = '%s/dump.out' % output
 
         # dump memory #
         Debugger.dumpTaskMemory(pid, meminfo, output)
@@ -20327,8 +20332,8 @@ Commands:
                     "no task related to '%s'" % conf[0])
                 sys.exit(0)
 
+            # get return type #
             if len(conf) == 4:
-                # get return type #
                 rtype = ConfigMgr.RLIMIT_TYPE.index(conf[1])
                 if rtype < 0:
                     SysMgr.printErr('wrong resource type %s' % conf[1])
@@ -20345,7 +20350,7 @@ Commands:
                     rlist = SysMgr.readProcData(tid, 'limits')
                     if rlist:
                         SysMgr.printPipe(
-                            '\n[Task Limit Info] [%s(%s)]\n%s%s%s' % \
+                            '\n[Task Limit Info] [%s(%s)]\n%s\n%s%s' % \
                                 (comm, tid, twoLine, ''.join(rlist), oneLine))
                     continue
 
@@ -43552,27 +43557,29 @@ Copyright:
                 (memData['MemFree'] / float(memData['MemTotal'])) * 100
 
             try:
-                memAvail = conv(memData['MemAvailable'] << 10)
-                memAvailPer = \
-                    (memData['MemAvailable'] / float(memData['MemTotal'])) * 100
+                memAvailKb = memData['MemAvailable']
+                memAvail = conv(memAvailKb << 10)
+                memAvailPer = (memAvailKb / float(memData['MemTotal'])) * 100
                 memAvailPer = '%.1f%%' % memAvailPer
             except:
                 memAvail = memAvailPer = '-'
 
             memCache = conv(memData['Cached'] << 10)
-            swapTotal = conv(memData['SwapTotal'] << 10)
-            swapFree = conv(memData['SwapFree'] << 10)
+            swapTotalKb = memData['SwapTotal']
+            swapTotal = conv(swapTotalKb << 10)
+            swapFreeKb = memData['SwapFree']
+            swapFree = conv(swapFreeKb << 10)
             if swapTotal == '0':
                 swapFreePer = 100.0
             else:
-                swapFreePer = \
-                    (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
+                swapFreePer = (swapFreeKb / float(swapTotalKb)) * 100
 
             memstr = ('\n[%9s] MemTotal: %s, MemFree: %s(%.1f%%), '
                 'MemAvail: %s(%s), Cached: %s, SwapTotal: %s, '
                 'SwapFree: %s(%.1f%%)') % \
-                    ('TOTAL', memTotal, memFree, memFreePer, memAvail,
-                        memAvailPer, memCache, swapTotal, swapFree, swapFreePer)
+                    ('TOTAL', memTotal, memFree, memFreePer,
+                        memAvail, memAvailPer, memCache,
+                        swapTotal, swapFree, swapFreePer)
 
             return memstr
 
@@ -43658,7 +43665,8 @@ Copyright:
             for zone, items in sorted(memData.items()):
                 zonestr += '[%9s] ' % zone
                 for name, val in sorted(items.items(),
-                    key=lambda e: long(e[1]) if type(e[1]) != list else sys.maxsize):
+                    key=lambda e: long(e[1]) if type(e[1]) != list \
+                        else sys.maxsize):
                     if name != 'protection':
                         zonestr = "%s%s:%7s, " % \
                             (zonestr, name, conv(val << 12))
@@ -43772,7 +43780,8 @@ Copyright:
                 obj.saveProcSmapsData(procPath, pid)
                 ret = obj.getMemDetails(pid, procs[pid]['maps'])
                 statstr = "RSS: %s, PSS: %s, USS: %s" % \
-                    (conv(ret[1] << 10), conv(ret[2] << 10), conv(ret[3] << 10))
+                    (conv(ret[1] << 10), conv(ret[2] << 10),
+                        conv(ret[3] << 10))
             else:
                 # save RSS stat #
                 mlist = SysMgr.getMemStat(pid)
@@ -46845,8 +46854,8 @@ Copyright:
         # start tracing #
         self.startTracing()
 
+        # print log #
         _printStartLog()
-        return
 
 
 
@@ -46930,9 +46939,9 @@ Copyright:
             if SysMgr.saveCmd:
                 try:
                     SysMgr.cmdFd.write(SysMgr.saveCmd)
-                    SysMgr.cmdFd.write(
-                        "echo '\n[Info] saved commands for tracing into %s\n'\n" % \
-                            outputPath)
+                    SysMgr.cmdFd.write((
+                        "echo '\n[Info] saved commands "
+                        "for tracing into %s\n'\n") % outputPath)
                     SysMgr.cmdFd.flush()
                 except SystemExit: sys.exit(0)
                 except:
@@ -48205,7 +48214,8 @@ Copyright:
                 except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
-                        "failed to get disk usage for '%s'" % path, reason=True)
+                        "failed to get disk usage for '%s'" % path,
+                        reason=True)
 
             # stat #
             stats = psutil.disk_io_counters(perdisk=True, nowrap=True)
