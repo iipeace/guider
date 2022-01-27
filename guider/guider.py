@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220126"
+__revision__ = "220127"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22642,7 +22642,9 @@ Commands:
 
     @staticmethod
     def getMainArgs(union=True, token=',', path=False):
-        args = SysMgr.getMainArg(path).split(token)
+        args = SysMgr.getMainArg(path)
+        if type(args) is not list:
+            args = args.split(token)
         return UtilMgr.cleanItem(args, union)
 
 
@@ -26850,21 +26852,24 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Report memory leakage hints of a specific process when user input Ctrl + c key after executing the target program
+    - Report memory leakage hints of a specific process {2:1} after executing the target program with auto start
         # {0:1} {1:1} a.out -T ./libleaktracer.so
         # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so
 
-    - Report memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
+    - Report memory leakage hints of a specific process {2:1} after executing the target program with manual start
+        # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
+
+    - Report memory leakage hints of a specific process {2:1} after setting environment variables
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -g a.out -o ./guider.out
 
-    - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection
+    - Report memory leakage hints of a specific process {2:1} with binary injection
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
 
-    - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection and a temporary writable path
+    - Report memory leakage hints of a specific process {2:1} with binary injection and a temporary writable path
         # {0:1} {1:1} -g a.out -I /var/log/guider -T /home/root/libleaktracer.so
 
-    - Report memory leakage hints of a specific process after sending signal 36 to stop profiling
+    - Report memory leakage hints of a specific process after sending SIGRT2(36) to stop profiling
         # {0:1} {1:1} -g a.out -k 36
         # {0:1} {1:1} -g a.out -k SIGRT2
 
@@ -26872,7 +26877,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c 20m
         # {0:1} {1:1} -g a.out -c 15m,20m
 
-    - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection (wait for new process if no process)
+    - Report memory leakage hints of a specific process {2:1} with binary injection (wait for new process if no process)
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
@@ -26880,7 +26885,8 @@ Examples:
     - Print funtions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -I ./leaks.out -g a.out
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'when "Ctrl + c" key is pressed')
 
                 # printenv #
                 elif SysMgr.checkMode('printenv'):
@@ -41442,8 +41448,6 @@ Copyright:
             # set output path #
             fname = _getOutputPath(isMulti, pid)
             SysMgr.environList['ENV'].append(
-                'LEAKTRACER_AUTO_REPORTFILENAME=%s' % fname)
-            SysMgr.environList['ENV'].append(
                 'LEAKTRACER_ONSIG_REPORTFILENAME=%s' % fname)
 
             # set signal #
@@ -41690,7 +41694,7 @@ Copyright:
                 sigList = tobj.procData[pid]['status']['SigCgt']
                 if startSig and not UtilMgr.isBitEnabled(startSig, sigList):
                     SysMgr.printWarn(
-                        "failed to find start handler for %s(%s)" % \
+                        "failed to find %s(%s) handler for start" % \
                             (ConfigMgr.SIG_LIST[startSig], startSig), True)
 
                     tryCnt += 1
@@ -41703,7 +41707,7 @@ Copyright:
                 # check stop signal #
                 if stopSig and not UtilMgr.isBitEnabled(stopSig, sigList):
                     SysMgr.printWarn(
-                        "failed to find stop handler for %s(%s)" % \
+                        "failed to find %s(%s) handler for stop" % \
                             (ConfigMgr.SIG_LIST[stopSig], stopSig), True)
 
                     tryCnt += 1
@@ -41722,6 +41726,23 @@ Copyright:
         if hookCmd:
             hcmd = \
                 ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
+
+        # wait for START signal #
+        if not autostart and startSig and 'WAITSIGNAL' in SysMgr.environList:
+            try:
+                SysMgr.printStat(
+                    r'start waiting for input... [ START(Ctrl+c) ]')
+
+                ret = _waitAndKill(
+                    tobj, pid, comm, sys.maxsize, startSig, 'start')
+            except:
+                ret = 0
+
+            # check exit condition #
+            if ret < 0:
+                sys.exit(0)
+            else:
+                SysMgr.setSimpleSignal()
 
         # START #
         cmd = SysMgr.customCmd
@@ -52783,7 +52804,11 @@ class DltAnalyzer(object):
         # initialize input path #
         flist = []
         if SysMgr.hasMainArg():
-            flist = SysMgr.getMainArgs(path=True)
+            args = SysMgr.getMainArg()
+            for item in args.split(','):
+                ret = UtilMgr.convPath(item.strip())
+                flist += ret
+            flist = UtilMgr.cleanItem(flist)
             if not flist:
                 SysMgr.printErr("no path for DLT file")
                 sys.exit(0)
