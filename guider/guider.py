@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220127"
+__revision__ = "220128"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23556,6 +23556,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c "QCoreApplication::notifyInterval2*" -q INTERCALL -H
         # {0:1} {1:1} -g a.out -c "QOpenGLContext::swapBuffers*" -q INTERCALL
 
+    - {3:1} {7:1} with call interval info including stdev
+        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV
+
     - {3:1} {8:1} excluding specific environment variable
         # {0:1} {1:1} "ls" -q REMOVEENV:MAIL
 
@@ -24407,8 +24410,11 @@ Description:
 
                     examStr = '''
 Examples:
-    - {2:1}
+    - {2:1} for specific threads
         # {0:1} {1:1} -g a.out
+
+    - {2:1} with stdev for elapsed time for specific threads
+        # {0:1} {1:1} -g a.out -q STDEV
 
     - {2:1} with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
@@ -24479,6 +24485,9 @@ Examples:
 
     - {2:1} for specific threads with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
+
+    - {2:1} for specific threads with call interval info including stdev
+        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV
 
     - {2:1} for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
@@ -53252,6 +53261,7 @@ class Debugger(object):
         'NOSAMPLECACHE': False,
         'NORETBT': False,
         'INTERCALL': False,
+        'STDEV': False,
         'HIDESYM': False,
         'PRINTOVERHEAD': False,
     }
@@ -58358,7 +58368,9 @@ typedef struct {
         def _resetStats():
             # initialize syscall timetable #
             self.syscallStat = {}
-            self.brkcallStat = {}
+            self.syscallInterStat = {}
+            self.bpcallStat = {}
+            self.bpcallInterStat = {}
 
             # reset data #
             self.totalCall = 0
@@ -58659,6 +58671,14 @@ typedef struct {
                 else:
                     errstr = convert(err)
 
+                # handle stdev #
+                if Debugger.envFlags['STDEV'] and \
+                    sym in self.syscallInterStat and \
+                    self.syscallInterStat[sym]:
+                    stdev = UtilMgr.getStdev(self.syscallInterStat[sym])
+                else:
+                    stdev = -1
+
                 # merge stats #
                 if SysMgr.jsonEnable:
                     jsonData['stats'][sym] = {
@@ -58667,6 +58687,7 @@ typedef struct {
                         'avgTime': average,
                         'maxTime': tmax,
                         'error': err,
+                        'stdev': stdev,
                     }
                 else:
                     avgtime = '%.6f' % average
@@ -58678,10 +58699,17 @@ typedef struct {
                     if tmax > self.retTime:
                         maxtime = UtilMgr.convColor(maxtime, 'RED')
 
+                    # convert stdev #
+                    if stdev > -1:
+                        stdevstr = ', Std: %.6f' % stdev
+                    else:
+                        stdevstr = ''
+
                     addVal = \
-                    "<Cnt: %s, Tot: %.6f, Avg: %s, Max: %s, Err: %s>" % \
+                    "<Cnt: %s, Tot: %.6f, Avg: %s, Max: %s, Err: %s%s>" % \
                         (convColor(cntstr, 'YELLOW'), total, avgtime, maxtime,
-                            convColor(errstr, 'RED') if err else errstr)
+                            convColor(errstr, 'RED') if err else errstr,
+                            stdevstr)
 
                 # merge total stats #
                 for syscall in self.syscallStat:
@@ -58697,10 +58725,18 @@ typedef struct {
             # BREAKPOINT #
             elif self.mode == 'break':
                 try:
-                    prev, total, tmin, tmax = self.brkcallStat[sym]
+                    prev, total, tmin, tmax = self.bpcallStat[sym]
                     average = total / cnt
                 except:
                     prev = total = tmin = tmax = average = 0
+
+                # handle stdev #
+                if Debugger.envFlags['STDEV'] and \
+                    sym in self.bpcallInterStat and \
+                    self.bpcallInterStat[sym]:
+                    stdev = UtilMgr.getStdev(self.bpcallInterStat[sym])
+                else:
+                    stdev = -1
 
                 # merge stats #
                 if SysMgr.jsonEnable:
@@ -58710,6 +58746,7 @@ typedef struct {
                         'avgTime': average,
                         'minTime': tmin,
                         'maxTime': tmax,
+                        'stdev': stdev,
                     }
                 else:
                     avgtime = '%.6f' % average
@@ -58721,10 +58758,16 @@ typedef struct {
                     if tmax > self.retTime:
                         maxtime = UtilMgr.convColor(maxtime, 'RED')
 
+                    # convert stdev #
+                    if stdev > -1:
+                        stdevstr = ', Std: %.6f' % stdev
+                    else:
+                        stdevstr = ''
+
                     addVal = \
-                        '[%s] <Cnt: %s, Avg: %s, Min: %.6f, Max: %s>' % \
+                        '[%s] <Cnt: %s, Avg: %s, Min: %.6f, Max: %s%s>' % \
                             (value['path'], convColor(cntstr, 'YELLOW'),
-                                avgtime, tmin, maxtime)
+                                avgtime, tmin, maxtime, stdevstr)
             # OTHERS #
             else:
                 # merge stats #
@@ -60541,10 +60584,10 @@ typedef struct {
 
 
 
-    def updateBrkStat(self, sym):
+    def updateBpStat(self, sym):
         # apply stat #
         try:
-            prev, ttotal, tmin, tmax = self.brkcallStat[sym]
+            prev, ttotal, tmin, tmax = self.bpcallStat[sym]
 
             self.interDiff = tdiff = self.vdiff - prev
             ttotal += tdiff
@@ -60555,11 +60598,16 @@ typedef struct {
             if tmin == 0 or tmin > tdiff:
                 tmin = tdiff
 
-            self.brkcallStat[sym] = \
+            self.bpcallStat[sym] = \
                 [self.vdiff, ttotal, tmin, tmax]
+
+            # save interval for stdev #
+            if Debugger.envFlags['STDEV']:
+                self.bpcallInterStat.setdefault(sym, [])
+                self.bpcallInterStat[sym].append(tdiff)
         except SystemExit: sys.exit(0)
         except:
-            self.brkcallStat[sym] = [self.vdiff, 0, 0, 0]
+            self.bpcallStat[sym] = [self.vdiff, 0, 0, 0]
 
 
 
@@ -60766,7 +60814,7 @@ typedef struct {
             self.addSample(
                 sym, fname, realtime=True, bt=backtrace)
 
-            self.updateBrkStat(sym)
+            self.updateBpStat(sym)
 
             return isRetBp
 
@@ -60924,7 +60972,7 @@ typedef struct {
         elif callString:
             # update interval between calls #
             if Debugger.envFlags['INTERCALL']:
-                self.updateBrkStat(sym)
+                self.updateBpStat(sym)
                 interdiffStr = ' [%.6f]' % self.interDiff
                 if self.interDiff > self.retTime:
                     callString += UtilMgr.convColor(interdiffStr, 'RED')
@@ -62278,6 +62326,11 @@ typedef struct {
 
             # update times #
             self.syscallStat[name] = [ttotal, tmax]
+
+            # save interval for stdev #
+            if Debugger.envFlags['STDEV']:
+                self.syscallInterStat.setdefault(name, [])
+                self.syscallInterStat[name].append(diff)
         except SystemExit: sys.exit(0)
         except:
             self.syscallStat[name] = [diff, diff]
@@ -62334,6 +62387,9 @@ typedef struct {
         # get diff time #
         diff = self.vdiff
 
+        # define shortcut variables #
+        convColor = UtilMgr.convColor
+
         # enter #
         if self.status == 'enter':
             # set next status #
@@ -62365,8 +62421,7 @@ typedef struct {
 
                     # build call string #
                     callString = '%3.6f %s(%s) %s(' % \
-                        (diff, self.comm, self.pid,
-                            UtilMgr.convColor(name, 'GREEN'))
+                        (diff, self.comm, self.pid, convColor(name, 'GREEN'))
 
                     # handle call string for enter #
                     if SysMgr.outPath or \
@@ -62480,6 +62535,9 @@ typedef struct {
                     retstr = retval
                 err = ''
 
+                # change color for return #
+                retstr = convColor(retstr, 'WARNING')
+
             # update stats #
             if self.isRealtime:
                 if not Debugger.envFlags['INTERCALL']:
@@ -62520,22 +62578,22 @@ typedef struct {
 
             # convert error color #
             if err:
-                err = ' ' + UtilMgr.convColor(err, 'RED')
+                err = ' ' + convColor(err, 'RED')
 
             # convert elapsed color #
             diffStr = ' [%.6f]' % diff
             if diff > self.retTime:
-                diffStr = UtilMgr.convColor(diffStr, 'RED')
+                diffStr = convColor(diffStr, 'RED')
             else:
-                diffStr = UtilMgr.convColor(diffStr, 'CYAN')
+                diffStr = convColor(diffStr, 'CYAN')
 
             # add interval time #
             if Debugger.envFlags['INTERCALL'] and self.interDiff:
                 interdiffStr = ' [%.6f]' % self.interDiff
                 if self.interDiff > self.retTime:
-                    diffStr += UtilMgr.convColor(interdiffStr, 'RED')
+                    diffStr += convColor(interdiffStr, 'RED')
                 else:
-                    diffStr += UtilMgr.convColor(interdiffStr, 'CYAN')
+                    diffStr += convColor(interdiffStr, 'CYAN')
                 self.interDiff = 0
 
             # add newline after backtrace #
@@ -63130,8 +63188,10 @@ typedef struct {
         self.selfCpuUsageList = []
         self.syscallTime = {}
         self.syscallStat = {}
+        self.syscallInterStat = {}
         self.syscallTotalStat = {}
-        self.brkcallStat = {}
+        self.bpcallStat = {}
+        self.bpcallInterStat = {}
         self.retList = {}
         self.accList = {}
         self.interList = {}
