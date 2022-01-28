@@ -23171,7 +23171,7 @@ Segments:
     Lower Purple : Read
     Lower Cyan   : Write
     Horizon Gray : Off
-                    '''
+                '''
 
                 if SysMgr.checkMode('ttop'):
                     target = 'threads'
@@ -23180,72 +23180,72 @@ Segments:
 
                 topExamStr = '''
 Examples:
-    - Monitor status of {2:2} used CPU resource more than 1% every interval
+    - {3:1} {2:2} used CPU resource more than 1% every interval
         # {0:1} {1:1}
 
-    - Monitor status of {2:2} having TID 1234 or COMM 1234
+    - {3:1} {2:2} having TID 1234 or COMM 1234
         # {0:1} {1:1} -g 1234
 
-    - Monitor status of {2:2} newly executed
+    - {3:1} {2:2} newly executed
         # {0:1} {1:1} -I ./a.out
 
-    - Monitor status of {2:2} having COMM starting with kworker
+    - {3:1} {2:2} having COMM starting with kworker
         # {0:1} {1:1} -g "kworker*"
         # {0:1} {1:1} -g "*kworker"
 
-    - Monitor status of {2:2} with cmdline
+    - {3:1} {2:2} with cmdline
         # {0:1} {1:1} -e L
         # {0:1} {1:1} -e L -g apps
 
-    - Monitor status of {2:2} except the one having COMM test
+    - {3:1} {2:2} except the one having COMM test
         # {0:1} {1:1} -g ^test
 
-    - Monitor status of {2:2} using CPU more than 1%
+    - {3:1} {2:2} using CPU more than 1%
         # {0:1} {1:1} -g -S c:1
 
-    - Monitor status of {2:2} used system resource totally
+    - {3:1} {2:2} used system resource totally
         # {0:1} {1:1} -e T
 
-    - Monitor status of all {2:2} with specific cores
+    - {3:1} all {2:2} with specific cores
         # {0:1} {1:1} -e c -O 0:4, 10, 12
 
-    - Monitor status of all {2:2} with bar graphs for all cores
+    - {3:1} all {2:2} with bar graphs for all cores
         # {0:1} {1:1} -a -e B
 
-    - Monitor status of all {2:2} with minimal stats
+    - {3:1} all {2:2} with minimal stats
         # {0:1} {1:1} -a -e M
 
-    - Monitor status of all {2:2} after user input
+    - {3:1} all {2:2} after user input
         # {0:1} {1:1} -a -W
 
-    - Monitor status of all {2:2} and quit when specific {2:2} are terminated
+    - {3:1} all {2:2} and quit when specific {2:2} are terminated
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
 
-    - Monitor status of all {2:2} and quit when specific {2:2} are executed
+    - {3:1} all {2:2} and quit when specific {2:2} are executed
         # {0:1} {1:1} -a -q EXITCONDNEW:"a.out"
 
-    - Monitor status of all {2:2} and quit when specific files are found
+    - {3:1} all {2:2} and quit when specific files are found
         # {0:1} {1:1} -a -q EXITCONDFILE:"/tmp/term"
 
-    - Monitor status of all {2:2} and quit when specific files are not found
+    - {3:1} all {2:2} and quit when specific files are not found
         # {0:1} {1:1} -a -q EXITCONDNOFILE:"/tmp/term"
 
-    - Monitor status of all {2:2} and quit when specific functions return true
+    - {3:1} all {2:2} and quit when specific functions return true
         # {0:1} {1:1} -a -q EXITCONDFUNC:"/tmp/check.py":"checkFunc":"123"
 
-    - Monitor status of all {2:2} after 5 seconds
+    - {3:1} all {2:2} after 5 seconds
         # {0:1} {1:1} -a -W 5s
 
-    - Monitor status of {2:2} that use CPU more than 1% except for system in a stream
+    - {3:1} {2:2} that use CPU more than 1% except for system in a stream
         # {0:1} {1:1} -a -q TASKSTREAM -S c:1
 
-    - Monitor status of all {2:2} from 100 seconds of uptime
+    - {3:1} all {2:2} from 100 seconds of uptime
         # {0:1} {1:1} -a -q STARTCONDTIME:100 -W
 
-    - Monitor status of all {2:2} until 100 seconds of uptime
+    - {3:1} all {2:2} until 100 seconds of uptime
         # {0:1} {1:1} -a -q EXITCONDTIME:100 -R
 
-    - Monitor status of all {2:2} with specific condition
+    - {3:1} all {2:2} with specific condition
         # {0:1} {1:1} -a -q STARTCONDCPUMORE:10 -R
         # {0:1} {1:1} -a -q STARTCONDCPULESS:90 -R
         # {0:1} {1:1} -a -q STARTCONDMEMMORE:1000 -R
@@ -23255,130 +23255,130 @@ Examples:
         # {0:1} {1:1} -a -q EXITCONDMEMMORE:1000 -R
         # {0:1} {1:1} -a -q EXITCONDMEMLESS:90 -R
 
-    - Monitor status of all {2:2} with GPU memory
+    - {3:1} all {2:2} with GPU memory
         # {0:1} {1:1} -a -q GPUMEM
         # {0:1} {1:1} -a -q GPUMEMSUM
 
-    - Monitor status of all {2:2} sorted by memory(RSS)
+    - {3:1} all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
 
-    - Monitor status of all {2:2} sorted by execution time
+    - {3:1} all {2:2} sorted by execution time
         # {0:1} {1:1} -S e
         # {0:1} {1:1} -S e:2h
 
-    - Monitor status of {2:2} with fastest initialization
+    - {3:1} {2:2} with fastest initialization
         # {0:1} {1:1} -q FASTINIT
 
-    - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
+    - {3:1} threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
     - Monitor status and change the CPU scheduling priority for all {2:2} every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - Monitor status of {2:2} and change the CPU scheduling priority for specific threads having COMM a.out every second
+    - {3:1} {2:2} and change the CPU scheduling priority for specific threads having COMM a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
-    - Monitor status of the fixed list for {2:2} to save CPU resource for monitoring
+    - {3:1} the fixed list for {2:2} to save CPU resource for monitoring
         # {0:1} {1:1} -g a.out -e x
 
-    - Monitor status of {2:2} and report the result to ./guider.out when SIGINT signal arrives
+    - {3:1} {2:2} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
-    - Monitor status of {2:2} and report the result to ./guider.out with memo when SIGINT signal arrives
+    - {3:1} {2:2} and report the result to ./guider.out with memo when SIGINT signal arrives
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
-    - Monitor status of {2:2} and report the result to ./guider.out with unlimited memory buffer
+    - {3:1} {2:2} and report the result to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
 
-    - Monitor status of {2:2} and report the result to ./guider.out with limited memory buffer 50MB
+    - {3:1} {2:2} and report the result to ./guider.out with limited memory buffer 50MB
         # {0:1} {1:1} -o . -b 50m
 
-    - Monitor status of {2:2} and report the result to ./guider.out with limited memory buffer 50MB loss possible
+    - {3:1} {2:2} and report the result to ./guider.out with limited memory buffer 50MB loss possible
         # {0:1} {1:1} -o . -d b
 
-    - Monitor status of {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
+    - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
 
-    - Monitor status of {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
+    - {3:1} {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
 
-    - Monitor status of {2:2} and report the result collected every 3 seconds for 5 times to ./guider.out
+    - {3:1} {2:2} and report the result collected every 3 seconds for 5 times to ./guider.out
         # {0:1} {1:1} -R 3s:5 -o .
 
-    - Monitor status of {2:2} and report the result collected every 10 seconds for 60 minutes to ./guider.out
+    - {3:1} {2:2} and report the result collected every 10 seconds for 60 minutes to ./guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
 
-    - Monitor status of {2:2} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
+    - {3:1} {2:2} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
-    - Monitor status of {2:2} with memory(USS)
+    - {3:1} {2:2} with memory(USS)
         # {0:1} {1:1} -e u
 
-    - Monitor status of {2:2} with memory(PSS)
+    - {3:1} {2:2} with memory(PSS)
         # {0:1} {1:1} -e S
 
-    - Monitor status of all {2:2} including block usage every 2 seconds
+    - {3:1} all {2:2} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - Monitor status of {2:2} with the name including system and their siblings
+    - {3:1} {2:2} with the name including system and their siblings
         # {0:1} {1:1} -g "*system*" -P
 
-    - Monitor status of {2:2} named gdbus among {2:2} with the name including system and their siblings
+    - {3:1} {2:2} named gdbus among {2:2} with the name including system and their siblings
         # {0:1} {1:1} -g "*system*" -P -q FILTER:"gdbus"
 
-    - Monitor status of {2:2} and print stats if only system resource usage exceeds specific threshold
+    - {3:1} {2:2} and print stats if only system resource usage exceeds specific threshold
         # {0:1} {1:1} -q CPUCOND:10
         # {0:1} {1:1} -q MEMFREECOND:100
         # {0:1} {1:1} -q MEMAVLCOND:100
         # {0:1} {1:1} -q BLKRDCOND:1
         # {0:1} {1:1} -q BLKWRCOND:1
 
-    - Monitor status of {2:2} with the specific length for thread name
+    - {3:1} {2:2} with the specific length for thread name
         # {0:1} {1:1} -q COMMLEN:16
 
-    - Monitor status of {2:2} on the minimum terminal
+    - {3:1} {2:2} on the minimum terminal
         # {0:1} {1:1} -m
 
-    - Monitor status of {2:2} on the optimized terminal
+    - {3:1} {2:2} on the optimized terminal
         # {0:1} {1:1} -m :
 
-    - Monitor status of {2:2} after optimizing system terminal
+    - {3:1} {2:2} after optimizing system terminal
         # {0:1} {1:1} -m ::system
 
-    - Monitor status of {2:2} and report to elastic search
+    - {3:1} {2:2} and report to elastic search
         # {0:1} {1:1} -e I
 
-    - Monitor status of {2:2} and report to ./guider.out and console
+    - {3:1} {2:2} and report to ./guider.out and console
         # {0:1} {1:1} -o . -Q
 
-    - Monitor status of {2:2} and execute special commands
+    - {3:1} {2:2} and execute special commands
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
 
-    - Monitor status of {2:2} and report to 192.168.0.5:5555 in real-time
+    - {3:1} {2:2} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT@192.168.0.5:5555
 
-    - Monitor status of {2:2} with the number in front of the name
+    - {3:1} {2:2} with the number in front of the name
         # {0:1} {1:1} -c index
 
-    - Monitor status of {2:2} after setting hot commands in advance
+    - {3:1} {2:2} after setting hot commands in advance
         # {0:1} {1:1} -c "GUIDER utop -g PID"
         # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret"
 
-    - Monitor status of {2:2} and execute specific commands for all tasks shown automatically
+    - {3:1} {2:2} and execute specific commands for all tasks shown automatically
         # {0:1} {1:1} -c "GUIDER utop -g PID" -e E
         # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
-    - Monitor status of {2:2} after setting config from guider.conf
+    - {3:1} {2:2} after setting config from guider.conf
         # {0:1} {1:1} -C guider.conf
 
-    - Monitor status of {2:2} with no encoding for output
+    - {3:1} {2:2} with no encoding for output
         # {0:1} {1:1} -d e
         # NOENCODE=1 {0:1} {1:1} -d e
 
-    - Monitor status of system only
+    - {3:1} system only
         # {0:1} {1:1} -d T
-                '''.format(cmd, mode, target)
+                '''.format(cmd, mode, target, 'Monitor status of')
 
                 drawExamStr = '''
 Examples:
@@ -23961,16 +23961,16 @@ Options:
 
                     helpStr += '''
 Examples:
-    - record default function events for all threads to ./guider.dat
+    - {2:1} all threads to ./guider.dat
         # {0:1} {1:1} -s .
 
-    - record default function events for all threads to ./guider.dat for only 3 minutes
+    - {2:1} all threads to ./guider.dat for only 3 minutes
         # {0:1} {1:1} -s . -R 3m
 
-    - record default function events for all threads to ./guider.dat every 3 minutes continuously
+    - {2:1} all threads to ./guider.dat every 3 minutes continuously
         # {0:1} {1:1} -s . -R 3m:1:1
 
-    - record default function events for specific threads having TID bigger than 1024 to ./guider.dat in the background
+    - {2:1} specific threads having TID bigger than 1024 to ./guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
 
     - record specific function events including memory, block, heap for all threads to ./guider.dat
@@ -23979,7 +23979,7 @@ Examples:
     - record specific function events including all syscalls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -t
 
-    - record default function events for all threads and save recording commands to specific script file
+    - {2:1} all threads and save recording commands to specific script file
         # {0:1} {1:1} -B guider.cmd
 
     - record specific function events including softirq_entry event for all threads to ./guider.dat
@@ -23991,7 +23991,7 @@ Examples:
     - record specific function events including blocking for all threads to ./guider.dat
         # {0:1} {1:1} -s . -d c -K "block:schedule"
 
-    - record default function events for all threads to ./guider.dat and execute user commands
+    - {2:1} all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - record all kernel function calls for all threads to ./guider.dat
@@ -23999,7 +23999,7 @@ Examples:
 
     - report the results of analyzing the recorded data
         => See report command
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Record default function events')
 
                 # file record #
                 elif SysMgr.checkMode('filerec'):
@@ -24035,23 +24035,23 @@ Options:
 
                     helpStr += '''
 Examples:
-    - report the analysis result of on-memory files for all processes to ./guider.out
+    - {2:1} of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -a
 
-    - report the analysis result of on-memory files for specific threads
+    - {2:1} of on-memory files for specific threads
         # {0:1} {1:1} -g a.out
 
-    - report the analysis result of specific on-memory files
+    - {2:1} of specific on-memory files
         # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
         # {0:1} {1:1} -c "/home/test/*"
 
-    - report the analysis result of specific on-memory files from specific directories recursively
+    - {2:1} of specific on-memory files from specific directories recursively
         # {0:1} {1:1} -c "/usr/share" -r
 
-    - report the analysis result on each intervals of on-memory files for all processes to ./guider.out
+    - {2:1} on each intervals of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -i
 
-    - report the analysis result of on-memory files for all processes to ./guider.out and make the readahead list to readahead.list
+    - {2:1} of on-memory files for all processes to ./guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
@@ -24059,7 +24059,7 @@ Examples:
         # {0:1} {1:1} -o . -q RALIST, RAALLOWLIST:allow.list
         # {0:1} {1:1} -o . -q RALIST, RADENYLIST:deny.list
         # {0:1} {1:1} -o . -q RALIST, RAADDLIST:add.list
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Report the analysis result')
 
                 # report #
                 elif SysMgr.checkMode('report'):
@@ -24089,19 +24089,19 @@ Options:
 
                     helpStr += '''
 Examples:
-    - report analysis result based on guider.dat to ./guider.out
+    - {3:1} based on guider.dat to ./guider.out
         # {0:1} {1:1}
 
-    - report analysis result based on trace.dat
+    - {3:1} based on trace.dat
         # {0:1} {1:1} trace.dat
 
-    - report all the analysis result for specific threads having TID 1234 or COMM including a.out to ./guider.out
+    - report all the analysis result {2:1} having TID 1234 or COMM including a.out to ./guider.out
         # {0:1} {1:1} -o . -g "1234, a.out" -a
 
-    - report analysis result based on guider.dat to ./guider.out with sched block time
+    - {3:1} based on guider.dat to ./guider.out with sched block time
         # {0:1} {1:1} -d l
 
-    - report analysis result based on guider.dat to ./guider.out with higher time resolution
+    - {3:1} based on guider.dat to ./guider.out with higher time resolution
         # {0:1} {1:1} -q PRECISE
 
     - convert compressed recording data to original one
@@ -24110,19 +24110,19 @@ Examples:
     - report all the analysis result including interval information for all threads to ./guider.out
         # {0:1} {1:1} -o . -a -i
 
-    - report the analysis result including preemption info for specific threads to ./guider.out
+    - {3:1} including preemption info {2:1} to ./guider.out
         # {0:1} {1:1} -o . -p 1234, 4567
 
-    - report the analysis result for specific threads to ./guider.out within specific interval range in second unit
+    - {3:1} {2:1} to ./guider.out within specific interval range in second unit
         # {0:1} {1:1} -o . -q TRIM:2:9
         # {0:1} {1:1} -o . -q TRIM::9
         # {0:1} {1:1} -o . -q TRIM:2:
 
-    - report the analysis result for specific threads to ./guider.out after converting all target inodes to paths from specific directory
+    - {3:1} {2:1} to ./guider.out after converting all target inodes to paths from specific directory
         # {0:1} {1:1} -o . -q CONVINODE
         # {0:1} {1:1} -o . -q CONVINODE:/data
 
-    - report the analysis result for specific threads to ./guider.out and make the readahead list to readahead.list
+    - {3:1} {2:1} to ./guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, CONVINODE:/data
@@ -24133,12 +24133,14 @@ Examples:
         # {0:1} {1:1} -o . -q RALIST, RADENYLIST:deny.list
         # {0:1} {1:1} -o . -q RALIST, RAADDLIST:add.list
 
-    - report the analysis result for specific threads and their siblings to ./guider.out
+    - {3:1} {2:1} and their siblings to ./guider.out
         # {0:1} {1:1} -o . -P -g 1234, 4567 -a
 
-    - report the function analysis result with maximum 3-depth for specific threads to ./guider.out
+    - report the function analysis result with maximum 3-depth {2:1} to ./guider.out
         # {0:1} {1:1} -o . -g 1234 -H 3
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'for specific threads',
+                        'Report the analysis result')
 
                 # general record #
                 elif SysMgr.checkMode('genrec'):
@@ -24170,10 +24172,10 @@ Options:
 
                     helpStr += '''
 Examples:
-    - report the analysis result of system to ./guider.out
+    - Report the analysis result of system to ./guider.out
         # {0:1} {1:1} -o .
 
-    - report the analysis result of system to ./guider.out for 3 seconds
+    - Report the analysis result of system to ./guider.out for 3 seconds
         # {0:1} {1:1} -o . -R 3s
                     '''.format(cmd, mode)
 
@@ -24267,56 +24269,56 @@ Options:
 
                     helpStr += '''
 Examples:
-    - record default events of all threads to ./guider.dat
+    - {2:1} of all threads to ./guider.dat
         # {0:1} {1:1} -s .
 
-    - record default events of specific threads that having TID bigger than 1234 to ./guider.dat
+    - {2:1} of specific threads that having TID bigger than 1234 to ./guider.dat
         # {0:1} {1:1} -s . -g ">1234"
 
-    - record default events of all threads and their commands
+    - {2:1} of all threads and their commands
         # {0:1} {1:1} -s . -B
 
-    - record default events of all threads to ./guider.dat for only 3 seconds
+    - {2:1} of all threads to ./guider.dat for only 3 seconds
         # {0:1} {1:1} -s . -R 3
 
-    - record default events of all threads to ./guider.dat every 3 seconds continuously
+    - {2:1} of all threads to ./guider.dat every 3 seconds continuously
         # {0:1} {1:1} -s . -R 3:1:1
 
-    - record default events of all threads to ./guider.dat with fastest initialization
+    - {2:1} of all threads to ./guider.dat with fastest initialization
         # {0:1} {1:1} -s . -q FASTINIT
 
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
 
-    - record default events including specific syscalls of all threads to ./guider.dat
+    - {2:1} including specific syscalls of all threads to ./guider.dat
         # {0:1} {1:1} -s . -t sys_read, write
         # {0:1} {1:1} -s . -t "write*", "*64"
 
-    - record default events including lock of all threads to ./guider.dat
+    - {2:1} including lock of all threads to ./guider.dat
         # {0:1} {1:1} -s . -e L
 
-    - record default events including specific user function of all threads to ./guider.dat
+    - {2:1} including specific user function of all threads to ./guider.dat
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
 
-    - record default events including specific kernel function of all threads to ./guider.dat
+    - {2:1} including specific kernel function of all threads to ./guider.dat
         # {0:1} {1:1} -s . -d c -K "evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16"
 
-    - record default events including specific kernel function with args of all threads on x86 to ./guider.dat
+    - {2:1} including specific kernel function with args of all threads on x86 to ./guider.dat
         # {0:1} {1:1} -s . -d c -K "open:do_sys_open:dfd=%ax filename=%bx;u64 flags=%cx;s32 mode=+4(\$stack):NONE"
 
-    - record default events including specific kernel function with register values of all threads on x86 to ./guider.dat
+    - {2:1} including specific kernel function with register values of all threads on x86 to ./guider.dat
         # {0:1} {1:1} -s . -d c -K "strace32:func1:%bp/u32.%sp/s64, strace:0x1234:\$stack:NONE"
 
-    - record default events including specific kernel function with the return value of all threads to ./guider.dat
+    - {2:1} including specific kernel function with the return value of all threads to ./guider.dat
         # {0:1} {1:1} -s . -d c -K "openfile:getname::*string, access:0x1234:NONE:*string"
         # {0:1} {1:1} -s . -d c -K "openfile:getname::**string, access:0x1234:NONE:*string"
 
-    - record default events of all threads to ./guider.dat and execute user commands
+    - {2:1} of all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - report the results of analyzing the recorded data
+    - Report the results of analyzing the recorded data
         => See report command
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Record default events')
 
                 # file top #
                 elif SysMgr.checkMode('ftop'):
@@ -24410,41 +24412,41 @@ Description:
 
                     examStr = '''
 Examples:
-    - {2:1} for specific threads
+    - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
 
-    - {2:1} with stdev for elapsed time for specific threads
+    - {2:1} with stdev for elapsed time {3:1}
         # {0:1} {1:1} -g a.out -q STDEV
 
-    - {2:1} with backtrace for specific threads
+    - {2:1} with backtrace {3:1}
         # {0:1} {1:1} -g a.out -H
 
-    - {2:1} with python backtrace for specific threads
+    - {2:1} with python backtrace {3:1}
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
     - {2:1} for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -W
 
-    - {2:1} for specific threads and report the result in JSON format
+    - {2:1} {3:1} and report the result in JSON format
         # {0:1} {1:1} -g a.out -J
         # {0:1} {1:1} -g a.out -J -Q
 
-    - {2:1} for specific threads every 2 second
+    - {2:1} {3:1} every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
 
     - Monitor CPU usage on whole system of syscalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
 
-    - {2:1} for specific threads with colorful elapsed time exceeds 0.1 second
+    - {2:1} {3:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -q ELAPSED:0.1
 
-    - Monitor only successful syscalls for specific threads
+    - Monitor only successful syscalls {3:1}
         # {0:1} {1:1} -g a.out -q ONLYOK
 
     - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - Monitor only failed syscalls for specific threads
+    - Monitor only failed syscalls {3:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
     - {2:1} from a specific binary and print standard output for child tasks
@@ -24464,32 +24466,32 @@ Examples:
     - {2:1} and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
-    - {2:1} for specific threads (wait for new target if no task)
+    - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {2:1} for specific threads even if the master tracer is terminated
+    - {2:1} {3:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - {2:1} except for wait status for specific threads
+    - {2:1} except for wait status {3:1}
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - {2:1} except for register info for specific threads
+    - {2:1} except for register info {3:1}
         # {0:1} {1:1} -g a.out -q NOCONTEXT
 
-    - {2:1} for specific threads consumed CPU more than 10%
+    - {2:1} {3:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - {2:1} except for no symbol backtraces for specific threads
+    - {2:1} except for no symbol backtraces {3:1}
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
-    - {2:1} for specific threads with call interval info
+    - {2:1} {3:1} with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
 
-    - {2:1} for specific threads with call interval info including stdev
+    - {2:1} {3:1} with call interval info including stdev
         # {0:1} {1:1} -g a.out -q INTERCALL, STDEV
 
-    - {2:1} for specific threads after loading all symbols in stop status
+    - {2:1} {3:1} after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
     - {2:1} for 4th and 5th new threads in each new processes from a specific binary
@@ -24504,7 +24506,9 @@ Examples:
         # {0:1} {1:1} -g 1234 -c read -a
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode, 'Monitor syscalls')
+                    '''.format(cmd, mode,
+                        'Monitor syscalls',
+                        'for specific threads')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -24520,19 +24524,19 @@ Description:
 
                     examStr = '''
 Examples:
-    - {2:1} for specific threads
+    - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
 
     - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - {2:1} with backtrace for specific threads (merged native stack and python stack from python 3.7)
+    - {2:1} with backtrace {3:1} (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H
 
-    - {2:1} with backtrace including native symbols for specific threads (merged native stack and python stack from python 3.7)
+    - {2:1} with backtrace including native symbols {3:1} (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H -q INCNATIVE
 
-    - {2:1} for specific threads every 2 second for 1 minute with 1 ms sampling
+    - {2:1} {3:1} every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
     - {2:1} from a specific binary and print standard output for child tasks
@@ -24544,27 +24548,27 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
-    - {2:1} for specific threads (wait for new target if no task)
+    - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
         # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {2:1} for specific threads even if the master tracer is terminated
+    - {2:1} {3:1} even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - {2:1} except for wait status for specific threads
+    - {2:1} except for wait status {3:1}
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - {2:1} except for register info for specific threads
+    - {2:1} except for register info {3:1}
         # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
-    - {2:1} for specific threads consumed CPU more than 10%
+    - {2:1} {3:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - {2:1} except for no symbol functions for specific threads
+    - {2:1} except for no symbol functions {3:1}
         # {0:1} {1:1} a.out -g a.out -q ONLYSYM
 
-    - {2:1} for specific threads after loading all symbols in stop status
+    - {2:1} {3:1} after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
     - {2:1} for 4th and 5th new threads in each new processes from a specific binary
@@ -24575,14 +24579,16 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Monitor CPU usage on whole system of python calls for specific threads
+    - Monitor CPU usage on whole system of python calls {3:1}
         # {0:1} {1:1} -g a.out -e c
 
-    - {2:1} with breakpoint for peace including register info for specific threads
+    - {2:1} with breakpoint for peace including register info {3:1}
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode, 'Monitor python calls')
+                    '''.format(cmd, mode,
+                        'Monitor python calls',
+                        'for specific threads')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -24598,7 +24604,7 @@ Description:
 
                     examStr = '''
 Examples:
-    - {2:1} for specific threads
+    - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
 
     - {2:1} from a specific binary
@@ -24613,16 +24619,16 @@ Examples:
         # {0:1} {1:1} -J
         # {0:1} {1:1} -J -Q
 
-    - {2:1} for specific threads having specific TID
+    - {2:1} {3:1} having specific TID
         # {0:1} {1:1} -g 1234 -q ONLYPID
 
-    - {2:1} for specific threads having specific task name
+    - {2:1} {3:1} having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYCOMM
 
     - {2:1} for specific processes having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYPROC
 
-    - {2:1} without using sample cache for specific threads
+    - {2:1} without using sample cache {3:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
     - {2:1} and standard output from a specific binary
@@ -24636,25 +24642,25 @@ Examples:
     - {2:1} from a specific binary excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
 
-    - {2:1} for specific threads from a specific binary
+    - {2:1} {3:1} from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
     - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - {2:1} for specific threads (wait for new target if no task)
+    - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
         # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {2:1} for specific threads even if the master tracer is terminated
+    - {2:1} {3:1} even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - {2:1} except for wait status for specific threads
+    - {2:1} except for wait status {3:1}
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - {2:1} for specific threads consumed CPU more than 10%
+    - {2:1} {3:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - {2:1} for 4th and 5th new threads in each new processes from a specific binary
@@ -24665,26 +24671,28 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - {2:1} for specific threads after user input
+    - {2:1} {3:1} after user input
         # {0:1} {1:1} -g a.out -W
 
-    - {2:1} for specific threads after 5 seconds
+    - {2:1} {3:1} after 5 seconds
         # {0:1} {1:1} -g a.out -W 5s
 
-    - {2:1} for specific threads from 100 seconds of uptime
+    - {2:1} {3:1} from 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
 
-    - {2:1} for specific threads until 100 seconds of uptime
+    - {2:1} {3:1} until 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
 
-    - {2:1} for specific threads every 2 second for 1 minute with 1 ms sampling
+    - {2:1} {3:1} every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of native function calls for specific threads
+    - Monitor CPU usage on whole system of native function calls {3:1}
         # {0:1} {1:1} -g a.out -e c
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode, 'Monitor kernel function calls')
+                    '''.format(cmd, mode,
+                        'Monitor kernel function calls',
+                        'for specific threads')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -24700,7 +24708,7 @@ Description:
 
                     examStr = '''
 Examples:
-    - {3:1} for specific threads
+    - {3:1} {4:1}
         # {0:1} {1:1} -g a.out
 
     - {3:1} from a specific binary
@@ -24708,7 +24716,7 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
 
-    - Monitor native and JIT-compiled function calls for specific threads
+    - Monitor native and JIT-compiled function calls {4:1}
 {2:1}
         # {0:1} {1:1} -g node -q JITSYM
         # {0:1} {1:1} -g java -q JITSYM
@@ -24721,25 +24729,25 @@ Examples:
         # {0:1} {1:1} -J
         # {0:1} {1:1} -J -Q
 
-    - {3:1} for specific threads having specific TID
+    - {3:1} {4:1} having specific TID
         # {0:1} {1:1} -g 1234 -q ONLYPID
 
-    - {3:1} for specific threads having specific task name
+    - {3:1} {4:1} having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYCOMM
 
     - {3:1} for specific processes having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYPROC
 
-    - {3:1} using merged symbols for specific threads
+    - {3:1} using merged symbols {4:1}
         # {0:1} {1:1} -g a.out -q ALLSYM
 
-    - {3:1} without using sample cache for specific threads
+    - {3:1} without using sample cache {4:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
-    - {3:1} without using file cache for specific threads
+    - {3:1} without using file cache {4:1}
         # {0:1} {1:1} -g a.out -q NOFILECACHE
 
-    - {3:1} with debug info for specific threads
+    - {3:1} with debug info {4:1}
         # {0:1} {1:1} -g a.out -q DEBUGINFO
         # {0:1} {1:1} -g a.out -q DEBUGINFO -H
         # {0:1} {1:1} -g a.out -q DEBUGINFO:/usr/lib/libc.so
@@ -24755,40 +24763,40 @@ Examples:
     - {3:1} from a specific binary excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
 
-    - {3:1} for specific threads with lazy cache loading
+    - {3:1} {4:1} with lazy cache loading
         # {0:1} {1:1} a.out -q LAZYCACHE
 
-    - {3:1} for specific threads except for DWARF table of specific files
+    - {3:1} {4:1} except for DWARF table of specific files
         # {0:1} {1:1} a.out -q EXCEPTDWARF:"*deno"
 
-    - {3:1} for specific threads from a specific binary
+    - {3:1} {4:1} from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
     - {3:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - {3:1} for specific threads (wait for new target if no task)
+    - {3:1} {4:1} (wait for new target if no task)
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
         # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {3:1} for specific threads even if the master tracer is terminated
+    - {3:1} {4:1} even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - {3:1} except for wait status for specific threads
+    - {3:1} except for wait status {4:1}
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - {3:1} except for register info for specific threads
+    - {3:1} except for register info {4:1}
         # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
-    - {3:1} for specific threads consumed CPU more than 10%
+    - {3:1} {4:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - {3:1} except for no symbol functions for specific threads
+    - {3:1} except for no symbol functions {4:1}
         # {0:1} {1:1} a.out -g a.out -q ONLYSYM
 
-    - {3:1} for specific threads after loading all symbols in stop status
+    - {3:1} {4:1} after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
     - {3:1} for 4th and 5th new threads in each new processes from a specific binary
@@ -24799,48 +24807,49 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - {3:1} for specific threads with DWARF info
+    - {3:1} {4:1} with DWARF info
         # {0:1} {1:1} -g a.out -eD
 
-    - {3:1} for specific threads after user input
+    - {3:1} {4:1} after user input
         # {0:1} {1:1} -g a.out -W
 
-    - {3:1} for specific threads after 5 seconds
+    - {3:1} {4:1} after 5 seconds
         # {0:1} {1:1} -g a.out -W 5s
 
-    - {3:1} for specific threads from 100 seconds of uptime
+    - {3:1} {4:1} from 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
 
-    - {3:1} for specific threads until 100 seconds of uptime
+    - {3:1} {4:1} until 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
 
-    - {3:1} with backtrace for specific threads
+    - {3:1} with backtrace {4:1}
         # {0:1} {1:1} -g a.out -H
 
-    - {3:1} with backtrace (no-use-libcorkscrew) for specific threads
+    - {3:1} with backtrace (no-use-libcorkscrew) {4:1}
         # {0:1} {1:1} -g a.out -H -q NOLIBCORK
 
-    - {3:1} with python backtrace for specific threads
+    - {3:1} with python backtrace {4:1}
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - {3:1} with arguments using DWARF for specific threads
+    - {3:1} with arguments using DWARF {4:1}
         # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
 
-    - {3:1} with backtrace including arguments using DWARF for specific threads
+    - {3:1} with backtrace including arguments using DWARF {4:1}
         # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
 
-    - {3:1} for specific threads every 2 second for 1 minute with 1 ms sampling
+    - {3:1} {4:1} every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of native function calls for specific threads
+    - Monitor CPU usage on whole system of native function calls {4:1}
         # {0:1} {1:1} -g a.out -e c
 
-    - {3:1} with breakpoint for peace including register info for specific threads
+    - {3:1} with breakpoint for peace including register info {4:1}
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode, jitProfStr,
-                        'Monitor native function calls')
+                        'Monitor native function calls',
+                        'for specific threads')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -25113,26 +25122,26 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor D-Bus messages
+    - {2:1}
         # {0:1} {1:1}
 
-    - Monitor D-Bus messages including DBus interfaces
+    - {2:1} including DBus interfaces
         # {0:1} {1:1} -g dbus-daemon
 
-    - Monitor D-Bus messages for dbus-client process
+    - {2:1} for dbus-client process
         # {0:1} {1:1} -g dbus-client
 
-    - Monitor D-Bus messages including specific word
+    - {2:1} including specific word
         # {0:1} {1:1} -c test
 
-    - Monitor D-Bus messages and erase specific words in live messages
+    - {2:1} and erase specific words in live messages
         # {0:1} {1:1} -G sendData
 
-    - Monitor D-Bus messages for a specific session bus
+    - {2:1} for a specific session bus
         # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Monitor D-Bus messages')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -25323,18 +25332,18 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Dump target memory to the sepcific file
+    - {2:1} memory to the sepcific file
         # {0:1} {1:1} -g a.out -I 0x1234-0x4567 -o dump.out
 
-    - Dump target memory mapped to a specific file to the sepcific file
+    - {2:1} memory mapped to a specific file to the sepcific file
         # {0:1} {1:1} -g a.out -I a.out -o dump.out
 
-    - Dump target stack to the sepcific file
+    - {2:1} stack to the sepcific file
         # {0:1} {1:1} -g a.out -I stack -o dump.out
 
-    - Dump target heap to the sepcific file
+    - {2:1} heap to the sepcific file
         # {0:1} {1:1} -g a.out -I heap -o dump.out
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Dump target')
 
                 # strace #
                 elif SysMgr.checkMode('strace'):
@@ -25370,14 +25379,14 @@ Options:
 
                     helpStr += '''{2:1}
 Examples:
-    - {4:1} for specific threads
+    - {4:1} {5:1}
         # {0:1} {1:1} -g a.out -t read
         # {0:1} {1:1} -g a.out -t "read*", "*64"
 
-    - {3:1} except for read for specific threads
+    - {3:1} except for read {5:1}
         # {0:1} {1:1} -g a.out -t ^read
 
-    - {3:1} for specific threads and print contexts in JSON format
+    - {3:1} {5:1} and print contexts in JSON format
         # {0:1} {1:1} -g a.out -J
         # {0:1} {1:1} -g a.out -J -Q
         # {0:1} {1:1} -g a.out -J -q COMPLETECALL
@@ -25392,19 +25401,19 @@ Examples:
     - {4:1} from a specific binary excluding specific environment variable
         # {0:1} {1:1} "ls -al" -t write -q REMOVEENV:MAIL
 
-    - {4:1} with backtrace for specific threads
+    - {4:1} with backtrace {5:1}
         # {0:1} {1:1} -g a.out -t read -H
 
-    - {4:1} with backtrace using merged symbol for specific threads
+    - {4:1} with backtrace using merged symbol {5:1}
         # {0:1} {1:1} -g a.out -t read -H -q ALLSYM
 
-    - Trace only successful syscalls for specific threads
+    - Trace only successful syscalls {5:1}
         # {0:1} {1:1} -g a.out -q ONLYOK
 
-    - Trace only failed syscalls for specific threads
+    - Trace only failed syscalls {5:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - {4:1} with python backtrace for specific threads
+    - {4:1} with python backtrace {5:1}
         # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
 
     - {4:1} from a specific binary (print standard output)
@@ -25415,7 +25424,7 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
-    - {3:1} for specific threads (wait for new target if no task)
+    - {3:1} {5:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
         # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
@@ -25423,34 +25432,34 @@ Examples:
     - {4:1} from a specific binary with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
-    - {3:1} except for no symbol backtraces for specific threads
+    - {3:1} except for no symbol backtraces {5:1}
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
-    - {3:1} except for arguments for specific threads
+    - {3:1} except for arguments {5:1}
         # {0:1} {1:1} -g a.out -q NOARG
 
-    - {3:1} for specific threads even if the master tracer is terminated
+    - {3:1} {5:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
     - {4:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
-    - {3:1} for specific threads without truncation
+    - {3:1} {5:1} without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
 
-    - {3:1} for specific threads with call interval info
+    - {3:1} {5:1} with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
 
-    - {3:1} for specific threads and print strings in specific maximum size
+    - {3:1} {5:1} and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
 
-    - {4:1} for specific threads and report the result to ./guider.out
+    - {4:1} {5:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o .
 
-    - {3:1} with breakpoint for read including register info for specific threads
+    - {3:1} with breakpoint for read including register info {5:1}
         # {0:1} {1:1} -g a.out -c read -a
 
-    - {3:1} for specific threads only for 1 minute
+    - {3:1} {5:1} only for 1 minute
         # {0:1} {1:1} -g a.out -R 1m
 
     - {3:1} and pause when catching open syscall
@@ -25466,7 +25475,8 @@ Examples:
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
                     '''.format(cmd, mode, cmdListStr,
                         'Trace all syscalls',
-                        'Trace specific syscalls')
+                        'Trace specific syscalls',
+                        'for specific threads')
 
                 # utrace #
                 elif SysMgr.checkMode('utrace'):
@@ -25499,7 +25509,7 @@ Options:
 
                     helpStr += '''
 Examples:
-    - {2:1} for specific threads in 100us cycles
+    - {2:1} {3:1} in 100us cycles
         # {0:1} {1:1} -g a.out
 
     - {2:1} for child tasks created by a specific thread
@@ -25509,14 +25519,14 @@ Examples:
         # {0:1} {1:1} "ls -al"
         # {0:1} {1:1} -I "ls -al"
 
-    - {2:1} for specific threads from a specific binary
+    - {2:1} {3:1} from a specific binary
         # {0:1} {1:1} "ls -al" -g a.out
         # {0:1} {1:1} -I "ls -al" -g a.out
 
-    - {2:1} for specific threads in 10ms cycles
+    - {2:1} {3:1} in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - {2:1} for specific threads (print standard output)
+    - {2:1} {3:1} (print standard output)
         # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
 
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -25524,31 +25534,32 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
-    - {2:1} for specific threads (wait for new target if no task)
+    - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
         # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {2:1} for specific threads even if the master tracer is terminated
+    - {2:1} {3:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - {2:1} with 1/10 instructions for specific threads
+    - {2:1} with 1/10 instructions {3:1}
         # {0:1} {1:1} -g a.out -H 10
 
-    - {2:1} for specific threads and report the result to ./guider.out
+    - {2:1} {3:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
-    - {2:1} with breakpoint for peace including register info for specific threads
+    - {2:1} with breakpoint for peace including register info {3:1}
         # {0:1} {1:1} -g a.out -c peace -a
 
-    - {2:1} for specific threads only for 2 seconds
+    - {2:1} {3:1} only for 2 seconds
         # {0:1} {1:1} -g a.out -R 2s
 
     - {2:1} from a specific binary and pause when catching PLT function call
         # {0:1} {1:1} "ls -al" -c PLT
         # {0:1} {1:1} -I "ls -al" -c PLT
                     '''.format(cmd, mode,
-                        'Trace usercalls')
+                        'Trace usercalls',
+                        'for specific threads')
 
                 # pytrace #
                 elif SysMgr.checkMode('pytrace'):
@@ -25584,7 +25595,7 @@ Options:
 
                     examStr = '''{2:1}
 Examples:
-    - {3:1} for specific threads in 100us cycles
+    - {3:1} {4:1} in 100us cycles
         # {0:1} {1:1} -g a.out
 
     - {3:1} for child tasks created by a specific thread
@@ -25595,14 +25606,14 @@ Examples:
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
         # {0:1} {1:1} -I "ls -al"
 
-    - {3:1} for specific threads from a specific binary
+    - {3:1} {4:1} from a specific binary
         # {0:1} {1:1} "ls -al" -g a.out
         # {0:1} {1:1} -I "ls -al" -g a.out
 
-    - {3:1} for specific threads in 10ms cycles
+    - {3:1} {4:1} in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - {3:1} for specific threads (print standard output)
+    - {3:1} {4:1} (print standard output)
         # {0:1} {1:1} -g a.out -q NOMUTE
 
     - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -25610,7 +25621,7 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
-    - {3:1} for specific threads (wait for new target if no task)
+    - {3:1} {4:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
         # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
@@ -25621,25 +25632,26 @@ Examples:
     - {3:1} with colorful elapsed time exceeds 0 second
         # {0:1} {1:1} -g a.out -c write -q PYELAPSED:0
 
-    - {3:1} for specific threads even if the master tracer is terminated
+    - {3:1} {4:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - {3:1} for specific threads without truncation
+    - {3:1} {4:1} without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
 
-    - {3:1} with 1/10 instructions for specific threads
+    - {3:1} with 1/10 instructions {4:1}
         # {0:1} {1:1} -g a.out -H 10
 
-    - {3:1} for specific threads and report the result to ./guider.out
+    - {3:1} {4:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
-    - {3:1} with breakpoint for peace including register info for specific threads
+    - {3:1} with breakpoint for peace including register info {4:1}
         # {0:1} {1:1} -g a.out -c peace -a
 
-    - {3:1} for specific threads only for 2 seconds
+    - {3:1} {4:1} only for 2 seconds
         # {0:1} {1:1} -g a.out -R 2s
                     '''.format(cmd, mode, cmdListStr,
-                        'Trace python calls')
+                        'Trace python calls',
+                        'for specific threads')
 
                     helpStr += examStr
 
@@ -25708,26 +25720,26 @@ Options:
         # {0:1} {1:1} -g a.out -c print -i 5
         # {0:1} {1:1} -g a.out -c print -i 5 -q onlyproc
 
-    - Control the target to sleep for 0.1 second
+    - {2:1} sleep for 0.1 second
         # {0:1} {1:1} -g a.out -c "sleep:0.1"
         # {0:1} {1:1} -g a.out -c "sleep:0.1" -q onlyproc
 
-    - Control the target to be terminated
+    - {2:1} be terminated
         # {0:1} {1:1} -g a.out -c "kill"
 
-    - Control the target to modify its memory
+    - {2:1} modify its memory
         # {0:1} {1:1} -g a.out -c "wrmem:0x1234:aaaa:4"
 
-    - Control the target to print 10-length string from the specific memory address
+    - {2:1} print 10-length string from the specific memory address
         # {0:1} {1:1} -g a.out -c "rdmem:0x1234:10"
 
-    - Control the target to return from the current function with a specific value immediately
+    - {2:1} return from the current function with a specific value immediately
         # {0:1} {1:1} -g a.out -c "ret:3"
 
-    - Control the target to dump stack to a file
+    - {2:1} dump stack to a file
         # {0:1} {1:1} -g a.out -c "dump:stack:stack.out"
 
-    - Control the target to dump specific memory range to a file
+    - {2:1} dump specific memory range to a file
         # {0:1} {1:1} -g a.out -c "dump:0x1234-0x4567:dump.out"
 
     - Check specific register value for the target
@@ -25739,36 +25751,36 @@ Options:
     - Print 1st and 2nd arguments (registers)
         # {0:1} {1:1} -g a.out -c "getarg:0:1"
 
-    - Control the target to be terminated
+    - {2:1} be terminated
         # {0:1} {1:1} -g a.out -c "exit"
 
-    - Control the target to call the specific function
+    - {2:1} call the specific function
         # {0:1} {1:1} -g a.out -c "usercall:sleep#3"
         # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE"
         # {0:1} {1:1} -g a.out -c "usercall:printf#12345"
         # {0:1} {1:1} -g a.out -c "usercall:getenv#PATH"
 
-    - Control the target to call the specific syscall
+    - {2:1} call the specific syscall
         # {0:1} {1:1} -g a.out -c "syscall:getpid"
         # {0:1} {1:1} -g a.out -c "syscall:open#test.out#1"
 
-    - Control the target to load the specific library
+    - {2:1} load the specific library
         # {0:1} {1:1} -g a.out -c "load:/usr/lib/preload.so"
 
-    - Control the target to create a thread
+    - {2:1} create a thread
         # {0:1} {1:1} -g a.out -c "thread"
 
-    - Control the target to execute python code
+    - {2:1} execute python code
         # {0:1} {1:1} -g a.out -c "pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
         # {0:1} {1:1} -g a.out -c "pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
-    - Control the target to jump to the specific function with specific arguments
+    - {2:1} jump to the specific function with specific arguments
         # {0:1} {1:1} -g a.out -c "jump:sleep#5"
 
-    - Control the target to execute specific commands
+    - {2:1} execute specific commands
         # {0:1} {1:1} -g a.out -c "exec:ls -lha:sleep 1"
         # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Control the target to')
 
                     helpStr += brkExamStr + remoteExamStr
 
@@ -26152,21 +26164,21 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Diff top report files
+    - {2:1}
         # {0:1} {1:1} "tc1.out, tc2.out"
 
-    - Diff top report files in current directory
+    - {2:1} in current directory
         # {0:1} {1:1} "tc*.out"
 
-    - Diff top report files from current directory to all sub-directories
+    - {2:1} from current directory to all sub-directories
         # {0:1} {1:1} "**/tc*.out"
 
-    - Diff top report files by total usage
+    - {2:1} by total usage
         # {0:1} {1:1} "tc*.out" -dA
 
-    - Diff top report files within specific interval range in index unit
+    - {2:1} within specific interval range in index unit
         # {0:1} {1:1} "tc*.out" -q TRIMIDX:1:5
-                    '''
+                    '''.format(cmd, mode, 'Diff top report files')
 
                 # topsum #
                 elif SysMgr.checkMode('topsum'):
@@ -26201,7 +26213,7 @@ Options:
     -l                          print signal list
     -W  <SEC>                   wait for input
     -v                          verbose
-                        '''.format(cmd, mode)
+                    '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
@@ -26278,21 +26290,22 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print ELF information of a specific file
+    - {2:1}
         # {0:1} {1:1} -I /usr/bin/yes
 
-    - Print ELF information of a specific file with LLVM demangler
+    - {2:1} with LLVM demangler
         # {0:1} {1:1} -I /usr/bin/yes -q LIBLLVM:libLLVM-10.so
 
     - Print vDSO information
         # {0:1} {1:1} -I vdso
 
-    - Print ELF information of a specific file with debug information
+    - {2:1} with debug information
         # {0:1} {1:1} -q DEBUGINFO
 
-    - Print ELF information of a specific file without using debug files
+    - {2:1} without using debug files
         # {0:1} {1:1} -q NODEBUG
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Print ELF information of a specific file')
 
                 # log #
                 elif SysMgr.checkMode('logdlt') or \
@@ -26312,22 +26325,22 @@ Examples:
                     # printdbus #
                     if SysMgr.checkMode('printdbus'):
                         helpStr += '''
-    - Print D-Bus messages with detailed information in real-time
+    - {2:1} with detailed information in real-time
         # {0:1} {1:1} -a
 
-    - Print D-Bus messages including specific word in real-time
+    - {2:1} including specific word in real-time
         # {0:1} {1:1} -c test
 
-    - Print D-Bus messages with backtrace for a.out process in real-time
+    - {2:1} with backtrace for a.out process in real-time
         # {0:1} {1:1} -g a.out -H
 
-    - Print D-Bus messages for a specific session bus
+    - {2:1} for a specific session bus
         # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
 
-    - Print D-Bus messages except for specific messages
+    - {2:1} except for specific messages
         # {0:1} {1:1} -G sendData
 
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Print D-Bus messages')
 
                     # printkmsg / printsys #
                     if SysMgr.checkMode('printkmsg') or \
@@ -26595,26 +26608,26 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print information of specific symbols in a file
+    - {2:1} specific symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
-    - Print information of specific merged symbols in a file
+    - {2:1} specific merged symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
-    - Print information of all symbols in a file
+    - {2:1} all symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g
 
-    - Print information of specific symbols including specific word in a file
+    - {2:1} specific symbols including specific word in a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc"
         # {0:1} {1:1} -I /usr/bin/yes -g "testFunc*"
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc*"
 
-    - Print information of specific symbols including specific word in a file
+    - {2:1} specific symbols including specific word in a file
         # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Print information of specific symbols in a process memory map
+    - {2:1} specific symbols in a process memory map
         # {0:1} {1:1} -I yes -g testFunc
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Print information of')
 
                 # printdbusstat #
                 elif SysMgr.checkMode('printdbusstat'):
@@ -26683,22 +26696,22 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print system cgroup tree
+    - {2:1}
         # {0:1} {1:1}
 
-    - Print system cgroup tree for specific subsystem
+    - {2:1} for specific subsystem
         # {0:1} {1:1} cpu
         # {0:1} {1:1} blkio
 
-    - Print system cgroup tree with processes
+    - {2:1} with processes
         # {0:1} {1:1} -a
 
-    - Print system cgroup tree with processes having specific name
+    - {2:1} with processes having specific name
         # {0:1} {1:1} -a -g kworker
 
-    - Print system cgroup tree with depth 3
+    - {2:1} with depth 3
         # {0:1} {1:1} -H 3
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Print system cgroup tree')
 
                 # exec #
                 elif SysMgr.checkMode('exec'):
@@ -26784,20 +26797,20 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print directory structure from current working directory
+    - {2:1} from current working directory
         # {0:1} {1:1}
 
-    - Print directory structure from / directory
+    - {2:1} from / directory
         # {0:1} {1:1} /
         # {0:1} {1:1} -I /
 
-    - Print directory structure for specific directories
+    - {2:1} for specific directories
         # {0:1} {1:1} "/data, /tmp"
 
-    - Print directory structure in 2-depth from / directory
+    - {2:1} in 2-depth from / directory
         # {0:1} {1:1} -I / -H 2
 
-    - Print directory structure with files from / directory
+    - {2:1} with files from / directory
         # {0:1} {1:1} -I / -a
 
     - Print specific directories and files from / directory
@@ -26806,15 +26819,15 @@ Examples:
         # {0:1} {1:1} -I / -a -g "test*"
         # {0:1} {1:1} -I / -a -g "*test"
 
-    - Print directory structure with files bigger than 1MB from / dir
+    - {2:1} with files bigger than 1MB from / dir
         # {0:1} {1:1} -I / -a -q SIZECOND:BT:1M
 
-    - Print directory structure with files lesser than 1MB from / dir
+    - {2:1} with files lesser than 1MB from / dir
         # {0:1} {1:1} -I / -a -q SIZECOND:LT:1M
 
     - Print specific directories and files from / dir and apply command
         # {0:1} {1:1} -I / -a -g test -c "rm -rf TARGET"
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Print directory structure')
 
                 # leaktracer #
                 elif SysMgr.checkMode('leaktrace'):
@@ -26866,32 +26879,32 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Report memory leakage hints of a specific process {2:1} after executing the target program with auto start
+    - {3:1} {2:1} after executing the target program with auto start
         # {0:1} {1:1} a.out -T ./libleaktracer.so
         # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so
 
-    - Report memory leakage hints of a specific process {2:1} after executing the target program with manual start
+    - {3:1} {2:1} after executing the target program with manual start
         # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
 
-    - Report memory leakage hints of a specific process {2:1} after setting environment variables
+    - {3:1} {2:1} after setting environment variables
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -g a.out -o ./guider.out
 
-    - Report memory leakage hints of a specific process {2:1} with binary injection
+    - {3:1} {2:1} with binary injection
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
 
-    - Report memory leakage hints of a specific process {2:1} with binary injection and a temporary writable path
+    - {3:1} {2:1} with binary injection and a temporary writable path
         # {0:1} {1:1} -g a.out -I /var/log/guider -T /home/root/libleaktracer.so
 
-    - Report memory leakage hints of a specific process after sending SIGRT2(36) to stop profiling
+    - {3:1} after sending SIGRT2(36) to stop profiling
         # {0:1} {1:1} -g a.out -k 36
         # {0:1} {1:1} -g a.out -k SIGRT2
 
-    - Report memory leakage hints of a specific process when it's RSS reached the specific size
+    - {3:1} when it's RSS reached the specific size
         # {0:1} {1:1} -g a.out -c 20m
         # {0:1} {1:1} -g a.out -c 15m,20m
 
-    - Report memory leakage hints of a specific process {2:1} with binary injection (wait for new process if no process)
+    - {3:1} {2:1} with binary injection (wait for new process if no process)
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
@@ -26900,7 +26913,8 @@ Examples:
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -I ./leaks.out -g a.out
                     '''.format(cmd, mode,
-                        'when "Ctrl + c" key is pressed')
+                        'when "Ctrl + c" key is pressed',
+                        'Report memory leakage hints of a specific process')
 
                 # printenv #
                 elif SysMgr.checkMode('printenv'):
@@ -26973,21 +26987,21 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print systemd services
+    - {2:1}
         # {0:1} {1:1}
 
-    - Print systemd services about only specific files
+    - {2:1} about only specific files
         # {0:1} {1:1} -g test
 
-    - Print systemd services including specific attributes
+    - {2:1} including specific attributes
         # {0:1} {1:1} -c Restart
 
-    - Print systemd services including specific value of attributes
+    - {2:1} including specific value of attributes
         # {0:1} {1:1} -c :pid
 
-    - Print systemd services in specific directories
+    - {2:1} in specific directories
         # {0:1} {1:1} -I /home/iipeace/services
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Print systemd services')
 
                 # printinfo #
                 elif SysMgr.checkMode('printinfo'):
@@ -27132,70 +27146,72 @@ Examples:
     - Run client with interaction menu
         # {0:1} {1:1}
 
-    - Request GET/URL to specific server
+    - {2:1}
         # {0:1} {1:1} http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000
         # {0:1} {1:1} "GET#http://127.0.0.1:5000|GET#http://10.25.123.123:5000"
 
-    - Request GET/URL to specific server with Keep-Alive attribute
+    - {2:1} with Keep-Alive attribute
         # {0:1} {1:1} http://127.0.0.1:5000 -q KEEPALIVE
 
     - Request GET/URL with alias to specific server
         # {0:1} {1:1} ALIAS:TEST1#http://127.0.0.1:5000
 
-    - Request GET/URL to specific server and print contents for the request
+    - {2:1} and print contents for the request
         # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
 
-    - Request GET/URL to specific server and print only summary for requests
+    - {2:1} and print only summary for requests
         # {0:1} {1:1} http://127.0.0.1:5000 -q MUTE
 
-    - Request POST/URL to specific server
+    - {3:1}
         # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONDATA:"{{'key':'value'}}"#http://127.0.0.1:5000
 
-    - Request POST/URL to specific server after base64 encoding specific file data from specific string "@@@FILE:PATH@@@"
+    - {3:1} after base64 encoding specific file data from specific string "@@@FILE:PATH@@@"
         # {0:1} {1:1} POST#DATA:"@@@FILE:a.out@@@"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONDATA:"{{'date':'123', 'image': {{'name': 'good', 'data':'@@@FILE:a.out@@@'}}}}"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONFILE:input.json#http://127.0.0.1:5000
 
-    - Request POST/URL to specific server with base64 encoded data from specific string "@@@BIN:SIZE@@@"
+    - {3:1} with base64 encoded data from specific string "@@@BIN:SIZE@@@"
         # {0:1} {1:1} POST#DATA:"@@@BIN:4MB@@@"#http://127.0.0.1:5000
 
-    - Request POST/URL to specific server with files
+    - {3:1} with files
         # {0:1} {1:1} POST#FILE:image:test.png:img/png#http://127.0.0.1:5000
         # {0:1} {1:1} POST#FILE:doc:test.txt:doc/txt#http://127.0.0.1:5000
         # {0:1} {1:1} POST#FILE:test.png:img/png#http://127.0.0.1:5000
 
-    - Request POST/URL to specific server with data from data.json file
+    - {3:1} with data from data.json file
         # {0:1} {1:1} POST#JSONFILE:data.json#http://127.0.0.1:5000
 
-    - Request POST/URL to specific server with data from data file
+    - {3:1} with data from data file
         # {0:1} {1:1} POST#DATAFILE:data#http://127.0.0.1:5000
 
-    - Request GET/URL to specific server infinitely
+    - {2:1} infinitely
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R
 
-    - Request GET/URL to specific server 10 times with 500ms delay
+    - {2:1} 10 times with 500ms delay
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 500:10
 
-    - Request GET/URL to specific server 10 times by 10 processes
+    - {2:1} 10 times by 10 processes
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 10 -T 10
 
-    - Request GET/URL to specific server with 5 second timeout
+    - {2:1} with 5 second timeout
         # {0:1} {1:1} GET#TIMEOUT:5#http://127.0.0.1:5000
 
-    - Request GET/URL to specific server with no verification for SSL
+    - {2:1} with no verification for SSL
         # {0:1} {1:1} GET#VERIFY:false#https://127.0.0.1:5000
 
-    - Request GET/URL to specific server with auth
+    - {2:1} with auth
         # {0:1} {1:1} GET#AUTH:id,passwd#https://127.0.0.1:5000
 
-    - Request GET/URL to specific server with cookies
+    - {2:1} with cookies
         # {0:1} {1:1} GET#COOKIES:sessionKey:sessionValue#https://127.0.0.1:5000
 
-    - Request GET/URL to specific server with headers
+    - {2:1} with headers
         # {0:1} {1:1} GET#HEADERS:Content-Type:application/json;charset=utf-8#https://127.0.0.1:5000
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Request GET/URL to specific server',
+                        'Request POST/URL to specific server')
 
                 # limitcpu #
                 elif SysMgr.checkMode('limitcpu'):
@@ -27216,17 +27232,17 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Limit CPU usage for specific threads
+    - {2:1} for specific threads
         # {0:1} {1:1} yes:20
 
-    - Limit CPU usage for specific threads (wait for new target if no task)
+    - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:20 -q WAITTASK
         # {0:1} {1:1} yes:20 -q WAITTASK:1
         # {0:1} {1:1} yes:20 -q WAITTASK, NOPIDCACHE
 
-    - Limit CPU usage of specific threads for 3 seconds
+    - {2:1} of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Limit CPU usage')
 
                 # setcpu #
                 elif SysMgr.checkMode('setcpu'):
@@ -27244,13 +27260,13 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Set the clock speed to 2,000,000HZ and the governor to userspace for CPU1
+    - {2:1} 2,000,000HZ and the governor to userspace for CPU1
         # {0:1} {1:1} 1:10000000:userspace
 
-    - Set the clock speed to 2,000,000HZ and the governor to userspace for All CPUs
+    - {2:1} 2,000,000HZ and the governor to userspace for All CPUs
         # {0:1} {1:1} :10000000:userspace
 
-    - Set the clock speed to 2,000,000HZ for CPU0
+    - {2:1} 2,000,000HZ for CPU0
         # {0:1} {1:1} 0:10000000
 
     - Set the governor to performance for CPU2
@@ -27258,7 +27274,8 @@ Examples:
 
     - Set the governor to performance for all CPUs
         # {0:1} {1:1} ::performance
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Set the clock speed to')
 
                 # convert #
                 elif SysMgr.checkMode('convert'):
@@ -27374,51 +27391,53 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads
+    - {3:1} policy(CFS), priority(-20) {2:1}
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
         # {0:1} {1:1} "-20:a*"
         # {0:1} {1:1} "-20:1234, 10:a.out, 15:test"
         # {0:1} {1:1} "-20:a.out|test"
 
-    - Set the I/O scheduler for specific threads
+    - Set the I/O scheduler {2:1}
         # {0:1} {1:1} "rt:process:1:a.out"
         # {0:1} {1:1} "idle:process:1:a.out"
         # {0:1} {1:1} "be:5:a.out"
         # {0:1} {1:1} "rt:process:1:0"
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific TID
+    - {3:1} policy(CFS), priority(-20) for specific TID
         # {0:1} {1:1} "-20:1234" -q ONLYPID
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific task name
+    - {3:1} policy(CFS), priority(-20) for specific task name
         # {0:1} {1:1} "-20:1234" -q ONLYCOMM
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific processes
+    - {3:1} policy(CFS), priority(-20) for specific processes
         # {0:1} {1:1} "-20:a.out" -q PROCSEARCH
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for all sibling threads of specific processes
+    - {3:1} policy(CFS), priority(-20) for all sibling threads of specific processes
         # {0:1} {1:1} "-20:a.out" -q PROCSEARCH -P (save CPU resource for searching tasks)
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads (wait for new target if no task)
+    - {3:1} policy(CFS), priority(-20) {2:1} (wait for new target if no task)
         # {0:1} {1:1} "-20:a.out" -q WAITTASK
         # {0:1} {1:1} "-20:a.out" -q WAITTASK:1
         # {0:1} {1:1} "-20:a.out" -q WAITTASK, NOPIDCACHE
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads after 5 seconds
+    - {3:1} policy(CFS), priority(-20) {2:1} after 5 seconds
         # {0:1} {1:1} "-20:a.out" -W 5s
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads every 2 seconds
+    - {3:1} policy(CFS), priority(-20) {2:1} every 2 seconds
         # {0:1} {1:1} "-20:a.out" -i 2
 
-    - Set the CPU scheduler policy(CFS), priority(-20) for specific threads and their siblings
+    - {3:1} policy(CFS), priority(-20) {2:1} and their siblings
         # {0:1} {1:1} "-20:a.out" -P
 
-    - Set the CPU scheduler policy(FIFO), priority(90) for specific threads
+    - {3:1} policy(FIFO), priority(90) {2:1}
         # {0:1} {1:1} "f:90:a.out"
 
-    - Set the CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for specific threads
+    - {3:1} policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) {2:1}
         # {0:1} {1:1} "d:1000000/10000000/10000000:a.out"
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'for specific threads',
+                        'Set the CPU scheduler')
 
                 # printkconf #
                 elif SysMgr.checkMode('printkconf'):
@@ -27489,18 +27508,19 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Set CPU affinity of a specific thread to use only CPU 1 and CPU 2
+    - {2:1} to use only CPU 1 and CPU 2
         # {0:1} {1:1} a.out:3
         # {0:1} {1:1} -g a.out:3
 
-    - Set CPU affinity of a specific thread to use only CPU 1 (wait for new target if no task)
+    - {2:1} to use only CPU 1 (wait for new target if no task)
         # {0:1} {1:1} a.out:2 -q WAITTASK
         # {0:1} {1:1} a.out:2 -q WAITTASK:1
         # {0:1} {1:1} a.out:2 -q WAITTASK, NOPIDCACHE
 
-    - Set CPU affinity of a specific thread to use only CPU 1 every 2 seconds
+    - {2:1} to use only CPU 1 every 2 seconds
         # {0:1} {1:1} a.out:1 -i 2
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Set CPU affinity of a specific thread')
 
                 # ping #
                 elif SysMgr.checkMode('ping'):
@@ -27522,24 +27542,25 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Send ICMP ECHO_REQUEST to network hosts
+    - {2:1}
         # {0:1} {1:1} www.google.com
         # {0:1} {1:1} "www.google.com, www.naver.com"
         # {0:1} {1:1} "192.168.100.*"
         # {0:1} {1:1} "192.168.100.10-250"
 
-    - Send ICMP ECHO_REQUEST to network hosts in a specific file
+    - {2:1} in a specific file
         # {0:1} {1:1} -I ip.txt
 
-    - Send ICMP ECHO_REQUEST to network hosts with 3 second interval infinitely
+    - {2:1} with 3 second interval infinitely
         # {0:1} {1:1} www.google.com -i 3
 
-    - Send ICMP ECHO_REQUEST to network hosts 3 times
+    - {2:1} 3 times
         # {0:1} {1:1} www.google.com -R 3
 
-    - Send ICMP ECHO_REQUEST to network hosts with 2.5 second timeout
+    - {2:1} with 2.5 second timeout
         # {0:1} {1:1} www.google.com -T 2.5
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Send ICMP ECHO_REQUEST to network hosts')
 
                 # cputest #
                 elif SysMgr.checkMode('cputest'):
@@ -27562,21 +27583,22 @@ Examples:
     - Create 10 processes using 5% of a core each other
         # {0:1} {1:1} 50:10
 
-    - Create processes using 250% CPU totally
+    - {2:1} 250% CPU totally
         # {0:1} {1:1} 250
 
     - Create threads in a process using 250% CPU totally
         # {0:1} {1:1} 250 -et
 
-    - Create processes using 250% CPU totally with RR 1 priority
+    - {2:1} 250% CPU totally with RR 1 priority
         # {0:1} {1:1} 250 -Y r:1
 
-    - Create processes using 250% CPU totally and run them only on CPU 1
+    - {2:1} 250% CPU totally and run them only on CPU 1
         # {0:1} {1:1} 250 -z :1
 
-    - Create processes using 250% CPU totally and terminate them after 3 seconds
+    - {2:1} 250% CPU totally and terminate them after 3 seconds
         # {0:1} {1:1} 250 -R 3
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Create processes using')
 
                 # memtest #
                 elif SysMgr.checkMode('memtest'):
@@ -27594,18 +27616,19 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Allocate physical memory 1G
+    - {2:1} 1G
         # {0:1} {1:1} 1G
 
-    - Allocate physical memory 200MB using a new process every 3 seconds
+    - {2:1} 200MB using a new process every 3 seconds
         # {0:1} {1:1} 200M:3
 
-    - Allocate physical memory 100MB twice using 2 processes
+    - {2:1} 100MB twice using 2 processes
         # {0:1} {1:1} 100M:0:2
 
-    - Allocate physical memory 100MB twice using 2 processes and terminate them after 3 seconds
+    - {2:1} 100MB twice using 2 processes and terminate them after 3 seconds
         # {0:1} {1:1} 100M:0:2 -R 3
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode,
+                        'Allocate physical memory')
 
                 # iotest #
                 elif SysMgr.checkMode('iotest'):
@@ -27762,7 +27785,7 @@ Examples:
     - Run server in background
         # {0:1} {1:1} -u
 
-    - Run server with specific local address
+    - {2:1} specific local address
         # {0:1} {1:1} -x 127.0.0.1:5556
 
     - Run server and register to the agent as a service node
@@ -27771,22 +27794,22 @@ Examples:
         # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-12399
         # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-
 
-    - Run server with configuration
+    - {2:1} configuration
         # {0:1} {1:1} -C
         # {0:1} {1:1} -C guider.conf
 
-    - Run server with no timeout
+    - {2:1} no timeout
         # {0:1} {1:1} -q NOTIMEOUT
 
-    - Run server with specific timeout
+    - {2:1} specific timeout
         # {0:1} {1:1} -q TIMEOUT:1.5
 
-    - Run server with specific read chunk size for command process
+    - {2:1} specific read chunk size for command process
         # {0:1} {1:1} -q READCHUNK:4096
 
-    - Run server with no output for remote reqeust
+    - {2:1} no output for remote reqeust
         # {0:1} {1:1} -q QUIET
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, '{2:1}')
 
                 # client #
                 elif SysMgr.checkMode('cli'):
