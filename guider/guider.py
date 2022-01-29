@@ -5184,6 +5184,7 @@ class UtilMgr(object):
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
+        sizePB = sizeTB << 10
 
         # convert to ABS value #
         try:
@@ -5195,14 +5196,17 @@ class UtilMgr(object):
         if unit:
             factor = 1 if isInt else 1.0
 
-            if unit.upper() == 'K':
+            upperUnit = unit.upper()
+            if upperUnit == 'K':
                 val = size / sizeKB * factor
-            elif unit.upper() == 'M':
+            elif upperUnit == 'M':
                 val = size / sizeMB * factor
-            elif unit.upper() == 'G':
+            elif upperUnit == 'G':
                 val = size / sizeGB * factor
-            elif unit.upper() == 'T':
+            elif upperUnit == 'T':
                 val = size / sizeTB * factor
+            elif upperUnit == 'P':
+                val = size / sizePB * factor
             else:
                 SysMgr.printErr(
                     "no support size unit '%s'" % unit)
@@ -5213,12 +5217,14 @@ class UtilMgr(object):
             else:
                 num = UtilMgr.convNum(round(float(val), 1), isFloat=True)
 
-            return '%s%s' % (num, unit.upper())
+            return '%s%s' % (num, upperUnit)
 
         # Int type #
         if isInt:
             try:
-                if sizeAbs >= sizeTB:
+                if sizeAbs >= sizePB:
+                    return '%dP' % (size >> 50)
+                elif sizeAbs >= sizeTB:
                     return '%dT' % (size >> 40)
                 elif sizeAbs >= sizeGB:
                     return '%dG' % (size >> 30)
@@ -5234,7 +5240,9 @@ class UtilMgr(object):
         # Float type #
         else:
             try:
-                if sizeAbs >= sizeTB:
+                if sizeAbs >= sizePB:
+                    return '%.1fP' % ((size >> 40) / 1024.0)
+                elif sizeAbs >= sizeTB:
                     return '%.1fT' % ((size >> 30) / 1024.0)
                 elif sizeAbs >= sizeGB:
                     return '%.1fG' % ((size >> 20) / 1024.0)
@@ -17216,9 +17224,8 @@ class FileAnalyzer(object):
 
             # get stat #
             memSize = val['pageCnt'] * pageSize
-            idx = val['totalSize'] + pageSize - 1
-            fileSize = long(idx / pageSize) * pageSize
-
+            nrFilePage = long((val['totalSize'] + pageSize - 1) / pageSize)
+            fileSize = nrFilePage * pageSize
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
                 per = UtilMgr.convCpuColor(per, size=5)
@@ -17602,6 +17609,10 @@ class FileAnalyzer(object):
             offset = val['offset']
             size = val['totalSize']
 
+            # get page aligned size #
+            tsize = long((size + pageSize - 1) / pageSize)
+            size = tsize * pageSize
+
             if SysMgr.guiderObj:
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SysMgr.guiderObj.mmap(0, size, 0, 2, fd, offset)
@@ -17615,9 +17626,6 @@ class FileAnalyzer(object):
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SysMgr.libcObj.mmap(
                     POINTER(c_char)(), size, 0, 2, fd, offset)
-
-                # get the size of the table to map file segment #
-                tsize = long((size + pageSize - 1) / pageSize);
 
                 # make a pagemap table #
                 pagemap = (tsize * c_ubyte)()
@@ -17636,11 +17644,9 @@ class FileAnalyzer(object):
                 try:
                     if SysMgr.guiderObj:
                         val['fileMap'] = \
-                            [ord(pagemap[i]) for i in \
-                                range(long(size / pageSize))]
+                            [ord(pagemap[i]) for i in range(tsize)]
                     else:
-                        val['fileMap'] = \
-                            [pagemap[i] for i in range(long(size / pageSize))]
+                        val['fileMap'] = [pagemap[i] for i in range(tsize)]
 
                     self.profSuccessCnt += 1
 
@@ -19179,21 +19185,25 @@ Commands:
 
 
     @staticmethod
+    def getNrSysFdHandle():
+        try:
+            with open('%s/sys/fs/file-nr' % SysMgr.procPath) as fd:
+                stats = list(map(long, fd.readline()[:-1].split()))
+                '''
+                0: the total allocated file handles
+                1: the number of currently used file handles (kernel 2.4)
+                2: the maximum file handles that can be allocated
+                '''
+                return stats
+        except SystemExit: sys.exit(0)
+        except: return None
+
+
+
+    @staticmethod
     def setMaxFd():
         if not SysMgr.isLinux:
             return
-
-        '''
-        maxFdPath = '%s/sys/fs/file-max' % SysMgr.procPath
-        try:
-            with open(maxFdPath, 'r') as fd:
-                availMaxFd = long(fd.read())
-        except:
-            availMaxFd = SysMgr.maxFd
-
-        if availMaxFd == SysMgr.maxFd:
-            return
-        '''
 
         # define resource and value #
         rtype = ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE')
@@ -48093,13 +48103,13 @@ Copyright:
         if self.openFileData:
             return
 
-        try:
-            with open('%s/sys/fs/file-nr' % SysMgr.procPath) as fd:
-                stats = list(map(long, fd.readline()[:-1].split()))
-                self.openFileData['cur'] = stats[0]
-                self.openFileData['max'] = stats[2]
-        except SystemExit: sys.exit(0)
-        except: pass
+        # get fd status #
+        stats = SysMgr.getNrSysFdHandle()
+        if not stats:
+            return
+
+        self.openFileData['cur'] = stats[0]
+        self.openFileData['max'] = stats[2]
 
 
 
@@ -87081,6 +87091,7 @@ class TaskAnalyzer(object):
         SysMgr.updateUptime()
 
         convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
 
         # print cpu usage #
         if SysMgr.isLinux:
@@ -87097,19 +87108,30 @@ class TaskAnalyzer(object):
             utime = cpuUsage[1] / diff
             stime = cpuUsage[2] / diff
             mcpu = '%d%%' % ttime
-            mcpu = UtilMgr.convCpuColor(ttime, mcpu)
             mcpuStr = '%s(U%d%%+S%d%%)' % (mcpu, utime, stime)
 
             # get CPU usage for system #
             ctime = 100 - (cpuUsage[3] / diff)
             ctime = ctime if ctime > 0 else 0
             sysCpuStr = '%d%%' % ctime
-            sysCpuStr = UtilMgr.convCpuColor(ctime, sysCpuStr)
 
             # get available memory for system #
             sysMemStr = SysMgr.getAvailMemInfo()
         else:
             cpuStr = mcpuStr = sysCpuStr = sysMemStr = '?'
+
+        # get system fd handle stats #
+        sysFds = SysMgr.getNrSysFdHandle()
+        try:
+            curFd = sysFds[0]
+            maxFd = sysFds[2]
+            fdUsage = '%.1f' % (curFd / float(maxFd) * 100)
+            sysFdStr = '%s(%s%%/%s)' % \
+                (convNum(curFd), fdUsage, convSize(maxFd, True))
+        except SystemExit: sys.exit(0)
+        except:
+            curFd = maxFd = 0
+            sysFdStr = '?'
 
         # print menu #
         if SysMgr.jsonEnable:
@@ -87117,7 +87139,9 @@ class TaskAnalyzer(object):
                 'uptime': SysMgr.uptime,
                 'uptimeDiff': SysMgr.uptimeDiff,
                 'nrProcess': self.nrProcess,
-                'nrFd': self.nrFd,
+                'nrOpenFd': self.nrFd,
+                'nrCurFdHandle': curFd,
+                'nrMaxFdHandle': maxFd,
                 'nrFile': len(self.fileData),
                 'comm': SysMgr.comm,
                 'pid': SysMgr.pid,
@@ -87126,12 +87150,11 @@ class TaskAnalyzer(object):
         else:
             SysMgr.addPrint(UtilMgr.convColor((
                 "[Top File Info] [Time: %7.3f] [Interval: %.3f] [Proc: %s] "
-                "[FD: %s] [File: %s] [SYS: %s/%s] [%s(%s): %s] "
-                "(Unit: NR)\n") % \
-                    (SysMgr.uptime, SysMgr.uptimeDiff,
-                        convNum(self.nrProcess), convNum(self.nrFd),
-                        convNum(len(self.fileData)), sysCpuStr, sysMemStr,
-                        SysMgr.comm, SysMgr.pid, mcpuStr), 'BOLD'))
+                "[Handle: %s] [FD: %s] [File: %s] [SYS: %s/%s] "
+                "[%s(%s): %s]\n") % (SysMgr.uptime, SysMgr.uptimeDiff,
+                    convNum(self.nrProcess), sysFdStr, convNum(self.nrFd),
+                    convNum(len(self.fileData)), sysCpuStr, sysMemStr,
+                    SysMgr.comm, SysMgr.pid, mcpuStr), 'BOLD'))
 
             SysMgr.addPrint("%s\n" % twoLine + \
                 ("{0:>16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|"
