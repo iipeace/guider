@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220128"
+__revision__ = "220129"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4304,8 +4304,8 @@ class UtilMgr(object):
 
         var = _variance(data)
         math = SysMgr.getPkg('math')
-        std_dev = math.sqrt(var)
-        return std_dev
+        stdDev = math.sqrt(var)
+        return stdDev
 
 
 
@@ -92329,8 +92329,8 @@ class TaskAnalyzer(object):
                 etc = '-'
 
             try:
-                sched = '%s%s' % \
-                    (SCHED_POLICY[int(stat[self.policyIdx])], schedValue)
+                schedPolicy = SCHED_POLICY[int(stat[self.policyIdx])]
+                sched = '%s%s' % (schedPolicy, schedValue)
             except SystemExit: sys.exit(0)
             except:
                 sched = '?'
@@ -92408,8 +92408,11 @@ class TaskAnalyzer(object):
             else:
                 btimestr = btime
 
+            # convert color for priority #
             try:
-                if nrPrio < 20:
+                if schedPolicy == 'I':
+                    sched = convColor(sched, 'WARNING', 4)
+                elif nrPrio < 20:
                     if nrPrio >= 0:
                         sched = convColor(sched, 'YELLOW', 4)
                     else:
@@ -92605,8 +92608,8 @@ class TaskAnalyzer(object):
             # print GPU memory info #
             if isGpuMem and idx in gpuMem:
                 SysMgr.addPrint(
-                    "{0:>39} | {1:1}\n".format(
-                        'GPUMEM', convColor(convSize(gpuMem[idx]['size']), 'CYAN')))
+                    "{0:>39} | {1:1}\n".format('GPUMEM',
+                        convColor(convSize(gpuMem[idx]['size']), 'CYAN')))
 
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
