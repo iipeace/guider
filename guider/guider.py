@@ -22616,6 +22616,19 @@ Commands:
 
 
     @staticmethod
+    def readSchedFeatures():
+        try:
+            path = '/sys/kernel/debug/sched_features'
+            fd = open(path, 'r')
+            return sorted(fd.readline().split())
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path)
+            return []
+
+
+
+    @staticmethod
     def readProcData(tid, path, num=-1):
         path = '%s/%s/%s' % (SysMgr.procPath, tid, path)
 
@@ -47009,6 +47022,8 @@ Copyright:
 
         self.printLimitInfo()
 
+        self.printSchedInfo()
+
         if not tree:
             return
 
@@ -47080,6 +47095,51 @@ Copyright:
                 if SysMgr.jsonEnable:
                     jsonData[name] = value
         except: pass
+
+        SysMgr.infoBufferPrint(twoLine)
+
+
+
+    def printSchedInfo(self):
+        def _printItems(status, items):
+            indentStr = ' ' * 11
+            enableStr = '{0:^10} '.format(status)
+            for item in items:
+                curLineLen = len(enableStr.split('\n')[-1]) + len(item) + 3
+                if curLineLen > SysMgr.ttyCols:
+                    enableStr += '\n%s' % indentStr
+                enableStr += ' | %s' % item
+            SysMgr.infoBufferPrint(enableStr)
+
+        SysMgr.infoBufferPrint('\n[Sched Feature Info]')
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(
+            '{0:^10} {1:<1}'.format('STATUS', ' | FEATURES'))
+        SysMgr.infoBufferPrint(twoLine)
+
+        # get sched features #
+        features = SysMgr.readSchedFeatures()
+        if not features:
+            SysMgr.infoBufferPrint('\tNone')
+            SysMgr.infoBufferPrint(twoLine)
+            return
+
+        # distinguish items #
+        enabled = []
+        disabled = []
+        for item in features:
+            if item.startswith('NO_'):
+                disabled.append(item)
+            else:
+                enabled.append(item)
+
+        # print enabled items #
+        if enabled:
+            _printItems('ENABLE', enabled)
+
+        # print disabled items #
+        if enabled:
+            _printItems('DISABLE', disabled)
 
         SysMgr.infoBufferPrint(twoLine)
 
