@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220129"
+__revision__ = "220131"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4095,22 +4095,28 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def printHist(table, title, unit):
+    def printHist(table, title, unit, printer=None, newline=''):
         if not table:
             return
 
         convNum = UtilMgr.convNum
+        if not printer:
+            printer = SysMgr.printPipe
 
         # pop stats #
-        statmin = table.pop('min', None)
-        statmax = table.pop('max', None)
-        statcnt = table.pop('cnt', None)
-        statsum = table.pop('sum', None)
+        try:
+            statmin = table.pop('min', None)
+            statmax = table.pop('max', None)
+            statcnt = table.pop('cnt', None)
+            statsum = table.pop('sum', None)
+        except SystemExit: sys.exit(0)
+        except:
+            pass
 
-        SysMgr.printPipe(
-            '\n[%s Histogram] (unit:%s)\n%s' % (title, unit, twoLine))
-        SysMgr.printPipe('{0:^21}   {1:^17}'.format('Range', 'Count'))
-        SysMgr.printPipe(oneLine)
+        printer('\n[%s Histogram] (unit:%s)\n%s%s' % \
+            (title, unit, twoLine, newline))
+        printer('{0:^21}   {1:^17}\n{2:1}{3:1}'.format(
+            'Range', 'Count', oneLine, newline))
 
         for digit, cnt in sorted(table.items()):
             srange = long(pow(2, digit-1))
@@ -4120,17 +4126,20 @@ class UtilMgr(object):
             else:
                 erange = long((srange<<1)-1)
 
-            SysMgr.printPipe(
-                '{0:10}-{1:>10}   {2:>10}({3:5.1f}%)'.format(
-                    convNum(srange), convNum(erange), convNum(cnt),
-                    cnt/float(statcnt)*100))
+            printer('{0:10}-{1:>10}   {2:>10}({3:5.1f}%){4:1}'.format(
+                convNum(srange), convNum(erange), convNum(cnt),
+                cnt/float(statcnt)*100, newline))
 
-        SysMgr.printPipe(oneLine)
-        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Min', convNum(statmin)))
-        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Max', convNum(statmax)))
-        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Cnt', convNum(statcnt)))
-        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Sum', convNum(statsum)))
-        SysMgr.printPipe(oneLine)
+        try:
+            printer((
+                '{0:1}\n{1:^21}   {2:>17}\n{3:^21}   {4:>17}\n'
+                '{5:^21}   {6:>17}\n{7:^21}   {8:>17}\n{0:1}\n').format(
+                    oneLine, 'Min', convNum(statmin),
+                    'Max', convNum(statmax), 'Cnt', convNum(statcnt),
+                    'Sum', convNum(statsum)))
+        except SystemExit: sys.exit(0)
+        except:
+            pass
 
 
 
@@ -23582,6 +23591,9 @@ Examples:
     - {3:1} {7:1} with call interval info including stdev
         # {0:1} {1:1} -g a.out -q INTERCALL, STDEV
 
+    - {3:1} {7:1} with call interval info including stdev, histogram
+        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV, PRINTHIST
+
     - {3:1} {8:1} excluding specific environment variable
         # {0:1} {1:1} "ls" -q REMOVEENV:MAIL
 
@@ -23781,6 +23793,7 @@ Examples:
 
     - {5:1} and print call contexts if only the elapsed time exceed 0.0005 second {7:1} {4:1}
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005"
+        # {0:1} {1:1} -g a.out -c "write|getret|filter:RETTIME:BT:0.0005" -q COMPLETECALL -a
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005" -H -a
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005|filter:0:BT:0"
         # {0:1} {1:1} -g a.out -c "write|filter:RETTIME:BT:0.0005:exit"
@@ -24440,6 +24453,9 @@ Examples:
 
     - {2:1} with stdev for elapsed time {3:1}
         # {0:1} {1:1} -g a.out -q STDEV
+
+    - {2:1} with stdev and histogram for elapsed time {3:1}
+        # {0:1} {1:1} -g a.out -q STDEV, PRINTHIST
 
     - {2:1} with backtrace {3:1}
         # {0:1} {1:1} -g a.out -H
@@ -53355,6 +53371,7 @@ class Debugger(object):
         'NORETBT': False,
         'INTERCALL': False,
         'STDEV': False,
+        'PRINTHIST': False,
         'HIDESYM': False,
         'PRINTOVERHEAD': False,
     }
@@ -58484,6 +58501,10 @@ typedef struct {
                 SysMgr.printWarn('terminated by timer\n', True)
                 sys.exit(0)
 
+        def _printHist(items, title):
+            itemList = UtilMgr.convList2Histo(items, mult=1000000)
+            UtilMgr.printHist(itemList, title, 'us', SysMgr.addPrint, '\n')
+
         def _finishPrint(self, needStop=False, term=False, flush=True):
             # flush print buffer #
             if flush:
@@ -58610,6 +58631,12 @@ typedef struct {
             else:
                 return
 
+        # define variables #
+        nrTotal = float(self.totalCall)
+        convert = UtilMgr.convNum
+        convColor = UtilMgr.convColor
+        convFloat = UtilMgr.convFloat2Str
+
         # set table name #
         if self.mode == 'syscall':
             ctype = 'Syscall'
@@ -58620,20 +58647,20 @@ typedef struct {
             sampleStr = ''
         elif self.mode == 'break':
             ctype = 'Breakcall'
-            addInfo = '[PATH] <Interval>'
+            addInfo = '[PATH] <Interval/Elapsed[RET]>'
             sampleStr = ''
         elif self.mode == 'pycall':
             ctype = 'Pycall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [Freq: %s]' % UtilMgr.convFloat2Str(self.sampleTime)
+            sampleStr = ' [Freq: %s]' % convFloat(self.sampleTime)
         elif self.mode == 'kernel':
             ctype = 'Kernelcall'
             addInfo = '<Sample>'
-            sampleStr = ' [Freq: %s]' % UtilMgr.convFloat2Str(self.sampleTime)
+            sampleStr = ' [Freq: %s]' % convFloat(self.sampleTime)
         else:
             ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [Freq: %s]' % UtilMgr.convFloat2Str(self.sampleTime)
+            sampleStr = ' [Freq: %s]' % convFloat(self.sampleTime)
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
@@ -58646,11 +58673,6 @@ typedef struct {
                         self.cont(check=True, sig=sig) == 0:
                         needStop = True
                 except: pass
-
-        # define variables #
-        nrTotal = float(self.totalCall)
-        convert = UtilMgr.convNum
-        convColor = UtilMgr.convColor
 
         # update resource usage for myself #
         cpuUsage = Debugger.tracerInstance.getCpuUsage()
@@ -58769,6 +58791,8 @@ typedef struct {
                     sym in self.syscallInterStat and \
                     self.syscallInterStat[sym]:
                     stdev = UtilMgr.getStdev(self.syscallInterStat[sym])
+                    if Debugger.envFlags['PRINTHIST']:
+                        _printHist(self.syscallInterStat[sym], sym)
                 else:
                     stdev = -1
 
@@ -58828,6 +58852,8 @@ typedef struct {
                     sym in self.bpcallInterStat and \
                     self.bpcallInterStat[sym]:
                     stdev = UtilMgr.getStdev(self.bpcallInterStat[sym])
+                    if Debugger.envFlags['PRINTHIST']:
+                        _printHist(self.bpcallInterStat[sym], sym)
                 else:
                     stdev = -1
 
@@ -60677,12 +60703,13 @@ typedef struct {
 
 
 
-    def updateBpStat(self, sym):
+    def updateBpStat(self, sym, tdiff=0):
         # apply stat #
         try:
             prev, ttotal, tmin, tmax = self.bpcallStat[sym]
 
-            self.interDiff = tdiff = self.vdiff - prev
+            if tdiff == 0:
+                self.interDiff = tdiff = self.vdiff - prev
             ttotal += tdiff
 
             if tmax < tdiff:
@@ -60904,10 +60931,21 @@ typedef struct {
             else:
                 backtrace = None
 
+            # handle return filter #
+            if isRetBp:
+                etime, elapsed, hasRetFilter, skip, retcmd = \
+                    self.handleRetBpFilter(sym)
+                if skip: return isRetBp
+
+                # update elapsed time #
+                diff = float(elapsed.lstrip('/'))
+                self.updateBpStat(sym, diff)
+            else:
+                # update interval time #
+                self.updateBpStat(sym)
+
             self.addSample(
                 sym, fname, realtime=True, bt=backtrace)
-
-            self.updateBpStat(sym)
 
             return isRetBp
 
@@ -63572,9 +63610,7 @@ typedef struct {
         self.dstart = time.time()
 
         # set update flag for time #
-        if SysMgr.isTraceMode() or \
-            self.isBreakMode or \
-            self.mode == 'syscall':
+        if self.isBreakMode or syscallMode or SysMgr.isTraceMode():
             updateTime = True
         else:
             updateTime = False
