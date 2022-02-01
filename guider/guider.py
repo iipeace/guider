@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220131"
+__revision__ = "220201"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4348,8 +4348,7 @@ class UtilMgr(object):
                     os.path.splitext(os.path.basename(inputPath))[0], name)
                 outputPath = os.path.join(dirName, fileName)
         else:
-            outputPath = UtilMgr.prepareForImageFile(
-                inputPath, 'flamegraph')
+            outputPath = UtilMgr.prepareForImageFile(inputPath, name)
 
         return os.path.abspath(outputPath)
 
@@ -7877,9 +7876,9 @@ class Timeline(object):
                 random.shuffle(self.PALETTE)
 
         @staticmethod
-        def _load(file_name=None, data=None):
-            if file_name:
-                with open(file_name) as fd:
+        def _load(fileName=None, data=None):
+            if fileName:
+                with open(fileName) as fd:
                     data = fd.read()
                     data = UtilMgr.convStr2Dict(data)
             elif not data:
@@ -8006,7 +8005,7 @@ class Timeline(object):
                 fill='rgb(200,200,200)'))
 
             # add info #
-            addinfo = yval[name] if name in yval else ''
+            addinfo = yval[name] if yval and name in yval else ''
             if addinfo:
                 x = self.config.FONT_SIZE*self.scaled_height*len(str(name))/5
                 dwg.add(dwg.text(
@@ -8306,9 +8305,9 @@ class Timeline(object):
 
 
     @staticmethod
-    def load(file_name=None, data=None, config=None, tasks=None):
-        if file_name:
-            with open(file_name) as json_file:
+    def load(fileName=None, data=None, config=None, tasks=None):
+        if fileName:
+            with open(fileName) as json_file:
                 # get json object #
                 json = SysMgr.getPkg('json')
 
@@ -8371,6 +8370,8 @@ class Timeline(object):
 
         # load segments #
         segments = Timeline._load_segments(data, time_factor)
+        if not segments:
+            return None
 
         return Timeline(title, segments, time_unit, fontsize, config, tasks)
 
@@ -23877,6 +23878,10 @@ Examples:
     - {3:1} and execute specific commands {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
+
+    - {3:1} {7:1} and draw timeline segments for all function calls
+        # {0:1} {1:1} -g a.out -q PRINTTIMELINE, TIMEUNIT:us, DURATION:100, INTERCALL
+        # {0:1} {1:1} -g a.out -c "*|getret" -q PRINTTIMELINE, TIMEUNIT:us, COMPLETECALL
                 '''.format(cmd, mode, cmdListStr,
                     'Trace all native calls',
                     'when specific calls detected',
@@ -25512,6 +25517,10 @@ Examples:
 
     - {3:1} and print memory that 2nd argument point to
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
+
+    - {3:1} {5:1} and draw timeline segments for all syscalls
+        # {0:1} {1:1} -g a.out -q PRINTTIMELINE, TIMEUNIT:us, DURATION:100, INTERCALL
+        # {0:1} {1:1} -g a.out -q PRINTTIMELINE, TIMEUNIT:us
                     '''.format(cmd, mode, cmdListStr,
                         'Trace all syscalls',
                         'Trace specific syscalls',
@@ -31779,6 +31788,9 @@ Copyright:
 
             # load data #
             timeline = Timeline.load(inputPath, inputData, config, taskList)
+            if not timeline:
+                SysMgr.printErr('no time segment on timeline')
+                return
 
             # set stroke candidate #
             if 'STROKE' in SysMgr.environList:
@@ -53367,6 +53379,7 @@ class Debugger(object):
         'ONLYFAIL': False,
         'WAITCLONE': False,
         'COMPLETECALL': False,
+        'PRINTTIMELINE': False,
         'NOSAMPLECACHE': False,
         'NORETBT': False,
         'INTERCALL': False,
@@ -53727,6 +53740,14 @@ class Debugger(object):
         self.startStack = None
         self.endStack = None
         self.stackSize = 0
+
+        # timeline #
+        self.timelineData = {"time_unit": "us", "segments": []}
+        self.timelineIdx = {}
+        if 'DURATION' in SysMgr.environList:
+            self.timeDuration = long(SysMgr.environList['DURATION'][0])
+        else:
+            self.timeDuration = 1
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -60995,6 +61016,7 @@ typedef struct {
                         addStr = ''
 
                     # convert elapsed color #
+                    origElapsed = elapsed
                     if etime > self.retTime:
                         elapsed = convColor(elapsed, 'RED')
                     else:
@@ -61019,7 +61041,7 @@ typedef struct {
                                     else '%s(%s)' % (self.comm, self.pid),
                                 'symbol': origSym,
                                 'return': retstr.lstrip('='),
-                                'elapsed': elapsed.lstrip('/'),
+                                'elapsed': origElapsed.lstrip('/'),
                                 'caller': addStr.lstrip('-> ')
                             }
                         else:
@@ -61030,6 +61052,32 @@ typedef struct {
                                     convColor(entryData['file'], 'YELLOW'),
                                     convColor(retstr, 'PINK'),
                                     elapsed, addStr)
+
+                        # add timeline segment #
+                        if Debugger.envFlags['PRINTTIMELINE']:
+                            # get group id #
+                            if not origSym in self.timelineIdx:
+                                self.timelineIdx[origSym] = \
+                                    len(self.timelineIdx)
+                            symidx = self.timelineIdx[origSym]
+
+                            # convert time unit to us #
+                            numElapsed = float(origElapsed.lstrip('/'))
+                            startTime = self.vdiff - numElapsed
+                            endTime = self.vdiff
+                            endTime *= 1000000
+                            startTime *= 1000000
+
+                            # add timeline data #
+                            self.timelineData['segments'].append({
+                                'group': symidx,
+                                'text': origSym,
+                                'id': symidx,
+                                'state': 'S',
+                                'time_start': startTime,
+                                'time_end': endTime,
+                            })
+
                     # build JSON output #
                     elif SysMgr.jsonEnable:
                         jsonData = {
@@ -61039,7 +61087,7 @@ typedef struct {
                                 else '%s(%s)' % (self.comm, self.pid),
                             'symbol': sym,
                             'return': retstr.lstrip('='),
-                            'elapsed': elapsed.lstrip('/'),
+                            'elapsed': origElapsed.lstrip('/'),
                             'caller': addStrlstrip('-> ')
                         }
                     # build string output #
@@ -61083,6 +61131,26 @@ typedef struct {
                     (diffstr, tinfo, indent, convColor(sym, symColor),
                         elapsed, hex(addr).rstrip('L'), argstr,
                         convColor(fname, 'YELLOW'))
+
+                # add timeline segment #
+                if Debugger.envFlags['PRINTTIMELINE']:
+                    # get group id #
+                    if not sym in self.timelineIdx:
+                        self.timelineIdx[sym] = len(self.timelineIdx)
+                    symidx = self.timelineIdx[sym]
+
+                    # convert time unit to us #
+                    startTime = self.vdiff * 1000000
+
+                    # add timeline data #
+                    self.timelineData['segments'].append({
+                        'group': symidx,
+                        'text': sym,
+                        'id': symidx,
+                        'state': 'S',
+                        'time_start': startTime,
+                        'time_end': startTime + self.timeDuration,
+                    })
 
         # check filter result #
         if not filterRes:
@@ -62538,6 +62606,26 @@ typedef struct {
                 except SystemExit: sys.exit(0)
                 except: pass
 
+                # add timeline segment #
+                if Debugger.envFlags['PRINTTIMELINE']:
+                    # get group id #
+                    if not name in self.timelineIdx:
+                        self.timelineIdx[name] = len(self.timelineIdx)
+                    symidx = self.timelineIdx[name]
+
+                    # convert time unit to us #
+                    startTime = self.vdiff * 1000000
+
+                    # add timeline data #
+                    self.timelineData['segments'].append({
+                        'group': symidx,
+                        'text': name,
+                        'id': symidx,
+                        'state': 'S',
+                        'time_start': startTime,
+                        'time_end': startTime + self.timeDuration,
+                    })
+
             args = []
             self.syscallTime[name] = self.vdiff
 
@@ -62668,6 +62756,29 @@ typedef struct {
 
                 # change color for return #
                 retstr = convColor(retstr, 'WARNING')
+
+            # add timeline segment #
+            if Debugger.envFlags['PRINTTIMELINE']:
+                # get group id #
+                if not name in self.timelineIdx:
+                    self.timelineIdx[name] = len(self.timelineIdx)
+                symidx = self.timelineIdx[name]
+
+                # convert time unit to us #
+                startTime = self.vdiff - diff
+                endTime = self.vdiff
+                endTime *= 1000000
+                startTime *= 1000000
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': symidx,
+                    'text': name,
+                    'id': symidx,
+                    'state': 'S',
+                    'time_start': startTime,
+                    'time_end': endTime,
+                })
 
             # update stats #
             if self.isRealtime:
@@ -64079,14 +64190,33 @@ typedef struct {
 
     @staticmethod
     def destroyDebugger(instance):
+        def _printTimeline():
+            if Debugger.envFlags['PRINTTIMELINE']:
+                # get symbol list #
+                ylist = {y:x for x,y in instance.timelineIdx.items()}
+
+                # get output path #
+                if SysMgr.outPath:
+                    outPath = SysMgr.inputFile
+                else:
+                    outPath = '/tmp/guider_%s.svg' % instance.pid
+                outPath = UtilMgr.getDrawOutputPath(outPath, 'timeline')
+
+                # draw timeline #
+                SysMgr.drawTimeline(
+                    inputData=instance.timelineData,
+                    outputPath=outPath, yval=ylist)
+
         Debugger.dbgInstance = None
 
         # check condition for breakpoint cleanup #
-        if not instance.pid or \
-            SysMgr.inputParam or \
-            not instance.bpList or \
-            not instance.isAlive():
+        if not instance.pid or SysMgr.inputParam or \
+            not instance.bpList or not instance.isAlive():
+            # print timeline #
+            _printTimeline()
+            # remove instance #
             instance.__del__()
+            # return #
             return
 
         # stop target #
@@ -64154,6 +64284,9 @@ typedef struct {
             SysMgr.printEnable = True
             instance.removeAllBp(tgid)
             SysMgr.printEnable = origPrintFlag
+
+        # draw timeline segment #
+        _printTimeline()
 
         # remove new breakpoins for childs after fork #
         for addr in list(instance.bpNewList):
