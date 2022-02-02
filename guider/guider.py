@@ -7768,6 +7768,7 @@ class Timeline(object):
             self.id = None
             self.color = None
             self.state = None
+            self.info = None
             self._init_extra(extra)
 
         def _init_extra(self, extra):
@@ -7782,6 +7783,9 @@ class Timeline(object):
 
             if "state" in extra:
                 self.state = extra["state"]
+
+            if "info" in extra:
+                self.info = extra["info"]
 
 
 
@@ -8155,10 +8159,16 @@ class Timeline(object):
         convNum = UtilMgr.convNum
         durationstr = convNum(duration)
 
+        if hasattr(segment, 'info') and segment.info:
+            info = '\n%s' % segment.info
+        else:
+            info = ''
+
         # create the drawing group #
         g = dwg.add(dwg.g())
-        g.set_desc('%s %s / ~%s (%s)' % \
-            (segment.text, durationstr, convNum(time_end), self.time_unit))
+        g.set_desc('%s %s / ~%s (%s)%s' % \
+            (segment.text, durationstr, convNum(time_end),
+                self.time_unit, info))
 
         # draw line for block_read status #
         if segment.state == 'RD':
@@ -23891,6 +23901,7 @@ Examples:
 
     - {3:1} {7:1} and draw timeline segments for all function calls
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
         # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL
         # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL, GROUPFONTSIZE:30
                 '''.format(cmd, mode, cmdListStr,
@@ -25531,6 +25542,7 @@ Examples:
 
     - {3:1} {5:1} and draw timeline segments for all syscalls
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, GROUPFONTSIZE:30
                     '''.format(cmd, mode, cmdListStr,
                         'Trace all syscalls',
@@ -61087,6 +61099,7 @@ typedef struct {
                                 'state': 'S',
                                 'time_start': startTime,
                                 'time_end': endTime,
+                                'info': btstr.strip(),
                             })
 
                     # build JSON output #
@@ -61161,6 +61174,7 @@ typedef struct {
                         'state': 'S',
                         'time_start': startTime,
                         'time_end': startTime + self.timeDuration,
+                        'info': btstr.strip(),
                     })
 
         # check filter result #
@@ -62388,6 +62402,27 @@ typedef struct {
             backtrace = None
             bts = ''
 
+        # add timeline segment #
+        if Debugger.envFlags['TIMELINE'] and Debugger.envFlags['INTERCALL']:
+            # get group id #
+            if not self.syscall in self.timelineIdx:
+                self.timelineIdx[self.syscall] = len(self.timelineIdx)
+            symidx = self.timelineIdx[self.syscall]
+
+            # convert time unit to us #
+            startTime = self.vdiff * 1000000
+
+            # add timeline data #
+            self.timelineData['segments'].append({
+                'group': symidx,
+                'text': self.syscall,
+                'id': symidx,
+                'state': 'S',
+                'time_start': startTime,
+                'time_end': startTime + self.timeDuration,
+                'info': bts.strip(),
+            })
+
         # set filter flag #
         if Debugger.envFlags['ONLYOK'] or Debugger.envFlags['ONLYFAIL']:
             filtered = True
@@ -62617,26 +62652,6 @@ typedef struct {
                 except SystemExit: sys.exit(0)
                 except: pass
 
-                # add timeline segment #
-                if Debugger.envFlags['TIMELINE']:
-                    # get group id #
-                    if not name in self.timelineIdx:
-                        self.timelineIdx[name] = len(self.timelineIdx)
-                    symidx = self.timelineIdx[name]
-
-                    # convert time unit to us #
-                    startTime = self.vdiff * 1000000
-
-                    # add timeline data #
-                    self.timelineData['segments'].append({
-                        'group': symidx,
-                        'text': name,
-                        'id': symidx,
-                        'state': 'S',
-                        'time_start': startTime,
-                        'time_end': startTime + self.timeDuration,
-                    })
-
             args = []
             self.syscallTime[name] = self.vdiff
 
@@ -62769,7 +62784,8 @@ typedef struct {
                 retstr = convColor(retstr, 'WARNING')
 
             # add timeline segment #
-            if Debugger.envFlags['TIMELINE']:
+            if Debugger.envFlags['TIMELINE'] and \
+                not Debugger.envFlags['INTERCALL']:
                 # get group id #
                 if not name in self.timelineIdx:
                     self.timelineIdx[name] = len(self.timelineIdx)
@@ -62789,6 +62805,7 @@ typedef struct {
                     'state': 'S',
                     'time_start': startTime,
                     'time_end': endTime,
+                    'info': self.prevBtStr,
                 })
 
             # update stats #
