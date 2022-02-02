@@ -36460,8 +36460,29 @@ Copyright:
             else:
                 envFileList = []
 
+            # apply new variables from process #
+            if 'ENVPROC' in SysMgr.environList:
+                SysMgr.checkRootPerm()
+
+                # get PIDs #
+                tasks = SysMgr.environList['ENVPROC']
+                pids = SysMgr.convTaskList(
+                    tasks, exceptMe=True)
+                if not pids:
+                    SysMgr.printErr(
+                        "no process related to '%s'" % ', '.join(tasks))
+                    return
+
+                # copy variables #
+                for pid in pids:
+                    comm = SysMgr.getComm(pid, True)
+                    myEnv.update(SysMgr.getEnv(pid, retdict=True))
+                    SysMgr.printInfo(
+                        'applied environment variables for %s(%s)' % \
+                            (comm, pid))
+
             # check return condition #
-            if not envList and envFileList:
+            if not envList and not envFileList:
                 return myEnv
 
             _applyList(myEnv, envList)
@@ -36482,7 +36503,7 @@ Copyright:
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
-                'failed to parse enviroment variable', reason=True)
+                'failed to parse enviroment variables', reason=True)
             return None
 
 
