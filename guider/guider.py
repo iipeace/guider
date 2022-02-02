@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220201"
+__revision__ = "220202"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7984,6 +7984,18 @@ class Timeline(object):
             (self.config.TIME_AXIS_HEIGHT, self.config.HEIGHT),
             fill='black'))
 
+        # set title font size #
+        if 'GROUPFONTSIZE' in SysMgr.environList:
+            try:
+                val = SysMgr.environList['GROUPFONTSIZE'][0]
+                fontsize = long(val)
+            except:
+                SysMgr.printErr(
+                    "failed to set group font size to '%s'" % val, True)
+                sys.exit(0)
+        else:
+            fontsize = self.scaled_height/2
+
         idx = 0
         groupList = list(self.segment_groups)
         for y_tick in range(self.config.HEIGHT):
@@ -8000,19 +8012,16 @@ class Timeline(object):
                 stroke='black', stroke_width=2))
 
             dwg.add(dwg.text(
-                name, (self.config.FONT_SIZE, y_tick+self.scaled_height),
-                font_size=self.scaled_height/2,
-                fill='rgb(200,200,200)'))
+                name, (2, y_tick+self.scaled_height),
+                font_size=fontsize, fill='rgb(200,200,200)'))
 
             # add info #
             addinfo = yval[name] if yval and name in yval else ''
             if addinfo:
-                x = self.config.FONT_SIZE*self.scaled_height*len(str(name))/5
+                x = 2*self.scaled_height*len(str(name))/5
                 dwg.add(dwg.text(
                     addinfo, (x, y_tick+self.scaled_height),
-                    font_size=self.scaled_height/2/2,
-                    fill='rgb(200,200,200)'))
-
+                    font_size=fontsize/2, fill='rgb(200,200,200)'))
 
 
 
@@ -23499,6 +23508,7 @@ Examples:
 
     - Draw graphs with specific font size
         # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
+        # {0:1} {1:1} guider.out worstcase.out -q GROUPFONTSIZE:30
 
     - Draw graphs of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
@@ -23880,8 +23890,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
 
     - {3:1} {7:1} and draw timeline segments for all function calls
-        # {0:1} {1:1} -g a.out -q PRINTTIMELINE, TIMEUNIT:us, DURATION:100, INTERCALL
-        # {0:1} {1:1} -g a.out -c "*|getret" -q PRINTTIMELINE, TIMEUNIT:us, COMPLETECALL
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100
+        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL
+        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL, GROUPFONTSIZE:30
                 '''.format(cmd, mode, cmdListStr,
                     'Trace all native calls',
                     'when specific calls detected',
@@ -25519,8 +25530,8 @@ Examples:
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
 
     - {3:1} {5:1} and draw timeline segments for all syscalls
-        # {0:1} {1:1} -g a.out -q PRINTTIMELINE, TIMEUNIT:us, DURATION:100, INTERCALL
-        # {0:1} {1:1} -g a.out -q PRINTTIMELINE, TIMEUNIT:us
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, GROUPFONTSIZE:30
                     '''.format(cmd, mode, cmdListStr,
                         'Trace all syscalls',
                         'Trace specific syscalls',
@@ -53379,7 +53390,7 @@ class Debugger(object):
         'ONLYFAIL': False,
         'WAITCLONE': False,
         'COMPLETECALL': False,
-        'PRINTTIMELINE': False,
+        'TIMELINE': False,
         'NOSAMPLECACHE': False,
         'NORETBT': False,
         'INTERCALL': False,
@@ -61054,7 +61065,7 @@ typedef struct {
                                     elapsed, addStr)
 
                         # add timeline segment #
-                        if Debugger.envFlags['PRINTTIMELINE']:
+                        if Debugger.envFlags['TIMELINE']:
                             # get group id #
                             if not origSym in self.timelineIdx:
                                 self.timelineIdx[origSym] = \
@@ -61133,7 +61144,7 @@ typedef struct {
                         convColor(fname, 'YELLOW'))
 
                 # add timeline segment #
-                if Debugger.envFlags['PRINTTIMELINE']:
+                if Debugger.envFlags['TIMELINE']:
                     # get group id #
                     if not sym in self.timelineIdx:
                         self.timelineIdx[sym] = len(self.timelineIdx)
@@ -62607,7 +62618,7 @@ typedef struct {
                 except: pass
 
                 # add timeline segment #
-                if Debugger.envFlags['PRINTTIMELINE']:
+                if Debugger.envFlags['TIMELINE']:
                     # get group id #
                     if not name in self.timelineIdx:
                         self.timelineIdx[name] = len(self.timelineIdx)
@@ -62758,7 +62769,7 @@ typedef struct {
                 retstr = convColor(retstr, 'WARNING')
 
             # add timeline segment #
-            if Debugger.envFlags['PRINTTIMELINE']:
+            if Debugger.envFlags['TIMELINE']:
                 # get group id #
                 if not name in self.timelineIdx:
                     self.timelineIdx[name] = len(self.timelineIdx)
@@ -64191,7 +64202,7 @@ typedef struct {
     @staticmethod
     def destroyDebugger(instance):
         def _printTimeline():
-            if Debugger.envFlags['PRINTTIMELINE']:
+            if Debugger.envFlags['TIMELINE']:
                 # get symbol list #
                 ylist = {y:x for x,y in instance.timelineIdx.items()}
 
@@ -64201,6 +64212,9 @@ typedef struct {
                 else:
                     outPath = '/tmp/guider_%s.svg' % instance.pid
                 outPath = UtilMgr.getDrawOutputPath(outPath, 'timeline')
+
+                # backup #
+                SysMgr.backupFile(outPath)
 
                 # draw timeline #
                 SysMgr.drawTimeline(
