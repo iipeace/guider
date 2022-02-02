@@ -15930,20 +15930,21 @@ class LeakAnalyzer(object):
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:^16} | {1:^6} |{2:^50}| {3:^73} |".\
-            format("Time", "Size", "Data", "Stack"))
+            "{0:^16} | {1:^16} | {2:^6} |{3:^50}| {4:^53} |".\
+            format("Time", "Addr", "Size", "Data", "Stack"))
         SysMgr.printPipe(oneLine)
 
         for time, items in sorted(self.callData.items(),
             key=lambda e: e[0], reverse=False):
 
-            stack = list(items['symstack'])
+            stack = ' <- '.join(
+                ['%s(%s)[%s]' % (item[1], item[0], item[2]) for item \
+                    in list(items['symstack'])])
 
             SysMgr.printPipe(
-                "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
-                    format(time, convSize(long(items['size'])),
-                    items['data'][:-1], ' <- '.join(stack)))
-            count += 1
+                "{0:>16} | {1:>16} | {2:>6} |{3:<50}| {4:<53} |".\
+                    format(time, items['addr'] if 'addr' in items else ' ',
+                    convSize(long(items['size'])), items['data'][:-1], stack))
         SysMgr.printPipe(oneLine)
 
 
@@ -26943,6 +26944,7 @@ Options:
     -T  <FILE>                  set hook file
     -g  <PID|COMM>              set target process
     -k  <{{START,}}STOP>          set signal
+    -R  <TIME>                  set timer
     -C  <PATH>                  set config path
     -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
@@ -26960,6 +26962,9 @@ Examples:
     - {3:1} {2:1} after setting environment variables
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -g a.out -o ./guider.out
+
+    - {3:1} {2:1} after setting environment variables for 5 seconds
+        # {0:1} {1:1} -g a.out -R 5
 
     - {3:1} {2:1} with binary injection
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
@@ -41922,6 +41927,10 @@ Copyright:
         if not startTime:
             SysMgr.updateUptime()
             startTime = SysMgr.uptime
+
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
 
         # STOP #
         if endSize > 0:
