@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220202"
+__revision__ = "220203"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5412,6 +5412,21 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def saveStr2File(string, path):
+        # open the file #
+        try:
+            with open(path, 'w') as fd:
+                fd.truncate()
+                fd.write(string)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to write JSON format data to %s" % path, True)
+            sys.exit(0)
+
+
+
+    @staticmethod
     def writeJsonObject(jsonObj, fd=None, trunc=False, path=None):
         if fd:
             try:
@@ -5423,7 +5438,6 @@ class UtilMgr(object):
 
             try:
                 fd.write(jsonObj)
-
                 fd.flush()
             except SystemExit: sys.exit(0)
             except:
@@ -5450,7 +5464,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def saveObjectToFile(obj, path):
+    def saveObject2File(obj, path):
         if not obj:
             return False
 
@@ -8324,7 +8338,9 @@ class Timeline(object):
 
 
     @staticmethod
-    def load(fileName=None, data=None, config=None, tasks=None):
+    def load(fileName=None, data=None, config=None,
+        tasks=None, begin=0, end=0):
+
         if fileName:
             with open(fileName) as json_file:
                 # get json object #
@@ -8347,7 +8363,14 @@ class Timeline(object):
         else:
             title = ''
 
-        # get title #
+        # get font size #
+        if "names" in data and data['names']:
+            if tasks:
+                tasks.update(data['names'])
+            else:
+                tasks = data['names']
+
+        # get font size #
         if "font_size" in data:
             fontsize = data['font_size']
         else:
@@ -8383,12 +8406,13 @@ class Timeline(object):
             time_unit = new_time_unit
             config.TIMEFACTOR = time_factor
 
+        # print time unit #
         if time_unit:
             SysMgr.printInfo(
                 "apply '%s' in time unit" % time_unit)
 
         # load segments #
-        segments = Timeline._load_segments(data, time_factor)
+        segments = Timeline._load_segments(data, time_factor, begin, end)
         if not segments:
             return None
 
@@ -8397,7 +8421,7 @@ class Timeline(object):
 
 
     @staticmethod
-    def _load_segments(data, time_factor=1):
+    def _load_segments(data, time_factor=1, begin=0, end=0):
         segments = []
         for segment_data in sorted(
             data["segments"], key=lambda e: e['time_start']):
@@ -8413,8 +8437,19 @@ class Timeline(object):
                         segment_data)
                 continue
 
+            # convert time #
             time_start = long(segment_data["time_start"] * time_factor)
             time_end = long(segment_data["time_end"] * time_factor)
+
+            # check time #
+            if end > 0 and time_end > end:
+                time_end = end
+                if time_start > end:
+                    continue
+            if begin > 0 and time_start < begin:
+                if time_end < begin:
+                    continue
+                time_start = begin
 
             # add segment #
             segments.append(Timeline.Segment(
@@ -23665,6 +23700,9 @@ Examples:
     - {3:1} except for arguments {7:1}
         # {0:1} {1:1} -g a.out -q NOARG
 
+    - {3:1} except for file {7:1}
+        # {0:1} {1:1} -g a.out -q NOFILE
+
     - {3:1} except for ld {7:1}
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
@@ -26103,33 +26141,49 @@ Description:
 
                     drawTimelineStr = '''
 Format:
-    DATA: {{
+    < DATA >
+    {
       "title": "example",   // optional for title
-      "font_size": 3,            // optional for font size
+      "font_size": 3,       // optional for font size
       "time_unit": "ms",    // [sec | ms | ns]
+      "names": {            // optional for name
+        '0': "task1",
+        '1': "task2",
+        '2': "task3"
+        }
       "segments": [
-        {{
+        {
           "group": 0,
           "text": "task0",
           "time_start": 10,
-          "time_end": 40
+          "time_end": 40,
           "id": 12,         // optional for class
           "color": "red",   // optional for color
-          "state": 'OFF',   // optional for event
-        }},
-        {{
+          "state": "S"      // optional for event
+        },
+        {
           "group": 1,
-          "text": "task1",
-          "time_start": 10,
-          "time_end": 40
+          "text": "task2",
+          "time_start": 0,
+          "time_end": 20,
           "id": 13,
+          "color": "black",
+          "state": "S"
+        },
+        {
+          "group": 1,
+          "text": "task3",
+          "time_start": 30,
+          "time_end": 35,
+          "id": 14,
           "color": "rgb(128,0,128)",
-          "state": 'OFF',
-        }}
+          "state": "S"
+        }
       ]
-    }}
+    }
 
-    CONFIG: {{
+    < CONFIG >
+    {
         "width": 400,
         "height": 100,
         "font_size": 4,
@@ -26141,7 +26195,7 @@ Format:
             "(233,30,99)",
             "(156, 39, 176)"
         ]
-    }}
+    }
                         '''
 
                     helpStr += drawSubStr + drawTimelineStr + drawExamStr
@@ -31750,7 +31804,8 @@ Copyright:
     @staticmethod
     def drawTimeline(
         inputPath=None, inputData=None, outputPath=None, configPath=None,
-        configData=None, taskList=None, start=0, annotation=None, yval=None):
+        configData=None, taskList=None, start=0, annotation=None, yval=None,
+        begin=0, end=0):
 
         def _addUserEvent(inputData):
             if not inputData or \
@@ -31815,7 +31870,8 @@ Copyright:
             _addUserEvent(inputData)
 
             # load data #
-            timeline = Timeline.load(inputPath, inputData, config, taskList)
+            timeline = Timeline.load(
+                inputPath, inputData, config, taskList, begin, end)
             if not timeline:
                 SysMgr.printErr('no time segment on timeline')
                 return
@@ -43523,6 +43579,19 @@ Copyright:
         else:
             config = None
 
+        # set custom interval #
+        try:
+            begin, end = SysMgr.environList['TRIM'][0].split(':')
+            begin = begin.strip()
+            begin = float(begin) if begin else 0
+            end = end.strip()
+            end = float(end) if end else 0
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'failed to parse TRIM variable', True)
+            sys.exit(0)
+
         # draw files #
         for inputPath in inputList:
             # set output path #
@@ -43535,7 +43604,8 @@ Copyright:
             SysMgr.drawTimeline(
                 inputPath=inputPath,
                 outputPath=outputPath,
-                configPath=config
+                configPath=config,
+                begin=begin, end=end
             )
 
 
@@ -53425,6 +53495,7 @@ class Debugger(object):
         'PRINTARG': False,
         'CONVARG': False,
         'NOARG': False,
+        'NOFILE': False,
         'CONTALONE': False,
         'INCNATIVE': False,
         'PYSTACK': False,
@@ -58624,6 +58695,10 @@ typedef struct {
                 SysMgr.printWarn(
                     "no sample data for %s(%s)" % (self.comm, self.pid),
                         False if SysMgr.masterPid > 0 else True)
+
+            # check and update repeat count #
+            _checkInterval()
+
             _resetStats()
             return
 
@@ -61021,6 +61096,27 @@ typedef struct {
             self.addSample(
                 sym, fname, realtime=True, bt=backtrace)
 
+            # add timeline segment #
+            if Debugger.envFlags['TIMELINE']:
+                # get group id #
+                if not sym in self.timelineIdx:
+                    self.timelineIdx[sym] = len(self.timelineIdx)
+                symidx = self.timelineIdx[sym]
+
+                # convert time unit to us #
+                startTime = self.vdiff * 1000000
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': symidx,
+                    'text': sym,
+                    'id': symidx,
+                    'state': 'S',
+                    'time_start': startTime,
+                    'time_end': startTime + self.timeDuration,
+                    'info': self.btStr.strip() if self.btStr else '',
+                })
+
             return isRetBp
 
         # get context data #
@@ -61062,8 +61158,13 @@ typedef struct {
                             prevAddr = prevSymInfo[3]
 
                         prevSym = prevSymInfo[0]
-                        prevFname = prevSymInfo[1]
-                        addStr = ' -> %s/%s [%s]' % \
+
+                        if Debugger.envFlags['NOFILE']:
+                            prevFname = ''
+                        else:
+                            prevFname = ' [%s]' % prevSymInfo[1]
+
+                        addStr = ' -> %s/%s%s' % \
                             (prevSym, prevAddr, prevFname)
                     else:
                         addStr = ''
@@ -61098,11 +61199,17 @@ typedef struct {
                                 'caller': addStr.lstrip('-> ')
                             }
                         else:
-                            callString = '\n%s %s%s%s%s[%s]%s%s%s' % \
+                            # build file path #
+                            if Debugger.envFlags['NOFILE']:
+                                fnameStr = ''
+                            else:
+                                fnameStr = ' [%s]' % entryData['file']
+
+                            callString = '\n%s %s%s%s%s%s%s%s%s' % \
                                 (entryData['time'], tinfo, indent,
                                     convColor(origSym, symColor),
                                     entryData['args'],
-                                    convColor(entryData['file'], 'YELLOW'),
+                                    convColor(fnameStr, 'YELLOW'),
                                     convColor(retstr, 'PINK'),
                                     elapsed, addStr)
 
@@ -61181,10 +61288,16 @@ typedef struct {
                 }
             # build string output #
             else:
-                callString = '\n%s %s%s%s%s/%s%s [%s]' % \
+                # build file path #
+                if Debugger.envFlags['NOFILE']:
+                    fnameStr = ''
+                else:
+                    fnameStr = ' [%s]' % fname
+
+                callString = '\n%s %s%s%s%s/%s%s%s' % \
                     (diffstr, tinfo, indent, convColor(sym, symColor),
                         elapsed, hex(addr).rstrip('L'), argstr,
-                        convColor(fname, 'YELLOW'))
+                        convColor(fnameStr, 'YELLOW'))
 
                 # add timeline segment #
                 if Debugger.envFlags['TIMELINE']:
@@ -64249,19 +64362,49 @@ typedef struct {
     @staticmethod
     def destroyDebugger(instance):
         def _printTimeline():
-            if Debugger.envFlags['TIMELINE']:
+            if Debugger.envFlags['TIMELINE'] and \
+                instance.timelineData['segments']:
                 # get symbol list #
                 ylist = {y:x for x,y in instance.timelineIdx.items()}
 
-                # get output path #
+                # update name table #
+                instance.timelineData['names'] = ylist
+
+                # set output path #
                 if SysMgr.outPath:
                     outPath = SysMgr.inputFile
                 else:
                     outPath = '/tmp/guider_%s.svg' % instance.pid
                 outPath = UtilMgr.getDrawOutputPath(outPath, 'timeline')
+                dataPath = outPath.replace('.svg', '.tdat')
 
-                # backup #
+                # backup data #
+                SysMgr.backupFile(dataPath)
+
+                # save data #
+                UtilMgr.saveStr2File(
+                    UtilMgr.convDict2Str(instance.timelineData, pretty=True),
+                    dataPath)
+
+                # get data size #
+                fsize = UtilMgr.getFileSize(dataPath)
+                if fsize and fsize != '0':
+                    fsize = ' [%s]' % fsize
+                else:
+                    fsize = ''
+
+                SysMgr.printStat(
+                    "wrote timeline data into '%s'%s" %
+                        (dataPath, fsize))
+
+                # backup output #
                 SysMgr.backupFile(outPath)
+
+                # check svgwrite object #
+                try:
+                    SysMgr.getPkg('svgwrite')
+                except:
+                    return
 
                 # draw timeline #
                 SysMgr.drawTimeline(
@@ -67639,7 +67782,7 @@ class ElfAnalyzer(object):
         cpath = '%s/%s' % \
             (SysMgr.cacheDirPath, path.replace('/', '_'))
 
-        return UtilMgr.saveObjectToFile(obj, cpath)
+        return UtilMgr.saveObject2File(obj, cpath)
 
 
 
