@@ -61180,7 +61180,9 @@ typedef struct {
                     if Debugger.envFlags['COMPLETECALL'] and \
                         origSym in self.entryContext:
                         # get entry context #
-                        entryData = self.entryContext.pop(origSym, None)
+                        entryData = self.entryContext[origSym].pop()
+                        if not self.entryContext[origSym]:
+                            self.entryContext.pop(origSym, None)
 
                         # combine contexts for both entry and exit #
                         if SysMgr.jsonEnable:
@@ -61269,11 +61271,12 @@ typedef struct {
             if Debugger.envFlags['COMPLETECALL'] and \
                 self.bpList[addr]['cmd'] and \
                 'getret' in self.bpList[addr]['cmd']:
-                self.entryContext[sym] = {
+                self.entryContext.setdefault(sym, [])
+                self.entryContext[sym].append({
                     'time': diffstr,
                     'args': argstr,
                     'file': fname
-                }
+                })
             # build JSON output #
             elif SysMgr.jsonEnable:
                 args = argstr[1:-1].split(',') if argstr else []
