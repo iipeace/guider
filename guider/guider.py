@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220203"
+__revision__ = "220204"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7821,7 +7821,7 @@ class Timeline(object):
 
             # set label filter #
             if 'LABELMIN' in SysMgr.environList:
-                self.LABEL_SIZE_MIN = long(SysMgr.environList['LABELMIN'][0])
+                self.LABEL_SIZE_MIN = int(SysMgr.environList['LABELMIN'][0])
                 SysMgr.printInfo(
                     "only time segments bigger than %s are printed" % \
                         UtilMgr.convNum(self.LABEL_SIZE_MIN))
@@ -7832,7 +7832,7 @@ class Timeline(object):
             if 'FONTSIZE' in SysMgr.environList:
                 try:
                     val = SysMgr.environList['FONTSIZE'][0]
-                    self.FONT_SIZE = long(val)
+                    self.FONT_SIZE = int(val)
                 except:
                     SysMgr.printErr(
                         "failed to set font size to '%s'" % val, True)
@@ -8006,7 +8006,7 @@ class Timeline(object):
         if 'GROUPFONTSIZE' in SysMgr.environList:
             try:
                 val = SysMgr.environList['GROUPFONTSIZE'][0]
-                fontsize = long(val)
+                fontsize = int(val)
             except:
                 SysMgr.printErr(
                     "failed to set group font size to '%s'" % val, True)
@@ -8034,7 +8034,10 @@ class Timeline(object):
                 font_size=fontsize, fill='rgb(200,200,200)'))
 
             # add info #
+            name = str(name)
             addinfo = yval[name] if yval and name in yval else ''
+            if not addinfo and self.tasks and name in self.tasks:
+                addinfo = self.tasks[name]
             if addinfo:
                 x = 2*self.scaled_height*len(str(name))/5
                 dwg.add(dwg.text(
@@ -8129,7 +8132,7 @@ class Timeline(object):
 
             # get real color via ID #
             try:
-                color = self.color_map[colorid]
+                color = self.color_map[str(colorid)]
             except:
                 color = self.color_map[list(self.color_map)[0]]
 
@@ -43588,9 +43591,7 @@ Copyright:
             end = float(end) if end else 0
         except SystemExit: sys.exit(0)
         except:
-            SysMgr.printErr(
-                'failed to parse TRIM variable', True)
-            sys.exit(0)
+            begin = end = 0
 
         # draw files #
         for inputPath in inputList:
@@ -60886,16 +60887,23 @@ typedef struct {
 
         def _getCommonPos(backtrace):
             # check contiguous tree presentation #
-            try:
-                commonPos = -1
-                if not cont:
-                    raise Exception()
+            commonPos = -1
+            if not cont:
+                return commonPos
 
+            try:
                 for item in reversed(self.prevStack):
+                    # same pos at same level #
                     if item == backtrace[commonPos]:
                         commonPos -= 1
                         continue
-                    break
+                    # different item #
+                    else:
+                        break
+
+                # out of stack #
+                if backtrace[commonPos][1] == self.prevSym:
+                    commonPos -= 1
             except SystemExit: sys.exit(0)
             except: pass
 
@@ -61538,6 +61546,7 @@ typedef struct {
             self.unlock(nrLock)
             return
 
+        # execute original instructions #
         if self.pc == origPC:
             # continue processing an instruction #
             if self.arch == 'arm':
@@ -61555,7 +61564,7 @@ typedef struct {
             ret = self.waitpid()
             self.checkStat(ret, reason="of injection failure")
 
-        # register this breakpoint again #
+        # setup this breakpoint again #
         self.injectBp(addr, sym, fname=fname, reins=reins)
 
         # unlock between processes #
