@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220204"
+__revision__ = "220205"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7840,6 +7840,18 @@ class Timeline(object):
             else:
                 self.FONT_SIZE = 3
 
+            # set group font size #
+            if 'GROUPFONTSIZE' in SysMgr.environList:
+                try:
+                    val = SysMgr.environList['GROUPFONTSIZE'][0]
+                    self.GROUP_FONT_SIZE = int(val)
+                except:
+                    SysMgr.printErr(
+                        "failed to set group font size to '%s'" % val, True)
+                    sys.exit(0)
+            else:
+                self.GROUP_FONT_SIZE = 0
+
             palette = [
                 "(0,150,136)", "(0,188,212)", "(0,0,128)",
                 "(0,0,139)", "(0,0,205)", "(0,0,255)",
@@ -7933,8 +7945,14 @@ class Timeline(object):
             max(segments, key=lambda segment: segment.time_end).time_end
         self.segment_groups = sorted(list(set(s.group for s in self.segments)))
         self.groups = len(self.segment_groups)
-        self.group_list = list(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
+        self.group_list = list(self.segment_groups)
+        self.group_stat = [
+            {
+                'cnt': 0, 'du_min': 0, 'du_max': 0, 'du_list': [],
+                'inter_min': 0, 'inter_max': 0, 'inter_list': [], 'prev': 0
+            } for _ in range(len(self.group_list))
+        ]
 
         try:
             self.ratio = \
@@ -7997,20 +8015,75 @@ class Timeline(object):
 
 
 
+    def _draw_group_stat(self, dwg):
+        # set group font size #
+        if self.config.GROUP_FONT_SIZE > 0:
+            fontsize = self.config.GROUP_FONT_SIZE
+        else:
+            fontsize = self.scaled_height/4
+
+        idx = 0
+        convNum = UtilMgr.convNum
+        for y_tick in range(self.config.HEIGHT):
+            try:
+                stats = self.group_stat[idx]
+                idx += 1
+
+                # count #
+                if stats['cnt'] == 0:
+                    continue
+
+                # interval #
+                try:
+                    inter = stats['inter_list']
+                    inter_avg = long(sum(inter)/(len(inter)))
+                except SystemExit: sys.exit(0)
+                except:
+                    inter_avg = 0
+                inter_std = UtilMgr.getStdev(inter)
+
+                # duration #
+                try:
+                    du = stats['du_list']
+                    du_avg = long(sum(du)/(len(du)))
+                except SystemExit: sys.exit(0)
+                except:
+                    du_avg = 0
+                du_std = UtilMgr.getStdev(du)
+
+                # build string #
+                statstr = ('Cnt: {0:1}, IntMin: {1:1}, IntMax: {2:1}, '
+                    'IntAvg: {3:1}, IntStd: {4:1}, DuMin: {5:1}, '
+                    'DuMax: {6:1}, DuAvg: {7:1}, DuStd: {8:1}').format(
+                        convNum(stats['cnt']),
+                        convNum(stats['inter_min']),
+                        convNum(stats['inter_max']),
+                        convNum(inter_avg),
+                        convNum(inter_std),
+                        convNum(stats['du_min']),
+                        convNum(stats['du_max']),
+                        convNum(du_avg),
+                        convNum(du_std),
+                    )
+            except SystemExit: sys.exit(0)
+            except:
+                continue
+
+            y_tick *= self.scaled_height
+            dwg.add(dwg.text(
+                statstr, (2, y_tick+self.scaled_height/2),
+                font_size=fontsize/2, fill='rgb(200,200,200)'))
+
+
+
     def _draw_group_axis(self, dwg, yval):
         dwg.add(dwg.rect((0, 0),
             (self.config.TIME_AXIS_HEIGHT, self.config.HEIGHT),
             fill='black'))
 
-        # set title font size #
-        if 'GROUPFONTSIZE' in SysMgr.environList:
-            try:
-                val = SysMgr.environList['GROUPFONTSIZE'][0]
-                fontsize = int(val)
-            except:
-                SysMgr.printErr(
-                    "failed to set group font size to '%s'" % val, True)
-                sys.exit(0)
+        # set group font size #
+        if self.config.GROUP_FONT_SIZE > 0:
+            fontsize = self.config.GROUP_FONT_SIZE
         else:
             fontsize = self.scaled_height/2
 
@@ -8034,8 +8107,7 @@ class Timeline(object):
                 font_size=fontsize, fill='rgb(200,200,200)'))
 
             # add info #
-            name = str(name)
-            addinfo = yval[name] if yval and name in yval else ''
+            addinfo = yval[str(name)] if yval and str(name) in yval else ''
             if not addinfo and self.tasks and name in self.tasks:
                 addinfo = self.tasks[name]
             if addinfo:
@@ -8082,7 +8154,7 @@ class Timeline(object):
         if self.title:
             title = self.title
         else:
-            title = 'Guider Timeline Segment'
+            title = 'Guider Timeline'
 
         # set font size for title #
         fontsize = self.config.FONT_SIZE * 10
@@ -8144,6 +8216,29 @@ class Timeline(object):
         else:
             stroke = 'none'
             stroke_width = 0
+
+        # update count stat #
+        stats = self.group_stat[group_idx]
+        stats['cnt'] += 1
+
+        # update interval stats #
+        if stats['prev'] > 0:
+            interval = segment.time_start - stats['prev']
+        else:
+            interval = 0
+        stats['prev'] = segment.time_start
+        if stats['inter_min'] == 0 or stats['inter_min'] > interval:
+            stats['inter_min'] = interval
+        if stats['inter_max'] == 0 or stats['inter_max'] < interval:
+            stats['inter_max'] = interval
+        stats['inter_list'].append(interval)
+
+        # update duration stats #
+        if stats['du_min'] == 0 or stats['du_min'] > duration:
+            stats['du_min'] = duration
+        if stats['du_max'] == 0 or stats['du_max'] < duration:
+            stats['du_max'] = duration
+        stats['du_list'].append(duration)
 
         # draw bold line for core off #
         if segment.state == 'OFF':
@@ -8337,12 +8432,13 @@ class Timeline(object):
         self._draw_group_axis(dwg, yval)
         self._draw_time_axis(dwg, start, annotation=annotation)
         self._draw_segments(dwg, start)
+        self._draw_group_stat(dwg)
 
 
 
     @staticmethod
     def load(fileName=None, data=None, config=None,
-        tasks=None, begin=0, end=0):
+        tasks=None, begin=0, end=0, duration=0):
 
         if fileName:
             with open(fileName) as json_file:
@@ -8415,7 +8511,8 @@ class Timeline(object):
                 "apply '%s' in time unit" % time_unit)
 
         # load segments #
-        segments = Timeline._load_segments(data, time_factor, begin, end)
+        segments = Timeline._load_segments(
+            data, time_factor, begin, end, duration)
         if not segments:
             return None
 
@@ -8424,7 +8521,7 @@ class Timeline(object):
 
 
     @staticmethod
-    def _load_segments(data, time_factor=1, begin=0, end=0):
+    def _load_segments(data, time_factor=1, begin=0, end=0, duration=0):
         segments = []
         for segment_data in sorted(
             data["segments"], key=lambda e: e['time_start']):
@@ -8442,7 +8539,10 @@ class Timeline(object):
 
             # convert time #
             time_start = long(segment_data["time_start"] * time_factor)
-            time_end = long(segment_data["time_end"] * time_factor)
+            if duration > 0:
+                time_end = time_start + duration
+            else:
+                time_end = long(segment_data["time_end"] * time_factor)
 
             # check time #
             if end > 0 and time_end > end:
@@ -23473,111 +23573,112 @@ Examples:
 
                 drawExamStr = '''
 Examples:
-    - Draw graphs for specific files
+    - Draw items for specific files
         # {0:1} {1:1} guider.out
         # {0:1} {1:1} guider.out guider2.out guider3.out
         # {0:1} {1:1} "data/*"
-
-    - Draw graphs for specific files from current directory to all sub-directories
-        # {0:1} {1:1} "**/*"
-
-    - Draw flame graphs for each file
-        # {0:1} {1:1} guider.out -q NOMERGE
-
-    - Draw graphs and timeline segments
         # {0:1} {1:1} guider.dat
 
-    - Draw graphs and timeline segments for specific tasks
+    - Draw items for specific files from current directory to all sub-directories
+        # {0:1} {1:1} "**/*"
+
+    - Draw items for each file
+        # {0:1} {1:1} guider.out -q NOMERGE
+
+    - Draw items for specific tasks
         # {0:1} {1:1} guider.dat -g task3
         # {0:1} {1:1} guider.dat -g "*"
 
-    - Draw graphs and timeline segments for specific tasks and their siblings
+    - Draw items for specific tasks and their siblings
         # {0:1} {1:1} guider.dat -g task3 -P
 
-    - Draw graphs and timeline segments for all events and tasks
+    - Draw items for all events and tasks
         # {0:1} {1:1} guider.dat -a
 
-    - Draw graphs and timeline segments except for syscalls
+    - Draw items except for syscalls
         # {0:1} {1:1} guider.dat -q NOSYSCALL
 
-    - Draw graphs and timeline segments forcefully
+    - Draw items forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw graphs and timeline segments in us time unit
+    - Draw items in us time unit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:us
 
-    - Draw graphs and timeline segments except for label for timelines lesser than 100ms
+    - Draw items except for label for timelines lesser than 100ms
         # {0:1} {1:1} guider.dat -q LABELMIN:100
 
-    - Draw graphs and timeline segments with label setting
+    - Draw items with label setting
         # {0:1} {1:1} guider.dat -q LABEL
         # {0:1} {1:1} guider.dat -q NOLABEL
 
-    - Draw graphs and timeline segments with stroke only for specific tasks
+    - Draw items with stroke only for specific tasks
         # {0:1} {1:1} guider.dat -q STROKE:"*"
         # {0:1} {1:1} guider.dat -q STROKE:"screen*", STROKE:"a.out(1234)"
 
-    - Draw graphs and event markers on specific points
+    - Draw items and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
 
-    - Draw graphs and timeline segments only for specific cores
+    - Draw items only for specific groups or cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
         # {0:1} {1:1} guider.dat -O 1:10, 14
 
-    - Draw graphs to specific image format
+    - Draw items to specific image format
         # {0:1} {1:1} guider.out -F png
         # {0:1} {1:1} guider.out -F pdf
         # {0:1} {1:1} guider.out -F svg
 
-    - Draw graphs and timeline segments with config file
+    - Draw items with config file
         # {0:1} {1:1} guider.dat -C config.json
 
-    - Draw graphs excluding chrome process
+    - Draw items excluding chrome process
         # {0:1} {1:1} guider.out -g ^chrome
 
-    - Draw graphs with some boundary lines
+    - Draw items with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
-    - Draw graphs within specific interval range in second unit
+    - Draw items within specific interval range in second unit
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
         # {0:1} {1:1} guider.out -q TRIM:11.9:13.5, ABSTIME
 
-    - Draw graphs on absolute timeline
+    - Draw items on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
 
-    - Draw flame graphs only for backtrace stacks
+    - Draw flame items only for backtrace stacks
         # {0:1} {1:1} guider.out -q ONLYBTSTACK
 
-    - Draw graphs within specific interval range in index unit
+    - Draw items within specific interval range in index unit
         # {0:1} {1:1} guider.out -q TRIMIDX:0:3
 
-    - Draw graphs with y range 1-100
+    - Draw items with y range 1-100
         # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
 
-    - Draw graphs with specific font size
+    - Draw items with specific font size
         # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
         # {0:1} {1:1} guider.out worstcase.out -q GROUPFONTSIZE:30
 
-    - Draw graphs of top 5 processes
+    - Draw items of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
 
-    - Draw graphs of total CPU usage by applying the multiplication of the number of CPUs
+    - Draw items of total CPU usage by applying the multiplication of the number of CPUs
         # {0:1} {1:1} guider.out worstcase.out -d A
 
-    - Draw graphs on customized layout
+    - Draw items on customized layout
         # {0:1} {1:1} guider.out -L c:3, d:3
         # {0:1} {1:1} guider.out -L c:2, m:2, i:2
         # {0:1} {1:1} guider.out -L c:4, r:1, v:1
 
-    - Draw graphs on devices for block and network
+    - Draw items for block and network resources
         # {0:1} {1:1} guider.out -e d n
 
-    - Draw graphs with multiple files for comparison
+    - Draw items with multiple files for comparison
         # {0:1} {1:1} "guider*.out" worstcase.out
 
-    - Draw graphs of total resource usage with multiple files for comparison
+    - Draw items of total resource usage with multiple files for comparison
         # {0:1} {1:1} "guider*.out" worstcase.out -a -g TOTAL
+
+    - Draw fixed-size items on timeline
+        # {0:1} {1:1} timeline.tdat -q DURATION:500
                 '''.format(cmd, mode)
 
                 cmdListStr = '''
@@ -31869,12 +31970,23 @@ Copyright:
             else:
                 config.TIMEUNIT = 'ms'
 
+            # set font size #
+            duration = 0
+            if 'DURATION' in SysMgr.environList:
+                try:
+                    duration = SysMgr.environList['DURATION'][0]
+                    duration = long(duration)
+                except:
+                    SysMgr.printErr(
+                        "failed to set duration to '%s'" % duration, True)
+                    sys.exit(0)
+
             # apply user event #
             _addUserEvent(inputData)
 
             # load data #
             timeline = Timeline.load(
-                inputPath, inputData, config, taskList, begin, end)
+                inputPath, inputData, config, taskList, begin, end, duration)
             if not timeline:
                 SysMgr.printErr('no time segment on timeline')
                 return
@@ -31903,7 +32015,7 @@ Copyright:
             fsize = ''
 
         SysMgr.printStat(
-            "wrote timeline segment into '%s'%s" %
+            "wrote timeline segments into '%s'%s" %
                 (outputPath, fsize))
 
 
