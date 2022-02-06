@@ -5027,7 +5027,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convPath(value, retStr=False, isExit=False, separator=' '):
+    def convPath(value, retStr=False, isExit=False, separator=' ', warn=True):
         # strip path #
         value = value.strip()
 
@@ -5058,18 +5058,18 @@ class UtilMgr(object):
             # list #
             else:
                 return sorted(res)
-        else:
+        elif warn:
             if '*' in value:
                 SysMgr.printWarn(
                     'failed to handle * character in the path '
                     'because of no glob package', True)
 
-            # str #
-            if retStr:
-                return value
-            # list #
-            else:
-                return [value]
+        # str #
+        if retStr:
+            return value
+        # list #
+        else:
+            return [value]
 
 
 
@@ -22633,36 +22633,42 @@ Commands:
             flist = [flist]
 
         nlist = []
-        for path in flist:
-            path = path.strip()
+        for fpath in flist:
+            fpath = fpath.strip()
 
-            if path.startswith('^'):
-                path = path[1:]
+            # check exception character #
+            if fpath.startswith('^'):
+                fpath = fpath[1:]
                 exflag = True
             else:
                 exflag = False
 
-            try:
-                rpath = os.readlink(path)
-                if not rpath.startswith('/'):
-                    dirname = os.path.dirname(path)
-                    rpath = os.path.join(dirname, rpath)
+            # check files #
+            items = UtilMgr.convPath(fpath, warn=False)
+            for path in items:
+                try:
+                    path = os.path.abspath(path)
+                    rpath = os.readlink(path)
+                    if not rpath.startswith('/'):
+                        dirname = os.path.dirname(path)
+                        rpath = os.path.join(dirname, rpath)
+                        rpath = os.path.abspath(rpath)
 
-                if exflag:
-                    rpath = '^' + rpath
-
-                nlist.append(rpath)
-            except SystemExit: sys.exit(0)
-            except:
-                if os.path.exists(path):
                     if exflag:
-                        path = '^' + path
+                        rpath = '^' + rpath
 
-                    nlist.append(path)
-                else:
-                    SysMgr.printWarn(
-                        "failed to convert '%s' to real path" % path,
-                            reason=True, always=True)
+                    nlist.append(rpath)
+                except SystemExit: sys.exit(0)
+                except:
+                    if os.path.exists(path):
+                        if exflag:
+                            path = '^' + path
+
+                        nlist.append(path)
+                    else:
+                        SysMgr.printWarn(
+                            "failed to convert '%s' to real path" % path,
+                                reason=True, always=True)
 
         return nlist
 
@@ -23902,9 +23908,11 @@ Examples:
 
     - {3:1} related to specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
+        # {0:1} {1:1} -g a.out -c -T "/usr/lib/*"
 
     - {3:1} except for specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
+        # {0:1} {1:1} -g a.out -c -T "^/usr/lib/*"
 
     - {5:1} including specific word in a hidden state
         # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
