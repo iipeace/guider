@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220205"
+__revision__ = "220206"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8030,41 +8030,43 @@ class Timeline(object):
                 idx += 1
 
                 # count #
-                if stats['cnt'] == 0:
+                count = stats['cnt']
+                if count == 0:
                     continue
 
+                # build string #
+                statstr = 'Cnt: %s' % convNum(count)
+
                 # interval #
-                try:
-                    inter = stats['inter_list']
-                    inter_avg = long(sum(inter)/(len(inter)))
-                except SystemExit: sys.exit(0)
-                except:
-                    inter_avg = 0
-                inter_std = UtilMgr.getStdev(inter)
+                if count > 1:
+                    try:
+                        inter = stats['inter_list']
+                        inter_avg = long(sum(inter)/(len(inter)))
+                    except SystemExit: sys.exit(0)
+                    except:
+                        inter_avg = 0
+                    inter_std = UtilMgr.getStdev(inter)
+
+                    statstr += \
+                        ', IntMin: %s, IntMax: %s, IntAvg: %s, IntStd: %s' % \
+                        (convNum(stats['inter_min']),
+                            convNum(stats['inter_max']),
+                            convNum(inter_avg), convNum(inter_std))
 
                 # duration #
-                try:
-                    du = stats['du_list']
-                    du_avg = long(sum(du)/(len(du)))
-                except SystemExit: sys.exit(0)
-                except:
-                    du_avg = 0
-                du_std = UtilMgr.getStdev(du)
+                if stats['du_min'] > 0:
+                    try:
+                        du = stats['du_list']
+                        du_avg = long(sum(du)/(len(du)))
+                    except SystemExit: sys.exit(0)
+                    except:
+                        du_avg = 0
+                    du_std = UtilMgr.getStdev(du)
 
-                # build string #
-                statstr = ('Cnt: {0:1}, IntMin: {1:1}, IntMax: {2:1}, '
-                    'IntAvg: {3:1}, IntStd: {4:1}, DuMin: {5:1}, '
-                    'DuMax: {6:1}, DuAvg: {7:1}, DuStd: {8:1}').format(
-                        convNum(stats['cnt']),
-                        convNum(stats['inter_min']),
-                        convNum(stats['inter_max']),
-                        convNum(inter_avg),
-                        convNum(inter_std),
-                        convNum(stats['du_min']),
-                        convNum(stats['du_max']),
-                        convNum(du_avg),
-                        convNum(du_std),
-                    )
+                    statstr += \
+                        ', DuMin: %s, DuMax: %s, DuAvg: %s, DuStd: %s' % \
+                        (convNum(stats['du_min']), convNum(stats['du_max']),
+                            convNum(du_avg), convNum(du_std))
             except SystemExit: sys.exit(0)
             except:
                 continue
@@ -8438,7 +8440,7 @@ class Timeline(object):
 
     @staticmethod
     def load(fileName=None, data=None, config=None,
-        tasks=None, begin=0, end=0, duration=0):
+        tasks=None, begin=0, end=0, duration=0, durationMin=0):
 
         if fileName:
             with open(fileName) as json_file:
@@ -8512,7 +8514,7 @@ class Timeline(object):
 
         # load segments #
         segments = Timeline._load_segments(
-            data, time_factor, begin, end, duration)
+            data, time_factor, begin, end, duration, durationMin)
         if not segments:
             return None
 
@@ -8521,7 +8523,9 @@ class Timeline(object):
 
 
     @staticmethod
-    def _load_segments(data, time_factor=1, begin=0, end=0, duration=0):
+    def _load_segments(
+        data, time_factor=1, begin=0, end=0, duration=0, durationMin=0):
+
         segments = []
         for segment_data in sorted(
             data["segments"], key=lambda e: e['time_start']):
@@ -8537,12 +8541,18 @@ class Timeline(object):
                         segment_data)
                 continue
 
-            # convert time #
+            # apply common duration #
             time_start = long(segment_data["time_start"] * time_factor)
             if duration > 0:
                 time_end = time_start + duration
             else:
                 time_end = long(segment_data["time_end"] * time_factor)
+
+            # apply minimum duration #
+            if durationMin > 0:
+                diff = time_end - time_start
+                if durationMin > diff:
+                    time_end = time_start + durationMin
 
             # check time #
             if end > 0 and time_end > end:
@@ -23679,6 +23689,9 @@ Examples:
 
     - Draw fixed-size items on timeline
         # {0:1} {1:1} timeline.tdat -q DURATION:500
+
+    - Draw items with minimum fixed-size on timeline
+        # {0:1} {1:1} timeline.tdat -q DURATIONMIN:500
                 '''.format(cmd, mode)
 
                 cmdListStr = '''
@@ -31981,12 +31994,24 @@ Copyright:
                         "failed to set duration to '%s'" % duration, True)
                     sys.exit(0)
 
+            # set font size #
+            durationMin = 0
+            if 'DURATIONMIN' in SysMgr.environList:
+                try:
+                    durationMin = SysMgr.environList['DURATIONMIN'][0]
+                    durationMin = long(durationMin)
+                except:
+                    SysMgr.printErr(
+                        "failed to set mininum duration to '%s'" % durationMin,
+                        True)
+                    sys.exit(0)
+
             # apply user event #
             _addUserEvent(inputData)
 
             # load data #
-            timeline = Timeline.load(
-                inputPath, inputData, config, taskList, begin, end, duration)
+            timeline = Timeline.load(inputPath, inputData, config,
+                taskList, begin, end, duration, durationMin)
             if not timeline:
                 SysMgr.printErr('no time segment on timeline')
                 return
