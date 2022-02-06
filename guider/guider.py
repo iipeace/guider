@@ -7819,6 +7819,15 @@ class Timeline(object):
             self.TIME_AXIS_HEIGHT = 1
             self.TICKS = 100
 
+            # set item filter #
+            if 'FILTER' in SysMgr.environList:
+                self.FILTER = SysMgr.environList['FILTER']
+                SysMgr.printInfo(
+                    "only specific items [ %s ] are drawn" % \
+                        ', '.join(self.FILTER))
+            else:
+                self.FILTER = []
+
             # set label filter #
             if 'LABELMIN' in SysMgr.environList:
                 self.LABEL_SIZE_MIN = int(SysMgr.environList['LABELMIN'][0])
@@ -8109,11 +8118,12 @@ class Timeline(object):
                 font_size=fontsize, fill='rgb(200,200,200)'))
 
             # add info #
-            addinfo = yval[str(name)] if yval and str(name) in yval else ''
+            addinfo = yval[name] if yval and name in yval else ''
+            name = str(name)
             if not addinfo and self.tasks and name in self.tasks:
                 addinfo = self.tasks[name]
             if addinfo:
-                x = 2*self.scaled_height*len(str(name))/5
+                x = 2*self.scaled_height*len(name)/5
                 dwg.add(dwg.text(
                     addinfo, (x, y_tick+self.scaled_height),
                     font_size=fontsize/2, fill='rgb(200,200,200)'))
@@ -8194,6 +8204,11 @@ class Timeline(object):
         duration = segment.time_end - segment.time_start
         time_end = segment.time_end + start - self.time_start
         strokeSize = 3.5
+
+        # check filter #
+        if self.config.FILTER and \
+            not UtilMgr.isValidStr(segment.text, self.config.FILTER):
+            return
 
         # get color ID #
         if segment.color:
@@ -23601,6 +23616,11 @@ Examples:
 
     - Draw items for specific tasks and their siblings
         # {0:1} {1:1} guider.dat -g task3 -P
+
+    - Draw specific items including the specific word
+        # {0:1} {1:1} timeline.tdat -q FILTER:"test*"
+        # {0:1} {1:1} timeline.tdat -q FILTER:"*test"
+        # {0:1} {1:1} timeline.tdat -q FILTER:"*test*"
 
     - Draw items for all events and tasks
         # {0:1} {1:1} guider.dat -a
