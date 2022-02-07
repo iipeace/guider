@@ -8261,12 +8261,22 @@ class Timeline(object):
             stats['inter_max'] = interval
         stats['inter_list'].append(interval)
 
+        # apply stroke by interval #
+        if self.stroke_interval > 0 and self.stroke_interval <= interval:
+            stroke = 'rgb(255,0,0)'
+            stroke_width = 1
+
         # update duration stats #
         if stats['du_min'] == 0 or stats['du_min'] > duration:
             stats['du_min'] = duration
         if stats['du_max'] == 0 or stats['du_max'] < duration:
             stats['du_max'] = duration
         stats['du_list'].append(duration)
+
+        # apply stroke by duration #
+        if self.stroke_duration > 0 and self.stroke_duration <= duration:
+            stroke = 'rgb(255,0,0)'
+            stroke_width = 1
 
         # draw bold line for core off #
         if segment.state == 'OFF':
@@ -23729,6 +23739,12 @@ Examples:
 
     - Draw items with minimum fixed-size on timeline
         # {0:1} {1:1} timeline.tdat -q DURATIONMIN:500
+
+    - Draw items with stroke only for specific interval bigger than 3000
+        # {0:1} {1:1} guider.dat -q STROKEINTERVAL:3000
+
+    - Draw items with stroke only for specific duration bigger than 5000
+        # {0:1} {1:1} guider.dat -q STROKEDURATION:5000
                 '''.format(cmd, mode)
 
                 cmdListStr = '''
@@ -32056,8 +32072,8 @@ Copyright:
                     durationMin = long(durationMin)
                 except:
                     SysMgr.printErr(
-                        "failed to set mininum duration to '%s'" % durationMin,
-                        True)
+                        "failed to set mininum duration to '%s'" % \
+                            durationMin, True)
                     sys.exit(0)
 
             # apply user event #
@@ -32075,6 +32091,32 @@ Copyright:
                 timeline.stroke_text = SysMgr.environList['STROKE']
             else:
                 timeline.stroke_text = None
+
+            # set stroke interval #
+            if 'STROKEINTERVAL' in SysMgr.environList:
+                try:
+                    stroke_interval = SysMgr.environList['STROKEINTERVAL'][0]
+                    timeline.stroke_interval = long(stroke_interval)
+                except:
+                    SysMgr.printErr(
+                        "failed to set interval for stroke to '%s'" % \
+                            stroke_interval, True)
+                    sys.exit(0)
+            else:
+                timeline.stroke_interval = 0
+
+            # set stroke duration #
+            if 'STROKEDURATION' in SysMgr.environList:
+                try:
+                    stroke_duration = SysMgr.environList['STROKEDURATION'][0]
+                    timeline.stroke_duration = long(stroke_duration)
+                except:
+                    SysMgr.printErr(
+                        "failed to set duration for stroke to '%s'" % \
+                            stroke_duration, True)
+                    sys.exit(0)
+            else:
+                timeline.stroke_duration = 0
 
             # draw timeslices #
             timeline.draw(dwg, start=start, annotation=annotation, yval=yval)
