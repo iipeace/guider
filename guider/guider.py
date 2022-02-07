@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220206"
+__revision__ = "220207"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3940,6 +3940,17 @@ class UtilMgr(object):
         # print time diff #
         string = '\n%s[Elapsed: %f]' % (prefix, diff)
         print(UtilMgr.convColor(string, 'RED'))
+
+
+
+    @staticmethod
+    def getCommonPart(strings):
+        try:
+            return os.path.commonprefix(strings)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr('failed to get common part of %s' % strings)
+            sys.exit(0)
 
 
 
@@ -41239,6 +41250,8 @@ Copyright:
             tail = False
             nrLast = 0
 
+        prevStr = ''
+
         # print files #
         for path in inputArg:
             SysMgr.printStat(r"start printing '%s'..." % path)
@@ -41246,15 +41259,16 @@ Copyright:
             # open the target file #
             try:
                 fd = open(path, 'r')
+                newPos = pos = 0
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printOpenErr(path)
                 continue
 
             # set pos to EOF #
-            pos = 0
             if tail:
                 try:
+                    size = os.stat(path).st_size
                     pos = fd.seek(0, 2)
                 except SystemExit: sys.exit(0)
                 except: pass
@@ -41280,17 +41294,35 @@ Copyright:
                         # reopen the file #
                         fd.close()
                         fd = open(path, 'r')
-                        size = os.stat(path).st_size
-                        newPos = size-nrLast
-                        if newPos < 0:
-                            newPos = 0
+                        newSize = os.stat(path).st_size
+
+                        # check file size #
+                        if newPos == 0 or size > newSize:
+                            newPos = newSize - nrLast
+                            if newPos < 0:
+                                newPos = 0
+
+                        # update size #
+                        size = newSize
                         fd.seek(newPos, 0)
                     except SystemExit: sys.exit(0)
                     except:
+                        newPos = 0
                         continue
 
                 # read data #
-                data = fd.read().split('\n')
+                data = fd.read()
+
+                # handle redundant data #
+                if tail:
+                    origPrevStr = prevStr
+                    prevStr = data
+                    if origPrevStr:
+                        # get common part #
+                        common = UtilMgr.getCommonPart([origPrevStr, data])
+                        if common:
+                            data = data.replace(common, '')
+                            origPrevStr = common
 
                 # update pos #
                 pos = fd.tell()
@@ -41303,17 +41335,20 @@ Copyright:
                         break
 
                 # print data #
-                for line in data:
+                for line in data.split('\n'):
                     # apply filter #
                     if SysMgr.filterGroup and not UtilMgr.isValidStr(line):
                         continue
 
                     # print line #
-                    SysMgr.printPipe(line)
+                    if line:
+                        SysMgr.printPipe(line)
+                    else:
+                        SysMgr.printPipe('\n')
 
                 if tail:
-                    # print a line #
-                    SysMgr.printPipe(oneLine)
+                    SysMgr.printPipe(
+                        '--- END [%s] ---' % UtilMgr.getUTCTime())
                 else:
                     break
 
