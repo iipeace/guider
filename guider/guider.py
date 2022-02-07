@@ -23811,8 +23811,11 @@ Examples:
     - {3:1} using merged symbols {8:1}
         # {0:1} {1:1} "ls" -q ALLSYM
 
-    - {3:1} {7:1} with tracing overhead
+    - {3:1} {7:1} with printing tracing overhead
         # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+
+    - {3:1} {7:1} including tracing overhead time
+        # {0:1} {1:1} -g a.out -q INCLUDEOVERHEAD
 
     - {3:1} {8:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
@@ -25696,6 +25699,12 @@ Examples:
     - {3:1} except for no symbol backtraces {5:1}
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
+    - {3:1} {5:1} with printing tracing overhead
+        # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+
+    - {3:1} {5:1} including tracing overhead time
+        # {0:1} {1:1} -g a.out -q INCLUDEOVERHEAD
+
     - {3:1} except for arguments {5:1}
         # {0:1} {1:1} -g a.out -q NOARG
 
@@ -25900,6 +25909,12 @@ Examples:
 
     - {3:1} {4:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
+
+    - {3:1} {4:1} with printing tracing overhead
+        # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+
+    - {3:1} {4:1} including tracing overhead time
+        # {0:1} {1:1} -g a.out -q INCLUDEOVERHEAD
 
     - {3:1} {4:1} without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
@@ -53712,6 +53727,7 @@ class Debugger(object):
         'PRINTHIST': False,
         'HIDESYM': False,
         'PRINTOVERHEAD': False,
+        'INCLUDEOVERHEAD': False,
     }
 
     def getSigStruct(self):
@@ -64109,6 +64125,9 @@ typedef struct {
         else:
             updateTime = False
 
+        # set including overhead flag for time #
+        incOverhead = True if Debugger.envFlags['INCLUDEOVERHEAD'] else False
+
         # define trap flag for syscall #
         syscallTrapFlag = signal.SIGTRAP | 0x80
 
@@ -64140,7 +64159,7 @@ typedef struct {
 
             try:
                 # add tracing overhead to start time #
-                if updateTime:
+                if updateTime and not incOverhead:
                     overhead = time.time() - self.current
                     if Debugger.envFlags['PRINTOVERHEAD']:
                         SysMgr.printWarn(
