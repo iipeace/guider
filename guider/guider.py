@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220207"
+__revision__ = "220208"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7963,7 +7963,9 @@ class Timeline(object):
             min(segments, key=lambda segment: segment.time_start).time_start
         self.time_end = \
             max(segments, key=lambda segment: segment.time_end).time_end
-        self.segment_groups = sorted(list(set(s.group for s in self.segments)))
+        self.segment_groups = sorted(list(
+            map(long, set(s.group for s in self.segments))))
+        self.segment_groups = list(map(str, self.segment_groups))
         self.groups = len(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
         self.group_list = list(self.segment_groups)
@@ -7982,13 +7984,24 @@ class Timeline(object):
                 'failed to recognize timeline because start and end are same')
             sys.exit(0)
 
-        self.tasks = tasks
         self.last_group_segment = {}
         self.last_group_time = {}
         self.height_group_pos = {}
         self.last_iogroup_segment = {}
         self.last_iogroup_time = {}
         self.height_iogroup_pos = {}
+
+        # apply task converter #
+        try:
+            self.tasks = {}
+            for task in tasks:
+                if task in Timeline.conv_table:
+                    new = Timeline.conv_table[task]
+                    self.tasks[new] = tasks[task]
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr('failed to change tasks in timeline', True)
+            sys.exit(0)
 
         # time factor #
         if hasattr(self.config, 'TIMEFACTOR'):
@@ -8565,9 +8578,15 @@ class Timeline(object):
         segments = []
         for segment_data in sorted(
             data["segments"], key=lambda e: e['time_start']):
-            # apply core filter #
+            # convert group #
+            group = str(segment_data["group"])
+            group_num = long(group)
+            if group in Timeline.conv_table:
+                group = Timeline.conv_table[group]
+
+            # apply core filter ;) #
             if SysMgr.perCoreDrawList:
-                if not segment_data['group'] in SysMgr.perCoreDrawList:
+                if not group_num in SysMgr.perCoreDrawList:
                     continue
 
             # verify time #
@@ -8602,7 +8621,7 @@ class Timeline(object):
 
             # add segment #
             segments.append(Timeline.Segment(
-                segment_data["group"], time_start, time_end, segment_data))
+                group, time_start, time_end, segment_data))
 
         return segments
 
@@ -23679,6 +23698,9 @@ Examples:
         # {0:1} {1:1} guider.dat -O 1, 4, 10
         # {0:1} {1:1} guider.dat -O 1:10, 14
 
+    - Draw items with changed groups or cores
+        # {0:1} {1:1} guider.dat -q CONVGROUP:0:1, CONVGROUP:1:0
+
     - Draw items to specific image format
         # {0:1} {1:1} guider.out -F png
         # {0:1} {1:1} guider.out -F pdf
@@ -32078,6 +32100,20 @@ Copyright:
 
             # apply user event #
             _addUserEvent(inputData)
+
+            # set conver table #
+            Timeline.conv_table = {}
+            if 'CONVGROUP' in SysMgr.environList:
+                try:
+                    for item in SysMgr.environList['CONVGROUP']:
+                        src, des = item.split(':', 1)
+                        Timeline.conv_table[src.strip()] = des.strip()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to set group conversion table", True)
+                    sys.exit(0)
 
             # load data #
             timeline = Timeline.load(inputPath, inputData, config,
