@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220208"
+__revision__ = "220209"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23005,7 +23005,8 @@ Commands:
             SysMgr.forceColorEnable = SysMgr.isTraceMode()
 
             # android #
-            if 'ANDROID_ROOT' in os.environ:
+            if 'ANDROID_ROOT' in os.environ and \
+                not 'NO_ANDROID' in os.environ:
                 SysMgr.isAndroid = True
                 SysMgr.libcPath = 'libc'
                 SysMgr.libcppPath = 'libstdc++'
@@ -23468,6 +23469,9 @@ Examples:
     - {3:1} {2:2} used system resource totally
         # {0:1} {1:1} -e T
 
+    - {3:1} all {2:2} on linux, not android
+        # NO_ANDROID=1 {0:1} {1:1} -a
+
     - {3:1} all {2:2} with specific cores
         # {0:1} {1:1} -e c -O 0:4, 10, 12
 
@@ -23535,7 +23539,7 @@ Examples:
     - {3:1} threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
-    - Monitor status and change the CPU scheduling priority for all {2:2} every second
+    - Monitor status of all {2:2} with changing the CPU scheduling priority every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
     - {3:1} {2:2} and change the CPU scheduling priority for specific threads having COMM a.out every second
@@ -23664,9 +23668,9 @@ Examples:
         # {0:1} {1:1} guider.dat -g task3 -P
 
     - Draw specific items including the specific word
-        # {0:1} {1:1} timeline.tdat -q FILTER:"test*"
-        # {0:1} {1:1} timeline.tdat -q FILTER:"*test"
-        # {0:1} {1:1} timeline.tdat -q FILTER:"*test*"
+        # {0:1} {1:1} timeline.json -q FILTER:"test*"
+        # {0:1} {1:1} timeline.json -q FILTER:"*test"
+        # {0:1} {1:1} timeline.json -q FILTER:"*test*"
 
     - Draw items for all events and tasks
         # {0:1} {1:1} guider.dat -a
@@ -23757,10 +23761,10 @@ Examples:
         # {0:1} {1:1} "guider*.out" worstcase.out -a -g TOTAL
 
     - Draw fixed-size items on timeline
-        # {0:1} {1:1} timeline.tdat -q DURATION:500
+        # {0:1} {1:1} timeline.json -q DURATION:500
 
     - Draw items with minimum fixed-size on timeline
-        # {0:1} {1:1} timeline.tdat -q DURATIONMIN:500
+        # {0:1} {1:1} timeline.json -q DURATIONMIN:500
 
     - Draw items with stroke only for specific interval bigger than 3000
         # {0:1} {1:1} guider.dat -q STROKEINTERVAL:3000
@@ -23850,10 +23854,10 @@ Examples:
         # {0:1} {1:1} "ls" -q ALLSYM
 
     - {3:1} {7:1} with printing tracing overhead
-        # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+        # {0:1} {1:1} -g a.out -q PRINTDELAY
 
-    - {3:1} {7:1} including tracing overhead time
-        # {0:1} {1:1} -g a.out -q INCLUDEOVERHEAD
+    - {3:1} {7:1} including profiling overhead time
+        # {0:1} {1:1} -g a.out -q INCOVERHEAD
 
     - {3:1} {8:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
@@ -25738,10 +25742,10 @@ Examples:
         # {0:1} {1:1} -g a.out -H -q ONLYSYM
 
     - {3:1} {5:1} with printing tracing overhead
-        # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+        # {0:1} {1:1} -g a.out -q PRINTDELAY
 
-    - {3:1} {5:1} including tracing overhead time
-        # {0:1} {1:1} -g a.out -q INCLUDEOVERHEAD
+    - {3:1} {5:1} including profiling overhead time
+        # {0:1} {1:1} -g a.out -q INCOVERHEAD
 
     - {3:1} except for arguments {5:1}
         # {0:1} {1:1} -g a.out -q NOARG
@@ -25949,10 +25953,10 @@ Examples:
         # {0:1} {1:1} -g a.out -q CONTALONE
 
     - {3:1} {4:1} with printing tracing overhead
-        # {0:1} {1:1} -g a.out -q PRINTOVERHEAD
+        # {0:1} {1:1} -g a.out -q PRINTDELAY
 
-    - {3:1} {4:1} including tracing overhead time
-        # {0:1} {1:1} -g a.out -q INCLUDEOVERHEAD
+    - {3:1} {4:1} including profiling overhead time
+        # {0:1} {1:1} -g a.out -q INCOVERHEAD
 
     - {3:1} {4:1} without truncation
         # {0:1} {1:1} -g a.out -q NOCUT
@@ -53804,8 +53808,8 @@ class Debugger(object):
         'STDEV': False,
         'PRINTHIST': False,
         'HIDESYM': False,
-        'PRINTOVERHEAD': False,
-        'INCLUDEOVERHEAD': False,
+        'PRINTDELAY': False,
+        'INCOVERHEAD': False,
     }
 
     def getSigStruct(self):
@@ -64204,7 +64208,7 @@ typedef struct {
             updateTime = False
 
         # set including overhead flag for time #
-        incOverhead = True if Debugger.envFlags['INCLUDEOVERHEAD'] else False
+        incOverhead = True if Debugger.envFlags['INCOVERHEAD'] else False
 
         # define trap flag for syscall #
         syscallTrapFlag = signal.SIGTRAP | 0x80
@@ -64239,7 +64243,7 @@ typedef struct {
                 # add tracing overhead to start time #
                 if updateTime and not incOverhead:
                     overhead = time.time() - self.current
-                    if Debugger.envFlags['PRINTOVERHEAD']:
+                    if Debugger.envFlags['PRINTDELAY']:
                         SysMgr.printWarn(
                             '[OVERHEAD] %.6f sec' % overhead, True)
                     self.dstart += overhead
@@ -64685,7 +64689,7 @@ typedef struct {
                 else:
                     outPath = '/tmp/guider_%s.svg' % instance.pid
                 outPath = UtilMgr.getDrawOutputPath(outPath, 'timeline')
-                dataPath = outPath.replace('.svg', '.tdat')
+                dataPath = outPath.replace('.svg', '.json')
 
                 # backup data #
                 SysMgr.backupFile(dataPath)
