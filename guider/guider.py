@@ -7979,6 +7979,7 @@ class Timeline(object):
         try:
             self.ratio = \
                 self.config.WIDTH / float(self.time_end - self.time_start)
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
                 'failed to recognize timeline because start and end are same')
@@ -7998,6 +7999,8 @@ class Timeline(object):
                 if task in Timeline.conv_table:
                     new = Timeline.conv_table[task]
                     self.tasks[new] = tasks[task]
+                elif type(tasks) is dict:
+                    self.tasks[task] = tasks[task]
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr('failed to change tasks in timeline', True)
@@ -24140,9 +24143,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
 
     - {3:1} {7:1} and draw timeline segments for all function calls
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
-        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL
+        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:ms, COMPLETECALL
         # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL, GROUPFONTSIZE:30
                 '''.format(cmd, mode, cmdListStr,
                     'Trace all native calls',
@@ -25787,7 +25790,7 @@ Examples:
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
 
     - {3:1} {5:1} and draw timeline segments for all syscalls
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, GROUPFONTSIZE:30
                     '''.format(cmd, mode, cmdListStr,
@@ -25912,11 +25915,11 @@ Options:
 
                     examStr = '''{2:1}
 Examples:
-    - {3:1} {4:1} in 100us cycles
-        # {0:1} {1:1} -g a.out
+    - {3:1} {4:1}
+        # {0:1} {1:1} -g iotop
 
     - {3:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g a.out -W
+        # {0:1} {1:1} -g iotop -W
 
     - {3:1} from a specific binary
         # {0:1} {1:1} "ls -al"
@@ -25924,14 +25927,14 @@ Examples:
         # {0:1} {1:1} -I "ls -al"
 
     - {3:1} {4:1} from a specific binary
-        # {0:1} {1:1} "ls -al" -g a.out
-        # {0:1} {1:1} -I "ls -al" -g a.out
+        # {0:1} {1:1} "ls -al" -g iotop
+        # {0:1} {1:1} -I "ls -al" -g iotop
 
     - {3:1} {4:1} in 10ms cycles
-        # {0:1} {1:1} -g a.out -i 10000
+        # {0:1} {1:1} -g iotop -i 10000
 
     - {3:1} {4:1} (print standard output)
-        # {0:1} {1:1} -g a.out -q NOMUTE
+        # {0:1} {1:1} -g iotop -q NOMUTE
 
     - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
@@ -25939,39 +25942,45 @@ Examples:
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
     - {3:1} {4:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
+        # {0:1} {1:1} -g iotop -q WAITTASK
+        # {0:1} {1:1} -g iotop -q WAITTASK:1
+        # {0:1} {1:1} -g iotop -q WAITTASK, NOPIDCACHE
 
     - {3:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g a.out -q WAITCLONE
+        # {0:1} {1:1} -g iotop -q WAITCLONE
 
     - {3:1} with colorful elapsed time exceeds 0 second
-        # {0:1} {1:1} -g a.out -c write -q PYELAPSED:0
+        # {0:1} {1:1} -g iotop -c write -q PYELAPSED:0
 
     - {3:1} {4:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g a.out -q CONTALONE
+        # {0:1} {1:1} -g iotop -q CONTALONE
 
     - {3:1} {4:1} with printing tracing overhead
-        # {0:1} {1:1} -g a.out -q PRINTDELAY
+        # {0:1} {1:1} -g iotop -q PRINTDELAY
 
     - {3:1} {4:1} including profiling overhead time
-        # {0:1} {1:1} -g a.out -q INCOVERHEAD
+        # {0:1} {1:1} -g iotop -q INCOVERHEAD
 
     - {3:1} {4:1} without truncation
-        # {0:1} {1:1} -g a.out -q NOCUT
+        # {0:1} {1:1} -g iotop -q NOCUT
 
     - {3:1} with 1/10 instructions {4:1}
-        # {0:1} {1:1} -g a.out -H 10
+        # {0:1} {1:1} -g iotop -H 10
 
     - {3:1} {4:1} and report the result to ./guider.out
-        # {0:1} {1:1} -g a.out -o . -a
+        # {0:1} {1:1} -g iotop -o . -a
 
     - {3:1} with breakpoint for peace including register info {4:1}
-        # {0:1} {1:1} -g a.out -c peace -a
+        # {0:1} {1:1} -g iotop -c peace -a
 
     - {3:1} {4:1} only for 2 seconds
-        # {0:1} {1:1} -g a.out -R 2s
+        # {0:1} {1:1} -g iotop -R 2s
+
+    - {3:1} {4:1} and draw timeline segments for all python calls
+        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10 -a
+        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
+        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, PYELAPSED:0 -a
+        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, PYELAPSED:0 -H -a
                     '''.format(cmd, mode, cmdListStr,
                         'Trace python calls',
                         'for specific threads')
@@ -32077,7 +32086,7 @@ Copyright:
             if 'TIMEUNIT' in SysMgr.environList:
                 config.TIMEUNIT = SysMgr.environList['TIMEUNIT'][0].lower()
             else:
-                config.TIMEUNIT = 'ms'
+                config.TIMEUNIT = 'us'
 
             # set font size #
             duration = 0
@@ -54170,7 +54179,7 @@ class Debugger(object):
         if 'DURATION' in SysMgr.environList:
             self.timeDuration = long(SysMgr.environList['DURATION'][0])
         else:
-            self.timeDuration = 1
+            self.timeDuration = 100
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -61403,25 +61412,7 @@ typedef struct {
                 sym, fname, realtime=True, bt=backtrace)
 
             # add timeline segment #
-            if Debugger.envFlags['TIMELINE']:
-                # get group id #
-                if not sym in self.timelineIdx:
-                    self.timelineIdx[sym] = len(self.timelineIdx)
-                symidx = self.timelineIdx[sym]
-
-                # convert time unit to us #
-                startTime = self.vdiff * 1000000
-
-                # add timeline data #
-                self.timelineData['segments'].append({
-                    'group': symidx,
-                    'text': sym,
-                    'id': symidx,
-                    'state': 'S',
-                    'time_start': startTime,
-                    'time_end': startTime + self.timeDuration,
-                    'info': self.btStr.strip() if self.btStr else '',
-                })
+            self.addTimelineInt(sym, self.btStr)
 
             return isRetBp
 
@@ -61522,30 +61513,8 @@ typedef struct {
                                     elapsed, addStr)
 
                         # add timeline segment #
-                        if Debugger.envFlags['TIMELINE']:
-                            # get group id #
-                            if not origSym in self.timelineIdx:
-                                self.timelineIdx[origSym] = \
-                                    len(self.timelineIdx)
-                            symidx = self.timelineIdx[origSym]
-
-                            # convert time unit to us #
-                            numElapsed = float(origElapsed.lstrip('/'))
-                            startTime = self.vdiff - numElapsed
-                            endTime = self.vdiff
-                            endTime *= 1000000
-                            startTime *= 1000000
-
-                            # add timeline data #
-                            self.timelineData['segments'].append({
-                                'group': symidx,
-                                'text': origSym,
-                                'id': symidx,
-                                'state': 'S',
-                                'time_start': startTime,
-                                'time_end': endTime,
-                                'info': btstr.strip(),
-                            })
+                        numElapsed = float(origElapsed.lstrip('/'))
+                        self.addTimelineRet(origSym, numElapsed, btstr)
 
                     # build JSON output #
                     elif SysMgr.jsonEnable:
@@ -61609,25 +61578,7 @@ typedef struct {
                         convColor(fnameStr, 'YELLOW'))
 
                 # add timeline segment #
-                if Debugger.envFlags['TIMELINE']:
-                    # get group id #
-                    if not sym in self.timelineIdx:
-                        self.timelineIdx[sym] = len(self.timelineIdx)
-                    symidx = self.timelineIdx[sym]
-
-                    # convert time unit to us #
-                    startTime = self.vdiff * 1000000
-
-                    # add timeline data #
-                    self.timelineData['segments'].append({
-                        'group': symidx,
-                        'text': sym,
-                        'id': symidx,
-                        'state': 'S',
-                        'time_start': startTime,
-                        'time_end': startTime + self.timeDuration,
-                        'info': btstr.strip(),
-                    })
+                self.addTimelineInt(sym, btstr)
 
         # check filter result #
         if not filterRes:
@@ -62380,6 +62331,7 @@ typedef struct {
                 self.prevPySym = call
                 self.prevPyFile = fname
                 self.prevPyLine = line
+                self.prevPyBt = bt
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
@@ -62448,7 +62400,15 @@ typedef struct {
                     (diffstr, tinfo, indent, self.prevPySym,
                         elapsed, self.prevPyFile, self.prevPyLine)
 
+            # add timeline segment #
+            if Debugger.envFlags['TIMELINE'] and \
+                not Debugger.envFlags['INTERCALL']:
+                pySym = '%s[%s]' % (self.prevPySym, self.prevPyFile)
+                pyBtStr = self.getBtStr(self.prevPyBt)
+                self.addTimelineRet(pySym, etime, pyBtStr)
+
             # initialize previous symbol #
+            call = self.prevPySym
             self.prevPySym = None
         else:
             if bt and SysMgr.funcDepth > 0:
@@ -62485,6 +62445,9 @@ typedef struct {
                 callString = '\n%s %s%s%s%s [%s:%s]' % \
                     (diffstr, tinfo, indent, convColor(call, 'GREEN'),
                         elapsed, fname, line)
+
+            # add timeline item #
+            self.addTimelineInt(call, btstr)
 
         # add backtrace #
         if btstr:
@@ -62838,6 +62801,62 @@ typedef struct {
 
 
 
+    def addTimelineRet(self, sym, diff, bts):
+        if not Debugger.envFlags['TIMELINE'] or \
+            Debugger.envFlags['INTERCALL']:
+            return
+
+        # get group id #
+        if not sym in self.timelineIdx:
+            self.timelineIdx[sym] = len(self.timelineIdx)
+        symidx = self.timelineIdx[sym]
+
+        # convert time unit to us #
+        startTime = self.vdiff - diff
+        endTime = self.vdiff
+        endTime *= 1000000
+        startTime *= 1000000
+
+        # add timeline data #
+        self.timelineData['segments'].append({
+            'group': symidx,
+            'text': sym,
+            'id': symidx,
+            'state': 'S',
+            'time_start': startTime,
+            'time_end': endTime,
+            'info': bts.strip() if bts else '',
+        })
+
+
+
+    def addTimelineInt(self, sym, bts):
+        # add timeline segment #
+        if not Debugger.envFlags['TIMELINE'] or \
+            not Debugger.envFlags['INTERCALL']:
+            return
+
+        # get group id #
+        if not sym in self.timelineIdx:
+            self.timelineIdx[sym] = len(self.timelineIdx)
+        symidx = self.timelineIdx[sym]
+
+        # convert time unit to us #
+        startTime = self.vdiff * 1000000
+
+        # add timeline data #
+        self.timelineData['segments'].append({
+            'group': symidx,
+            'text': sym,
+            'id': symidx,
+            'state': 'S',
+            'time_start': startTime,
+            'time_end': startTime + self.timeDuration,
+            'info': bts.strip() if bts else '',
+        })
+
+
+
     def handleSyscallOutput(self, args, defer=False):
         # get diff time #
         diff = self.vdiff
@@ -62855,26 +62874,8 @@ typedef struct {
             backtrace = None
             bts = ''
 
-        # add timeline segment #
-        if Debugger.envFlags['TIMELINE'] and Debugger.envFlags['INTERCALL']:
-            # get group id #
-            if not self.syscall in self.timelineIdx:
-                self.timelineIdx[self.syscall] = len(self.timelineIdx)
-            symidx = self.timelineIdx[self.syscall]
-
-            # convert time unit to us #
-            startTime = self.vdiff * 1000000
-
-            # add timeline data #
-            self.timelineData['segments'].append({
-                'group': symidx,
-                'text': self.syscall,
-                'id': symidx,
-                'state': 'S',
-                'time_start': startTime,
-                'time_end': startTime + self.timeDuration,
-                'info': bts.strip(),
-            })
+        # add timeline item #
+        self.addTimelineInt(self.syscall, bts)
 
         # set filter flag #
         if Debugger.envFlags['ONLYOK'] or Debugger.envFlags['ONLYFAIL']:
@@ -63237,29 +63238,7 @@ typedef struct {
                 retstr = convColor(retstr, 'WARNING')
 
             # add timeline segment #
-            if Debugger.envFlags['TIMELINE'] and \
-                not Debugger.envFlags['INTERCALL']:
-                # get group id #
-                if not name in self.timelineIdx:
-                    self.timelineIdx[name] = len(self.timelineIdx)
-                symidx = self.timelineIdx[name]
-
-                # convert time unit to us #
-                startTime = self.vdiff - diff
-                endTime = self.vdiff
-                endTime *= 1000000
-                startTime *= 1000000
-
-                # add timeline data #
-                self.timelineData['segments'].append({
-                    'group': symidx,
-                    'text': name,
-                    'id': symidx,
-                    'state': 'S',
-                    'time_start': startTime,
-                    'time_end': endTime,
-                    'info': self.prevBtStr,
-                })
+            self.addTimelineRet(name, diff, self.prevBtStr)
 
             # update stats #
             if self.isRealtime:
@@ -63867,6 +63846,7 @@ typedef struct {
         self.pyInit = False
         self.prevSym = None
         self.prevPySym = None
+        self.prevPyBt = None
         self.prevPyIndent = {}
         self.pretty = not SysMgr.findOption('Q')
 
