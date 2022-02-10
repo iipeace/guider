@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220209"
+__revision__ = "220210"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7995,12 +7995,13 @@ class Timeline(object):
         # apply task converter #
         try:
             self.tasks = {}
-            for task in tasks:
-                if task in Timeline.conv_table:
-                    new = Timeline.conv_table[task]
-                    self.tasks[new] = tasks[task]
-                elif type(tasks) is dict:
-                    self.tasks[task] = tasks[task]
+            if tasks:
+                for task in tasks:
+                    if task in Timeline.conv_table:
+                        new = Timeline.conv_table[task]
+                        self.tasks[new] = tasks[task]
+                    elif type(tasks) is dict:
+                        self.tasks[task] = tasks[task]
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr('failed to change tasks in timeline', True)
@@ -24833,23 +24834,23 @@ Description:
 
                     examStr = '''
 Examples:
-    - {2:1} {3:1}
-        # {0:1} {1:1} -g a.out
+    - {2:1} {3:1} using 100 us sampling
+        # {0:1} {1:1} -g iotop
 
     - {2:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g a.out -W
+        # {0:1} {1:1} -g iotop -W
 
     - {2:1} with backtrace {3:1} (merged native stack and python stack from python 3.7)
-        # {0:1} {1:1} -g a.out -H
+        # {0:1} {1:1} -g iotop -H
 
     - {2:1} with backtrace including native symbols {3:1} (merged native stack and python stack from python 3.7)
-        # {0:1} {1:1} -g a.out -H -q INCNATIVE
+        # {0:1} {1:1} -g iotop -H -q INCNATIVE
 
     - {2:1} {3:1} every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
     - {2:1} from a specific binary and print standard output for child tasks
-        # {0:1} {1:1} a.out -q NOMUTE
+        # {0:1} {1:1} iotop -q NOMUTE
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
 
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -24858,41 +24859,45 @@ Examples:
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
     - {2:1} {3:1} (wait for new target if no task)
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
+        # {0:1} {1:1} iotop -g iotop -q WAITTASK
+        # {0:1} {1:1} iotop -g iotop -q WAITTASK:1
+        # {0:1} {1:1} iotop -g iotop -q WAITTASK, NOPIDCACHE
 
     - {2:1} {3:1} even if the master tracer is terminated
-        # {0:1} {1:1} a.out -g a.out -q CONTALONE
+        # {0:1} {1:1} iotop -g iotop -q CONTALONE
 
     - {2:1} except for wait status {3:1}
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+        # {0:1} {1:1} iotop -g iotop -q EXCEPTWAIT
 
     - {2:1} except for register info {3:1}
-        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+        # {0:1} {1:1} iotop -g iotop -q NOCONTEXT
 
     - {2:1} {3:1} consumed CPU more than 10%
-        # {0:1} {1:1} -g a.out -q CPUCOND:10
+        # {0:1} {1:1} -g iotop -q CPUCOND:10
 
     - {2:1} except for no symbol functions {3:1}
-        # {0:1} {1:1} a.out -g a.out -q ONLYSYM
+        # {0:1} {1:1} iotop -g iotop -q ONLYSYM
 
     - {2:1} {3:1} after loading all symbols in stop status
-        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+        # {0:1} {1:1} iotop -g iotop -q STOPTARGET
 
     - {2:1} for 4th and 5th new threads in each new processes from a specific binary
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} iotop -g iotop -q TARGETNUM:4, TARGETNUM:5
+        # {0:1} {1:1} -I iotop -g iotop -q TARGETNUM:4, TARGETNUM:5
 
     - {2:1} for a specific binary execution with enviornment variables
-        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
-        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} iotop -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} iotop -q ENVFILE:/data/env.sh
 
     - Monitor CPU usage on whole system of python calls {3:1}
-        # {0:1} {1:1} -g a.out -e c
+        # {0:1} {1:1} -g iotop -e c
 
     - {2:1} with breakpoint for peace including register info {3:1}
         # {0:1} {1:1} -g 1234 -c peace -a
+
+    - {2:1} {3:1} and draw timeline segments for all python call samples
+        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10 -a
+        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode,
@@ -26233,6 +26238,9 @@ Examples:
     - {2:1} for a specific thread even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
+    - {2:1} and draw timeline segments
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H
                     '''.format(cmd, mode, 'Trace all signals')
 
                 # mem #
@@ -61467,7 +61475,7 @@ typedef struct {
                         addStr = ''
 
                     # convert elapsed color #
-                    origElapsed = elapsed
+                    origElapsed = elapsed.lstrip('/')
                     if etime > self.retTime:
                         elapsed = convColor(elapsed, 'RED')
                     else:
@@ -61494,7 +61502,7 @@ typedef struct {
                                     else '%s(%s)' % (self.comm, self.pid),
                                 'symbol': origSym,
                                 'return': retstr.lstrip('='),
-                                'elapsed': origElapsed.lstrip('/'),
+                                'elapsed': origElapsed,
                                 'caller': addStr.lstrip('-> ')
                             }
                         else:
@@ -61513,7 +61521,7 @@ typedef struct {
                                     elapsed, addStr)
 
                         # add timeline segment #
-                        numElapsed = float(origElapsed.lstrip('/'))
+                        numElapsed = float(origElapsed)
                         self.addTimelineRet(origSym, numElapsed, btstr)
 
                     # build JSON output #
@@ -61525,7 +61533,7 @@ typedef struct {
                                 else '%s(%s)' % (self.comm, self.pid),
                             'symbol': sym,
                             'return': retstr.lstrip('='),
-                            'elapsed': origElapsed.lstrip('/'),
+                            'elapsed': origElapsed,
                             'caller': addStrlstrip('-> ')
                         }
                     # build string output #
@@ -62015,6 +62023,9 @@ typedef struct {
             SysMgr.printWarn(callString)
         else:
             SysMgr.printPipe(callString)
+
+        # add timeline segment #
+        self.addTimelineInt(name, callString)
 
         # print backtrace #
         if not self.isRealtime and SysMgr.funcDepth > 0:
@@ -62566,6 +62577,11 @@ typedef struct {
         if retbt:
             return bt
 
+        # add timeline segment #
+        if Debugger.envFlags['TIMELINE'] and Debugger.envFlags['INTERCALL']:
+            pyBtStr = self.getBtStr(bt)
+            self.addTimelineInt(lastName, pyBtStr)
+
         self.addSample(lastName, lastFile, realtime=True, bt=bt)
 
 
@@ -62801,15 +62817,24 @@ typedef struct {
 
 
 
-    def addTimelineRet(self, sym, diff, bts):
+    def addTimelineRet(self, sym, diff, bts, gid=-1, sid=-1):
         if not Debugger.envFlags['TIMELINE'] or \
             Debugger.envFlags['INTERCALL']:
             return
 
+        # get symbol id #
+        if sid == -1:
+            if not sym in self.timelineIdx:
+                self.timelineIdx[sym] = len(self.timelineIdx)
+            symidx = self.timelineIdx[sym]
+        else:
+            symidx = sid
+
         # get group id #
-        if not sym in self.timelineIdx:
-            self.timelineIdx[sym] = len(self.timelineIdx)
-        symidx = self.timelineIdx[sym]
+        if gid == -1:
+            grpidx = symidx
+        else:
+            grpidx = gid
 
         # convert time unit to us #
         startTime = self.vdiff - diff
@@ -62819,7 +62844,7 @@ typedef struct {
 
         # add timeline data #
         self.timelineData['segments'].append({
-            'group': symidx,
+            'group': grpidx,
             'text': sym,
             'id': symidx,
             'state': 'S',
@@ -62830,23 +62855,32 @@ typedef struct {
 
 
 
-    def addTimelineInt(self, sym, bts):
+    def addTimelineInt(self, sym, bts, gid=-1, sid=-1):
         # add timeline segment #
         if not Debugger.envFlags['TIMELINE'] or \
             not Debugger.envFlags['INTERCALL']:
             return
 
+        # get symbol id #
+        if sid == -1:
+            if not sym in self.timelineIdx:
+                self.timelineIdx[sym] = len(self.timelineIdx)
+            symidx = self.timelineIdx[sym]
+        else:
+            symidx = sid
+
         # get group id #
-        if not sym in self.timelineIdx:
-            self.timelineIdx[sym] = len(self.timelineIdx)
-        symidx = self.timelineIdx[sym]
+        if gid == -1:
+            grpidx = symidx
+        else:
+            grpidx = gid
 
         # convert time unit to us #
         startTime = self.vdiff * 1000000
 
         # add timeline data #
         self.timelineData['segments'].append({
-            'group': symidx,
+            'group': grpidx,
             'text': sym,
             'id': symidx,
             'state': 'S',
