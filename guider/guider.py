@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220210"
+__revision__ = "220211"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18872,7 +18872,7 @@ class SysMgr(object):
     demangleEnable = True
     compressEnable = False
     generalEnable = True
-    nrTop = None
+    nrTop = 0
     pipeForPager = None
     printFd = None
     fileSuffix = None
@@ -25327,6 +25327,9 @@ Examples:
     - {2:1} console standard output
         # {0:1} {1:1} -Q
 
+    - {2:1} /tmp/guider.report with maximum 20 task items
+        # {0:1} {1:1} -q NRTOPRANK:20
+
     - Report system status including threshold events in JSON format to /tmp/guider.report
         # {0:1} {1:1} -C ./guider.conf
         # {0:1} {1:1} -C ./guider.conf -e l
@@ -25337,7 +25340,7 @@ Examples:
     - Report system status with the return value of external functions in JSON format to /tmp/guider.report
         # {0:1} {1:1} -q REPORTFUNC:test.py:test
 
-    - Stop reporting processes in the background
+    - Stop reporting in the background
         # {0:1} stop
 
     See the top COMMAND help for more examples.
@@ -33244,7 +33247,17 @@ Copyright:
                 SysMgr.printErr('wrong value %s for %s' % (var, name))
                 sys.exit(0)
 
-        # define variable list #
+        # set maximum top rank #
+        if 'NRTOPRANK' in SysMgr.environList:
+            try:
+                SysMgr.nrTopRank = long(SysMgr.environList['NRTOPRANK'][0])
+            except:
+                SysMgr.printErr(
+                    "failed to set NRTOPRANK to '%s'" % \
+                        SysMgr.environList['NRTOPRANK'][0])
+                sys.exit(0)
+
+        # define threshold list #
         varList = [
             ('STARTCONDTIME', 'startUptime'),
             ('STARTCONDCPUMORE', 'startCondCpuMore'),
@@ -33262,22 +33275,22 @@ Copyright:
         for item in varList:
             _applyVar(item[0], SysMgr, item[1])
 
-        # wait for CPU condition #
+        # wait for bigger CPU condition #
         if SysMgr.startCondCpuMore:
             SysMgr.waitForResource(
                 cpuRes=SysMgr.startCondCpuMore, cpuCond='MORE')
 
-        # wait for CPU condition #
+        # wait for lesser CPU condition #
         if SysMgr.startCondCpuLess:
             SysMgr.waitForResource(
                 cpuRes=SysMgr.startCondCpuLess, cpuCond='LESS')
 
-        # wait for memory condition #
+        # wait for bigger memory condition #
         if SysMgr.startCondMemMore:
             SysMgr.waitForResource(
                 memRes=SysMgr.startCondMemMore, memCond='MORE')
 
-        # wait for memory condition #
+        # wait for lesser memory condition #
         if SysMgr.startCondMemLess:
             SysMgr.waitForResource(
                 memRes=SysMgr.startCondMemLess, memCond='LESS')
@@ -76250,8 +76263,7 @@ class TaskAnalyzer(object):
                 cpuProcUsage.pop("[ TOTAL ]", None)
 
                 # define top variable #
-                if SysMgr.nrTop:
-                    tcnt = 0
+                tcnt = 0
 
                 # check delay option #
                 if delay:
@@ -76965,8 +76977,7 @@ class TaskAnalyzer(object):
             self.drawUserEvent('mem')
 
             # define top variable #
-            if SysMgr.nrTop:
-                tcnt = 0
+            tcnt = 0
 
             # start loop #
             for key, val in graphStats.items():
@@ -76986,7 +76997,7 @@ class TaskAnalyzer(object):
                 memFree = graphStats['%smemFree' % fname][:lent]
                 memAnon = graphStats['%smemAnon' % fname][:lent]
                 memCache = graphStats['%smemCache' % fname][:lent]
-                memProcUsage = graphStats['%smemProcUsage' % fname]
+                memProc = graphStats['%smemProcUsage' % fname]
                 totalSwap = graphStats['%stotalSwap' % fname]
                 swapUsage = graphStats['%sswapUsage' % fname][:lent]
 
@@ -76995,10 +77006,10 @@ class TaskAnalyzer(object):
 
                 # Process VSS #
                 if SysMgr.vssEnable:
-                    for key, item in sorted(memProcUsage.items(),
-                        key=lambda e: \
+                    for key, item in sorted(memProc.items(), key=lambda e: \
                         0 if not 'maxVss' in e[1] else e[1]['maxVss'],
                         reverse=True):
+
                         # check top number #
                         if SysMgr.nrTop:
                             if tcnt >= SysMgr.nrTop:
@@ -77064,8 +77075,7 @@ class TaskAnalyzer(object):
                 # Process Leak #
                 elif SysMgr.leakEnable:
                     # get VSS diffs #
-                    for key, item in sorted(memProcUsage.items(),
-                        key=lambda e: \
+                    for key, item in sorted(memProc.items(), key=lambda e: \
                         0 if not 'maxVss' in e[1] else e[1]['maxVss'],
                         reverse=True):
                         usage = \
@@ -77103,7 +77113,7 @@ class TaskAnalyzer(object):
                         item['vssDiff'] = diff
 
                     # draw leakage plots #
-                    for key, item in sorted(memProcUsage.items(),
+                    for key, item in sorted(memProc.items(),
                         key=lambda e: e[1]['vssDiff'], reverse=True):
 
                         # check top number #
@@ -77169,11 +77179,8 @@ class TaskAnalyzer(object):
                         labelList.append('%s [LEAK] - %s' % (key, diffsize))
 
                 # Process RSS #
-                elif SysMgr.rssEnable or \
-                    SysMgr.pssEnable or \
-                    SysMgr.ussEnable:
-                    for key, item in sorted(memProcUsage.items(),
-                        key=lambda e: \
+                elif SysMgr.rssEnable or SysMgr.pssEnable or SysMgr.ussEnable:
+                    for key, item in sorted(memProc.items(), key=lambda e: \
                         0 if not 'maxRss' in e[1] else e[1]['maxRss'],
                         reverse=True):
 
@@ -77621,8 +77628,7 @@ class TaskAnalyzer(object):
                         ha=_getTextAlign(idx, timeline))
 
             # define top variable #
-            if SysMgr.nrTop:
-                tcnt = 0
+            tcnt = 0
 
             # Process CPU usage #
             for idx, item in sorted(cpuProcUsage.items(),
@@ -77777,8 +77783,7 @@ class TaskAnalyzer(object):
             self.drawUserEvent('mem')
 
             # define top variable #
-            if SysMgr.nrTop:
-                tcnt = 0
+            tcnt = 0
 
             # create new timeline #
             timeline = range(len(graphStats['timeline']))
@@ -77788,7 +77793,7 @@ class TaskAnalyzer(object):
             memFree = graphStats['memFree']
             memAnon = graphStats['memAnon']
             memCache = graphStats['memCache']
-            memProcUsage = graphStats['memProcUsage']
+            memProc = graphStats['memProcUsage']
             totalSwap = graphStats['totalSwap']
             swapUsage = graphStats['swapUsage']
 
@@ -77797,7 +77802,7 @@ class TaskAnalyzer(object):
 
             # Process VSS #
             if SysMgr.vssEnable:
-                for key, item in sorted(memProcUsage.items(),
+                for key, item in sorted(memProc.items(),
                     key=lambda e: sum(list(map(long, e[1]))), reverse=True):
 
                     # check top number #
@@ -77832,10 +77837,8 @@ class TaskAnalyzer(object):
                         '%s [VSS] - %s' % (key, lastUsage))
 
             # Process RSS #
-            elif SysMgr.rssEnable or \
-                SysMgr.pssEnable or \
-                SysMgr.ussEnable:
-                for key, item in sorted(memProcUsage.items(),
+            elif SysMgr.rssEnable or SysMgr.pssEnable or SysMgr.ussEnable:
+                for key, item in sorted(memProc.items(),
                     key=lambda e: sum(list(map(long, e[1]))), reverse=True):
 
                     # check top number #
@@ -90618,7 +90621,7 @@ class TaskAnalyzer(object):
                     try:
                         prevCurFd = self.prevCpuData[idx]['curFd']
                         prevCurFd.seek(0)
-                        curFreq = prevCurFd.readline()[:-1]
+                        curFreq = long(prevCurFd.readline()[:-1])
                         self.cpuData[idx]['curFd'] = prevCurFd
                         perCoreStats[idx]['curFreq'] = curFreq
                     except SystemExit: sys.exit(0)
@@ -90636,7 +90639,7 @@ class TaskAnalyzer(object):
                         try:
                             newCurFd = open(curPath, 'r')
                             self.cpuData[idx]['curFd'] = newCurFd
-                            curFreq = newCurFd.readline()[:-1]
+                            curFreq = long(newCurFd.readline()[:-1])
                             perCoreStats[idx]['curFreq'] = curFreq
                         except SystemExit: sys.exit(0)
                         except:
@@ -90646,7 +90649,7 @@ class TaskAnalyzer(object):
                     try:
                         prevMinFd = self.prevCpuData[idx]['minFd']
                         prevMinFd.seek(0)
-                        minFreq = prevMinFd.readline()[:-1]
+                        minFreq = long(prevMinFd.readline()[:-1])
                         self.cpuData[idx]['minFd'] = prevMinFd
                         perCoreStats[idx]['minFreq'] = minFreq
                     except SystemExit: sys.exit(0)
@@ -90664,7 +90667,7 @@ class TaskAnalyzer(object):
                         try:
                             newMinFd = open(minPath, 'r')
                             self.cpuData[idx]['minFd'] = newMinFd
-                            minFreq = newMinFd.readline()[:-1]
+                            minFreq = long(newMinFd.readline()[:-1])
                             perCoreStats[idx]['minFreq'] = minFreq
                         except SystemExit: sys.exit(0)
                         except:
@@ -90674,7 +90677,7 @@ class TaskAnalyzer(object):
                     try:
                         prevMaxFd = self.prevCpuData[idx]['maxFd']
                         prevMaxFd.seek(0)
-                        maxFreq = prevMaxFd.readline()[:-1]
+                        maxFreq = long(prevMaxFd.readline()[:-1])
                         self.cpuData[idx]['maxFd'] = prevMaxFd
                         perCoreStats[idx]['maxFreq'] = maxFreq
                     except SystemExit: sys.exit(0)
@@ -90692,7 +90695,7 @@ class TaskAnalyzer(object):
                         try:
                             newMaxFd = open(maxPath, 'r')
                             self.cpuData[idx]['maxFd'] = newMaxFd
-                            maxFreq = newMaxFd.readline()[:-1]
+                            maxFreq = long(newMaxFd.readline()[:-1])
                             perCoreStats[idx]['maxFreq'] = maxFreq
                         except SystemExit: sys.exit(0)
                         except:
@@ -94628,8 +94631,14 @@ class TaskAnalyzer(object):
         NETOUT
         '''
 
+        convTime = UtilMgr.convTime
+
         # add per-process stats #
         if SysMgr.rankProcEnable:
+            def _setDefaultInfo(data, pid, rank, comm):
+                data['pid'] = long(pid)
+                data['comm'] = comm
+
             # add CPU status #
             if 'cpu' in self.reportData:
                 rank = 1
@@ -94638,30 +94647,35 @@ class TaskAnalyzer(object):
                     key=lambda e: e[1]['ttime'], reverse=True)
 
                 for pid, data in sortedProcData:
-                    if not (SysMgr.showAll or data['ttime'] > 0):
+                    comm = data['comm']
+
+                    # check comm #
+                    if not UtilMgr.isValidStr(comm):
+                        continue
+                    # check exit condition #
+                    elif not (SysMgr.showAll or data['ttime'] > 0):
                         break
 
                     evtdata = self.reportData['cpu']['procs']
-
-                    pid = long(pid)
                     evtdata[rank] = {}
-                    evtdata[rank]['pid'] = pid
-                    evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['comm']
+                    _setDefaultInfo(evtdata[rank], pid, rank, comm)
+
                     if 'ttimeDiff' in data:
                         evtdata[rank]['total'] = long(data['ttimeDiff'])
                     else:
                         evtdata[rank]['total'] = data['ttime']
+
                     if 'utimeDiff' in data:
                         evtdata[rank]['user'] = long(data['utimeDiff'])
                     else:
                         evtdata[rank]['user'] = data['utime']
+
                     if 'stimeDiff' in data:
                         evtdata[rank]['kernel'] = long(data['stimeDiff'])
                     else:
                         evtdata[rank]['kernel'] = data['stime']
-                    evtdata[rank]['runtime'] = \
-                        UtilMgr.convTime(data['runtime'])
+
+                    evtdata[rank]['runtime'] = convTime(data['runtime'])
 
                     rank += 1
 
@@ -94673,9 +94687,13 @@ class TaskAnalyzer(object):
                     key=lambda e: long(e[1]['rss']), reverse=True)
 
                 for pid, data in sortedProcData:
-                    rss = data['rss']
+                    comm = data['comm']
 
-                    if not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
+                    # check comm #
+                    if not UtilMgr.isValidStr(comm):
+                        continue
+                    # check the number of items #
+                    elif not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
                         break
 
                     try:
@@ -94686,16 +94704,11 @@ class TaskAnalyzer(object):
                         text = 0
 
                     evtdata = self.reportData['mem']['procs']
-
-                    pid = long(pid)
                     evtdata[rank] = {}
-                    evtdata[rank]['pid'] = pid
-                    evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['comm']
-                    evtdata[rank]['rss'] = rss
+                    _setDefaultInfo(evtdata[rank], pid, rank, comm)
+                    evtdata[rank]['rss'] = data['rss']
                     evtdata[rank]['text'] = text
-                    evtdata[rank]['runtime'] = \
-                        UtilMgr.convTime(data['runtime'])
+                    evtdata[rank]['runtime'] = convTime(data['runtime'])
 
                     # swap #
                     try:
@@ -94719,19 +94732,19 @@ class TaskAnalyzer(object):
                     key=lambda e: e[1]['btime'], reverse=True)
 
                 for pid, data in sortedProcData:
-                    if data['btime'] == 0:
+                    comm = data['comm']
+
+                    # check comm #
+                    if not UtilMgr.isValidStr(comm):
+                        continue
+                    elif data['btime'] == 0:
                         break
 
                     evtdata = self.reportData['block']['procs']
-
-                    pid = long(pid)
                     evtdata[rank] = {}
-                    evtdata[rank]['pid'] = long(pid)
-                    evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['comm']
+                    _setDefaultInfo(evtdata[rank], pid, rank, comm)
                     evtdata[rank]['iowait'] = data['btime']
-                    evtdata[rank]['runtime'] = \
-                        UtilMgr.convTime(data['runtime'])
+                    evtdata[rank]['runtime'] = convTime(data['runtime'])
 
                     rank += 1
 
