@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220211"
+__revision__ = "220212"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20002,11 +20002,6 @@ Commands:
                 else:
                     SysMgr.outPath = SysMgr.nullPath
 
-            # check buffer size #
-            if long(SysMgr.bufferSize) <= 0:
-                SysMgr.printWarn(
-                    'buffer size is unlimited', True)
-
             # set buffer strip #
             SysMgr.bufferLossEnable = True
 
@@ -20904,6 +20899,15 @@ Commands:
             SysMgr.printWarn(
                 'failed to set NONBLOCK attribute to the socket', reason=True)
             return False
+
+
+
+    @staticmethod
+    def getHomePath():
+        try:
+            return os.environ['HOME']
+        except:
+            return None
 
 
 
@@ -23061,7 +23065,7 @@ Commands:
         try:
             if not SysMgr.encodeEnable:
                 pass
-            elif 'NOENCODE' in os.environ:
+            elif 'NO_ENCODE' in os.environ:
                 SysMgr.encodeEnable = False
             else:
                 lang = os.getenv('LANG')
@@ -23644,7 +23648,7 @@ Examples:
 
     - {3:1} {2:2} with no encoding for output
         # {0:1} {1:1} -d e
-        # NOENCODE=1 {0:1} {1:1} -d e
+        # NO_ENCODE=1 {0:1} {1:1} -d e
 
     - {3:1} system only
         # {0:1} {1:1} -d T
@@ -25217,9 +25221,14 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor resources by condition
+    - Monitor resources by threshold condition
         # {0:1} {1:1}
         # {0:1} {1:1} -C /tmp/guider.conf
+
+    - Monitor resources by threshold condition and report also in JSON format
+        # {0:1} {1:1} -j -Q -q PRINTTEXT
+        # {0:1} {1:1} -j -o /tmp -q PRINTTEXT
+        # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q PRINTTEXT
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -33907,14 +33916,6 @@ Copyright:
 
                     if bsize >= 0:
                         SysMgr.bufferSize = bsize
-
-                        if bsize == 0:
-                            SysMgr.printInfo(
-                                "set buffer size to unlimited")
-                        else:
-                            SysMgr.printInfo(
-                                "set buffer size to %s" %
-                                    UtilMgr.convSize2Unit(bsize))
                     else:
                         SysMgr.printErr((
                             "wrong value for buffer size, "
@@ -35256,7 +35257,7 @@ Copyright:
 
 
     @staticmethod
-    def checkRepTopCond(val=None):
+    def checkRepTopCond(val=None, ignore=True):
         # check whether report option is already enabled #
         if SysMgr.reportEnable:
             return True
@@ -35265,7 +35266,9 @@ Copyright:
             SysMgr.reportObject = sys.stdout
             reportPath = SysMgr.nullPath
         else:
-            SysMgr.printEnable = False
+            # ignore printing text-based stats #
+            if ignore and not 'PRINTTEXT' in SysMgr.environList:
+                SysMgr.printEnable = False
 
             # check stdout report option #
             if not val:
@@ -35283,8 +35286,7 @@ Copyright:
                 if upDirPos > 0 and \
                     not os.path.isdir(reportPath[:upDirPos]):
                     SysMgr.printErr(
-                        "wrong path '%s' to report stats" % \
-                        reportPath)
+                        "wrong path '%s' to report stats" % reportPath)
                     return False
             # check report file #
             else:
@@ -35310,6 +35312,7 @@ Copyright:
                 SysMgr.printOpenErr(reportPath)
                 sys.exit(0)
 
+        # report option is enabled #
         SysMgr.reportEnable = True
 
         SysMgr.printInfo(
@@ -73715,6 +73718,15 @@ class TaskAnalyzer(object):
                 SysMgr.bufferSize = 0
 
             if SysMgr.outPath:
+                # print buffer size #
+                if SysMgr.bufferSize == 0:
+                    SysMgr.printWarn(
+                        "buffer size is unlimited", True)
+                else:
+                    SysMgr.printInfo(
+                        "buffer size is limited to %s" %
+                            UtilMgr.convSize2Unit(SysMgr.bufferSize))
+
                 SysMgr.printStat(
                     r"start profiling... [ STOP(Ctrl+c), SAVE(Ctrl+\) ]")
 
@@ -94044,12 +94056,17 @@ class TaskAnalyzer(object):
         if SysMgr.outPath == SysMgr.nullPath:
             SysMgr.outPath = '%s/guider_%s_%s_%s.out' % \
                 (SysMgr.tmpPath, event, cmd, long(SysMgr.uptime))
+        elif os.path.isdir(SysMgr.outPath):
+            SysMgr.outPath = '%s/guider_%s_%s_%s.out' % \
+                (SysMgr.outPath, event, cmd, long(SysMgr.uptime))
 
         # change output path #
         if SysMgr.isLinux:
             # convert timer #
             try:
                 timeunit = cmd.strip('SAVE_')
+                if not timeunit:
+                    raise Exception('no time')
                 sec = UtilMgr.convUnit2Time(timeunit)
             except SystemExit: sys.exit(0)
             except:
@@ -94174,20 +94191,21 @@ class TaskAnalyzer(object):
         # print events #
         prevList = list(SysMgr.thresholdEventList)
         nowList = list(self.reportData['event'])
+        timestr = 'at %s (%s)' % (SysMgr.uptime, UtilMgr.getUTCTime())
 
         # print finished events #
         endList = set(prevList) - set(nowList)
         if endList:
             SysMgr.printInfo(
-                "finished threshold events [ %s ] at %s" % \
-                    (', '.join(endList), SysMgr.uptime))
+                "finished threshold events [ %s ] %s" % \
+                    (', '.join(endList), timestr))
 
         # print new events #
         newList = set(nowList) - set(prevList)
         if newList:
             SysMgr.printInfo(
-                "threshold events [ %s ] occurred at %s" % \
-                    (', '.join(newList), SysMgr.uptime))
+                "occurred threshold events [ %s ] %s" % \
+                    (', '.join(newList), timestr))
 
             # save event timestamp #
             SysMgr.broadcastEvent(list(newList), [SysMgr.pid])
@@ -94198,9 +94216,9 @@ class TaskAnalyzer(object):
         # print cont events #
         contList = set(nowList) & set(prevList)
         if contList:
-            SysMgr.printInfo(
-                "continued threshold events [ %s ] at %s" % \
-                    (', '.join(contList), SysMgr.uptime))
+            SysMgr.printWarn(
+                "continued threshold events [ %s ] %s" % \
+                    (', '.join(contList), timestr))
 
         # update event list #
         SysMgr.thresholdEventList = self.reportData['event']
