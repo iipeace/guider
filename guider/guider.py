@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220212"
+__revision__ = "220213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19913,7 +19913,7 @@ Commands:
             SysMgr.checkBgProcs()
 
         # write user command #
-        SysMgr.writeTraceCmd('BEFORE')
+        SysMgr.runProfCmd('BEFORE')
 
         # thread #
         if SysMgr.checkMode('ttop'):
@@ -20827,6 +20827,89 @@ Commands:
         except:
             SysMgr.printErr(
                 'failed to restart %s' % __module__, True)
+
+
+
+    @staticmethod
+    def doFreeze():
+        # get argument #
+        if SysMgr.hasMainArg():
+            value = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            value = SysMgr.filterGroup
+        else:
+            SysMgr.printErr(
+                "failed to freeze tasks because of no target")
+            sys.exit(0)
+
+        # init system context #
+        SysMgr.initSystemContext()
+
+        # get cgroup path #
+        cgroupPath = SysMgr.sysInstance.getCgroupPath()
+        if not cgroupPath:
+            SysMgr.printErr("failed to access cgroup filesystem")
+            sys.exit(0)
+
+        # check freezer subsystem #
+        cgroupPath = os.path.join(cgroupPath, 'freezer')
+        if not os.path.exists(cgroupPath):
+            SysMgr.printErr("failed to access freezer subsystem in cgroup")
+            sys.exit(0)
+
+        # check task type #
+        if SysMgr.processEnable:
+            isThread = False
+            taskType = 'process'
+            taskNode = 'cgroup.procs'
+        else:
+            isThread = True
+            taskType = 'thread'
+            taskNode = 'tasks'
+
+        # get target tasks #
+        targetTasks = []
+        for item in value:
+            targetTasks += SysMgr.getTids(
+                item, isThread=isThread, sibling=SysMgr.groupProcEnable)
+        if not targetTasks:
+            SysMgr.printErr("no target %s" % taskType)
+            sys.exit(0)
+
+        # make target dir #
+        targetDir = os.path.join(cgroupPath, 'guider_%s' % SysMgr.pid)
+        try:
+            os.makedirs(targetDir)
+        except:
+            SysMgr.printErr("failed to make '%s'" % targetDir, True)
+            sys.exit(0)
+
+        # register tasks to cgroup node #
+        taskPushFile = os.path.join(targetDir, taskNode)
+        SysMgr.writeFile(taskPushFile, targetTasks)
+
+        # freeze tasks #
+        SysMgr.writeFile(os.path.join(targetDir, 'freezer.state'), 'FROZEN')
+
+        # register handler to remove directory #
+        taskPopFile = os.path.join(targetDir, '..', taskNode)
+        SysMgr.addExitFunc(SysMgr.writeFile, [taskPopFile, targetTasks])
+        SysMgr.addExitFunc(os.rmdir, [targetDir])
+
+        # print target tasks #
+        tasks = SysMgr.readFile(taskPushFile).split('\n')
+        for tid in tasks:
+            if not tid:
+                continue
+            comm = SysMgr.getComm(tid)
+            SysMgr.printInfo('freezed %s(%s) %s' % (comm, tid, taskType))
+
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
+
+        # wait for events #
+        SysMgr.waitEvent()
 
 
 
@@ -23230,6 +23313,7 @@ Commands:
                 'drawvssavg': ('VSS', 'Linux/MacOS/Windows'),
                 },
             'control': {
+                'freeze': ('Thread', 'Linux'),
                 'hook': ('Function', 'Linux'),
                 'kill/tkill': ('Signal', 'Linux/MacOS'),
                 'limitcpu': ('CPU', 'Linux'),
@@ -26638,6 +26722,34 @@ Examples:
         # {0:1} {1:1} -g a.out -P
                     '''.format(cmd, mode)
 
+                # freeze #
+                elif SysMgr.checkMode('freeze'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Freeze specific running tasks
+
+Options:
+    -g  <TID|COMM>              set task filter
+    -R  <TIME>                  set timer
+    -u                          run in the background
+    -P                          group threads in a same process
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Freeze specific running processes for 3 seconds
+        # {0:1} {1:1} -g a.out -R 3
+        # {0:1} {1:1} -g 1234 -R 3
+        # {0:1} {1:1} -g "a*" -R 3
+
+    - Freeze specific running threads including a same process group
+        # {0:1} {1:1} -g a.out -et -P
+                    '''.format(cmd, mode)
+
                 # readelf #
                 elif SysMgr.checkMode('readelf'):
                     helpStr = '''
@@ -29604,7 +29716,7 @@ Copyright:
             # apply entry command #
             if sCmd != ' NONE':
                 pCmd = '%s %s' % (pCmd, sCmd)
-                if SysMgr.writeCmd(
+                if SysMgr.writeTraceCmd(
                         '../kprobe_events', pCmd, append=True) < 0:
                     SysMgr.printErr("wrong command '%s'" % pCmd)
                     sys.exit(0)
@@ -29645,7 +29757,7 @@ Copyright:
             # apply return command #
             if sCmd != 'NONE':
                 rCmd = '%s %s' % (rCmd, sCmd)
-                if SysMgr.writeCmd(
+                if SysMgr.writeTraceCmd(
                     '../kprobe_events', rCmd, append=True) < 0:
                     SysMgr.printErr("wrong command '%s'" % rCmd)
                     sys.exit(0)
@@ -29654,13 +29766,13 @@ Copyright:
         if SysMgr.filterGroup:
             cmd = SysMgr.getPidFilter()
             if cmd != '':
-                SysMgr.writeCmd("kprobes/filter", cmd)
+                SysMgr.writeTraceCmd("kprobes/filter", cmd)
             else:
                 SysMgr.printErr("failed to apply '%s' to kprobe filter" % cmd)
                 sys.exit(0)
 
         # enable kprobe events #
-        if SysMgr.writeCmd("kprobes/enable", '1') < 0:
+        if SysMgr.writeTraceCmd("kprobes/enable", '1') < 0:
             SysMgr.printErr("failed to apply '%s' to kprobe events" % cmd)
             sys.exit(0)
 
@@ -29771,13 +29883,13 @@ Copyright:
         for cmd in effectiveCmd:
             # apply entry events #
             pCmd = 'p:%s_enter %s:%s' % (cmd[0], cmd[2], cmd[1])
-            if SysMgr.writeCmd('../uprobe_events', pCmd, append=True) < 0:
+            if SysMgr.writeTraceCmd('../uprobe_events', pCmd, append=True) < 0:
                 SysMgr.printErr("wrong command '%s'" % pCmd)
                 sys.exit(0)
 
             # apply return events #
             rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
-            if SysMgr.writeCmd('../uprobe_events', rCmd, append=True) < 0:
+            if SysMgr.writeTraceCmd('../uprobe_events', rCmd, append=True) < 0:
                 SysMgr.printErr("wrong command '%s'" % rCmd)
                 sys.exit(0)
 
@@ -29785,13 +29897,13 @@ Copyright:
         if SysMgr.filterGroup:
             cmd = SysMgr.getPidFilter()
             if cmd != '':
-                SysMgr.writeCmd("uprobes/filter", cmd)
+                SysMgr.writeTraceCmd("uprobes/filter", cmd)
             else:
                 SysMgr.printErr("failed to apply '%s' to uprobe filter" % cmd)
                 sys.exit(0)
 
         # enable uprobe events #
-        if SysMgr.writeCmd("uprobes/enable", '1') < 0:
+        if SysMgr.writeTraceCmd("uprobes/enable", '1') < 0:
             SysMgr.printErr("failed to apply '%s' to uprobe events" % cmd)
             sys.exit(0)
 
@@ -29852,8 +29964,8 @@ Copyright:
                     continue
             scmd = scmd[scmd.find("("):]
 
-        SysMgr.writeCmd('raw_syscalls/filter', scmd)
-        ret = SysMgr.writeCmd(cmd, '1')
+        SysMgr.writeTraceCmd('raw_syscalls/filter', scmd)
+        ret = SysMgr.writeTraceCmd(cmd, '1')
         if ret < 0:
             SysMgr.printWarn("failed to enable syscall events", True)
 
@@ -29961,19 +30073,20 @@ Copyright:
                 cmdFormat[1] = pidFilter + " && " + cmdFormat[1]
 
             # check effective event #
-            if SysMgr.writeCmd(cmdFormat[0] + '/enable', '0') < 0:
+            if SysMgr.writeTraceCmd(cmdFormat[0] + '/enable', '0') < 0:
                 SysMgr.printErr("wrong event '%s'" % cmdFormat[0])
                 sys.exit(0)
 
             # check and enable effective filter #
             if len(cmdFormat) > 1 and \
-                SysMgr.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
+                SysMgr.writeTraceCmd(
+                    cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
                 SysMgr.printErr("wrong filter '%s' for '%s' event" % \
                     (origFilter, cmdFormat[0]))
                 sys.exit(0)
 
             # check and enable effective event #
-            if SysMgr.writeCmd(cmdFormat[0] + '/enable', '1') < 0:
+            if SysMgr.writeTraceCmd(cmdFormat[0] + '/enable', '1') < 0:
                 SysMgr.printErr("wrong event '%s'" % cmdFormat[0])
                 sys.exit(0)
             else:
@@ -30865,7 +30978,7 @@ Copyright:
             signal.signal(signum, signal.SIG_IGN)
 
         # write user command #
-        SysMgr.writeTraceCmd('STOP')
+        SysMgr.runProfCmd('STOP')
 
         # handle signal #
         if SysMgr.jsonEnable:
@@ -31215,7 +31328,7 @@ Copyright:
 
 
     @staticmethod
-    def writeTraceCmd(time):
+    def runProfCmd(time):
         if not SysMgr.isLinux:
             return
         elif SysMgr.rcmdList == {}:
@@ -31231,7 +31344,7 @@ Copyright:
                         fd.write(val)
                         SysMgr.printInfo(
                             "applied command '%s' to %s successfully" % \
-                            (val, path))
+                                (val, path))
                 except:
                     SysMgr.printWarn(
                         "failed to apply command '%s' to %s" % (val, path))
@@ -31241,7 +31354,39 @@ Copyright:
 
 
     @staticmethod
-    def readCmdVal(path):
+    def readFile(path):
+        try:
+            with open(path, 'r') as fd:
+                return fd.read()
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to read '%s'" % path, True)
+
+
+
+    @staticmethod
+    def writeFile(path, val):
+        try:
+            fd = open(path, 'w')
+
+            if type(val) is list:
+                for item in val:
+                    fd.write(item)
+            else:
+                fd.write(val)
+
+            return True
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to write '%s' to '%s'" % (path, val), True)
+            return False
+
+
+
+    @staticmethod
+    def readTraceFile(path):
         # open for applying command #
         try:
             target = '%s%s' % (SysMgr.mountPath, path)
@@ -31271,7 +31416,7 @@ Copyright:
 
 
     @staticmethod
-    def writeCmd(path, val, append=False):
+    def writeTraceCmd(path, val, append=False):
         # set file open permission #
         if append:
             perm = 'a+'
@@ -35115,13 +35260,17 @@ Copyright:
         elif SysMgr.checkMode('printinfo'):
             SysMgr.doPrintInfo()
 
-        # AFFINITY MODE #
+        # SETAFFINITY MODE #
         elif SysMgr.checkMode('setafnt'):
             SysMgr.doSetAffinity()
 
-        # AFFINITY MODE #
+        # GETAFFINITY MODE #
         elif SysMgr.checkMode('getafnt'):
             SysMgr.doGetAffinity()
+
+        # FREEZE MODE #
+        elif SysMgr.checkMode('freeze'):
+            SysMgr.doFreeze()
 
         # PING MODE #
         elif SysMgr.checkMode('ping'):
@@ -46382,7 +46531,7 @@ Copyright:
 
     @staticmethod
     def setBufferSize(bufferSize):
-        SysMgr.writeCmd("../buffer_size_kb", bufferSize)
+        SysMgr.writeTraceCmd("../buffer_size_kb", bufferSize)
 
 
 
@@ -46675,22 +46824,22 @@ Copyright:
     def clearTraceBuffer():
         SysMgr.printInfo(
             r'clear trace buffer... ', suffix=False)
-        SysMgr.writeCmd("../trace", '')
+        SysMgr.writeTraceCmd("../trace", '')
         SysMgr.printInfo("[done]", prefix=False, title=False)
 
 
 
     @staticmethod
     def clearTraceFilter():
-        SysMgr.writeCmd("../set_ftrace_filter", '')
-        SysMgr.writeCmd("../set_ftrace_pid", '')
-        SysMgr.writeCmd("../set_ftrace_notrace", '')
-        SysMgr.writeCmd("../set_event", '')
-        SysMgr.writeCmd("../set_event_pid", '')
-        SysMgr.writeCmd("../set_graph_function", '')
-        SysMgr.writeCmd("../set_graph_notrace", '')
-        SysMgr.writeCmd("../uprobe_events", '')
-        SysMgr.writeCmd("../kprobe_events", '')
+        SysMgr.writeTraceCmd("../set_ftrace_filter", '')
+        SysMgr.writeTraceCmd("../set_ftrace_pid", '')
+        SysMgr.writeTraceCmd("../set_ftrace_notrace", '')
+        SysMgr.writeTraceCmd("../set_event", '')
+        SysMgr.writeTraceCmd("../set_event_pid", '')
+        SysMgr.writeTraceCmd("../set_graph_function", '')
+        SysMgr.writeTraceCmd("../set_graph_notrace", '')
+        SysMgr.writeTraceCmd("../uprobe_events", '')
+        SysMgr.writeTraceCmd("../kprobe_events", '')
 
 
 
@@ -46824,16 +46973,16 @@ Copyright:
 
 
     def prepareForTracing(self):
-        stat = SysMgr.readCmdVal('../tracing_on')
+        stat = SysMgr.readTraceFile('../tracing_on')
         if stat == '0':
             pass
         elif SysMgr.forceEnable:
             # write command to stop tracing #
-            SysMgr.writeCmd('../tracing_on', '0')
+            SysMgr.writeTraceCmd('../tracing_on', '0')
         elif stat == '1':
             # no running Guider process except for myself #
             if SysMgr.getBgProcCount(cache=True) <= 1:
-                res = SysMgr.readCmdVal('enable')
+                res = SysMgr.readTraceFile('enable')
                 # default status #
                 if res == '0':
                     pass
@@ -46864,7 +47013,7 @@ Copyright:
 
     def startTracing(self):
         # write command to start tracing #
-        SysMgr.writeCmd('../tracing_on', '1')
+        SysMgr.writeTraceCmd('../tracing_on', '1')
 
         # write start event #
         SysMgr.writeEvent("EVENT_START", False)
@@ -46885,14 +47034,14 @@ Copyright:
     def enableEvents(self):
         for cmd, value in self.cmdList.items():
             if value:
-                SysMgr.writeCmd('%s/enable' % cmd, '1')
+                SysMgr.writeTraceCmd('%s/enable' % cmd, '1')
 
 
 
     def startRecording(self):
         def _printStartLog():
             # write user command #
-            SysMgr.writeTraceCmd('AFTER')
+            SysMgr.runProfCmd('AFTER')
 
             SysMgr.printStat(
                 r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
@@ -46908,9 +47057,9 @@ Copyright:
                 if SysMgr.filterGroup:
                     commonFilter = SysMgr.getPidFilter()
                     genFilter = commonFilter.replace("common_", "")
-                    SysMgr.writeCmd(
+                    SysMgr.writeTraceCmd(
                         'signal/signal_deliver/filter', commonFilter)
-                    SysMgr.writeCmd(
+                    SysMgr.writeTraceCmd(
                         'signal/signal_generate/filter', genFilter)
 
         def _startFuncGraph(self):
@@ -46924,7 +47073,7 @@ Copyright:
             SysMgr.stopRecording()
 
             # set function_graph tracer #
-            if SysMgr.writeCmd(
+            if SysMgr.writeTraceCmd(
                 '../current_tracer', 'function_graph') < 0:
                 SysMgr.printErr(
                     "enable CONFIG_FUNCTION_GRAPH_TRACER kernel option")
@@ -46934,7 +47083,7 @@ Copyright:
             for pid in SysMgr.filterGroup:
                 try:
                     pid = str(long(pid))
-                    SysMgr.writeCmd('../set_ftrace_pid', pid, True)
+                    SysMgr.writeTraceCmd('../set_ftrace_pid', pid, True)
                 except:
                     SysMgr.printErr((
                         "failed to add %s to PID filter "
@@ -46943,20 +47092,20 @@ Copyright:
 
             # set function_graph options #
             optPath = '../trace_options'
-            SysMgr.writeCmd(optPath, 'nofuncgraph-proc')
-            SysMgr.writeCmd(optPath, 'funcgraph-abstime')
-            SysMgr.writeCmd(optPath, 'funcgraph-overhead')
-            SysMgr.writeCmd(optPath, 'funcgraph-duration')
-            SysMgr.writeCmd(
+            SysMgr.writeTraceCmd(optPath, 'nofuncgraph-proc')
+            SysMgr.writeTraceCmd(optPath, 'funcgraph-abstime')
+            SysMgr.writeTraceCmd(optPath, 'funcgraph-overhead')
+            SysMgr.writeTraceCmd(optPath, 'funcgraph-duration')
+            SysMgr.writeTraceCmd(
                 '../max_graph_depth', str(SysMgr.funcDepth))
 
             if not SysMgr.customCmd:
-                SysMgr.writeCmd('../set_ftrace_filter', '')
+                SysMgr.writeTraceCmd('../set_ftrace_filter', '')
             else:
                 params = ' '.join(SysMgr.customCmd)
                 SysMgr.printStat(
                     "wait for setting function filter [ %s ]" % params)
-                if SysMgr.writeCmd(
+                if SysMgr.writeTraceCmd(
                     '../set_ftrace_filter', params) < 0:
                     SysMgr.printErr(
                         "failed to set function filter")
@@ -46990,7 +47139,7 @@ Copyright:
             sys.exit(0)
 
         # write user command #
-        SysMgr.writeTraceCmd('BEFORE')
+        SysMgr.runProfCmd('BEFORE')
 
         # set size of trace buffer per core #
         if SysMgr.bufferSize < 0:
@@ -47018,14 +47167,14 @@ Copyright:
             SysMgr.sysInstance.disableAllEvents()
 
         # set comm cache size #
-        SysMgr.writeCmd('../saved_cmdlines_size', '32767')
+        SysMgr.writeTraceCmd('../saved_cmdlines_size', '32767')
 
         # set log format #
-        SysMgr.writeCmd('../trace_options', 'noirq-info')
-        SysMgr.writeCmd('../trace_options', 'noannotate')
-        SysMgr.writeCmd('../trace_options', 'print-tgid')
-        SysMgr.writeCmd('../trace_options', 'record-tgid')
-        SysMgr.writeCmd('../current_tracer', 'nop')
+        SysMgr.writeTraceCmd('../trace_options', 'noirq-info')
+        SysMgr.writeTraceCmd('../trace_options', 'noannotate')
+        SysMgr.writeTraceCmd('../trace_options', 'print-tgid')
+        SysMgr.writeTraceCmd('../trace_options', 'record-tgid')
+        SysMgr.writeTraceCmd('../current_tracer', 'nop')
 
         SysMgr.printStat(
             r'prepare for recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
@@ -47063,14 +47212,14 @@ Copyright:
 
             # set userstacktrace options #
             if SysMgr.userEnable:
-                SysMgr.writeCmd('../trace_options', 'userstacktrace')
-                SysMgr.writeCmd('../trace_options', 'sym-userobj')
+                SysMgr.writeTraceCmd('../trace_options', 'userstacktrace')
+                SysMgr.writeTraceCmd('../trace_options', 'sym-userobj')
             else:
-                SysMgr.writeCmd('../trace_options', 'nouserstacktrace')
-                SysMgr.writeCmd('../trace_options', 'nosym-userobj')
+                SysMgr.writeTraceCmd('../trace_options', 'nouserstacktrace')
+                SysMgr.writeTraceCmd('../trace_options', 'nosym-userobj')
 
-            SysMgr.writeCmd('../trace_options', 'sym-addr')
-            SysMgr.writeCmd('../options/stacktrace', '1')
+            SysMgr.writeTraceCmd('../trace_options', 'sym-addr')
+            SysMgr.writeTraceCmd('../options/stacktrace', '1')
 
             if SysMgr.disableAll:
                 _printStartLog()
@@ -47084,37 +47233,37 @@ Copyright:
                 pass
             else:
                 sigCmd = "sig == %d" % signal.SIGSEGV
-                SysMgr.writeCmd('signal/filter', sigCmd)
+                SysMgr.writeTraceCmd('signal/filter', sigCmd)
 
             # CPU events #
             if SysMgr.cpuEnable:
                 addr = SysMgr.getKerAddr('tick_sched_timer')
                 if addr:
-                    SysMgr.writeCmd(
+                    SysMgr.writeTraceCmd(
                         'timer/hrtimer_start/filter',
                         '%s && function == 0x%s' % (cmd, addr))
-                SysMgr.writeCmd('timer/hrtimer_start/enable', '1')
+                SysMgr.writeTraceCmd('timer/hrtimer_start/enable', '1')
             else:
-                SysMgr.writeCmd('timer/hrtimer_start/enable', '0')
+                SysMgr.writeTraceCmd('timer/hrtimer_start/enable', '0')
 
             # page events #
             if SysMgr.memEnable:
-                SysMgr.writeCmd('kmem/mm_page_alloc/filter', cmd)
+                SysMgr.writeTraceCmd('kmem/mm_page_alloc/filter', cmd)
 
-                if SysMgr.writeCmd('kmem/mm_page_free/filter', cmd) < 0:
-                    SysMgr.writeCmd(
+                if SysMgr.writeTraceCmd('kmem/mm_page_free/filter', cmd) < 0:
+                    SysMgr.writeTraceCmd(
                         'kmem/mm_page_free_direct/filter', cmd)
 
-                SysMgr.writeCmd('kmem/mm_page_alloc/enable', '1')
+                SysMgr.writeTraceCmd('kmem/mm_page_alloc/enable', '1')
 
-                if SysMgr.writeCmd('kmem/mm_page_free/enable', '1') < 0:
-                    SysMgr.writeCmd(
+                if SysMgr.writeTraceCmd('kmem/mm_page_free/enable', '1') < 0:
+                    SysMgr.writeTraceCmd(
                         'kmem/mm_page_free_direct/enable', '1')
             else:
-                SysMgr.writeCmd('kmem/mm_page_alloc/enable', '0')
+                SysMgr.writeTraceCmd('kmem/mm_page_alloc/enable', '0')
 
-                if SysMgr.writeCmd('kmem/mm_page_free/enable', '0') < 0:
-                    SysMgr.writeCmd(
+                if SysMgr.writeTraceCmd('kmem/mm_page_free/enable', '0') < 0:
+                    SysMgr.writeTraceCmd(
                         'kmem/mm_page_free_direct/enable', '0')
 
             # all syscall events #
@@ -47156,27 +47305,27 @@ Copyright:
                 blkCmd = cmd + \
                     (''' && (rwbs == "R" || rwbs == "RA" || '''
                     '''rwbs == "RM" || rwbs == "WS")''')
-                SysMgr.writeCmd('block/block_bio_queue/filter', blkCmd)
-                SysMgr.writeCmd('block/block_bio_queue/enable', '1')
-                SysMgr.writeCmd(
+                SysMgr.writeTraceCmd('block/block_bio_queue/filter', blkCmd)
+                SysMgr.writeTraceCmd('block/block_bio_queue/enable', '1')
+                SysMgr.writeTraceCmd(
                     'writeback/writeback_dirty_page/filter', cmd)
-                SysMgr.writeCmd(
+                SysMgr.writeTraceCmd(
                     'writeback/writeback_dirty_page/enable', '1')
                 '''
-                SysMgr.writeCmd('writeback/wbc_writepage/filter', cmd)
-                SysMgr.writeCmd('writeback/wbc_writepage/enable', '1')
+                SysMgr.writeTraceCmd('writeback/wbc_writepage/filter', cmd)
+                SysMgr.writeTraceCmd('writeback/wbc_writepage/enable', '1')
                 '''
             else:
-                SysMgr.writeCmd('block/block_bio_queue/enable', '0')
-                SysMgr.writeCmd(
+                SysMgr.writeTraceCmd('block/block_bio_queue/enable', '0')
+                SysMgr.writeTraceCmd(
                     'writeback/writeback_dirty_page/enable', '0')
-                #SysMgr.writeCmd('writeback/wbc_writepage/enable', '0')
+                #SysMgr.writeTraceCmd('writeback/wbc_writepage/enable', '0')
 
             # special events #
             _writeCommonCmd()
 
             # write user command #
-            SysMgr.writeTraceCmd('AFTER')
+            SysMgr.runProfCmd('AFTER')
 
             # start tracing #
             self.startTracing()
@@ -47222,7 +47371,7 @@ Copyright:
                     except: pass
 
             cmd = cmd[0:cmd.rfind("||")].strip()
-            if SysMgr.writeCmd('sched/sched_switch/filter', cmd) < 0:
+            if SysMgr.writeTraceCmd('sched/sched_switch/filter', cmd) < 0:
                 SysMgr.printErr(
                     "failed to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
@@ -47233,9 +47382,9 @@ Copyright:
             if SysMgr.filterGroup:
                 _applySchedFilter()
             else:
-                SysMgr.writeCmd('sched/sched_switch/filter', '0')
+                SysMgr.writeTraceCmd('sched/sched_switch/filter', '0')
 
-            if SysMgr.writeCmd('sched/sched_switch/enable', '1') < 0:
+            if SysMgr.writeTraceCmd('sched/sched_switch/enable', '1') < 0:
                 SysMgr.printErr("failed to enable sched events")
                 sys.exit(0)
 
@@ -47269,21 +47418,21 @@ Copyright:
             cmd = "0"
 
         if self.cmdList["sched/sched_wakeup"]:
-            if SysMgr.writeCmd('sched/sched_wakeup/filter', cmd) < 0:
+            if SysMgr.writeTraceCmd('sched/sched_wakeup/filter', cmd) < 0:
                 SysMgr.printErr(
                     "failed to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
         if self.cmdList["sched/sched_wakeup_new"]:
-            if SysMgr.writeCmd('sched/sched_wakeup_new/filter', cmd) < 0:
+            if SysMgr.writeTraceCmd('sched/sched_wakeup_new/filter', cmd) < 0:
                 SysMgr.printErr(
                     "failed to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
         if self.cmdList["sched/sched_migrate_task"]:
-            if SysMgr.writeCmd(
+            if SysMgr.writeTraceCmd(
                 'sched/sched_migrate_task/filter', cmd) < 0:
                 SysMgr.printErr(
                     "failed to set filter [ %s ]" % \
@@ -47291,7 +47440,7 @@ Copyright:
                 sys.exit(0)
 
         if self.cmdList["sched/sched_process_wait"]:
-            if SysMgr.writeCmd(
+            if SysMgr.writeTraceCmd(
                 'sched/sched_process_wait/filter', cmd) < 0:
                 SysMgr.printWarn(
                     "failed to set filter [ %s ]" % \
@@ -47357,30 +47506,30 @@ Copyright:
                     SysMgr.getNrSyscall("sys_recvmmsg"),
                     SysMgr.getNrSyscall("sys_recvmsg"))
 
-            SysMgr.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
-            SysMgr.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
+            SysMgr.writeTraceCmd('raw_syscalls/sys_enter/filter', ecmd)
+            SysMgr.writeTraceCmd('raw_syscalls/sys_exit/filter', rcmd)
         elif SysMgr.lockEnable:
             nrFutex = SysMgr.getNrSyscall("sys_futex")
             if nrFutex not in SysMgr.syscallList:
                 SysMgr.syscallList.append(nrFutex)
         else:
-            SysMgr.writeCmd('raw_syscalls/sys_enter/filter', '0')
-            SysMgr.writeCmd('raw_syscalls/sys_enter/enable', '0')
+            SysMgr.writeTraceCmd('raw_syscalls/sys_enter/filter', '0')
+            SysMgr.writeTraceCmd('raw_syscalls/sys_enter/enable', '0')
 
         # syscall events #
         SysMgr.writeSyscallCmd(self.cmdList["raw_syscalls"])
 
         # memory events #
         if self.cmdList["kmem/mm_page_free"]:
-            if SysMgr.writeCmd('kmem/mm_page_free/enable', '1') < 0:
-                SysMgr.writeCmd('kmem/mm_page_free_direct/enable', '1')
+            if SysMgr.writeTraceCmd('kmem/mm_page_free/enable', '1') < 0:
+                SysMgr.writeTraceCmd('kmem/mm_page_free_direct/enable', '1')
 
         # block events #
         cmd = '''rwbs == "R" || rwbs == "RA" || rwbs == "RM" || rwbs == "WS"'''
         if self.cmdList["block/block_bio_queue"]:
-            SysMgr.writeCmd('block/block_bio_queue/filter', cmd)
+            SysMgr.writeTraceCmd('block/block_bio_queue/filter', cmd)
         if self.cmdList["block/block_rq_complete"]:
-            SysMgr.writeCmd('block/block_rq_complete/filter', cmd)
+            SysMgr.writeTraceCmd('block/block_rq_complete/filter', cmd)
 
         # special events #
         _writeCommonCmd()
@@ -47427,7 +47576,7 @@ Copyright:
                     (SysMgr.inputFile, os.path.abspath(SysMgr.outputFile))
 
         # stop tracing #
-        SysMgr.writeCmd('../tracing_on', '0')
+        SysMgr.writeTraceCmd('../tracing_on', '0')
         SysMgr.recordStatus = False
 
         SysMgr.printStat(
@@ -47436,19 +47585,19 @@ Copyright:
 
         # disable all ftrace options #
         for idx, val in SysMgr.cmdList.items():
-            if val and SysMgr.writeCmd(str(idx) + '/enable', '0') >= 0:
-                SysMgr.writeCmd(str(idx) + '/filter', '0')
+            if val and SysMgr.writeTraceCmd(str(idx) + '/enable', '0') >= 0:
+                SysMgr.writeTraceCmd(str(idx) + '/filter', '0')
 
         if not SysMgr.graphEnable and SysMgr.customCmd:
             for cmd in SysMgr.customCmd:
                 event = cmd.split(':')[0]
-                SysMgr.writeCmd(event + '/enable', '0')
-                SysMgr.writeCmd(event + '/filter', '0')
+                SysMgr.writeTraceCmd(event + '/enable', '0')
+                SysMgr.writeTraceCmd(event + '/filter', '0')
 
         # reset stacktrace options #
         if SysMgr.isFuncMode():
-            SysMgr.writeCmd('../options/stacktrace', '0')
-            SysMgr.writeCmd('../trace_options', 'nouserstacktrace')
+            SysMgr.writeTraceCmd('../options/stacktrace', '0')
+            SysMgr.writeTraceCmd('../trace_options', 'nouserstacktrace')
 
         # write command #
         if SysMgr.cmdEnable is not False and SysMgr.cmdFd:
@@ -48991,6 +49140,7 @@ Copyright:
             # update mount data #
             self.mountData = SysMgr.getMountData()
 
+        # check mount path again #
         if not self.mountData:
             return None
 
@@ -49056,6 +49206,7 @@ Copyright:
                     root.setdefault(dirpath, {})
                     _updateValues(dirpath, subfiles, root[dirpath])
 
+        # get cgroup path #
         cgroupPath = self.getCgroupPath()
         if not cgroupPath:
             return None
@@ -74077,7 +74228,7 @@ class TaskAnalyzer(object):
             self.reinitStats()
 
             # write user command #
-            SysMgr.writeTraceCmd('AFTER')
+            SysMgr.runProfCmd('AFTER')
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -74189,7 +74340,7 @@ class TaskAnalyzer(object):
             self.reinitStats()
 
             # write user command #
-            SysMgr.writeTraceCmd('AFTER')
+            SysMgr.runProfCmd('AFTER')
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -74328,7 +74479,7 @@ class TaskAnalyzer(object):
             self.reinitStats()
 
             # write user command #
-            SysMgr.writeTraceCmd('AFTER')
+            SysMgr.runProfCmd('AFTER')
 
             # get delayed time #
             delayTime = time.time() - prevTime
