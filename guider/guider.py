@@ -32511,6 +32511,11 @@ Copyright:
                     # append uptime to the output file #
                     SysMgr.fileSuffix = long(SysMgr.getUptime())
 
+                    # change priority #
+                    SysMgr.setPriority(SysMgr.pid, 'C', 15, verb=False)
+                    SysMgr.setIoPriority(
+                        ioclass='IOPRIO_CLASS_IDLE', verb=False)
+
                     # flush all data to the file #
                     SysMgr.newHandler()
 
@@ -59124,6 +59129,7 @@ typedef struct {
             meetDeadline = SysMgr.deadlineUptime > 0 and \
                 SysMgr.deadlineUptime <= SysMgr.uptime
 
+            # update and check progress #
             SysMgr.progressCnt += 1
             if SysMgr.repeatCount <= SysMgr.progressCnt or meetDeadline:
                 SysMgr.printWarn('terminated by timer\n', True)
@@ -59182,7 +59188,9 @@ typedef struct {
             # check and update repeat count #
             _checkInterval()
 
+            # reset stats #
             _resetStats()
+
             return
 
         # check user input #
@@ -59207,11 +59215,12 @@ typedef struct {
             else:
                 # skip on break mode #
                 if self.mode == 'break':
+                    # reset stats #
                     _resetStats()
-                    if term:
-                        sys.exit(0)
-                    else:
-                        return
+
+                    # check term condition #
+                    if term: sys.exit(0)
+                    else: return
 
                 # print status #
                 SysMgr.printWarn(
@@ -59229,11 +59238,12 @@ typedef struct {
                 if self.isStopped():
                     self.cont()
 
+                # reset stats #
                 _resetStats()
-                if term:
-                    sys.exit(0)
-                else:
-                    return
+
+                # check term condition #
+                if term: sys.exit(0)
+                else: return
 
         # get CPU usage for target #
         cpuUsage = self.getCpuUsage(system=True)
@@ -59257,11 +59267,12 @@ typedef struct {
 
         # check CPU threshold #
         if Debugger.cpuCond > -1 and Debugger.cpuCond > ttime:
+            # reset stats #
             _resetStats()
-            if term:
-                sys.exit(0)
-            else:
-                return
+
+            # check term condition #
+            if term: sys.exit(0)
+            else: return
 
         # define variables #
         nrTotal = float(self.totalCall)
