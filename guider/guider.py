@@ -19053,6 +19053,7 @@ class SysMgr(object):
     oomEnable = False
     leakEnable = False
     wssEnable = False
+    initWssEnable = False
     diskEnable = False
     heapEnable = False
     floatEnable = False
@@ -19953,7 +19954,7 @@ Commands:
             else:
                 sys.exit(0)
 
-        # WSS (working set size) #
+        # WSS (Working Set Size) #
         elif SysMgr.checkMode('wtop'):
             if SysMgr.checkWssTopCond():
                 SysMgr.memEnable = True
@@ -23639,10 +23640,10 @@ Examples:
     - {3:1} the fixed list for {2:2} to save CPU resource for monitoring
         # {0:1} {1:1} -g a.out -e x
 
-    - {3:1} {2:2} and report the result to ./guider.out when SIGINT signal arrives
+    - {3:1} {2:2} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
-    - {3:1} {2:2} and report the result to ./guider.out with memo when SIGINT signal arrives
+    - {3:1} {2:2} and report the result to ./guider.out with memo when SIGINT arrives
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
     - {3:1} {2:2} and report the result to ./guider.out with unlimited memory buffer
@@ -24860,7 +24861,7 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"./stderr"
 
-    - {2:1} and report the result to ./guider.out when SIGINT signal arrives
+    - {2:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
     - {2:1} {3:1} (wait for new target if no task)
@@ -25013,7 +25014,7 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
 
-    - {2:1} and report the result to ./guider.out when SIGINT signal arrives
+    - {2:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
     - {2:1} and report the result in JSON format
@@ -25122,7 +25123,7 @@ Examples:
         # {0:1} {1:1} -g node -q JITSYM
         # {0:1} {1:1} -g java -q JITSYM
 
-    - {3:1} and report the result to ./guider.out when SIGINT signal arrives
+    - {3:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
         # {0:1} {1:1} -o . -q FORCESUMMARY
 
@@ -25390,7 +25391,7 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor WSS(Working Set Size) of specific processes
+    - Monitor WSS(Working Set Size) of specific processes and reset WSS when SIGQUIT(Ctrl+\) arrives
         # {0:1} {1:1} chrome
 
     - Monitor WSS(Working Set Size) of specific processes with all footprints
@@ -31073,6 +31074,11 @@ Copyright:
         elif SysMgr.isSystemMode():
             pass
         elif SysMgr.isTopMode():
+            # reset WSS #
+            if SysMgr.wssEnable:
+                SysMgr.initWssEnable = True
+                SysMgr.printInfo('initialize WSS')
+
             # check silent mode #
             if not SysMgr.outPath:
                 return
@@ -31084,6 +31090,30 @@ Copyright:
             # reload data written to file #
             if SysMgr.pipeEnable:
                 SysMgr.reloadFileBuffer()
+
+            # create a new process #
+            pid = SysMgr.createProcess()
+            if pid > 0:
+                # close an output file to sync #
+                try:
+                    SysMgr.printFd.close()
+                except: pass
+                finally:
+                    SysMgr.printFd = None
+
+                # clear buffer as parent #
+                SysMgr.procBufferSize = 0
+                SysMgr.procBuffer = []
+
+                # enable signal again #
+                if signum:
+                    signal.signal(signum, SysMgr.newHandler)
+
+                return True
+
+            # change priority #
+            SysMgr.setPriority(SysMgr.pid, 'C', 15, verb=False)
+            SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE', verb=False)
 
             SysMgr.printLogo(absolute=True, big=True)
 
@@ -31113,9 +31143,7 @@ Copyright:
                 "'%s'%s successfully" % \
                     (SysMgr.inputFile, fsize))
 
-            # enable signal again #
-            if signum:
-                signal.signal(signum, SysMgr.newHandler)
+            sys.exit(0)
         elif SysMgr.resetEnable:
             SysMgr.writeEvent("EVENT_START")
         else:
@@ -33370,20 +33398,21 @@ Copyright:
         if path:
             try:
                 fd = open(path, 'r')
+                buf = fd.read()
             except:
                 SysMgr.printOpenErr(path)
                 sys.exit(0)
         else:
-            fd = SysMgr.printFd
+            fd = open(SysMgr.printFd.name, 'rb')
+            buf = fd.read().decode()
 
         try:
-            fd.seek(0, 0)
-            SysMgr.procBuffer = \
-                fd.read().replace('\n\n', 'NEWSTAT\n\n')
-            SysMgr.procBuffer = \
-                SysMgr.procBuffer.split('NEWSTAT')
-            fd.seek(0, 0)
-            fd.truncate()
+            buf = buf.replace('\n\n', 'NEWSTAT\n\n')
+            SysMgr.procBuffer = buf.split('NEWSTAT')
+
+            if not path:
+                SysMgr.printFd.seek(0, 0)
+                SysMgr.printFd.truncate()
         except:
             return
 
@@ -93040,6 +93069,13 @@ class TaskAnalyzer(object):
         else:
             gpuMem = {}
 
+        # check WSS init #
+        if SysMgr.initWssEnable:
+            initWss = True
+            SysMgr.initWssEnable = False
+        else:
+            initWss = False
+
         # print resource usage of processes / threads #
         procCnt = 0
         procData = self.procData
@@ -93050,6 +93086,7 @@ class TaskAnalyzer(object):
             if SysMgr.filterGroup and _isExceptTask(idx):
                 continue
 
+            # add task to fixed target list #
             if SysMgr.fixTargetEnable:
                 SysMgr.fixedProcList.setdefault(idx, None)
 
@@ -93078,8 +93115,14 @@ class TaskAnalyzer(object):
             if _isBreakCond(idx, value):
                 break
 
+            # check terminal rows #
             if SysMgr.checkCutCond():
                 return
+
+            # init WSS #
+            if initWss:
+                # clear reference bits #
+                SysMgr.clearPageRefs(idx, val='1')
 
             # get comm #
             comm = value['comm']
