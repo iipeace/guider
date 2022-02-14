@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220213"
+__revision__ = "220214"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21246,9 +21246,8 @@ Commands:
             str(pids[0]).isdigit() and \
             SysMgr.pid == long(pids[0]):
             pass
-        elif not SysMgr.isRoot():
-            SysMgr.printWarn(
-                "no root permission to set affinity")
+        else:
+            SysMgr.checkRootPerm(exit=False, attr='warn', msg="set affinity")
 
         # check pid list #
         if UtilMgr.isNumber(pids):
@@ -21383,6 +21382,7 @@ Commands:
         if not SysMgr.isLinux:
             return
 
+        # check root permission #
         if not SysMgr.isRoot():
             return
 
@@ -21711,9 +21711,8 @@ Commands:
 
 
         # check root permission for Linux #
-        if SysMgr.isLinux and not SysMgr.isRoot():
-            SysMgr.printErr(
-                'failed to ping because of no root permission')
+        if SysMgr.isLinux and \
+            not SysMgr.checkRootPerm(exit=False, msg="ping"):
             return
 
         # get address list #
@@ -28804,23 +28803,26 @@ Copyright:
 
     @staticmethod
     def checkRootPerm(exit=True, verb=True, attr='error', msg=''):
-        if not SysMgr.isRoot():
-            if verb:
-                if msg:
-                    msg = ' to %s' % msg
-
-                if attr == 'error':
-                    logger = SysMgr.printErr
-                else:
-                    logger = SysMgr.printWarn
-
-                logger("failed to get root permission%s" % msg)
-
-            if exit:
-                sys.exit(0)
-            return False
-        else:
+        if SysMgr.isRoot():
             return True
+
+        # print log #
+        if verb:
+            if msg:
+                msg = ' to %s' % msg
+
+            if attr == 'error':
+                logger = SysMgr.printErr
+            else:
+                logger = SysMgr.printWarn
+
+            logger("failed to get root permission%s" % msg)
+
+        # exit #
+        if exit:
+            sys.exit(0)
+        else:
+            return False
 
 
 
@@ -28849,7 +28851,7 @@ Copyright:
         except:
             SysMgr.printErr(
                 "failed to recognize '%s' as the perf event type" % econfig)
-            return
+            return False
 
         if SysMgr.guiderObj:
             # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
@@ -28857,10 +28859,9 @@ Copyright:
             fd = func(nrType, nrConfig, pid, cpu, -1, 0)
             if fd < 0:
                 # check root permission #
-                if not SysMgr.isRoot():
-                    SysMgr.printWarn(
-                        'failed to get root permission to open perf event')
-                    return
+                if not SysMgr.checkRootPerm(
+                    exit=False, msg="open perf events"):
+                    return False
                 else:
                     return -1
             else:
@@ -28870,7 +28871,7 @@ Copyright:
         if not SysMgr.loadLibcObj():
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
-            return
+            return False
 
         # define struct perf_event_attr #
         class union_anon_5(Union):
@@ -29192,10 +29193,9 @@ Copyright:
 
         if fd < 0:
             # check root permission #
-            if not SysMgr.isRoot():
-                SysMgr.printWarn(
-                    'failed to get root permission to open perf event')
-                return
+            if not SysMgr.checkRootPerm(
+                exit=False, msg="open perf events"):
+                return False
             else:
                 return -1
 
@@ -35364,9 +35364,8 @@ Copyright:
 
     @staticmethod
     def checkPerfTopCond():
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to use PMU")
+        # check root permission #
+        if not SysMgr.checkRootPerm(exit=False, msg="use PMU"):
             return False
         elif not os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
             SysMgr.procPath):
@@ -35380,9 +35379,7 @@ Copyright:
 
     @staticmethod
     def checkMemTopCond():
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to analyze memory details")
+        if not SysMgr.checkRootPerm(exit=False, msg="analyze memory details"):
             return False
         else:
             return True
@@ -35481,9 +35478,8 @@ Copyright:
         if not SysMgr.hasMainArg() and not SysMgr.filterGroup:
             SysMgr.printErr("no target task")
             return False
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to clear refcnts")
+        elif not SysMgr.checkRootPerm(
+            exit=False, msg="clear refcnts"):
             return False
         else:
             return True
@@ -35496,17 +35492,16 @@ Copyright:
             return True
 
         procPath = SysMgr.procPath
-        if SysMgr.isLinux and not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to analyze block I/O for tasks")
-            return True
-        elif SysMgr.isLinux and not os.path.isfile('%s/self/io' % procPath):
-            SysMgr.printErr(
-                "failed to use bio event to analyze block I/O for tasks, "
-                "please check kernel config")
-            return True
-        else:
-            return True
+        if SysMgr.isLinux:
+            if not SysMgr.checkRootPerm(
+                exit=False, msg="analyze block I/O for tasks"):
+                return False
+            elif not os.path.isfile('%s/self/io' % procPath):
+                SysMgr.printErr(
+                    "failed to use bio event to analyze block I/O for tasks, "
+                    "please check kernel config")
+                return False
+        return True
 
 
 
@@ -35514,10 +35509,8 @@ Copyright:
     def checkStackTopCond():
         if SysMgr.forceEnable:
             return True
-
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to sample stack")
+        elif not SysMgr.checkRootPerm(
+            exit=False, msg="collect stacks"):
             return False
         elif not os.path.isfile('%s/self/stack' % SysMgr.procPath):
             SysMgr.printErr(
@@ -35565,10 +35558,7 @@ Copyright:
             mp = SysMgr.debugfsPath
 
         # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to mount debugfs")
-            sys.exit(0)
+        SysMgr.checkRootPerm(msg="mount debugfs")
 
         # mount debugfs #
         SysMgr.mountCmd =\
@@ -40673,10 +40663,9 @@ Copyright:
             pid = None
             execCmd = UtilMgr.parseCommand(inputParam)
         # check permission #
-        elif not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to trace %s" % mode)
-            sys.exit(0)
+        elif not SysMgr.checkRootPerm(msg="trace %s" % mode):
+            # exit #
+            pass
         # check pid #
         elif not pids:
             if SysMgr.filterGroup:
@@ -44877,6 +44866,7 @@ Copyright:
             for item in SysMgr.filterGroup:
                 pids += SysMgr.getTids(item)
 
+        # check pid #
         if not pids:
             SysMgr.printErr("no target thread")
             sys.exit(0)
@@ -47125,10 +47115,7 @@ Copyright:
 
 
         # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "failed to get root permission to trace system")
-            sys.exit(0)
+        SysMgr.checkRootPerm(msg="trace system")
 
         # mount debugfs #
         SysMgr.mountPath = SysMgr.getDebugfsPath()
