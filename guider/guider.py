@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220214"
+__revision__ = "220215"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -52633,6 +52633,11 @@ class DbusMgr(object):
         # release lock to start tracers #
         if syncLock:
             lockf(syncLock, LOCK_UN) # pylint: disable=undefined-variable
+
+        # remove lock file #
+        try:
+            os.remove(syncLock.name)
+        except: pass
 
         # start worker threads #
         for tobj in threadingList:
