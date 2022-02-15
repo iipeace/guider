@@ -23954,7 +23954,7 @@ Examples:
     - {3:1} {8:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {3:1} and convert syscall args {7:1}
         # {0:1} {1:1} -g a.out -q CONVARG
@@ -24859,7 +24859,7 @@ Examples:
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {2:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
@@ -24944,7 +24944,7 @@ Examples:
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} iotop -g iotop -q WAITTASK
@@ -25039,7 +25039,7 @@ Examples:
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {2:1} from a specific binary excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
@@ -25160,7 +25160,7 @@ Examples:
     - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {3:1} from a specific binary excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
@@ -25832,7 +25832,7 @@ Examples:
     - {4:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {3:1} {5:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
@@ -25953,7 +25953,7 @@ Examples:
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
@@ -26040,7 +26040,7 @@ Examples:
     - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {3:1} {4:1} (wait for new target if no task)
         # {0:1} {1:1} -g iotop -q WAITTASK
@@ -26324,7 +26324,7 @@ Examples:
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"./stderr"
+        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
@@ -37476,6 +37476,10 @@ Copyright:
             return pid
         # child #
         elif pid == 0:
+            # init times #
+            SysMgr.initTimes()
+            SysMgr.getRuntime()
+
             # update parent PID #
             SysMgr.parentPid = SysMgr.pid
 
@@ -37638,9 +37642,6 @@ Copyright:
             sys.exit(0)
         else:
             SysMgr.bgStatus = True
-
-            # init times #
-            SysMgr.initTimes()
 
             # continue child process #
             SysMgr.printStat(
@@ -54581,6 +54582,7 @@ typedef struct {
         # set return time condition #
         self.retTime = 0.1
 
+        # set filter condition for elapsed time #
         if 'ELAPSED' in SysMgr.environList:
             self.retTime = float(SysMgr.environList['ELAPSED'][0])
 
@@ -58398,7 +58400,7 @@ typedef struct {
         # get msg info #
         namelen = long(header.contents.msg_namelen)
         msginfo['msg_namelen'] = namelen
-        if Debugger.dbusEnable or namelen == 0:
+        if Debugger.dbusEnable or namelen == 0 or not header.contents.msg_name:
             msginfo['msg_name'] = 'NULL'
         else:
             msginfo['msg_name'] = \
@@ -58725,7 +58727,10 @@ typedef struct {
 
         # convert at #
         if argname == 'dfd':
-            return ConfigMgr.FAT_TYPE[c_int(value).value]
+            try:
+                return ConfigMgr.FAT_TYPE[c_int(value).value]
+            except:
+                return value
 
         # convert pointer to buffer #
         if buf and argname == "buf" and syscall in ConfigMgr.SYSCALL_REFBUF:
@@ -59228,21 +59233,22 @@ typedef struct {
 
         # check comm filter for child #
         if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNums:
+            # check filter #
             if SysMgr.filterGroup and \
                 UtilMgr.isValidStr(self.comm):
                 pass
+            # check thread sequence #
             elif self.myNum in Debugger.targetNums:
                 pass
+            # check break mode #
+            elif self.mode == 'break':
+                # reset stats #
+                _resetStats()
+
+                # check term condition #
+                if term: sys.exit(0)
+                else: return
             else:
-                # skip on break mode #
-                if self.mode == 'break':
-                    # reset stats #
-                    _resetStats()
-
-                    # check term condition #
-                    if term: sys.exit(0)
-                    else: return
-
                 # print status #
                 SysMgr.printWarn(
                     'stopped tracing %s(%s) because it is not targeted' % \
@@ -60415,7 +60421,7 @@ typedef struct {
 
         # add sample #
         if not realtime:
-            self.callList.append([sym, self.vdiff, filename])
+            self.callList.append([sym, self.current, filename])
             return
 
         self.totalCall += 1
@@ -60499,7 +60505,7 @@ typedef struct {
         if not SysMgr.outPath:
             return
 
-        self.callList.append([sym, self.vdiff, filename])
+        self.callList.append([sym, self.current, filename])
 
 
 
@@ -62034,6 +62040,10 @@ typedef struct {
 
 
     def handleTrapEvent(self, stat):
+        # check thread sequence #
+        if self.status == 'wait':
+            return
+
         previous = self.status
         self.status = self.mode
 
