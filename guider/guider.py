@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220215"
+__revision__ = "220216"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18865,6 +18865,7 @@ class SysMgr(object):
     outputFile = None
     inputParam = None
     outPath = None
+    freezerPath = None
 
     signalCmd = "trap 'kill $$' INT\n"
     saveCmd = None
@@ -20832,6 +20833,48 @@ Commands:
 
 
     @staticmethod
+    def getFreezer():
+        try:
+            # check result #
+            if SysMgr.freezerPath or SysMgr.freezerPath is False:
+                return SysMgr.freezerPath
+
+            # init system context #
+            if not SysMgr.sysInstance:
+                SysMgr.initSystemContext()
+
+            # get cgroup path #
+            cgroupPath = SysMgr.sysInstance.getCgroupPath()
+            if not cgroupPath:
+                raise Exception("failed to access cgroup filesystem")
+
+            # check freezer subsystem #
+            cgroupPath = os.path.join(cgroupPath, 'freezer')
+            if not os.path.exists(cgroupPath):
+                raise Exception("failed to access freezer subsystem in cgroup")
+
+            # make target dir #
+            targetDir = os.path.join(cgroupPath, 'guider_%s' % SysMgr.pid)
+            try:
+                if not os.path.exists(targetDir):
+                    os.makedirs(targetDir)
+            except:
+                raise Exception("failed to make '%s'" % targetDir)
+
+            # freeze tasks #
+            SysMgr.writeFile(os.path.join(targetDir, 'freezer.state'), 'FROZEN')
+
+            # register tasks to cgroup node #
+            SysMgr.freezerPath = os.path.join(targetDir, 'tasks')
+            return SysMgr.freezerPath
+        except:
+            SysMgr.printWarn('failed to create cgroup freezer', True, True)
+            SysMgr.freezerPath = False
+            return False
+
+
+
+    @staticmethod
     def doFreeze():
         # get argument #
         if SysMgr.hasMainArg():
@@ -20880,7 +20923,8 @@ Commands:
         # make target dir #
         targetDir = os.path.join(cgroupPath, 'guider_%s' % SysMgr.pid)
         try:
-            os.makedirs(targetDir)
+            if not os.path.exists(targetDir):
+                os.makedirs(targetDir)
         except:
             SysMgr.printErr("failed to make '%s'" % targetDir, True)
             sys.exit(0)
@@ -20900,8 +20944,7 @@ Commands:
         # print target tasks #
         tasks = SysMgr.readFile(taskPushFile).split('\n')
         for tid in tasks:
-            if not tid:
-                continue
+            if not tid: continue
             comm = SysMgr.getComm(tid)
             SysMgr.printInfo('freezed %s(%s) %s' % (comm, tid, taskType))
 
@@ -23945,6 +23988,9 @@ Examples:
     - {3:1} using merged symbols {8:1}
         # {0:1} {1:1} "ls" -q ALLSYM
 
+    - {3:1} {7:1} without file loading messages
+        # {0:1} {1:1} -g a.out
+
     - {3:1} {7:1} with printing tracing overhead
         # {0:1} {1:1} -g a.out -q PRINTDELAY
 
@@ -25146,6 +25192,9 @@ Examples:
     - {3:1} without using sample cache {4:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
+    - {3:1} {4:1} without file loading messages
+        # {0:1} {1:1} -g a.out -q NOLOADMSG
+
     - {3:1} without using file cache {4:1}
         # {0:1} {1:1} -g a.out -q NOFILECACHE
 
@@ -25207,6 +25256,10 @@ Examples:
 
     - {3:1} for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENV:LD_DEBUG=libs, ENV:LD_DEBUG=bindings
+        # {0:1} {1:1} a.out -q ENV:LD_DEBUG=detail, ENV:LD_DEBUG=files
+        # {0:1} {1:1} a.out -q ENV:LD_DEBUG=reloc, ENV:LD_DEBUG=symbols
+        # {0:1} {1:1} a.out -q ENV:LD_DEBUG_OUTPUT=./ld.out
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
     - {3:1} {4:1} with DWARF info
@@ -26267,6 +26320,10 @@ Options:
     -E  <DIR>                   set cache dir path
     -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
+
+Environment Variables:
+    LD_DEBUG: all, statistics, libs, bindings, detail, files, reloc, symbols
+    LD_DEBUG_OUTPUT: PATH
 
 Examples:
     - Print bind status of all functions for a specific process
@@ -59200,7 +59257,7 @@ typedef struct {
 
         # update comm #
         origComm = self.comm
-        self.comm = SysMgr.getComm(self.pid, save=True)
+        self.comm = SysMgr.getComm(self.pid)
         if not self.comm:
             self.comm = origComm
 
@@ -62081,6 +62138,9 @@ typedef struct {
 
 
     def handleExit(self):
+        # update status #
+        self.traceStatus = False
+
         # read return code #
         ret = self.getEventMsg()
 
@@ -68403,6 +68463,12 @@ class ElfAnalyzer(object):
                 "failed to load %s because it is already deleted" % path)
             return None
 
+        # check print flag for load messages #
+        if 'NOLOADMSG' in SysMgr.environList:
+            printMsg = False
+        else:
+            printMsg = True
+
         # load files #
         if not cache or not path in ElfAnalyzer.cachedFiles:
             # check exceptional case #
@@ -68410,19 +68476,21 @@ class ElfAnalyzer(object):
                 return None
 
             # print start message #
-            if log:
+            if log and printMsg:
                 SysMgr.printInfo('start loading binaries...')
 
             if path == 'vdso':
                 fobj = SysMgr.getVDSO()
 
             # print load message #
-            SysMgr.printInfo(
-                "load %s... " % path, suffix=False, prefix=False)
+            if printMsg:
+                SysMgr.printInfo(
+                    "load %s... " % path, suffix=False, prefix=False)
 
             # return a exceptional file object #
             if fobj:
-                SysMgr.printInfo("[done]", prefix=False, title=False)
+                if printMsg:
+                    SysMgr.printInfo("[done]", prefix=False, title=False)
                 return fobj
 
             # try to load a object from cache #
@@ -68435,7 +68503,10 @@ class ElfAnalyzer(object):
                 else:
                     ElfAnalyzer.cachedFiles[path] = fobj
                     ElfAnalyzer.cachedFiles[path].saved = True
-                    SysMgr.printInfo("[cached]", prefix=False, title=False)
+
+                    if printMsg:
+                        SysMgr.printInfo("[cached]", prefix=False, title=False)
+
                     return fobj
 
             # create a new object #
@@ -68448,13 +68519,16 @@ class ElfAnalyzer(object):
                     raise Exception('no ELF format')
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
-                SysMgr.printInfo("[done]", prefix=False, title=False)
+
+                if printMsg:
+                    SysMgr.printInfo("[done]", prefix=False, title=False)
             except SystemExit: sys.exit(0)
             except:
                 ElfAnalyzer.failedFiles[path] = True
 
-                failLog = UtilMgr.convColor("[fail]", 'RED')
-                SysMgr.printInfo(failLog, prefix=False, title=False)
+                if printMsg:
+                    failLog = UtilMgr.convColor("[fail]", 'RED')
+                    SysMgr.printInfo(failLog, prefix=False, title=False)
 
                 SysMgr.printWarn(
                     "failed to load '%s' as an ELF object" % path, reason=True)
@@ -72784,8 +72858,8 @@ Section header string table index: %d
         if debug:
             printer((
                 '\n[.dynamic Section]\n%s\n'
-                '%16s %20s %32s\n%s') % \
-                (twoLine, "Tag", "Type", "Name/Value", twoLine))
+                '%16s %20s %1s\n%s') % \
+                (twoLine, "Tag", "Type", "Value", twoLine))
 
         nrItems = long(sh_size / sh_entsize)
         if nrItems == 0:
@@ -72811,7 +72885,7 @@ Section header string table index: %d
                     ElfAnalyzer.DT_TYPE[d_tag] == 'SONAME' or \
                     ElfAnalyzer.DT_TYPE[d_tag] == 'RPATH':
                     printer(
-                        '%016x %20s %32s' % \
+                        '%016x %20s %1s' % \
                         (d_tag, ElfAnalyzer.DT_TYPE[d_tag],
                             dynsymTable[d_un]))
                 elif ElfAnalyzer.DT_TYPE[d_tag] == 'STRSZ' or \
@@ -72823,15 +72897,15 @@ Section header string table index: %d
                     ElfAnalyzer.DT_TYPE[d_tag] == 'VERNEEDNUM' or \
                     ElfAnalyzer.DT_TYPE[d_tag] == 'RELCOUNT':
                     printer(
-                        '%016x %20s %32s' % \
+                        '%016x %20s %1s' % \
                         (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
                 else:
                     printer(
-                        '%016x %20s %32s' % \
+                        '%016x %20s %1s' % \
                         (d_tag, ElfAnalyzer.DT_TYPE[d_tag], hex(d_un)))
             else:
                 printer(
-                    '%016x %20s %32s' % (d_tag, d_tag, hex(d_un)))
+                    '%016x %20s %1s' % (d_tag, d_tag, hex(d_un)))
 
         if debug:
             printer('%s\n\n\n' % oneLine)
