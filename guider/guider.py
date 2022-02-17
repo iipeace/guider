@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220216"
+__revision__ = "220217"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24031,6 +24031,12 @@ Examples:
     - {3:1} {7:1} after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
+    - {3:1} {7:1} without file loading messages
+        # {0:1} {1:1} -g a.out -q NOLOADMSG
+
+    - {3:1} {7:1} with task sync for clone event
+        # {0:1} {1:1} -g a.out -q SYNCTASK
+
     - {3:1} except for no symbol functions {7:1}
         # {0:1} {1:1} -g a.out -q ONLYSYM
 
@@ -25194,6 +25200,9 @@ Examples:
 
     - {3:1} {4:1} without file loading messages
         # {0:1} {1:1} -g a.out -q NOLOADMSG
+
+    - {3:1} {4:1} with task sync for clone event
+        # {0:1} {1:1} -g a.out -q SYNCTASK
 
     - {3:1} without using file cache {4:1}
         # {0:1} {1:1} -g a.out -q NOFILECACHE
@@ -31319,9 +31328,7 @@ Copyright:
 
     @staticmethod
     def isTermSignal(sig):
-        if sig == signal.SIGKILL or \
-            sig == signal.SIGSEGV or \
-            sig == signal.SIGABRT:
+        if sig in (signal.SIGKILL, signal.SIGSEGV, signal.SIGABRT):
             return True
         else:
             return False
@@ -40914,7 +40921,7 @@ Copyright:
                 dobj = Debugger(
                     pid=pid, execCmd=execCmd, attach=False, mode=mode)
                 dobj.trace(mode=mode, wait=wait, multi=multi)
-        except SystemExit: sys.exit(0)
+        except SystemExit: pass
         except:
             SysMgr.printErr(
                 "stopped to trace %s" % mode, True)
@@ -54058,6 +54065,7 @@ class Debugger(object):
         'EXCEPTLD': False,
         'NOMUTE': False,
         'NOSTRIP': False,
+        'SYNCTASK': False,
         'PRINTARG': False,
         'CONVARG': False,
         'NOARG': False,
@@ -63741,7 +63749,15 @@ typedef struct {
         statList = stat.split(')')[1].split()
 
         # get RSS size #
-        byteSize = long(statList[self.rssIdx-2]) << 12
+        try:
+            byteSize = long(statList[self.rssIdx-2]) << 12
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'failed to get memory usage for %s(%s)' % (self.pid, self.comm),
+                reason=True)
+            byteSize = 0
+
         if not unit:
             return byteSize
         else:
@@ -63980,7 +63996,8 @@ typedef struct {
                 (self.comm, tid, self.comm, self.pid))
 
         # create a pipe #
-        rd, wr = os.pipe()
+        if Debugger.envFlags['SYNCTASK']:
+            rd, wr = os.pipe()
 
         # create a new tracer to trace the child task #
         pid = SysMgr.createProcess(isDaemon=True, chMid=chMid, chPgid=True)
@@ -64001,8 +64018,9 @@ typedef struct {
 
             # wait for tracer of child task #
             try:
-                os.close(wr)
-                os.fdopen(rd, 'r').read()
+                if Debugger.envFlags['SYNCTASK']:
+                    os.close(wr)
+                    os.fdopen(rd, 'r').read()
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
@@ -64019,6 +64037,7 @@ typedef struct {
                 if self.attach(verb=True) == 0:
                     break
 
+                # check and wait for attach #
                 if self.isAlive():
                     time.sleep(SysMgr.waitDelay)
                     continue
@@ -64044,13 +64063,15 @@ typedef struct {
 
             # notify to tracer of parent task #
             try:
-                os.close(rd)
-                os.fdopen(wr, 'w').write('0')
+                if Debugger.envFlags['SYNCTASK']:
+                    os.close(rd)
+                    os.fdopen(wr, 'w').write('0')
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to notify initialization to %s(%s)" % \
                         (self.comm, origPid), reason=True)
+        # fork fail #
         else:
             return self.pid
 
@@ -65881,7 +65902,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             if self.isStopped():
                 SysMgr.printWarn(
                     '%s because %s' % (errMsg, self.errmsg))
-                return self.getRegs()
             else:
                 SysMgr.printWarn(
                     '%s because it is not stopped' % errMsg)
