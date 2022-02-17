@@ -20833,6 +20833,51 @@ Commands:
 
 
     @staticmethod
+    def removeCgroup(path):
+        try:
+            # init system context #
+            if not SysMgr.sysInstance:
+                SysMgr.initSystemContext()
+
+            # get cgroup path #
+            cgroupPath = SysMgr.sysInstance.getCgroupPath()
+            if not cgroupPath:
+                raise Exception("access fail to cgroup filesystem")
+
+            # check path #
+            if not path.startswith(cgroupPath):
+                raise Exception("wrong directory path")
+
+            # get root path #
+            root = UtilMgr.lstrip(path, cgroupPath).split('/')
+            root = UtilMgr.cleanItem(root)
+            rootPath = os.path.join(cgroupPath, root[0], 'tasks')
+
+            # find all tasks files #
+            targetList = UtilMgr.getFiles(path, ['tasks'])
+
+            # get all tids #
+            tids = []
+            for f in targetList:
+                tids += SysMgr.readFile(f).split('\n')
+
+            # remove all tasks from sub-groups #
+            SysMgr.writeFile(rootPath, tids)
+
+            # remove target directory #
+            for p in sorted(
+                targetList, key=lambda x:x.count('/'), reverse=True):
+                os.rmdir(p.rstrip('/tasks'))
+
+            return True
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to remove '%s'" % path, True, True)
+            return False
+
+
+
+    @staticmethod
     def getFreezer():
         try:
             # check result #
@@ -20846,12 +20891,12 @@ Commands:
             # get cgroup path #
             cgroupPath = SysMgr.sysInstance.getCgroupPath()
             if not cgroupPath:
-                raise Exception("failed to access cgroup filesystem")
+                raise Exception("access fail to cgroup filesystem")
 
             # check freezer subsystem #
             cgroupPath = os.path.join(cgroupPath, 'freezer')
             if not os.path.exists(cgroupPath):
-                raise Exception("failed to access freezer subsystem in cgroup")
+                raise Exception("access fail to freezer subsystem in cgroup")
 
             # make target dir #
             targetDir = os.path.join(cgroupPath, 'guider_%s' % SysMgr.pid)
@@ -20859,10 +20904,14 @@ Commands:
                 if not os.path.exists(targetDir):
                     os.makedirs(targetDir)
             except:
-                raise Exception("failed to make '%s'" % targetDir)
+                raise Exception("make fail for '%s'" % targetDir)
 
             # freeze tasks #
-            SysMgr.writeFile(os.path.join(targetDir, 'freezer.state'), 'FROZEN')
+            SysMgr.writeFile(
+                os.path.join(targetDir, 'freezer.state'), 'FROZEN')
+
+            # register handler to remove directory #
+            SysMgr.addExitFunc(SysMgr.removeCgroup, [targetDir])
 
             # register tasks to cgroup node #
             SysMgr.freezerPath = os.path.join(targetDir, 'tasks')
@@ -20937,9 +20986,7 @@ Commands:
         SysMgr.writeFile(os.path.join(targetDir, 'freezer.state'), 'FROZEN')
 
         # register handler to remove directory #
-        taskPopFile = os.path.join(targetDir, '..', taskNode)
-        SysMgr.addExitFunc(SysMgr.writeFile, [taskPopFile, targetTasks])
-        SysMgr.addExitFunc(os.rmdir, [targetDir])
+        SysMgr.addExitFunc(SysMgr.removeCgroup, [targetDir])
 
         # print target tasks #
         tasks = SysMgr.readFile(taskPushFile).split('\n')
@@ -31464,6 +31511,8 @@ Copyright:
 
             if type(val) is list:
                 for item in val:
+                    if not item: continue
+                    fd.seek(0)
                     fd.write(item)
             else:
                 fd.write(val)
