@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220217"
+__revision__ = "220218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4030,7 +4030,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertRange(targetList):
+    def convRange(targetList):
         result = []
 
         for item in targetList:
@@ -7651,7 +7651,7 @@ class NetworkMgr(object):
                         continue
 
                     cacheList[addr] = None
-                    ip = SysMgr.convertCIDR(addr)
+                    ip = SysMgr.convCIDR(addr)
                     effectiveList[ip] = None
             except SystemExit: sys.exit(0)
             except:
@@ -7718,7 +7718,7 @@ class NetworkMgr(object):
             for line in ipList:
                 items = line.split()
                 effectiveList.append(
-                    [items[0], SysMgr.convertCIDR(items[1])])
+                    [items[0], SysMgr.convCIDR(items[1])])
 
             return effectiveList
         except SystemExit: sys.exit(0)
@@ -8250,8 +8250,15 @@ class Timeline(object):
             # get real color via ID #
             try:
                 color = self.color_map[str(colorid)]
+            except SystemExit: sys.exit(0)
             except:
-                color = self.color_map[list(self.color_map)[0]]
+                try:
+                    cidx = long(colorid) % len(self.color_map)
+                    color = self.color_map[list(self.color_map)[cidx]]
+                    self.color_map[str(colorid)] = color
+                except SystemExit: sys.exit(0)
+                except:
+                    color = self.color_map[list(self.color_map)[0]]
 
         # check stroke option #
         if self.stroke_text and \
@@ -20878,7 +20885,7 @@ Commands:
 
 
     @staticmethod
-    def getFreezer():
+    def getCgroupFreezer():
         try:
             # check result #
             if SysMgr.freezerPath or SysMgr.freezerPath is False:
@@ -22048,7 +22055,8 @@ Commands:
         except:
             if verb:
                 SysMgr.printWarn(
-                    "failed to get binary path for %s process" % pid, reason=True)
+                    "failed to get binary path for %s process" % pid,
+                    reason=True)
             return None
 
 
@@ -23944,6 +23952,9 @@ Examples:
 
     - Draw fixed-size items on timeline
         # {0:1} {1:1} timeline.json -q DURATION:500
+
+    - Draw per-task items on timeline
+        # {0:1} {1:1} timeline.json -q PERTASK
 
     - Draw items with minimum fixed-size on timeline
         # {0:1} {1:1} timeline.json -q DURATIONMIN:500
@@ -30472,7 +30483,7 @@ Copyright:
 
                     # convert local address #
                     lip, lport = udp[laddrIdx].split(':')
-                    lip = SysMgr.convertCIDR(lip)
+                    lip = SysMgr.convCIDR(lip)
                     item = "UDP>%s:%s" % (lip, long(lport, base=16))
 
                     # convert remote address #
@@ -30482,7 +30493,7 @@ Copyright:
                     try:
                         rport = long(rport, 16)
                         if long(rip, 16) > 0 and rport > 0:
-                            rip = SysMgr.convertCIDR(rip)
+                            rip = SysMgr.convCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
                     except SystemExit: sys.exit(0)
                     except: pass
@@ -30542,7 +30553,7 @@ Copyright:
 
                     # convert local address #
                     lip, lport = tcp[laddrIdx].split(':')
-                    lip = SysMgr.convertCIDR(lip)
+                    lip = SysMgr.convCIDR(lip)
                     item = "TCP>%s:%s" % (lip, long(lport, base=16))
 
                     # convert remote address #
@@ -30552,7 +30563,7 @@ Copyright:
                     try:
                         rport = long(rport, 16)
                         if long(rip, 16) > 0 and rport > 0:
-                            rip = SysMgr.convertCIDR(rip)
+                            rip = SysMgr.convCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
                     except SystemExit: sys.exit(0)
                     except: pass
@@ -31784,7 +31795,7 @@ Copyright:
             return
 
         # check extended ascii support #
-        SysMgr.convertExtAscii(ConfigMgr.logo)
+        SysMgr.convExtAscii(ConfigMgr.logo)
 
         if not SysMgr.outPath:
             if SysMgr.streamEnable:
@@ -33023,7 +33034,7 @@ Copyright:
                 return
 
             # convert to extended ascii #
-            nline = SysMgr.convertExtAscii(line)
+            nline = SysMgr.convExtAscii(line)
 
             # print string to console #
             try:
@@ -33046,7 +33057,7 @@ Copyright:
 
 
     @staticmethod
-    def convertExtAscii(line):
+    def convExtAscii(line):
         # pylint: disable=no-member
         # pylint: disable=undefined-variable
         if not SysMgr.encodeEnable:
@@ -34071,7 +34082,7 @@ Copyright:
                         "no input value for filter" % option)
                     sys.exit(0)
 
-                perCoreList = UtilMgr.convertRange(perCoreList)
+                perCoreList = UtilMgr.convRange(perCoreList)
 
                 # check value type #
                 for item in perCoreList:
@@ -35664,7 +35675,7 @@ Copyright:
 
 
     @staticmethod
-    def convertCIDR(addr):
+    def convCIDR(addr):
         if addr in SysMgr.ipAddrCache:
             return SysMgr.ipAddrCache[addr]
 
@@ -50371,6 +50382,7 @@ class DbusMgr(object):
     msgColorList = {}
     connCache = {}
     dbgObj = None
+    isTopMode = False
 
     G_IO_ERROR_TYPE = [
         'G_IO_ERROR_FAILED',
@@ -52023,8 +52035,7 @@ class DbusMgr(object):
                 gioObj = SysMgr.libgioObj
                 libgObj = SysMgr.libgObj
                 G_IO_ERROR_TYPE = DbusMgr.G_IO_ERROR_TYPE
-
-                isTopMode = SysMgr.checkMode('dbustop')
+                isTopMode = DbusMgr.isTopMode
 
                 msgs = []
                 for key, msg in sorted(msgList.items()):
@@ -52540,6 +52551,7 @@ class DbusMgr(object):
         DbusMgr.dbgObj = Debugger(SysMgr.pid, attach=False)
         DbusMgr.dbgObj.initValues()
         DbusMgr.dbgObj.getCpuUsage(system=True)
+        DbusMgr.isTopMode = SysMgr.checkMode('dbustop')
 
         # define common list #
         busList = []
@@ -52589,6 +52601,7 @@ class DbusMgr(object):
                 ppidIdx = SysMgr.topInstance.ppidIdx
                 ppid = taskManager.procData[tid]['stat'][ppidIdx]
                 cmdline = SysMgr.getCmdline(ppid)
+            except SystemExit: sys.exit(0)
             except:
                 cmdline = ''
 
@@ -56612,7 +56625,7 @@ typedef struct {
 
 
 
-    def convertFilterValue(self, origCmdSet):
+    def convFilterValue(self, origCmdSet):
         cmdSet = []
         for cmd in origCmdSet:
             cmds = cmd.split(':')
@@ -56720,7 +56733,7 @@ typedef struct {
             value = valueList[0]
             if len(valueList) > 1:
                 # convert value to decimal #
-                cmdSet = self.convertFilterValue(valueList[1:])
+                cmdSet = self.convFilterValue(valueList[1:])
             else:
                 cmdSet = None
 
@@ -63151,7 +63164,7 @@ typedef struct {
         # get symbol id #
         if sid == -1:
             if not sym in self.timelineIdx:
-                self.timelineIdx[sym] = len(self.timelineIdx)
+                self.timelineIdx[sym] = str(len(self.timelineIdx))
             symidx = self.timelineIdx[sym]
         else:
             symidx = sid
@@ -63190,7 +63203,7 @@ typedef struct {
         # get symbol id #
         if sid == -1:
             if not sym in self.timelineIdx:
-                self.timelineIdx[sym] = len(self.timelineIdx)
+                self.timelineIdx[sym] = str(len(self.timelineIdx))
             symidx = self.timelineIdx[sym]
         else:
             symidx = sid
@@ -73892,6 +73905,7 @@ class TaskAnalyzer(object):
             self.lastEvent = '0'
             self.backupData = {}
             self.nrSchedLoss = 0
+            self.timelineIdx = {}
             self.timelineData = {"time_unit": "us", "segments": []}
 
         # top mode #
@@ -85362,6 +85376,25 @@ class TaskAnalyzer(object):
 
 
 
+    def addTimelineData(self, group, text, task, state, start, end):
+        # convert group id from core to task #
+        if 'PERTASK' in SysMgr.environList:
+            if not task in self.timelineIdx:
+                self.timelineIdx[task] = task
+            group = self.timelineIdx[task]
+
+        # add timeline data #
+        self.timelineData['segments'].append({
+            'group': group,
+            'text': text,
+            'id': task,
+            'state': state,
+            'time_start': start,
+            'time_end': end,
+        })
+
+
+
     def parse(self, string):
         def _printEventWarning(func):
             SysMgr.printWarn(
@@ -85778,14 +85811,9 @@ class TaskAnalyzer(object):
                     tcomm = prev_comm
 
                 # add timeline data #
-                self.timelineData['segments'].append({
-                    'group': long(core),
-                    'text': '%s(%s)' % (tcomm, prev_id),
-                    'id': prev_id,
-                    'state': prev_state,
-                    'time_start': start_delta,
-                    'time_end': stop_delta,
-                })
+                self.addTimelineData(
+                    long(core), '%s(%s)' % (tcomm, prev_id),
+                    prev_id, prev_state, start_delta, stop_delta)
 
             if diff > long(SysMgr.intervalEnable):
                 self.threadData[prev_id]['longRunCore'] = long(core)
@@ -85896,8 +85924,9 @@ class TaskAnalyzer(object):
                     self.threadData[next_id]['cpuWait'] += preemptedTime
                 else:
                     SysMgr.printWarn(
-                        "preempted time of %s(%s) is negative(%f) at line %d" % \
-                        (next_comm, next_id, preemptedTime, SysMgr.curLine))
+                        "preempted time of %s(%s) is %f at line %s" % \
+                            (next_comm, next_id, preemptedTime,
+                                UtilMgr.convNum(SysMgr.curLine)))
 
                 if preemptedTime > self.threadData[next_id]['maxPreempted']:
                     self.threadData[next_id]['maxPreempted'] = preemptedTime
@@ -86705,9 +86734,10 @@ class TaskAnalyzer(object):
 
             # save syscall usage #
             diff = ''
+            hasTimeline = True
             sysItem = threadData['syscallInfo'][nrstr]
             if 'NOSYSCALL' in SysMgr.environList:
-                pass
+                hasTimeline = False
             elif sysItem['last'] > 0:
                 start_delta = long((float(sysItem['last'])-stime)*1000000)
                 stop_delta = long((float(ftime)-stime)*1000000)
@@ -86718,31 +86748,17 @@ class TaskAnalyzer(object):
                 except:
                     SysMgr.printWarn('wrong syscall number %s' % nr)
                     return time
-
-                # add timeline data #
-                self.timelineData['segments'].append({
-                    'group': long(core),
-                    'text': text,
-                    'id': thread,
-                    'state': 'SYSCALL',
-                    'time_start': start_delta,
-                    'time_end': stop_delta,
-                })
             else:
                 # start_delta = 0
                 stop_delta = long((float(ftime)-stime)*1000000)
                 start_delta = long((float(ftime)-stime)*1000000)
                 text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
 
-                # add timeline data #
-                self.timelineData['segments'].append({
-                    'group': long(core),
-                    'text': text,
-                    'id': thread,
-                    'state': 'SYSCALL',
-                    'time_start': start_delta,
-                    'time_end': stop_delta,
-                })
+            # add timeline data #
+            if hasTimeline:
+                self.addTimelineData(
+                    long(core), text, thread,
+                    'SYSCALL', start_delta, stop_delta)
 
             # update syscall stat #
             if sysItem['last'] > 0:
@@ -87019,14 +87035,9 @@ class TaskAnalyzer(object):
                         text = '%s(%s) | RD[%s]' % (tcomm, reqThd, workload)
 
                         # add timeline data #
-                        self.timelineData['segments'].append({
-                            'group': long(lastCore),
-                            'text': text,
-                            'id': reqThd,
-                            'state': 'RD',
-                            'time_start': start_delta,
-                            'time_end': stop_delta,
-                        })
+                        self.addTimelineData(
+                            long(lastCore), text, reqThd,
+                            'RD', start_delta, stop_delta)
 
                 # WRITE #
                 elif opt == 'WS':
@@ -87058,14 +87069,9 @@ class TaskAnalyzer(object):
                         text = '%s(%s) | WR[%s]' % (tcomm, reqThd, workload)
 
                         # add timeline data #
-                        self.timelineData['segments'].append({
-                            'group': long(lastCore),
-                            'text': text,
-                            'id': reqThd,
-                            'state': 'WR',
-                            'time_start': start_delta,
-                            'time_end': stop_delta,
-                        })
+                        self.addTimelineData(
+                            long(lastCore), text, reqThd,
+                            'WR', start_delta, stop_delta)
 
         elif func == "mm_filemap_add_to_page_cache":
             m = re.match((
@@ -87721,14 +87727,9 @@ class TaskAnalyzer(object):
                 stop_delta = long((float(ftime)-stime)*1000000)
 
                 # add timeline data #
-                self.timelineData['segments'].append({
-                    'group': long(core),
-                    'text': 'OFF',
-                    'id': thread,
-                    'state': 'OFF',
-                    'time_start': start_delta,
-                    'time_end': stop_delta,
-                })
+                self.addTimelineData(
+                    long(core), 'OFF', thread,
+                    'OFF', start_delta, stop_delta)
 
             # sleep #
             else:
@@ -87871,14 +87872,9 @@ class TaskAnalyzer(object):
             start_delta = stop_delta = long((float(ftime)-stime)*1000000)
 
             # add timeline data #
-            self.timelineData['segments'].append({
-                'group': long(core),
-                'text': d['event'],
-                'id': thread,
-                'state': 'EVENT_MARK',
-                'time_start': start_delta,
-                'time_end': stop_delta,
-            })
+            self.addTimelineData(
+                long(core), d['event'], thread,
+                'EVENT_MARK', start_delta, stop_delta)
 
         else:
             handleSpecialEvents = True
@@ -95706,26 +95702,6 @@ def main(args=None):
         outputPath = UtilMgr.prepareForImageFile(
             SysMgr.inputFile, 'timeline')
 
-        # get core usage #
-        coreUsageList = {}
-        for key, value in tobj.threadData.items():
-            if not key.startswith('0['):
-                continue
-
-            try:
-                coreId = long(key[key.find('[')+1:-1])
-            except:
-                continue
-
-            # calculate total core usage percentage #
-            try:
-                idle = value['usage'] / float(tobj.totalTime)
-                usagePercent = long(100 - (idle * 100))
-            except:
-                usagePercent = 0
-
-            coreUsageList[coreId] = '%d%%' % usagePercent
-
         # check absolute timeline option #
         if 'ABSTIME' in SysMgr.environList:
             start = float(SysMgr.startTime)
@@ -95739,12 +95715,53 @@ def main(args=None):
         else:
             annotation = None
 
+        # update name table #
+        itemInfoList = {}
+        taskList = {x:None for x in tobj.threadData.keys()}
+        if 'PERTASK' in SysMgr.environList:
+            tobj.timelineData['names'] = \
+                {y:x for x,y in tobj.timelineIdx.items()}
+
+            # get task usage #
+            tasks = tobj.timelineData['names']
+            for key, value in tobj.threadData.items():
+                if not key in tobj.timelineIdx:
+                    continue
+
+                # calculate total task usage percentage #
+                try:
+                    usagePercent = \
+                        value['usage'] / float(tobj.totalTime) * 100
+                except:
+                    usagePercent = 0
+
+                itemInfoList[key] = '%s: %d%%' % (value['comm'], usagePercent)
+        else:
+            # get core usage #
+            for key, value in tobj.threadData.items():
+                if not key.startswith('0['):
+                    continue
+
+                try:
+                    coreId = str(key[key.find('[')+1:-1])
+                except:
+                    continue
+
+                # calculate total core usage percentage #
+                try:
+                    idle = value['usage'] / float(tobj.totalTime)
+                    usagePercent = long(100 - (idle * 100))
+                except:
+                    usagePercent = 0
+
+                itemInfoList[coreId] = 'Core%s: %d%%' % (coreId, usagePercent)
+
         # draw timeline segment #
         SysMgr.drawTimeline(
             inputData=tobj.timelineData,
             outputPath=outputPath,
-            taskList=list(tobj.threadData),
-            start=start, annotation=annotation, yval=coreUsageList)
+            taskList=taskList,
+            start=start, annotation=annotation, yval=itemInfoList)
 
         # draw resource graph #
         SysMgr.graphEnable = True
