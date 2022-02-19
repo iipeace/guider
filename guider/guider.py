@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220218"
+__revision__ = "220219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4254,6 +4254,25 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def getEnvironNum(name, exit=True, default=None, verb=True, isInt=False):
+        try:
+            value = SysMgr.environList[name][0]
+
+            if isInt:
+                return int(value)
+            else:
+                return long(value)
+        except SystemExit: sys.exit(0)
+        except:
+            if verb:
+                SysMgr.printErr(
+                    "failed to get the number of %s variable" % name, True)
+            if exit: sys.exit(0)
+            return default
+
+
+
+    @staticmethod
     def parseCommand(option):
         stringList = {}
 
@@ -7841,7 +7860,8 @@ class Timeline(object):
 
             # set label filter #
             if 'LABELMIN' in SysMgr.environList:
-                self.LABEL_SIZE_MIN = int(SysMgr.environList['LABELMIN'][0])
+                self.LABEL_SIZE_MIN = UtilMgr.getEnvironNum(
+                    'LABELMIN', isInt=True)
                 SysMgr.printInfo(
                     "only time segments bigger than %s are printed" % \
                         UtilMgr.convNum(self.LABEL_SIZE_MIN))
@@ -7850,25 +7870,15 @@ class Timeline(object):
 
             # set font size #
             if 'FONTSIZE' in SysMgr.environList:
-                try:
-                    val = SysMgr.environList['FONTSIZE'][0]
-                    self.FONT_SIZE = int(val)
-                except:
-                    SysMgr.printErr(
-                        "failed to set font size to '%s'" % val, True)
-                    sys.exit(0)
+                self.FONT_SIZE = UtilMgr.getEnvironNum(
+                    'FONTSIZE', isInt=True)
             else:
                 self.FONT_SIZE = 3
 
             # set group font size #
             if 'GROUPFONTSIZE' in SysMgr.environList:
-                try:
-                    val = SysMgr.environList['GROUPFONTSIZE'][0]
-                    self.GROUP_FONT_SIZE = int(val)
-                except:
-                    SysMgr.printErr(
-                        "failed to set group font size to '%s'" % val, True)
-                    sys.exit(0)
+                self.GROUP_FONT_SIZE = UtilMgr.getEnvironNum(
+                    'GROUPFONTSIZE', isInt=True)
             else:
                 self.GROUP_FONT_SIZE = 0
 
@@ -23928,6 +23938,8 @@ Examples:
 
     - Draw items with specific font size
         # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
+        # {0:1} {1:1} guider.out worstcase.out -q XFONTSIZE:2
+        # {0:1} {1:1} guider.out worstcase.out -q LFONTSIZE:5
         # {0:1} {1:1} guider.out worstcase.out -q GROUPFONTSIZE:30
 
     - Draw items of top 5 processes
@@ -32300,7 +32312,7 @@ Copyright:
                 SysMgr.eventLogFd.write(message)
                 event = message[message.find('_')+1:]
                 if show:
-                    SysMgr.printInfo('wrote %s event' % event)
+                    SysMgr.printInfo("wrote '%s' event" % event)
 
                 try:
                     SysMgr.eventLogFd.flush()
@@ -33562,11 +33574,11 @@ Copyright:
         # set maximum top rank #
         if 'NRTOPRANK' in SysMgr.environList:
             try:
-                SysMgr.nrTopRank = long(SysMgr.environList['NRTOPRANK'][0])
+                value = SysMgr.environList['NRTOPRANK'][0]
+                SysMgr.nrTopRank = long(value)
             except:
                 SysMgr.printErr(
-                    "failed to set NRTOPRANK to '%s'" % \
-                        SysMgr.environList['NRTOPRANK'][0])
+                    "failed to set NRTOPRANK to '%s'" % value)
                 sys.exit(0)
 
         # define threshold list #
@@ -35999,14 +36011,19 @@ Copyright:
                 addrs = SysMgr.getSocketAddrList(objs)
                 SysMgr.netAddrCache[pid] = addrs
 
+            # send event to Guider processes #
             for addr in addrs:
                 try:
-                    attr, ip, port = addr.split(':')
+                    attr, addr = addr.split('>', 1)
+                    ip, port = addr.split(':')
+                except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printWarn(
-                        "failed to use '%s' as the remote address" % addr)
+                        "failed to use '%s' as the remote address" % addr,
+                        reason=True)
                     continue
 
+                # create a network object #
                 networkObject = NetworkMgr('client', ip, long(port))
                 ip = networkObject.ip
                 port = networkObject.port
@@ -36017,18 +36034,22 @@ Copyright:
                             (ip, port))
                     continue
 
+                # get comm #
+                comm = SysMgr.getComm(pid, save=True)
+
+                # send events #
                 for item in event:
                     try:
                         networkObject.request = item
                         networkObject.send('%s@%s' % (item, SysMgr.uptime))
                         SysMgr.printInfo(
-                            "sent event '%s' to %s:%s address of %s process" % \
-                                (item, ip, port, pid))
+                            "sent event '%s' to %s:%s for %s(%s)" % \
+                                (item, ip, port, comm, pid))
+                    except SystemExit: sys.exit(0)
                     except:
-                        SysMgr.printWarn((
-                            "failed to send event '%s' "
-                            "to %s:%s address of %s process") % \
-                                (item, ip, port, pid))
+                        SysMgr.printWarn(
+                            "failed to send event '%s' to %s:%s for %s(%s)" % \
+                                (item, ip, port, comm, pid))
 
         return pids
 
@@ -36141,11 +36162,8 @@ Copyright:
 
         # define wait time for target #
         if 'WAITTASK' in SysMgr.environList:
-            try:
-                waitTime = long(SysMgr.environList['WAITTASK'][0]) / 1000
-            except SystemExit: sys.exit(0)
-            except:
-                waitTime = 0.1
+            waitTime = UtilMgr.getEnvironNum(
+                'WAITTASK', False, 100, False) / 1000
         else:
             waitTime = 0
 
@@ -38216,10 +38234,7 @@ Copyright:
 
                 # get I/O buffer size #
                 if 'READCHUNK' in SysMgr.environList:
-                    try:
-                        readChunkSize = \
-                            long(SysMgr.environList['READCHUNK'][0])
-                    except: pass
+                    readChunkSize = UtilMgr.getEnvironNum('READCHUNK')
                 else:
                     readChunkSize = None
 
@@ -39473,7 +39488,7 @@ Copyright:
                 except: pass
 
                 # draw grid #
-                xticks(fontsize=4)
+                xticks(fontsize=self.xfsize)
                 grid(which='both', linestyle=':', linewidth=0.2)
                 tick_params(axis='x', direction='in')
                 tick_params(axis='y', direction='in')
@@ -39556,11 +39571,11 @@ Copyright:
                 # draw stat text on the bar #
                 for idx, value in enumerate(data):
                     text(start + (idx-1)/10, value, UtilMgr.convNum(value),
-                        color='black', fontweight='bold', fontsize=3)
+                        color='black', fontweight='bold', fontsize=self.lfsize)
 
                 # draw name text over the bar #
                 text(start, maxval/2, req[:maxLabelLen],
-                    color='black', fontsize=3, rotation=35)
+                    color='black', fontsize=self.lfsize, rotation=35)
 
                 start += 1
 
@@ -41668,10 +41683,7 @@ Copyright:
         # check tail flag #
         if 'TAIL' in SysMgr.environList:
             tail = True
-            try:
-                nrLast = long(SysMgr.environList['TAIL'][0])
-            except:
-                nrLast = 100
+            nrLast = UtilMgr.getEnvironNum('TAIL', False, 100, False)
             SysMgr.streamEnable = True
         else:
             tail = False
@@ -54505,10 +54517,8 @@ class Debugger(object):
         # timeline #
         self.timelineData = {"time_unit": "us", "segments": []}
         self.timelineIdx = {}
-        if 'DURATION' in SysMgr.environList:
-            self.timeDuration = long(SysMgr.environList['DURATION'][0])
-        else:
-            self.timeDuration = 100
+        self.timeDuration = UtilMgr.getEnvironNum(
+            'DURATION', False, 100, False)
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -54754,23 +54764,12 @@ typedef struct {
 
         # filter for CPU threshold #
         if 'CPUCOND' in SysMgr.environList:
-            try:
-                Debugger.cpuCond = \
-                    long(SysMgr.environList['CPUCOND'][0])
-            except:
-                SysMgr.printErr(
-                    "failed to set CPUCOND to '%s'" % \
-                        SysMgr.environList['CPUCOND'][0], True)
+            Debugger.cpuCond = UtilMgr.getEnvironNum('CPUCOND')
 
         # set string size #
         if Debugger.strSize == -1 and \
             'STRSIZE' in SysMgr.environList:
-            try:
-                Debugger.strSize = long(SysMgr.environList['STRSIZE'][0])
-            except:
-                SysMgr.printErr(
-                    "failed to set STRSIZE to '%s'" % \
-                        SysMgr.environList['STRSIZE'][0], True)
+            Debugger.strSize = UtilMgr.getEnvironNum('STRSIZE')
 
 
 
@@ -73784,6 +73783,14 @@ class TaskAnalyzer(object):
         else:
             self.execEnable = True
 
+        # draw attributes #
+        if 'FONTSIZE' in SysMgr.environList:
+            fontsize = UtilMgr.getEnvironNum('FONTSIZE')
+            self.xfsize = self.lfsize = fontsize
+        else:
+            self.xfsize = UtilMgr.getEnvironNum('XFONTSIZE', False, 4, False)
+            self.lfsize = UtilMgr.getEnvironNum('LFONTSIZE', False, 3, False)
+
         # thread mode #
         if fpath:
             self.initThreadData()
@@ -74738,13 +74745,10 @@ class TaskAnalyzer(object):
             if not env in SysMgr.environList:
                 continue
 
-            try:
-                SysMgr.printCond[env] = long(SysMgr.environList[env][0])
+            # apply condition number #
+            SysMgr.printCond[env] = UtilMgr.getEnvironNum(env)
+            if SysMgr.printCond[env]:
                 SysMgr.reportEnable = True
-            except:
-                SysMgr.printErr(
-                    "failed to set %s to '%s'" % \
-                        (env, SysMgr.environList[env][0]), True)
 
 
 
@@ -76209,7 +76213,8 @@ class TaskAnalyzer(object):
                     for seq, cnt in enumerate(xtickLabel):
                         try:
                             xtickLabel[seq] = \
-                                effectProcList[timeline.index(long(cnt))]
+                                UtilMgr.convNum(
+                                    effectProcList[timeline.index(long(cnt))])
                         except SystemExit: sys.exit(0)
                         except:
                             xtickLabel[seq] = ' '
@@ -76274,7 +76279,7 @@ class TaskAnalyzer(object):
                     feature = 'Roundtooth,pad=1'
 
                 text(long(x), long(y), name, style='italic',
-                    fontsize=5, color='green', fontweight='bold',
+                    fontsize=self.lfsize*2, color='green', fontweight='bold',
                     bbox=dict(boxstyle=feature, facecolor='gold',
                     alpha=0.7))
 
@@ -76370,7 +76375,8 @@ class TaskAnalyzer(object):
 
                     try:
                         text(timeline[tm], ylim()[-1], evtbox,
-                            fontsize=3, verticalalignment='top', style='italic',
+                            fontsize=self.lfsize,
+                            verticalalignment='top', style='italic',
                             bbox={'facecolor':'green', 'alpha': 1, 'pad': 1},
                             ha=_getTextAlign(tm, timeline))
 
@@ -76481,7 +76487,8 @@ class TaskAnalyzer(object):
                             text(timeline[idx], stat[maxIdx],
                                 '%s Max_%d%% | Avg_%d%% | Total_%s%%' % \
                                 (prefix, maxUsage, avgUsage, conv(totalUsage)),
-                                fontsize=4, color='olive', fontweight='bold',
+                                fontsize=self.lfsize+1,
+                                color='olive', fontweight='bold',
                                 bbox=dict(boxstyle='round', facecolor='wheat',
                                 alpha=0.3),
                                 ha=_getTextAlign(idx, timeline))
@@ -76528,7 +76535,8 @@ class TaskAnalyzer(object):
                             text(timeline[idx], blkWait[maxIdx],
                                 '%s Max_%d%% | Avg_%.1f%% | Total_%s%%' % \
                                 (prefix, maxUsage, avgUsage, conv(totalUsage)),
-                                fontsize=4, color='pink', fontweight='bold',
+                                fontsize=self.lfsize+1,
+                                color='pink', fontweight='bold',
                                 bbox=dict(boxstyle='round', facecolor='wheat',
                                 alpha=0.3),
                                 ha=_getTextAlign(idx, timeline))
@@ -76569,7 +76577,8 @@ class TaskAnalyzer(object):
                         text(timeline[idx], cpuUsage[maxIdx],
                             '%sMax_%d%% | Avg_%.1f%% | Total_%s%%' % \
                             (prefix, maxUsage, avgUsage, conv(totalUsage)),
-                            fontsize=4, color='red', fontweight='bold',
+                            fontsize=self.lfsize+1,
+                            color='red', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
                             alpha=0.3),
                             ha=_getTextAlign(idx, timeline))
@@ -76616,7 +76625,8 @@ class TaskAnalyzer(object):
                         text(timeline[idx], totalUsage[maxIdx],
                             '%s Max_%d%%|Avg_%.1f%%|Total_%s%%' % \
                             (prefix, maxUsage, avgUsage, conv(totalSumUsage)),
-                            fontsize=4, color='green', fontweight='bold',
+                            fontsize=self.lfsize+1,
+                            color='green', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
                             alpha=0.3),
                             ha=_getTextAlign(idx, timeline))
@@ -76725,7 +76735,8 @@ class TaskAnalyzer(object):
 
                     if not 'NOLABEL' in SysMgr.environList:
                         text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,
-                            fontsize=2, color=color, fontweight='normal',
+                            fontsize=self.lfsize-1,
+                            color=color, fontweight='normal',
                             rotation=35, ha=_getTextAlign(maxIdx, timeline))
 
                     labelList.append(
@@ -76745,7 +76756,7 @@ class TaskAnalyzer(object):
             tick_params(axis='y', direction='in')
 
             # update xticks #
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -76818,15 +76829,15 @@ class TaskAnalyzer(object):
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,
-                        fontsize=3, color=color, fontweight='bold',
+                        fontsize=self.lfsize, color=color, fontweight='bold',
                         ha=_getTextAlign(minIdx, timeline), rotation=35)
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], maxval,
-                        fontsize=3, color=color, fontweight='bold',
+                        fontsize=self.lfsize, color=color, fontweight='bold',
                         ha=_getTextAlign(maxIdx, timeline), rotation=35)
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], lastval, rotation=35,
-                        fontsize=3, color=color, fontweight='bold',
+                        fontsize=self.lfsize, color=color, fontweight='bold',
                         ha='right')
 
                 return totalsize, ymax
@@ -76974,12 +76985,14 @@ class TaskAnalyzer(object):
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 wrUsage[maxIdx] + margin, maxval, rotation=35,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
                             text(timeline[-1],
                                 wrUsage[-1] + margin, lastval, rotation=35,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha='right')
 
                         labelList.append(
@@ -77009,12 +77022,14 @@ class TaskAnalyzer(object):
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 rdUsage[maxIdx] + margin, maxval, rotation=35,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
                             text(timeline[-1],
                                 rdUsage[-1] + margin, lastval, rotation=35,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha='right')
 
                         labelList.append(
@@ -77062,12 +77077,14 @@ class TaskAnalyzer(object):
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 wrUsage[maxIdx] + margin, maxval, rotation=35,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
 
                         if wrUsage[-1] > 0:
                             text(timeline[-1], wrUsage[-1] + margin, lastval,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha='right', rotation=35)
 
                         labelList.append(
@@ -77098,11 +77115,13 @@ class TaskAnalyzer(object):
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 rdUsage[maxIdx] + margin, maxval, rotation=35,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
                             text(timeline[-1], rdUsage[-1] + margin, lastval,
-                                fontsize=3, color=color, fontweight='bold',
+                                fontsize=self.lfsize,
+                                color=color, fontweight='bold',
                                 ha='right', rotation=35)
 
                         labelList.append(
@@ -77154,13 +77173,13 @@ class TaskAnalyzer(object):
                         if wrUsage[maxIdx] > 0 and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], wrUsage[maxIdx] + margin,
-                                maxval, fontsize=3, color=color,
+                                maxval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0 and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], wrUsage[-1] + margin,
-                                lastval, fontsize=3, color=color,
+                                lastval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35, ha='right')
 
                         labelList.append(
@@ -77190,13 +77209,13 @@ class TaskAnalyzer(object):
                         if rdUsage[maxIdx] > 0 and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], rdUsage[maxIdx] + margin,
-                                maxval, fontsize=3, color=color,
+                                maxval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0 and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], rdUsage[-1] + margin,
-                                lastval, fontsize=3, color=color,
+                                lastval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35, ha='right')
 
                         labelList.append(
@@ -77219,7 +77238,7 @@ class TaskAnalyzer(object):
             TaskAnalyzer.drawYticks(ax, ymax)
 
             # update xticks #
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -77296,15 +77315,15 @@ class TaskAnalyzer(object):
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,
-                        fontsize=3, color=color, fontweight='bold',
+                        fontsize=self.lfsize, color=color, fontweight='bold',
                         ha=_getTextAlign(minIdx, timeline))
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], maxval,
-                        fontsize=3, color=color, fontweight='bold',
+                        fontsize=self.lfsize, color=color, fontweight='bold',
                         ha=_getTextAlign(maxIdx, timeline))
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], lastval,
-                        fontsize=3, color=color, fontweight='bold',
+                        fontsize=self.lfsize, color=color, fontweight='bold',
                         ha='right')
 
                 return lastsize, ymax
@@ -77418,17 +77437,20 @@ class TaskAnalyzer(object):
                         if usage[minIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[minIdx], usage[minIdx] + margin,
-                                minval, color=color, fontsize=3, rotation=35,
+                                minval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
                         if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
-                                maxval, color=color, fontsize=3, rotation=35,
+                                maxval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
                         if usage[-1] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], usage[-1] + margin,
-                                lastval, color=color, fontsize=3, rotation=35,
+                                lastval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha='right')
 
                         labelList.append(
@@ -77530,12 +77552,14 @@ class TaskAnalyzer(object):
                         if usage[minIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[minIdx], usage[minIdx] - margin,
-                                minval, color=color, fontsize=3, rotation=35,
+                                minval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
                         if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
-                                lastval, color=color, fontsize=3, rotation=35,
+                                lastval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
 
                         labelList.append('%s [LEAK] - %s' % (key, diffsize))
@@ -77599,17 +77623,20 @@ class TaskAnalyzer(object):
                         if usage[minIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[minIdx], usage[minIdx] + margin,
-                                minval, color=color, fontsize=3, rotation=35,
+                                minval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
                         if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
-                                maxval, color=color, fontsize=3, rotation=35,
+                                maxval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
                         if usage[-1] and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], usage[-1] + margin,
-                                lastval, color=color, fontsize=3, rotation=35,
+                                lastval, color=color,
+                                fontsize=self.lfsize, rotation=35,
                                 ha='right')
 
                         # set memory type #
@@ -77710,7 +77737,7 @@ class TaskAnalyzer(object):
             except SystemExit: sys.exit(0)
             except: pass
 
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -77900,7 +77927,8 @@ class TaskAnalyzer(object):
                         if usage == 0:
                             continue
                         text(timeline[idx], usage+margin, '%d%%' % usage,
-                            fontsize=4, color='olive', fontweight='bold',
+                            fontsize=self.lfsize+1,
+                            color='olive', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
                             alpha=0.3),
                             ha=_getTextAlign(idx, timeline))
@@ -77930,7 +77958,8 @@ class TaskAnalyzer(object):
                         if usage == 0:
                             continue
                         text(timeline[idx], usage+margin, '%d%%' % usage,
-                            fontsize=4, color='pink', fontweight='bold',
+                            fontsize=self.lfsize+1,
+                            color='pink', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
                             alpha=0.3),
                             ha=_getTextAlign(idx, timeline))
@@ -77955,7 +77984,7 @@ class TaskAnalyzer(object):
                     if usage == 0:
                         continue
                     text(timeline[idx], usage+margin, '%d%%' % usage,
-                        fontsize=4, color='red', fontweight='bold',
+                        fontsize=self.lfsize+1, color='red', fontweight='bold',
                         bbox=dict(boxstyle='round', facecolor='wheat',
                         alpha=0.3),
                         ha=_getTextAlign(idx, timeline))
@@ -77984,7 +78013,8 @@ class TaskAnalyzer(object):
                     if usage == 0:
                         continue
                     text(timeline[idx], usage+margin, '%d%%' % usage,
-                        fontsize=4, color='green', fontweight='bold',
+                        fontsize=self.lfsize+1,
+                        color='green', fontweight='bold',
                         bbox=dict(boxstyle='round', facecolor='wheat',
                         alpha=0.3),
                         ha=_getTextAlign(idx, timeline))
@@ -78049,7 +78079,7 @@ class TaskAnalyzer(object):
                         continue
 
                     text(timeline[pidx], usage+margin, '%d%%' % usage,
-                        fontsize=4, color=color, fontweight='bold',
+                        fontsize=self.lfsize+1, color=color, fontweight='bold',
                         ha=_getTextAlign(maxIdx, timeline))
 
                 labelList.append('%s - %s%%' % (idx, maxCpuPer))
@@ -78070,7 +78100,7 @@ class TaskAnalyzer(object):
 
             # set xticks attributes #
             ax.set_xticklabels(_convNameLabel(graphStats['fileList']))
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -78121,7 +78151,7 @@ class TaskAnalyzer(object):
                         continue
                     size = convSize2Unit(value << 20)
                     text(timeline[pidx], value,
-                        size, color=color, fontsize=4,
+                        size, color=color, fontsize=self.lfsize+1,
                         ha=_getTextAlign(maxIdx, timeline))
 
                 return usage[-1], ymax
@@ -78192,7 +78222,7 @@ class TaskAnalyzer(object):
                             continue
                         lastUsage = size = convSize2Unit(value << 20)
                         text(timeline[pidx], value + margin,
-                            size, color=color, fontsize=4,
+                            size, color=color, fontsize=self.lfsize+1,
                             ha=_getTextAlign(maxIdx, timeline))
 
                     labelList.append(
@@ -78228,7 +78258,7 @@ class TaskAnalyzer(object):
                             continue
                         lastUsage = size = convSize2Unit(value << 20)
                         text(timeline[pidx], value + margin,
-                            size, color=color, fontsize=4,
+                            size, color=color, fontsize=self.lfsize+1,
                             ha=_getTextAlign(maxIdx, timeline))
 
                     # set memory type #
@@ -78321,7 +78351,7 @@ class TaskAnalyzer(object):
 
             # set xticks attributes #
             ax.set_xticklabels(_convNameLabel(graphStats['fileList']))
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -81800,11 +81830,13 @@ class TaskAnalyzer(object):
 
                 if minIdx > 0:
                     minUsage = str(item[minIdx])
-                    text(minIdx+1, item[minIdx]-margin, minUsage, fontsize=4,
+                    text(minIdx+1, item[minIdx]-margin, minUsage,
+                        fontsize=self.lfsize+1,
                         color=color, fontweight='bold')
                 if maxIdx > 0:
                     maxUsage = str(item[maxIdx])
-                    text(maxIdx+1, item[maxIdx]-margin, maxUsage, fontsize=4,
+                    text(maxIdx+1, item[maxIdx]-margin, maxUsage,
+                        fontsize=self.lfsize+1,
                         color=color, fontweight='bold')
 
             # draw label #
@@ -81826,7 +81858,7 @@ class TaskAnalyzer(object):
 
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize=5)
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
 
             # draw base #
             TaskAnalyzer.drawFigure()
@@ -81943,7 +81975,7 @@ class TaskAnalyzer(object):
                 label = '%s[max: %s%%]' % \
                     (cpuThrLabelList[idx], maxCpuPer)
                 text(maxIdx + 1, item[maxIdx] + margin, label,
-                    fontsize=3, color=color, fontweight='bold')
+                    fontsize=self.lfsize, color=color, fontweight='bold')
 
             # draw label #
             totalLabel = [' CPU Average '] + cpuThrLabelList
@@ -81965,7 +81997,7 @@ class TaskAnalyzer(object):
 
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize=5)
-            xticks(fontsize=4)
+            xticks(fontsize=self.xfsize)
 
             # draw base #
             TaskAnalyzer.drawFigure()
@@ -93146,7 +93178,7 @@ class TaskAnalyzer(object):
 
         # comm length #
         if 'COMMLEN' in SysMgr.environList:
-            cl = long(SysMgr.environList['COMMLEN'][0])
+            cl = UtilMgr.getEnvironNum('COMMLEN')
         else:
             cl = 26 - (pd * 2)
 
