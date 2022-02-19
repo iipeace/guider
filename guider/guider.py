@@ -19078,6 +19078,7 @@ class SysMgr(object):
     fileTopEnable = False
     dltTopEnable = False
     dbusTopEnable = False
+    eventHandleEnable = True
     ueventEnable = False
     keventEnable = False
     networkEnable = False
@@ -23587,7 +23588,8 @@ Options:
           [ a:memAvailable | A:Average | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
             E:exec | g:general | G:gpu | L:log
-            O:color | p:print | t:truncate | T:task ]
+            O:color | p:print | t:truncate
+            T:task | x:event ]
                 '''
 
                 jitProfStr = '''\
@@ -28360,7 +28362,7 @@ Options:
                 elif SysMgr.checkMode('event'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [<EVENT>] [OPTIONS] [--help]
+    # {0:1} {1:1} <EVENT> [OPTIONS] [--help]
 
 Description:
     Send the event signal to all running Guider processes
@@ -28369,16 +28371,24 @@ Options:
     -I  <EVENT>                 set event name
     -g  <PID>                   set target
     -v                          verbose
+
+Commands:
+    CMD_SAVE   save the monitoring results
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Send scene1 event to running Guider processes
+    - Send scene1 event to all running Guider processes
         # {0:1} {1:1} scene1
         # {0:1} {1:1} -I scene1
 
     - Send scene1 event to specific Guider processes
         # {0:1} {1:1} scene1 -g 1234, 1237
+
+    - Send CMD_SAVE event to all specific Guider processes to save monitoring results to the specific file
+        # {0:1} {1:1} CMD_SAVE
+        # {0:1} {1:1} CMD_SAVE_3s
+        # {0:1} {1:1} CMD_SAVE_1m
                     '''.format(cmd, mode)
 
                 # server #
@@ -30799,6 +30809,11 @@ Copyright:
                 else:
                     disableStat += 'AFNT '
 
+                if SysMgr.eventHandleEnable:
+                    enableStat += 'EVENT '
+                else:
+                    disableStat += 'EVENT '
+
                 if SysMgr.reportFileEnable:
                     enableStat += 'RFILE '
                 else:
@@ -31596,7 +31611,8 @@ Copyright:
                         'mount -t debugfs nodev %s 2>%s\n' % \
                         (SysMgr.debugfsPath, SysMgr.nullPath))
                     SysMgr.cmdFd.write(
-                        'echo "\n[Info] start recording... [ STOP(Ctrl+c) ]\n"\n')
+                        'echo "\n[Info] start recording... '
+                        '[ STOP(Ctrl+c) ]\n"\n')
                 except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printOpenErr(SysMgr.cmdEnable)
@@ -33804,6 +33820,9 @@ Copyright:
 
                 if 'E' in options:
                     SysMgr.execEnable = False
+
+                if 'x' in options:
+                    SysMgr.eventHandleEnable = False
 
                 if 't' in options:
                     SysMgr.truncEnable = False
@@ -94271,7 +94290,18 @@ class TaskAnalyzer(object):
         except:
             SysMgr.printErr(
                 "failed to send request '%s'" % \
-                SysMgr.remoteServObj.request)
+                    SysMgr.remoteServObj.request)
+
+
+
+    def handleEventCmd(self, cmd, source):
+        # SAVE #
+        if cmd.startswith('SAVE_'):
+            ret = self.handleSaveCmd(cmd, 'USER')
+            if not ret:
+                SysMgr.waitEvent()
+        else:
+            SysMgr.printWarn("no support '%s' command" % cmd, True)
 
 
 
@@ -94324,8 +94354,10 @@ class TaskAnalyzer(object):
                 networkObject = None
 
             if message.startswith('EVENT_'):
-                event = message[message.find('_')+1:]
+                # get event name #
+                event = message.split('_', 1)[1]
 
+                # get runtime #
                 pos = event.rfind('@')
                 if pos >= 0:
                     rtime = event[pos+1:]
@@ -94340,9 +94372,19 @@ class TaskAnalyzer(object):
                 SysMgr.printInfo(
                     "added event '%s' from %s:%d" % (event, ip, port))
 
-                if networkObject:
-                    networkObject.send(message)
-                    del networkObject
+                # handle command #
+                if event.startswith('CMD_'):
+                    if not SysMgr.eventHandleEnable:
+                        SysMgr.printWarn("ignored '%s' event" % event)
+                    else:
+                        self.handleEventCmd(
+                            UtilMgr.lstrip(event, 'CMD_'), '%s:%s' % \
+                                (ip, port))
+                else:
+                    # send event message #
+                    if networkObject:
+                        networkObject.send(message)
+                        del networkObject
 
             elif message == 'LOG':
                 pass
@@ -94403,11 +94445,16 @@ class TaskAnalyzer(object):
 
 
 
-    def handleSaveCommand(self, cmd, event):
-        SysMgr.printInfo((
-            'save the previous monitoring results '
-            'by %s command for %s event') % \
+    def handleSaveCmd(self, cmd, event):
+        # print message #
+        SysMgr.printInfo(
+            'save the monitoring results by %s command for %s event' % \
                 (cmd, event))
+
+        # check out path #
+        if not SysMgr.outPath:
+            SysMgr.printErr("no output path for '%s' command" % cmd)
+            return True
 
         if SysMgr.isLinux:
             # create a new process #
@@ -94507,11 +94554,12 @@ class TaskAnalyzer(object):
             for cmd in value['command']:
                 # handle save command #
                 if cmd.startswith('SAVE'):
-                    ret = self.handleSaveCommand(cmd, event)
                     # parent #
-                    if ret: continue
+                    if self.handleSaveCmd(cmd, event):
+                        continue
                     # child #
-                    else: return
+                    else:
+                        return
                 # convert command name to full command #
                 elif 'COMMAND' in SysMgr.thresholdData and \
                     cmd in SysMgr.thresholdData['COMMAND']:
