@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220219"
+__revision__ = "220220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28506,7 +28506,7 @@ Examples:
         # {0:1} {1:1} "b:restart"
         # {0:1} {1:1} "b:download:test/*@backup/""
 
-    - Notify an event occured to the server
+    - Notify an event occurred to the server
         # {0:1} {1:1} "n:TEST"
         # {0:1} {1:1} "notify:TEST"
 
@@ -31191,6 +31191,7 @@ Copyright:
             os._exit(0)
 
         else:
+            # write trace message #
             SysMgr.writeEvent("EVENT_STOP", False)
 
             if signum:
@@ -32309,6 +32310,7 @@ Copyright:
 
     @staticmethod
     def writeEvent(message, show=True):
+        # check trace file #
         if not SysMgr.eventLogFd:
             if not SysMgr.eventLogPath:
                 SysMgr.eventLogPath = \
@@ -32323,6 +32325,7 @@ Copyright:
                     "failed to open %s" % SysMgr.eventLogPath)
                 return
 
+        # write trace log #
         if SysMgr.eventLogFd:
             try:
                 SysMgr.eventLogFd.write(message)
@@ -32989,9 +32992,12 @@ Copyright:
 
             # open file #
             try:
+                # change permission #
+                try: os.chmod(SysMgr.inputFile, 0o777)
+                except: pass
+
                 # open output file #
                 SysMgr.printFd = open(SysMgr.inputFile, 'wb')
-                os.chmod(SysMgr.inputFile, 0o777)
 
                 # apply compression to the file #
                 if SysMgr.compressEnable:
@@ -35777,9 +35783,10 @@ Copyright:
         # convert pid #
         try:
             target = list(set(list(map(long, SysMgr.filterGroup))))
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to get pid '%s'" % \
+                "failed to get PID '%s' for Guider processes" % \
                     ', '.join(SysMgr.filterGroup), True)
             sys.exit(0)
 
@@ -89914,7 +89921,7 @@ class TaskAnalyzer(object):
 
         # PID/status #
         stat = 'status'
-        # no memory and context switch stats for kernel threads in process mode #
+        # no memory and context switch for kernel threads in process mode #
         if SysMgr.processEnable and isKernelThread:
             pass
         elif not self.procData[tid][stat]:
@@ -94447,9 +94454,9 @@ class TaskAnalyzer(object):
 
     def handleSaveCmd(self, cmd, event):
         # print message #
-        SysMgr.printInfo(
-            'save the monitoring results by %s command for %s event' % \
-                (cmd, event))
+        SysMgr.printInfo((
+            "start saving the monitoring results by '%s' command "
+            "for %s event") % (cmd, event))
 
         # check out path #
         if not SysMgr.outPath:
@@ -94549,6 +94556,9 @@ class TaskAnalyzer(object):
             if event in self.eventCommandList:
                 continue
             elif not value['run']:
+                SysMgr.printWarn((
+                    "skipped event handling for '%s' "
+                    "because of oneshot flag") % event, True)
                 continue
 
             for cmd in value['command']:
@@ -94630,7 +94640,7 @@ class TaskAnalyzer(object):
         newList = set(nowList) - set(prevList)
         if newList:
             SysMgr.printInfo(
-                "occurred threshold events [ %s ] %s" % \
+                "started threshold events [ %s ] %s" % \
                     (', '.join(newList), timestr))
 
             # save event timestamp #
