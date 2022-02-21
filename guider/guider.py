@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220220"
+__revision__ = "220221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21223,11 +21223,15 @@ Commands:
         confData = SysMgr.getConfigItem('threshold')
         if not confData or type(confData) is not dict:
             return
+        else:
+            SysMgr.thresholdData = confData
 
         # set report table #
         SysMgr.reportEnable = True
-        SysMgr.rankProcEnable = False
-        SysMgr.thresholdData = confData
+        if SysMgr.findOption('j'):
+            SysMgr.rankProcEnable = True
+        else:
+            SysMgr.rankProcEnable = False
 
         # check permission #
         _checkPerm(confData)
@@ -25444,9 +25448,12 @@ Examples:
         # {0:1} {1:1} -C /tmp/guider.conf
 
     - Monitor resources by threshold condition and report also in JSON format
-        # {0:1} {1:1} -j -Q -q PRINTTEXT
-        # {0:1} {1:1} -j -o /tmp -q PRINTTEXT
-        # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q PRINTTEXT
+        # {0:1} {1:1} -j -Q -q TEXTREPORT
+        # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
+        # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
+
+    - Monitor resources including normal tasks by threshold condition
+        # {0:1} {1:1} -j -q SAVEJSONSTAT
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -35608,7 +35615,7 @@ Copyright:
             reportPath = SysMgr.nullPath
         else:
             # ignore printing text-based stats #
-            if ignore and not 'PRINTTEXT' in SysMgr.environList:
+            if ignore and not 'TEXTREPORT' in SysMgr.environList:
                 SysMgr.printEnable = False
 
             # check stdout report option #
@@ -35925,15 +35932,16 @@ Copyright:
             if myPid == pid:
                 continue
 
+            # check pid #
             try:
-                long(pid)
+                nrPid = long(pid)
             except:
                 continue
 
             # check comm #
             comm = SysMgr.getComm(pid)
             if comm and comm.startswith(name):
-                pidList.append(long(pid))
+                pidList.append(nrPid)
 
         return pidList
 
@@ -90941,14 +90949,14 @@ class TaskAnalyzer(object):
             for idx in sorted(list(self.cpuData),
                 key=lambda x:long(x) if UtilMgr.isNumber(x) else -1):
                 try:
-                    if idx == -1:
+                    if idx == -1 or not idx in coreStats:
                         continue
                     elif SysMgr.checkCutCond():
                         return
 
+                    # init per-core dict #
                     cid = None
-                    curCore = idx
-                    perCoreStats[curCore] = {}
+                    perCoreStats[idx] = {}
 
                     # get CPU stats #
                     userCoreUsage = coreStats[idx]['user']
@@ -91213,7 +91221,7 @@ class TaskAnalyzer(object):
                         SysMgr.nrCore > SysMgr.NRMANYCORE:
                         shortCoreStats += coreStat
                         coreFactor = long(maxCols / lenCoreStat)
-                        if (curCore+1) % coreFactor == 0:
+                        if (idx+1) % coreFactor == 0:
                             SysMgr.addPrint(shortCoreStats[:-1]+'\n')
                             shortCoreStats = ''
 
@@ -91313,9 +91321,8 @@ class TaskAnalyzer(object):
 
         # initialize report data #
         '''
-        reportData is serializable data to be reported outside in JSON format.
-        jsonData is just data to be kept in JSON format.
-        They have different purporse.
+        - jsonData: just data to be kept in JSON format.
+        - reportData: serializable data to be reported outside in JSON format.
         '''
         self.reportData = {}
 
@@ -93288,6 +93295,13 @@ class TaskAnalyzer(object):
         else:
             initWss = False
 
+        # init normal task dict #
+        saveJsonStat = False
+        if SysMgr.reportEnable and 'SAVEJSONSTAT' in SysMgr.environList:
+            self.reportData.setdefault('task', {})
+            self.reportData['task'].setdefault('normal', {})
+            saveJsonStat = True
+
         # print resource usage of processes / threads #
         procCnt = 0
         procData = self.procData
@@ -93638,6 +93652,10 @@ class TaskAnalyzer(object):
             if not ret:
                 return
 
+            # save normal task stat #
+            if saveJsonStat:
+                self.reportData['task']['normal'][idx] = value
+
             # check stream flag #
             if self.taskStreamEnable:
                 continue
@@ -93939,12 +93957,12 @@ class TaskAnalyzer(object):
                 (text, ' ' * (SysMgr.lineLength - len(text) - 1))
             SysMgr.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
-        # print special processes #
-        if not self.printSpecialTask('abnormal'):
+        # print special tasks #
+        if not self.printSpecialTask('abnormal', saveJsonStat):
             return
-        if not self.printSpecialTask('new'):
+        if not self.printSpecialTask('new', saveJsonStat):
             return
-        if not self.printSpecialTask('die'):
+        if not self.printSpecialTask('die', saveJsonStat):
             return
 
 
@@ -93958,12 +93976,13 @@ class TaskAnalyzer(object):
 
 
 
-    def printSpecialTask(self, taskType):
+    def printSpecialTask(self, taskType, saveJsonStat):
         # set comm and pid size #
         pd = self.getPidLen()
         cl = 26 - (pd * 2)
 
-        if SysMgr.reportEnable:
+        # init task dict #
+        if saveJsonStat:
             self.reportData.setdefault('task', {})
             self.reportData['task'].setdefault(taskType, {})
             jsonData = self.reportData['task'][taskType]
@@ -93983,6 +94002,7 @@ class TaskAnalyzer(object):
 
             idx = str(tid)
 
+            # remove fixed task #
             if SysMgr.fixedProcList:
                 SysMgr.fixedProcList.pop(idx, None)
                 if not idx in SysMgr.fixedProcList:
@@ -93999,8 +94019,7 @@ class TaskAnalyzer(object):
                 value = dict(self.init_procData)
                 stat = ['?'] * 52
 
-            try:
-                jsonData[idx] = value
+            try: jsonData[idx] = value
             except: pass
 
             # set comm #
@@ -94303,7 +94322,7 @@ class TaskAnalyzer(object):
 
     def handleEventCmd(self, cmd, source):
         # SAVE #
-        if cmd.startswith('SAVE_'):
+        if cmd.startswith('SAVE'):
             ret = self.handleSaveCmd(cmd, 'USER')
             if not ret:
                 SysMgr.waitEvent()
@@ -95089,9 +95108,10 @@ class TaskAnalyzer(object):
 
         # add per-process stats #
         if SysMgr.rankProcEnable:
-            def _setDefaultInfo(data, pid, rank, comm):
+            def _setDefaultInfo(data, pid, rank, comm, runtime):
                 data['pid'] = long(pid)
                 data['comm'] = comm
+                data['runtime'] = runtime
 
             # add CPU status #
             if 'cpu' in self.reportData:
@@ -95112,24 +95132,26 @@ class TaskAnalyzer(object):
 
                     evtdata = self.reportData['cpu']['procs']
                     evtdata[rank] = {}
-                    _setDefaultInfo(evtdata[rank], pid, rank, comm)
+                    runtime = convTime(data['runtime'])
+                    _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
 
+                    # total #
                     if 'ttimeDiff' in data:
                         evtdata[rank]['total'] = long(data['ttimeDiff'])
                     else:
                         evtdata[rank]['total'] = data['ttime']
 
+                    # user #
                     if 'utimeDiff' in data:
                         evtdata[rank]['user'] = long(data['utimeDiff'])
                     else:
                         evtdata[rank]['user'] = data['utime']
 
+                    # system #
                     if 'stimeDiff' in data:
                         evtdata[rank]['kernel'] = long(data['stimeDiff'])
                     else:
                         evtdata[rank]['kernel'] = data['stime']
-
-                    evtdata[rank]['runtime'] = convTime(data['runtime'])
 
                     rank += 1
 
@@ -95159,10 +95181,10 @@ class TaskAnalyzer(object):
 
                     evtdata = self.reportData['mem']['procs']
                     evtdata[rank] = {}
-                    _setDefaultInfo(evtdata[rank], pid, rank, comm)
+                    runtime = convTime(data['runtime'])
+                    _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
                     evtdata[rank]['rss'] = data['rss']
                     evtdata[rank]['text'] = text
-                    evtdata[rank]['runtime'] = convTime(data['runtime'])
 
                     # swap #
                     try:
@@ -95196,11 +95218,45 @@ class TaskAnalyzer(object):
 
                     evtdata = self.reportData['block']['procs']
                     evtdata[rank] = {}
-                    _setDefaultInfo(evtdata[rank], pid, rank, comm)
+                    runtime = convTime(data['runtime'])
+                    _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
                     evtdata[rank]['iowait'] = data['btime']
-                    evtdata[rank]['runtime'] = convTime(data['runtime'])
 
                     rank += 1
+
+            # add task status #
+            if 'task' in self.reportData:
+                items = ['abnormalProcs', 'newProcs', 'dieProcs']
+                for item in items:
+                    self.reportData['task'][item] = {}
+
+                    # check item #
+                    if item == 'abnormalProcs':
+                        tasks = set(self.abnormalTasks)
+                    elif item == 'newProcs':
+                        tasks = set(self.procData) - set(self.prevProcData)
+                    elif item == 'dieProcs':
+                        tasks = set(self.prevProcData) - set(self.procData)
+
+                    # save status #
+                    rank = 1
+                    for pid in tasks:
+                        evtdata = self.reportData['task'][item]
+                        evtdata[rank] = {}
+
+                        if item == 'dieProcs':
+                            procData = self.prevProcData
+                        else:
+                            procData = self.procData
+
+                        comm = procData[pid]['comm']
+                        runtime = convTime(procData[pid]['runtime'])
+                        _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
+
+                        status = procData[pid]['stat'][self.statIdx]
+                        evtdata[rank]['status'] = status
+
+                        rank += 1
 
         # check resource threshold #
         self.checkResourceThreshold()
