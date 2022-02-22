@@ -28382,8 +28382,9 @@ Options:
     -v                          verbose
 
 Commands:
-    CMD_SAVE   save the monitoring results
-    CMD_CLEAR  clear buffer
+    CMD_SAVE       save the monitoring results
+    CMD_CLEAR      clear buffer
+    CMD_INTERVAL   change interval
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28402,6 +28403,10 @@ Examples:
 
     - Send CMD_CLEAR event to all specific Guider processes to clear monitoring buffer
         # {0:1} {1:1} CMD_CLEAR
+
+    - Send CMD_INTERVAL event to all specific Guider processes to change monitoring interval
+        # {0:1} {1:1} CMD_INTERVAL_3s
+        # {0:1} {1:1} CMD_INTERVAL_10s
                     '''.format(cmd, mode)
 
                 # server #
@@ -94340,10 +94345,33 @@ class TaskAnalyzer(object):
             # clear buffer #
             SysMgr.clearProcBuffer()
 
-            # clear message #
+            # print message #
             SysMgr.printInfo((
                 "cleared the monitoring results by '%s' command "
                 "for %s event") % (cmd, source))
+        # INTERVAL #
+        elif cmd.startswith('INTERVAL'):
+            # get interval #
+            interval = UtilMgr.lstrip(cmd, 'INTERVAL')
+            if not interval:
+                interval = 1
+            elif interval.startswith('_'):
+                interval = interval[1:]
+
+            # apply new interval #
+            intervalOrig = interval
+            interval = UtilMgr.convUnit2Time(interval)
+            if interval > 0:
+                SysMgr.intervalEnable = interval
+            else:
+                SysMgr.printErr(
+                    'failed to apply interval to %s' % intervalOrig)
+                return
+
+            # print message #
+            SysMgr.printInfo((
+                "changed monitoring interval to %s by '%s' command "
+                "for %s event") % (UtilMgr.convNum(interval), cmd, source))
         else:
             SysMgr.printWarn("no support '%s' command" % cmd, True)
 
