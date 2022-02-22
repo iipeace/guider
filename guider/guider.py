@@ -28374,7 +28374,7 @@ Usage:
     # {0:1} {1:1} <EVENT> [OPTIONS] [--help]
 
 Description:
-    Send the event signal to all running Guider processes
+    Notify the event to running Guider processes
 
 Options:
     -I  <EVENT>                 set event name
@@ -28384,30 +28384,35 @@ Options:
 Commands:
     CMD_SAVE       save the monitoring results
     CMD_CLEAR      clear buffer
+    CMD_BUFFER     resize buffer
     CMD_INTERVAL   change interval
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Send scene1 event to all running Guider processes
-        # {0:1} {1:1} scene1
-        # {0:1} {1:1} -I scene1
+    - Notify START event {2:1}
+        # {0:1} {1:1} START
+        # {0:1} {1:1} -I START
 
-    - Send scene1 event to specific Guider processes
-        # {0:1} {1:1} scene1 -g 1234, 1237
+    - Notify START event to specific Guider processes
+        # {0:1} {1:1} START -g 1234, 1237
 
-    - Send CMD_SAVE event to all specific Guider processes to save monitoring results to the specific file
+    - Notify CMD_SAVE event {2:1} to save monitoring results to the specific file
         # {0:1} {1:1} CMD_SAVE
         # {0:1} {1:1} CMD_SAVE_3s
         # {0:1} {1:1} CMD_SAVE_1m
 
-    - Send CMD_CLEAR event to all specific Guider processes to clear monitoring buffer
+    - Notify CMD_CLEAR event {2:1} to clear monitoring buffer
         # {0:1} {1:1} CMD_CLEAR
 
-    - Send CMD_INTERVAL event to all specific Guider processes to change monitoring interval
+    - Notify CMD_BUFFER event {2:1} to resize monitoring buffer
+        # {0:1} {1:1} CMD_BUFFER_500k
+        # {0:1} {1:1} CMD_BUFFER_2m
+
+    - Notify CMD_INTERVAL event {2:1} to change monitoring interval
         # {0:1} {1:1} CMD_INTERVAL_3s
         # {0:1} {1:1} CMD_INTERVAL_10s
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'to all Guider processes')
 
                 # server #
                 elif SysMgr.checkMode('server'):
@@ -31001,9 +31006,9 @@ Copyright:
                 disableStat += 'KEVT '
 
             if SysMgr.bufferLossEnable:
-                enableStat += 'BLOSS '
+                enableStat += 'BUFLOSS '
             else:
-                disableStat += 'BLOSS '
+                disableStat += 'BUFLOSS '
 
             if SysMgr.networkEnable:
                 enableStat += 'NET '
@@ -94349,6 +94354,25 @@ class TaskAnalyzer(object):
             SysMgr.printInfo((
                 "cleared the monitoring results by '%s' command "
                 "for %s event") % (cmd, source))
+        # BUFFER #
+        elif cmd.startswith('BUFFER_'):
+            # get buffer size #
+            size = UtilMgr.lstrip(cmd, 'BUFFER_')
+
+            # apply new buffer size #
+            sizeOrig = size
+            size = UtilMgr.convUnit2Size(size)
+            if size > 0:
+                SysMgr.bufferSize = size
+            else:
+                SysMgr.printErr(
+                    'failed to apply buffer size to %s' % sizeOrig)
+                return
+
+            # print message #
+            SysMgr.printInfo((
+                "changed monitoring buffer size to %s by '%s' command "
+                "for %s event") % (UtilMgr.convSize2Unit(size), cmd, source))
         # INTERVAL #
         elif cmd.startswith('INTERVAL'):
             # get interval #
