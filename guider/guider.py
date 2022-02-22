@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220221"
+__revision__ = "220222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28381,6 +28381,7 @@ Options:
 
 Commands:
     CMD_SAVE   save the monitoring results
+    CMD_CLEAR  clear buffer
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28396,6 +28397,9 @@ Examples:
         # {0:1} {1:1} CMD_SAVE
         # {0:1} {1:1} CMD_SAVE_3s
         # {0:1} {1:1} CMD_SAVE_1m
+
+    - Send CMD_CLEAR event to all specific Guider processes to clear monitoring buffer
+        # {0:1} {1:1} CMD_CLEAR
                     '''.format(cmd, mode)
 
                 # server #
@@ -32673,6 +32677,13 @@ Copyright:
 
 
     @staticmethod
+    def clearProcBuffer():
+        SysMgr.procBufferSize = 0
+        SysMgr.procBuffer = []
+
+
+
+    @staticmethod
     def addProcBuffer(data):
         SysMgr.procBuffer.insert(0, data)
         SysMgr.procBufferSize += len(data)
@@ -32712,8 +32723,7 @@ Copyright:
                     sys.exit(0)
                 # clear buffer as parent #
                 elif pid > 0:
-                    SysMgr.procBufferSize = 0
-                    SysMgr.procBuffer = []
+                    SysMgr.clearProcBuffer()
                     break
                 # pop old data in buffer because of fork failure #
                 else:
@@ -83098,25 +83108,31 @@ class TaskAnalyzer(object):
         SysMgr.printPipe('\n[Top Event Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
         SysMgr.printPipe(("{0:^12} | {1:^12} | {2:^12} | {3:1}\n").\
-            format('Timeline', 'Realtime', 'Duration', 'Event'))
+            format('Timeline', 'Realtime', 'Interval', 'Event'))
         SysMgr.printPipe("%s\n" % twoLine)
 
         procIntData = TaskAnalyzer.procIntData
         procEventData = TaskAnalyzer.procEventData
         for idx, event in enumerate(procEventData):
-            time = '%.2f' % float(event[0])
             name = event[1]
-            rtime = '%.2f' % float(event[2])
+            time = '%.2f' % float(event[0])
+            rtime = float(event[2])
+            rtimestr = '%.2f' % rtime
 
             try:
-                diff = '%.2f' % \
-                    (float(procEventData[idx+1][2]) - float(rtime))
+                # from previous event #
+                if len(procEventData) > 1 and idx > 0:
+                    diff = rtime - float(procEventData[idx-1][2])
+                # from start #
+                else:
+                    diff = rtime - SysMgr.startTime
+            except SystemExit: sys.exit(0)
             except:
-                diff = '%.2f' % \
-                    (float(procIntData[-1]['time']) - float(rtime))
+                diff = 0
 
+            diff = '%.2f' % diff
             SysMgr.printPipe(("{0:>12} | {1:>12} | {2:>12} | {3:1}\n").\
-                format(time, rtime, diff, name))
+                format(time, rtimestr, diff, name))
 
         SysMgr.printPipe("%s\n" % oneLine)
 
@@ -94326,6 +94342,15 @@ class TaskAnalyzer(object):
             ret = self.handleSaveCmd(cmd, 'USER')
             if not ret:
                 SysMgr.waitEvent()
+        # CLEAR #
+        elif cmd.startswith('CLEAR'):
+            # clear buffer #
+            SysMgr.clearProcBuffer()
+
+            # clear message #
+            SysMgr.printInfo((
+                "cleared the monitoring results by '%s' command "
+                "for %s event") % (cmd, source))
         else:
             SysMgr.printWarn("no support '%s' command" % cmd, True)
 
