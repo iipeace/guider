@@ -4258,6 +4258,7 @@ class UtilMgr(object):
         try:
             value = SysMgr.environList[name][0]
 
+            # return by type #
             if isInt:
                 return int(value)
             else:
@@ -6447,12 +6448,7 @@ class NetworkMgr(object):
 
     def timeout(self, sec=3):
         if 'TIMEOUT' in SysMgr.environList:
-            try:
-                sec = float(SysMgr.environList['TIMEOUT'][0])
-            except:
-                SysMgr.printErr(
-                    'failed to get TIMEOUT variable', True)
-                sys.exit(0)
+            sec = UtilMgr.getEnvironNum('TIMEOUT')
 
         self.socket.settimeout(sec)
 
@@ -18966,7 +18962,7 @@ class SysMgr(object):
     nrCore = 0
     utilProc = 0
     logSize = 0
-    kmsgLine = long(100)
+    kmsgLine = 100
     curLine = 0
     totalLine = 0
     dbgEventLine = 0
@@ -23745,7 +23741,7 @@ Examples:
     - {3:1} threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
-    - Monitor status of all {2:2} with changing the CPU scheduling priority every second
+    - {3:1} all {2:2} with changing the CPU scheduling priority every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
     - {3:1} {2:2} and change the CPU scheduling priority for specific threads having COMM a.out every second
@@ -23756,6 +23752,9 @@ Examples:
 
     - {3:1} {2:2} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
+
+    - {3:1} {2:2} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
+        # {0:1} {1:1} -o . -q NRKLOG:100
 
     - {3:1} {2:2} and report the result to ./guider.out with memo when SIGINT arrives
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
@@ -23768,6 +23767,9 @@ Examples:
 
     - {3:1} {2:2} and report the result to ./guider.out with limited memory buffer 50MB loss possible
         # {0:1} {1:1} -o . -d b
+
+    - {3:1} {2:2} and report the result to ./guider.out without event handling
+        # {0:1} {1:1} -o . -d x
 
     - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
@@ -33612,13 +33614,11 @@ Copyright:
 
         # set maximum top rank #
         if 'NRTOPRANK' in SysMgr.environList:
-            try:
-                value = SysMgr.environList['NRTOPRANK'][0]
-                SysMgr.nrTopRank = long(value)
-            except:
-                SysMgr.printErr(
-                    "failed to set NRTOPRANK to '%s'" % value)
-                sys.exit(0)
+            SysMgr.nrTopRank = UtilMgr.getEnvironNum('NRTOPRANK', isInt=True)
+
+        # set kernel log size #
+        if 'NRKLOG' in SysMgr.environList:
+            SysMgr.kmsgLine = UtilMgr.getEnvironNum('NRKLOG', isInt=True)
 
         # define threshold list #
         varList = [
@@ -54765,7 +54765,7 @@ typedef struct {
 
         # set filter condition for elapsed time #
         if 'ELAPSED' in SysMgr.environList:
-            self.retTime = float(SysMgr.environList['ELAPSED'][0])
+            self.retTime  = UtilMgr.getEnvironNum('ELAPSED')
 
         # set target sequence #
         if not Debugger.targetNums and \
@@ -54798,22 +54798,15 @@ typedef struct {
 
         # print elapsed time for python #
         if 'PYELAPSED' in SysMgr.environList:
-            try:
-                Debugger.pyElapsed = \
-                    float(SysMgr.environList['PYELAPSED'][0])
-            except:
-                SysMgr.printErr(
-                    "failed to set PYELAPSED '%s'" % \
-                        SysMgr.environList['PYELAPSED'][0], True)
+            Debugger.pyElapsed = UtilMgr.getEnvironNum('PYELAPSED')
 
         # filter for CPU threshold #
         if 'CPUCOND' in SysMgr.environList:
-            Debugger.cpuCond = UtilMgr.getEnvironNum('CPUCOND')
+            Debugger.cpuCond = UtilMgr.getEnvironNum('CPUCOND', isInt=True)
 
         # set string size #
-        if Debugger.strSize == -1 and \
-            'STRSIZE' in SysMgr.environList:
-            Debugger.strSize = UtilMgr.getEnvironNum('STRSIZE')
+        if Debugger.strSize == -1 and 'STRSIZE' in SysMgr.environList:
+            Debugger.strSize = UtilMgr.getEnvironNum('STRSIZE', isInt=True)
 
 
 
@@ -95153,6 +95146,9 @@ class TaskAnalyzer(object):
                         continue
                     # check exit condition #
                     elif not (SysMgr.showAll or data['ttime'] > 0):
+                        break
+                    # check the number of items #
+                    elif rank <= SysMgr.nrTopRank:
                         break
 
                     evtdata = self.reportData['cpu']['procs']
