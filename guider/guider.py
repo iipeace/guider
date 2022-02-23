@@ -18731,7 +18731,6 @@ class SysMgr(object):
     isWindows = False
     isAndroid = False
     drawMode = False
-    forceColorEnable = False
     archOption = None
 
     # page size #
@@ -18773,7 +18772,6 @@ class SysMgr(object):
     ttyRowsMargin = 2
     ttyCols = 156
     encoding = None
-    encodeEnable = True
     remoteRun = False
     magicStr = '@@@@@'
     launchBuffer = ''
@@ -18880,18 +18878,15 @@ class SysMgr(object):
     outPath = None
     freezerPath = None
 
+    # list #
     signalCmd = "trap 'kill $$' INT\n"
     saveCmd = None
     boundaryLine = None
-    demangleEnable = True
-    compressEnable = False
-    generalEnable = True
     nrTop = 0
     pipeForPager = None
     printFd = None
     fileSuffix = None
     parsedAnalOption = False
-    sttyEnable = None
     optionList = []
     customCmd = []
     pyFuncFilter = []
@@ -18922,6 +18917,7 @@ class SysMgr(object):
     thresholdEventList = {}
     thresholdEventHistory = {}
 
+    # object #
     impPkg = {}
     impGlbPkg = {}
     skipImpPkg = {}
@@ -18950,10 +18946,10 @@ class SysMgr(object):
     sigsetObj = None
     sigsetOldObj = None
     ansiObj = None
-
     localServObj = None
     remoteServObj = None
     netlinkObj = None
+
     geAttr = [0] * 9
     addrListForPrint = {}
     addrListForReport = {}
@@ -18977,25 +18973,9 @@ class SysMgr(object):
     battery = {}
     netInIndex = -1
 
-    # log #
-    streamEnable = False
-    loggingEnable = False
-    dltEnable = False
-    kmsgEnable = False
-    syslogEnable = False
-    journalEnable = False
-    terminalOver = False
-    logoEnable = True
-    colorEnable = True
-
-    cpuAvgEnable = True
-    reportEnable = False
-    recursionEnable = False
-    truncEnable = True
-    countEnable = False
+    # report #
     reportObject = None
-    reportFileEnable = False
-    graphEnable = False
+    terminalOver = False
     procBuffer = []
     fixedProcList = {}
     topInstance = None
@@ -19012,7 +18992,6 @@ class SysMgr(object):
     jsonData = {}
     nrTopRank = 10
     layout = None
-    avgEnable = False
 
     showAll = False
     disableAll = False
@@ -19023,7 +19002,7 @@ class SysMgr(object):
     sort = None
     sortCond = None
 
-    # file descriptor #
+    # descriptor #
     maxFd = 512
     maxKeepFd = maxFd - 16
     statFd = None
@@ -19050,95 +19029,116 @@ class SysMgr(object):
     syslogFd = None
     batteryFd = None
 
-    # flags #
-    fixTargetEnable = False
-    minStatEnable = False
-    irqEnable = False
-    cpuEnable = True
-    cloneEnable = True
-    execEnable = None
-    latEnable = cpuEnable
-    gpuEnable = True
-    memEnable = False
-    rssEnable = False
-    pssEnable = False
-    ussEnable = False
-    vssEnable = False
-    oomEnable = False
-    leakEnable = False
-    wssEnable = False
-    initWssEnable = False
-    diskEnable = False
-    heapEnable = False
-    floatEnable = False
-    fileTopEnable = False
-    dltTopEnable = False
-    dbusTopEnable = False
-    eventHandleEnable = True
-    ueventEnable = False
-    keventEnable = False
-    networkEnable = False
-    schedEnable = False
-    delayEnable = False
-    stackEnable = False
-    wchanEnable = False
-    sigHandlerEnable = False
-    wfcEnable = False
+    # flag #
     affinityEnable = False
-    freeMemEnable = False
-    blockEnable = False
-    lockEnable = False
-    userEnable = True
-    userRecordEnable = True
-    userEnableWarn = True
-    printEnable = True
-    bufferLossEnable = False
-    jsonEnable = False
-    powerEnable = False
+    avgEnable = False
+    barGraphEnable = False
     binderEnable = False
-    wqEnable = False
-    i2cEnable = False
-    fsEnable = False
-    pipeEnable = False
-    depEnable = False
-    sysEnable = False
-    waitEnable = False
-    inWaitStatus = False
+    blockEnable = False
+    bufferLossEnable = False
+    cgTopEnable = False
+    cgroupEnable = False
+    cloneEnable = True
     cmdEnable = False
+    cmdlineEnable = False
+    colorEnable = True
+    compressEnable = False
+    countEnable = False
+    cpuAvgEnable = True
+    cpuEnable = True
+    dbusTopEnable = False
+    delayEnable = False
+    demangleEnable = True
+    depEnable = False
+    diskEnable = False
+    dltEnable = False
+    dltTopEnable = False
+    dwarfEnable = False
+    elasticEnable = False
+    encodeEnable = True
+    eventHandleEnable = True
+    exceptCommFilter = False
+    execEnable = None
+    exitFlag = False
+    fileEnable = False
+    fileTopEnable = False
+    fixTargetEnable = False
+    floatEnable = False
+    forceColorEnable = False
+    forceEnable = False
+    freeMemEnable = False
+    fsEnable = False
+    functionEnable = False
+    generalEnable = True
+    gpuEnable = True
+    graphEnable = False
+    groupProcEnable = False
+    heapEnable = False
+    i2cEnable = False
+    inWaitStatus = False
+    initWssEnable = False
+    inotifyEnable = False
+    intervalEnable = 0
+    irqEnable = False
+    journalEnable = False
+    jsonEnable = False
+    keventEnable = False
+    kmsgEnable = False
+    latEnable = cpuEnable
+    leakEnable = False
+    lockEnable = False
+    logEnable = True
+    loggingEnable = False
+    logoEnable = True
+    memEnable = False
+    minStatEnable = False
+    networkEnable = False
+    nsEnable = False
+    oomEnable = False
     perfEnable = False
     perfGroupEnable = False
-    resetEnable = False
-    warnEnable = False
-    logEnable = True
-    ttyEnable = False
-    selectEnable = True
-    cgroupEnable = False
-    cgTopEnable = False
-    cmdlineEnable = False
-    schedstatEnable = True
-    intervalEnable = 0
-    forceEnable = False
-    functionEnable = False
-    systemEnable = False
-    fileEnable = False
-    threadEnable = False
-    nsEnable = False
-    termFlag = True
-    exitFlag = False
-    tgidEnable = True
-    taskEnable = True
-    exceptCommFilter = False
+    pipeEnable = False
+    powerEnable = False
+    printEnable = True
     processEnable = True
-    totalEnable = False
-    groupProcEnable = False
+    pssEnable = False
     rankProcEnable = True
-    inotifyEnable = False
-    dwarfEnable = False
-    barGraphEnable = False
+    recursionEnable = False
+    reportEnable = False
+    reportFileEnable = False
+    resetEnable = False
+    rssEnable = False
+    schedEnable = False
+    schedstatEnable = True
+    selectEnable = True
+    sigHandlerEnable = False
+    stackEnable = False
+    streamEnable = False
+    sttyEnable = None
+    sysEnable = False
+    syslogEnable = False
+    systemEnable = False
+    taskEnable = True
+    termFlag = True
+    tgidEnable = True
+    threadEnable = False
+    thresholdEnable = False
     thresholdHandleEnable = False
-
-    # Elastic Stack #
-    elasticEnable = False
+    totalEnable = False
+    truncEnable = True
+    ttyEnable = False
+    ueventEnable = False
+    userEnable = True
+    userEnableWarn = True
+    userRecordEnable = True
+    ussEnable = False
+    vssEnable = False
+    waitEnable = False
+    warnEnable = False
+    wchanEnable = False
+    wfcEnable = False
+    wqEnable = False
+    wssEnable = False
 
     cmdList = {}
     rcmdList = {}
@@ -23904,7 +23904,11 @@ Examples:
         # {0:1} {1:1} guider.dat -q STROKE:"screen*", STROKE:"a.out(1234)"
 
     - Draw items and event markers on specific points
-        # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
+        # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:CPU
+        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_2:MEM
+        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_3:CIRCLE
+        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_4:LARROW
+        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_5:RARROW
 
     - Draw items only for specific groups or cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
@@ -23935,7 +23939,7 @@ Examples:
     - Draw items on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
 
-    - Draw flame items only for backtrace stacks
+    - Draw flame items only having backtrace
         # {0:1} {1:1} guider.out -q ONLYBTSTACK
 
     - Draw items within specific interval range in index unit
@@ -76311,6 +76315,7 @@ class TaskAnalyzer(object):
                         'format') % item)
                     sys.exit(0)
 
+                # get values #
                 if len(values) == 5:
                     x, y, name, resource, feature = values
                 elif len(values) == 4:
@@ -76321,9 +76326,11 @@ class TaskAnalyzer(object):
                     feature = 'none'
                     resource = 'none'
 
+                # check type #
                 if mode and mode.upper() != resource.upper():
                     continue
 
+                # get feature #
                 if feature.upper() == 'CIRCLE':
                     feature = 'Circle,pad=1'
                 elif feature.upper() == 'LARROW':
@@ -76333,11 +76340,11 @@ class TaskAnalyzer(object):
                 else:
                     feature = 'Roundtooth,pad=1'
 
+                # draw text #
                 text(long(x), long(y), name, style='italic',
                     fontsize=self.lfsize*2, color='green', fontweight='bold',
                     bbox=dict(boxstyle=feature, facecolor='gold',
                     alpha=0.7))
-
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
@@ -76440,6 +76447,31 @@ class TaskAnalyzer(object):
                     except SystemExit: sys.exit(0)
                     except: pass
 
+        def _getPathEffect(lw=2):
+            try:
+                pe = SysMgr.getPkg('matplotlib.patheffects', False)
+                return [
+                    pe.Stroke(linewidth=lw, foreground='black'),
+                    pe.Normal()
+                ]
+            except SystemExit: sys.exit(0)
+            except:
+                return []
+
+        def _getPlotAttr(idx):
+            try:
+                lw = 0.7
+                pe = []
+
+                if not 'STROKE' in SysMgr.environList:
+                    pass
+                elif UtilMgr.isValidStr(idx, SysMgr.environList['STROKE']):
+                    lw = 1
+                    pe = _getPathEffect()
+            except: pass
+
+            return lw, pe
+
         def _drawCpu(graphStats, xtype, pos, size, delay=False):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -76520,6 +76552,7 @@ class TaskAnalyzer(object):
                         # draw total gpu graph #
                         plot(timeline, stat, '-', c=gcolor, linestyle='--',
                             linewidth=1, marker='d', markersize=1,
+                            path_effects=_getPathEffect(),
                             solid_capstyle='round')
 
                         totalUsage = sum(stat)
@@ -76564,9 +76597,10 @@ class TaskAnalyzer(object):
                         else:
                             icolor = 'pink'
 
-                        # draw total CPU + iowait graph #
+                        # draw total CPU + IOWAIT graph #
                         plot(timeline, blkWait, '-', c=icolor, linestyle='--',
                             linewidth=1, marker='d', markersize=1,
+                            path_effects=_getPathEffect(),
                             solid_capstyle='round')
 
                         totalUsage = sum(blkWait)
@@ -76606,6 +76640,7 @@ class TaskAnalyzer(object):
                     # draw total CPU graph #
                     plot(timeline, cpuUsage, '-', c=ccolor, linestyle='--',
                         linewidth=1, marker='d', markersize=1,
+                        path_effects=_getPathEffect(),
                         solid_capstyle='round')
 
                     totalUsage = sum(cpuUsage)
@@ -76650,6 +76685,7 @@ class TaskAnalyzer(object):
                     # draw total graph #
                     plot(timeline, totalUsage, '-', c='green', linestyle='-.',
                         linewidth=1, marker='d', markersize=1,
+                        path_effects=_getPathEffect(),
                         solid_capstyle='round')
 
                     totalSumUsage = sum(totalUsage)
@@ -76747,12 +76783,16 @@ class TaskAnalyzer(object):
                     if ymax < maxusage:
                         ymax = maxusage
 
-                    maxIdx = usage.index(maxusage)
-                    color = plot(
-                        timeline, usage, '-', linewidth=0.7)[0].get_color()
+                    # get plot attr #
+                    lw, pe = _getPlotAttr(idx)
+
+                    # draw plot and get color #
+                    color = plot(timeline, usage, '-', linewidth=lw,
+                        path_effects=pe)[0].get_color()
 
                     margin = self.getMargin()
 
+                    maxIdx = usage.index(maxusage)
                     maxCpuPer = str(cpuUsage[maxIdx])
                     if idx in blkProcUsage and not SysMgr.blockEnable:
                         maxBlkPer = blkUsage[maxIdx]
@@ -76877,8 +76917,10 @@ class TaskAnalyzer(object):
                     line = plot(timeline, statList, '-', c=rcolor,
                         linewidth=0.1, alpha=0.1)
                 else:
-                    line = plot(timeline, statList, '--', c=rcolor,
-                        linewidth=0.7, marker='d', markersize=1)
+                    pe = _getPathEffect(lw=1)
+                    line = plot(timeline, statList, linestyle='--', c=rcolor,
+                        linewidth=0.7, marker='d', markersize=1,
+                        path_effects=pe)
 
                 color = line[0].get_color()
 
@@ -77034,9 +77076,8 @@ class TaskAnalyzer(object):
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
                     else:
-                        color = \
-                            plot(timeline, wrUsage, '-',
-                                linewidth=0.7)[0].get_color()
+                        color = plot(timeline, wrUsage, '-',
+                            linewidth=0.7)[0].get_color()
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 wrUsage[maxIdx] + margin, maxval, rotation=35,
@@ -77071,9 +77112,9 @@ class TaskAnalyzer(object):
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
                     else:
-                        color = \
-                            plot(timeline, rdUsage, '-',
-                                linewidth=0.7)[0].get_color()
+                        color = plot(timeline, rdUsage, '-',
+                            linewidth=0.7)[0].get_color()
+
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 rdUsage[maxIdx] + margin, maxval, rotation=35,
@@ -77125,9 +77166,8 @@ class TaskAnalyzer(object):
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
                     else:
-                        color = \
-                            plot(timeline, wrUsage, '-',
-                                linewidth=0.7)[0].get_color()
+                        color = plot(timeline, wrUsage, '-',
+                            linewidth=0.7)[0].get_color()
 
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
@@ -77164,9 +77204,9 @@ class TaskAnalyzer(object):
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
                     else:
-                        color = \
-                            plot(timeline, rdUsage, '-',
-                                linewidth=0.7)[0].get_color()
+                        color = plot(timeline, rdUsage, '-',
+                            linewidth=0.7)[0].get_color()
+
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 rdUsage[maxIdx] + margin, maxval, rotation=35,
@@ -77219,12 +77259,15 @@ class TaskAnalyzer(object):
                     lastval = '%s%s[%s]' % \
                         (prefix, convSize2Unit(wrUsage[-1] << 10), idx)
 
+                    # get plot attr #
+                    lw, pe = _getPlotAttr(idx)
+
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
                     else:
-                        color = \
-                            plot(timeline, wrUsage, '-',
-                                linewidth=0.7)[0].get_color()
+                        color = plot(timeline, wrUsage, '-',
+                            linewidth=lw, path_effects=pe)[0].get_color()
+
                         if wrUsage[maxIdx] > 0 and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], wrUsage[maxIdx] + margin,
@@ -77258,9 +77301,9 @@ class TaskAnalyzer(object):
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
                     else:
-                        color = \
-                            plot(timeline, rdUsage, '-',
-                                linewidth=0.7)[0].get_color()
+                        color = plot(timeline, rdUsage, '-',
+                            linewidth=lw, path_effects=pe)[0].get_color()
+
                         if rdUsage[maxIdx] > 0 and \
                             not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], rdUsage[maxIdx] + margin,
@@ -77363,8 +77406,10 @@ class TaskAnalyzer(object):
                 else:
                     fcolor = color
 
+                pe = _getPathEffect()
+
                 line = plot(timeline, usage, '-', c=fcolor,
-                    linewidth=0.7, solid_capstyle='round')
+                    linewidth=0.7, path_effects=pe, solid_capstyle='round')
 
                 color = line[0].get_color()
 
@@ -77485,9 +77530,12 @@ class TaskAnalyzer(object):
                         usage = \
                             list(map(lambda x: x if x != 0 else None, usage))
 
+                        # get plot attr #
+                        lw, pe = _getPlotAttr(key)
+
                         # get color #
                         color = plot(timeline, usage, '-',
-                            linewidth=0.7)[0].get_color()
+                            linewidth=lw, path_effects=pe)[0].get_color()
 
                         if usage[minIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
@@ -77600,9 +77648,12 @@ class TaskAnalyzer(object):
                         usage = \
                             list(map(lambda x: x if x != 0 else None, usage))
 
+                        # get plot attr #
+                        lw, pe = _getPlotAttr(key)
+
                         # get color #
                         color = plot(timeline, usage, '-',
-                            linewidth=0.7)[0].get_color()
+                            linewidth=lw, path_effects=pe)[0].get_color()
 
                         if usage[minIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
@@ -77671,9 +77722,12 @@ class TaskAnalyzer(object):
                         usage = \
                             list(map(lambda x: x if x != 0 else None, usage))
 
+                        # get plot attr #
+                        lw, pe = _getPlotAttr(key)
+
                         # get color #
                         color = plot(timeline, usage, '-',
-                            linewidth=0.7)[0].get_color()
+                            linewidth=lw, path_effects=pe)[0].get_color()
 
                         if usage[minIdx] and \
                             not 'NOLABEL' in SysMgr.environList:
@@ -77904,6 +77958,31 @@ class TaskAnalyzer(object):
             else:
                 return 'center'
 
+        def _getPathEffect(lw=2):
+            try:
+                pe = SysMgr.getPkg('matplotlib.patheffects', False)
+                return [
+                    pe.Stroke(linewidth=lw, foreground='black'),
+                    pe.Normal()
+                ]
+            except SystemExit: sys.exit(0)
+            except:
+                return []
+
+        def _getPlotAttr(idx):
+            try:
+                lw = 0.7
+                pe = []
+
+                if not 'STROKE' in SysMgr.environList:
+                    pass
+                elif UtilMgr.isValidStr(idx, SysMgr.environList['STROKE']):
+                    lw = 1
+                    pe = _getPathEffect()
+            except: pass
+
+            return lw, pe
+
         def _convNameLabel(fileList):
             newList = []
             for idx, name in enumerate(fileList):
@@ -77954,6 +78033,9 @@ class TaskAnalyzer(object):
             # draw user event #
             self.drawUserEvent('cpu')
 
+            # get plot path effect #
+            pe = _getPathEffect()
+
             #-------------------- Total GPU usage --------------------#
             if isVisibleTotal:
                 for gpu, stat in gpuUsage.items():
@@ -77969,8 +78051,8 @@ class TaskAnalyzer(object):
 
                     # draw total GPU graph #
                     plot(timeline, stat, '-', c='olive', linestyle='-',
-                        linewidth=1, marker='d', markersize=1,
-                        solid_capstyle='round')
+                        linewidth=2, marker='d', markersize=1,
+                        path_effects=pe, solid_capstyle='round')
 
                     maxUsage = max(stat)
                     labelList.append(
@@ -78000,8 +78082,8 @@ class TaskAnalyzer(object):
 
                     # draw total CPU + iowait graph #
                     plot(timeline, blkWait, '-', c='pink', linestyle='-',
-                        linewidth=1, marker='d', markersize=1,
-                        solid_capstyle='round')
+                        linewidth=2, marker='d', markersize=1,
+                        path_effects=pe, solid_capstyle='round')
 
                     maxUsage = max(blkWait)
                     labelList.append(
@@ -78021,8 +78103,8 @@ class TaskAnalyzer(object):
 
                 # draw total CPU graph #
                 plot(timeline, cpuUsage, '-', c='red', linestyle='-',
-                    linewidth=1, marker='d', markersize=1,
-                    solid_capstyle='round')
+                    linewidth=2, marker='d', markersize=1,
+                    path_effects=pe, solid_capstyle='round')
 
                 maxUsage = max(cpuUsage)
                 labelList.append(
@@ -78052,8 +78134,8 @@ class TaskAnalyzer(object):
 
                 # draw total graph #
                 plot(timeline, totalUsage, '-', c='green', linestyle='-',
-                    linewidth=1, marker='d', markersize=1,
-                    solid_capstyle='round')
+                    linewidth=2, marker='d', markersize=1,
+                    path_effects=pe, solid_capstyle='round')
 
                 maxUsage = max(totalUsage)
                 labelList.append('[ TOTAL ] - %d%%' % maxUsage)
@@ -78112,8 +78194,12 @@ class TaskAnalyzer(object):
                 if ymax < maxusage:
                     ymax = maxusage
 
+                # get plot attr #
+                lw, pe = _getPlotAttr(idx)
+
                 maxIdx = usage.index(maxusage)
-                color = plot(timeline, usage, '-')[0].get_color()
+                color = plot(
+                    timeline, usage, '-', path_effects=pe)[0].get_color()
 
                 margin = self.getMargin()
 
@@ -78198,8 +78284,11 @@ class TaskAnalyzer(object):
                 if ymax < maxUsage:
                     ymax = maxUsage
 
+                # get plot path effect #
+                pe = _getPathEffect()
+
                 plot(timeline, usage, '-', c=color,
-                    linewidth=1, solid_capstyle='round')
+                    linewidth=2, path_effects=pe, solid_capstyle='round')
 
                 for pidx, value in enumerate(usage):
                     if value == 0:
@@ -78267,9 +78356,12 @@ class TaskAnalyzer(object):
                         ymax = maxUsage
                     maxIdx = usage.index(maxUsage)
 
+                    # get plot attr #
+                    lw, pe = _getPlotAttr(key)
+
                     # get color #
-                    color = \
-                        plot(timeline, usage, '-', linewidth=1)[0].get_color()
+                    color = plot(timeline, usage, '-', linewidth=1,
+                        path_effects=pe)[0].get_color()
 
                     lastUsage = '?'
                     for pidx, value in enumerate(usage):
@@ -78303,9 +78395,12 @@ class TaskAnalyzer(object):
                         ymax = maxUsage
                     maxIdx = usage.index(maxUsage)
 
+                    # get plot attr #
+                    lw, pe = _getPlotAttr(key)
+
                     # get color #
-                    color = \
-                        plot(timeline, usage, '-', linewidth=1)[0].get_color()
+                    color = plot(timeline, usage, '-', linewidth=1,
+                        path_effects=pe)[0].get_color()
 
                     lastUsage = '?'
                     for pidx, value in enumerate(usage):
