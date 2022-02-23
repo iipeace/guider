@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220222"
+__revision__ = "220223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -39625,7 +39625,8 @@ Copyright:
                 # draw stat text on the bar #
                 for idx, value in enumerate(data):
                     text(start + (idx-1)/10, value, UtilMgr.convNum(value),
-                        color='black', fontweight='bold', fontsize=self.lfsize)
+                        color='black', fontweight='bold',
+                        fontsize=self.lfsize)
 
                 # draw name text over the bar #
                 text(start, maxval/2, req[:maxLabelLen],
@@ -54778,8 +54779,7 @@ typedef struct {
             self.retTime  = UtilMgr.getEnvironNum('ELAPSED')
 
         # set target sequence #
-        if not Debugger.targetNums and \
-            'TARGETNUM' in SysMgr.environList:
+        if not Debugger.targetNums and 'TARGETNUM' in SysMgr.environList:
             for item in SysMgr.environList['TARGETNUM']:
                 try:
                     Debugger.targetNums.setdefault(long(item), None)
@@ -54790,7 +54790,7 @@ typedef struct {
                     sys.exit(0)
 
             SysMgr.printInfo(
-                "set the number list to [%s] for new threads" % \
+                "set the target number list to [%s] for new threads" % \
                     ','.join(list(map(str, Debugger.targetNums))))
 
         # apply color for return string #
@@ -62213,16 +62213,20 @@ typedef struct {
 
 
     def handleTrapEvent(self, stat):
-        # check thread sequence #
+        # check thread status #
         if self.status == 'wait':
+            return
+        # check thread sequence #
+        elif Debugger.targetNums and not self.myNum in Debugger.targetNums:
             return
 
         previous = self.status
         self.status = self.mode
 
-        # interprete user function call #
+        # usercall #
         if self.mode =='sample' or self.mode == 'inst':
             self.handleUsercall()
+        # breakcall #
         elif self.isBreakMode:
             printEnable = SysMgr.printEnable
 
@@ -62246,6 +62250,7 @@ typedef struct {
 
             # unblock signal #
             SysMgr.blockSignal(act='unblock')
+        # pycall #
         elif self.mode == 'pycall':
             self.handlePycall()
 
@@ -63456,6 +63461,10 @@ typedef struct {
 
 
     def handleSyscall(self):
+        # check thread status #
+        if self.status == 'wait':
+            return
+
         # task filter #
         if self.execCmd and SysMgr.filterGroup and \
             not UtilMgr.isValidStr(self.comm):
@@ -73800,7 +73809,8 @@ class TaskAnalyzer(object):
 
                 newStat = "%7s(%2s)(%6sM/%6sM/%6sM) |" % \
                     (diff, convNum(rssProcStat['cnt']),
-                        convNum(rssProcStat['minRss']), convNum(rssProcStat['avgRss']),
+                        convNum(rssProcStat['minRss']),
+                        convNum(rssProcStat['avgRss']),
                         convNum(rssProcStat['maxRss']))
 
                 printBuf = '%s %s' % (printBuf, newStat)
@@ -75999,17 +76009,25 @@ class TaskAnalyzer(object):
 
         SysMgr.printStat(r"start drawing charts...")
 
+        # init variables #
         seq = 0
+
         height = long(len(data) / 2) if len(data) & 1 != 0 \
             else long(len(data) / 2 + 1)
+
         colors = [
             'pink', 'lightgreen', 'skyblue',
             'lightcoral', 'gold', 'yellowgreen'
         ]
+
         propList = [
             'count', 'vmem', 'rss', 'pss', 'swap',
             'huge', 'locked', 'pdirty', 'sdirty'
         ]
+
+        convSize = UtilMgr.convSize2Unit
+
+        # set title #
         suptitle('Guider Memory Chart', fontsize=8)
 
         for idx, item in sorted(data.items(),
@@ -76039,24 +76057,19 @@ class TaskAnalyzer(object):
                     value[propList.index('swap')])
 
                 # set private dirty size #
-                pdrt = UtilMgr.convSize2Unit(
-                    value[propList.index('pdirty')] << 10, True)
+                pdrt = convSize(value[propList.index('pdirty')] << 10, True)
 
                 # set shared dirty size #
-                sdrt = UtilMgr.convSize2Unit(
-                    value[propList.index('sdirty')] << 10, True)
+                sdrt = convSize(value[propList.index('sdirty')] << 10, True)
 
                 # set rss size #
-                rss = UtilMgr.convSize2Unit(
-                    value[propList.index('rss')] << 20, True)
+                rss = convSize(value[propList.index('rss')] << 20, True)
 
                 # set swap size #
-                swap = UtilMgr.convSize2Unit(
-                    value[propList.index('swap')] << 20, True)
+                swap = convSize(value[propList.index('swap')] << 20, True)
 
                 # set locked size #
-                locked = UtilMgr.convSize2Unit(
-                    value[propList.index('locked')] << 10, True)
+                locked = convSize(value[propList.index('locked')] << 10, True)
 
                 self.details.append((
                     '\n- RSS  : %5s \n- SWAP : %5s \n%s\n'
@@ -76086,51 +76099,46 @@ class TaskAnalyzer(object):
 
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            total = UtilMgr.convSize2Unit((rss+swap) << 20)
+            total = convSize((rss+swap) << 20)
 
-            rss = UtilMgr.convSize2Unit(rss << 20)
-            swap = UtilMgr.convSize2Unit(swap << 20)
-
-            vmem = UtilMgr.convSize2Unit(
-                item['[TOTAL]'][propList.index('vmem')] << 20)
-
-            pss = UtilMgr.convSize2Unit(
-                item['[TOTAL]'][propList.index('pss')] << 20)
-
-            lock = UtilMgr.convSize2Unit(
-                item['[TOTAL]'][propList.index('locked')] << 10)
-
+            rss = convSize(rss << 20)
+            swap = convSize(swap << 20)
+            vmem = convSize(item['[TOTAL]'][propList.index('vmem')] << 20)
+            pss = convSize(item['[TOTAL]'][propList.index('pss')] << 20)
+            lock = convSize(item['[TOTAL]'][propList.index('locked')] << 10)
             dirty = item['[TOTAL]'][propList.index('pdirty')] + \
                 item['[TOTAL]'][propList.index('sdirty')]
-            dirty = UtilMgr.convSize2Unit(dirty << 10)
+            dirty = convSize(dirty << 10)
 
             totalList =\
-                [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
-                '- VIRT: %s \n- PSS: %s \n- LOCK: %s \n- DIRTY: %s') % \
-                ('[%s] %s' % (str(seq+1), idx), line, total,
-                rss, swap, line, vmem, pss, lock, dirty)]
+                [('\n%s\n%s\n\n- %-5s: %7s\n- %-5s: %7s\n- %-5s: %7s\n%s\n\n'
+                '- %-5s: %7s\n- %-5s: %7s\n- %-5s: %7s\n- %-5s: %7s') % \
+                ('[%s] %s' % (str(seq+1), idx), line, 'TOTAL', total,
+                'RSS', rss, 'SWAP', swap, line, 'VSS', vmem, 'PSS', pss,
+                'LOCK', lock, 'DIRTY', dirty)]
 
             # draw chart #
             if SysMgr.matplotlibVersion >= 1.2:
                 patches, texts, autotexts = \
                     pie(sizes, explode=explode, labels=labels, colors=colors,
                     autopct=_make_autopct(sizes), shadow=True, startangle=50,
-                    pctdistance=0.7)
+                    pctdistance=0.5)
             else:
                 patches, texts, autotexts = \
                     pie(sizes, explode=explode, labels=labels, colors=colors,
-                    autopct=_make_autopct(sizes), shadow=True, pctdistance=0.7)
+                    autopct=_make_autopct(sizes), shadow=True, pctdistance=0.5)
 
             # set font size #
             for idx, val in enumerate(texts):
-                val.set_fontsize(5)
-                autotexts[idx].set_fontsize(3.5)
+                val.set_fontsize(self.xfsize+1)
+                autotexts[idx].set_fontsize(self.lfsize)
             axis('equal')
 
             # print total size in legend #
             if SysMgr.matplotlibVersion >= 1.2:
                 legend(patches, totalList, loc="lower right", shadow=True,
-                    fontsize=4.5, handlelength=0, bbox_to_anchor=(1.2, 0.01))
+                    fontsize=self.xfsize, handlelength=0,
+                    bbox_to_anchor=(1.2, 0.01))
             else:
                 legend(patches, totalList, loc="lower right", shadow=True,
                     handlelength=0, bbox_to_anchor=(1.2, 0.01))
