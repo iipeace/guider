@@ -23450,6 +23450,7 @@ Commands:
                 'printkconf': ('kernel', 'Linux'),
                 'printns': ('Namespace', 'Linux'),
                 'printsig': ('Signal', 'Linux'),
+                'printslab': ('Slab', 'Linux'),
                 'printsvc': ('systemd', 'Linux'),
                 'pstree': ('Process', 'Linux/MacOS/Windows'),
                 'readahead': ('File', 'Linux'),
@@ -27549,6 +27550,34 @@ Examples:
                     '''.format(cmd, mode,
                         'when "Ctrl + c" key is pressed',
                         'Report memory leakage hints of a specific process')
+
+                # printslab #
+                elif SysMgr.checkMode('printslab'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show system slab info
+
+Options:
+    -g  <WORD>                  set target object
+    -I  <WORD>                  set sort value
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print system slab info
+        # {0:1} {1:1} dentry
+        # {0:1} {1:1} -g dentry
+
+    - Print system slab info sorted by specific values
+        # {0:1} {1:1} -I size
+        # {0:1} {1:1} -I active
+        # {0:1} {1:1} -I actsize
+        # {0:1} {1:1} -I total
+                    '''.format(cmd, mode)
 
                 # printenv #
                 elif SysMgr.checkMode('printenv'):
@@ -35469,6 +35498,10 @@ Copyright:
         elif SysMgr.checkMode('printenv'):
             SysMgr.doPrintEnv()
 
+        # PRINTSLAB MODE #
+        elif SysMgr.checkMode('printslab'):
+            SysMgr.doPrintSlab()
+
         # PRINTKCONF MODE #
         elif SysMgr.checkMode('printkconf'):
             SysMgr.doPrintKconf()
@@ -40048,6 +40081,74 @@ Copyright:
                 not UtilMgr.isValidStr(config, filterGroup, ignCap=True):
                 continue
             SysMgr.printPipe(config)
+
+
+
+    @staticmethod
+    def doPrintSlab():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        SysMgr.checkRootPerm()
+
+        # get argument #
+        if SysMgr.hasMainArg():
+            target = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            target = SysMgr.filterGroup
+        else:
+            target = []
+
+        # read slab info #
+        instance = TaskAnalyzer(onlyInstance=True)
+        instance.saveSlabInfo()
+
+        # set sort value #
+        if SysMgr.inputParam:
+            sortval = SysMgr.inputParam
+        else:
+            sortval = 'totsize'
+
+        # print slab info #
+        try:
+            nrCnt = 0
+            for name, items in sorted(
+                instance.slabData.items(), key=lambda x:x[1][sortval],
+                reverse=True):
+
+                # check name #
+                if target and not UtilMgr.isValidStr(name, target, inc=True):
+                    continue
+
+                total = items['total']
+                active = items['active']
+                if total > 0:
+                    actper = long(active / float(total) * 100)
+                else:
+                    actper = 0
+                size = items['size'] / float(1024)
+                actsize = long(items['actsize'] / 1024)
+                totsize = long(items['totsize'] / 1024)
+                SysMgr.addPrint((
+                    '{0:9} {1:9} {2:3}% {3:6.2f}K '
+                    '{4:9}K {5:9}K {6:1}\n').format(
+                        total, active, actper, size, actsize, totsize, name),
+                    force=True)
+                nrCnt += 1
+            SysMgr.addPrint('%s\n' % oneLine, force=True)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr('failed to print slab info', True)
+            sys.exit(0)
+
+        # print title #
+        SysMgr.printPipe(
+            '\n[Slab Info] [NrSlab: %s]\n%s' % (nrCnt, twoLine))
+        SysMgr.printPipe(
+            '{0:>9} {1:>9} {2:>4} {3:>7} {4:>10} {5:>10} {6:1}'.format(
+            'OBJS', 'ACTIVE', 'USE', 'OBJSIZE', 'ACTSIZE', 'TOTSIZE', 'NAME'))
+        SysMgr.printPipe(twoLine)
+
+        SysMgr.printTopStats()
 
 
 
