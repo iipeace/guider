@@ -16811,8 +16811,7 @@ class FileAnalyzer(object):
 
         # read maps #
         fd.seek(0, 0)
-        mapBuf = fd.readlines()
-        for item in mapBuf:
+        for item in fd.readlines():
             mdict = FileAnalyzer.parseMapLine(item)
             if mdict and mdict['binName']:
                 if mdict['binName'].endswith(fname):
@@ -16835,8 +16834,7 @@ class FileAnalyzer(object):
 
         # read maps #
         fd.seek(0, 0)
-        mapBuf = fd.readlines()
-        for item in mapBuf:
+        for item in fd.readlines():
             mdict = FileAnalyzer.parseMapLine(item)
             if mdict and mdict['binName']:
                 if os.path.basename(mdict['binName']).startswith(fname):
@@ -16853,8 +16851,7 @@ class FileAnalyzer(object):
                 return None
 
         # search empty space #
-        mapBuf = fd.readlines()
-        for item in mapBuf:
+        for item in fd.readlines():
             mdict = FileAnalyzer.parseMapLine(item)
             if not mdict:
                 mapLine = item.split()
@@ -19005,29 +19002,30 @@ class SysMgr(object):
     # descriptor #
     maxFd = 512
     maxKeepFd = maxFd - 16
-    statFd = None
-    memFd = None
-    zoneFd = None
-    lmkFd = None
-    irqFd = None
-    softirqFd = None
-    vmstatFd = None
-    swapFd = None
-    uptimeFd = None
-    netstatFd = None
-    netdevFd = None
-    shmFd = None
-    msgqFd = None
-    semFd = None
-    loadavgFd = None
+    batteryFd = None
     cmdFd = None
     diskStatsFd = None
-    mountFd = None
-    nullFd = None
     eventLogFd = None
+    irqFd = None
     kmsgFd = None
+    lmkFd = None
+    loadavgFd = None
+    memFd = None
+    mountFd = None
+    msgqFd = None
+    netdevFd = None
+    netstatFd = None
+    nullFd = None
+    semFd = None
+    shmFd = None
+    slabFd = None
+    softirqFd = None
+    statFd = None
+    swapFd = None
     syslogFd = None
-    batteryFd = None
+    uptimeFd = None
+    vmstatFd = None
+    zoneFd = None
 
     # flag #
     affinityEnable = False
@@ -19459,7 +19457,7 @@ Commands:
             return
 
         # define resource and value #
-        rtype = ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE')
+        rtype = 'RLIMIT_NOFILE'
         slim = 1048576
         hlim = 1048576
 
@@ -19527,17 +19525,11 @@ Commands:
 
     @staticmethod
     def getVmstat(retDict=False):
-        try:
-            vmBuf = None
-            SysMgr.vmstatFd.seek(0)
-            vmBuf = SysMgr.vmstatFd.readlines()
-        except:
-            try:
-                vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
-                SysMgr.vmstatFd = open(vmstatPath, 'r')
-                vmBuf = SysMgr.vmstatFd.readlines()
-            except:
-                SysMgr.printOpenWarn(vmstatPath)
+        # read vmstat buf #
+        vmBuf = SysMgr.readProcStat(
+            SysMgr.vmstatFd, 'vmstat', SysMgr, 'vmstatFd')
+        if not vmBuf:
+            return vmBuf
 
         # convert list to dictionary #
         if retDict:
@@ -20371,6 +20363,29 @@ Commands:
 
 
     @staticmethod
+    def readProcStat(fd, name, obj, attr, err=False):
+        try:
+            buf = None
+            fd.seek(0)
+            buf = fd.readlines()
+        except SystemExit: sys.exit(0)
+        except:
+            try:
+                bufPath = "%s/%s" % (SysMgr.procPath, name)
+                fd = open(bufPath, 'r')
+                setattr(obj, attr, fd)
+                buf = fd.readlines()
+            except SystemExit: sys.exit(0)
+            except:
+                if err:
+                    SysMgr.printOpenErr(bufPath)
+                else:
+                    SysMgr.printOpenWarn(bufPath)
+        return buf
+
+
+
+    @staticmethod
     def clearPageRefs(pid, val):
         '''
         The /proc/PID/clear_refs is used to reset the PG_Referenced and ACCESSED/YOUNG
@@ -20592,11 +20607,7 @@ Commands:
 
             # get return type #
             if len(conf) == 4:
-                rtype = ConfigMgr.RLIMIT_TYPE.index(conf[1])
-                if rtype < 0:
-                    SysMgr.printErr('wrong resource type %s' % conf[1])
-                    sys.exit(0)
-
+                rtype = conf[1]
                 slim, hlim = list(map(long, conf[2:4]))
 
             # apply new limits #
@@ -20664,39 +20675,29 @@ Commands:
 
     @staticmethod
     def getMemInfo():
-        try:
-            memBuf = None
-            SysMgr.memFd.seek(0)
-            memBuf = SysMgr.memFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
-                SysMgr.memFd = open(memPath, 'r')
-
-                memBuf = SysMgr.memFd.readlines()
-            except:
-                SysMgr.printOpenWarn(memPath)
-        finally:
-            return memBuf
+        # return mem buf #
+        return SysMgr.readProcStat(
+            SysMgr.memFd, 'meminfo', SysMgr, 'memFd', True)
 
 
 
     @staticmethod
     def chRlimit(pid, rtype, slim, hlim):
-        if rtype in ConfigMgr.RLIMIT_TYPE:
+        rtype = rtype.upper()
+        if not rtype in ConfigMgr.RLIMIT_TYPE:
             SysMgr.printErr(
-                'failed to change rlimit for %s because wrong resource' % rtype)
+                'failed to change rlimit for %s because wrong resource' % \
+                    rtype)
             return False
 
-        rname = ConfigMgr.RLIMIT_TYPE[rtype]
+        rindex = ConfigMgr.RLIMIT_TYPE.index(rtype)
 
         # resource package #
         try:
             resource = SysMgr.getPkg('resource', False, True)
             if resource:
-                resource.prlimit(pid, rtype, (slim, hlim))
-                soft, hard = resource.prlimit(pid, rtype)
+                resource.prlimit(pid, rindex, (slim, hlim))
+                soft, hard = resource.prlimit(pid, rindex)
                 return (soft, hard)
         except SystemExit: sys.exit(0)
         except: pass
@@ -20741,7 +20742,7 @@ Commands:
                 oldrlim = rlimit()
 
                 ret = func(
-                    c_int(os.getpid()), rtype, byref(rlim), byref(oldrlim))
+                    c_int(os.getpid()), rindex, byref(rlim), byref(oldrlim))
                 if ret != 0:
                     raise Exception('error return %s' % ret)
             # getrlimit / setrlimit #
@@ -20750,12 +20751,12 @@ Commands:
                 SysMgr.libcObj.getrlimit.restype = c_int
 
                 # set resource value #
-                ret = SysMgr.libcObj.setrlimit(rtype, byref(rlim))
+                ret = SysMgr.libcObj.setrlimit(rindex, byref(rlim))
                 if ret != 0:
                     raise Exception('error return %s' % ret)
 
                 # get new resource value #
-                ret = SysMgr.libcObj.getrlimit(rtype, byref(rlim))
+                ret = SysMgr.libcObj.getrlimit(rindex, byref(rlim))
             else:
                 raise Exception('no function')
 
@@ -20763,7 +20764,7 @@ Commands:
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
-                'failed to change %s to (%s,%s)' % (rname, slim, hlim),
+                'failed to change %s to (%s,%s)' % (rtype, slim, hlim),
                 reason=True)
 
 
@@ -21922,21 +21923,13 @@ Commands:
 
     @staticmethod
     def getNetDevData():
-        try:
-            SysMgr.netdevFd.seek(0)
-            data = SysMgr.netdevFd.readlines()[2:]
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                devPath = '%s/net/dev' % SysMgr.procPath
-                SysMgr.netdevFd = open(devPath, 'r')
-                data = SysMgr.netdevFd.readlines()[2:]
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(devPath)
-                return
-
-        return data
+        # read net buf #
+        netBuf = SysMgr.readProcStat(
+            SysMgr.netdevFd, 'net/dev', SysMgr, 'netdevFd')
+        if netBuf:
+            return netBuf[2:]
+        else:
+            netBuf
 
 
 
@@ -25518,8 +25511,14 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor memory details of specific processes
+    - Monitor memory details for specific processes
         # {0:1} {1:1} -g chrome
+
+    - Monitor memory details including 30 lines of active slabs for specific processes
+        # {0:1} {1:1} -g chrome -q NRSLAB:30
+
+    - Monitor memory details including total slabs for specific processes
+        # {0:1} {1:1} -g chrome -q TOTALSLAB
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -36009,19 +36008,14 @@ Copyright:
             except:
                 return -1
 
+        # read uptime buf #
         try:
-            SysMgr.uptimeFd.seek(0)
-            return float(SysMgr.uptimeFd.readlines()[0].split()[0])
+            uptime = SysMgr.readProcStat(
+                SysMgr.uptimeFd, 'uptime', SysMgr, 'uptimeFd')
+            return float(uptime[0].split()[0])
         except SystemExit: sys.exit(0)
         except:
-            try:
-                uptimePath = "%s/%s" % (SysMgr.procPath, 'uptime')
-                SysMgr.uptimeFd = open(uptimePath, 'r')
-                return float(SysMgr.uptimeFd.readlines()[0].split()[0])
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(uptimePath)
-                return -1
+            return -1
 
 
 
@@ -39455,21 +39449,13 @@ Copyright:
     @staticmethod
     def getIdleTime():
         try:
-            cpuBuf = None
-            SysMgr.statFd.seek(0)
-            cpuBuf = SysMgr.statFd.readlines()[0]
+            # read stat buf #
+            cpuBuf = SysMgr.readProcStat(
+                SysMgr.statFd, 'stat', SysMgr, 'statFd')
+            return long(cpuBuf[0].split()[4])
         except SystemExit: sys.exit(0)
         except:
-            try:
-                cpuPath = "%s/stat" % SysMgr.procPath
-                SysMgr.statFd = open(cpuPath, 'r')
-                cpuBuf = SysMgr.statFd.readlines()[0]
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(cpuPath)
-                return 0
-
-        return long(cpuBuf.split()[4])
+            return 0
 
 
 
@@ -39491,19 +39477,9 @@ Copyright:
                     'failed to get the number of CPU', reason=True)
                 return 0
 
-        try:
-            cpuBuf = None
-            SysMgr.statFd.seek(0)
-            cpuBuf = SysMgr.statFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                cpuPath = "%s/stat" % SysMgr.procPath
-                SysMgr.statFd = open(cpuPath, 'r')
-                cpuBuf = SysMgr.statFd.readlines()
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(cpuPath)
+        # read stat buf #
+        cpuBuf = SysMgr.readProcStat(
+            SysMgr.statFd, 'stat', SysMgr, 'statFd')
 
         nrCore = 0
         if cpuBuf:
@@ -44519,20 +44495,9 @@ Copyright:
             return vmstr[:-2]
 
         def _getZoneinfo():
-            # save zone info #
-            try:
-                memBuf = None
-                SysMgr.zoneFd.seek(0)
-                memBuf = SysMgr.zoneFd.readlines()
-            except:
-                try:
-                    memPath = "%s/%s" % (SysMgr.procPath, 'zoneinfo')
-                    SysMgr.zoneFd = open(memPath, 'r')
-
-                    memBuf = SysMgr.zoneFd.readlines()
-                except:
-                    SysMgr.printOpenWarn(memPath)
-
+            # read zone buf #
+            memBuf = SysMgr.readProcStat(
+                SysMgr.zoneFd, 'zoneinfo', SysMgr, 'zoneFd')
             if not memBuf:
                 return ''
 
@@ -48581,23 +48546,15 @@ Copyright:
         if not SysMgr.isLinux:
             return
 
+        # read shm buf #
         try:
-            SysMgr.shmFd.seek(0)
-            data = SysMgr.shmFd.readlines()[1:]
+            data = SysMgr.readProcStat(
+                SysMgr.shmFd, 'sysvipc/shm', SysMgr, 'shmFd')[1:]
         except SystemExit: sys.exit(0)
-        except:
-            try:
-                path = '%s/sysvipc/shm' % SysMgr.procPath
-                SysMgr.shmFd = open(path, 'r')
-                data = SysMgr.shmFd.readlines()[1:]
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(path)
-                return
+        except: return
 
         # backup shm data #
-        try:
-            self.prevIpcData['shm'] = self.ipcData['shm']
+        try: self.prevIpcData['shm'] = self.ipcData['shm']
         except: pass
 
         # initialize shm variable #
@@ -48638,17 +48595,12 @@ Copyright:
         if not SysMgr.isLinux:
             return
 
+        # read msgq buf #
         try:
-            SysMgr.msgqFd.seek(0)
-            data = SysMgr.msgqFd.readlines()[1:]
-        except:
-            try:
-                path = '%s/sysvipc/msg' % SysMgr.procPath
-                SysMgr.msgqFd = open(path, 'r')
-                data = SysMgr.msgqFd.readlines()[1:]
-            except:
-                SysMgr.printOpenWarn(path)
-                return
+            data = SysMgr.readProcStat(
+                SysMgr.msgqFd, 'sysvipc/msg', SysMgr, 'msgqFd')[1:]
+        except SystemExit: sys.exit(0)
+        except: return
 
         # backup msgq data #
         try:
@@ -48688,17 +48640,12 @@ Copyright:
         if not SysMgr.isLinux:
             return
 
+        # read sem buf #
         try:
-            SysMgr.semFd.seek(0)
-            data = SysMgr.semFd.readlines()[1:]
-        except:
-            try:
-                path = '%s/sysvipc/sem' % SysMgr.procPath
-                SysMgr.semFd = open(path, 'r')
-                data = SysMgr.semFd.readlines()[1:]
-            except:
-                SysMgr.printOpenWarn(path)
-                return
+            data = SysMgr.readProcStat(
+                SysMgr.semFd, 'sysvipc/sem', SysMgr, 'semFd')[1:]
+        except SystemExit: sys.exit(0)
+        except: return
 
         # backup sem data #
         try:
@@ -60029,8 +59976,8 @@ typedef struct {
                         addr, size, sym = symInfo
                     else:
                         SysMgr.printWarn(
-                            "failed to parse JIT-compiled symbol info '%s' for %s(%s)" % \
-                                (item, self.comm, self.pid))
+                            "failed to parse JIT-compiled symbol info '%s' "
+                            "for %s(%s)" % (item, self.comm, self.pid))
                         continue
 
                     jmapTable.append([long(addr, 16), sym, long(size, 16)])
@@ -63768,23 +63715,17 @@ typedef struct {
 
 
     def getKernelStack(self, retstr=False):
-        try:
-            self.kernelFd.seek(0)
-            stat = self.kernelFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                kernelPath = "%s/%s/task/%s/stack" % \
-                    (SysMgr.procPath, self.pid, self.pid)
-                self.kernelFd = open(kernelPath, 'r')
-                stat = self.kernelFd.readlines()
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(kernelPath)
-                return None
+        # read kernel stack #
+        stat = SysMgr.readProcStat(
+            self.kernelFd, '%s/task/%s/stack' % (self.pid, self.pid),
+            self, 'kernelFd')
+        if not stat:
+            return None
 
         # return full data #
         if retstr:
+            return ' <- '.join(stat)
+        else:
             return stat
 
 
@@ -74014,6 +73955,7 @@ class TaskAnalyzer(object):
             self.prevIrqData = {}
             self.zoneData = {}
             self.prevZoneData = {}
+            self.slabData = {}
             self.memData = {}
             self.prevMemData = {}
             self.vmData = {}
@@ -88737,21 +88679,42 @@ class TaskAnalyzer(object):
 
 
 
-    def saveZoneInfo(self):
-        # save zone info #
-        try:
-            memBuf = None
-            SysMgr.zoneFd.seek(0)
-            memBuf = SysMgr.zoneFd.readlines()
-        except:
+    def saveSlabInfo(self):
+        # read slab buf #
+        slabBuf = SysMgr.readProcStat(
+            SysMgr.slabFd, 'slabinfo', SysMgr, 'slabFd')
+        if not slabBuf:
+            return
+
+        self.slabData = {}
+
+        # parse slab items #
+        for line in slabBuf[2:]:
             try:
-                memPath = "%s/%s" % (SysMgr.procPath, 'zoneinfo')
-                SysMgr.zoneFd = open(memPath, 'r')
+                items = line.strip().split()[:6]
+                name = items[0]
+                actobj, totobj, objsize, objperslab, pageperslab = \
+                    list(map(long, items[1:]))
 
-                memBuf = SysMgr.zoneFd.readlines()
+                self.slabData[name] = {
+                    'size': objsize,
+                    'active': actobj,
+                    'actsize': actobj * objsize,
+                    'total': totobj,
+                    'totsize': totobj * objsize,
+                    'ops': objperslab,
+                    'pps': pageperslab,
+                }
+            except SystemExit: sys.exit(0)
             except:
-                SysMgr.printOpenWarn(memPath)
+                SysMgr.printWarn('failed to parse slab info', reason=True)
 
+
+
+    def saveZoneInfo(self):
+        # read zone buf #
+        memBuf = SysMgr.readProcStat(
+            SysMgr.zoneFd, 'zoneinfo', SysMgr, 'zoneFd')
         if not memBuf:
             return
 
@@ -88776,39 +88739,17 @@ class TaskAnalyzer(object):
 
 
     def saveIrqs(self):
-        # save irq info #
-        try:
-            irqBuf = None
-            SysMgr.irqFd.seek(0)
-            irqBuf = SysMgr.irqFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                irqPath = "%s/%s" % (SysMgr.procPath, 'interrupts')
-                SysMgr.irqFd = open(irqPath, 'r')
+        # read irq buf #
+        irqBuf = SysMgr.readProcStat(
+            SysMgr.irqFd, 'interrupts', SysMgr, 'irqFd')
 
-                irqBuf = SysMgr.irqFd.readlines()
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(irqPath)
-
-        # save softirq info #
+        # read softirq buf #
         try:
-            sirqBuf = None
-            SysMgr.softirqFd.seek(0)
-            sirqBuf = SysMgr.softirqFd.readlines()
+            sirqBuf = SysMgr.readProcStat(
+                SysMgr.softirqFd, 'softirqs', SysMgr, 'softirqFd')
             irqBuf += sirqBuf[1:]
         except SystemExit: sys.exit(0)
-        except:
-            try:
-                sirqPath = "%s/%s" % (SysMgr.procPath, 'softirqs')
-                SysMgr.softirqFd = open(sirqPath, 'r')
-
-                sirqBuf = SysMgr.softirqFd.readlines()
-                irqBuf += sirqBuf[1:]
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(sirqPath)
+        except: pass
 
         if irqBuf:
             self.prevIrqData = self.irqData
@@ -89345,21 +89286,9 @@ class TaskAnalyzer(object):
         # update uptime #
         SysMgr.updateUptime()
 
-        # save CPU info #
-        try:
-            cpuBuf = None
-            SysMgr.statFd.seek(0)
-            cpuBuf = SysMgr.statFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                cpuPath = "%s/stat" % SysMgr.procPath
-                SysMgr.statFd = open(cpuPath, 'r')
-                cpuBuf = SysMgr.statFd.readlines()
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    'failed to read %s' % cpuPath, True)
+        # read CPU buf #
+        cpuBuf = SysMgr.readProcStat(
+            SysMgr.statFd, 'stat', SysMgr, 'statFd', True)
 
         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
@@ -89415,51 +89344,25 @@ class TaskAnalyzer(object):
         if SysMgr.irqEnable:
             self.saveIrqs()
 
+        # save memory info #
         if SysMgr.memEnable:
+            self.saveSlabInfo()
             self.saveZoneInfo()
 
-        # save vmstat info #
+        # read vmstat buf #
         # vmstat list from https://access.redhat.com/solutions/406773 #
-        try:
-            vmBuf = None
-            SysMgr.vmstatFd.seek(0)
-            vmBuf = SysMgr.vmstatFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
-                SysMgr.vmstatFd = open(vmstatPath, 'r')
-
-                vmBuf = SysMgr.vmstatFd.readlines()
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(vmstatPath)
-
-        # parse vmstat data #
+        self.prevVmData = self.vmData
+        self.vmData = {}
+        vmBuf = SysMgr.readProcStat(
+            SysMgr.vmstatFd, 'vmstat', SysMgr, 'vmstatFd')
         if vmBuf:
-            self.prevVmData = self.vmData
-            self.vmData = {}
-
             for line in vmBuf:
                 vmList = line.split()
                 self.vmData[vmList[0]] = long(vmList[1])
 
-        # save swap info #
-        try:
-            swapBuf = None
-            SysMgr.swapFd.seek(0)
-            swapBuf = SysMgr.swapFd.readlines()
-        except SystemExit: sys.exit(0)
-        except:
-            try:
-                swapPath = "%s/%s" % (SysMgr.procPath, 'swaps')
-                SysMgr.swapFd = open(swapPath, 'r')
-
-                swapBuf = SysMgr.swapFd.readlines()
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(swapPath)
-
+        # read swap buf #
+        swapBuf = SysMgr.readProcStat(
+            SysMgr.swapFd, 'swaps', SysMgr, 'swapFd')
         # get swap usage if it changed #
         if self.prevSwaps != swapBuf and swapBuf:
             swapTotal = 0
@@ -89504,19 +89407,12 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(netstatPath)
 
-        # save loadavg #
+        # read loadavg buf #
         try:
-            SysMgr.loadavgFd.seek(0)
-            SysMgr.loadavg = SysMgr.loadavgFd.readlines()[0]
+            SysMgr.loadavg = SysMgr.readProcStat(
+                SysMgr.loadavgFd, 'loadavg', SysMgr, 'loadavgFd')[0]
         except SystemExit: sys.exit(0)
-        except:
-            try:
-                loadavgPath = "%s/%s" % (SysMgr.procPath, 'loadavg')
-                SysMgr.loadavgFd = open(loadavgPath, 'r')
-                SysMgr.loadavg = SysMgr.loadavgFd.readlines()[0]
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(loadavgPath)
+        except: pass
 
         # save battery #
         try:
@@ -89536,7 +89432,7 @@ class TaskAnalyzer(object):
                 SysMgr.battery = {}
             except SystemExit: sys.exit(0)
             except:
-                SysMgr.printOpenWarn(loadavgPath)
+                SysMgr.printOpenWarn(batteryPath)
 
         # collect perf data #
         if SysMgr.perfEnable:
@@ -92205,6 +92101,52 @@ class TaskAnalyzer(object):
             if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
                 databuf += '%s ]\n' % curline.rstrip(', ')
                 curline = str(edata)
+
+            curline += '%s, ' % item
+
+        # check last line #
+        if curline != data:
+            databuf += '%s ]' % curline.rstrip(', \n')
+        databuf = databuf.rstrip(', \n')
+
+        SysMgr.addPrint('%s\n' % databuf, newline=databuf.count('\n')+1)
+
+
+
+    def printSlabUsage(self, nrIndent):
+        if not self.slabData:
+            return
+
+        databuf = ''
+        edata = '%s %-8s' % (' ' * nrIndent, ' ')
+        data = '%s [%-4s > ' % (' ' * nrIndent, 'SLAB')
+        curline = str(data)
+        nrLine = 1
+
+        # get cutline #
+        if 'NRSLAB' in SysMgr.environList:
+            cutLine = UtilMgr.getEnvironNum('NRSLAB')
+        else:
+            cutLine = 3
+
+        # get target object #
+        if 'TOTALSLAB' in SysMgr.environList:
+            target = 'totsize'
+        else:
+            target = 'actsize'
+
+        for name, items in sorted(
+            self.slabData.items(), key=lambda x:x[1][target], reverse=True):
+
+            # add stats in a line #
+            item = '%s: %s' % (name, UtilMgr.convSize2Unit(items[target]))
+            if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
+                if nrLine >= cutLine:
+                    break
+
+                databuf += '%s ]\n' % curline.rstrip(', ')
+                curline = str(edata)
+                nrLine += 1
 
             curline += '%s, ' % item
 
@@ -95896,6 +95838,9 @@ class TaskAnalyzer(object):
 
             # print memory stats #
             self.printMemoryUsage(nrIndent)
+
+            # print slab stats #
+            self.printSlabUsage(nrIndent)
 
             # print zone stats #
             self.printZoneUsage(nrIndent)
