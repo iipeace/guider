@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220223"
+__revision__ = "220224"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -50252,7 +50252,7 @@ Copyright:
         if len(self.memData) != 2:
             return
 
-        # parse data #
+        # parse previous data #
         time = 'prev'
         self.memInfo[time] = {}
         for l in self.memData[time]:
@@ -50261,6 +50261,7 @@ Copyright:
                 d = m.groupdict()
                 self.memInfo[time][d['type']] = d['size']
 
+        # parse current data #
         time = 'next'
         self.memInfo[time] = {}
         for l in self.memData[time]:
@@ -92183,22 +92184,52 @@ class TaskAnalyzer(object):
 
 
 
+    def printMemoryUsage(self, nrIndent):
+        if not self.memData or not SysMgr.memEnable:
+            return
+
+        databuf = ''
+        edata = '%s %-10s' % (' ' * nrIndent, ' ')
+        data = '%s [%-5s > ' % (' ' * nrIndent, 'SYSTEM')
+        curline = str(data)
+
+        for name, value in sorted(self.memData.items()):
+            if not value or \
+                name.startswith('Mem') or \
+                name.startswith('Swap'):
+                continue
+
+            # add stats in a line #
+            item = '%-15s %7s' % (
+                '%s:' % name, UtilMgr.convSize2Unit(value << 10))
+            if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
+                databuf += '%s ]\n' % curline.rstrip(', ')
+                curline = str(edata)
+
+            curline += '%s, ' % item
+
+        # check last line #
+        if curline != data:
+            databuf += '%s ]' % curline.rstrip(', \n')
+        databuf = databuf.rstrip(', \n')
+
+        SysMgr.addPrint('%s\n' % databuf, newline=databuf.count('\n')+1)
+
+
+
     def printZoneUsage(self, nrIndent):
         if not self.zoneData:
             return
-
-        nrZone = 0
-        zoneData = '%s [Node %s > ' % (' ' * nrIndent, 0)
-        lenZone = len(zoneData)
 
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('zone', {})
 
+        ttyCols = SysMgr.ttyCols
+
         for node, items in sorted(self.zoneData.items()):
             zoneData = '%s [%-10s > ' % (' ' * nrIndent, 'N%s' % node)
             lenZone = len(zoneData)
-            nrZone += 1
 
             for info, val in sorted(items.items()):
                 if SysMgr.jsonEnable:
@@ -92220,9 +92251,9 @@ class TaskAnalyzer(object):
                     zoneStat = '%s: %7s / ' % (ninfo, diff)
                     lenZoneStat = len(zoneStat)
 
-                    if lenZone + lenZoneStat >= len(oneLine):
+                    if ttyCols and lenZone + lenZoneStat >= ttyCols:
                         zoneData = '%s\n%s %s' % \
-                            (zoneData, ' ' * 7, ' ' * nrIndent)
+                            (zoneData, ' ' * 14, ' ' * nrIndent)
                         lenZone = nrIndent
 
                     zoneData += zoneStat
@@ -92237,15 +92268,17 @@ class TaskAnalyzer(object):
                 zoneStat = '%s: %6s / ' % (info, stat)
                 lenZoneStat = len(zoneStat)
 
-                if lenZone + lenZoneStat >= len(oneLine):
+                if ttyCols and lenZone + lenZoneStat >= ttyCols:
                     zoneData = '%s\n%s %s' % \
-                        (zoneData, ' ' * 7, ' ' * nrIndent)
+                        (zoneData, ' ' * 14, ' ' * nrIndent)
                     lenZone = nrIndent
 
                 zoneData += zoneStat
                 lenZone += lenZoneStat
 
-            SysMgr.addPrint("{0:<1}]\n".format(zoneData[:-2]))
+            SysMgr.addPrint(
+                "{0:<1}]\n".format(zoneData[:-2]),
+                newline=zoneData.count('\n')+1)
 
 
 
@@ -92280,7 +92313,7 @@ class TaskAnalyzer(object):
                 (irq, UtilMgr.convNum(irqDiff))
             lenNewIrq = len(newIrq)
 
-            if lenIrq + lenNewIrq >= len(oneLine):
+            if SysMgr.ttyCols and lenIrq + lenNewIrq >= SysMgr.ttyCols:
                 irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
                 lenIrq = nrIndent
 
@@ -92288,7 +92321,9 @@ class TaskAnalyzer(object):
             lenIrq += lenNewIrq
 
         if nrIrq > 0:
-            SysMgr.addPrint("{0:<1}]\n".format(irqData[:-2]))
+            SysMgr.addPrint(
+                "{0:<1}]\n".format(irqData[:-2]),
+                newline=irqData.count('\n')+1)
 
 
 
@@ -95858,6 +95893,9 @@ class TaskAnalyzer(object):
         if not self.taskStreamEnable:
             # print default stats #
             self.printDefaultUsage(title)
+
+            # print memory stats #
+            self.printMemoryUsage(nrIndent)
 
             # print zone stats #
             self.printZoneUsage(nrIndent)
