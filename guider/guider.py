@@ -25516,6 +25516,9 @@ Examples:
     - Monitor memory details for specific processes
         # {0:1} {1:1} -g chrome
 
+    - Monitor memory details without smaps info for specific processes
+        # {0:1} {1:1} -g chrome -q NOSMAPS
+
     - Monitor memory details including 30 lines of active slabs for specific processes
         # {0:1} {1:1} -g chrome -q NRSLAB:30
 
@@ -57346,17 +57349,17 @@ typedef struct {
                     reason = ' because %s' % self.errmsg
 
                 # print error message #
-                SysMgr.printWarn(
-                    'failed to attach %s(%s) to guider(%s)%s' % \
-                        (self.comm, pid, SysMgr.pid, reason), verb)
+                warnMsg = 'failed to attach %s(%s) to guider(%s)%s' % \
+                    (self.comm, pid, SysMgr.pid, reason)
 
                 # print solution for docker #
                 if tracer == 0:
-                    SysMgr.printWarn((
-                        "if you use docker then attach "
+                    warnMsg += (
+                        "\n\tif you use docker then attach "
                         "'--cap-add=SYS_PTRACE --security-opt "
-                        "seccomp=unconfined' option to the run command"),
-                        verb)
+                        "seccomp=unconfined' option to the run command")
+
+                SysMgr.printWarn(warnMsg, verb)
 
                 # check return #
                 if exit:
@@ -84661,8 +84664,8 @@ class TaskAnalyzer(object):
         # Print menu #
         SysMgr.printPipe((
             "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
-            "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
-            "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
+            "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | "
+            "{10:^10} | {11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
             format('COMM', idType, pidType, 'Type', 'Cnt',
             'VSS/M', 'RSS/M', 'PSS/M', 'SWAP/M', 'HUGE/M', 'LOCK/K',
             'PDRT/K', 'SDRT/K', 'NOPM/K', twoLine, cl=cl, pd=pd))
@@ -89652,6 +89655,8 @@ class TaskAnalyzer(object):
     def saveProcSmapsData(path, tid):
         # check root permission #
         if not SysMgr.isRoot():
+            return
+        elif 'NOSMAPS' in SysMgr.environList:
             return
 
         buf = ''
