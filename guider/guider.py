@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220224"
+__revision__ = "220225"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4924,7 +4924,6 @@ class UtilMgr(object):
             except SystemExit: sys.exit(0)
             except:
                 return value
-
 
 
 
@@ -16801,10 +16800,9 @@ class FileAnalyzer(object):
     def getMapAddr(pid, fname, fd=None):
         if not fname:
             SysMgr.printWarn(
-                "no memory-mapped file name to be searched")
-            return
-
-        if not fd:
+                "no file name to be searched for address")
+            return None
+        elif not fd:
             fd = FileAnalyzer.getMapFd(pid)
             if not fd:
                 return None
@@ -16824,10 +16822,9 @@ class FileAnalyzer(object):
     def getMapFilePath(pid, fname, fd=None):
         if not fname:
             SysMgr.printWarn(
-                "no file name to be searched on memory-map")
-            return
-
-        if not fd:
+                "no file name to be searched for path")
+            return None
+        elif not fd:
             fd = FileAnalyzer.getMapFd(pid)
             if not fd:
                 return None
@@ -20363,11 +20360,15 @@ Commands:
 
 
     @staticmethod
-    def readProcStat(fd, name, obj, attr, err=False):
+    def readProcStat(fd, name, obj, attr, err=False, retry=True):
         try:
             buf = None
-            fd.seek(0)
-            buf = fd.readlines()
+            while 1:
+                fd.seek(0)
+                buf = fd.readlines()
+                # retry to read for shared descriptor #
+                if buf or not retry:
+                    break
         except SystemExit: sys.exit(0)
         except:
             try:
@@ -31273,6 +31274,17 @@ Copyright:
 
 
     @staticmethod
+    def closePrintFd():
+        try:
+            SysMgr.printFd.close()
+        except SystemExit: sys.exit(0)
+        except: pass
+        finally:
+            SysMgr.printFd = None
+
+
+
+    @staticmethod
     def newHandler(signum=None, frame=None):
         SysMgr.condExit = False
 
@@ -31301,16 +31313,12 @@ Copyright:
             # create a new process #
             pid = SysMgr.createProcess()
             if pid > 0:
-                # close an output file to sync #
-                try:
-                    SysMgr.printFd.close()
-                except: pass
-                finally:
-                    SysMgr.printFd = None
-
                 # clear buffer as parent #
                 SysMgr.procBufferSize = 0
                 SysMgr.procBuffer = []
+
+                # close an output file to sync #
+                SysMgr.closePrintFd()
 
                 # enable signal again #
                 if signum:
@@ -31330,13 +31338,6 @@ Copyright:
 
             # submit summarized report and details #
             TaskAnalyzer.printIntervalUsage()
-
-            # close an output file to sync #
-            try:
-                SysMgr.printFd.close()
-            except: pass
-            finally:
-                SysMgr.printFd = None
 
             # print output info #
             fsize = UtilMgr.getFileSize(SysMgr.inputFile)
@@ -32747,12 +32748,6 @@ Copyright:
                 pid = SysMgr.createProcess(isDaemon=True, chPgid=True)
                 # save output to file as child #
                 if pid == 0:
-                    try:
-                        SysMgr.printFd.close()
-                    except: pass
-                    finally:
-                        SysMgr.printFd = None
-
                     # append uptime to the output file #
                     SysMgr.fileSuffix = long(SysMgr.getUptime())
 
@@ -37676,6 +37671,7 @@ Copyright:
     @staticmethod
     def createProcess(
         cmd=None, isDaemon=False, mute=False, chPgid=False, chMid=False):
+
         # flush print buffer before fork #
         SysMgr.flushAllForPrint()
 
@@ -37717,12 +37713,7 @@ Copyright:
                 os.setpgid(0, 0)
 
             # close fd for output #
-            try:
-                SysMgr.printFd.close()
-            except SystemExit: sys.exit(0)
-            except: pass
-            finally:
-                SysMgr.printFd = None
+            SysMgr.closePrintFd()
 
             # Guider #
             if not cmd:
@@ -37733,9 +37724,8 @@ Copyright:
                 # update pid #
                 SysMgr.fileSuffix = SysMgr.pid = os.getpid()
 
-                # set mute #
-                if mute:
-                    SysMgr.closeStdFd(stderr=False)
+                # init shared resources #
+                SysMgr.initSharedResource(mute)
 
                 return 0
 
@@ -37770,6 +37760,30 @@ Copyright:
             SysMgr.printErr(
                 "failed to redirect %s to '%s'" % (fileno, path), True)
             sys.exit(0)
+
+
+
+    @staticmethod
+    def initSharedResource(mute, net=True):
+        # set mute #
+        if mute:
+            SysMgr.closeStdFd(stderr=False)
+
+        # clear threshold condition #
+        SysMgr.thresholdData = {}
+
+        # remove JSON object #
+        SysMgr.reportObject = None
+
+        # reinit network #
+        if net and SysMgr.localServObj:
+            ip = SysMgr.localServObj.ip
+
+            # remove previous socket #
+            try: SysMgr.localServObj.close()
+            except: pass
+
+            NetworkMgr.setServerNetwork(ip, None, force=True, anyPort=True)
 
 
 
@@ -37844,7 +37858,6 @@ Copyright:
                 "failed to get file descriptors in %s" % path,
                 reason=True)
             return
-
 
 
 
@@ -45140,7 +45153,6 @@ Copyright:
 
 
 
-
     @staticmethod
     def doPrintSig(target=None):
         SysMgr.printLogo(big=True, onlyFile=True)
@@ -47085,7 +47097,8 @@ Copyright:
             return
 
         try:
-            SysMgr.printFd.flush()
+            # close fd for output #
+            SysMgr.closePrintFd()
 
             fsize = UtilMgr.convSize2Unit(
                 long(os.fstat(SysMgr.printFd.fileno()).st_size))
@@ -47097,12 +47110,8 @@ Copyright:
             SysMgr.printInfo(
                 "finish saving all results into '%s'%s successfully" % \
                 (os.path.abspath(SysMgr.printFd.name), fsize))
-
-            SysMgr.printFd.close()
         except SystemExit: sys.exit(0)
         except: pass
-        finally:
-            SysMgr.printFd = None
 
 
 
@@ -64268,12 +64277,7 @@ typedef struct {
         SysMgr.exitFuncList = []
 
         # close fd for output #
-        try:
-            SysMgr.printFd.close()
-        except SystemExit: sys.exit(0)
-        except: pass
-        finally:
-            SysMgr.printFd = None
+        SysMgr.closePrintFd()
 
         # create a new controller #
         dobj = Debugger(pid=self.pid, attach=False, mode=self.mode)
@@ -83240,6 +83244,8 @@ class TaskAnalyzer(object):
 
         # remove invalid events #
         try:
+            raise Exception('ignore')
+
             initTime = TaskAnalyzer.procIntData[0]['time']
 
             eventList = list(TaskAnalyzer.procEventData)
@@ -83249,12 +83255,14 @@ class TaskAnalyzer(object):
                 # skip unbounded events #
                 if float(initTime) > time:
                     del TaskAnalyzer.procEventData[0]
-        except:
-            return
+        except SystemExit: sys.exit(0)
+        except: pass
 
+        # check events #
         if not TaskAnalyzer.procEventData:
             return
 
+        # print title #
         SysMgr.printPipe('\n[Top Event Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
         SysMgr.printPipe(("{0:^12} | {1:^12} | {2:^12} | {3:1}\n").\
@@ -83278,6 +83286,10 @@ class TaskAnalyzer(object):
                     diff = rtime - SysMgr.startTime
             except SystemExit: sys.exit(0)
             except:
+                diff = 0
+
+            # check diff #
+            if diff < 0:
                 diff = 0
 
             diff = '%.2f' % diff
@@ -89991,14 +90003,18 @@ class TaskAnalyzer(object):
 
 
 
-    def saveTaskData(self, path, tid, name, decode=True):
+    def saveTaskData(self, path, tid, name, decode=True, retry=True):
         buf = []
 
         try:
             fd = '%sFd' % name
-            self.prevProcData[tid][fd].seek(0)
             self.procData[tid][fd] = self.prevProcData[tid][fd]
-            buf = self.procData[tid][fd].readlines()
+            while 1:
+                self.prevProcData[tid][fd].seek(0)
+                buf = self.procData[tid][fd].readlines()
+                # retry to read for shared descriptor #
+                if buf or not retry:
+                    break
         except SystemExit: sys.exit(0)
         except:
             try:
@@ -90137,9 +90153,13 @@ class TaskAnalyzer(object):
                 'statFd' in self.prevProcData[tid] and \
                 self.prevProcData[tid]['statFd']:
                 prevFd = self.prevProcData[tid]['statFd']
-                os.lseek(prevFd, 0, 0)
                 self.procData[tid]['statFd'] = prevFd
-                statBuf = os.read(self.procData[tid]['statFd'], 1024)
+                while 1:
+                    os.lseek(prevFd, 0, 0)
+                    statBuf = os.read(self.procData[tid]['statFd'], 1024)
+                    # retry to read for shared descriptor #
+                    if statBuf:
+                        break
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = _getStatBuf(self, statPath, tid)
@@ -91259,7 +91279,8 @@ class TaskAnalyzer(object):
                             coreId = long(fd.readline()[:-1])
                             self.cpuData[idx]['cidFd'] = fd
                         else:
-                            cidPath = '%s%s/topology/core_id' % (freqPath, idx)
+                            cidPath = '%s%s/topology/core_id' % \
+                                (freqPath, idx)
                             newCidFd = open(cidPath, 'r')
 
                             self.cpuData[idx]['cidFd'] = newCidFd
@@ -91396,6 +91417,7 @@ class TaskAnalyzer(object):
                     # set frequency info #
                     try:
                         coreFreq = '%d Mhz' % value['CUR_FREQ']
+                    except SystemExit: sys.exit(0)
                     except:
                         coreFreq = '? Mhz'
                     if 'MIN_FREQ' in value and 'MAX_FREQ' in value and \
@@ -91407,10 +91429,12 @@ class TaskAnalyzer(object):
                     # set temperature info #
                     try:
                         coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
+                    except SystemExit: sys.exit(0)
                     except:
                         try:
                             coreFreq = '%3s C | %s' % \
                                 (coreTempData['GPU'], coreFreq)
+                        except SystemExit: sys.exit(0)
                         except:
                             coreFreq = '%3s C | %s' % ('?', coreFreq)
 
@@ -94525,7 +94549,9 @@ class TaskAnalyzer(object):
         if cmd.startswith('SAVE'):
             ret = self.handleSaveCmd(cmd, 'USER')
             if not ret:
-                SysMgr.waitEvent()
+                # disable event handling for child process #
+                SysMgr.eventHandleEnable = False
+                return
         # CLEAR #
         elif cmd.startswith('CLEAR'):
             # clear buffer #
@@ -94742,17 +94768,8 @@ class TaskAnalyzer(object):
             # change priority #
             SysMgr.setPriority(SysMgr.pid, 'C', 15, verb=False)
             SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE', verb=False)
-
-            # clear threshold condition #
-            SysMgr.thresholdData = {}
         else:
-            # close fd for output #
-            try:
-                SysMgr.printFd.close()
-            except SystemExit: sys.exit(0)
-            except: pass
-            finally:
-                SysMgr.printFd = None
+            SysMgr.closePrintFd()
 
         # change output path #
         if SysMgr.outPath == SysMgr.nullPath:
@@ -95368,8 +95385,14 @@ class TaskAnalyzer(object):
             if 'cpu' in self.reportData:
                 rank = 1
                 self.reportData['cpu']['procs'] = {}
-                sortedProcData = sorted(self.procData.items(),
-                    key=lambda e: e[1]['ttime'], reverse=True)
+
+                try:
+                    sortedProcData = sorted(self.procData.items(),
+                        key=lambda e: e[1]['ttime'], reverse=True)
+                except SystemExit: sys.exit(0)
+                except:
+                    # to handle corrupted data #
+                    sortedProcData = {}
 
                 for pid, data in sortedProcData:
                     comm = data['comm']
@@ -95413,8 +95436,14 @@ class TaskAnalyzer(object):
             if 'mem' in self.reportData:
                 rank = 1
                 self.reportData['mem']['procs'] = {}
-                sortedProcData = sorted(self.procData.items(),
-                    key=lambda e: long(e[1]['rss']), reverse=True)
+
+                try:
+                    sortedProcData = sorted(self.procData.items(),
+                        key=lambda e: long(e[1]['rss']), reverse=True)
+                except SystemExit: sys.exit(0)
+                except:
+                    # to handle corrupted data #
+                    sortedProcData = {}
 
                 for pid, data in sortedProcData:
                     comm = data['comm']
@@ -95458,8 +95487,14 @@ class TaskAnalyzer(object):
             if 'block' in self.reportData:
                 rank = 1
                 self.reportData['block']['procs'] = {}
-                sortedProcData = sorted(self.procData.items(),
-                    key=lambda e: e[1]['btime'], reverse=True)
+
+                try:
+                    sortedProcData = sorted(self.procData.items(),
+                        key=lambda e: e[1]['btime'], reverse=True)
+                except SystemExit: sys.exit(0)
+                except:
+                    # to handle corrupted data #
+                    sortedProcData = {}
 
                 for pid, data in sortedProcData:
                     comm = data['comm']
@@ -95503,9 +95538,14 @@ class TaskAnalyzer(object):
                         else:
                             procData = self.procData
 
+                        # check pid #
+                        if not pid in procData:
+                            continue
+
                         comm = procData[pid]['comm']
                         runtime = convTime(procData[pid]['runtime'])
-                        _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
+                        _setDefaultInfo(
+                            evtdata[rank], pid, rank, comm, runtime)
 
                         status = procData[pid]['stat'][self.statIdx]
                         evtdata[rank]['status'] = status
@@ -95525,11 +95565,7 @@ class TaskAnalyzer(object):
             TaskAnalyzer.printIntervalUsage()
 
             # sync and close output file #
-            try:
-                SysMgr.printFd.close()
-            except: pass
-            finally:
-                SysMgr.printFd = None
+            SysMgr.closePrintFd()
 
             # make output path #
             filePath = os.path.dirname(SysMgr.inputFile) + '/guider'
