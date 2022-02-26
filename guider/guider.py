@@ -25449,22 +25449,25 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor resources by threshold
+    Monitor resources with threshold
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor resources by threshold condition
+    - Monitor resources with threshold condition
         # {0:1} {1:1}
         # {0:1} {1:1} -C /tmp/guider.conf
 
-    - Monitor resources by threshold condition and report also in JSON format
+    - Monitor resources with threshold condition and report also in JSON format
         # {0:1} {1:1} -j -Q -q TEXTREPORT
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - Monitor resources including normal tasks by threshold condition
+    - Monitor resources including normal tasks with threshold condition
         # {0:1} {1:1} -j -q SAVEJSONSTAT
+
+    - Monitor resources without threshold condition until CMD_RELOAD event is received
+        # {0:1} {1:1} -q NOTHRESHOLD
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -28434,10 +28437,13 @@ Options:
     -v                          verbose
 
 Commands:
+    CMD_BUFFER     resize the buffer
+    CMD_CLEAR      clear the buffer
+    CMD_DISABLE    stop the monitoring threshold
+    CMD_INTERVAL   change the monitoring interval
+    CMD_RELOAD     reload the threshold config
+    CMD_RESTART    restart the process
     CMD_SAVE       save the monitoring results
-    CMD_CLEAR      clear buffer
-    CMD_BUFFER     resize buffer
-    CMD_INTERVAL   change interval
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28453,9 +28459,6 @@ Examples:
         # {0:1} {1:1} CMD_SAVE
         # {0:1} {1:1} CMD_SAVE_3s
         # {0:1} {1:1} CMD_SAVE_1m
-
-    - Notify CMD_CLEAR event {2:1} to clear monitoring buffer
-        # {0:1} {1:1} CMD_CLEAR
 
     - Notify CMD_BUFFER event {2:1} to resize monitoring buffer
         # {0:1} {1:1} CMD_BUFFER_500k
@@ -74201,7 +74204,8 @@ class TaskAnalyzer(object):
                     None, None, reuse=False, weakPort=True)
 
             # set threshold config #
-            SysMgr.applyThreshold()
+            if not 'NOTHRESHOLD' in SysMgr.environList:
+                SysMgr.applyThreshold()
 
             # set log buffer size #
             if SysMgr.bufferSize < 0:
@@ -94630,6 +94634,36 @@ class TaskAnalyzer(object):
             SysMgr.printInfo((
                 "changed monitoring interval to %s by '%s' command "
                 "for %s event") % (UtilMgr.convNum(interval), cmd, source))
+        # RELOAD #
+        elif cmd.startswith('RELOAD'):
+            # print message #
+            SysMgr.printInfo("start reloading threshold config")
+
+            # reload threshold config #
+            SysMgr.applyThreshold()
+
+            # reset events #
+            self.eventCommandList = {}
+            SysMgr.thresholdEventHistory = {}
+            SysMgr.thresholdEventList = {}
+        # RESTART #
+        elif cmd.startswith('RESTART'):
+            # print message #
+            SysMgr.printInfo("restart %s(%s)..." % \
+                (SysMgr.pid, SysMgr.getComm(SysMgr.pid)))
+
+            # restart process #
+            SysMgr.restart()
+        # DISABLE #
+        elif cmd.startswith('DISABLE'):
+            # print message #
+            SysMgr.printInfo("stop monitoring threshold")
+
+            # remove thresholds #
+            SysMgr.thresholdData = {}
+            self.eventCommandList = {}
+            SysMgr.thresholdEventHistory = {}
+            SysMgr.thresholdEventList = {}
         else:
             SysMgr.printWarn("no support '%s' command" % cmd, True)
 
