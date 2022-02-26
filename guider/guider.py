@@ -21123,7 +21123,8 @@ Commands:
             return maxVal
 
         def _checkResource(item):
-            if 'apply' in item and item['apply'] == 'true':
+            if type(item) is dict and \
+                'apply' in item and item['apply'] == 'true':
                 return True
 
             # check type #
@@ -21221,6 +21222,12 @@ Commands:
         confData = SysMgr.getConfigItem('threshold')
         if not confData or type(confData) is not dict:
             return
+        # check active threshold #
+        elif not _checkResource(confData):
+            SysMgr.printWarn((
+                'disabled monitoring threshold '
+                'because of no active threshold'), True)
+            return
         else:
             SysMgr.thresholdData = confData
 
@@ -21267,8 +21274,9 @@ Commands:
         try:
             SysMgr.taskEnable = _checkTask(confData)
             if not SysMgr.taskEnable:
-                SysMgr.printWarn(
-                    'disabled monitoring tasks because of no threshold', True)
+                SysMgr.printWarn((
+                    'disabled monitoring tasks '
+                    'because of no threshold for task'), True)
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
@@ -21280,7 +21288,7 @@ Commands:
             SysMgr.maxInterval = maxInterval
 
         SysMgr.printInfo(
-            "applied thresholds from %s" % SysMgr.confFileName)
+            "applied thresholds from '%s'" % SysMgr.confFileName)
 
         # print thresholds #
         if SysMgr.warnEnable:
@@ -94787,6 +94795,9 @@ class TaskAnalyzer(object):
             # change priority #
             SysMgr.setPriority(SysMgr.pid, 'C', 15, verb=False)
             SysMgr.setIoPriority(ioclass='IOPRIO_CLASS_IDLE', verb=False)
+
+            # disable report #
+            SysMgr.reportEnable = False
         else:
             SysMgr.closePrintFd()
 
@@ -95191,6 +95202,34 @@ class TaskAnalyzer(object):
         # handle oneshot command #
         if oneshot and ename in SysMgr.thresholdEventHistory:
             run = False
+
+            # update apply flag for oneshot #
+            if 'apply' in comval:
+                comval['apply'] = "false"
+
+            def _checkResource(item):
+                if type(item) is dict and \
+                    'apply' in item and item['apply'] == 'true':
+                    return True
+
+                # check type #
+                if type(item) is list:
+                    for value in item:
+                        if _checkResource(value):
+                            return True
+                elif type(item) is dict:
+                    for key, value in item.items():
+                        if _checkResource(value):
+                            return True
+
+                return False
+
+            # update threshold items #
+            if not _checkResource(SysMgr.thresholdData):
+                SysMgr.thresholdData = {}
+                SysMgr.printWarn((
+                    'disabled monitoring threshold '
+                    'because of no active threshold'), True)
         else:
             run = True
 
@@ -95254,7 +95293,10 @@ class TaskAnalyzer(object):
                     if comm == comval['except']:
                         return
 
+            # check oneshot flag #
             oneshot = _getOneshotFlag(comval)
+
+            # set threshold #
             self.setThresholdEvent(
                 comval, item, event, comp,
                 target, attr, intval, addval, oneshot)
@@ -95280,7 +95322,10 @@ class TaskAnalyzer(object):
                         if comm == comitem['except']:
                             continue
 
+                # check oneshot flag #
                 oneshot = _getOneshotFlag(comitem)
+
+                # set threshold #
                 self.setThresholdEvent(
                     comitem, item, event, comp,
                     target, attr, intval, addval, oneshot)
