@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220225"
+__revision__ = "220226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23045,6 +23045,8 @@ Commands:
             SysMgr.printInfo("sorted by CONTEXTSWITCH")
         elif not value:
             value = None
+        elif SysMgr.checkMode('printslab'):
+            pass
         else:
             SysMgr.printErr(
                 "wrong option value '%s' for sort" % value)
@@ -27566,8 +27568,14 @@ Description:
 
 Options:
     -g  <WORD>                  set target object
-    -I  <WORD>                  set sort value
+    -S  <WORD>                  set sort value
     -v                          verbose
+
+Sort:
+    size:    the size of an object
+    active:  the number of active objects
+    actsize: the size of active objects
+    total:   the size of all objects
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -27577,10 +27585,10 @@ Examples:
         # {0:1} {1:1} -g dentry
 
     - Print system slab info sorted by specific values
-        # {0:1} {1:1} -I size
-        # {0:1} {1:1} -I active
-        # {0:1} {1:1} -I actsize
-        # {0:1} {1:1} -I total
+        # {0:1} {1:1} -S size
+        # {0:1} {1:1} -S active
+        # {0:1} {1:1} -S actsize
+        # {0:1} {1:1} -S total
                     '''.format(cmd, mode)
 
                 # printenv #
@@ -40119,8 +40127,14 @@ Copyright:
         instance.saveSlabInfo()
 
         # set sort value #
-        if SysMgr.inputParam:
-            sortval = SysMgr.inputParam
+        if SysMgr.sort:
+            sortval = SysMgr.sort
+
+            # check sort item #
+            if not sortval in ('size', 'active', 'actsize', 'total'):
+                SysMgr.printErr(
+                    "failed to sort by '%s'" % sortval)
+                sys.exit(0)
         else:
             sortval = 'totsize'
 
