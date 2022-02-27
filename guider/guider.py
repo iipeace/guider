@@ -20387,6 +20387,19 @@ Commands:
 
 
     @staticmethod
+    def getNrFd(pid):
+        # get the number of fds #
+        try:
+            path = "%s/%s/fd" % (SysMgr.procPath, pid)
+            return len(os.listdir(path))
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path)
+            return 0
+
+
+
+    @staticmethod
     def clearPageRefs(pid, val):
         '''
         The /proc/PID/clear_refs is used to reset the PG_Referenced and ACCESSED/YOUNG
@@ -23727,6 +23740,9 @@ Examples:
         # {0:1} {1:1} -a -q EXITCONDCPULESS:90 -R
         # {0:1} {1:1} -a -q EXITCONDMEMMORE:1000 -R
         # {0:1} {1:1} -a -q EXITCONDMEMLESS:90 -R
+
+    - {3:1} all {2:2} with the number of actual file descriptors
+        # {0:1} {1:1} -a -q ACTUALFD
 
     - {3:1} all {2:2} with GPU memory
         # {0:1} {1:1} -a -q GPUMEM
@@ -93190,6 +93206,7 @@ class TaskAnalyzer(object):
         SysMgr.addPrint(oneLine)
 
 
+
     def printTaskUsage(self, idIndex=False):
         def _isBreakCond(idx, value):
             # define target #
@@ -93614,6 +93631,12 @@ class TaskAnalyzer(object):
         else:
             gpuMem = {}
 
+        # get FD attribute info #
+        if 'ACTUALFD' in SysMgr.environList:
+            useActualFd = True
+        else:
+            useActualFd = False
+
         # check WSS init #
         if SysMgr.initWssEnable:
             initWss = True
@@ -93765,8 +93788,17 @@ class TaskAnalyzer(object):
 
             # save size of file descriptor table #
             try:
-                value['fdsize'] = value['status']['FDSize']
-                fdstr = value['fdsize']
+                if useActualFd:
+                    if self.isKernelThread(idx):
+                        fdstr = '-'
+                    else:
+                        fdstr = str(SysMgr.getNrFd(idx))
+
+                    value['fdsize'] = fdstr
+                else:
+                    fdstr = value['fdsize'] = value['status']['FDSize']
+
+                # apply color #
                 if fdstr.isdigit() and long(fdstr) > 1000:
                     fdstr = convColor(fdstr, 'RED', 4)
             except SystemExit: sys.exit(0)
