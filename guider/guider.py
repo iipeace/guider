@@ -19118,7 +19118,7 @@ class SysMgr(object):
     tgidEnable = True
     threadEnable = False
     thresholdEnable = False
-    thresholdHandleEnable = False
+    taskThresholdEnable = False
     totalEnable = False
     truncEnable = True
     ttyEnable = False
@@ -20011,7 +20011,7 @@ Commands:
             SysMgr.bufferLossEnable = True
 
             # set threshold handle flag #
-            SysMgr.thresholdHandleEnable = True
+            SysMgr.thresholdEnable = True
 
         # DLT #
         elif SysMgr.checkMode('dlttop'):
@@ -21152,7 +21152,7 @@ Commands:
 
             return False
 
-        def _checkTask(item):
+        def _checkTask(item, threshold=False):
             def _checkValues(subitem, initFlag):
                 if not type(subitem) is dict:
                     return False
@@ -21170,11 +21170,10 @@ Commands:
                             return False
                         elif not systemFlag:
                             return True
-                    # check command in dict #
-                    elif target == 'command' and type(value) is list:
-                        for cmd in value:
-                            if cmd.startswith('SAVE'):
-                                return True
+                    # check task field #
+                    elif not threshold and \
+                        target == 'task' and value == 'true':
+                        return True
                     # check list value #
                     elif type(value) is list:
                         for subval in value:
@@ -21189,12 +21188,6 @@ Commands:
                             continue
                         elif not systemFlag:
                             return True
-                    # check command for dict value #
-                    elif 'command' in value and \
-                        type(value['command']) is list:
-                        for cmd in value['command']:
-                            if cmd.startswith('SAVE'):
-                                return True
                 return False
 
             if not type(item) is dict:
@@ -21283,7 +21276,7 @@ Commands:
         except SystemExit: sys.exit(0)
         except: pass
 
-        # check task #
+        # check task monitoring condition #
         try:
             SysMgr.taskEnable = _checkTask(confData)
             if not SysMgr.taskEnable:
@@ -21294,6 +21287,12 @@ Commands:
         except:
             SysMgr.printWarn(
                 'failed to check task monitoring', reason=True)
+
+        # check task threshold monitoring condition #
+        if SysMgr.taskEnable:
+            SysMgr.taskThresholdEnable = _checkTask(confData, True)
+        else:
+            SysMgr.taskThresholdEnable = False
 
         # update maximum interval #
         maxInterval = _getMaxInterval(confData)
@@ -28288,6 +28287,9 @@ Examples:
     - {2:1} 250% CPU totally
         # {0:1} {1:1} 250
 
+    - {2:1} 250% CPU totally with custom comm
+        # {0:1} {1:1} 250 -q COMM:newbee
+
     - Create threads in a process using 250% CPU totally
         # {0:1} {1:1} 250 -et
 
@@ -30955,7 +30957,7 @@ Copyright:
                 else:
                     disableStat += 'DWARF '
 
-                if SysMgr.thresholdHandleEnable:
+                if SysMgr.thresholdEnable:
                     enableStat += 'THRESHOLD '
                 else:
                     disableStat += 'THRESHOLD '
@@ -33989,7 +33991,7 @@ Copyright:
                     SysMgr.dwarfEnable = True
 
                 if 'l' in options:
-                    SysMgr.thresholdHandleEnable = True
+                    SysMgr.thresholdEnable = True
 
                 if 't' in options:
                     SysMgr.processEnable = False
@@ -37469,10 +37471,6 @@ Copyright:
         SysMgr.getMaxPid()
         SysMgr.pid = os.getpid()
 
-        # set comm #
-        SysMgr.setComm(__module__)
-        SysMgr.comm = SysMgr.getComm(SysMgr.pid)
-
         # set arch #
         SysMgr.setArch(SysMgr.getArch())
 
@@ -37488,6 +37486,14 @@ Copyright:
             itemList = UtilMgr.splitString(value)
             SysMgr.environList = \
                 UtilMgr.convList2Dict(itemList, cap=True)
+
+        # set comm #
+        if 'COMM' in SysMgr.environList:
+            name = SysMgr.environList['COMM'][0]
+        else:
+            name = __module__
+        SysMgr.setComm(name)
+        SysMgr.comm = SysMgr.getComm(SysMgr.pid)
 
         # remove environment variables #
         if 'REMOVEENV' in SysMgr.environList:
@@ -93615,6 +93621,7 @@ class TaskAnalyzer(object):
         convSize = UtilMgr.convSize2Unit
         convTime = UtilMgr.convTime
         convColor = UtilMgr.convColor
+        convCpuColor = UtilMgr.convCpuColor
 
         totalStats = {
             'read': 0, 'write': 0,
@@ -93651,7 +93658,7 @@ class TaskAnalyzer(object):
             self.reportData['task'].setdefault('normal', {})
             saveJsonStat = True
 
-        # print resource usage of processes / threads #
+        # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
         for idx, value in sortedProcData:
@@ -93702,7 +93709,10 @@ class TaskAnalyzer(object):
             # get comm #
             comm = value['comm']
             if self.isKernelThread(idx):
-                comm = '[%s]' % comm
+                if comm.startswith('*'):
+                    comm = '*[%s]' % comm.lstrip('*')
+                else:
+                    comm = '[%s]' % comm
 
             # get parent ID #
             if SysMgr.processEnable:
@@ -93723,7 +93733,7 @@ class TaskAnalyzer(object):
                 schedValue = "%3d" % (abs(nrPrio + 1))
 
             # get lifetime #
-            lifeTime = UtilMgr.convTime(value['runtime'])
+            lifeTime = convTime(value['runtime'])
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
@@ -93951,7 +93961,7 @@ class TaskAnalyzer(object):
 
             # convert color for CPU usage #
             if value['ttime'] >= SysMgr.cpuPerLowThreshold:
-                ttime = UtilMgr.convCpuColor(value['ttime'], ttime, size=4)
+                ttime = convCpuColor(value['ttime'], ttime, size=4)
 
             # add GPU memory #
             if isGpuMemSum and idx in gpuMem:
@@ -94131,10 +94141,10 @@ class TaskAnalyzer(object):
                 # highlight final size #
                 sizes = pstr.rsplit('->', 1)
                 if len(sizes) > 1:
-                    sizes[1] = UtilMgr.convColor(sizes[1], 'CYAN', 7)
+                    sizes[1] = convColor(sizes[1], 'CYAN', 7)
                     pstr = '->'.join(sizes)
                 elif SysMgr.showAll and not isFirstLined:
-                    pstr = UtilMgr.convColor(pstr, 'CYAN')
+                    pstr = convColor(pstr, 'CYAN')
 
                 tstr += pstr
 
@@ -94259,7 +94269,7 @@ class TaskAnalyzer(object):
         elif procCnt > 0:
             # total CPU #
             totalTime = '%6.1f' % totalStats['ttime']
-            totalTime = UtilMgr.convCpuColor(totalStats['ttime'], totalTime)
+            totalTime = convCpuColor(totalStats['ttime'], totalTime)
 
             # total BLOCK #
             totalBtime = totalStats['btime']
@@ -95072,7 +95082,9 @@ class TaskAnalyzer(object):
 
 
     def handleThresholdEvents(self):
-        if not SysMgr.thresholdHandleEnable:
+        if not SysMgr.thresholdEnable:
+            return
+        elif not SysMgr.taskThresholdEnable:
             return
         elif not SysMgr.thresholdEventList and \
             not self.reportData['event']:
@@ -95473,15 +95485,22 @@ class TaskAnalyzer(object):
         if not SysMgr.thresholdData:
             return
 
+        # init variables #
+        td = SysMgr.thresholdData
+        exceptTaskResource = {}
+
         # mapping table between thresholds and stats #
-        mapTable = [
-            ['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big'],
-            ['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big'],
-        ]
+        maps = []
+        if 'cpu' in td:
+            maps += [['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big']]
+        if 'mem' in td:
+            maps += [['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big']]
+        if 'fd' in td:
+            maps += [['fd', 'fdsize', 'fdsize', 'fdInterval', 'FD', 'big']]
 
         # add block item to mapping table #
         if SysMgr.blockEnable:
-            mapTable = [
+            maps += [
                 ['block', 'read', 'read', 'blockInterval', 'BLOCK', 'big'],
                 ['block', 'write', 'write', 'blockInterval', 'BLOCK', 'big'],
             ]
@@ -95492,10 +95511,6 @@ class TaskAnalyzer(object):
         else:
             mode = 'thread'
 
-        # init variables #
-        td = SysMgr.thresholdData
-        exceptTaskResource = {}
-
         # traverse all tasks #
         for pid, data in self.procData.items():
             comm = data['comm'].lstrip('*')
@@ -95504,7 +95519,7 @@ class TaskAnalyzer(object):
             if comm == __module__:
                 continue
 
-            for item in mapTable:
+            for item in maps:
                 try:
                     resource, cattr, pattr, intname, event, comp = item
 
@@ -95513,6 +95528,9 @@ class TaskAnalyzer(object):
                         continue
                     elif not pattr in data:
                         continue
+                    elif resource == 'mem' or resource == 'fd':
+                        if self.isKernelThread(pid):
+                            continue
 
                     value = data[pattr]
 
