@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220226"
+__revision__ = "220227"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28434,6 +28434,7 @@ Description:
 Options:
     -I  <EVENT>                 set event name
     -g  <PID>                   set target
+    -X  <IP:PORT>               set request address
     -v                          verbose
 
 Commands:
@@ -28448,12 +28449,18 @@ Commands:
 
                     helpStr += '''
 Examples:
-    - Notify START event {2:1}
-        # {0:1} {1:1} START
-        # {0:1} {1:1} -I START
+    - Notify specific events {2:1}
+        # {0:1} {1:1} EVENT1
+        # {0:1} {1:1} EVENT1, EVENT2
+        # {0:1} {1:1} -I EVENT1, EVENT2
 
-    - Notify START event to specific Guider processes
-        # {0:1} {1:1} START -g 1234, 1237
+    - Notify specific events to the specific address for minimum latency
+        # {0:1} {1:1} EVENT1, EVENT2 -X
+        # {0:1} {1:1} EVENT1, EVENT2 -X 4545
+        # {0:1} {1:1} EVENT1, EVENT2 -X 192.168.155.200:4545
+
+    - Notify specific events to specific Guider processes
+        # {0:1} {1:1} EVENT1, EVENT2 -g 1234, 1237
 
     - Notify CMD_SAVE event {2:1} to save monitoring results to the specific file
         # {0:1} {1:1} CMD_SAVE
@@ -35846,23 +35853,71 @@ Copyright:
 
     @staticmethod
     def handleEventInput():
+        def _sendEvent(event, ip, port):
+            # update uptime #
+            SysMgr.updateUptime()
+
+            # convert event name #
+            for idx, item in enumerate(list(event)):
+                if not item.startswith('EVENT_'):
+                    event[idx] = 'EVENT_%s' % item
+
+            # create a network object #
+            networkObject = NetworkMgr('client', ip, long(port))
+            ip = networkObject.ip
+            port = networkObject.port
+
+            # check network object #
+            if not ip or not port:
+                SysMgr.printWarn(
+                    "failed to use '%s:%s' as the remote address" % \
+                        (ip, port))
+                return
+
+            # send events #
+            for item in event:
+                try:
+                    networkObject.request = item
+                    networkObject.send('%s@%s' % (item, SysMgr.uptime))
+                    SysMgr.printInfo(
+                        "sent event '%s' to %s:%s" % (item, ip, port))
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "failed to send event '%s' to %s:%s" % \
+                            (item, ip, port), True)
+
+        # get event #
+        if SysMgr.hasMainArg():
+            event = SysMgr.getMainArgs(False)
+        elif SysMgr.inputParam:
+            event = SysMgr.inputParam.split(',')
+            event = UtilMgr.cleanItem(event, False)
+        else:
+            event = None
+
         # mount debug fs #
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printWarn(
                 "failed to get debugfs mount point", True)
 
-        # get event #
-        if SysMgr.hasMainArg():
-            event = SysMgr.getMainArg()
-        elif SysMgr.inputParam:
-            event = SysMgr.inputParam
+        # check target address #
+        if SysMgr.remoteServObj:
+            # use default address #
+            if SysMgr.remoteServObj == 'NONE':
+                ip = SysMgr.localServObj.ip
+                port = SysMgr.defaultServPort
+            else:
+                ip = SysMgr.remoteServObj.ip
+                port = SysMgr.remoteServObj.port
         else:
-            event = None
+            ip = port = None
 
         # convert pid #
         try:
-            target = list(set(list(map(long, SysMgr.filterGroup))))
+            if not ip:
+                target = list(set(list(map(long, SysMgr.filterGroup))))
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
@@ -35872,26 +35927,41 @@ Copyright:
 
         # oneshot #
         if event:
-            SysMgr.writeEvent("EVENT_%s" % event)
-            SysMgr.broadcastEvent(event, target)
+            for item in event:
+                SysMgr.writeEvent("EVENT_%s" % item)
+
+            # deliver events to specific address #
+            if ip:
+                _sendEvent(event, ip, port)
+            # deliver events to specific processes #
+            else:
+                SysMgr.broadcastEvent(event, target)
+
             return
 
         while 1:
             SysMgr.printStat(
                 "input event name... [ STOP(Ctrl+c) ]")
 
+            # get events from user input #
             try:
-                event = sys.stdin.readline()
+                event = sys.stdin.readline().strip()
             except SystemExit: sys.exit(0)
             except:
                 continue
 
-            if not event.strip():
-                SysMgr.writeEvent("EVENT_USER")
-                SysMgr.broadcastEvent('EVENT', target)
+            # convert events #
+            if event:
+                event = UtilMgr.cleanItem(event.split(','), False)
             else:
-                SysMgr.writeEvent("EVENT_%s" % event[:-1])
-                SysMgr.broadcastEvent(event[:-1], target)
+                event = ['USER']
+
+            # deliver events to specific address #
+            if ip:
+                _sendEvent(event, ip, port)
+            # deliver events to specific processes #
+            else:
+                SysMgr.broadcastEvent(event, target)
 
 
 
@@ -36088,8 +36158,8 @@ Copyright:
             if not item.startswith('EVENT_'):
                 event[idx] = 'EVENT_%s' % item
 
+        # get pid list of Guider processes #
         if not pids:
-            # get pid list of Guider processes #
             pids = SysMgr.getProcPids(__module__)
             if not pids:
                 if SysMgr.checkMode('event'):
@@ -36130,7 +36200,8 @@ Copyright:
                 ip = networkObject.ip
                 port = networkObject.port
 
-                if not networkObject.ip or not networkObject.port:
+                # check network object #
+                if not ip or not port:
                     SysMgr.printWarn(
                         "failed to use '%s:%s' as the remote address" % \
                             (ip, port))
