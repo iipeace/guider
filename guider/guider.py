@@ -21136,6 +21136,25 @@ Commands:
                         maxVal = item
             return maxVal
 
+        def _checkResTask(item, lev=0):
+            if type(item) is dict and \
+                'apply' in item and item['apply'] == 'true':
+                return True
+
+            # check type #
+            if type(item) is list:
+                for value in item:
+                    if _checkResTask(value, lev+1):
+                        return True
+            elif type(item) is dict:
+                for key, value in item.items():
+                    if lev == 0 and key == 'SYSTEM':
+                        continue
+                    if _checkResTask(value, lev+1):
+                        return True
+
+            return False
+
         def _checkResource(item):
             if type(item) is dict and \
                 'apply' in item and item['apply'] == 'true':
@@ -21195,9 +21214,11 @@ Commands:
                 return True
 
             for res, cond in item.items():
-                # check exceptional items for task monitoring #
-                if res.upper() == 'COMMAND' or \
-                    res == 'storage' or res == 'net':
+                # skip commands #
+                if res.upper() == 'COMMAND':
+                    continue
+                # no support resources for task monitoring #
+                elif res == 'storage' or res == 'net':
                     continue
 
                 if _checkValues(cond, None):
@@ -21259,7 +21280,9 @@ Commands:
         for item in resourceList:
             try:
                 if _checkResource(confData[item]):
-                    SysMgr.thresholdTarget.setdefault(item, None)
+                    SysMgr.thresholdTarget[item] = True
+                    SysMgr.thresholdTarget[item] = \
+                        _checkResTask(confData[item])
             except SystemExit: sys.exit(0)
             except: pass
 
@@ -21289,8 +21312,13 @@ Commands:
 
         # check task monitoring condition #
         try:
+            # check normal stats #
             SysMgr.taskEnable = _checkTask(confData)
-            if not SysMgr.taskEnable:
+            if SysMgr.taskEnable:
+                # check thresholds #
+                SysMgr.taskThresholdEnable = _checkTask(confData, True)
+            else:
+                SysMgr.taskThresholdEnable = False
                 SysMgr.printWarn((
                     'disabled monitoring tasks '
                     'because of no threshold for task'), True)
@@ -21298,12 +21326,6 @@ Commands:
         except:
             SysMgr.printWarn(
                 'failed to check task monitoring', reason=True)
-
-        # check task threshold monitoring condition #
-        if SysMgr.taskEnable:
-            SysMgr.taskThresholdEnable = _checkTask(confData, True)
-        else:
-            SysMgr.taskThresholdEnable = False
 
         # update maximum interval #
         maxInterval = _getMaxInterval(confData)
@@ -95533,18 +95555,25 @@ class TaskAnalyzer(object):
 
         # init variables #
         td = SysMgr.thresholdData
+        tt = SysMgr.thresholdTarget
         exceptTaskResource = {}
 
         # mapping table between thresholds and stats #
         maps = []
-        if 'cpu' in td:
+        # cpu #
+        if 'cpu' in tt and tt['cpu']:
             maps += [['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big']]
-        if 'mem' in td:
+        # mem #
+        if 'mem' in tt and tt['mem']:
             maps += [['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big']]
-        if 'fd' in td:
+        # fd #
+        if 'fd' in tt and tt['fd']:
             maps += [['fd', 'fdsize', 'fdsize', 'fdInterval', 'FD', 'big']]
-
-        # add block item to mapping table #
+        # swap #
+        if 'swap' in tt and tt['swap']:
+            # TODO: implement per-process swap stats #
+            pass
+        # block #
         if SysMgr.blockEnable:
             maps += [
                 ['block', 'read', 'read', 'blockInterval', 'BLOCK', 'big'],
