@@ -91650,6 +91650,15 @@ class TaskAnalyzer(object):
         except SystemExit: sys.exit(0)
         except: pass
 
+        # fd #
+        try:
+            self.reportData['fd'] = {}
+            sysFds = SysMgr.getNrSysFdHandle()
+            self.reportData['fd']['curfd'] = sysFds[0]
+            self.reportData['fd']['maxfd'] = sysFds[2]
+        except SystemExit: sys.exit(0)
+        except: pass
+
         # CPU #
         self.reportData['cpu'] = {
             'total': totalUsage,
@@ -94427,13 +94436,13 @@ class TaskAnalyzer(object):
                 codeSize = 0
 
             try:
-                if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
+                schedPolicy = \
+                    ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])]
+                if schedPolicy == 'C':
                     schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
                 else:
                     schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
-                schedPolicy = \
-                    ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                    str(schedValue)
+                schedPolicy += str(schedValue)
             except SystemExit: sys.exit(0)
             except:
                 schedPolicy = '?'
@@ -95311,6 +95320,14 @@ class TaskAnalyzer(object):
                     'task', 'abnormal', 'ABNORMAL', None, target)
         except SystemExit: sys.exit(0)
         except: pass
+
+        # check fd #
+        try:
+            if 'fd' in SysMgr.thresholdTarget:
+                self.checkThreshold('fd', 'curfd', 'FD', 'big')
+        except SystemExit: sys.exit(0)
+        except: pass
+
 
         # check task #
         try:
