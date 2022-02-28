@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220227"
+__revision__ = "220228"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18908,6 +18908,7 @@ class SysMgr(object):
     cmdFileCache = {}
     cmdAttachCache = {}
     thresholdData = {}
+    thresholdTarget = {}
     thresholdEventList = {}
     thresholdEventHistory = {}
 
@@ -21170,9 +21171,9 @@ Commands:
                             return False
                         elif not systemFlag:
                             return True
-                    # check task field #
+                    # check taskmon field #
                     elif not threshold and \
-                        target == 'task' and value == 'true':
+                        target == 'taskmon' and value == 'true':
                         return True
                     # check list value #
                     elif type(value) is list:
@@ -21196,8 +21197,7 @@ Commands:
             for res, cond in item.items():
                 # check exceptional items for task monitoring #
                 if res.upper() == 'COMMAND' or \
-                    res.upper() == 'STORAGE' or \
-                    res.upper() == 'NET':
+                    res == 'storage' or res == 'net':
                     continue
 
                 if _checkValues(cond, None):
@@ -21247,11 +21247,24 @@ Commands:
         # check permission #
         _checkPerm(confData)
 
+        # reset activation list #
+        SysMgr.thresholdTarget = {}
+
+        # check default resources #
+        resourceList = [
+            'cpu', 'mem', 'swap', 'block', 'storage', 'net', 'fd', 'task'
+        ]
+
+        # check resources for activation #
+        for item in resourceList:
+            try:
+                if _checkResource(confData[item]):
+                    SysMgr.thresholdTarget.setdefault(item, None)
+            except SystemExit: sys.exit(0)
+            except: pass
+
         # check block #
         try:
-            if not 'block' in confData:
-                raise Exception('no block')
-
             for kind, cond in confData['block'].items():
                 if kind == 'SYSTEM':
                     continue
@@ -21263,18 +21276,16 @@ Commands:
         except: pass
 
         # check storage #
-        try:
-            if _checkResource(confData['storage']):
-                SysMgr.diskEnable = True
-        except SystemExit: sys.exit(0)
-        except: pass
+        if 'storage' in SysMgr.thresholdTarget:
+            SysMgr.diskEnable = True
 
         # check network #
-        try:
-            if _checkResource(confData['net']):
-                SysMgr.networkEnable = True
-        except SystemExit: sys.exit(0)
-        except: pass
+        if 'net' in SysMgr.thresholdTarget:
+            SysMgr.networkEnable = True
+
+        # check fd #
+        if 'fd' in SysMgr.thresholdTarget:
+            SysMgr.environList['ACTUALFD'] = ['SET']
 
         # check task monitoring condition #
         try:
@@ -88598,11 +88609,12 @@ class TaskAnalyzer(object):
                 nrThread = stat[self.nrthreadIdx]
 
                 # get sched info #
-                if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
+                schedPolicy = \
+                    ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])]
+                if schedPolicy == 'C':
                     schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
                 else:
                     schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
-                schedPolicy = ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])]
                 sched = schedPolicy + schedValue
             # other OS #
             else:
@@ -93800,20 +93812,24 @@ class TaskAnalyzer(object):
             try:
                 if useActualFd:
                     if self.isKernelThread(idx):
-                        fdstr = '-'
+                        fdsize = 0
                     else:
-                        fdstr = str(SysMgr.getNrFd(idx))
-
-                    value['fdsize'] = fdstr
+                        fdsize = SysMgr.getNrFd(idx)
                 else:
-                    fdstr = value['fdsize'] = value['status']['FDSize']
+                    fdsize = long(value['status']['FDSize'])
+
+                # update fdsize #
+                value['fdsize'] = fdsize
 
                 # apply color #
-                if fdstr.isdigit() and long(fdstr) > 1000:
-                    fdstr = convColor(fdstr, 'RED', 4)
+                if fdsize > 1000:
+                    fdstr = convColor(fdsize, 'RED', 4)
+                else:
+                    fdstr = fdsize
             except SystemExit: sys.exit(0)
             except:
-                fdstr = value['fdsize'] = '-'
+                value['fdsize'] = 0
+                fdstr = '-'
 
             # scheduling info #
             if SysMgr.processEnable:
@@ -95084,8 +95100,6 @@ class TaskAnalyzer(object):
     def handleThresholdEvents(self):
         if not SysMgr.thresholdEnable:
             return
-        elif not SysMgr.taskThresholdEnable:
-            return
         elif not SysMgr.thresholdEventList and \
             not self.reportData['event']:
             return
@@ -95149,30 +95163,37 @@ class TaskAnalyzer(object):
 
         # check CPU #
         try:
-            self.checkThreshold('cpu', 'total', 'CPU', 'big')
+            if 'cpu' in SysMgr.thresholdTarget:
+                self.checkThreshold('cpu', 'total', 'CPU', 'big')
         except SystemExit: sys.exit(0)
         except: pass
 
         # check memory #
         try:
-            self.checkThreshold('mem', 'available', 'MEM', 'less')
+            if 'mem' in SysMgr.thresholdTarget:
+                self.checkThreshold('mem', 'available', 'MEM', 'less')
         except SystemExit: sys.exit(0)
         except: pass
 
         # check swap #
         try:
-            self.checkThreshold('swap', 'usagePer', 'SWAP', 'big')
+            if 'swap' in SysMgr.thresholdTarget:
+                self.checkThreshold('swap', 'usagePer', 'SWAP', 'big')
         except SystemExit: sys.exit(0)
         except: pass
 
         # check iowait #
         try:
-            self.checkThreshold('block', 'ioWait', 'IO', 'big')
+            if 'block' in SysMgr.thresholdTarget:
+                self.checkThreshold('block', 'ioWait', 'IO', 'big')
         except SystemExit: sys.exit(0)
         except: pass
 
         # check storage #
         try:
+            # check activation #
+            if not 'storage' in SysMgr.thresholdTarget: raise Exception()
+
             # total #
             vals = self.reportData['storage']['total']
             target = self.reportData['storage']['total']['usagePer']
@@ -95206,6 +95227,9 @@ class TaskAnalyzer(object):
 
         # check network #
         try:
+            # check activation #
+            if not 'net' in SysMgr.thresholdTarget: raise Exception()
+
             # total inbound #
             target = self.reportData['net']['inbound']
             intval = self.intervalData['inbound']
@@ -95257,6 +95281,9 @@ class TaskAnalyzer(object):
 
         # check sched #
         try:
+            # check activation #
+            if not 'task' in SysMgr.thresholdTarget: raise Exception()
+
             # context switch #
             target = self.reportData['task']['nrCtx']
             self.checkThreshold(
@@ -95484,6 +95511,8 @@ class TaskAnalyzer(object):
     def checkTaskThreshold(self):
         if not SysMgr.thresholdData:
             return
+        elif not SysMgr.taskThresholdEnable:
+            return
 
         # init variables #
         td = SysMgr.thresholdData
@@ -95532,6 +95561,7 @@ class TaskAnalyzer(object):
                         if self.isKernelThread(pid):
                             continue
 
+                    # stat #
                     value = data[pattr]
 
                     # interval #
@@ -95563,7 +95593,8 @@ class TaskAnalyzer(object):
                         except SystemExit: sys.exit(0)
                         except:
                             SysMgr.printWarn(
-                                'failed to check task thresholds', reason=True)
+                                'failed to check task thresholds',
+                                reason=True)
                     else:
                         exceptTaskResource.setdefault(resource, None)
 
