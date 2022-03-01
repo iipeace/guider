@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220228"
+__revision__ = "220301"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18908,6 +18908,7 @@ class SysMgr(object):
     cmdFileCache = {}
     cmdAttachCache = {}
     thresholdData = {}
+    prevThresholdData = {}
     thresholdTarget = {}
     thresholdEventList = {}
     thresholdEventHistory = {}
@@ -37918,6 +37919,7 @@ Copyright:
             SysMgr.closeStdFd(stderr=False)
 
         # clear threshold condition #
+        SysMgr.prevThresholdData = SysMgr.thresholdData
         SysMgr.thresholdData = {}
 
         # remove JSON object #
@@ -95081,10 +95083,14 @@ class TaskAnalyzer(object):
                     # child #
                     else:
                         return
-                # convert command name to full command #
+                # convert command to full command by name #
                 elif 'COMMAND' in SysMgr.thresholdData and \
                     cmd in SysMgr.thresholdData['COMMAND']:
                     cmd = SysMgr.thresholdData['COMMAND'][cmd]
+                # convert command to full command by name #
+                elif 'COMMAND' in SysMgr.prevThresholdData and \
+                    cmd in SysMgr.prevThresholdData['COMMAND']:
+                    cmd = SysMgr.prevThresholdData['COMMAND'][cmd]
 
                 # convert EVTPID #
                 if 'task' in value:
@@ -95365,9 +95371,10 @@ class TaskAnalyzer(object):
 
 
     def setThresholdEvent(
-        self, comval, item, event, comp='big', target=None,
-        attr='SYSTEM', intval=None, addval=None, oneshot=False):
+        self, comval, item, event, comp='big', target=None, attr='SYSTEM',
+        intval=None, addval=None, oneshot=False, goneshot=False):
 
+        # init value #
         value = None
 
         # check condition #
@@ -95379,6 +95386,7 @@ class TaskAnalyzer(object):
             if comval['interval'] > len(intval):
                 return
 
+            # check items in intervals #
             intval = intval[-comval['interval']:]
             average = sum(intval) / len(intval)
             if (comp == 'big' and comval[item] <= average) or \
@@ -95414,14 +95422,17 @@ class TaskAnalyzer(object):
         # replace '/' with '_' for path by event name #
         ename = ename.replace('/', '_')
 
-        # handle oneshot command #
-        if oneshot and ename in SysMgr.thresholdEventHistory:
-            run = False
-
-            # update apply flag for oneshot #
-            if 'apply' in comval:
-                comval['apply'] = "false"
-
+        # handle goneshot flag #
+        if goneshot:
+            if SysMgr.thresholdData:
+                SysMgr.prevThresholdData = SysMgr.thresholdData
+            SysMgr.thresholdData = {}
+            SysMgr.printWarn((
+                "disabled monitoring all thresholds "
+                "because of 'goneshot' event"), True)
+        # update apply flag for oneshot #
+        elif oneshot:
+            # define fucntion for checking resources #
             def _checkResource(item):
                 if type(item) is dict and \
                     'apply' in item and item['apply'] == 'true':
@@ -95439,12 +95450,24 @@ class TaskAnalyzer(object):
 
                 return False
 
+            # update apply flag #
+            if 'apply' in comval:
+                comval['apply'] = "false"
+
             # update threshold items #
             if not _checkResource(SysMgr.thresholdData):
+                if SysMgr.thresholdData:
+                    SysMgr.prevThresholdData = SysMgr.thresholdData
                 SysMgr.thresholdData = {}
                 SysMgr.printWarn((
                     'disabled monitoring threshold '
                     'because of no active threshold'), True)
+
+        # handle oneshot command #
+        if goneshot:
+            run = True
+        elif oneshot and ename in SysMgr.thresholdEventHistory:
+            run = False
         else:
             run = True
 
@@ -95459,21 +95482,16 @@ class TaskAnalyzer(object):
         self, resource, item, event, comp=None, target=None,
         attr='SYSTEM', intval=None, addval=None):
 
-        def _getOneshotFlag(items):
-            if 'oneshot' in items and \
-                items ['oneshot'] == 'true':
-                return True
-            else:
-                return False
-
+        # check threshold #
         if not SysMgr.thresholdData:
-            return
+            return False
 
+        # define shortcut #
         td = SysMgr.thresholdData
 
         # check attribute #
         if not resource in td or not attr in td[resource]:
-            return
+            return False
 
         # get threshold attributes #
         comval = td[resource][attr]
@@ -95490,31 +95508,43 @@ class TaskAnalyzer(object):
         if target is None:
             target = self.reportData[resource][item]
 
+        # define function for checking oneshot #
+        def _getOneshotFlag(items):
+            if 'oneshot' in items and items['oneshot'] == 'true':
+                oneshot = True
+            else:
+                oneshot = False
+
+            if 'goneshot' in items and items['goneshot'] == 'true':
+                goneshot = True
+            else:
+                goneshot = False
+
+            return oneshot, goneshot
+
         # check conditions and trigger events #
         if type(comval) is dict:
             # check apply attribute #
             if 'apply' in comval and comval['apply'] == 'false':
-                return
+                return False
             # check except attribute #
             elif attr == 'TASK' and 'except' in comval:
                 pid = next(iter(addval['task']))
                 comm = addval['task'][pid]['comm'].lstrip('*')
-
                 if type(comval['except']) is list:
-                    for excomm in comval['except']:
-                        if comm == excomm:
-                            return
+                    elist = comval['except']
                 else:
-                    if comm == comval['except']:
-                        return
+                    elist = [comval['except']]
+                if UtilMgr.isValidStr(comm, elist):
+                    return False
 
             # check oneshot flag #
-            oneshot = _getOneshotFlag(comval)
+            oneshot, goneshot = _getOneshotFlag(comval)
 
             # set threshold #
             self.setThresholdEvent(
-                comval, item, event, comp,
-                target, attr, intval, addval, oneshot)
+                comval, item, event, comp, target,
+                attr, intval, addval, oneshot, goneshot)
         elif type(comval) is list:
             for comitem in comval:
                 # check apply attribute #
@@ -95524,26 +95554,20 @@ class TaskAnalyzer(object):
                 elif attr == 'TASK' and 'except' in comitem:
                     pid = next(iter(addval['task']))
                     comm = addval['task'][pid]['comm'].lstrip('*')
-
-                    if type(comitem['except']) is list:
-                        found = False
-                        for excomm in comitem['except']:
-                            if comm == excomm:
-                                found = True
-                                break
-                        if found:
-                            continue
+                    if type(comval['except']) is list:
+                        elist = comval['except']
                     else:
-                        if comm == comitem['except']:
-                            continue
+                        elist = [comval['except']]
+                    if UtilMgr.isValidStr(comm, elist):
+                        continue
 
                 # check oneshot flag #
-                oneshot = _getOneshotFlag(comitem)
+                oneshot, goneshot = _getOneshotFlag(comitem)
 
                 # set threshold #
                 self.setThresholdEvent(
-                    comitem, item, event, comp,
-                    target, attr, intval, addval, oneshot)
+                    comitem, item, event, comp, target,
+                    attr, intval, addval, oneshot, goneshot)
 
 
 
@@ -95556,7 +95580,6 @@ class TaskAnalyzer(object):
         # init variables #
         td = SysMgr.thresholdData
         tt = SysMgr.thresholdTarget
-        exceptTaskResource = {}
 
         # mapping table between thresholds and stats #
         maps = []
@@ -95610,39 +95633,45 @@ class TaskAnalyzer(object):
                     # stat #
                     value = data[pattr]
 
-                    # interval #
+                    # get interval #
                     if intname in data:
                         intval = data[intname]
                     else:
                         intval = None
 
-                    # check #
+                    # check interval #
                     if not value:
                         if not intval:
                             continue
                         if set(intval) == set([0]):
                             continue
 
+                    # add task info #
                     if False and pid in SysMgr.jsonData[mode]:
                         append = {'task': {pid: SysMgr.jsonData[mode][pid]}}
                     else:
                         append = {'task': {pid: data}}
 
-                    # check all tasks #
-                    if not 'TASK' in td[resource]:
+                    # check apply flags updated by oneshot flag #
+                    try:
+                        enabled = False
+                        if td[resource]['TASK']['apply'] == 'true':
+                            enabled = True
+                    except SystemExit: sys.exit(0)
+                    except:
                         pass
-                    elif not resource in exceptTaskResource:
-                        try:
+
+                    # check a task #
+                    try:
+                        if enabled:
                             self.checkThreshold(
                                 resource, cattr, event, comp,
                                     value, 'TASK', intval, append)
-                        except SystemExit: sys.exit(0)
-                        except:
-                            SysMgr.printWarn(
-                                'failed to check task thresholds',
-                                reason=True)
-                    else:
-                        exceptTaskResource.setdefault(resource, None)
+                    except SystemExit: sys.exit(0)
+                    except:
+                        SysMgr.printWarn(
+                            'failed to check task thresholds',
+                            reason=True)
 
                     # check a specific task #
                     if comm in td[resource]:
