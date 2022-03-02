@@ -19820,6 +19820,9 @@ Commands:
         # read NVIDIA GPU memory info #
         try:
             path = '/sys/kernel/debug/nvmap/iovmm/clients'
+            if not os.path.exists(path):
+                return
+
             with open(path, 'rb') as fd:
                 gpuInfo = fd.readlines()[1:]
         except SystemExit: sys.exit(0)
@@ -95343,7 +95346,8 @@ class TaskAnalyzer(object):
         # check storage #
         try:
             # check activation #
-            if not 'storage' in SysMgr.thresholdTarget: raise Exception()
+            if not 'storage' in SysMgr.thresholdTarget:
+                raise Exception()
 
             # total #
             vals = self.reportData['storage']['total']
@@ -95379,7 +95383,8 @@ class TaskAnalyzer(object):
         # check network #
         try:
             # check activation #
-            if not 'net' in SysMgr.thresholdTarget: raise Exception()
+            if not 'net' in SysMgr.thresholdTarget:
+                raise Exception()
 
             # total inbound #
             target = self.reportData['net']['inbound']
@@ -95433,7 +95438,8 @@ class TaskAnalyzer(object):
         # check sched #
         try:
             # check activation #
-            if not 'task' in SysMgr.thresholdTarget: raise Exception()
+            if not 'task' in SysMgr.thresholdTarget:
+                raise Exception()
 
             # context switch #
             target = self.reportData['task']['nrCtx']
@@ -95470,6 +95476,11 @@ class TaskAnalyzer(object):
         except SystemExit: sys.exit(0)
         except: pass
 
+        # check file #
+        try:
+            self.checkFileThreshold()
+        except SystemExit: sys.exit(0)
+        except: pass
 
         # check task #
         try:
@@ -95589,6 +95600,92 @@ class TaskAnalyzer(object):
         self.reportData['event'][ename] = dict(comval)
         self.reportData['event'][ename]['run'] = run
         SysMgr.thresholdEventHistory.setdefault(ename, None)
+
+
+
+    def checkFileThreshold(self):
+        # check threshold #
+        if not SysMgr.thresholdData:
+            return False
+
+        # define shortcut #
+        td = SysMgr.thresholdData
+
+        # check attribute #
+        if not 'file' in td:
+            return False
+
+        # define function for checking oneshot #
+        def _getOneshotFlag(items):
+            if 'oneshot' in items and items['oneshot'] == 'true':
+                oneshot = True
+            else:
+                oneshot = False
+
+            if 'goneshot' in items and items['goneshot'] == 'true':
+                goneshot = True
+            else:
+                goneshot = False
+
+            return oneshot, goneshot
+
+        for path, value in td['file'].items():
+            # check apply #
+            if not 'apply' in value or \
+                value['apply'] != 'true':
+                    continue
+
+            # exist #
+            if 'exist' in value and value['exist'] == 'true':
+                if UtilMgr.convPath(path):
+                    oneshot, goneshot = _getOneshotFlag(value)
+
+                    # set threshold #
+                    self.setThresholdEvent(
+                        value, 'exist', 'FILE', None, target=True,
+                        attr=path, oneshot=oneshot, goneshot=goneshot)
+
+            # none #
+            if 'none' in value and value['none'] == 'true':
+                if not UtilMgr.convPath(path):
+                    oneshot, goneshot = _getOneshotFlag(value)
+
+                    # set threshold #
+                    self.setThresholdEvent(
+                        value, 'none', 'FILE', None, target=True,
+                        attr=path, oneshot=oneshot, goneshot=goneshot)
+
+            # check bigger / lesser #
+            if 'big' in value:
+                comp = 'big'
+            elif 'less' in value:
+                comp = 'less'
+            else:
+                comp = None
+
+            if comp:
+                files = UtilMgr.convPath(path)
+                if files:
+                    # convert size #
+                    try:
+                        value[comp] = UtilMgr.convUnit2Size(value[comp])
+                    except SystemExit: sys.exit(0)
+                    except: sys.exit(0)
+
+                    size = 0
+                    for item in files:
+                        size += UtilMgr.getFileSize(item, False)
+
+                    oneshot, goneshot = _getOneshotFlag(value)
+
+                    check = 'big' if comp == 'big' else 'less'
+
+                    # set threshold #
+                    self.setThresholdEvent(
+                        value, comp, 'FILE', check, target=size,
+                        attr=path, oneshot=oneshot, goneshot=goneshot)
+
+            # TODO: handle dir #
 
 
 
