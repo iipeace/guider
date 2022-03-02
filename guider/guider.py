@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220301"
+__revision__ = "220302"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19811,6 +19811,12 @@ Commands:
 
     @staticmethod
     def getGpuMem():
+        return SysMgr.getNvGpuMem()
+
+
+
+    @staticmethod
+    def getNvGpuMem():
         # read NVIDIA GPU memory info #
         try:
             path = '/sys/kernel/debug/nvmap/iovmm/clients'
@@ -19826,7 +19832,13 @@ Commands:
         # parse per-process memory info #
         for item in gpuInfo:
             try:
-                comm, pid, size = item.decode().split()[1:]
+                line = item.decode().split()
+                if line[0] == 'total':
+                    pid = '0'
+                    comm = 'TOTAL'
+                    size = line[1]
+                else:
+                    comm, pid, size = line[1:]
             except SystemExit: sys.exit(0)
             except:
                 continue
@@ -23780,6 +23792,9 @@ Examples:
     - {3:1} all {2:2} with GPU memory
         # {0:1} {1:1} -a -q GPUMEM
         # {0:1} {1:1} -a -q GPUMEMSUM
+
+    - {3:1} all {2:2} without GPU memory
+        # {0:1} {1:1} -a -q NOGPUMEM
 
     - {3:1} all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
@@ -40761,7 +40776,7 @@ Copyright:
             cnt = 1
             for key, tids in sorted(val.items(), key=lambda e:e[0]):
                 tid = sorted(list(tids), key=lambda e:long(e))[0]
-                comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
+                comm = obj.procData[tid]['stat'][obj.commIdx].strip("()")
                 subStr = '{ %s(%s)' % (comm, tid)
                 if len(tids) == 1:
                     subStr += ' }'
@@ -40778,7 +40793,7 @@ Copyright:
                     continue
 
                 for tid in sorted(tids, key=lambda e:long(e)):
-                    comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
+                    comm = obj.procData[tid]['stat'][obj.commIdx].strip("()")
                     cmdline = SysMgr.getCmdline(tid)
                     if cmdline: cmdline = '<%s>' % cmdline
                     SysMgr.printPipe(
@@ -44939,7 +44954,7 @@ Copyright:
             if newTasks:
                 newstr = '\n[%9s]' % 'NEW'
                 for pid in sorted(newTasks):
-                    comm = procs[pid]['stat'][obj.commIdx][1:-1]
+                    comm = procs[pid]['stat'][obj.commIdx].strip("()")
                     rss = conv(long(procs[pid]['stat'][obj.rssIdx])<<12)
                     newstr = '%s %s(%s)[%s], ' % (newstr, comm, pid, rss)
                 newstr = newstr[:-2]
@@ -44951,7 +44966,7 @@ Copyright:
             if dieTasks:
                 diestr = '\n[%9s]' % 'DIE'
                 for pid in sorted(dieTasks):
-                    comm = prevProcs[pid]['stat'][obj.commIdx][1:-1]
+                    comm = prevProcs[pid]['stat'][obj.commIdx].strip("()")
                     rss = conv(long(prevProcs[pid]['stat'][obj.rssIdx])<<12)
                     diestr = '%s %s(%s)[%s], ' % (diestr, comm, pid, rss)
                 diestr = diestr[:-2]
@@ -45534,7 +45549,7 @@ Copyright:
             # merge comm parts that splited by space #
             statList = SysMgr.mergeCommStat(statList, COMM_IDX)
 
-            comm = statList[COMM_IDX][1:-1]
+            comm = statList[COMM_IDX].strip("()")
             cputime = long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
             return (comm, cputime)
 
@@ -48193,9 +48208,15 @@ Copyright:
         def _printItems(status, items):
             indentStr = ' ' * 11
             enableStr = '{0:^10} '.format(status)
+
+            if SysMgr.ttyCols < len(oneLine):
+                maxLen = SysMgr.ttyCols
+            else:
+                maxLen = len(oneLine)
+
             for item in items:
                 curLineLen = len(enableStr.split('\n')[-1]) + len(item) + 3
-                if curLineLen > SysMgr.ttyCols:
+                if curLineLen > maxLen:
                     enableStr += '\n%s' % indentStr
                 enableStr += ' | %s' % item
             SysMgr.infoBufferPrint(enableStr)
@@ -50049,6 +50070,9 @@ Copyright:
         total = 0
         for pid, item in sorted(
             gpuInfo.items(), key=lambda e:e[1]['size'], reverse=True):
+            if pid == '0':
+                continue
+
             # get size #
             size = item['size']
             total += size
@@ -73264,6 +73288,7 @@ class TaskAnalyzer(object):
     reportData = {}
     eventCommandList = {}
     lifeIntData = {}
+    lifeProcData = {}
     lifecycleData = {}
     procTotData = {}
     procIntData = []
@@ -74219,6 +74244,7 @@ class TaskAnalyzer(object):
             self.slabData = {}
             self.memData = {}
             self.prevMemData = {}
+            self.gpuMemData = {}
             self.vmData = {}
             self.prevVmData = {}
             self.stackTable = {}
@@ -82714,7 +82740,8 @@ class TaskAnalyzer(object):
 
             # print task tree #
             TaskAnalyzer.printProcTree(
-                instance=obj.procData, printFunc=SysMgr.infoBufferPrint,
+                instance=obj.procData,
+                printFunc=SysMgr.infoBufferPrint,
                 color=color)
         except SystemExit: sys.exit(0)
         except: pass
@@ -82822,6 +82849,7 @@ class TaskAnalyzer(object):
 
             d = m.groupdict()
 
+            # CPU stat #
             cpu = long(d['cpu'])
 
             # sum total CPU usage #
@@ -82861,6 +82889,7 @@ class TaskAnalyzer(object):
 
             d = m.groupdict()
 
+            # MEM stats #
             freeMem = long(d['free'])
             freeMemPer = long(d['freePer'])
             anonMem = long(d['anon'])
@@ -82897,6 +82926,7 @@ class TaskAnalyzer(object):
 
             d = m.groupdict()
 
+            # swap stat #
             procIndexData['total']['swap'] = long(d['swap'])
 
             try:
@@ -83122,60 +83152,72 @@ class TaskAnalyzer(object):
             r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|'
             r'\s*(?P<cpu>\S+)\(.+/.+/(?P<dly>.+)\)\|\s*'
             r'(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
-            r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
+            r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/\s*'
+            r'(?P<nrflt>.+)\)\|\s*(?P<sid>.+)\|\s*(?P<user>.+)\|\s*'
+            r'(?P<fd>.+)\|\s*(?P<life>.+)\|\s*(?P<parent>.+)\|'), procLine)
         if not m:
             return
 
         d = m.groupdict()
         pid = d['pid']
         comm = d['comm']
+        parent = d['parent']
 
         try:
             # ignore special processes #
-            if comm[0] == '[' and comm[2] == ']':
+            if len(comm) > 2 and comm[0] == '[' and comm[2] == ']':
                 # define real comm #
                 rcomm = comm[3:]
 
-                # check item #
+                # initialize lifecycle data #
                 if rcomm not in TA.lifecycleData:
                     TA.lifecycleData[rcomm] = [0] * 8
-
-                # initialize lifedata #
                 TA.lifeIntData.setdefault(pid, {})
                 TA.lifeIntData[pid].setdefault(index, [])
+                lifecycleData = TA.lifecycleData[rcomm]
 
-                # add died process to list #
+                # died process #
                 if comm[1] == '-':
-                    TA.lifecycleData[rcomm][1] += 1
+                    lifecycleData[1] += 1
                     if not pid in TA.procIntData[index-1]:
                         TA.procIntData[index-1][pid] = \
                             dict(TA.init_procIntData)
 
                     TA.procIntData[index-1][pid]['die'] = True
                     TA.lifeIntData[pid][index].append('FINISH')
-                # add created process to list #
+
+                    TA.lifeProcData.setdefault(
+                        pid, {'START': -2, 'FINISH': -2,
+                            'comm': rcomm, 'parent': parent})
+                    TA.lifeProcData[pid]['FINISH'] = index -1
+                # created process #
                 elif comm[1] == '+':
-                    TA.lifecycleData[rcomm][0] += 1
+                    lifecycleData[0] += 1
                     TA.lifeIntData[pid][index].append('START')
-                # add zomebie process to list #
+
+                    TA.lifeProcData.setdefault(
+                        pid, {'START': -2, 'FINISH': -2,
+                            'comm': rcomm, 'parent': parent})
+                    TA.lifeProcData[pid]['START'] = index
+                # zomebie process #
                 elif comm[1].upper() == 'Z':
-                    TA.lifecycleData[rcomm][2] += 1
+                    lifecycleData[2] += 1
                     TA.lifeIntData[pid][index].append('ZOMBIE')
-                # add stopped process to list #
+                # stopped process #
                 elif comm[1] == 'T':
-                    TA.lifecycleData[rcomm][3] += 1
-                # add traced process to list #
+                    lifecycleData[3] += 1
+                # traced process #
                 elif comm[1] == 't':
-                    TA.lifecycleData[rcomm][4] += 1
-                # add wait process to list #
+                    lifecycleData[4] += 1
+                # wait process #
                 elif comm[1].upper() == 'D':
-                    TA.lifecycleData[rcomm][5] += 1
-                # add waking process to list #
+                    lifecycleData[5] += 1
+                # waking process #
                 elif comm[1].upper() == 'W':
-                    TA.lifecycleData[rcomm][6] += 1
-                # add parked process to list #
+                    lifecycleData[6] += 1
+                # parked process #
                 elif comm[1].upper() == 'P':
-                    TA.lifecycleData[rcomm][7] += 1
+                    lifecycleData[7] += 1
 
                 return
         except SystemExit: sys.exit(0)
@@ -83275,9 +83317,8 @@ class TaskAnalyzer(object):
             if len(TaskAnalyzer.procIntData) < idx + 1:
                 TaskAnalyzer.procIntData.append({})
 
-            procData = val.split('\n')
-
-            for line in procData:
+            # parse interval items #
+            for line in val.split('\n'):
                 TaskAnalyzer.parseProcLine(idx, line)
 
             idx += 1
@@ -83556,8 +83597,6 @@ class TaskAnalyzer(object):
                             lflag += '+'
                         elif item == 'FINISH':
                             lflag += '-'
-                        elif item == 'ZOMBIE':
-                            lflag += 'z'
 
                 # append lifecycle flag to usage #
                 usage = '%s%s' % (lflag, usage)
@@ -84279,6 +84318,67 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
+    def printLifeInterval():
+        TA = TaskAnalyzer
+
+        SysMgr.printPipe('\n[Top Life Info]\n')
+        SysMgr.printPipe("%s\n" % twoLine)
+
+        # set target #
+        if SysMgr.processEnable:
+            target = 'Process'
+            parent = 'Parent'
+        else:
+            target = 'Thread'
+            parent = 'Process'
+
+        # Print menu #
+        SysMgr.printPipe(
+            "{0:^32} | {1:^32} | {2:^16} | {3:^16} |\n{4:1}".format(
+                target, parent, 'START', 'END', oneLine))
+
+        procIntData = TaskAnalyzer.procIntData
+
+        # Print times #
+        for pid, value in sorted(TA.lifeProcData.items()):
+            # check filter #
+            if SysMgr.filterGroup and \
+                (not UtilMgr.isValidStr(pid) or \
+                    not UtilMgr.isValidStr(value['comm'])):
+                continue
+
+            # name #
+            name = "%s(%s)" % (value['comm'], pid)
+
+            # start #
+            start = value['START']
+            if start == -2:
+                start = '<-'
+            else:
+                start = '%.1f' % float(procIntData[start]['time'])
+
+            # end #
+            end = value['FINISH']
+            if end == -2:
+                end = '-'
+            elif end == -1:
+                startTime = float(procIntData[0]['time'])
+                end = '%.1f' % (startTime - SysMgr.intervalEnable)
+            else:
+                end = '%.1f' % float(procIntData[end]['time'])
+
+            SysMgr.printPipe(
+                "{0:>32} | {1:>32} | {2:>16} | {3:>16} |".format(
+                    name, value['parent'], start, end))
+
+        if not TA.lifeProcData:
+            SysMgr.printPipe('\tNone')
+
+        SysMgr.printPipe('%s\n' % oneLine)
+
+
+
+    @staticmethod
     def printCgMemInterval():
         TA = TaskAnalyzer
 
@@ -84375,6 +84475,7 @@ class TaskAnalyzer(object):
             TaskAnalyzer.printNetworkInterval()
             TaskAnalyzer.printCgCpuInterval()
             TaskAnalyzer.printCgMemInterval()
+            TaskAnalyzer.printLifeInterval()
 
         # print interval info #
         TaskAnalyzer.printMemAnalysis()
@@ -84417,6 +84518,7 @@ class TaskAnalyzer(object):
 
         # initialize parse buffer #
         TaskAnalyzer.lifeIntData = {}
+        TaskAnalyzer.lifeProcData = {}
         TaskAnalyzer.lifecycleData = {}
         TaskAnalyzer.procTotData = {}
         TaskAnalyzer.procIntData = []
@@ -84472,7 +84574,7 @@ class TaskAnalyzer(object):
 
             stat = val['stat']
             statm = val['statm']
-            comm = stat[commIdx][1:-1]
+            comm = stat[commIdx].strip("()")
             runtime = \
                 SysMgr.uptime - (float(val['stat'][starttimeIdx]) / 100)
 
@@ -84522,7 +84624,7 @@ class TaskAnalyzer(object):
             return
 
         SysMgr.printPipe((
-            "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} "
+            "\n{0:1}\n{1:>16} {2:>15} {3:>15} {4:>15} "
             "{5:>15} {6:>15} {7:>15} {8:>15} {9:>15}\n{10:1}\n").\
                 format(twoLine, "Name", "Created", "Terminated",
                     "Zombie", "Stopped", "Traced", "Waiting",
@@ -84539,7 +84641,7 @@ class TaskAnalyzer(object):
                     event[idx] = '-'
 
             SysMgr.printPipe((
-                "{0:^16} {1:>15} {2:>15} {3:>15} {4:>15} "
+                "{0:>16} {1:>15} {2:>15} {3:>15} {4:>15} "
                 "{5:>15} {6:>15} {7:>15} {8:>15}\n").\
                     format(comm, event[0], event[1], event[2],
                         event[3], event[4], event[5], event[6], event[7]))
@@ -84968,7 +85070,7 @@ class TaskAnalyzer(object):
                     vmem, rss, pss, swap, huge, lock, pdirty, sdirty, none))
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
-                format(value['stat'][commIdx][1:-1][:cl],
+                format(value['stat'][commIdx].strip("()")[:cl],
                 key, ppid, cl=cl, pd=pd)
 
             SysMgr.printPipe(("{0:>30} | {1:>8} | {2:>5} | "
@@ -88628,7 +88730,7 @@ class TaskAnalyzer(object):
             # linux #
             if SysMgr.isLinux:
                 stat = value['stat']
-                comm = stat[self.commIdx][1:-1]
+                comm = stat[self.commIdx].strip("()")
                 pid = stat[self.ppidIdx]
                 nrThread = stat[self.nrthreadIdx]
 
@@ -89620,6 +89722,9 @@ class TaskAnalyzer(object):
             self.saveSlabInfo()
             self.saveZoneInfo()
 
+        # save GPU memory info #
+        self.gpuMemData = SysMgr.getGpuMem()
+
         # read vmstat buf #
         # vmstat list from https://access.redhat.com/solutions/406773 #
         self.prevVmData = self.vmData
@@ -90361,7 +90466,7 @@ class TaskAnalyzer(object):
 
         # set comm #
         comm = self.procData[tid]['comm'] = \
-            self.procData[tid]['stat'][self.commIdx][1:-1]
+            self.procData[tid]['stat'][self.commIdx].strip("()")
 
         # change sched priority #
         for item in SysMgr.schedFilter:
@@ -90490,7 +90595,7 @@ class TaskAnalyzer(object):
                     self.procData[tid]['ns'] += '%s:%s/' % (node, value)
         except SystemExit: sys.exit(0)
         except:
-            comm = self.procData[tid]['stat'][self.commIdx][1:-1]
+            comm = self.procData[tid]['stat'][self.commIdx].strip("()")
             SysMgr.printWarn(
                 'failed to read namespace value for %s(%s)' % \
                     (comm, tid), reason=True)
@@ -90571,6 +90676,11 @@ class TaskAnalyzer(object):
 
 
     def printSystemUsage(self):
+        # define shortcut #
+        convColor = UtilMgr.convColor
+        convCpuColor = UtilMgr.convCpuColor
+        convSize = UtilMgr.convSize2Unit
+
         vmData = self.vmData
         prevVmData = self.prevVmData
         memData = self.memData
@@ -91032,8 +91142,7 @@ class TaskAnalyzer(object):
         # convert network usage #
         try:
             netIO = '%s/%s' % \
-                (UtilMgr.convSize2Unit(netIn, True),
-                    UtilMgr.convSize2Unit(netOut, True))
+                (convSize(netIn, True), convSize(netOut, True))
         except SystemExit: sys.exit(0)
         except:
             netIO = '-/-'
@@ -91048,7 +91157,6 @@ class TaskAnalyzer(object):
         self.addSysInterval('available', availMem)
 
         # convert color for CPU usage #
-        convCpuColor = UtilMgr.convCpuColor
         totalUsageStr = r'%3s %%' % totalUsage
         totalUsageStr = convCpuColor(totalUsage, totalUsageStr)
 
@@ -91057,40 +91165,40 @@ class TaskAnalyzer(object):
         if availMemPer == 0:
             pass
         elif availMemPer <= SysMgr.memAvailPerThreshold:
-            availMemStr = UtilMgr.convColor(availMemStr, 'RED')
+            availMemStr = convColor(availMemStr, 'RED')
         else:
-            availMemStr = UtilMgr.convColor(availMemStr, 'YELLOW')
+            availMemStr = convColor(availMemStr, 'YELLOW')
 
         # convert color for block #
         ioUsageStr = r'%3s' % ioUsage
         if ioUsage > 0:
-            ioUsageStr = UtilMgr.convColor(ioUsageStr, 'RED')
+            ioUsageStr = convColor(ioUsageStr, 'RED')
 
         # convert color for swap usage #
         swapUsageStr = r'%5s' % swapUsage
         if swapUsagePer == 0:
             pass
         elif swapUsagePer >= SysMgr.swapPerThreshold:
-            swapUsageStr = UtilMgr.convColor(swapUsageStr, 'RED')
+            swapUsageStr = convColor(swapUsageStr, 'RED')
         else:
-            swapUsageStr = UtilMgr.convColor(swapUsageStr, 'YELLOW')
+            swapUsageStr = convColor(swapUsageStr, 'YELLOW')
 
         # convert color for reclaim stats #
         pgRclmStr = r'%s/%s' % (pgRclmBg, pgRclmFg)
         pgRclmStr = r'{0:^11}'.format(pgRclmStr)
         if pgRclmBg > 0 or pgRclmFg > 0:
-            pgRclmStr = UtilMgr.convColor(pgRclmStr, 'RED')
+            pgRclmStr = convColor(pgRclmStr, 'RED')
 
         # convert color for I/O stats #
         pgIOMemDiffStr = r'%s/%s' % (pgInMemDiff, pgOutMemDiff)
         pgIOMemDiffStr = r'{0:^7}'.format(pgIOMemDiffStr)
         if pgInMemDiff > 0 or pgOutMemDiff > 0:
-            pgIOMemDiffStr = UtilMgr.convColor(pgIOMemDiffStr, 'RED')
+            pgIOMemDiffStr = convColor(pgIOMemDiffStr, 'RED')
 
         # convert color for network stats #
         if not (netIO == '-/-' or netIO == '0/0'):
             netIO = r'{0:^12}'.format(netIO)
-            netIO = UtilMgr.convColor(netIO, 'YELLOW')
+            netIO = convColor(netIO, 'YELLOW')
 
         # make total stat string #
         totalCoreStat = \
@@ -91586,9 +91694,21 @@ class TaskAnalyzer(object):
                             (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
                     coreFreq = '%20s|' % coreFreq
 
-                    # set temperature info #
+                    # set memory info #
                     try:
-                        coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
+                        memUsage = None
+                        if self.gpuMemData and \
+                            not 'NOGPUMEM' in SysMgr.environList:
+                            memUsage = convSize(self.gpuMemData['0']['size'])
+                    except SystemExit: sys.exit(0)
+                    except: pass
+
+                   # set temperature info #
+                    try:
+                        if memUsage:
+                            coreFreq = '{0:^6}| {1:1}'.format(memUsage, coreFreq)
+                        else:
+                            coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
                     except SystemExit: sys.exit(0)
                     except:
                         try:
@@ -92334,7 +92454,7 @@ class TaskAnalyzer(object):
             else:
                 battery = ''
         except SystemExit: sys.exit(0)
-        except: pass
+        except: battery = ''
 
         # print stats #
         SysMgr.addPrint(UtilMgr.convColor((
@@ -93623,7 +93743,7 @@ class TaskAnalyzer(object):
         else:
             isGpuMemSum = False
 
-        # check GPU memory sum #
+        # check GPU memory #
         if 'GPUMEM' in SysMgr.environList:
             isGpuMem = True
         else:
@@ -93676,12 +93796,6 @@ class TaskAnalyzer(object):
         # clear ID list #
         if idIndex:
             SysMgr.idList = []
-
-        # get per-process GPU memory info #
-        if isGpuMemSum or 'GPUMEMSUM' in SysMgr.environList:
-            gpuMem = SysMgr.getGpuMem()
-        else:
-            gpuMem = {}
 
         # get FD attribute info #
         if 'ACTUALFD' in SysMgr.environList:
@@ -94013,8 +94127,8 @@ class TaskAnalyzer(object):
                 ttime = convCpuColor(value['ttime'], ttime, size=4)
 
             # add GPU memory #
-            if isGpuMemSum and idx in gpuMem:
-                mems += gpuMem[idx]['size'] >> 20
+            if isGpuMemSum and idx in self.gpuMemData:
+                mems += self.gpuMemData[idx]['size'] >> 20
 
             # convert color for RSS #
             if mems < SysMgr.memLowThreshold:
@@ -94243,10 +94357,10 @@ class TaskAnalyzer(object):
                     "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
             # print GPU memory info #
-            if isGpuMem and idx in gpuMem:
+            if isGpuMem and idx in self.gpuMemData:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('GPUMEM',
-                        convColor(convSize(gpuMem[idx]['size']), 'CYAN')))
+                        convColor(convSize(self.gpuMemData[idx]['size']), 'CYAN')))
 
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
@@ -94440,7 +94554,7 @@ class TaskAnalyzer(object):
             except: pass
 
             # set comm #
-            comm = stat[self.commIdx][1:-1]
+            comm = stat[self.commIdx].strip("()")
             if taskType == 'new':
                 comm = '[+]%s' % comm
             elif taskType == 'die':
