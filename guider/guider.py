@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220302"
+__revision__ = "220303"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18910,6 +18910,7 @@ class SysMgr(object):
     thresholdData = {}
     prevThresholdData = {}
     thresholdTarget = {}
+    thresholdRefreshList = []
     thresholdEventList = {}
     thresholdEventHistory = {}
 
@@ -21289,7 +21290,8 @@ Commands:
 
         # check default resources #
         resourceList = [
-            'cpu', 'mem', 'swap', 'block', 'storage', 'net', 'fd', 'task'
+            'cpu', 'gpu', 'mem', 'gpumem', 'swap', 'block',
+            'storage', 'net', 'fd', 'task'
         ]
 
         # check resources for activation #
@@ -32982,6 +32984,10 @@ Copyright:
 
         SysMgr.inputFile = os.path.abspath(SysMgr.inputFile)
 
+        # check device node #
+        if SysMgr.inputFile.startswith('/dev/'):
+            return
+
         # append suffix to output file #
         if SysMgr.fileSuffix:
             dirname, filename = UtilMgr.getPath(SysMgr.inputFile)
@@ -41069,7 +41075,7 @@ Copyright:
         if not SysMgr.isTopMode() and not SysMgr.outPath:
             SysMgr.setStream()
 
-        # define wait syscall #
+        # define variables #
         wait = None
         multi = False
         execCmd = None
@@ -74355,11 +74361,6 @@ class TaskAnalyzer(object):
                         "only specific %s [ %s ] are shown" % \
                             (targets, taskList))
 
-            # set network config #
-            if not SysMgr.findOption('x'):
-                NetworkMgr.setServerNetwork(
-                    None, None, reuse=False, weakPort=True)
-
             # set threshold config #
             if not 'NOTHRESHOLD' in SysMgr.environList:
                 SysMgr.applyThreshold()
@@ -74405,6 +74406,12 @@ class TaskAnalyzer(object):
                 except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to monitor cgroup", reason=True)
+            # others #
+            else:
+                # set network config #
+                if not SysMgr.findOption('x'):
+                    NetworkMgr.setServerNetwork(
+                        None, None, reuse=False, weakPort=True)
 
             # print system general info in advance #
             if SysMgr.outPath and SysMgr.pipeEnable and SysMgr.exitFlag:
@@ -77134,12 +77141,12 @@ class TaskAnalyzer(object):
                 maxIdx = usage.index(max(usage))
 
                 minval = '%s%s' % \
-                    (prefix, convSize2Unit(usage[minIdx] << 10))
-                maxsize = convSize2Unit(usage[maxIdx] << 10)
-                totalsize = convSize2Unit(long(sum(usage)) << 10)
+                    (prefix, convSize(usage[minIdx] << 10))
+                maxsize = convSize(usage[maxIdx] << 10)
+                totalsize = convSize(long(sum(usage)) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
-                    (prefix, convSize2Unit(usage[-1] << 10))
+                    (prefix, convSize(usage[-1] << 10))
 
                 # set color #
                 if prefix:
@@ -77178,7 +77185,7 @@ class TaskAnalyzer(object):
             labelList = []
 
             # set convert size #
-            convSize2Unit = UtilMgr.convSize2Unit
+            convSize = UtilMgr.convSize2Unit
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -77201,6 +77208,12 @@ class TaskAnalyzer(object):
                 isVisibleTotal = True
             else:
                 isVisibleTotal = False
+
+            # set label variable #
+            if 'NOLABEL' in SysMgr.environList:
+                hasLabel = False
+            else:
+                hasLabel = True
 
             # add boundary line #
             self.drawBoundary('io', labelList)
@@ -77301,11 +77314,11 @@ class TaskAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
-                    totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
+                    maxsize = convSize(wrUsage[maxIdx] << 10)
+                    totalsize = convSize(long(sum(wrUsage)) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
-                        (prefix, convSize2Unit(wrUsage[-1] << 10))
+                        (prefix, convSize(wrUsage[-1] << 10))
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -77337,11 +77350,11 @@ class TaskAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
-                    totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
+                    maxsize = convSize(rdUsage[maxIdx] << 10)
+                    totalsize = convSize(long(sum(rdUsage)) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
-                        (prefix, convSize2Unit(rdUsage[-1] << 10))
+                        (prefix, convSize(rdUsage[-1] << 10))
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -77390,12 +77403,12 @@ class TaskAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
-                    totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
+                    maxsize = convSize(wrUsage[maxIdx] << 10)
+                    totalsize = convSize(long(sum(wrUsage)) << 10)
                     busyval = busyUsage[maxIdx]
                     maxval = '%s%s[%s%%]' % (prefix, maxsize, busyval)
                     lastval = '%s%s' % \
-                        (prefix, convSize2Unit(wrUsage[-1] << 10))
+                        (prefix, convSize(wrUsage[-1] << 10))
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -77428,12 +77441,12 @@ class TaskAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
-                    totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
+                    maxsize = convSize(rdUsage[maxIdx] << 10)
+                    totalsize = convSize(long(sum(rdUsage)) << 10)
                     busyval = busyUsage[maxIdx]
                     maxval = '%s%s[%s%%]' % (prefix, maxsize, busyval)
                     lastval = '%s%s' % \
-                        (prefix, convSize2Unit(rdUsage[-1] << 10))
+                        (prefix, convSize(rdUsage[-1] << 10))
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -77487,11 +77500,11 @@ class TaskAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
-                    totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
+                    maxsize = convSize(wrUsage[maxIdx] << 10)
+                    totalsize = convSize(long(sum(wrUsage)) << 10)
                     maxval = '%s%s[%s]' % (prefix, idx, maxsize)
                     lastval = '%s%s[%s]' % \
-                        (prefix, convSize2Unit(wrUsage[-1] << 10), idx)
+                        (prefix, convSize(wrUsage[-1] << 10), idx)
 
                     # get plot attr #
                     lw, pe = _getPlotAttr(idx)
@@ -77502,14 +77515,12 @@ class TaskAnalyzer(object):
                         color = plot(timeline, wrUsage, '-',
                             linewidth=lw, path_effects=pe)[0].get_color()
 
-                        if wrUsage[maxIdx] > 0 and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if wrUsage[maxIdx] > 0 and hasLabel:
                             text(timeline[maxIdx], wrUsage[maxIdx] + margin,
                                 maxval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if wrUsage[-1] > 0 and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if wrUsage[-1] > 0 and hasLabel:
                             text(timeline[-1], wrUsage[-1] + margin,
                                 lastval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35, ha='right')
@@ -77526,11 +77537,11 @@ class TaskAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
-                    totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
+                    maxsize = convSize(rdUsage[maxIdx] << 10)
+                    totalsize = convSize(long(sum(rdUsage)) << 10)
                     maxval = '%s%s[%s]' % (prefix, idx, maxsize)
                     lastval = '%s%s[%s]' % \
-                        (prefix, convSize2Unit(rdUsage[-1] << 10), idx)
+                        (prefix, convSize(rdUsage[-1] << 10), idx)
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -77538,14 +77549,12 @@ class TaskAnalyzer(object):
                         color = plot(timeline, rdUsage, '-',
                             linewidth=lw, path_effects=pe)[0].get_color()
 
-                        if rdUsage[maxIdx] > 0 and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if rdUsage[maxIdx] > 0 and hasLabel:
                             text(timeline[maxIdx], rdUsage[maxIdx] + margin,
                                 maxval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if rdUsage[-1] > 0 and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if rdUsage[-1] > 0 and hasLabel:
                             text(timeline[-1], rdUsage[-1] + margin,
                                 lastval, fontsize=self.lfsize, color=color,
                                 fontweight='normal', rotation=35, ha='right')
@@ -77591,8 +77600,7 @@ class TaskAnalyzer(object):
                 ytickLabel = list(map(long, ytickLabel))
 
                 # convert label units #
-                ytickLabel = \
-                    [convSize2Unit(val << 10) for val in ytickLabel]
+                ytickLabel = [convSize(val << 10) for val in ytickLabel]
 
                 # remove redundant ticks #
                 lastTick = ''
@@ -77628,10 +77636,10 @@ class TaskAnalyzer(object):
                     ymax = maxusage
 
                 minval = '%s%s' % \
-                    (prefix, convSize2Unit(usage[minIdx] << 20))
-                maxsize = convSize2Unit(usage[maxIdx] << 20)
+                    (prefix, convSize(usage[minIdx] << 20))
+                maxsize = convSize(usage[maxIdx] << 20)
                 maxval = '%s%s' % (prefix, maxsize)
-                lastsize = convSize2Unit(usage[-1] << 20)
+                lastsize = convSize(usage[-1] << 20)
                 lastval = '%s%s' % (prefix, lastsize)
 
                 # set color #
@@ -77667,7 +77675,13 @@ class TaskAnalyzer(object):
             labelList = []
 
             # set convert size #
-            convSize2Unit = UtilMgr.convSize2Unit
+            convSize = UtilMgr.convSize2Unit
+
+            # set label variable #
+            if 'NOLABEL' in SysMgr.environList:
+                hasLabel = False
+            else:
+                hasLabel = True
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -77751,11 +77765,11 @@ class TaskAnalyzer(object):
 
                         key = '%s%s' % (prefix, key)
                         minval = '%s [%s]' % \
-                            (key, convSize2Unit(usage[minIdx] << 20))
-                        maxsize = convSize2Unit(usage[maxIdx] << 20)
+                            (key, convSize(usage[minIdx] << 20))
+                        maxsize = convSize(usage[maxIdx] << 20)
                         maxval = '%s [%s]' % (key, maxsize)
                         lastval = '%s [%s]' % \
-                            (key, convSize2Unit(usage[-1] << 20))
+                            (key, convSize(usage[-1] << 20))
 
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
@@ -77771,20 +77785,18 @@ class TaskAnalyzer(object):
                         color = plot(timeline, usage, '-',
                             linewidth=lw, path_effects=pe)[0].get_color()
 
-                        if usage[minIdx] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[minIdx] and hasLabel:
                             text(timeline[minIdx], usage[minIdx] + margin,
                                 minval, color=color,
                                 fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[minIdx] != usage[maxIdx] and \
+                            usage[maxIdx] and hasLabel:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
                                 maxval, color=color,
                                 fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if usage[-1] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[-1] and hasLabel:
                             text(timeline[-1], usage[-1] + margin,
                                 lastval, color=color,
                                 fontsize=self.lfsize, rotation=35,
@@ -77869,10 +77881,10 @@ class TaskAnalyzer(object):
 
                         key = '%s%s' % (prefix, key)
                         minval = '%s [%s]' % \
-                            (key, convSize2Unit(usage[minIdx] << 20))
-                        diffsize = convSize2Unit(item['vssDiff'] << 20)
+                            (key, convSize(usage[minIdx] << 20))
+                        diffsize = convSize(item['vssDiff'] << 20)
                         lastval = '%s [%s/+%s]' % \
-                            (key, convSize2Unit(usage[maxIdx] << 20),
+                            (key, convSize(usage[maxIdx] << 20),
                                 diffsize)
 
                         if usage[minIdx] == usage[maxIdx] == 0:
@@ -77889,14 +77901,13 @@ class TaskAnalyzer(object):
                         color = plot(timeline, usage, '-',
                             linewidth=lw, path_effects=pe)[0].get_color()
 
-                        if usage[minIdx] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[minIdx] and hasLabel:
                             text(timeline[minIdx], usage[minIdx] - margin,
                                 minval, color=color,
                                 fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[minIdx] != usage[maxIdx] and \
+                            usage[maxIdx] and hasLabel:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
                                 lastval, color=color,
                                 fontsize=self.lfsize, rotation=35,
@@ -77943,10 +77954,10 @@ class TaskAnalyzer(object):
 
                         key = '%s%s' % (prefix, key)
                         minval = '%s [%s]' % \
-                            (key, convSize2Unit(usage[minIdx] << 20))
-                        maxsize = convSize2Unit(usage[maxIdx] << 20)
+                            (key, convSize(usage[minIdx] << 20))
+                        maxsize = convSize(usage[maxIdx] << 20)
                         maxval = '%s [%s]' % (key, maxsize)
-                        lastsize = convSize2Unit(usage[-1] << 20)
+                        lastsize = convSize(usage[-1] << 20)
                         lastval = '%s [%s]' % (key, lastsize)
 
                         if usage[minIdx] == usage[maxIdx] == 0:
@@ -77963,20 +77974,18 @@ class TaskAnalyzer(object):
                         color = plot(timeline, usage, '-',
                             linewidth=lw, path_effects=pe)[0].get_color()
 
-                        if usage[minIdx] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[minIdx] and hasLabel:
                             text(timeline[minIdx], usage[minIdx] + margin,
                                 minval, color=color,
                                 fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[minIdx] != usage[maxIdx] and \
+                            usage[maxIdx] and hasLabel:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
                                 maxval, color=color,
                                 fontsize=self.lfsize, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if usage[-1] and \
-                            not 'NOLABEL' in SysMgr.environList:
+                        if usage[-1] and hasLabel:
                             text(timeline[-1], usage[-1] + margin,
                                 lastval, color=color,
                                 fontsize=self.lfsize, rotation=35,
@@ -78000,7 +78009,7 @@ class TaskAnalyzer(object):
                         if totalRam:
                             label = \
                                 '%s[ RAM Total ] - %s\nRAM Available - %s' % \
-                                    (prefix, convSize2Unit(totalRam), lastsize)
+                                    (prefix, convSize(totalRam), lastsize)
                             labelList.append(label)
                         else:
                             labelList.append(
@@ -78024,7 +78033,7 @@ class TaskAnalyzer(object):
                         if totalSwap:
                             label = \
                                 '%s[ Swap Total ] - %s\nSwap Usage - %s' % \
-                                (prefix, convSize2Unit(totalSwap), lastsize)
+                                (prefix, convSize(totalSwap), lastsize)
                             labelList.append(label)
                         else:
                             labelList.append(
@@ -91709,9 +91718,11 @@ class TaskAnalyzer(object):
                    # set temperature info #
                     try:
                         if memUsage:
-                            coreFreq = '{0:^6}| {1:1}'.format(memUsage, coreFreq)
+                            coreFreq = '{0:^6}| {1:1}'.format(
+                                memUsage, coreFreq)
                         else:
-                            coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
+                            coreFreq = '%3s C | %s' % (
+                                value['TEMP'], coreFreq)
                     except SystemExit: sys.exit(0)
                     except:
                         try:
@@ -91748,8 +91759,8 @@ class TaskAnalyzer(object):
 
         # initialize report data #
         '''
-        - jsonData: just data to be kept in JSON format.
-        - reportData: serializable data to be reported outside in JSON format.
+        - jsonData: just data to be kept in JSON format
+        - reportData: serializable data to be reported outside in JSON format
         '''
         self.reportData = {}
 
@@ -91820,6 +91831,9 @@ class TaskAnalyzer(object):
 
         # GPU #
         self.reportData['gpu'] = gpuStats
+
+        # GPU memory #
+        self.reportData['gpumem'] = self.gpuMemData
 
         # memory #
         self.reportData['mem'] = {
@@ -91894,7 +91908,7 @@ class TaskAnalyzer(object):
             self.reportData['net']['mac'] = macAddr[0]
             self.reportData['net']['ip'] = macAddr[1]
 
-        # network #
+        # network device #
         if SysMgr.networkEnable:
             SysMgr.sysInstance.updateNetworkInfo()
 
@@ -92043,7 +92057,7 @@ class TaskAnalyzer(object):
 
                 # add RSS interval #
                 self.addProcInterval(
-                    pid, value, 'rssInterval', value['rss'])
+                    pid, value, 'rssInt', value['rss'])
 
                 # define now data #
                 nowData = value['stat']
@@ -92078,7 +92092,7 @@ class TaskAnalyzer(object):
 
                     # add CPU interval #
                     self.addProcInterval(
-                        pid, value, 'cpuInterval', value['ttime'])
+                        pid, value, 'cpuInt', value['ttime'])
 
                     continue
 
@@ -92114,7 +92128,7 @@ class TaskAnalyzer(object):
 
                 # add CPU interval #
                 self.addProcInterval(
-                    pid, value, 'cpuInterval', value['ttime'])
+                    pid, value, 'cpuInt', value['ttime'])
 
                 # child utime #
                 cutick = nowData[self.cutimeIdx] - prevData[self.cutimeIdx]
@@ -94363,7 +94377,8 @@ class TaskAnalyzer(object):
             if isGpuMem and idx in self.gpuMemData:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('GPUMEM',
-                        convColor(convSize(self.gpuMemData[idx]['size']), 'CYAN')))
+                        convColor(convSize(
+                            self.gpuMemData[idx]['size']), 'CYAN')))
 
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
@@ -95092,7 +95107,7 @@ class TaskAnalyzer(object):
         # print message #
         SysMgr.printInfo((
             "start saving the monitoring results by '%s' command "
-            "for %s event") % (cmd, event))
+            "for '%s' event") % (cmd, event))
 
         # check out path #
         if not SysMgr.outPath:
@@ -95315,6 +95330,18 @@ class TaskAnalyzer(object):
             self.reportData['event']['IMAGE_CREATED'] = SysMgr.imagePath
             SysMgr.imagePath = None
 
+        # update refresh items #
+        if SysMgr.thresholdRefreshList:
+            newList = []
+            for item in SysMgr.thresholdRefreshList:
+                tick, data = item
+                tick -= 1
+                if tick > 0:
+                    newList.append([tick, data])
+                elif 'apply' in data:
+                    data['apply'] = "true"
+            SysMgr.thresholdRefreshList = newList
+
         # check CPU #
         try:
             if 'cpu' in SysMgr.thresholdTarget:
@@ -95322,10 +95349,45 @@ class TaskAnalyzer(object):
         except SystemExit: sys.exit(0)
         except: pass
 
+        # check GPU #
+        try:
+            # check activation #
+            if not 'gpu' in SysMgr.thresholdTarget:
+                raise Exception()
+
+            # each devices #
+            dinfo = {}
+            for dev, vals in self.reportData['gpu'].items():
+                target = vals
+                dinfo.update({'dev': dev})
+
+                try:
+                    # all devices #
+                    self.checkThreshold(
+                        'gpu', 'total', 'GPU', 'big',
+                        target, 'DEVICE', addval=dinfo)
+
+                    # a specific device #
+                    self.checkThreshold(
+                        'gpu', 'total', 'GPU', 'big',
+                        target, dev, addval=dinfo)
+                except SystemExit: sys.exit(0)
+                except:
+                    continue
+        except SystemExit: sys.exit(0)
+        except: pass
+
         # check memory #
         try:
             if 'mem' in SysMgr.thresholdTarget:
                 self.checkThreshold('mem', 'available', 'MEM', 'less')
+        except SystemExit: sys.exit(0)
+        except: pass
+
+        # check GPU memory #
+        try:
+            if 'gpumem' in SysMgr.thresholdTarget:
+                self.checkThreshold('gpumem', 'total', 'GPUMEM', 'big')
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -95387,18 +95449,14 @@ class TaskAnalyzer(object):
                 raise Exception()
 
             # total inbound #
-            target = self.reportData['net']['inbound']
-            intval = self.intervalData['inbound']
-            self.checkThreshold(
-                'net', 'inbound', 'NETIN', 'big', target, intval=intval)
-
-            # total outbound #
-            target = self.reportData['net']['outbound']
-            intval = self.intervalData['outbound']
-            self.checkThreshold(
-                'net', 'outbound', 'NETOUT', 'big', target, intval=intval)
+            for direct, name in [['inbound', 'NETIN'], ['outbound', 'NETOUT']]:
+                target = self.reportData['net'][direct]
+                intval = self.intervalData[direct]
+                self.checkThreshold(
+                    'net', direct, name, 'big', target, intval=intval)
 
             # each devices #
+            dinfo = {}
             for dev, vals in self.reportData['net'].items():
                 if dev == 'inbound' or dev == 'outbound':
                     continue
@@ -95407,31 +95465,21 @@ class TaskAnalyzer(object):
 
                 recv = vals['recv']['bytes']
                 trans = vals['trans']['bytes']
-                vals.update({'dev': dev})
+                dinfo.update({'dev': dev})
 
-                # all devices #
-                try:
-                    # recv #
-                    self.checkThreshold(
-                        'net', 'recv', 'NETWORK', 'big', recv, 'DEVICE')
-
-                    # send #
-                    self.checkThreshold(
-                        'net', 'trans', 'NETWORK', 'big', trans, 'DEVICE')
-                except SystemExit: sys.exit(0)
-                except: pass
-
-                # a specific device #
-                try:
-                    # recv #
-                    self.checkThreshold(
-                        'net', 'recv', 'NETWORK', 'big', recv, dev)
-
-                    # send #
-                    self.checkThreshold(
-                        'net', 'trans', 'NETWORK', 'big', trans, dev)
-                except SystemExit: sys.exit(0)
-                except: pass
+                # check devices #
+                for item in ['DEVICE', dev]:
+                    try:
+                        # recv #
+                        self.checkThreshold(
+                            'net', 'recv', 'NETWORK', 'big',
+                            recv, item, addval=dinfo)
+                        # send #
+                        self.checkThreshold(
+                            'net', 'trans', 'NETWORK', 'big',
+                            trans, item, addval=dinfo)
+                    except SystemExit: sys.exit(0)
+                    except: pass
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -95497,15 +95545,17 @@ class TaskAnalyzer(object):
 
     def setThresholdEvent(
         self, comval, item, event, comp='big', target=None, attr='SYSTEM',
-        intval=None, addval=None, oneshot=False, goneshot=False):
+        intval=None, addval=None, oneshot=False, goneshot=False, refresh=0):
 
         # init value #
         value = None
 
-        # check condition #
+        # check return condition #
         if not item in comval:
             return
-        elif not comp:
+
+        # check threshold #
+        if not comp:
             value = target
         elif intval and 'interval' in comval:
             if comval['interval'] > len(intval):
@@ -95514,12 +95564,15 @@ class TaskAnalyzer(object):
             # check items in intervals #
             intval = intval[-comval['interval']:]
             average = sum(intval) / len(intval)
-            if (comp == 'big' and comval[item] <= average) or \
-                (comp == 'less' and comval[item] >= average):
+            threshold = UtilMgr.convUnit2Size(comval[item])
+            if (comp == 'big' and threshold <= average) or \
+                (comp == 'less' and threshold >= average):
                 value = average
-        elif (comp == 'big' and comval[item] <= target) or \
-            (comp == 'less' and comval[item] >= target):
-            value = target
+        else:
+            threshold = UtilMgr.convUnit2Size(comval[item])
+            if (comp == 'big' and threshold <= target) or \
+                (comp == 'less' and threshold >= target):
+                value = target
 
         # check value #
         if value is None:
@@ -95580,7 +95633,9 @@ class TaskAnalyzer(object):
                 comval['apply'] = "false"
 
             # update threshold items #
-            if not _checkResource(SysMgr.thresholdData):
+            if refresh:
+                SysMgr.thresholdRefreshList.append([refresh, comval])
+            elif not _checkResource(SysMgr.thresholdData):
                 if SysMgr.thresholdData:
                     SysMgr.prevThresholdData = SysMgr.thresholdData
                 SysMgr.thresholdData = {}
@@ -95591,7 +95646,8 @@ class TaskAnalyzer(object):
         # handle oneshot command #
         if goneshot:
             run = True
-        elif oneshot and ename in SysMgr.thresholdEventHistory:
+        elif oneshot and not refresh and \
+            ename in SysMgr.thresholdEventHistory:
             run = False
         else:
             run = True
@@ -95627,7 +95683,12 @@ class TaskAnalyzer(object):
             else:
                 goneshot = False
 
-            return oneshot, goneshot
+            if 'refresh' in items:
+                refresh = items['refresh']
+            else:
+                refresh = 0
+
+            return oneshot, goneshot, refresh
 
         for path, value in td['file'].items():
             # check apply #
@@ -95635,25 +95696,19 @@ class TaskAnalyzer(object):
                 value['apply'] != 'true':
                     continue
 
-            # exist #
-            if 'exist' in value and value['exist'] == 'true':
+            # exist / none #
+            for attr in ['exist', 'none']:
+                if not attr in value or value[attr] != 'true':
+                    continue
+
                 if UtilMgr.convPath(path):
-                    oneshot, goneshot = _getOneshotFlag(value)
+                    oneshot, goneshot, refresh = _getOneshotFlag(value)
 
                     # set threshold #
                     self.setThresholdEvent(
-                        value, 'exist', 'FILE', None, target=True,
-                        attr=path, oneshot=oneshot, goneshot=goneshot)
-
-            # none #
-            if 'none' in value and value['none'] == 'true':
-                if not UtilMgr.convPath(path):
-                    oneshot, goneshot = _getOneshotFlag(value)
-
-                    # set threshold #
-                    self.setThresholdEvent(
-                        value, 'none', 'FILE', None, target=True,
-                        attr=path, oneshot=oneshot, goneshot=goneshot)
+                        value, attr, 'FILE', None, target=True,
+                        attr=path, oneshot=oneshot, goneshot=goneshot,
+                        refresh=refresh)
 
             # check bigger / lesser #
             if 'big' in value:
@@ -95676,14 +95731,15 @@ class TaskAnalyzer(object):
                     for item in files:
                         size += UtilMgr.getFileSize(item, False)
 
-                    oneshot, goneshot = _getOneshotFlag(value)
+                    oneshot, goneshot, refresh = _getOneshotFlag(value)
 
                     check = 'big' if comp == 'big' else 'less'
 
                     # set threshold #
                     self.setThresholdEvent(
                         value, comp, 'FILE', check, target=size,
-                        attr=path, oneshot=oneshot, goneshot=goneshot)
+                        attr=path, oneshot=oneshot, goneshot=goneshot,
+                        refresh=refresh)
 
             # TODO: handle dir #
 
@@ -95731,7 +95787,12 @@ class TaskAnalyzer(object):
             else:
                 goneshot = False
 
-            return oneshot, goneshot
+            if 'refresh' in items:
+                refresh = items['refresh']
+            else:
+                refresh = 0
+
+            return oneshot, goneshot, refresh
 
         # check conditions and trigger events #
         if type(comval) is dict:
@@ -95750,12 +95811,12 @@ class TaskAnalyzer(object):
                     return False
 
             # check oneshot flag #
-            oneshot, goneshot = _getOneshotFlag(comval)
+            oneshot, goneshot, refresh = _getOneshotFlag(comval)
 
             # set threshold #
             self.setThresholdEvent(
                 comval, item, event, comp, target,
-                attr, intval, addval, oneshot, goneshot)
+                attr, intval, addval, oneshot, goneshot, refresh)
         elif type(comval) is list:
             for comitem in comval:
                 # check apply attribute #
@@ -95765,20 +95826,20 @@ class TaskAnalyzer(object):
                 elif attr == 'TASK' and 'except' in comitem:
                     pid = next(iter(addval['task']))
                     comm = addval['task'][pid]['comm'].lstrip('*')
-                    if type(comval['except']) is list:
-                        elist = comval['except']
+                    if type(comitem['except']) is list:
+                        elist = comitem['except']
                     else:
-                        elist = [comval['except']]
+                        elist = [comitem['except']]
                     if UtilMgr.isValidStr(comm, elist):
                         continue
 
                 # check oneshot flag #
-                oneshot, goneshot = _getOneshotFlag(comitem)
+                oneshot, goneshot, refresh = _getOneshotFlag(comitem)
 
                 # set threshold #
                 self.setThresholdEvent(
                     comitem, item, event, comp, target,
-                    attr, intval, addval, oneshot, goneshot)
+                    attr, intval, addval, oneshot, goneshot, refresh)
 
 
 
@@ -95796,23 +95857,29 @@ class TaskAnalyzer(object):
         maps = []
         # cpu #
         if 'cpu' in tt and tt['cpu']:
-            maps += [['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big']]
+            maps += [['cpu', 'total', 'ttime', 'cpuInt', 'CPU', 'big']]
         # mem #
         if 'mem' in tt and tt['mem']:
-            maps += [['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big']]
+            maps += [['mem', 'rss', 'rss', 'rssInt', 'MEM', 'big']]
+        # gpumem #
+        if 'gpumem' in tt and tt['gpumem']:
+            maps += [['gpumem', 'size', None, None, 'GPUMEM', 'big']]
         # fd #
         if 'fd' in tt and tt['fd']:
-            maps += [['fd', 'fdsize', 'fdsize', 'fdInterval', 'FD', 'big']]
+            maps += [['fd', 'fdsize', 'fdsize', None, 'FD', 'big']]
         # swap #
-        if 'swap' in tt and tt['swap']:
-            # TODO: implement per-process swap stats #
-            pass
+        if False and 'swap' in tt and tt['swap']:
+            pass # TODO: implement per-process swap stats #
         # block #
         if SysMgr.blockEnable:
             maps += [
-                ['block', 'read', 'read', 'blockInterval', 'BLOCK', 'big'],
-                ['block', 'write', 'write', 'blockInterval', 'BLOCK', 'big'],
+                ['block', 'read', 'read', 'blockInt', 'BLOCK', 'big'],
+                ['block', 'write', 'write', 'blockInt', 'BLOCK', 'big'],
             ]
+
+        # check exit condition #
+        if not maps:
+            return
 
         # set task type #
         if SysMgr.processEnable:
@@ -95830,19 +95897,25 @@ class TaskAnalyzer(object):
 
             for item in maps:
                 try:
-                    resource, cattr, pattr, intname, event, comp = item
+                    res, cattr, pattr, intname, event, comp = item
 
                     # check skip condition #
-                    if not resource in td:
+                    if not res in td:
                         continue
-                    elif not pattr in data:
+                    elif pattr and not pattr in data:
                         continue
-                    elif resource == 'mem' or resource == 'fd':
+                    elif res in ('mem', 'gpumem', 'fd'):
                         if self.isKernelThread(pid):
                             continue
 
                     # stat #
-                    value = data[pattr]
+                    if res == 'gpumem':
+                        if not pid in self.gpuMemData:
+                            continue
+                        else:
+                            value = self.gpuMemData[pid]['size'] >> 20
+                    else:
+                        value = data[pattr]
 
                     # get interval #
                     if intname in data:
@@ -95863,31 +95936,39 @@ class TaskAnalyzer(object):
                     else:
                         append = {'task': {pid: data}}
 
-                    # check apply flags updated by oneshot flag #
-                    try:
-                        enabled = False
-                        if td[resource]['TASK']['apply'] == 'true':
-                            enabled = True
-                    except SystemExit: sys.exit(0)
-                    except:
-                        pass
+                    # get task condition list #
+                    if 'TASK' in td[res]:
+                        taskCondList = td[res]['TASK']
+                        if type(taskCondList) is dict:
+                            taskCondList = [taskCondList]
+                    else:
+                        taskCondList = []
 
-                    # check a task #
-                    try:
-                        if enabled:
-                            self.checkThreshold(
-                                resource, cattr, event, comp,
-                                    value, 'TASK', intval, append)
-                    except SystemExit: sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            'failed to check task thresholds',
-                            reason=True)
+                    # check apply flags updated by oneshot flag #
+                    for taskItem in taskCondList:
+                        try:
+                            enabled = False
+                            if taskItem['apply'] == 'true':
+                                enabled = True
+                        except SystemExit: sys.exit(0)
+                        except: pass
+
+                        # check a task #
+                        try:
+                            if enabled:
+                                self.checkThreshold(
+                                    res, cattr, event, comp,
+                                        value, 'TASK', intval, append)
+                        except SystemExit: sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                'failed to check task thresholds',
+                                reason=True)
 
                     # check a specific task #
-                    if comm in td[resource]:
+                    if comm in td[res]:
                         self.checkThreshold(
-                            resource, cattr, event, comp,
+                            res, cattr, event, comp,
                                 value, comm, intval, append)
                 except SystemExit: sys.exit(0)
                 except:
@@ -95912,10 +95993,11 @@ class TaskAnalyzer(object):
 
         # add per-process stats #
         if SysMgr.rankProcEnable:
-            def _setDefaultInfo(data, pid, rank, comm, runtime):
+            def _setDefaultInfo(data, pid, comm, runtime=None):
                 data['pid'] = long(pid)
                 data['comm'] = comm
-                data['runtime'] = runtime
+                if runtime:
+                    data['runtime'] = runtime
 
             # add CPU status #
             if 'cpu' in self.reportData:
@@ -95946,7 +96028,7 @@ class TaskAnalyzer(object):
                     evtdata = self.reportData['cpu']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
-                    _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
+                    _setDefaultInfo(evtdata[rank], pid, comm, runtime)
 
                     # total #
                     if 'ttimeDiff' in data:
@@ -96001,7 +96083,7 @@ class TaskAnalyzer(object):
                     evtdata = self.reportData['mem']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
-                    _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
+                    _setDefaultInfo(evtdata[rank], pid, comm, runtime)
                     evtdata[rank]['rss'] = data['rss']
                     evtdata[rank]['text'] = text
 
@@ -96044,10 +96126,46 @@ class TaskAnalyzer(object):
                     evtdata = self.reportData['block']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
-                    _setDefaultInfo(evtdata[rank], pid, rank, comm, runtime)
+                    _setDefaultInfo(evtdata[rank], pid, comm, runtime)
                     evtdata[rank]['iowait'] = data['btime']
 
                     rank += 1
+
+            # add gpumem status #
+            if 'gpumem' in self.reportData:
+                rank = 1
+                procs = {}
+
+                try:
+                    sortedProcData = sorted(self.reportData['gpumem'].items(),
+                        key=lambda e: e[1]['size'], reverse=True)
+                except SystemExit: sys.exit(0)
+                except:
+                    # to handle corrupted data #
+                    sortedProcData = {}
+
+                total = 0
+                for pid, data in sortedProcData:
+                    if pid == '0':
+                        total = data['size'] >> 20
+                        continue
+
+                    comm = data['comm']
+
+                    # check comm #
+                    if not UtilMgr.isValidStr(comm):
+                        continue
+                    elif data['size'] == 0:
+                        break
+
+                    procs[rank] = {}
+                    _setDefaultInfo(procs[rank], pid, comm)
+                    procs[rank]['size'] = data['size'] >> 20
+
+                    rank += 1
+
+                # update gpumem #
+                self.reportData['gpumem'] = {'total': total, 'procs': procs}
 
             # add task status #
             if 'task' in self.reportData:
@@ -96080,8 +96198,7 @@ class TaskAnalyzer(object):
 
                         comm = procData[pid]['comm']
                         runtime = convTime(procData[pid]['runtime'])
-                        _setDefaultInfo(
-                            evtdata[rank], pid, rank, comm, runtime)
+                        _setDefaultInfo(evtdata[rank], pid, comm, runtime)
 
                         status = procData[pid]['stat'][self.statIdx]
                         evtdata[rank]['status'] = status
