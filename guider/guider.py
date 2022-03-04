@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220303"
+__revision__ = "220304"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5293,6 +5293,43 @@ class UtilMgr(object):
             except SystemExit: sys.exit(0)
             except:
                 return '?'
+
+
+
+    @staticmethod
+    def convTime2Sec(time):
+        # convert time to seconds #
+        try:
+            sec = 0
+
+            nums = time.strip().split(':')
+            if len(nums) == 3:
+                y = d = 0
+                times = nums
+            elif len(nums) == 4:
+                y = 0
+                d = int(nums[0].rstrip('d'))
+                times = nums[1:]
+            elif len(nums) == 5:
+                y = int(nums[0].rstrip('y'))
+                d = int(nums[0].rstrip('d'))
+                times = nums[1:]
+            else:
+                raise Exception()
+
+            # convert type #
+            h, m, s = list(map(int, times))
+
+            # convert items to seconds #
+            sec += s
+            sec += (m * 60)
+            sec += (h * 3600)
+            if d: sec += (d * 86400)
+            if y: sec += (y * 31536000)
+        except SystemExit: sys.exit(0)
+        except: pass
+
+        return sec
 
 
 
@@ -83173,7 +83210,6 @@ class TaskAnalyzer(object):
         d = m.groupdict()
         pid = d['pid']
         comm = d['comm']
-        parent = d['parent']
 
         try:
             # ignore special processes #
@@ -83191,26 +83227,64 @@ class TaskAnalyzer(object):
                 # died process #
                 if comm[1] == '-':
                     lifecycleData[1] += 1
-                    if not pid in TA.procIntData[index-1]:
-                        TA.procIntData[index-1][pid] = \
+
+                    # get index #
+                    if index == 0:
+                        idx = 0
+                    else:
+                        idx = index - 1
+
+                    if not pid in TA.procIntData[idx]:
+                        TA.procIntData[idx][pid] = \
                             dict(TA.init_procIntData)
 
-                    TA.procIntData[index-1][pid]['die'] = True
+                    TA.procIntData[idx][pid]['die'] = True
                     TA.lifeIntData[pid][index].append('FINISH')
 
+                    # convert lifetime #
+                    ts = UtilMgr.convTime2Sec(d['life'])
+
+                    # end time #
+                    ets = TA.procIntData[idx]['time']
+
+                    # start time #
+                    if ts:
+                        if index:
+                            sts = long(float(TA.procIntData[idx]['time'])) - ts
+                        else:
+                            start = long(float(TA.procIntData[0]['time']))
+                            sts = start - SysMgr.intervalEnable - ts
+                    else:
+                        sts = -2
+
                     TA.lifeProcData.setdefault(
-                        pid, {'START': -2, 'FINISH': -2,
-                            'comm': rcomm, 'parent': parent})
-                    TA.lifeProcData[pid]['FINISH'] = index -1
+                        pid, {'START': -2, 'FINISH': -2, 'comm': rcomm,
+                            'parent': d['parent'], 'user': d['user']})
+
+                    TA.lifeProcData[pid]['comm'] = rcomm
+                    TA.lifeProcData[pid]['START'] = sts
+                    TA.lifeProcData[pid]['FINISH'] = ets
+                    if TA.lifeProcData[pid]['user'] == '-':
+                        TA.lifeProcData[pid]['user'] = d['user']
                 # created process #
                 elif comm[1] == '+':
                     lifecycleData[0] += 1
                     TA.lifeIntData[pid][index].append('START')
 
+                    ts = UtilMgr.convTime2Sec(d['life'])
+                    if ts:
+                        ts = long(float(TA.procIntData[index]['time'])) - ts
+                    else:
+                        ts = TA.procIntData[index]['time']
+
                     TA.lifeProcData.setdefault(
-                        pid, {'START': -2, 'FINISH': -2,
-                            'comm': rcomm, 'parent': parent})
-                    TA.lifeProcData[pid]['START'] = index
+                        pid, {'START': -2, 'FINISH': -2, 'comm': rcomm,
+                            'parent': d['parent'], 'user': d['user']})
+
+                    TA.lifeProcData[pid]['comm'] = rcomm
+                    TA.lifeProcData[pid]['START'] = ts
+                    if TA.lifeProcData[pid]['user'] == '-':
+                        TA.lifeProcData[pid]['user'] = d['user']
                 # zomebie process #
                 elif comm[1].upper() == 'Z':
                     lifecycleData[2] += 1
@@ -83234,6 +83308,12 @@ class TaskAnalyzer(object):
                 return
         except SystemExit: sys.exit(0)
         except: pass
+
+        # update comm for life data #
+        if pid in TA.lifeProcData:
+            TA.lifeProcData[pid]['comm'] = comm
+            if TA.lifeProcData[pid]['user'] == '-':
+                TA.lifeProcData[pid]['user'] = d['user']
 
         # check pid in list #
         if pid not in TA.procTotData:
@@ -84330,7 +84410,7 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
-    def printLifeInterval():
+    def printLifeHistory():
         TA = TaskAnalyzer
 
         SysMgr.printPipe('\n[Top Life Info]\n')
@@ -84345,14 +84425,17 @@ class TaskAnalyzer(object):
             parent = 'Process'
 
         # Print menu #
-        SysMgr.printPipe(
-            "{0:^32} | {1:^32} | {2:^16} | {3:^16} |\n{4:1}".format(
-                target, parent, 'START', 'END', oneLine))
+        SysMgr.printPipe((
+            "{0:^32} | {1:^16} | {2:^16} | {3:^16} | "
+            "{4:^32} | {5:^25} |\n{6:1}").format(
+            target, 'START', 'END', 'DURATION', parent, 'USER', oneLine))
 
         procIntData = TaskAnalyzer.procIntData
 
         # Print times #
-        for pid, value in sorted(TA.lifeProcData.items()):
+        for pid, value in sorted(
+            TA.lifeProcData.items(), key=lambda x: long(x[0])):
+
             # check filter #
             if SysMgr.filterGroup and \
                 (not UtilMgr.isValidStr(pid) or \
@@ -84363,25 +84446,46 @@ class TaskAnalyzer(object):
             name = "%s(%s)" % (value['comm'], pid)
 
             # start #
-            start = value['START']
-            if start == -2:
-                start = '<-'
-            else:
-                start = '%.1f' % float(procIntData[start]['time'])
+            try:
+                start = value['START']
+                if start == -2:
+                    start = '<-'
+                else:
+                    start = float(start)
+            except SystemExit: sys.exit(0)
+            except:
+                start = 'x'
 
             # end #
-            end = value['FINISH']
-            if end == -2:
-                end = '-'
-            elif end == -1:
-                startTime = float(procIntData[0]['time'])
-                end = '%.1f' % (startTime - SysMgr.intervalEnable)
-            else:
-                end = '%.1f' % float(procIntData[end]['time'])
+            try:
+                end = value['FINISH']
+                if end == -2:
+                    end = '-'
+                elif end == -1:
+                    startTime = float(procIntData[0]['time'])
+                    end = float(startTime - SysMgr.intervalEnable)
+                else:
+                    end = float(end)
+            except:
+                end = 'x'
 
-            SysMgr.printPipe(
-                "{0:>32} | {1:>32} | {2:>16} | {3:>16} |".format(
-                    name, value['parent'], start, end))
+            # duration #
+            try: duration = '%.1f' % (end - start)
+            except: duration = ' '
+
+            # convert start #
+            try: start = UtilMgr.convTime(long(start))
+            except: pass
+
+            # convert end #
+            try: end = UtilMgr.convTime(long(end))
+            except: pass
+
+            SysMgr.printPipe((
+                "{0:>32} | {1:>16} | {2:>16} | {3:>16} | "
+                "{4:>32} | {5:>25} |").format(
+                    name, start, end, duration,
+                    value['parent'], value['user']))
 
         if not TA.lifeProcData:
             SysMgr.printPipe('\tNone')
@@ -84487,7 +84591,7 @@ class TaskAnalyzer(object):
             TaskAnalyzer.printNetworkInterval()
             TaskAnalyzer.printCgCpuInterval()
             TaskAnalyzer.printCgMemInterval()
-            TaskAnalyzer.printLifeInterval()
+            TaskAnalyzer.printLifeHistory()
 
         # print interval info #
         TaskAnalyzer.printMemAnalysis()
@@ -93961,7 +94065,8 @@ class TaskAnalyzer(object):
 
             # user #
             try:
-                if 'user' in self.prevProcData[idx]:
+                if idx in self.prevProcData and \
+                    'user' in self.prevProcData[idx]:
                     value['user'] = self.prevProcData[idx]['user']
                 else:
                     SysMgr.sysInstance.saveUserInfo()
