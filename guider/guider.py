@@ -21306,7 +21306,7 @@ Commands:
         # check active threshold #
         elif not _checkResource(confData):
             SysMgr.printWarn((
-                'disabled monitoring threshold '
+                'disabled the threshold monitoring '
                 'because of no active threshold'), True)
             return
         else:
@@ -21375,7 +21375,7 @@ Commands:
             else:
                 SysMgr.taskThresholdEnable = False
                 SysMgr.printWarn((
-                    'disabled monitoring tasks '
+                    'disabled the task monitoring '
                     'because of no threshold for task'), True)
         except SystemExit: sys.exit(0)
         except:
@@ -28549,11 +28549,14 @@ Options:
 Commands:
     CMD_BUFFER     resize the buffer
     CMD_CLEAR      clear the buffer
-    CMD_DISABLE    stop the monitoring threshold
+    CMD_DISABLE    disable monitoring of the specific resource
+    CMD_ENABLE     enable monitoring of the specific resource
     CMD_INTERVAL   change the monitoring interval
+    CMD_PAUSE      pause all monitoring activities
     CMD_RELOAD     reload the threshold config
     CMD_RESTART    restart the process
     CMD_SAVE       save the monitoring results
+    CMD_STOP       stop the threshold monitoring
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28571,19 +28574,29 @@ Examples:
     - Notify specific events to specific Guider processes
         # {0:1} {1:1} EVENT1, EVENT2 -g 1234, 1237
 
-    - Notify CMD_SAVE event {2:1} to save monitoring results to the specific file
+    - Notify CMD_SAVE event {2:1} to save the monitoring results to the specific file
         # {0:1} {1:1} CMD_SAVE
         # {0:1} {1:1} CMD_SAVE_3s
         # {0:1} {1:1} CMD_SAVE_1m
         # {0:1} {1:1} CMD_SAVE_2s@FrameDropCase
 
-    - Notify CMD_BUFFER event {2:1} to resize monitoring buffer
+    - Notify CMD_BUFFER event {2:1} to resize the monitoring buffer
         # {0:1} {1:1} CMD_BUFFER_500k
         # {0:1} {1:1} CMD_BUFFER_2m
 
-    - Notify CMD_INTERVAL event {2:1} to change monitoring interval
+    - Notify CMD_INTERVAL event {2:1} to change the monitoring interval
         # {0:1} {1:1} CMD_INTERVAL_3s
         # {0:1} {1:1} CMD_INTERVAL_10s
+
+    - Notify CMD_ENABLE event {2:1} to enable monitoring of specific resources
+        # {0:1} {1:1} CMD_ENABLE_CPU
+        # {0:1} {1:1} CMD_ENABLE_MEM
+        # {0:1} {1:1} CMD_ENABLE_IRQ
+        # {0:1} {1:1} CMD_ENABLE_DISK
+        # {0:1} {1:1} CMD_ENABLE_BLOCK
+        # {0:1} {1:1} CMD_ENABLE_NETWORK
+        # {0:1} {1:1} CMD_ENABLE_PMU
+        # {0:1} {1:1} CMD_ENABLE_LOG
                     '''.format(cmd, mode, 'to all Guider processes')
 
                 # server #
@@ -29490,7 +29503,8 @@ Copyright:
         def _IO(type, nr): return _IOC(_IOC_NONE, type, nr, 0)
         def _IOR(type, nr, size): return _IOC(_IOC_READ, type, nr, size)
         def _IOW(type, nr, size): return _IOC(_IOC_WRITE, type, nr, size)
-        def _IOWR(type, nr, size): return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
+        def _IOWR(type, nr, size):
+            return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
 
         # define CMD #
         PERF_EVENT_IOC_ENABLE = _IO('$', 0)
@@ -29503,14 +29517,6 @@ Copyright:
         PERF_EVENT_IOC_ID = _IOR('$', 7, sizeof(c_uint64))
         PERF_EVENT_IOC_SET_BPF = _IOW('$', 8, sizeof(c_uint32))
         PERF_EVENT_IOC_PAUSE_OUTPUT = _IOW('$', 9, sizeof(c_uint32))
-
-        # declare syscalls #
-        SysMgr.libcObj.syscall.argtypes = \
-            [c_int, POINTER(struct_perf_event_attr),
-                c_int, c_int, c_int, c_ulong]
-        SysMgr.libcObj.syscall.restype = c_int
-        SysMgr.libcObj.ioctl.restype = c_int
-        SysMgr.libcObj.ioctl.argtypes = [c_int, c_ulong, c_int]
 
         # set struct perf_event_attr #
         perf_attr = struct_perf_event_attr()
@@ -29529,10 +29535,8 @@ Copyright:
             pid_t pid, int cpu, int group_fd, unsigned long flags);
         '''
         # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
-        fd = SysMgr.libcObj.syscall(
-            SysMgr.getNrSyscall('sys_perf_event_open'),
+        fd = SysMgr.syscall('sys_perf_event_open',
             pointer(perf_attr), pid, cpu, -1, 0)
-
         if fd < 0:
             # check root permission #
             if not SysMgr.checkRootPerm(
@@ -29542,8 +29546,8 @@ Copyright:
                 return -1
 
         # control perf event #
-        SysMgr.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
-        SysMgr.libcObj.ioctl(fd, PERF_EVENT_IOC_ENABLE, 0)
+        SysMgr.syscall('ioctl', fd, PERF_EVENT_IOC_RESET, 0)
+        SysMgr.syscall('ioctl', fd, PERF_EVENT_IOC_ENABLE, 0)
 
         # free perf_attr object, but memory leak exists now #
         del perf_attr
@@ -46276,14 +46280,6 @@ Copyright:
             ('sched_period', c_uint64),
         ]
 
-        # get the number of sched_setattr syscall #
-        nrSyscall = SysMgr.getNrSyscall('sys_sched_setattr')
-
-        # define syscall parameters for sched_setattr() #
-        SysMgr.libcObj.syscall.argtypes = \
-            [c_int, c_int, POINTER(struct_sched_attr), c_uint]
-        SysMgr.libcObj.syscall.restype = c_int
-
         # set parameters #
         sched_attr = struct_sched_attr()
         sched_attr.size = c_uint32(sizeof(sched_attr))
@@ -46311,8 +46307,8 @@ Copyright:
         sched_attr.sched_period = c_uint64(period)
 
         # call sched_setattr() to set deadline sched #
-        ret = SysMgr.libcObj.syscall(
-            nrSyscall, pid, pointer(sched_attr), 0)
+        ret = SysMgr.syscall(
+            'sys_sched_setattr', pid, pointer(sched_attr), 0)
 
         # check return value #
         if ret == 0:
@@ -90658,6 +90654,7 @@ class TaskAnalyzer(object):
 
             # check I/O data #
             if tid in self.prevProcData and \
+                'ioData' in self.prevProcData[tid] and \
                 self.prevProcData[tid]['ioData'] == ioBuf:
                 self.procData[tid]['io'] = self.prevProcData[tid]['io']
             else:
@@ -94976,6 +94973,19 @@ class TaskAnalyzer(object):
 
 
     def handleEventCmd(self, cmd, source):
+        # RESTART #
+        if cmd.startswith('RESTART'):
+            # print message #
+            SysMgr.printInfo("restart %s(%s)..." % \
+                (SysMgr.pid, SysMgr.getComm(SysMgr.pid)))
+
+            # restart process #
+            SysMgr.restart()
+
+        # check PAUSE status #
+        if not SysMgr.printEnable and SysMgr.waitEnable:
+            return
+
         # SAVE #
         if cmd.startswith('SAVE'):
             ret = self.handleSaveCmd(cmd, 'USER')
@@ -94983,6 +94993,49 @@ class TaskAnalyzer(object):
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
                 return
+        # ENABLE / DISABLE #
+        elif cmd.startswith('ENABLE_') or cmd.startswith('DISABLE_'):
+            if cmd.startswith('ENABLE_'):
+                act = 'enable'
+                value = True
+                res = UtilMgr.lstrip(cmd, 'ENABLE_')
+            else:
+                act = 'disable'
+                value = False
+                res = UtilMgr.lstrip(cmd, 'DISABLE_')
+
+            # update target resource #
+            if res == 'CPU':
+                SysMgr.cpuEnable = value
+            elif res == 'MEM':
+                SysMgr.memEnable = value
+            elif res == 'IRQ':
+                SysMgr.irqEnable = value
+            elif res == 'DISK':
+                SysMgr.diskEnable = value
+            elif res == 'NETWORK':
+                SysMgr.networkEnable = value
+            elif res == 'BLOCK':
+                if SysMgr.checkRootPerm(False):
+                    SysMgr.blockEnable = value
+            elif res == 'PMU':
+                if SysMgr.checkRootPerm(False):
+                    SysMgr.perfEnable = value
+
+                    # initialize perf events #
+                    if value:
+                        SysMgr.initSystemPerfEvents()
+            elif res == 'LOG':
+                SysMgr.logEnable = value
+            else:
+                SysMgr.printWarn(
+                    "no support '%s' resource" % res, True)
+                return
+
+            # print message #
+            SysMgr.printInfo((
+                "%s the monitoring resource '%s' by '%s' command "
+                "for %s event") % (act, res, cmd, source))
         # CLEAR #
         elif cmd.startswith('CLEAR'):
             # clear buffer #
@@ -95009,8 +95062,9 @@ class TaskAnalyzer(object):
 
             # print message #
             SysMgr.printInfo((
-                "changed monitoring buffer size to %s by '%s' command "
-                "for %s event") % (UtilMgr.convSize2Unit(size), cmd, source))
+                "changed the size of the monitoring buffer to %s by "
+                "'%s' command for %s event") % \
+                    (UtilMgr.convSize2Unit(size), cmd, source))
         # INTERVAL #
         elif cmd.startswith('INTERVAL'):
             # get interval #
@@ -95032,7 +95086,7 @@ class TaskAnalyzer(object):
 
             # print message #
             SysMgr.printInfo((
-                "changed monitoring interval to %s by '%s' command "
+                "changed the monitoring interval to %s by '%s' command "
                 "for %s event") % (UtilMgr.convNum(interval), cmd, source))
         # RELOAD #
         elif cmd.startswith('RELOAD'):
@@ -95046,22 +95100,35 @@ class TaskAnalyzer(object):
             self.eventCommandList = {}
             SysMgr.thresholdEventHistory = {}
             SysMgr.thresholdEventList = {}
-        # RESTART #
-        elif cmd.startswith('RESTART'):
-            # print message #
-            SysMgr.printInfo("restart %s(%s)..." % \
-                (SysMgr.pid, SysMgr.getComm(SysMgr.pid)))
+        # PAUSE #
+        elif cmd.startswith('PAUSE'):
+            # clear buffer #
+            SysMgr.clearPrint()
+            SysMgr.clearProcBuffer()
+            SysMgr.shrinkHeap()
 
-            # restart process #
-            SysMgr.restart()
-        # DISABLE #
-        elif cmd.startswith('DISABLE'):
             # print message #
-            SysMgr.printInfo("stop monitoring threshold")
+            SysMgr.printInfo((
+                "cleared the monitoring results and paused all activities "
+                "by '%s' command for %s event") % (cmd, source))
 
-            # remove thresholds #
-            SysMgr.thresholdData = {}
+            # disable print #
+            SysMgr.printEnable = False
+            SysMgr.logEnable = False
+
+            # wait for RESTART event #
+            SysMgr.waitEnable = True
+            while 1:
+                time.sleep(1)
+                self.checkServer()
+        # STOP #
+        elif cmd.startswith('STOP'):
+            # print message #
+            SysMgr.printInfo("stop the threshold monitoring")
+
+            # clear threshold data #
             self.eventCommandList = {}
+            SysMgr.thresholdData = {}
             SysMgr.thresholdEventHistory = {}
             SysMgr.thresholdEventList = {}
         else:
@@ -95724,7 +95791,7 @@ class TaskAnalyzer(object):
                 SysMgr.prevThresholdData = SysMgr.thresholdData
             SysMgr.thresholdData = {}
             SysMgr.printWarn((
-                "disabled monitoring all thresholds "
+                "disabled the threshold monitoring "
                 "because of 'goneshot' event"), True)
         # update apply flag for oneshot #
         elif oneshot:
@@ -95758,7 +95825,7 @@ class TaskAnalyzer(object):
                     SysMgr.prevThresholdData = SysMgr.thresholdData
                 SysMgr.thresholdData = {}
                 SysMgr.printWarn((
-                    'disabled monitoring threshold '
+                    'disabled the threshold monitoring '
                     'because of no active threshold'), True)
 
         # handle oneshot command #
