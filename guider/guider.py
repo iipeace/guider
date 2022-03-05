@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220304"
+__revision__ = "220305"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28575,6 +28575,7 @@ Examples:
         # {0:1} {1:1} CMD_SAVE
         # {0:1} {1:1} CMD_SAVE_3s
         # {0:1} {1:1} CMD_SAVE_1m
+        # {0:1} {1:1} CMD_SAVE_2s@FrameDropCase
 
     - Notify CMD_BUFFER event {2:1} to resize monitoring buffer
         # {0:1} {1:1} CMD_BUFFER_500k
@@ -95209,14 +95210,26 @@ class TaskAnalyzer(object):
 
 
     def handleSaveCmd(self, cmd, event):
+        # replace event name #
+        origCmd = cmd
+        parts = cmd.split('@', 1)
+        cmd = parts[0]
+        if len(parts) > 1:
+            event = '%s_%s' % (event, parts[1])
+
+        # verify save command #
+        if cmd.split('_')[0] != 'SAVE':
+            SysMgr.printWarn("no support '%s' command" % origCmd, True)
+            return
+
         # print message #
         SysMgr.printInfo((
             "start saving the monitoring results by '%s' command "
-            "for '%s' event") % (cmd, event))
+            "for '%s' event") % (origCmd, event))
 
         # check out path #
         if not SysMgr.outPath:
-            SysMgr.printErr("no output path for '%s' command" % cmd)
+            SysMgr.printErr("no output path for '%s' command" % origCmd)
             return True
 
         if SysMgr.isLinux:
