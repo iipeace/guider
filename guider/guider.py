@@ -18950,6 +18950,8 @@ class SysMgr(object):
     thresholdRefreshList = []
     thresholdEventList = {}
     thresholdEventHistory = {}
+    eventLockList = {}
+    eventCommandList = {}
 
     # object #
     impPkg = {}
@@ -37749,7 +37751,6 @@ Copyright:
             SysMgr.parsedAnalOption = False
             SysMgr.optionList = []
             ConfigMgr.confData = {}
-            SysMgr.thresholdData = {}
             SysMgr.procBuffer = []
             SysMgr.clearPrint()
             SysMgr.groupProcEnable = False
@@ -37991,6 +37992,8 @@ Copyright:
         # clear threshold condition #
         SysMgr.prevThresholdData = SysMgr.thresholdData
         SysMgr.thresholdData = {}
+        SysMgr.eventCommandList = {}
+        SysMgr.eventLockList = {}
 
         # remove JSON object #
         SysMgr.reportObject = None
@@ -73334,7 +73337,6 @@ class TaskAnalyzer(object):
     """ Analyzer for thread profiling """
 
     reportData = {}
-    eventCommandList = {}
     lifeIntData = {}
     lifeProcData = {}
     lifecycleData = {}
@@ -95115,7 +95117,7 @@ class TaskAnalyzer(object):
             SysMgr.applyThreshold()
 
             # reset events #
-            self.eventCommandList = {}
+            SysMgr.eventCommandList = {}
             SysMgr.thresholdEventHistory = {}
             SysMgr.thresholdEventList = {}
         # PAUSE #
@@ -95145,10 +95147,10 @@ class TaskAnalyzer(object):
             SysMgr.printInfo("stop the threshold monitoring")
 
             # clear threshold data #
-            self.eventCommandList = {}
+            SysMgr.eventCommandList = {}
             SysMgr.thresholdData = {}
-            SysMgr.thresholdEventHistory = {}
             SysMgr.thresholdEventList = {}
+            SysMgr.thresholdEventHistory = {}
         else:
             SysMgr.printWarn("no support '%s' command" % cmd, True)
 
@@ -95305,7 +95307,7 @@ class TaskAnalyzer(object):
         # verify save command #
         if cmd.split('_')[0] != 'SAVE':
             SysMgr.printWarn("no support '%s' command" % origCmd, True)
-            return
+            return -1
 
         # print message #
         SysMgr.printInfo((
@@ -95315,13 +95317,13 @@ class TaskAnalyzer(object):
         # check out path #
         if not SysMgr.outPath:
             SysMgr.printErr("no output path for '%s' command" % origCmd)
-            return True
+            return -1
 
         if SysMgr.isLinux:
             # create a new process #
             pid = SysMgr.createProcess()
             if pid > 0:
-                return True
+                return pid
 
             # change priority #
             SysMgr.setPriority(SysMgr.pid, 'C', 15, verb=False)
@@ -95364,7 +95366,7 @@ class TaskAnalyzer(object):
                 signal.signal(signal.SIGALRM, SysMgr.stopHandler)
                 signal.alarm(sec)
 
-            return False
+            return 0
         else:
             # immediate #
             try:
@@ -95380,19 +95382,13 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.outPath = SysMgr.nullPath
 
-            return True
+            return 0
 
 
 
     def executeEventCommand(self, eventList):
         if not eventList:
             return
-
-        # check event handling process #
-        runList = SysMgr.getChildList()
-        for event, pid in deepcopy(self.eventCommandList).items():
-            if not pid in runList:
-                self.eventCommandList.pop(event, None)
 
         for event in eventList:
             value = self.reportData['event'][event]
@@ -95401,7 +95397,7 @@ class TaskAnalyzer(object):
                 continue
 
             # skip events that already exist #
-            if event in self.eventCommandList:
+            if event in SysMgr.eventCommandList:
                 continue
             elif not value['run']:
                 SysMgr.printWarn((
@@ -95413,7 +95409,10 @@ class TaskAnalyzer(object):
                 # handle save command #
                 if cmd.startswith('SAVE'):
                     # parent #
-                    if self.handleSaveCmd(cmd, event):
+                    pid = self.handleSaveCmd(cmd, event)
+                    if pid > 0:
+                        # register the event handling process #
+                        SysMgr.eventCommandList.setdefault(event, pid)
                         continue
                     # child #
                     else:
@@ -95465,11 +95464,12 @@ class TaskAnalyzer(object):
 
                 # register the event handling process #
                 if ret:
-                    self.eventCommandList.setdefault(event, ret)
+                    SysMgr.eventCommandList.setdefault(event, ret)
 
 
 
     def handleThresholdEvents(self):
+        # check exit condition #
         if not SysMgr.thresholdEnable:
             return
         elif not SysMgr.thresholdEventList and \
@@ -95744,11 +95744,32 @@ class TaskAnalyzer(object):
         # handle events #
         self.handleThresholdEvents()
 
+        # update event status #
+        self.updateEventStatus()
+
+
+
+    def updateEventStatus(self):
+        # check event handling tasks #
+        runList = SysMgr.getChildList()
+        for event, pid in deepcopy(SysMgr.eventCommandList).items():
+            if not pid in runList:
+                SysMgr.eventCommandList.pop(event, None)
+
+        # update event lock #
+        for event in deepcopy(SysMgr.eventLockList):
+            if not event in SysMgr.eventCommandList:
+                SysMgr.eventLockList.pop(event, None)
+                SysMgr.printWarn((
+                    "released the lock of the threshold handling "
+                    "caused by '%s' event") % event, True)
+
 
 
     def setThresholdEvent(
-        self, comval, item, event, comp='big', target=None, attr='SYSTEM',
-        intval=None, addval=None, oneshot=False, goneshot=False, refresh=0):
+        self, comval, item, event, comp='big', target=None,
+        attr='SYSTEM', intval=None, addval=None, oneshot=False,
+        goneshot=False, refresh=0, lock=False):
 
         # init value #
         value = None
@@ -95787,6 +95808,13 @@ class TaskAnalyzer(object):
 
         # set event name #
         ename = '%s_%s_%s' % (event, attr, item)
+
+        # check event lock #
+        if SysMgr.eventLockList:
+            SysMgr.printWarn(
+                "ignored '%s' event because of the lock of [%s]" % \
+                    (ename, ', '.join(SysMgr.eventLockList.keys())))
+            return
 
         # add event #
         if 'task' in comval:
@@ -95855,10 +95883,43 @@ class TaskAnalyzer(object):
         else:
             run = True
 
+        # set lock for event #
+        if lock:
+            SysMgr.eventLockList.setdefault(ename, None)
+            SysMgr.printWarn((
+                "locked the threshold handling "
+                "because of '%s' event") % ename, True)
+
         # set value for event #
         self.reportData['event'][ename] = dict(comval)
         self.reportData['event'][ename]['run'] = run
         SysMgr.thresholdEventHistory.setdefault(ename, None)
+
+
+
+    @staticmethod
+    def getThresholdAttr(items):
+        if 'oneshot' in items and items['oneshot'] == 'true':
+            oneshot = True
+        else:
+            oneshot = False
+
+        if 'goneshot' in items and items['goneshot'] == 'true':
+            goneshot = True
+        else:
+            goneshot = False
+
+        if 'refresh' in items:
+            refresh = items['refresh']
+        else:
+            refresh = 0
+
+        if 'lock' in items and items['lock'] == 'true':
+            lock = items['lock']
+        else:
+            lock = False
+
+        return oneshot, goneshot, refresh, lock
 
 
 
@@ -95874,25 +95935,6 @@ class TaskAnalyzer(object):
         if not 'file' in td:
             return False
 
-        # define function for checking oneshot #
-        def _getOneshotFlag(items):
-            if 'oneshot' in items and items['oneshot'] == 'true':
-                oneshot = True
-            else:
-                oneshot = False
-
-            if 'goneshot' in items and items['goneshot'] == 'true':
-                goneshot = True
-            else:
-                goneshot = False
-
-            if 'refresh' in items:
-                refresh = items['refresh']
-            else:
-                refresh = 0
-
-            return oneshot, goneshot, refresh
-
         for path, value in td['file'].items():
             # check apply #
             if not 'apply' in value or \
@@ -95905,13 +95947,14 @@ class TaskAnalyzer(object):
                     continue
 
                 if UtilMgr.convPath(path):
-                    oneshot, goneshot, refresh = _getOneshotFlag(value)
+                    oneshot, goneshot, refresh, lock = \
+                        TaskAnalyzer.getThresholdAttr(value)
 
                     # set threshold #
                     self.setThresholdEvent(
                         value, attr, 'FILE', None, target=True,
                         attr=path, oneshot=oneshot, goneshot=goneshot,
-                        refresh=refresh)
+                        refresh=refresh, lock=lock)
 
             # check bigger / lesser #
             if 'big' in value:
@@ -95934,7 +95977,8 @@ class TaskAnalyzer(object):
                     for item in files:
                         size += UtilMgr.getFileSize(item, False)
 
-                    oneshot, goneshot, refresh = _getOneshotFlag(value)
+                    oneshot, goneshot, refresh, lock = \
+                        TaskAnalyzer.getThresholdAttr(value)
 
                     check = 'big' if comp == 'big' else 'less'
 
@@ -95942,7 +95986,7 @@ class TaskAnalyzer(object):
                     self.setThresholdEvent(
                         value, comp, 'FILE', check, target=size,
                         attr=path, oneshot=oneshot, goneshot=goneshot,
-                        refresh=refresh)
+                        refresh=refresh, lock=lock)
 
             # TODO: handle dir #
 
@@ -95978,25 +96022,6 @@ class TaskAnalyzer(object):
         if target is None:
             target = self.reportData[resource][item]
 
-        # define function for checking oneshot #
-        def _getOneshotFlag(items):
-            if 'oneshot' in items and items['oneshot'] == 'true':
-                oneshot = True
-            else:
-                oneshot = False
-
-            if 'goneshot' in items and items['goneshot'] == 'true':
-                goneshot = True
-            else:
-                goneshot = False
-
-            if 'refresh' in items:
-                refresh = items['refresh']
-            else:
-                refresh = 0
-
-            return oneshot, goneshot, refresh
-
         # check conditions and trigger events #
         if type(comval) is dict:
             # check apply attribute #
@@ -96014,12 +96039,13 @@ class TaskAnalyzer(object):
                     return False
 
             # check oneshot flag #
-            oneshot, goneshot, refresh = _getOneshotFlag(comval)
+            oneshot, goneshot, refresh, lock = \
+                TaskAnalyzer.getThresholdAttr(comval)
 
             # set threshold #
             self.setThresholdEvent(
                 comval, item, event, comp, target,
-                attr, intval, addval, oneshot, goneshot, refresh)
+                attr, intval, addval, oneshot, goneshot, refresh, lock)
         elif type(comval) is list:
             for comitem in comval:
                 # check apply attribute #
@@ -96037,12 +96063,13 @@ class TaskAnalyzer(object):
                         continue
 
                 # check oneshot flag #
-                oneshot, goneshot, refresh = _getOneshotFlag(comitem)
+                oneshot, goneshot, refresh, lock = \
+                    TaskAnalyzer.getThresholdAttr(comitem)
 
                 # set threshold #
                 self.setThresholdEvent(
                     comitem, item, event, comp, target,
-                    attr, intval, addval, oneshot, goneshot, refresh)
+                    attr, intval, addval, oneshot, goneshot, refresh, lock)
 
 
 
