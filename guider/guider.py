@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220305"
+__revision__ = "220306"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23969,14 +23969,14 @@ Examples:
 Examples:
     - Draw items for specific files
         # {0:1} {1:1} guider.out
-        # {0:1} {1:1} guider.out guider2.out guider3.out
+        # {0:1} {1:1} guider.out guider2.out "guider3 data.out"
         # {0:1} {1:1} "data/*"
         # {0:1} {1:1} guider.dat
 
     - Draw items for specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*"
 
-    - Draw items for each file
+    - Draw items for each file for flamegraph
         # {0:1} {1:1} guider.out -q NOMERGE
 
     - Draw items for specific tasks
@@ -23994,16 +23994,19 @@ Examples:
     - Draw items for all events and tasks
         # {0:1} {1:1} guider.dat -a
 
-    - Draw items except for syscalls
+    - Draw items except for syscalls for timeline segments
         # {0:1} {1:1} guider.dat -q NOSYSCALL
 
     - Draw items forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw items in us time unit
+    - Draw items using uptime for perf graph
+        # {0:1} {1:1} guider.dat -q NOTIMEFORMAT
+
+    - Draw items in us time-unit for timeline segments
         # {0:1} {1:1} guider.dat -q TIMEUNIT:us
 
-    - Draw items except for label for timelines lesser than 100ms
+    - Draw items except for labels of timeline segments lesser than 100ms
         # {0:1} {1:1} guider.dat -q LABELMIN:100
 
     - Draw items with label setting
@@ -24025,7 +24028,7 @@ Examples:
         # {0:1} {1:1} guider.dat -O 1, 4, 10
         # {0:1} {1:1} guider.dat -O 1:10, 14
 
-    - Draw items with changed groups or cores
+    - Draw items with changed groups or cores for timeline segments
         # {0:1} {1:1} guider.dat -q CONVGROUP:0:1, CONVGROUP:1:0
 
     - Draw items to specific image format
@@ -24050,7 +24053,7 @@ Examples:
     - Draw items on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
 
-    - Draw flame items only having backtrace
+    - Draw items only having backtrace for flamegraph
         # {0:1} {1:1} guider.out -q ONLYBTSTACK
 
     - Draw items within specific interval range in index unit
@@ -24085,19 +24088,19 @@ Examples:
     - Draw items of total resource usage with multiple files for comparison
         # {0:1} {1:1} "guider*.out" worstcase.out -a -g TOTAL
 
-    - Draw fixed-size items on timeline
+    - Draw fixed-size items for timeline segments
         # {0:1} {1:1} timeline.json -q DURATION:500
 
-    - Draw per-task items on timeline
+    - Draw per-task items for timeline segments
         # {0:1} {1:1} timeline.json -q PERTASK
 
-    - Draw items with minimum fixed-size on timeline
+    - Draw items with minimum fixed-size for timeline segments
         # {0:1} {1:1} timeline.json -q DURATIONMIN:500
 
-    - Draw items with stroke only for specific interval bigger than 3000
+    - Draw items with stroke only for specific interval bigger than 3000 for timeline segments
         # {0:1} {1:1} guider.dat -q STROKEINTERVAL:3000
 
-    - Draw items with stroke only for specific duration bigger than 5000
+    - Draw items with stroke only for specific duration bigger than 5000 for timeline segments
         # {0:1} {1:1} guider.dat -q STROKEDURATION:5000
                 '''.format(cmd, mode)
 
@@ -28590,6 +28593,7 @@ Examples:
 
     - Notify CMD_ENABLE event {2:1} to enable monitoring of specific resources
         # {0:1} {1:1} CMD_ENABLE_CPU
+        # {0:1} {1:1} CMD_ENABLE_GPU
         # {0:1} {1:1} CMD_ENABLE_MEM
         # {0:1} {1:1} CMD_ENABLE_IRQ
         # {0:1} {1:1} CMD_ENABLE_DISK
@@ -66606,6 +66610,7 @@ class EventAnalyzer(object):
             SysMgr.printPipe(twoLine)
             try:
                 EventAnalyzer.printEvent()
+            except SystemExit: sys.exit(0)
             except: pass
             SysMgr.printPipe(twoLine)
 
@@ -76525,11 +76530,22 @@ class TaskAnalyzer(object):
             try:
                 xtickLabel = ax.get_xticks().tolist()
                 xtickLabel = list(map(long, xtickLabel))
+
+                # apply time format #
+                if 'NOTIMEFORMAT' in SysMgr.environList:
+                    useFormat = False
+                else:
+                    try:
+                        useFormat = True
+                        xtickLabel = list(map(UtilMgr.convTime, xtickLabel))
+                    except: pass
+
                 if len(str(xtickLabel[0])) > 5:
                     for idx, item in enumerate(list(xtickLabel)):
                         if idx & 1: xtickLabel[idx] = '\n%s' % item
                     ax.set_xticklabels(xtickLabel)
-                if xtickLabel[0] != xtickLabel[-1]:
+
+                if not useFormat and xtickLabel[0] != xtickLabel[-1]:
                     xlim([xtickLabel[0], xtickLabel[-1]])
                     xtickLabel[-1] = '   TIME(Sec)'
                     ax.set_xticklabels(xtickLabel)
@@ -95007,6 +95023,8 @@ class TaskAnalyzer(object):
             # update target resource #
             if res == 'CPU':
                 SysMgr.cpuEnable = value
+            if res == 'GPU':
+                SysMgr.gpuEnable = value
             elif res == 'MEM':
                 SysMgr.memEnable = value
             elif res == 'IRQ':
