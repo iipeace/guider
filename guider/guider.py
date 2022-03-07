@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220306"
+__revision__ = "220307"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24004,6 +24004,15 @@ Examples:
 
     - Draw items using uptime for perf graph
         # {0:1} {1:1} guider.dat -q NOTIMEFORMAT
+
+    - Draw items with task life events for perf graph
+        # {0:1} {1:1} guider.dat -q DRAWLIFE, LFONTSIZE:2
+
+    - Draw items with specific task life events for perf graph
+        # {0:1} {1:1} guider.dat -q DRAWLIFE, INEVENT:"*system*", INEVENT:"*cat*"
+
+    - Draw items with task life events except for specific ones for perf graph
+        # {0:1} {1:1} guider.dat -q DRAWLIFE, EXEVENT:"*arp*", EXEVENT:"*pkill*"
 
     - Draw items in us time-unit for timeline segments
         # {0:1} {1:1} guider.dat -q TIMEUNIT:us
@@ -53948,7 +53957,7 @@ class DltAnalyzer(object):
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(
-                'failed to find %s to get DLT log' % \
+                'failed to find %s to get DLT logs' % \
                     SysMgr.libdltPath, always=True, reason=True)
             sys.exit(0)
 
@@ -54067,7 +54076,7 @@ class DltAnalyzer(object):
                 flist += ret
             flist = UtilMgr.cleanItem(flist)
             if not flist:
-                SysMgr.printErr("no path for DLT file")
+                SysMgr.printErr("wrong path '%s' for DLT files" % args)
                 sys.exit(0)
         elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
@@ -54075,7 +54084,8 @@ class DltAnalyzer(object):
                 flist += ret
             flist = UtilMgr.cleanItem(flist)
             if not flist:
-                SysMgr.printErr("no path for DLT file")
+                SysMgr.printErr(
+                    "wrong path '%s' for DLT files" % SysMgr.inputParam)
                 sys.exit(0)
 
         # check sort option #
@@ -54127,9 +54137,10 @@ class DltAnalyzer(object):
         if mode == 'print' and flist:
             for path in flist:
                 SysMgr.printInfo(
-                    "start printing DLT log from %s...\n" % path)
+                    "start printing DLT logs from %s...\n" % path)
 
                 # convert path string to utf-8 format #
+                pathOrig = path
                 path = UtilMgr.encodeStr(path)
 
                 # initialize file object #
@@ -54141,31 +54152,30 @@ class DltAnalyzer(object):
                 # set filter #
                 #_setFilter(dltObj, dltFilter, dltFile, apid=b"", ctid=b"", init=True)
 
-                # open file #
+                # open the file #
                 ret = dltObj.dlt_file_open(byref(dltFile), path, verb)
                 if ret != 0:
                     SysMgr.printErr(
-                        "failed to open %s" % path)
+                        "failed to open %s" % pathOrig)
                     return
                 elif dltFile.file_length == 0:
                     SysMgr.printErr(
-                        "failed to read %s because size is 0" % path)
+                        "failed to read %s because size is 0" % pathOrig)
                     return
 
-                # read a file #
+                # read the file #
                 while dltFile.file_position < dltFile.file_length:
                     ret = dltObj.dlt_file_read(byref(dltFile), verb)
                     # storage header corrupted #
                     if ret < 0:
                         nextHeaderPos = \
                             _findNextHeader(path, dltFile.file_position)
-                        if nextHeaderPos is not None:
-                            if dltFile.file_position == nextHeaderPos:
-                                break
-                            else:
-                                dltFile.file_position = nextHeaderPos
-                        else:
+                        if nextHeaderPos is None:
                             break
+                        elif dltFile.file_position == nextHeaderPos:
+                            break
+                        else:
+                            dltFile.file_position = nextHeaderPos
 
                 # read messages #
                 for index in range(dltFile.counter_total):
@@ -54174,7 +54184,7 @@ class DltAnalyzer(object):
                     if ret < 0:
                         SysMgr.printWarn(
                             "failed to read %s message from %s" %
-                                (index, path), True)
+                                (index, pathOrig), True)
                         continue
 
                     # check log filter #
@@ -54369,12 +54379,12 @@ class DltAnalyzer(object):
             SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
 
             SysMgr.printInfo(
-                "start collecting DLT log... [ STOP(Ctrl+c) ]")
+                "start collecting DLT logs... [ STOP(Ctrl+c) ]")
         elif mode == 'print':
             quitFlag = SysMgr.findOption('Q')
 
             SysMgr.printInfo(
-                "start printing DLT log... [ STOP(Ctrl+c) ]\n")
+                "start printing DLT logs... [ STOP(Ctrl+c) ]\n")
 
         while 1:
             try:
@@ -61298,6 +61308,10 @@ typedef struct {
                 self.backupRegs(bt=True)
                 restored = False
 
+                # load symbols from new objects #
+                if not self.startAddr:
+                    self.loadSymbols()
+
                 # set start address #
                 ip = self.pc
                 if self.mode == 'break':
@@ -61344,6 +61358,10 @@ typedef struct {
                 restored = True
             # unwind stack using FP/SP #
             else:
+                # load symbols from new objects #
+                if not self.startAddr:
+                    self.loadSymbols()
+
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
 
             return self.btList
@@ -75334,6 +75352,39 @@ class TaskAnalyzer(object):
                     eventList[idx].append('%s [%.2fs]' % (event, dtime))
                 except: pass
 
+            # Life #
+            elif context == 'Life':
+                if slen != 7:
+                    continue
+
+                if not 'DRAWLIFE' in SysMgr.environList:
+                    continue
+
+                try:
+                    task = sline[0].strip()
+                    start = sline[1].strip()
+                    end = sline[2].strip()
+                    parent = sline[4].strip()
+
+                    try:
+                        startSec = UtilMgr.convTime2Sec(start)
+                        if not startSec:
+                            raise Exception('no start')
+
+                        startIdx = UtilMgr.bisect_left(timeline, startSec)
+                        eventList[startIdx].append('[+] %s [%s]' % (task, start))
+                    except: pass
+
+                    try:
+                        endSec = UtilMgr.convTime2Sec(end)
+                        if not endSec:
+                            raise Exception('no end')
+
+                        endIdx = UtilMgr.bisect_left(timeline, endSec)
+                        eventList[endIdx].append('[-] %s [%s]' % (task, end))
+                    except: pass
+                except: pass
+
             # CPU #
             elif context == 'CPU':
                 if slen == 3:
@@ -76706,6 +76757,18 @@ class TaskAnalyzer(object):
                     timeline = val
             lent = len(timeline)
 
+            # get exclude event list #
+            if 'EXEVENT' in SysMgr.environList:
+                exEventList = SysMgr.environList['EXEVENT']
+            else:
+                exEventList = None
+
+            # get include event list #
+            if 'INEVENT' in SysMgr.environList:
+                inEventList = SysMgr.environList['INEVENT']
+            else:
+                inEventList = None
+
             # start loop #
             for key, val in graphStats.items():
                 if not key.endswith('timeline'):
@@ -76726,14 +76789,32 @@ class TaskAnalyzer(object):
                     if not evts:
                         continue
 
+                    # filter inclusive events #
+                    if inEventList:
+                        newEvts = []
+                        for evt in evts:
+                            if not UtilMgr.isValidStr(evt, inEventList):
+                                continue
+                            newEvts.append(evt)
+                        evts = newEvts
+
+                    # filter exclusive events #
+                    if exEventList:
+                        newEvts = []
+                        for evt in evts:
+                            if UtilMgr.isValidStr(evt, exEventList):
+                                continue
+                            newEvts.append(evt)
+                        evts = newEvts
+
                     evtbox = '%s%s' % (prefix, '\n'.join(evts))
 
                     try:
                         text(timeline[tm], ylim()[-1], evtbox,
                             fontsize=self.lfsize,
                             verticalalignment='top', style='italic',
-                            bbox={'facecolor':'green', 'alpha': 1, 'pad': 1},
-                            ha=_getTextAlign(tm, timeline))
+                            bbox={'facecolor':'green', 'alpha': 0.5, 'pad': 1},
+                            ha='left')
 
                         axvline(x=timeline[tm], linewidth=1,
                             linestyle='--', color='green')
