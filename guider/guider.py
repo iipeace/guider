@@ -28561,8 +28561,8 @@ Options:
     -v                          verbose
 
 Commands:
-    CMD_BUFFER     resize the buffer
-    CMD_CLEAR      clear the buffer
+    CMD_BUFFER     resize the monitoring buffer
+    CMD_CLEAR      clear the monitoring buffer
     CMD_DISABLE    disable monitoring of the specific resource
     CMD_ENABLE     enable monitoring of the specific resource
     CMD_INTERVAL   change the monitoring interval
@@ -95083,7 +95083,7 @@ class TaskAnalyzer(object):
 
         # check PAUSE status #
         if not SysMgr.printEnable and SysMgr.waitEnable:
-            return
+            return None
 
         # SAVE #
         if cmd.startswith('SAVE'):
@@ -95091,7 +95091,7 @@ class TaskAnalyzer(object):
             if not ret:
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
-                return
+            return ret
         # ENABLE / DISABLE #
         elif cmd.startswith('ENABLE_') or cmd.startswith('DISABLE_'):
             if cmd.startswith('ENABLE_'):
@@ -95131,7 +95131,7 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.printWarn(
                     "no support '%s' resource" % res, True)
-                return
+                return None
 
             # print message #
             SysMgr.printInfo((
@@ -95159,7 +95159,7 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.printErr(
                     'failed to apply buffer size to %s' % sizeOrig)
-                return
+                return None
 
             # print message #
             SysMgr.printInfo((
@@ -95183,7 +95183,7 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.printErr(
                     'failed to apply interval to %s' % intervalOrig)
-                return
+                return None
 
             # print message #
             SysMgr.printInfo((
@@ -95234,6 +95234,9 @@ class TaskAnalyzer(object):
             SysMgr.thresholdEventHistory = {}
         else:
             SysMgr.printWarn("no support '%s' command" % cmd, True)
+            return None
+
+        return True
 
 
 
@@ -95487,25 +95490,36 @@ class TaskAnalyzer(object):
                 continue
 
             for cmd in value['command']:
-                # handle save command #
-                if cmd.startswith('SAVE'):
-                    # parent #
-                    pid = self.handleSaveCmd(cmd, event)
-                    if pid > 0:
-                        # register the event handling process #
-                        SysMgr.eventCommandList.setdefault(event, pid)
-                        continue
-                    # child #
-                    else:
-                        return
                 # convert command to full command by name #
-                elif 'COMMAND' in SysMgr.thresholdData and \
+                if 'COMMAND' in SysMgr.thresholdData and \
                     cmd in SysMgr.thresholdData['COMMAND']:
                     cmd = SysMgr.thresholdData['COMMAND'][cmd]
                 # convert command to full command by name #
                 elif 'COMMAND' in SysMgr.prevThresholdData and \
                     cmd in SysMgr.prevThresholdData['COMMAND']:
                     cmd = SysMgr.prevThresholdData['COMMAND'][cmd]
+                # handle embedded commands #
+                else:
+                    ret = self.handleEventCmd(cmd, event)
+                    # general commands #
+                    if ret is True:
+                        continue
+                    # custom commands #
+                    elif ret is None:
+                        pass
+                    # child task #
+                    elif ret == 0:
+                        return
+                    # parent task #
+                    else:
+                        try:
+                            # check fork failure #
+                            if ret < 0: continue
+                            # register the event handling process #
+                            SysMgr.eventCommandList.setdefault(event, ret)
+                            continue
+                        except SystemExit: sys.exit(0)
+                        except: pass
 
                 # convert EVTPID #
                 if 'task' in value:
