@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220307"
+__revision__ = "220308"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23123,6 +23123,10 @@ Commands:
             SysMgr.printInfo("sorted by MEMORY")
         elif value == 'b':
             SysMgr.printInfo("sorted by BLOCK")
+            if SysMgr.checkDiskTopCond():
+                SysMgr.blockEnable = True
+            else:
+                sys.exit(0)
         elif value == 'w':
             SysMgr.printInfo("sorted by CHILD")
             SysMgr.wfcEnable = True
@@ -23780,6 +23784,9 @@ Examples:
 
     - {3:1} all {2:2} on linux, not android
         # NO_ANDROID=1 {0:1} {1:1} -a
+
+    - {3:1} maximum 20 {2:2}
+        # {0:1} {1:1} -a -q NRTOPRANK:20
 
     - {3:1} all {2:2} with specific cores
         # {0:1} {1:1} -e c -O 0:4, 10, 12
@@ -39827,7 +39834,7 @@ Copyright:
                 totalStats.setdefault(realreq, [])
                 totalStats[realreq] += response
 
-                # draw total gpu graph #
+                # draw total GPU graph #
                 plot(timeline, response, '-',
                     linewidth=1, marker='d', markersize=1,
                     solid_capstyle='round')
@@ -40061,7 +40068,7 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
-        # check cpu driver #
+        # check CPU driver #
         if not os.path.isdir(freqPath):
             SysMgr.printErr(
                 "failed to find CPU node for governor")
@@ -42518,7 +42525,7 @@ Copyright:
                 SysMgr.updateUptime()
                 diff = '[%d]' % SysMgr.uptime
 
-                # get cpu usage #
+                # get CPU usage #
                 procData = tobj.procData[pid]['stat']
                 utime = long(procData[utimeIdx])
                 stime = long(procData[stimeIdx])
@@ -54781,10 +54788,8 @@ class Debugger(object):
         self.showStatus = True
 
         # init task number #
-        if not hasattr(self, 'myNum'):
-            self.myNum = 0
-        if not hasattr(self, 'childNum'):
-            self.childNum = 0
+        self.myNum = 0
+        self.childNum = 0
 
         # update break mode #
         self.updateBreakMode()
@@ -54795,7 +54800,7 @@ class Debugger(object):
         else:
             self.decChar = 'Q'
 
-        # timestamp variables #
+        # define timestamp variables #
         self.current = 0
         self.dstart = 0
         self.dvalue = 0
@@ -54871,17 +54876,16 @@ class Debugger(object):
         self.endStack = None
         self.stackSize = 0
 
-        # timeline #
-        self.timelineData = {"time_unit": "us", "segments": []}
+        # define timeline #
         self.timelineIdx = {}
+        self.timelineData = {"time_unit": "us", "segments": []}
         self.timeDuration = UtilMgr.getEnvironNum(
             'DURATION', False, 100, False)
 
-        self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
-        self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
-        self.tkillIdx = SysMgr.getNrSyscall('sys_tkill')
-
+        # set ptrace indexes #
         plist = ConfigMgr.PTRACE_TYPE
+        self.peekIdx = plist.index('PTRACE_PEEKTEXT')
+        self.pokeIdx = plist.index('PTRACE_POKEDATA')
         self.contCmd = plist.index('PTRACE_CONT')
         self.getregsCmd = plist.index('PTRACE_GETREGS')
         self.getfpregsCmd = plist.index('PTRACE_GETFPREGS')
@@ -54890,8 +54894,41 @@ class Debugger(object):
         self.sysemuCmd = plist.index('PTRACE_SYSEMU')
         self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
 
-        self.ignoreItemList = \
-            list(map(lambda x: x.encode(), SysMgr.ignoreItemList))
+        # set ptrace event indexes #
+        pelist = ConfigMgr.PTRACE_EVENT_TYPE
+        self.sigExecFlag = signal.SIGTRAP | \
+            pelist.index('PTRACE_EVENT_EXEC') << 8
+        self.sigCloneFlag = signal.SIGTRAP | \
+            pelist.index('PTRACE_EVENT_CLONE') << 8
+        self.sigForkFlag = signal.SIGTRAP | \
+            pelist.index('PTRACE_EVENT_FORK') << 8
+        self.sigVforkFlag = signal.SIGTRAP | \
+            pelist.index('PTRACE_EVENT_VFORK') << 8
+        self.sigExitFlag = signal.SIGTRAP | \
+            pelist.index('PTRACE_EVENT_EXIT') << 8
+
+        # set task indexes #
+        clist = ConfigMgr.STAT_ATTR
+        self.commIdx = clist.index("COMM")
+        self.utimeIdx = clist.index("UTIME")
+        self.stimeIdx = clist.index("STIME")
+        self.rssIdx = clist.index("RSS")
+        self.tkillIdx = SysMgr.getNrSyscall('sys_tkill')
+
+        # set arch regs #
+        self.arch = SysMgr.arch
+        self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
+        self.retreg = ConfigMgr.RET_LIST[self.arch]
+
+        # set python reader functions #
+        if ConfigMgr.wordSize == 4:
+            self.readPyStr = self.readPyStr32
+            self.readPyFrame = self.readPyFrame32
+            self.readPyState = self.readPyState32
+        else:
+            self.readPyStr = self.readPyStr64
+            self.readPyFrame = self.readPyFrame64
+            self.readPyState = self.readPyState64
 
         # set breakpoint variables #
         if self.arch == 'arm' or \
@@ -54902,9 +54939,23 @@ class Debugger(object):
             self.brkInst = b'\xCC'
             self.prevInstOffset = 1
 
+        # set ignore list #
+        self.ignoreItemList = \
+            list(map(lambda x: x.encode(), SysMgr.ignoreItemList))
+
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
-            raise Exception('no ptrace permission')
+            raise Exception('no ptrace perm')
+
+        # trace flags #
+        self.traceEventList = [
+            'PTRACE_O_TRACEEXEC',
+            'PTRACE_O_TRACESYSGOOD',
+            'PTRACE_O_TRACECLONE',
+            'PTRACE_O_TRACEFORK',
+            'PTRACE_O_TRACEVFORK',
+            'PTRACE_O_TRACEEXIT',
+        ]
 
         # load libc #
         SysMgr.loadLibcObj(exit=True)
@@ -64468,7 +64519,7 @@ typedef struct {
                     sys.exit(0)
 
             # initialize variables #
-            self.initValues()
+            self.initValues(fork)
             self.forked = True
             signal.alarm(SysMgr.intervalEnable)
 
@@ -64563,17 +64614,7 @@ typedef struct {
 
 
 
-    def initValues(self):
-        # trace flags with root permission #
-        self.traceEventList = [
-            'PTRACE_O_TRACEEXEC',
-            'PTRACE_O_TRACESYSGOOD',
-            'PTRACE_O_TRACECLONE',
-            'PTRACE_O_TRACEFORK',
-            'PTRACE_O_TRACEVFORK',
-            'PTRACE_O_TRACEEXIT',
-        ]
-
+    def initValues(self, fork=True):
         # stat variables #
         self.pthreadid = 0
         self.comm = SysMgr.getComm(self.pid, cache=True)
@@ -64589,15 +64630,6 @@ typedef struct {
         self.prevPyBt = None
         self.prevPyIndent = {}
         self.pretty = not SysMgr.findOption('Q')
-
-        # context variables #
-        self.arch = SysMgr.getArch()
-        self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
-        self.retreg = ConfigMgr.RET_LIST[self.arch]
-        self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
-        self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
-        self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
-        self.rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
 
         # update CPU usage for target #
         if hasattr(self, 'prevCpuStat'):
@@ -64655,29 +64687,6 @@ typedef struct {
         # python variables #
         self.pyAddr = None
         self.pyFrameCache = {}
-
-        # python functinos #
-        if ConfigMgr.wordSize == 4:
-            self.readPyStr = self.readPyStr32
-            self.readPyFrame = self.readPyFrame32
-            self.readPyState = self.readPyState32
-        else:
-            self.readPyStr = self.readPyStr64
-            self.readPyFrame = self.readPyFrame64
-            self.readPyState = self.readPyState64
-
-        # index variables #
-        if not hasattr(self, 'sigExecFlag'):
-            self.sigExecFlag = signal.SIGTRAP | \
-                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
-            self.sigCloneFlag = signal.SIGTRAP | \
-                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
-            self.sigForkFlag = signal.SIGTRAP | \
-                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
-            self.sigVforkFlag = signal.SIGTRAP | \
-                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
-            self.sigExitFlag = signal.SIGTRAP | \
-                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXIT') << 8
 
         # make object for myself #
         if not Debugger.tracerInstance or \
@@ -73523,7 +73532,7 @@ class TaskAnalyzer(object):
                 'maximum': max(cpuUsage),
                 }
 
-            # get total gpu info #
+            # get total GPU info #
             gpuProcUsage = gstats['gpuUsage']
 
             # get total free info #
@@ -73695,7 +73704,7 @@ class TaskAnalyzer(object):
                 if '(' in pinfo:
                     gpuProcUsage.pop(pinfo)
 
-            # iterate gpu list #
+            # iterate GPU list #
             for pinfo, value in gpuProcUsage.items():
                 pname = _getProcName(pinfo)
 
@@ -74278,9 +74287,9 @@ class TaskAnalyzer(object):
                 'isMain': False, 'tids': None, 'stat': None, 'io': None,
                 'alive': False, 'runtime': 0.0, 'changed': True,
                 'created': False, 'new': False, 'majflt': 0,
-                'ttime': 0, 'cttime': 0, 'utime': 0,
-                'stime': 0, 'taskPath': None, 'statm': None,
-                'mainID': '', 'btime': 0, 'maps': None, 'status': None
+                'ttime': 0, 'cttime': 0, 'utime': 0, 'stime': 0,
+                'btime': 0, 'rw': 0, 'taskPath': None, 'statm': None,
+                'mainID': '', 'maps': None, 'status': None
             }
 
             self.init_cpuData = {
@@ -76923,7 +76932,7 @@ class TaskAnalyzer(object):
                         else:
                             gcolor = 'olive'
 
-                        # draw total gpu graph #
+                        # draw total GPU graph #
                         plot(timeline, stat, '-', c=gcolor, linestyle='--',
                             linewidth=1, marker='d', markersize=1,
                             path_effects=_getPathEffect(),
@@ -79867,7 +79876,8 @@ class TaskAnalyzer(object):
                 key=lambda e: e[1]['nrPages'], reverse=True)
         elif SysMgr.sort == 'b':
             sortedThreadData = sorted(self.threadData.items(),
-                key=lambda e: e[1]['readBlock'] + e[1]['writeBlock'] + e[1]['awriteBlock'],
+                key=lambda e: e[1]['readBlock'] + \
+                    e[1]['writeBlock'] + e[1]['awriteBlock'],
                 reverse=True)
         else:
             # set CPU usage as default #
@@ -83885,7 +83895,7 @@ class TaskAnalyzer(object):
     def printGpuInterval():
         TA = TaskAnalyzer
 
-        # Check gpu data #
+        # Check GPU data #
         if 'gpu' not in TA.procTotData['total']:
             return
 
@@ -83901,7 +83911,7 @@ class TaskAnalyzer(object):
         # Print timeline #
         TA.printTimelineInterval(margin, gpuInfoLen, gpuInfo, 1)
 
-        # Print gpu usage #
+        # Print GPU usage #
         for gpu, stat in TA.procTotData['total']['gpu'].items():
             try:
                 avg = stat['usage'] / len(TA.procIntData)
@@ -88855,7 +88865,7 @@ class TaskAnalyzer(object):
         convNum = UtilMgr.convNum
         convSize = UtilMgr.convSize2Unit
 
-        # print cpu usage #
+        # print CPU usage #
         if SysMgr.isLinux:
             # get diff #
             diff = SysMgr.uptimeDiff
@@ -90026,7 +90036,7 @@ class TaskAnalyzer(object):
         if SysMgr.perfEnable:
             SysMgr.collectSystemPerfData()
 
-        # save gpu stat #
+        # save GPU stat #
         self.saveGpuData()
 
         # check atop mode #
@@ -90759,11 +90769,10 @@ class TaskAnalyzer(object):
             else:
                 self.procData[tid]['io'] = {}
                 for line in ioBuf:
-                    line = line.split()
-                    item = line[0]
-                    if item != 'read_bytes:' and item != 'write_bytes:':
+                    name, val = line.split()
+                    if not name in ('read_bytes:', 'write_bytes:'):
                         continue
-                    self.procData[tid]['io'][item[:-1]] = long(line[1])
+                    self.procData[tid]['io'][name[:-1]] = long(val)
 
         # save perf fds #
         if SysMgr.perfGroupEnable and \
@@ -92285,6 +92294,7 @@ class TaskAnalyzer(object):
                             self.prevProcData[pid]['io']['read_bytes']
                     value['write'] = value['io']['write_bytes'] - \
                             self.prevProcData[pid]['io']['write_bytes']
+                    value['rw'] = value['read'] + value['write']
 
                 # check stat change #
                 if not value['changed']:
@@ -92430,6 +92440,7 @@ class TaskAnalyzer(object):
                 if value['io']:
                     value['read'] = value['io']['read_bytes']
                     value['write'] = value['io']['write_bytes']
+                    value['rw'] = value['read'] + value['write']
 
             # check delayacct_blkio_ticks error #
             if not SysMgr.totalEnable and value['btime'] >= 100:
@@ -93238,7 +93249,7 @@ class TaskAnalyzer(object):
         # block #
         elif SysMgr.sort == 'b':
             sortedProcData = sorted(self.procData.items(),
-                key=lambda e: e[1]['btime'], reverse=True)
+                key=lambda e: e[1]['rw'], reverse=True)
         # WFC #
         elif SysMgr.sort == 'w':
             sortedProcData = sorted(self.procData.items(),
@@ -93279,6 +93290,7 @@ class TaskAnalyzer(object):
 
                 sortedProcData = sorted(self.procData.items(),
                     key=lambda e: e[1][statName], reverse=True)
+            except SystemExit: sys.exit(0)
             except:
                 sortedProcData = self.procData.items()
         # contextswitch #
@@ -93299,6 +93311,7 @@ class TaskAnalyzer(object):
                             long(prev[k[0]]['status'][prmpt])) \
                                 if k[0] in prev else 0,
                         reverse=True)
+            except SystemExit: sys.exit(0)
             except:
                 sortedProcData = self.procData.items()
         # dbus #
@@ -93604,7 +93617,7 @@ class TaskAnalyzer(object):
             elif SysMgr.sort == 'm':
                 target = long(stat[self.rssIdx]) >> 8
             elif SysMgr.sort == 'b':
-                target = value['btime']
+                target = value['rw']
             elif SysMgr.sort == 'w':
                 target = value['cttime']
             elif SysMgr.sort == 'n':
@@ -93627,10 +93640,14 @@ class TaskAnalyzer(object):
                 except:
                     prevCtx = 0
 
-                nowStat = value['status']
-                nowCtx = \
-                    long(nowStat['voluntary_ctxt_switches']) + \
-                    long(nowStat['nonvoluntary_ctxt_switches'])
+                try:
+                    nowStat = value['status']
+                    nowCtx = \
+                        long(nowStat['voluntary_ctxt_switches']) + \
+                        long(nowStat['nonvoluntary_ctxt_switches'])
+                except SystemExit: sys.exit(0)
+                except:
+                    nowCtx = 0
 
                 target = nowCtx - prevCtx
             else:
@@ -94035,6 +94052,12 @@ class TaskAnalyzer(object):
             self.reportData['task'].setdefault('normal', {})
             saveJsonStat = True
 
+        # set maximum top rank #
+        if 'NRTOPRANK' in SysMgr.environList:
+            nrTopRank = UtilMgr.getEnvironNum('NRTOPRANK', isInt=True)
+        else:
+            nrTopRank = sys.maxsize
+
         # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
@@ -94070,12 +94093,14 @@ class TaskAnalyzer(object):
                         SysMgr.printOpenWarn(spath)
                         self.stackTable.pop(idx, None)
 
-            # check limit #
+            # check break condition #
             if _isBreakCond(idx, value):
                 break
-
+            # check the number of task #
+            elif procCnt >= nrTopRank:
+                break
             # check terminal rows #
-            if SysMgr.checkCutCond():
+            elif SysMgr.checkCutCond():
                 return
 
             # init WSS #
@@ -95071,7 +95096,7 @@ class TaskAnalyzer(object):
 
 
 
-    def handleEventCmd(self, cmd, source):
+    def handleEventCmd(self, cmd, source, user):
         # RESTART #
         if cmd.startswith('RESTART'):
             # print message #
@@ -95087,7 +95112,8 @@ class TaskAnalyzer(object):
 
         # SAVE #
         if cmd.startswith('SAVE'):
-            ret = self.handleSaveCmd(cmd, 'USER')
+            name = 'USER' if user else source
+            ret = self.handleSaveCmd(cmd, name)
             if not ret:
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
@@ -95313,8 +95339,8 @@ class TaskAnalyzer(object):
                         SysMgr.printWarn("ignored '%s' event" % event)
                     else:
                         self.handleEventCmd(
-                            UtilMgr.lstrip(event, 'CMD_'), '%s:%s' % \
-                                (ip, port))
+                            UtilMgr.lstrip(event, 'CMD_'),
+                            '%s:%s' % (ip, port), True)
                 else:
                     # send event message #
                     if networkObject:
@@ -95500,7 +95526,7 @@ class TaskAnalyzer(object):
                     cmd = SysMgr.prevThresholdData['COMMAND'][cmd]
                 # handle embedded commands #
                 else:
-                    ret = self.handleEventCmd(cmd, event)
+                    ret = self.handleEventCmd(cmd, event, False)
                     # general commands #
                     if ret is True:
                         continue
@@ -96180,7 +96206,7 @@ class TaskAnalyzer(object):
 
         # mapping table between thresholds and stats #
         maps = []
-        # cpu #
+        # CPU #
         if 'cpu' in tt and tt['cpu']:
             maps += [['cpu', 'total', 'ttime', 'cpuInt', 'CPU', 'big']]
         # mem #
@@ -96340,15 +96366,15 @@ class TaskAnalyzer(object):
                 for pid, data in sortedProcData:
                     comm = data['comm']
 
-                    # check comm #
-                    if not UtilMgr.isValidStr(comm):
-                        continue
-                    # check exit condition #
-                    elif not (SysMgr.showAll or data['ttime'] > 0):
-                        break
                     # check the number of items #
-                    elif rank <= SysMgr.nrTopRank:
+                    if rank > SysMgr.nrTopRank:
                         break
+                    # check usage #
+                    elif not SysMgr.showAll and data['ttime'] == 0:
+                        break
+                    # check comm #
+                    elif not UtilMgr.isValidStr(comm):
+                        continue
 
                     evtdata = self.reportData['cpu']['procs']
                     evtdata[rank] = {}
@@ -96391,12 +96417,12 @@ class TaskAnalyzer(object):
                 for pid, data in sortedProcData:
                     comm = data['comm']
 
-                    # check comm #
-                    if not UtilMgr.isValidStr(comm):
-                        continue
                     # check the number of items #
-                    elif not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
+                    if rank > SysMgr.nrTopRank:
                         break
+                    # check comm #
+                    elif not UtilMgr.isValidStr(comm):
+                        continue
 
                     try:
                         text = (long(data['stat'][self.ecodeIdx]) - \
@@ -96432,8 +96458,11 @@ class TaskAnalyzer(object):
                 self.reportData['block']['procs'] = {}
 
                 try:
+                    if not SysMgr.blockEnable:
+                        raise Exception('no block')
+
                     sortedProcData = sorted(self.procData.items(),
-                        key=lambda e: e[1]['btime'], reverse=True)
+                        key=lambda e: e[1]['rw'], reverse=True)
                 except SystemExit: sys.exit(0)
                 except:
                     # to handle corrupted data #
@@ -96442,17 +96471,20 @@ class TaskAnalyzer(object):
                 for pid, data in sortedProcData:
                     comm = data['comm']
 
-                    # check comm #
-                    if not UtilMgr.isValidStr(comm):
-                        continue
-                    elif data['btime'] == 0:
+                    # check total I/O size #
+                    if data['rw'] == 0:
                         break
+                    # check comm #
+                    elif not UtilMgr.isValidStr(comm):
+                        continue
 
                     evtdata = self.reportData['block']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
                     _setDefaultInfo(evtdata[rank], pid, comm, runtime)
                     evtdata[rank]['iowait'] = data['btime']
+                    evtdata[rank]['read'] = data['read'] >> 20
+                    evtdata[rank]['write'] = data['write'] >> 20
 
                     rank += 1
 
@@ -96477,11 +96509,12 @@ class TaskAnalyzer(object):
 
                     comm = data['comm']
 
-                    # check comm #
-                    if not UtilMgr.isValidStr(comm):
-                        continue
-                    elif data['size'] == 0:
+                    # check size #
+                    if data['size'] == 0:
                         break
+                    # check comm #
+                    elif not UtilMgr.isValidStr(comm):
+                        continue
 
                     procs[rank] = {}
                     _setDefaultInfo(procs[rank], pid, comm)
