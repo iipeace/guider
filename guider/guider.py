@@ -21314,6 +21314,34 @@ Commands:
         else:
             SysMgr.thresholdData = confData
 
+        # update threshold data #
+        if 'UPDATETHRESHOLD' in SysMgr.environList:
+            path = SysMgr.environList['UPDATETHRESHOLD'][0]
+
+            # load data from the file #
+            try:
+                with open(path) as fd:
+                    body = fd.read()
+                    value = UtilMgr.convStr2Dict(body, True)
+                    if not value:
+                        return None
+            except SystemExit: sys.exit(0)
+            except:
+                SysMgr.printOpenErr(path, True)
+                sys.exit(0)
+
+            # update threshold condition #
+            try:
+                SysMgr.thresholdData.update(value)
+            except:
+                SysMgr.printErr(
+                    'failed to update threshold data', True)
+                sys.exit(0)
+
+            # print message #
+            SysMgr.printInfo(
+                "updated the threshold data from '%s'" % path)
+
         # set report table #
         SysMgr.reportEnable = True
         if SysMgr.findOption('j'):
@@ -25596,6 +25624,9 @@ Examples:
     - Monitor resources without threshold condition until CMD_RELOAD event is received
         # {0:1} {1:1} -q NOTHRESHOLD
 
+    - Monitor resources after update the threshold data from the specific file
+        # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
+
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
@@ -28578,6 +28609,7 @@ Commands:
     CMD_RESTART    restart the process
     CMD_SAVE       save the monitoring results
     CMD_STOP       stop the threshold monitoring
+    CMD_UPDATE     update the threshold data
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28608,6 +28640,9 @@ Examples:
     - Notify CMD_INTERVAL event {2:1} to change the monitoring interval
         # {0:1} {1:1} CMD_INTERVAL_3s
         # {0:1} {1:1} CMD_INTERVAL_10s
+
+    - Notify CMD_UPDATE event {2:1} to update the threshold data from the specific file
+        # {0:1} {1:1} CMD_UPDATE_test.conf
 
     - Notify CMD_ENABLE event {2:1} to enable monitoring of specific resources
         # {0:1} {1:1} CMD_ENABLE_CPU
@@ -95110,14 +95145,50 @@ class TaskAnalyzer(object):
         if not SysMgr.printEnable and SysMgr.waitEnable:
             return None
 
+        # set event name #
+        name = 'USER' if user else source
+
         # SAVE #
         if cmd.startswith('SAVE'):
-            name = 'USER' if user else source
             ret = self.handleSaveCmd(cmd, name)
             if not ret:
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
             return ret
+        # UPDATE #
+        elif cmd.startswith('UPDATE_'):
+            # get threshold data #
+            value = None
+            path = UtilMgr.lstrip(cmd, 'UPDATE_')
+
+            # load data from the file #
+            try:
+                with open(path) as fd:
+                    body = fd.read()
+                    value = UtilMgr.convStr2Dict(body, True)
+                    if not value:
+                        return None
+            except SystemExit: sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(path, True, True)
+                return None
+
+            # update threshold condition #
+            try:
+                SysMgr.thresholdData.update(value)
+            except:
+                SysMgr.printErr(
+                    'failed to update threshold data', True)
+                return None
+
+            # print message #
+            SysMgr.printInfo((
+                "updated the threshold data from '%s' by '%s' command "
+                "for %s event") % (path, cmd, name))
+
+            # print threshold data #
+            SysMgr.printWarn(
+                UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True))
         # ENABLE / DISABLE #
         elif cmd.startswith('ENABLE_') or cmd.startswith('DISABLE_'):
             if cmd.startswith('ENABLE_'):
@@ -95162,7 +95233,7 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo((
                 "%s the monitoring resource '%s' by '%s' command "
-                "for %s event") % (act, res, cmd, source))
+                "for %s event") % (act, res, cmd, name))
         # CLEAR #
         elif cmd.startswith('CLEAR'):
             # clear buffer #
@@ -95171,7 +95242,7 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo((
                 "cleared the monitoring results by '%s' command "
-                "for %s event") % (cmd, source))
+                "for %s event") % (cmd, name))
         # BUFFER #
         elif cmd.startswith('BUFFER_'):
             # get buffer size #
@@ -95191,7 +95262,7 @@ class TaskAnalyzer(object):
             SysMgr.printInfo((
                 "changed the size of the monitoring buffer to %s by "
                 "'%s' command for %s event") % \
-                    (UtilMgr.convSize2Unit(size), cmd, source))
+                    (UtilMgr.convSize2Unit(size), cmd, name))
         # INTERVAL #
         elif cmd.startswith('INTERVAL'):
             # get interval #
@@ -95214,7 +95285,7 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo((
                 "changed the monitoring interval to %s by '%s' command "
-                "for %s event") % (UtilMgr.convNum(interval), cmd, source))
+                "for %s event") % (UtilMgr.convNum(interval), cmd, name))
         # RELOAD #
         elif cmd.startswith('RELOAD'):
             # print message #
@@ -95237,7 +95308,7 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo((
                 "cleared the monitoring results and paused all activities "
-                "by '%s' command for %s event") % (cmd, source))
+                "by '%s' command for %s event") % (cmd, name))
 
             # disable print #
             SysMgr.printEnable = False
@@ -95925,7 +95996,7 @@ class TaskAnalyzer(object):
         # check after time #
         elif 'after' in comval:
             try:
-                threshold = UtilMgr.convUnit2Size(comval['after'])
+                threshold = UtilMgr.convUnit2Time(comval['after'])
                 if SysMgr.uptime < threshold: return
             except:
                 SysMgr.printWarn(
@@ -95933,7 +96004,7 @@ class TaskAnalyzer(object):
         # check before time #
         elif 'before' in comval:
             try:
-                threshold = UtilMgr.convUnit2Size(comval['before'])
+                threshold = UtilMgr.convUnit2Time(comval['before'])
                 if SysMgr.uptime > threshold: return
             except:
                 SysMgr.printWarn(
