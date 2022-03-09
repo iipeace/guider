@@ -29086,8 +29086,9 @@ Copyright:
         for item in path:
             wd = SysMgr.libcObj.inotify_add_watch(fd, item.encode(), fbits)
             if wd < 0:
-                SysMgr.printWarn("failed to inotify_add_watch", verb)
-                return False
+                SysMgr.printWarn(
+                    "failed to inotify_add_watch for '%s'" % item, verb)
+                continue
             wlist[wd] = item
 
         # read events #
@@ -47272,6 +47273,14 @@ Copyright:
             # wait for task termination #
             try:
                 remainTasks = childs - termTasks
+
+                # set timer for force termination for abnormal child tasks #
+                def _onAlarm(signum, frame):
+                    SysMgr.sendSignalProcs(signal.SIGKILL, remainTasks)
+                signal.signal(signal.SIGALRM, _onAlarm)
+                signal.alarm(5)
+
+                # wait for termination for child tasks #
                 watchList = ['/proc/%s/comm' % tid for tid in remainTasks]
                 SysMgr.inotify(watchList)
             except SystemExit: sys.exit(0)
@@ -60543,8 +60552,7 @@ typedef struct {
         while 1:
             if not prevPath:
                 if number > 0:
-                    prevPath = '%s%s%s' % \
-                        (origPath, magicstr, number-1)
+                    prevPath = '%s%s%s' % (origPath, magicstr, number-1)
                 else:
                     prevPath = origPath
             else:
@@ -60554,10 +60562,8 @@ typedef struct {
                 (origPath, magicstr, number)
 
             # add diff by hole #
-            curStart = \
-                long(fileList[curPath]['vstart'])
-            prevEnd = \
-                long(fileList[prevPath]['vend'])
+            curStart = long(fileList[curPath]['vstart'])
+            prevEnd = long(fileList[prevPath]['vend'])
             totalDiff += (curStart - prevEnd)
 
             if number == 0:
@@ -61388,7 +61394,7 @@ typedef struct {
             elif SysMgr.dwarfEnable:
                 # init arg list for backtraces #
                 argList = []
-                self.btArgList = None
+                self.btArgList = []
 
                 # backup registers #
                 self.backupRegs(bt=True)
@@ -61412,7 +61418,6 @@ typedef struct {
                 while 1:
                     # get return address #
                     raddr = self.getRetAddr(ip, argList)
-                    self.btArgList = argList
                     if not raddr:
                         break
 
@@ -61428,6 +61433,9 @@ typedef struct {
 
                     # update IP #
                     ip = raddr
+
+                # update backtrace args #
+                self.btArgList = argList
 
                 # convert addresses to symbols #
                 self.btList = self.convAddrList(btList)
@@ -61527,6 +61535,7 @@ typedef struct {
         if not ret:
             return None
         elif ret[1] == 'JIT':
+            # return addr from FP #
             bts = self.backtrace[SysMgr.arch](cur=False)
             if not bts: return None
             return [ item[0] for item in bts ]
@@ -61546,11 +61555,11 @@ typedef struct {
             SysMgr.printWarn(
                 'failed to find DWARF info for %s(%s) in %s' % \
                     (sym, hex(foffset), fname))
-            if not 'EXCEPTDWARF' in SysMgr.environList or \
-                not UtilMgr.isValidStr(
-                    fobj.path, SysMgr.environList['EXCEPTDWARF']):
-                SysMgr.dwarfEnable = False
-            return None
+
+            # return addr from FP #
+            bts = self.backtrace[SysMgr.arch](cur=False)
+            if not bts: return None
+            return [ item[0] for item in bts ]
 
         # get function address from CFA index table #
         dwarf = fobj.attr['dwarf']
@@ -61921,6 +61930,7 @@ typedef struct {
     def convAddrList(self, btList):
         # get symbol and file from address #
         clist = []
+        onlysym = Debugger.envFlags['ONLYSYM']
         for addr in btList:
             res = self.getSymbolInfo(addr)
             if res:
@@ -61930,12 +61940,11 @@ typedef struct {
                     sym = res[0]
 
                 # skip no symbol function #
-                if Debugger.envFlags['ONLYSYM'] and \
-                    sym and sym.startswith('0x'):
+                if onlysym and sym and sym.startswith('0x'):
                     continue
 
                 clist.append([addr, sym, res[1]])
-            else:
+            elif not onlysym:
                 clist.append([addr, '??', '??'])
 
         return clist
