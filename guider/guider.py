@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220308"
+__revision__ = "220309"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -95922,10 +95922,22 @@ class TaskAnalyzer(object):
         # check value #
         if value is None:
             return
-
-        # add task info #
-        if addval:
-            comval.update(addval)
+        # check after time #
+        elif 'after' in comval:
+            try:
+                threshold = UtilMgr.convUnit2Size(comval['after'])
+                if SysMgr.uptime < threshold: return
+            except:
+                SysMgr.printWarn(
+                    "failed to check 'after' condition", True, True)
+        # check before time #
+        elif 'before' in comval:
+            try:
+                threshold = UtilMgr.convUnit2Size(comval['before'])
+                if SysMgr.uptime > threshold: return
+            except:
+                SysMgr.printWarn(
+                    "failed to check 'before' condition", True, True)
 
         # set event name #
         ename = '%s_%s_%s' % (event, attr, item)
@@ -95936,6 +95948,10 @@ class TaskAnalyzer(object):
                 "ignored '%s' event because of the lock of [%s]" % \
                     (ename, ', '.join(SysMgr.eventLockList.keys())))
             return
+
+        # add task info #
+        if addval:
+            comval.update(addval)
 
         # add event #
         if 'task' in comval:
