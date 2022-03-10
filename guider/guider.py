@@ -3933,13 +3933,13 @@ class UtilMgr(object):
 
         # add name #
         if name:
-            prefix = '[%s]' % name
+            prefix = '/ %s' % name
         else:
             prefix = ''
 
         # print time diff #
-        string = '\n%s[Elapsed: %f]' % (prefix, diff)
-        print(UtilMgr.convColor(string, 'RED'))
+        string = '[ELAPSED] %f sec %s' % (diff, prefix)
+        SysMgr.printWarn(string, True)
 
 
 
@@ -24009,7 +24009,10 @@ Examples:
     - {3:1} {2:2} and report to elastic search
         # {0:1} {1:1} -e I
 
-    - {3:1} {2:2} and report to ./guider.out and console
+    - {3:1} {2:2} with elapsed times for each step
+        # {0:1} {1:1} -q PRINTDELAY
+
+    - {3:1} {2:2} and report to both ./guider.out and console
         # {0:1} {1:1} -o . -Q
 
     - {3:1} {2:2} and execute special commands
@@ -75001,6 +75004,12 @@ class TaskAnalyzer(object):
         # set initial repeat value #
         SysMgr.progressCnt = 1
 
+        # get prof flag #
+        if 'PRINTDELAY' in SysMgr.environList:
+            printFlag = True
+        else:
+            printFlag = False
+
         while 1:
             # save timestamp #
             prevTime = time.time()
@@ -75013,10 +75022,14 @@ class TaskAnalyzer(object):
                 nowFilter = _getFilter()
 
             # collect file stats as soon as possible #
+            if printFlag: UtilMgr.saveTime()
             self.saveFileStat(nowFilter)
+            if printFlag: UtilMgr.printTime('saveFileStat')
 
             # print system status #
+            if printFlag: UtilMgr.saveTime()
             self.printFileStat(nowFilter)
+            if printFlag: UtilMgr.printTime('printFileStat')
 
             # flush socket caches #
             SysMgr.udpListCache = {}
@@ -75027,7 +75040,9 @@ class TaskAnalyzer(object):
             SysMgr.checkProgress()
 
             # reset and save proc instance #
+            if printFlag: UtilMgr.saveTime()
             self.saveProcInstance()
+            if printFlag: UtilMgr.printTime('saveProcInstance')
 
             # reset system status #
             self.reinitStats()
@@ -75127,6 +75142,12 @@ class TaskAnalyzer(object):
             SysMgr.environList.setdefault('EXITCONDTERM', [])
             SysMgr.environList['EXITCONDTERM'] += watchList
 
+        # get prof flag #
+        if 'PRINTDELAY' in SysMgr.environList:
+            printFlag = True
+        else:
+            printFlag = False
+
         # run loop #
         while 1:
             if SysMgr.remoteServObj:
@@ -75139,7 +75160,9 @@ class TaskAnalyzer(object):
                 continue
 
             # collect system stats as soon as possible #
+            if printFlag: UtilMgr.saveTime()
             self.saveSystemStat()
+            if printFlag: UtilMgr.printTime('saveSystemStat')
 
             # save timestamp #
             prevTime = time.time()
@@ -75152,6 +75175,9 @@ class TaskAnalyzer(object):
 
             # print stats #
             if self.prevCpuData:
+                # save timestamp #
+                if printFlag: UtilMgr.saveTime()
+
                 # print system status #
                 self.printSystemStat(idIndex=True)
 
@@ -75164,6 +75190,9 @@ class TaskAnalyzer(object):
                 # report system status #
                 elif SysMgr.reportEnable:
                     self.reportSystemStat()
+
+                # print elapsed time #
+                if printFlag: UtilMgr.printTime('printSystemStat')
 
             # check repeat count #
             SysMgr.checkProgress()
