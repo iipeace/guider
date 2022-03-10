@@ -19158,6 +19158,7 @@ class SysMgr(object):
     schedstatEnable = True
     selectEnable = True
     sigHandlerEnable = False
+    slabTopEnable = False
     stackEnable = False
     streamEnable = False
     sttyEnable = None
@@ -19997,6 +19998,10 @@ Commands:
         # cgroup #
         elif SysMgr.checkMode('cgtop'):
             SysMgr.cgTopEnable = True
+
+        # slab #
+        elif SysMgr.checkMode('slabtop'):
+            SysMgr.slabTopEnable = True
 
         # stack #
         elif SysMgr.checkMode('stacktop'):
@@ -23553,6 +23558,7 @@ Commands:
                 'ptop': ('PMU', 'Linux'),
                 'pytop': ('Python', 'Linux'),
                 'rtop': ('JSON', 'Linux/MacOS/Windows'),
+                'slabtop': ('Slab', 'Linux'),
                 'stacktop': ('Stack', 'Linux'),
                 'systop': ('Syscall', 'Linux'),
                 'top': ('Process', 'Linux/MacOS/Windows'),
@@ -25129,6 +25135,39 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += topSubStr + topCommonStr + topExamStr
+
+                # slab top #
+                elif SysMgr.checkMode('slabtop'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor the status of slab
+
+Sort:
+    size:    the size of an object
+    active:  the number of active objects
+    actsize: the size of active objects
+    total:   the size of all objects
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor status of slab
+        # {0:1} {1:1}
+        # {0:1} {1:1} -g dentry
+
+    - Monitor status of slab sorted by specific values
+        # {0:1} {1:1} -S size
+        # {0:1} {1:1} -S active
+        # {0:1} {1:1} -S actsize
+        # {0:1} {1:1} -S total
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # syscall top #
                 elif SysMgr.checkMode('systop'):
@@ -35171,6 +35210,7 @@ Copyright:
             SysMgr.checkMode('ptop') or \
             SysMgr.checkMode('pytop') or \
             SysMgr.checkMode('rtop') or \
+            SysMgr.checkMode('slabtop') or \
             SysMgr.checkMode('stacktop') or \
             SysMgr.checkMode('systop') or \
             SysMgr.checkMode('ttop') or \
@@ -40414,8 +40454,10 @@ Copyright:
 
 
     @staticmethod
-    def doPrintSlab():
-        SysMgr.printLogo(big=True, onlyFile=True)
+    def doPrintSlab(topMode=False):
+        if not topMode:
+            SysMgr.pipeEnable = True
+            SysMgr.printLogo(big=True, onlyFile=True)
 
         SysMgr.checkRootPerm()
 
@@ -40443,6 +40485,24 @@ Copyright:
         else:
             sortval = 'totsize'
 
+        # set title and uptime #
+        if topMode:
+            title = 'Top Slab Info'
+            uptime = '[Time: %.6f] ' % SysMgr.updateUptime()
+        else:
+            title = 'Slab Info'
+            uptime = ''
+
+        # print title #
+        SysMgr.addPrint(
+            '[%s] %s[NrSlab: %s]\n%s\n' % \
+                (title, uptime, UtilMgr.convNum(len(instance.slabData)),
+                    twoLine), newline=2)
+        SysMgr.addPrint(
+            '{0:>9} {1:>9} {2:>4} {3:>7} {4:>10} {5:>10} {6:1}\n'.format(
+            'OBJS', 'ACTIVE', 'USE', 'OBJSIZE', 'ACTSIZE', 'TOTSIZE', 'NAME'))
+        SysMgr.addPrint('%s\n' % twoLine)
+
         # print slab info #
         try:
             nrCnt = 0
@@ -40469,21 +40529,23 @@ Copyright:
                         total, active, actper, size, actsize, totsize, name),
                     force=True)
                 nrCnt += 1
-            SysMgr.addPrint('%s\n' % oneLine, force=True)
+
+                # check terminal rows #
+                if topMode and SysMgr.checkCutCond():
+                    nrCnt = 0
+                    break
+
+            if nrCnt > 0:
+                SysMgr.addPrint('%s\n' % oneLine, force=True)
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr('failed to print slab info', True)
             sys.exit(0)
 
-        # print title #
-        SysMgr.printPipe(
-            '\n[Slab Info] [NrSlab: %s]\n%s' % (nrCnt, twoLine))
-        SysMgr.printPipe(
-            '{0:>9} {1:>9} {2:>4} {3:>7} {4:>10} {5:>10} {6:1}'.format(
-            'OBJS', 'ACTIVE', 'USE', 'OBJSIZE', 'ACTSIZE', 'TOTSIZE', 'NAME'))
-        SysMgr.printPipe(twoLine)
-
-        SysMgr.printTopStats()
+        if topMode:
+            SysMgr.printTopStats()
+        else:
+            SysMgr.doPrint()
 
 
 
@@ -53429,8 +53491,7 @@ class DltAnalyzer(object):
             if ecuId == 'cnt':
                 continue
 
-            if quitLoop or \
-                SysMgr.checkCutCond():
+            if quitLoop or SysMgr.checkCutCond():
                 break
 
             ecuCnt = ecuItem['cnt']
@@ -53446,8 +53507,7 @@ class DltAnalyzer(object):
                 if apId == 'cnt':
                     continue
 
-                if quitLoop or \
-                    SysMgr.checkCutCond():
+                if quitLoop or SysMgr.checkCutCond():
                     quitLoop = True
                     break
 
@@ -53464,8 +53524,7 @@ class DltAnalyzer(object):
                     if ctxId == 'cnt':
                         continue
 
-                    if quitLoop or \
-                        SysMgr.checkCutCond():
+                    if quitLoop or SysMgr.checkCutCond():
                         quitLoop = True
                         break
 
@@ -74588,6 +74647,13 @@ class TaskAnalyzer(object):
             elif SysMgr.dbusTopEnable:
                 DbusMgr.runDbusSnooper(mode='top')
             # cgroup mode #
+            elif SysMgr.slabTopEnable:
+                try:
+                    self.runSlabTop()
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to monitor slab", reason=True)
+            # cgroup mode #
             elif SysMgr.cgTopEnable:
                 try:
                     self.runCgTop()
@@ -74895,6 +74961,34 @@ class TaskAnalyzer(object):
 
     def __del__(self):
         pass
+
+
+
+    def runSlabTop(self):
+       # run loop #
+        while 1:
+           # save timestamp #
+            prevTime = time.time()
+
+            # check repeat count #
+            SysMgr.checkProgress()
+
+            # print slab info #
+            SysMgr.doPrintSlab(True)
+
+            # write user command #
+            SysMgr.runProfCmd('AFTER')
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SysMgr.intervalEnable:
+                waitTime = 0.000001
+            else:
+                waitTime = SysMgr.intervalEnable - delayTime
+
+            # wait for next tick #
+            if not SysMgr.waitUserInput(waitTime):
+                time.sleep(waitTime)
 
 
 
@@ -75527,7 +75621,8 @@ class TaskAnalyzer(object):
                             raise Exception('no start')
 
                         startIdx = UtilMgr.bisect_left(timeline, startSec)
-                        eventList[startIdx].append('[+] %s [%s]' % (task, start))
+                        eventList[startIdx].append(
+                            '[+] %s [%s]' % (task, start))
                     except: pass
 
                     try:
