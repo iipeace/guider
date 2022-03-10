@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220309"
+__revision__ = "220310"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5218,11 +5218,11 @@ class UtilMgr(object):
 
     @staticmethod
     def convSize2Unit(size, isInt=False, unit=None):
-        sizeKB = long(1024)
-        sizeMB = sizeKB << 10
-        sizeGB = sizeMB << 10
-        sizeTB = sizeGB << 10
-        sizePB = sizeTB << 10
+        sizeKB = 1024
+        sizeMB = 1048576
+        sizeGB = 1073741824
+        sizeTB = 1099511627776
+        sizePB = 1125899906842624
 
         # convert to ABS value #
         try:
@@ -5432,11 +5432,11 @@ class UtilMgr(object):
 
     @staticmethod
     def convUnit2Size(value):
-        sizeKB = long(1024)
-        sizeMB = sizeKB << 10
-        sizeGB = sizeMB << 10
-        sizeTB = sizeGB << 10
-        sizePB = sizeTB << 10
+        sizeKB = 1024
+        sizeMB = 1048576
+        sizeGB = 1073741824
+        sizeTB = 1099511627776
+        sizePB = 1125899906842624
 
         if str(value).isdigit():
             return long(value)
@@ -23199,6 +23199,35 @@ Commands:
         SysMgr.sortCond = cond
 
         return True
+
+
+
+    @staticmethod
+    def readMemoryMap():
+        try:
+            res = {}
+            lines = SysMgr.procReadlines('iomem')
+            for item in lines:
+                addrs, name = item.split(':', 1)
+                start, end = addrs.rstrip().split('-')
+                startaddr = long(start, 16)
+                size = long(end, 16) - startaddr
+                sizeUnit = '%s (%7s)' % \
+                    (UtilMgr.convNum(size), UtilMgr.convSize2Unit(size))
+
+                res[startaddr] = {
+                    'name': name.strip(),
+                    'start': start,
+                    'end': end,
+                    'size': size,
+                    'sizeUnit': sizeUnit
+                }
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to read memory map", reason=True)
+
+        return res
 
 
 
@@ -48238,6 +48267,8 @@ Copyright:
 
         self.printSchedInfo()
 
+        self.printMmapInfo()
+
         if not tree:
             return
 
@@ -48309,6 +48340,32 @@ Copyright:
                 if SysMgr.jsonEnable:
                     jsonData[name] = value
         except: pass
+
+        SysMgr.infoBufferPrint(twoLine)
+
+
+
+    def printMmapInfo(self):
+        SysMgr.infoBufferPrint('\n[Memory Map Info]')
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(
+            '{0:^35} | {1:^32} | {2:<1}'.format('ADDR', 'SIZE', 'NAME'))
+        SysMgr.infoBufferPrint(twoLine)
+
+        # get memory map #
+        maps = SysMgr.readMemoryMap()
+        if not maps:
+            SysMgr.infoBufferPrint('\tNone')
+            SysMgr.infoBufferPrint(twoLine)
+            return
+
+        # print memory map #
+        for start, value in sorted(maps.items(),
+            key=lambda e: long(e[0])):
+            addr = '%16s - %16s' % (value['start'], value['end'])
+            SysMgr.infoBufferPrint(
+                '{0:^35} | {1:>32} | {2:<1}'.format(
+                    addr, value['sizeUnit'], value['name']))
 
         SysMgr.infoBufferPrint(twoLine)
 
