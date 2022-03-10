@@ -5223,6 +5223,9 @@ class UtilMgr(object):
         sizeGB = 1073741824
         sizeTB = 1099511627776
         sizePB = 1125899906842624
+        sizeEB = 1152921504606846976
+        #sizeZB = 1180591620717411303424
+        #sizeYB = 120892581961462917470617
 
         # convert to ABS value #
         try:
@@ -5245,6 +5248,8 @@ class UtilMgr(object):
                 val = size / sizeTB * factor
             elif upperUnit == 'P':
                 val = size / sizePB * factor
+            elif upperUnit == 'E':
+                val = size / sizeEB * factor
             else:
                 SysMgr.printErr(
                     "no support size unit '%s'" % unit)
@@ -5260,7 +5265,9 @@ class UtilMgr(object):
         # Int type #
         if isInt:
             try:
-                if sizeAbs >= sizePB:
+                if sizeAbs >= sizeEB:
+                    return '%dE' % (size >> 60)
+                elif sizeAbs >= sizePB:
                     return '%dP' % (size >> 50)
                 elif sizeAbs >= sizeTB:
                     return '%dT' % (size >> 40)
@@ -5278,7 +5285,9 @@ class UtilMgr(object):
         # Float type #
         else:
             try:
-                if sizeAbs >= sizePB:
+                if sizeAbs >= sizeEB:
+                    return '%.1fE' % ((size >> 50) / 1024.0)
+                elif sizeAbs >= sizePB:
                     return '%.1fP' % ((size >> 40) / 1024.0)
                 elif sizeAbs >= sizeTB:
                     return '%.1fT' % ((size >> 30) / 1024.0)
@@ -49869,13 +49878,15 @@ Copyright:
             # calculate sum for subdirs #
             newTotal = 0
             for curdir, subdir in tempRoot.items():
-                if 'cpu.shares' in subdir:
-                    for parent, childs in subdir.items():
-                        if type(childs) is not dict:
-                            continue
-                        if 'cpu.shares' in childs:
-                            value = childs['cpu.shares'].replace(',', '')
-                            newTotal += long(value)
+                if not 'cpu.shares' in subdir:
+                    continue
+
+                for parent, childs in subdir.items():
+                    if type(childs) is not dict:
+                        continue
+                    if 'cpu.shares' in childs:
+                        value = childs['cpu.shares'].replace(',', '')
+                        newTotal += long(value)
 
             # traverse subdir #
             for curdir, subdir in sorted(tempRoot.items(),
@@ -49902,9 +49913,14 @@ Copyright:
                         continue
                     elif val == 'cpu.shares' and total > 0:
                         num = long(subdir[val].replace(',', ''))
-                        per = '%d' % (num / float(total) * 100)
-                        value = '%s/%s%%' % \
-                            (subdir[val], UtilMgr.convColor(per, 'RED'))
+                        per = '%.1f' % (num / float(total) * 100)
+                        if num > 0: per = UtilMgr.convColor(per, 'RED')
+                        value = '%s/%s%%' % (subdir[val], per)
+                    elif val.endswith('limit_in_bytes'):
+                        num = long(subdir[val].replace(',', ''))
+                        value = UtilMgr.convSize2Unit(num)
+                        if num < 9223372036854771712:
+                            value = UtilMgr.convColor(value, 'RED')
                     else:
                         value = subdir[val]
 
@@ -49923,11 +49939,11 @@ Copyright:
                     cstr = ' <%s>' % cstr[:-2]
 
                 # define worker info #
-                if nrProcs != '0':
+                if not nrProcs in ('0', 0):
                     procstr = UtilMgr.convColor(nrProcs, 'YELLOW')
                 else:
                     procstr = nrProcs
-                if nrTasks != '0':
+                if not nrTasks in ('0', 0):
                     taskstr = UtilMgr.convColor(nrTasks, 'CYAN')
                 else:
                     taskstr = nrTasks
