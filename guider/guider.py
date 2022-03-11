@@ -16067,9 +16067,6 @@ class LeakAnalyzer(object):
 
 
     def printLeakage(self, runtime, profiletime):
-        # print logo #
-        SysMgr.printLogo(big=True)
-
         # define shortcut #
         convSize = UtilMgr.convSize2Unit
 
@@ -18835,9 +18832,9 @@ class SysMgr(object):
     defaultServPort = 5555
     bgProcList = None
     waitDelay = 0.5
-    repeatInterval = 0
     repeatCount = 0
     progressCnt = 0
+    repeatInterval = 0
     wordSize = 4
     maxInterval = 0
     ipAddr = None
@@ -19567,7 +19564,7 @@ Commands:
         SysMgr.printLogo(big=True)
 
         # print system information #
-        SysMgr.printPipe(SysMgr.systemInfoBuffer)
+        SysMgr.printInfoBuffer()
 
 
 
@@ -27810,7 +27807,9 @@ Examples:
 
     - {3:1} when it's RSS reached the specific size
         # {0:1} {1:1} -g a.out -c 20m
+        # {0:1} {1:1} -g a.out -c +20m
         # {0:1} {1:1} -g a.out -c 15m,20m
+        # {0:1} {1:1} -g a.out -c +15m,+20m
 
     - {3:1} {2:1} with binary injection (wait for new process if no process)
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
@@ -27821,7 +27820,7 @@ Examples:
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -I ./leaks.out -g a.out
                     '''.format(cmd, mode,
-                        'when "Ctrl + c" key is pressed',
+                        'when SIGINT is received',
                         'Report memory leakage hints of a specific process')
 
                 # printslab #
@@ -37888,6 +37887,13 @@ Copyright:
             SysMgr.encodeEnable = False
             SysMgr.reportEnable = SysMgr.jsonEnable = False
 
+            # init number variables #
+            nrTopRank = 10
+            repeatCount = 0
+            progressCnt = 0
+            repeatInterval = 0
+            SysMgr.intervalEnable = 0
+
             # inherit options #
             disOptVal = SysMgr.getOption('d')
             enOptVal = SysMgr.getOption('e')
@@ -42796,7 +42802,7 @@ Copyright:
 
                 # get time #
                 SysMgr.updateUptime()
-                diff = '[%d]' % SysMgr.uptime
+                diff = '[%s]' % UtilMgr.convTime(SysMgr.uptime)
 
                 # get CPU usage #
                 procData = tobj.procData[pid]['stat']
@@ -43246,16 +43252,36 @@ Copyright:
             else:
                 SysMgr.setSimpleSignal()
 
-        # START #
+        # init condition variables #
+        convUnit = UtilMgr.convUnit2Size
         cmd = SysMgr.customCmd
         startSize = endSize = 0
-        convUnit = UtilMgr.convUnit2Size
+
+        # get RSS #
+        try:
+            mlist = SysMgr.getMemStat(pid)
+            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+            rss = long(mlist[rssIdx]) << 12
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'failed to get RSS info for %s(%s)' % (comm, pid), True, True)
+            rss = 0
+
+        # START #
         if cmd:
+            def _getThreshold(value, rss):
+                if value.startswith('+'):
+                    return convUnit(value[1:]) + rss
+                else:
+                    return convUnit(value)
+
+            # get threshold size #
             if len(cmd) >= 2:
-                startSize = convUnit(cmd[0])
-                endSize = convUnit(cmd[1])
+                startSize = _getThreshold(cmd[0], rss)
+                endSize = _getThreshold(cmd[1], rss)
             else:
-                endSize = convUnit(cmd[0])
+                endSize = _getThreshold(cmd[0], rss)
 
             # hook #
             if not startSize and hookCmd:
@@ -43269,6 +43295,12 @@ Copyright:
                     tobj, pid, comm, startSize, startSig, 'start', hookCmd)
                 if ret < 0:
                     sys.exit(0)
+            # send signal for start #
+            else:
+                try:
+                    os.kill(long(pid), LeakAnalyzer.startSig)
+                except:
+                    pass
         elif startSig:
             # hook #
             if hookCmd:
@@ -43293,31 +43325,26 @@ Copyright:
             SysMgr.updateUptime()
             startTime = SysMgr.uptime
 
-        # set alarm #
+        # set termination timer #
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
         # STOP #
-        if endSize > 0:
-            ret = _waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
-            if ret < 0:
-                sys.exit(0)
-        elif stopSig:
+        try:
+            # set unlimited end size #
+            if not endSize:
+                endSize = sys.maxsize
+
+            # wait for stop threshold or signal #
             try:
-                # wait for stop threshold or signal #
-                try:
-                    SysMgr.printStat(
-                        r'start monitoring... [ STOP(Ctrl+c) ]')
+                SysMgr.printStat(
+                    r'start monitoring... [ STOP(Ctrl+c) ]')
 
-                    ret = _waitAndKill(
-                        tobj, pid, comm, sys.maxsize, 0, 'stop')
-                # stop profiling #
-                except:
-                    ret = 0
-
-                # check exit condition #
-                if ret < 0:
-                    sys.exit(0)
+                ret = _waitAndKill(
+                    tobj, pid, comm, endSize, stopSig, 'stop')
+            # stop profiling #
+            except:
+                ret = 0
 
                 # send stop signal to target #
                 os.kill(long(pid), stopSig)
@@ -43325,12 +43352,16 @@ Copyright:
                 SysMgr.printStat(
                     'sent %s to %s(%s) to stop profiling' % \
                         (ConfigMgr.SIG_LIST[stopSig], comm, pid))
-            except SystemExit: sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to send %s to stop profiling" % \
-                        ConfigMgr.SIG_LIST[stopSig], reason=True)
+
+            # check exit condition #
+            if ret < 0:
                 sys.exit(0)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to send %s to stop profiling" % \
+                    ConfigMgr.SIG_LIST[stopSig], reason=True)
+            sys.exit(0)
 
         # calculate runtime and profile time #
         try:
@@ -43371,9 +43402,20 @@ Copyright:
                     "%s(%s) is terminated" % (comm, pid))
                 sys.exit(0)
 
-        # create leaktracer parser #
         try:
+            # analyze leakage #
             lt = LeakAnalyzer(fname, pid)
+
+            # print logo #
+            SysMgr.printLogo(big=True)
+
+            # print resource info to temporary buffer #
+            SysMgr().printResourceInfo()
+
+            # print system information #
+            SysMgr.printInfoBuffer()
+
+            # print leakage #
             lt.printLeakage(runtime, profiletime)
         except SystemExit: sys.exit(0)
         except:
@@ -47056,7 +47098,7 @@ Copyright:
             self.saveWebOSInfo()
             self.saveLinuxInfo()
 
-            # write resource info to temporary buffer #
+            # print resource info to temporary buffer #
             self.printResourceInfo()
 
 
