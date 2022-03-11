@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220310"
+__revision__ = "220311"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19073,6 +19073,7 @@ class SysMgr(object):
     syslogFd = None
     uptimeFd = None
     vmstatFd = None
+    vmallocFd = None
     zoneFd = None
 
     # flag #
@@ -19082,7 +19083,6 @@ class SysMgr(object):
     binderEnable = False
     blockEnable = False
     bufferLossEnable = False
-    cgTopEnable = False
     cgroupEnable = False
     cloneEnable = True
     cmdEnable = False
@@ -19158,7 +19158,6 @@ class SysMgr(object):
     schedstatEnable = True
     selectEnable = True
     sigHandlerEnable = False
-    slabTopEnable = False
     stackEnable = False
     streamEnable = False
     sttyEnable = None
@@ -19994,14 +19993,6 @@ Commands:
         # file #
         elif SysMgr.checkMode('ftop'):
             SysMgr.fileTopEnable = True
-
-        # cgroup #
-        elif SysMgr.checkMode('cgtop'):
-            SysMgr.cgTopEnable = True
-
-        # slab #
-        elif SysMgr.checkMode('slabtop'):
-            SysMgr.slabTopEnable = True
 
         # stack #
         elif SysMgr.checkMode('stacktop'):
@@ -23552,7 +23543,7 @@ Commands:
                 'disktop': ('Storage', 'Linux/MacOS/Windows'),
                 'dlttop': ('DLT', 'Linux/MacOS'),
                 'ftop': ('File', 'Linux/MacOS'),
-                'ktop': ('Kernel', 'Linux'),
+                'ktop': ('Function', 'Linux'),
                 'mtop': ('Memory', 'Linux'),
                 'ntop': ('Network', 'Linux/MacOS/Windows'),
                 'ptop': ('PMU', 'Linux'),
@@ -23564,6 +23555,7 @@ Commands:
                 'top': ('Process', 'Linux/MacOS/Windows'),
                 'ttop': ('Thread', 'Linux'),
                 'utop': ('Function', 'Linux'),
+                'vtop': ('Memory', 'Linux'),
                 'wtop': ('WSS', 'Linux'),
                 },
             'trace': {
@@ -23641,6 +23633,7 @@ Commands:
                 'printsig': ('Signal', 'Linux'),
                 'printslab': ('Slab', 'Linux'),
                 'printsvc': ('systemd', 'Linux'),
+                'printvma': ('Vmalloc', 'Linux'),
                 'pstree': ('Process', 'Linux/MacOS/Windows'),
                 'readahead': ('File', 'Linux'),
                 'readelf': ('File', 'Linux/MacOS/Windows'),
@@ -24047,7 +24040,7 @@ Examples:
 
     - {3:1} system only
         # {0:1} {1:1} -d T
-                '''.format(cmd, mode, target, 'Monitor status of')
+                '''.format(cmd, mode, target, 'Monitor the status of')
 
                 drawExamStr = '''
 Examples:
@@ -25136,6 +25129,29 @@ Description:
 
                     helpStr += topSubStr + topCommonStr + topExamStr
 
+                # vmalloc top #
+                elif SysMgr.checkMode('vtop'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor the status of vmalloc
+                    '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor the status of vmalloc
+        # {0:1} {1:1}
+
+    - Monitor the status of vmalloc using filter
+        # {0:1} {1:1} -g fork
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
                 # slab top #
                 elif SysMgr.checkMode('slabtop'):
                     helpStr = '''
@@ -25154,11 +25170,13 @@ Sort:
 
                     examStr = '''
 Examples:
-    - Monitor status of slab
+    - Monitor the status of slab
         # {0:1} {1:1}
+
+    - Monitor the status of slab using type filter
         # {0:1} {1:1} -g dentry
 
-    - Monitor status of slab sorted by specific values
+    - Monitor the status of slab sorted by specific values
         # {0:1} {1:1} -S size
         # {0:1} {1:1} -S active
         # {0:1} {1:1} -S actsize
@@ -25874,12 +25892,12 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor storage status
+    Monitor the status of storage devices
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor status of all storages
+    - Monitor the status of all storage devices
         # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
@@ -25964,12 +25982,12 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor network status
+    Monitor the status of network devices
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor status of all network devices
+    - Monitor the status of all network devices
         # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
@@ -25984,7 +26002,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor process status
+    Monitor the status of processes
                         '''.format(cmd, mode)
 
                     helpStr += topSubStr + topCommonStr + topExamStr
@@ -27831,6 +27849,8 @@ Sort:
 Examples:
     - Print system slab info
         # {0:1} {1:1} dentry
+
+    - Print system slab info using type filter
         # {0:1} {1:1} -g dentry
 
     - Print system slab info sorted by specific values
@@ -27838,6 +27858,29 @@ Examples:
         # {0:1} {1:1} -S active
         # {0:1} {1:1} -S actsize
         # {0:1} {1:1} -S total
+                    '''.format(cmd, mode)
+
+                # printvma#
+                elif SysMgr.checkMode('printvma'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show system vmalloc info
+
+Options:
+    -g  <WORD>                  set target object
+    -v                          verbose
+                    '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print system vmalloc info
+        # {0:1} {1:1}
+
+    - Print system vmalloc info using filter
+        # {0:1} {1:1} -g fork
                     '''.format(cmd, mode)
 
                 # printenv #
@@ -35215,6 +35258,7 @@ Copyright:
             SysMgr.checkMode('systop') or \
             SysMgr.checkMode('ttop') or \
             SysMgr.checkMode('utop') or \
+            SysMgr.checkMode('vtop') or \
             SysMgr.checkMode('wtop'):
             return True
         else:
@@ -35782,6 +35826,10 @@ Copyright:
         # PRINTSLAB MODE #
         elif SysMgr.checkMode('printslab'):
             SysMgr.doPrintSlab()
+
+        # PRINTVMALLOC MODE #
+        elif SysMgr.checkMode('printvma'):
+            SysMgr.doPrintVmalloc()
 
         # PRINTKCONF MODE #
         elif SysMgr.checkMode('printkconf'):
@@ -40454,6 +40502,84 @@ Copyright:
 
 
     @staticmethod
+    def doPrintVmalloc(topMode=False):
+        if not topMode:
+            SysMgr.pipeEnable = True
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+        SysMgr.checkRootPerm()
+
+        # get argument #
+        if SysMgr.hasMainArg():
+            target = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            target = SysMgr.filterGroup
+        else:
+            target = []
+
+        # read vmalloc info #
+        instance = TaskAnalyzer(onlyInstance=True)
+        instance.saveVmallocInfo()
+
+        # set title and uptime #
+        if topMode:
+            title = 'Top Vmalloc Info'
+            uptime = '[Time: %.6f] ' % SysMgr.updateUptime()
+        else:
+            title = 'Vmalloc Info'
+            uptime = ''
+
+        # get total size #
+        totalSize = sum([ x['size'] for x in instance.vmallocData.values() ])
+
+        # print title #
+        SysMgr.addPrint(
+            '[%s] %s[NrItems: %s] [Total: %s] \n%s\n' % \
+                (title, uptime, UtilMgr.convNum(len(instance.vmallocData)),
+                    UtilMgr.convSize2Unit(totalSize), twoLine), newline=2)
+        SysMgr.addPrint(
+            '{0:>7} {1:>1}\n{2:1}\n'.format(
+                'SIZE', 'NAME', twoLine), newline=2)
+
+        # print vmalloc info #
+        try:
+            nrCnt = 0
+            for name, items in sorted(
+                instance.vmallocData.items(), key=lambda x:x[1]['size'],
+                reverse=True):
+
+                # check name #
+                if target and not UtilMgr.isValidStr(name, target, inc=True):
+                    continue
+
+                SysMgr.addPrint(
+                    '{0:>7} {1:>1}\n'.format(
+                        UtilMgr.convSize2Unit(items['size']), name),
+                    force=True)
+                nrCnt += 1
+
+                # check terminal rows #
+                if topMode and SysMgr.checkCutCond():
+                    nrCnt = -1
+                    break
+
+            if nrCnt == 0:
+                SysMgr.addPrint('\tNone\n')
+            if nrCnt >= 0:
+                SysMgr.addPrint('%s\n' % oneLine, force=True)
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printErr('failed to print vmalloc info', True)
+            sys.exit(0)
+
+        if topMode:
+            SysMgr.printTopStats()
+        else:
+            SysMgr.doPrint()
+
+
+
+    @staticmethod
     def doPrintSlab(topMode=False):
         if not topMode:
             SysMgr.pipeEnable = True
@@ -40493,15 +40619,20 @@ Copyright:
             title = 'Slab Info'
             uptime = ''
 
+        # get total size #
+        totalSize = sum([ x['totsize'] for x in instance.slabData.values() ])
+
         # print title #
         SysMgr.addPrint(
-            '[%s] %s[NrSlab: %s]\n%s\n' % \
+            '[%s] %s[NrItems: %s] [Total: %s]\n%s\n' % \
                 (title, uptime, UtilMgr.convNum(len(instance.slabData)),
-                    twoLine), newline=2)
+                    UtilMgr.convSize2Unit(totalSize), twoLine), newline=2)
         SysMgr.addPrint(
-            '{0:>9} {1:>9} {2:>4} {3:>7} {4:>10} {5:>10} {6:1}\n'.format(
+            '{0:>11} {1:>11} {2:>4} {3:>7} {4:>12} {5:>12} {6:1}\n'.format(
             'OBJS', 'ACTIVE', 'USE', 'OBJSIZE', 'ACTSIZE', 'TOTSIZE', 'NAME'))
         SysMgr.addPrint('%s\n' % twoLine)
+
+        conv = UtilMgr.convNum
 
         # print slab info #
         try:
@@ -40521,21 +40652,24 @@ Copyright:
                 else:
                     actper = 0
                 size = items['size'] / float(1024)
-                actsize = long(items['actsize'] / 1024)
-                totsize = long(items['totsize'] / 1024)
+                actsize = conv(long(items['actsize'] / 1024))
+                totsize = conv(long(items['totsize'] / 1024))
                 SysMgr.addPrint((
-                    '{0:9} {1:9} {2:3}% {3:6.2f}K '
-                    '{4:9}K {5:9}K {6:1}\n').format(
-                        total, active, actper, size, actsize, totsize, name),
+                    '{0:>11} {1:>11} {2:3}% {3:6.2f}K '
+                    '{4:>11}K {5:>11}K {6:1}\n').format(
+                        conv(total), conv(active), actper,
+                        size, actsize, totsize, name),
                     force=True)
                 nrCnt += 1
 
                 # check terminal rows #
                 if topMode and SysMgr.checkCutCond():
-                    nrCnt = 0
+                    nrCnt = -1
                     break
 
-            if nrCnt > 0:
+            if nrCnt == 0:
+                SysMgr.addPrint('\tNone\n')
+            if nrCnt >= 0:
                 SysMgr.addPrint('%s\n' % oneLine, force=True)
         except SystemExit: sys.exit(0)
         except:
@@ -74498,6 +74632,7 @@ class TaskAnalyzer(object):
             self.zoneData = {}
             self.prevZoneData = {}
             self.slabData = {}
+            self.vmallocData = {}
             self.memData = {}
             self.prevMemData = {}
             self.gpuMemData = {}
@@ -74646,15 +74781,22 @@ class TaskAnalyzer(object):
             # D-Bus mode #
             elif SysMgr.dbusTopEnable:
                 DbusMgr.runDbusSnooper(mode='top')
-            # cgroup mode #
-            elif SysMgr.slabTopEnable:
+            # slab mode #
+            elif SysMgr.checkMode('slabtop'):
                 try:
                     self.runSlabTop()
                 except SystemExit: sys.exit(0)
                 except:
                     SysMgr.printErr("failed to monitor slab", reason=True)
+            # vmalloc mode #
+            elif SysMgr.checkMode('vtop'):
+                try:
+                    self.runVmallocTop()
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to monitor vmalloc", reason=True)
             # cgroup mode #
-            elif SysMgr.cgTopEnable:
+            elif SysMgr.checkMode('cgtop'):
                 try:
                     self.runCgTop()
                 except SystemExit: sys.exit(0)
@@ -74961,6 +75103,34 @@ class TaskAnalyzer(object):
 
     def __del__(self):
         pass
+
+
+
+    def runVmallocTop(self):
+       # run loop #
+        while 1:
+           # save timestamp #
+            prevTime = time.time()
+
+            # check repeat count #
+            SysMgr.checkProgress()
+
+            # print vmalloc info #
+            SysMgr.doPrintVmalloc(True)
+
+            # write user command #
+            SysMgr.runProfCmd('AFTER')
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SysMgr.intervalEnable:
+                waitTime = 0.000001
+            else:
+                waitTime = SysMgr.intervalEnable - delayTime
+
+            # wait for next tick #
+            if not SysMgr.waitUserInput(waitTime):
+                time.sleep(waitTime)
 
 
 
@@ -89515,14 +89685,50 @@ class TaskAnalyzer(object):
 
 
 
+    def saveVmallocInfo(self):
+        self.vmallocData = {}
+
+        # read slab buf #
+        vmBuf = SysMgr.readProcStat(
+            SysMgr.vmallocFd, 'vmallocinfo', SysMgr, 'vmallocFd')
+        if not vmBuf:
+            return
+
+        # parse slab items #
+        for line in vmBuf[2:]:
+            try:
+                # get items #
+                items = line.strip().split()
+                addr, size, alloc = items[:3]
+                alloc = alloc.split('+', 1)[0]
+                others = items[2:]
+
+                # get type #
+                if 'vmalloc' in others:
+                    mtype = 'vmalloc'
+                elif 'ioremap' in others:
+                    mtype = 'ioremap'
+                else:
+                    mtype = others[-1]
+
+                # add chunk size #
+                name = '%s [%s]' % (alloc, mtype.strip('()'))
+                self.vmallocData.setdefault(name, {'size': 0})
+                self.vmallocData[name]['size'] += long(size)
+            except SystemExit: sys.exit(0)
+            except:
+                SysMgr.printWarn('failed to parse vmalloc info', reason=True)
+
+
+
     def saveSlabInfo(self):
+        self.slabData = {}
+
         # read slab buf #
         slabBuf = SysMgr.readProcStat(
             SysMgr.slabFd, 'slabinfo', SysMgr, 'slabFd')
         if not slabBuf:
             return
-
-        self.slabData = {}
 
         # parse slab items #
         for line in slabBuf[2:]:
