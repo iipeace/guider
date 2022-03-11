@@ -17269,7 +17269,7 @@ class FileAnalyzer(object):
 
             # set inode scan flag #
             if not 'CONVINODE' in SysMgr.environList:
-                SysMgr.environList['CONVINODE'] = ['SET']
+                SysMgr.addEnvironVar('CONVINODE')
         else:
             raPath = None
 
@@ -21395,7 +21395,7 @@ Commands:
 
         # check fd #
         if 'fd' in SysMgr.thresholdTarget:
-            SysMgr.environList['ACTUALFD'] = ['SET']
+            SysMgr.addEnvironVar('ACTUALFD')
 
         # check task monitoring condition #
         try:
@@ -33956,6 +33956,18 @@ Copyright:
                 SysMgr.printFd.truncate()
         except:
             return
+
+
+
+    @staticmethod
+    def addEnvironVar(name, value='SET'):
+        SysMgr.environList.setdefault(name, [])
+        if type(value) is list:
+            SysMgr.environList[name] += value
+        elif SysMgr.environList[name] and value == 'SET':
+            pass
+        else:
+            SysMgr.environList[name].append(value)
 
 
 
@@ -75445,8 +75457,7 @@ class TaskAnalyzer(object):
                 SysMgr.groupProcEnable = True
 
             # add termination condition #
-            SysMgr.environList.setdefault('EXITCONDTERM', [])
-            SysMgr.environList['EXITCONDTERM'] += watchList
+            SysMgr.addEnvironVar('EXITCONDTERM', watchList)
 
         # get prof flag #
         if 'PRINTDELAY' in SysMgr.environList:
@@ -81951,7 +81962,7 @@ class TaskAnalyzer(object):
         # get target inode info #
         if inodeFilter and 'CONVINODE' in SysMgr.environList:
             # get scan dir #
-            if SysMgr.environList['CONVINODE'][0] != 'SET':
+            if not 'SET' in SysMgr.environList['CONVINODE']:
                 targetDir = os.path.abspath(
                     SysMgr.environList['CONVINODE'][0])
                 # check dir #
