@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220311"
+__revision__ = "220312"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28721,17 +28721,17 @@ Options:
     -v                          verbose
 
 Commands:
-    CMD_BUFFER     resize the monitoring buffer
-    CMD_CLEAR      clear the monitoring buffer
-    CMD_DISABLE    disable monitoring of the specific resource
-    CMD_ENABLE     enable monitoring of the specific resource
-    CMD_INTERVAL   change the monitoring interval
-    CMD_PAUSE      pause all monitoring activities
-    CMD_RELOAD     reload the threshold config
-    CMD_RESTART    restart the process
-    CMD_SAVE       save the monitoring results
-    CMD_STOP       stop the threshold monitoring
-    CMD_UPDATE     update the threshold data
+    CMD_BUFFER:TIME        resize the monitoring buffer
+    CMD_CLEAR              clear the monitoring buffer
+    CMD_DISABLE:ATTR       disable monitoring of the specific resource
+    CMD_ENABLE:ATTR        enable monitoring of the specific resource
+    CMD_INTERVAL:TIME      change the monitoring interval
+    CMD_PAUSE              pause all monitoring activities
+    CMD_RELOAD             reload the threshold config
+    CMD_RESTART            restart the Guider process
+    CMD_SAVE{{:TIME@NAME}}   save the monitoring results
+    CMD_STOP               stop the threshold monitoring
+    CMD_UPDATE:FILE        update the threshold data
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -28751,31 +28751,31 @@ Examples:
 
     - Notify CMD_SAVE event {2:1} to save the monitoring results to the specific file
         # {0:1} {1:1} CMD_SAVE
-        # {0:1} {1:1} CMD_SAVE_3s
-        # {0:1} {1:1} CMD_SAVE_1m
-        # {0:1} {1:1} CMD_SAVE_2s@FrameDropCase
+        # {0:1} {1:1} CMD_SAVE:3s
+        # {0:1} {1:1} CMD_SAVE:1m
+        # {0:1} {1:1} CMD_SAVE:2s@FrameDropCase
 
     - Notify CMD_BUFFER event {2:1} to resize the monitoring buffer
-        # {0:1} {1:1} CMD_BUFFER_500k
-        # {0:1} {1:1} CMD_BUFFER_2m
+        # {0:1} {1:1} CMD_BUFFER:500k
+        # {0:1} {1:1} CMD_BUFFER:2m
 
     - Notify CMD_INTERVAL event {2:1} to change the monitoring interval
-        # {0:1} {1:1} CMD_INTERVAL_3s
-        # {0:1} {1:1} CMD_INTERVAL_10s
+        # {0:1} {1:1} CMD_INTERVAL:3s
+        # {0:1} {1:1} CMD_INTERVAL:1m
 
     - Notify CMD_UPDATE event {2:1} to update the threshold data from the specific file
-        # {0:1} {1:1} CMD_UPDATE_test.conf
+        # {0:1} {1:1} CMD_UPDATE:test.conf
 
-    - Notify CMD_ENABLE event {2:1} to enable monitoring of specific resources
-        # {0:1} {1:1} CMD_ENABLE_CPU
-        # {0:1} {1:1} CMD_ENABLE_GPU
-        # {0:1} {1:1} CMD_ENABLE_MEM
-        # {0:1} {1:1} CMD_ENABLE_IRQ
-        # {0:1} {1:1} CMD_ENABLE_DISK
-        # {0:1} {1:1} CMD_ENABLE_BLOCK
-        # {0:1} {1:1} CMD_ENABLE_NETWORK
-        # {0:1} {1:1} CMD_ENABLE_PMU
-        # {0:1} {1:1} CMD_ENABLE_LOG
+    - Notify CMD_ENABLE or CMD_DISABLE events {2:1} to enable monitoring of specific resources
+        # {0:1} {1:1} CMD_DISABLE:CPU
+        # {0:1} {1:1} CMD_DISABLE:GPU
+        # {0:1} {1:1} CMD_ENABLE:MEM
+        # {0:1} {1:1} CMD_ENABLE:IRQ
+        # {0:1} {1:1} CMD_ENABLE:DISK
+        # {0:1} {1:1} CMD_ENABLE:BLOCK
+        # {0:1} {1:1} CMD_ENABLE:NETWORK
+        # {0:1} {1:1} CMD_ENABLE:PMU
+        # {0:1} {1:1} CMD_ENABLE:LOG
                     '''.format(cmd, mode, 'to all Guider processes')
 
                 # server #
@@ -95614,17 +95614,17 @@ class TaskAnalyzer(object):
         name = 'USER' if user else source
 
         # SAVE #
-        if cmd.startswith('SAVE'):
+        if cmd == 'SAVE' or cmd.startswith('SAVE:'):
             ret = self.handleSaveCmd(cmd, name)
             if not ret:
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
             return ret
         # UPDATE #
-        elif cmd.startswith('UPDATE_'):
+        elif cmd.startswith('UPDATE:'):
             # get threshold data #
             value = None
-            path = UtilMgr.lstrip(cmd, 'UPDATE_')
+            path = UtilMgr.lstrip(cmd, 'UPDATE:')
 
             # load data from the file #
             try:
@@ -95655,15 +95655,15 @@ class TaskAnalyzer(object):
             SysMgr.printWarn(
                 UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True))
         # ENABLE / DISABLE #
-        elif cmd.startswith('ENABLE_') or cmd.startswith('DISABLE_'):
-            if cmd.startswith('ENABLE_'):
+        elif cmd.startswith('ENABLE:') or cmd.startswith('DISABLE:'):
+            if cmd.startswith('ENABLE:'):
                 act = 'enable'
                 value = True
-                res = UtilMgr.lstrip(cmd, 'ENABLE_')
+                res = UtilMgr.lstrip(cmd, 'ENABLE:')
             else:
                 act = 'disable'
                 value = False
-                res = UtilMgr.lstrip(cmd, 'DISABLE_')
+                res = UtilMgr.lstrip(cmd, 'DISABLE:')
 
             # update target resource #
             if res == 'CPU':
@@ -95709,9 +95709,9 @@ class TaskAnalyzer(object):
                 "cleared the monitoring results by '%s' command "
                 "for %s event") % (cmd, name))
         # BUFFER #
-        elif cmd.startswith('BUFFER_'):
+        elif cmd.startswith('BUFFER:'):
             # get buffer size #
-            size = UtilMgr.lstrip(cmd, 'BUFFER_')
+            size = UtilMgr.lstrip(cmd, 'BUFFER:')
 
             # apply new buffer size #
             sizeOrig = size
@@ -95729,9 +95729,9 @@ class TaskAnalyzer(object):
                 "'%s' command for %s event") % \
                     (UtilMgr.convSize2Unit(size), cmd, name))
         # INTERVAL #
-        elif cmd.startswith('INTERVAL'):
+        elif cmd.startswith('INTERVAL:'):
             # get interval #
-            interval = UtilMgr.lstrip(cmd, 'INTERVAL')
+            interval = UtilMgr.lstrip(cmd, 'INTERVAL:')
             if not interval:
                 interval = 1
             elif interval.startswith('_'):
@@ -95749,7 +95749,7 @@ class TaskAnalyzer(object):
 
             # print message #
             SysMgr.printInfo((
-                "changed the monitoring interval to %s by '%s' command "
+                "changed the monitoring interval to %s sec by '%s' command "
                 "for %s event") % (UtilMgr.convNum(interval), cmd, name))
         # RELOAD #
         elif cmd.startswith('RELOAD'):
@@ -95951,7 +95951,7 @@ class TaskAnalyzer(object):
             event = '%s_%s' % (event, parts[1])
 
         # verify save command #
-        if cmd.split('_')[0] != 'SAVE':
+        if cmd.split(':')[0] != 'SAVE':
             SysMgr.printWarn("no support '%s' command" % origCmd, True)
             return -1
 
@@ -95992,7 +95992,7 @@ class TaskAnalyzer(object):
         if SysMgr.isLinux:
             # convert timer #
             try:
-                timeunit = cmd.strip('SAVE_')
+                timeunit = cmd.strip('SAVE:')
                 if not timeunit:
                     raise Exception('no time')
                 sec = UtilMgr.convUnit2Time(timeunit)
