@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220312"
+__revision__ = "220313"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13897,7 +13897,7 @@ class FunctionAnalyzer(object):
 
         # Print thread list #
         SysMgr.printPipe(
-            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %s ]" % \
+            "[%s] [%s: %0.3f] [%s: %0.3f] [Threads: %d] [LogSize: %s]" % \
             ('Function Thread Info', 'Elapsed', round(self.totalTime, 7),
             'Start', round(float(SysMgr.startTime), 7),
              len(self.threadData), convSize(SysMgr.logSize)))
@@ -16617,9 +16617,9 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] "
-            "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ] "
-            "[ Capture: Ctrl+\\ ]\n%s") % \
+            "[%s] [Process : %s] [LastRAM: %s] [Reclaim: %s/%s] "
+            "[Uptime: %s] [Keys: Foward/Back/Save/Quit] "
+            "[Capture: Ctrl+\\]\n%s") % \
                 ('File Process Info', convNum(len(self.procList)),
                 convSize(self.profPageCnt * 4 << 10),
                 convSize(self.pgRclmBg * 4 << 10),
@@ -16676,8 +16676,8 @@ class FileAnalyzer(object):
 
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] "
-            "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ]\n%s") % \
+            "[%s] [File: %s] [LastRAM: %s] [Reclaim: %s/%s] "
+            "[Uptime: %s] [Keys: Foward/Back/Save/Quit]\n%s") % \
                 ('File Usage Info', convNum(len(self.fileList)),
                 convSize(self.profPageCnt * 4 << 10),
                 convSize(self.pgRclmBg * 4 << 10),
@@ -17437,9 +17437,9 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ RAM: %s ] [ Reclaim: %s/%s ] "
-            "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ] "
-            "[ Capture: Ctrl+\\ ]\n%s") % \
+            "[%s] [Process : %s] [RAM: %s] [Reclaim: %s/%s] "
+            "[Uptime: %s] [Keys: Foward/Back/Save/Quit] "
+            "[Capture: Ctrl+\\]\n%s") % \
                 ('File Process Info', UtilMgr.convNum(len(self.procData)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
@@ -17496,8 +17496,8 @@ class FileAnalyzer(object):
 
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %s ] [ RAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
-            " [ Keys: Foward/Back/Save/Quit ]\n%s") % \
+            "[%s] [File: %s] [RAM: %s] [Reclaim: %s/%s] [Uptime: %s]"
+            " [Keys: Foward/Back/Save/Quit]\n%s") % \
                 ('File Usage Info', UtilMgr.convNum(len(self.fileData)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
@@ -20932,14 +20932,17 @@ Commands:
             if not cgroupPath:
                 raise Exception("access fail to cgroup filesystem")
 
-            # check path #
-            if not path.startswith(cgroupPath):
+            # check and get root path #
+            if path.startswith(cgroupPath):
+                root = UtilMgr.lstrip(path, cgroupPath).split('/')
+                root = UtilMgr.cleanItem(root)
+                rootPath = os.path.join(cgroupPath, root[0], 'tasks')
+            elif os.path.exists(os.path.join(cgroupPath, path)):
+                root = UtilMgr.cleanItem(path.split('/'))
+                path = os.path.join(cgroupPath, path)
+                rootPath = os.path.join(cgroupPath, root[0], 'tasks')
+            else:
                 raise Exception("wrong directory path")
-
-            # get root path #
-            root = UtilMgr.lstrip(path, cgroupPath).split('/')
-            root = UtilMgr.cleanItem(root)
-            rootPath = os.path.join(cgroupPath, root[0], 'tasks')
 
             # find all tasks files #
             targetList = UtilMgr.getFiles(path, ['tasks'])
@@ -20955,12 +20958,62 @@ Commands:
             # remove target directory #
             for p in sorted(
                 targetList, key=lambda x:x.count('/'), reverse=True):
-                os.rmdir(p.rstrip('/tasks'))
+                os.rmdir(UtilMgr.rstrip(p, '/tasks'))
 
             return True
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn("failed to remove '%s'" % path, True, True)
+            return False
+
+
+
+    @staticmethod
+    def doCgroup():
+        SysMgr.printErr('Not implemented yet')
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def makeCgroup(sub, name=None, remove=True):
+        try:
+            # init system context #
+            if not SysMgr.sysInstance:
+                SysMgr.initSystemContext()
+
+            # get cgroup path #
+            cgroupPath = SysMgr.sysInstance.getCgroupPath()
+            if not cgroupPath:
+                raise Exception("access fail to cgroup filesystem")
+
+            # check subsystem #
+            cgroupPath = os.path.join(cgroupPath, sub)
+            if not os.path.exists(cgroupPath):
+                raise Exception("access fail to %s cgroup subsystem" % sub)
+
+            # set dir name #
+            if not name:
+                name = 'guider_%s' % SysMgr.pid
+
+            # make target dir #
+            targetDir = os.path.join(cgroupPath, name)
+            try:
+                if not os.path.exists(targetDir):
+                    os.makedirs(targetDir)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                raise Exception("make fail for '%s'" % targetDir)
+
+            # register handler to remove directory #
+            if remove:
+                SysMgr.addExitFunc(SysMgr.removeCgroup, [targetDir])
+
+            return targetDir
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printWarn('failed to create cgroup %s' % sub, True, True)
             return False
 
 
@@ -20972,38 +21025,19 @@ Commands:
             if SysMgr.freezerPath or SysMgr.freezerPath is False:
                 return SysMgr.freezerPath
 
-            # init system context #
-            if not SysMgr.sysInstance:
-                SysMgr.initSystemContext()
-
-            # get cgroup path #
-            cgroupPath = SysMgr.sysInstance.getCgroupPath()
-            if not cgroupPath:
-                raise Exception("access fail to cgroup filesystem")
-
-            # check freezer subsystem #
-            cgroupPath = os.path.join(cgroupPath, 'freezer')
-            if not os.path.exists(cgroupPath):
-                raise Exception("access fail to freezer subsystem in cgroup")
-
-            # make target dir #
-            targetDir = os.path.join(cgroupPath, 'guider_%s' % SysMgr.pid)
-            try:
-                if not os.path.exists(targetDir):
-                    os.makedirs(targetDir)
-            except:
-                raise Exception("make fail for '%s'" % targetDir)
+            # get cgroup #
+            tempDir = SysMgr.makeCgroup('freezer')
+            if not tempDir:
+                return
 
             # freeze tasks #
             SysMgr.writeFile(
                 os.path.join(targetDir, 'freezer.state'), 'FROZEN')
 
-            # register handler to remove directory #
-            SysMgr.addExitFunc(SysMgr.removeCgroup, [targetDir])
-
             # register tasks to cgroup node #
             SysMgr.freezerPath = os.path.join(targetDir, 'tasks')
             return SysMgr.freezerPath
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn('failed to create cgroup freezer', True, True)
             SysMgr.freezerPath = False
@@ -21021,21 +21055,6 @@ Commands:
         else:
             SysMgr.printErr(
                 "failed to freeze tasks because of no target")
-            sys.exit(0)
-
-        # init system context #
-        SysMgr.initSystemContext()
-
-        # get cgroup path #
-        cgroupPath = SysMgr.sysInstance.getCgroupPath()
-        if not cgroupPath:
-            SysMgr.printErr("failed to access cgroup filesystem")
-            sys.exit(0)
-
-        # check freezer subsystem #
-        cgroupPath = os.path.join(cgroupPath, 'freezer')
-        if not os.path.exists(cgroupPath):
-            SysMgr.printErr("failed to access freezer subsystem in cgroup")
             sys.exit(0)
 
         # check task type #
@@ -21057,14 +21076,10 @@ Commands:
             SysMgr.printErr("no target %s" % taskType)
             sys.exit(0)
 
-        # make target dir #
-        targetDir = os.path.join(cgroupPath, 'guider_%s' % SysMgr.pid)
-        try:
-            if not os.path.exists(targetDir):
-                os.makedirs(targetDir)
-        except:
-            SysMgr.printErr("failed to make '%s'" % targetDir, True)
-            sys.exit(0)
+        # get cgroup #
+        targetDir = SysMgr.makeCgroup('freezer')
+        if not targetDir:
+            return
 
         # register tasks to cgroup node #
         taskPushFile = os.path.join(targetDir, taskNode)
@@ -21072,9 +21087,6 @@ Commands:
 
         # freeze tasks #
         SysMgr.writeFile(os.path.join(targetDir, 'freezer.state'), 'FROZEN')
-
-        # register handler to remove directory #
-        SysMgr.addExitFunc(SysMgr.removeCgroup, [targetDir])
 
         # print target tasks #
         tasks = SysMgr.readFile(taskPushFile).split('\n')
@@ -23606,6 +23618,7 @@ Commands:
                 },
             'util': {
                 'addr2sym': ('Symbol', 'Linux/MacOS/Windows'),
+                'cgroup': ('Cgroup', 'Linux'),
                 'comp': ('Compress', 'Linux/MacOS/Windows'),
                 'decomp': ('Decompress', 'Linux/MacOS/Windows'),
                 'dump': ('Memory', 'Linux'),
@@ -26096,6 +26109,33 @@ Examples:
         # {0:1} {1:1} -I a.out -g PEACE
                     '''.format(cmd, mode)
 
+                # cgroup #
+                elif SysMgr.checkMode('cgroup'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Control cgroups
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -g  <WORD>                  set filter
+    -P                          group threads in a same process
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - Make specific cgroups and add specific threads to them
+        # {0:1} {1:1} ADD:cpu:test1:"*a.out*"
+
+    - Remove specific cgroups including subgroups
+        # {0:1} {1:1} REMOVE:cpu/test1
+                    '''.format(cmd, mode)
+
                 # print #
                 elif SysMgr.checkMode('print'):
                     helpStr = '''
@@ -27601,7 +27641,7 @@ Examples:
         # {0:1} {1:1}
 
     - {2:1} for specific subsystem
-        # {0:1} {1:1} cpu
+        # {0:1} {1:1} "cpu*"
         # {0:1} {1:1} blkio
 
     - {2:1} with processes
@@ -35866,6 +35906,10 @@ Copyright:
         elif SysMgr.checkMode('getafnt'):
             SysMgr.doGetAffinity()
 
+        # CGROUP MODE #
+        elif SysMgr.checkMode('cgroup'):
+            SysMgr.doCgroup()
+
         # FREEZE MODE #
         elif SysMgr.checkMode('freeze'):
             SysMgr.doFreeze()
@@ -42257,8 +42301,9 @@ Copyright:
             if not newFileList:
                 comm = SysMgr.getComm(pid)
                 procInfo = '%s(%s)' % (comm, pid)
-                SysMgr.printErr("failed to get [ %s ] from memory map for %s" % \
-                    (', '.join(fileFilter), procInfo))
+                SysMgr.printErr(
+                    "failed to get [ %s ] from memory map for %s" % \
+                        (', '.join(fileFilter), procInfo))
                 sys.exit(0)
             fileList = newFileList
 
@@ -50270,6 +50315,12 @@ Copyright:
         # print cgroup tree #
         _printDirTree(cgroupTree, 0)
 
+        # check result #
+        if not SysMgr.systemInfoBuffer.strip():
+            SysMgr.printErr('no cgroup info')
+            sys.exit(0)
+
+        # append last line #
         if printTitle:
             SysMgr.infoBufferPrint(twoLine)
 
@@ -69682,7 +69733,8 @@ class ElfAnalyzer(object):
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to execute %s to get address from binary" % objdumpPath)
+                "failed to execute %s to get address from binary" % \
+                    objdumpPath)
             sys.exit(0)
 
         while 1:
