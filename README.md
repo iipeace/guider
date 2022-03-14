@@ -1405,6 +1405,7 @@ COMMAND:
                     utrace            <Function>      (Linux)
 
     [UTIL]          addr2sym          <Symbol>        (Linux/MacOS/Windows)
+                    cgroup            <Cgroup>        (Linux)
                     comp              <Compress>      (Linux/MacOS/Windows)
                     decomp            <Decompress>    (Linux/MacOS/Windows)
                     dump              <Memory>        (Linux)

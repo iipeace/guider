@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220313"
+__revision__ = "220314"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20970,13 +20970,239 @@ Commands:
 
     @staticmethod
     def doCgroup():
-        SysMgr.printErr('Not implemented yet')
-        sys.exit(0)
+        def _moveTasks(srcFile, desFile, targetTasks):
+            # read target tasks #
+            tasks = SysMgr.readFile(srcFile)
+            if tasks:
+                tasks = tasks.split('\n')
+            else:
+                tasks = []
+
+            # filter target tasks #
+            tasks = list(set(tasks) & set(targetTasks))
+            if not tasks:
+                return []
+
+            # move tasks #
+            SysMgr.writeFile(desFile, tasks)
+
+            return tasks
+
+
+
+        # get argument #
+        if SysMgr.hasMainArg():
+            value = SysMgr.getMainArgs(False)
+        elif SysMgr.filterGroup:
+            value = SysMgr.filterGroup
+        else:
+            SysMgr.printErr(
+                "failed to get commands for cgroup")
+            sys.exit(0)
+
+        # verify and convert command strings #
+        cmds = []
+        for item in value:
+            try:
+                # CMD:SUB:NAME:TARGET #
+                cmdset = item.split(':', 3)
+                cmd, sub, name, target = cmdset
+                cmds.append([cmd.upper(), sub, name, target.strip()])
+            except SystemExit: sys.exit(0)
+            except:
+                SysMgr.printErr((
+                    "failed to convert cgroup command '%s' "
+                    "in CMD:SUB:NAME:TARGET format") % item, True)
+                sys.exit(0)
+
+        # check task type #
+        if SysMgr.processEnable:
+            isThread = False
+            taskType = 'process'
+            taskNode = 'cgroup.procs'
+        else:
+            isThread = True
+            taskType = 'thread'
+            taskNode = 'tasks'
+
+        # define shortcut variable #
+        convNum = UtilMgr.convNum
+
+        # handle commands #
+        for clist in cmds:
+            # get command info #
+            cmd, sub, name, target = clist
+
+            # check command #
+            if not cmd in (
+                'CREATE', 'ADD', 'MOVE', 'REMOVE', 'DELETE', 'LIST'):
+                SysMgr.printErr("no suppport '%s' command" % cmd)
+                sys.exit(0)
+
+            # get target tasks #
+            if cmd in ('CREATE', 'ADD', 'MOVE', 'REMOVE', 'LIST'):
+                if cmd == 'CREATE' and not target:
+                    targetTasks = None
+                else:
+                    targetTasks = SysMgr.getTids(
+                        target, isThread=isThread,
+                        sibling=SysMgr.groupProcEnable)
+                    if not targetTasks:
+                        SysMgr.printErr("no target %s" % taskType, True)
+                        continue
+            else:
+                targetTasks = None
+
+            # handle move command #
+            if cmd == 'LIST':
+                # get directory #
+                targetDir = SysMgr.getCgroup(sub, name)
+                targetFile = os.path.join(targetDir, taskNode)
+                if not os.path.exists(targetFile):
+                    SysMgr.printErr(
+                        "wrong cgroup '%s' for list" % targetFile)
+                    continue
+
+                # print target tasks #
+                tasks = SysMgr.readFile(targetFile)
+                if tasks:
+                    tasks = tasks.split('\n')
+                else:
+                    SysMgr.printInfo("no %s in '%s'" % (taskType, targetFile))
+                    continue
+
+                # apply filter #
+                tasks = list(map(long, list(set(tasks) & set(targetTasks))))
+
+                # print message #
+                SysMgr.printInfo(
+                    "print %s %s from '%s'" % \
+                        (convNum(len(tasks)), taskType, targetFile))
+
+                # print tasks #
+                for idx, tid in enumerate(sorted(tasks)):
+                    SysMgr.printPipe('[%s] %s(%s)' % \
+                        (convNum(idx), SysMgr.getComm(tid), tid))
+
+                continue
+
+
+            # handle move command #
+            elif cmd == 'MOVE':
+                # source #
+                try:
+                    srcSub, srcName = sub.split('/', 1)
+                    srcDir = SysMgr.getCgroup(srcSub, srcName)
+                    srcFile = os.path.join(srcDir, taskNode)
+                    if not os.path.exists(srcFile):
+                        raise Exception('no file')
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "wrong source cgroup '%s' for move" % sub, True)
+                    continue
+
+                # destination #
+                try:
+                    desSub, desName = name.split('/', 1)
+                    desDir = SysMgr.getCgroup(desSub, desName)
+                    desFile = os.path.join(desDir, taskNode)
+                    if not os.path.exists(desFile):
+                        raise Exception('no file')
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "wrong destination cgroup '%s' for move" % name, True)
+                    continue
+
+                # move tasks #
+                tasks = _moveTasks(srcFile, desFile, targetTasks)
+                if not tasks:
+                    SysMgr.printErr(
+                        "no %s to be moved from '%s' to '%s'" % \
+                            (taskType, srcFile, desFile))
+                    continue
+
+                # print message #
+                SysMgr.printInfo(
+                    "moved %s %s from '%s' to '%s'" % \
+                        (convNum(len(tasks)), taskType, srcDir, desDir))
+
+                # print tasks #
+                for idx, tid in enumerate(tasks):
+                    SysMgr.printPipe('[%s] %s(%s)' % \
+                        (convNum(idx), SysMgr.getComm(tid), tid))
+
+                continue
+
+            # set make flag #
+            if cmd == 'CREATE':
+                makeFlag = True
+            else:
+                makeFlag = False
+
+            # get directory #
+            targetDir = SysMgr.getCgroup(sub, name, make=makeFlag)
+            if not os.path.exists(targetDir):
+                SysMgr.printErr('no target group %s' % targetDir)
+                continue
+            elif cmd == 'DELETE':
+                SysMgr.removeCgroup(targetDir)
+                SysMgr.printInfo("deleted '%s' cgroup" % targetDir)
+                continue
+            elif cmd == 'CREATE' and targetTasks is None:
+                SysMgr.printInfo("created '%s' cgroup" % targetDir)
+                continue
+
+            # register tasks to cgroup node #
+            targetFile = os.path.join(targetDir, taskNode)
+
+            # ADD #
+            if cmd in ('CREATE', 'ADD'):
+                # move tasks #
+                SysMgr.writeFile(targetFile, targetTasks)
+
+                # print message #
+                SysMgr.printInfo(
+                    "added %s %s to '%s' cgroup" % \
+                        (convNum(len(targetTasks)), taskType, targetDir))
+
+                tasks = targetTasks
+            # REMOVE #
+            else:
+                # get target file #
+                desFile = os.path.join(
+                    os.path.dirname(targetFile), '..', taskNode)
+                if not os.path.exists(desFile):
+                    SysMgr.printErr(
+                        "wrong destination cgroup '%s' for removal" % desFile)
+                    continue
+
+                # move tasks #
+                tasks = _moveTasks(targetFile, desFile, targetTasks)
+                if not tasks:
+                    SysMgr.printErr(
+                        "no %s to be removed from '%s'" % \
+                            (taskType, targetDir))
+                    continue
+
+                # print message #
+                SysMgr.printInfo(
+                    "removed %s %s from '%s' cgroup" % \
+                        (convNum(len(tasks)), taskType, targetDir))
+
+            # sort targets #
+            tasks = sorted(list(map(long, tasks)))
+
+            # print tasks #
+            for idx, tid in enumerate(tasks):
+                SysMgr.printPipe('[%s] %s(%s)' % \
+                    (convNum(idx), SysMgr.getComm(tid), tid))
 
 
 
     @staticmethod
-    def makeCgroup(sub, name=None, remove=True):
+    def getCgroup(sub, name=None, make=False, remove=False):
         try:
             # init system context #
             if not SysMgr.sysInstance:
@@ -20999,7 +21225,7 @@ Commands:
             # make target dir #
             targetDir = os.path.join(cgroupPath, name)
             try:
-                if not os.path.exists(targetDir):
+                if make and not os.path.exists(targetDir):
                     os.makedirs(targetDir)
             except SystemExit:
                 sys.exit(0)
@@ -21026,16 +21252,16 @@ Commands:
                 return SysMgr.freezerPath
 
             # get cgroup #
-            tempDir = SysMgr.makeCgroup('freezer')
+            tempDir = SysMgr.getCgroup('freezer', make=True, remove=True)
             if not tempDir:
                 return
 
             # freeze tasks #
             SysMgr.writeFile(
-                os.path.join(targetDir, 'freezer.state'), 'FROZEN')
+                os.path.join(tempDir, 'freezer.state'), 'FROZEN')
 
             # register tasks to cgroup node #
-            SysMgr.freezerPath = os.path.join(targetDir, 'tasks')
+            SysMgr.freezerPath = os.path.join(tempDir, 'tasks')
             return SysMgr.freezerPath
         except SystemExit: sys.exit(0)
         except:
@@ -21077,7 +21303,7 @@ Commands:
             sys.exit(0)
 
         # get cgroup #
-        targetDir = SysMgr.makeCgroup('freezer')
+        targetDir = SysMgr.getCgroup('freezer', make=True, remove=True)
         if not targetDir:
             return
 
@@ -26121,7 +26347,8 @@ Description:
 
                     helpStr += '''
 Options:
-    -g  <WORD>                  set filter
+    -e  <CHARACTER>             enable options
+          [ t:thread | e:encode ]
     -P                          group threads in a same process
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
@@ -26129,11 +26356,23 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Make specific cgroups and add specific threads to them
+    - Make a new cpu group
+        # {0:1} {1:1} CREATE:cpu:test1:*
+
+    - Add specific processes to a specific group
         # {0:1} {1:1} ADD:cpu:test1:"*a.out*"
 
-    - Remove specific cgroups including subgroups
-        # {0:1} {1:1} REMOVE:cpu/test1
+    - Move specific processes between cpu groups
+        # {0:1} {1:1} MOVE:cpu/test1:cpu/test2:"*a.out*"
+
+    - Remove specific processes from a cpu group
+        # {0:1} {1:1} REMOVE:cpu/test1:"*a.out*"
+
+    - Delete a cpu group
+        # {0:1} {1:1} DELETE:cpu:test1:*
+
+    - Print all processes in a cpu group
+        # {0:1} {1:1} LIST:cpu:test1:*
                     '''.format(cmd, mode)
 
                 # print #
@@ -31932,21 +32171,23 @@ Copyright:
             return
 
         for cmd in SysMgr.rcmdList[time]:
-            if len(cmd) == 2:
-                path = cmd[0]
-                val = cmd[1]
-
-                try:
-                    with open(path, 'w') as fd:
-                        fd.write(val)
-                        SysMgr.printInfo(
-                            "applied command '%s' to %s successfully" % \
-                                (val, path))
-                except:
-                    SysMgr.printWarn(
-                        "failed to apply command '%s' to %s" % (val, path))
-            elif len(cmd) == 1:
+            if len(cmd) == 1:
                 os.system(cmd[0])
+                continue
+            elif len(cmd) != 2:
+                continue
+
+            try:
+                path, val = cmd
+
+                with open(path, 'w') as fd:
+                    fd.write(val)
+                    SysMgr.printInfo(
+                        "applied command '%s' to %s successfully" % \
+                            (val, path))
+            except:
+                SysMgr.printWarn(
+                    "failed to apply command '%s' to %s" % (val, path))
 
 
 
@@ -31954,7 +32195,7 @@ Copyright:
     def readFile(path):
         try:
             with open(path, 'r') as fd:
-                return fd.read()
+                return fd.read().strip()
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
@@ -35908,6 +36149,9 @@ Copyright:
 
         # CGROUP MODE #
         elif SysMgr.checkMode('cgroup'):
+            # set console info #
+            SysMgr.setStream()
+
             SysMgr.doCgroup()
 
         # FREEZE MODE #
@@ -42444,8 +42688,7 @@ Copyright:
 
                 # set path #
                 pathList = [
-                    path,
-                    os.path.dirname(os.path.abspath(path))
+                    path, os.path.dirname(os.path.abspath(path))
                 ]
 
                 # set flags #
@@ -74316,7 +74559,9 @@ class TaskAnalyzer(object):
         for pname, value in sorted(unionCpuList.items(),
             key=lambda e:float(e[1]), reverse=True):
 
-            if pname == 'TOTAL':
+            if pname == '[ TOTAL ]':
+                continue
+            elif pname == 'TOTAL':
                 printBuf = "%16s | " % '[CPU/AVG]'
             else:
                 printBuf = "%16s | " % pname[-16:]
@@ -74360,7 +74605,7 @@ class TaskAnalyzer(object):
                 else:
                     diff = '0'
 
-                total = cpuProcStat['total']
+                total = convNum(cpuProcStat['total'])
 
                 newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%) |" % \
                     (diff, cpuProcStat['cnt'],
