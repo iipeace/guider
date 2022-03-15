@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220314"
+__revision__ = "220315"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13184,18 +13184,17 @@ class FunctionAnalyzer(object):
             if m:
                 b = m.groupdict()
 
-                nr = b['nr']
+                num = long(b['nr'])
 
-                self.threadData[tid]['lastNrSyscall'] = long(nr)
+                self.threadData[tid]['lastNrSyscall'] = num
 
                 # syscall event #
                 if SysMgr.sysEnable:
                     self.sysEnabled = True
 
-                    nrSyscall = long(b['nr'])
                     syscallList = SysMgr.syscallList
 
-                    if not syscallList or nrSyscall in syscallList:
+                    if not syscallList or num in syscallList:
                         args = b['args'][1:-1]
 
                         self.threadData[tid]['nrSyscall'] += 1
@@ -13205,17 +13204,17 @@ class FunctionAnalyzer(object):
                             self.threadData[tid]['syscallTable'] = {}
 
                         try:
-                            self.threadData[tid]['syscallTable'][nrSyscall] += 1
+                            self.threadData[tid]['syscallTable'][num] += 1
                         except:
-                            self.threadData[tid]['syscallTable'][nrSyscall] = 1
+                            self.threadData[tid]['syscallTable'][num] = 1
 
                         self.saveEventParam(
-                            'SYSCALL', 1, [nrSyscall, args, time, core, tid])
+                            'SYSCALL', 1, [num, args, time, core, tid])
 
                         return False
 
                 # heap increasement event #
-                elif long(b['nr']) == ConfigMgr.getMmapId():
+                elif num == ConfigMgr.getMmapId():
                     self.heapEnabled = True
 
                     try:
@@ -13239,7 +13238,7 @@ class FunctionAnalyzer(object):
                     return False
 
                 # heap decreasement event #
-                elif long(b['nr']) == SysMgr.getNrSyscall('sys_munmap'):
+                elif num == SysMgr.getNrSyscall('sys_munmap'):
                     self.heapEnabled = True
 
                     try:
@@ -13256,7 +13255,7 @@ class FunctionAnalyzer(object):
                     except: pass
 
                 # lock event #
-                elif long(b['nr']) == SysMgr.getNrSyscall('sys_futex'):
+                elif num == SysMgr.getNrSyscall('sys_futex'):
                     n = re.match((
                         r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                         r'(?P<val>\S+), (?P<timer>\S+),'), b['args'])
@@ -13268,44 +13267,33 @@ class FunctionAnalyzer(object):
                         maskedOp = long(l['op'], base=16) & FUTEX_CMD_MASK
 
                         addr = l['uaddr'][1:]
-                        flist = ConfigMgr.FUTEX_TYPE
+
                         try:
-                            event = flist[maskedOp]
+                            event = ConfigMgr.FUTEX_TYPE[maskedOp]
                         except:
                             event = 'LOCK'
 
-                        # try to lock #
-                        if maskedOp == flist.index("FUTEX_LOCK_PI") or \
-                            maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
+                        # lock_pi #
+                        if event in ("FUTEX_LOCK_PI", "FUTEX_TRYLOCK_PI"):
                             self.lockEnabled = True
-
                             self.threadData[tid]['nrLockTry'] += 1
-
                             self.saveEventParam(
                                 'LOCK_TRY', 1, [event, addr, time, core, tid])
-
                             return False
                         # wait #
-                        elif maskedOp == flist.index("FUTEX_WAIT") or \
-                            maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
-                            maskedOp == flist.index("FUTEX_WAIT_BITSET"):
+                        elif event in ("FUTEX_WAIT",
+                            "FUTEX_WAIT_REQUEUE_PI", "FUTEX_WAIT_BITSET"):
                             self.lockEnabled = True
-
                             self.threadData[tid]['nrLockTry'] += 1
-
                             self.saveEventParam(
                                 'LOCK_TRY', 1, [event, addr, time, core, tid])
-
                             return False
-                        # try to unlock #
-                        elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
+                        # unlock #
+                        elif event == "FUTEX_UNLOCK_PI":
                             self.lockEnabled = True
-
                             self.threadData[tid]['nrUnlock'] += 1
-
                             self.saveEventParam(
                                 'UNLOCK', 1, [event, addr, time, core, tid])
-
                             return False
 
             else:
@@ -13388,8 +13376,9 @@ class FunctionAnalyzer(object):
         # block request event #
         elif isFixedEvent and func == "block_bio_queue:":
             m = re.match((
-                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*'
-                r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), args)
+                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*'
+                r'(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+'
+                r'(?P<size>[0-9]+)'), args)
             if m:
                 b = m.groupdict()
 
@@ -13489,8 +13478,9 @@ class FunctionAnalyzer(object):
 
         elif isFixedEvent and func == "signal_deliver:":
             m = re.match((
-                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) '
-                r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)'), args)
+                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
+                r'code=(?P<code>.*) sa_handler=(?P<handler>.*) '
+                r'sa_flags=(?P<flags>.*)'), args)
             if m:
                 b = m.groupdict()
 
@@ -29004,6 +28994,7 @@ Commands:
     CMD_CLEAR              clear the monitoring buffer
     CMD_DISABLE:ATTR       disable monitoring of the specific resource
     CMD_ENABLE:ATTR        enable monitoring of the specific resource
+    CMD_FILTER:ITEM        set the task filter
     CMD_INTERVAL:TIME      change the monitoring interval
     CMD_PAUSE              pause all monitoring activities
     CMD_RELOAD             reload the threshold config
@@ -29042,10 +29033,16 @@ Examples:
         # {0:1} {1:1} CMD_INTERVAL:3s
         # {0:1} {1:1} CMD_INTERVAL:1m
 
+    - Notify CMD_FILTER event {2:1} to set the task filter
+        # {0:1} {1:1} CMD_FILTER:"*kworker*"
+        # {0:1} {1:1} CMD_FILTER:"a.out|systemd"
+
     - Notify CMD_UPDATE event {2:1} to update the threshold data from the specific file
         # {0:1} {1:1} CMD_UPDATE:test.conf
 
     - Notify CMD_ENABLE or CMD_DISABLE events {2:1} to enable monitoring of specific resources
+        # {0:1} {1:1} CMD_ENABLE:ALL
+        # {0:1} {1:1} CMD_DISABLE:ALL
         # {0:1} {1:1} CMD_DISABLE:CPU
         # {0:1} {1:1} CMD_DISABLE:GPU
         # {0:1} {1:1} CMD_ENABLE:MEM
@@ -36517,6 +36514,10 @@ Copyright:
                 port = SysMgr.remoteServObj.port
         else:
             ip = port = None
+
+            # check root permission #
+            SysMgr.checkRootPerm(
+                msg='send event, try to use the target address')
 
         # convert pid #
         try:
@@ -70045,13 +70046,14 @@ class ElfAnalyzer(object):
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
-                "failed to check relocatable format", reason=True)
+                "failed to check relocatable format for '%s'" % path,
+                reason=True)
             return False
 
         # check file name #
-        if '.so' in path or \
-            '.ttf' in path or \
-            '.pak' in path:
+        if path.endswith('.so') or \
+            path.endswith('.ttf') or \
+            path.endswith('.pak'):
             ElfAnalyzer.relocTypes[path] = True
             return True
         else:
@@ -81372,20 +81374,20 @@ class TaskAnalyzer(object):
             tinfo['ftxWaitCnt'] = convNum(tinfo['ftxWaitCnt'])
 
             # convert format for total info #
-            if tinfo['ftxProcess'] != '-':
-                tinfo['ftxProcess'] = '%.3f' % tinfo['ftxProcess']
-            if tinfo['ftxBlockTotal'] != '-':
-                tinfo['ftxBlockTotal'] = '%.3f' % tinfo['ftxBlockTotal']
-            if tinfo['ftxLBlockTotal'] != '-':
-                tinfo['ftxLBlockTotal'] = '%.3f' % tinfo['ftxLBlockTotal']
-            if tinfo['ftxBlockCnt'] != '-':
-                tinfo['ftxBlockCnt'] = convNum(tinfo['ftxBlockCnt'])
-            if tinfo['ftxLSwitch'] != '-':
-                tinfo['ftxLSwitch'] = convNum(tinfo['ftxLSwitch'])
+            for item in ('ftxProcess', 'ftxBlockTotal', 'ftxLBlockTotal'):
+                if tinfo[item] != '-':
+                    tinfo[item] = '%.3f' % tinfo[item]
+            for item in ('ftxBlockCnt', 'ftxLSwitch'):
+                if tinfo[item] != '-':
+                    tinfo[item] = convNum(tinfo[item])
 
             def _convItem(name):
-                val = float(tinfo[name].replace(',',''))
-                return tinfo[name] if val else '-'
+                try:
+                    val = float(tinfo[name].replace(',',''))
+                    return tinfo[name] if val else '-'
+                except SystemExit: sys.exit(0)
+                except:
+                    return '-'
 
             totalFutexInfo = \
                 ('{0:>33} {1:>9} {2:>9} {3:>9} ' \
@@ -84751,7 +84753,8 @@ class TaskAnalyzer(object):
         # Print total free memory #
         value = TA.procTotData['total']
         procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
-            format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
+            format('[FREE/MIN]', '-', '-', '-', '-',
+                value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
 
@@ -84784,7 +84787,8 @@ class TaskAnalyzer(object):
             procInfo = \
                 "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
                 format(value['comm'][:cl], pid, value['ppid'],
-                value['nrThreads'], value['pri'], value['maxMem'], cl=cl, pd=pd)
+                value['nrThreads'], value['pri'], value['maxMem'],
+                cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SysMgr.lineLength
 
@@ -84879,7 +84883,8 @@ class TaskAnalyzer(object):
         # Print total free memory #
         value = TA.procTotData['total']
         procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
-            format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
+            format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'],
+                cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
 
@@ -84912,7 +84917,8 @@ class TaskAnalyzer(object):
             procInfo = \
                 "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
                 format(value['comm'][:cl], pid, value['ppid'],
-                value['nrThreads'], value['pri'], value['maxVss'], cl=cl, pd=pd)
+                value['nrThreads'], value['pri'], value['maxVss'],
+                cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SysMgr.lineLength
 
@@ -95951,6 +95957,20 @@ class TaskAnalyzer(object):
             # print threshold data #
             SysMgr.printWarn(
                 UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True))
+        # FILTER #
+        elif cmd.startswith('FILTER:'):
+            value = UtilMgr.lstrip(cmd, 'FILTER:').strip()
+            if value:
+                value = UtilMgr.cleanItem(value.split('|'))
+                SysMgr.filterGroup = value
+            else:
+                SysMgr.filterGroup = []
+                value = '[]'
+
+            # print message #
+            SysMgr.printInfo((
+                "updated the task filter to %s by '%s' command "
+                "for %s event") % (value, cmd, name))
         # ENABLE / DISABLE #
         elif cmd.startswith('ENABLE:') or cmd.startswith('DISABLE:'):
             if cmd.startswith('ENABLE:'):
@@ -95963,9 +95983,11 @@ class TaskAnalyzer(object):
                 res = UtilMgr.lstrip(cmd, 'DISABLE:')
 
             # update target resource #
-            if res == 'CPU':
+            if res == 'ALL':
+                SysMgr.showAll = value
+            elif res == 'CPU':
                 SysMgr.cpuEnable = value
-            if res == 'GPU':
+            elif res == 'GPU':
                 SysMgr.gpuEnable = value
             elif res == 'MEM':
                 SysMgr.memEnable = value
@@ -97216,15 +97238,19 @@ class TaskAnalyzer(object):
                     comm = data['comm']
 
                     # check the number of items #
-                    if rank > SysMgr.nrTopRank:
-                        break
-                    # check usage #
-                    elif not SysMgr.showAll and data['ttime'] == 0:
-                        break
-                    # check comm #
-                    elif not UtilMgr.isValidStr(comm):
-                        continue
+                    if SysMgr.filterGroup:
+                        # check comm #
+                        if not UtilMgr.isValidStr(comm):
+                            continue
+                    else:
+                        # check rank #
+                        if rank > SysMgr.nrTopRank:
+                            break
+                        # check usage #
+                        elif not SysMgr.showAll and data['ttime'] == 0:
+                            break
 
+                    # set default #
                     evtdata = self.reportData['cpu']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
@@ -97267,11 +97293,14 @@ class TaskAnalyzer(object):
                     comm = data['comm']
 
                     # check the number of items #
-                    if rank > SysMgr.nrTopRank:
-                        break
-                    # check comm #
-                    elif not UtilMgr.isValidStr(comm):
-                        continue
+                    if SysMgr.filterGroup:
+                        # check comm #
+                        if not UtilMgr.isValidStr(comm):
+                            continue
+                    else:
+                        # check rank #
+                        if rank > SysMgr.nrTopRank:
+                            break
 
                     try:
                         text = (long(data['stat'][self.ecodeIdx]) - \
@@ -97280,6 +97309,7 @@ class TaskAnalyzer(object):
                     except:
                         text = 0
 
+                    # set default #
                     evtdata = self.reportData['mem']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
@@ -97287,15 +97317,21 @@ class TaskAnalyzer(object):
                     evtdata[rank]['rss'] = data['rss']
                     evtdata[rank]['text'] = text
 
+                    # save proc status #
+                    path = '%s/%s' % (SysMgr.procPath, pid)
+                    self.saveProcStatusData(path, pid)
+
                     # swap #
                     try:
-                        self.reportData['mem']['procs'][pid]['swap'] = \
+                        evtdata[rank]['swap'] = \
+                            self.reportData['mem']['procs'][pid]['swap'] = \
                             long(data['status']['VmSwap'].split()[0]) >> 10
                     except: pass
 
                     # shared #
                     try:
-                        self.reportData['mem']['procs'][pid]['shared'] = \
+                        evtdata[rank]['shared'] = \
+                            self.reportData['mem']['procs'][pid]['shared'] = \
                             long(data['statm'][self.shrIdx]) >> 8
                     except: pass
 
@@ -97320,13 +97356,17 @@ class TaskAnalyzer(object):
                 for pid, data in sortedProcData:
                     comm = data['comm']
 
-                    # check total I/O size #
-                    if data['rw'] == 0:
-                        break
-                    # check comm #
-                    elif not UtilMgr.isValidStr(comm):
-                        continue
+                    # check the number of items #
+                    if SysMgr.filterGroup:
+                        # check comm #
+                        if not UtilMgr.isValidStr(comm):
+                            continue
+                    else:
+                        # check total I/O size #
+                        if data['rw'] == 0:
+                            break
 
+                    # set default #
                     evtdata = self.reportData['block']['procs']
                     evtdata[rank] = {}
                     runtime = convTime(data['runtime'])
@@ -97358,12 +97398,15 @@ class TaskAnalyzer(object):
 
                     comm = data['comm']
 
-                    # check size #
-                    if data['size'] == 0:
-                        break
-                    # check comm #
-                    elif not UtilMgr.isValidStr(comm):
-                        continue
+                    # check the number of items #
+                    if SysMgr.filterGroup:
+                        # check comm #
+                        if not UtilMgr.isValidStr(comm):
+                            continue
+                    else:
+                        # check size #
+                        if data['size'] == 0:
+                            break
 
                     procs[rank] = {}
                     _setDefaultInfo(procs[rank], pid, comm)
@@ -97391,9 +97434,6 @@ class TaskAnalyzer(object):
                     # save status #
                     rank = 1
                     for pid in tasks:
-                        evtdata = self.reportData['task'][item]
-                        evtdata[rank] = {}
-
                         if item == 'dieProcs':
                             procData = self.prevProcData
                         else:
@@ -97402,6 +97442,10 @@ class TaskAnalyzer(object):
                         # check pid #
                         if not pid in procData:
                             continue
+
+                        # set default #
+                        evtdata = self.reportData['task'][item]
+                        evtdata[rank] = {}
 
                         comm = procData[pid]['comm']
                         runtime = convTime(procData[pid]['runtime'])
