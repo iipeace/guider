@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220315"
+__revision__ = "220316"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18940,6 +18940,9 @@ class SysMgr(object):
     netAddrCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
+    pciList = []
+
+    # threshold #
     thresholdData = {}
     prevThresholdData = {}
     thresholdTarget = {}
@@ -44220,12 +44223,93 @@ Copyright:
 
 
     @staticmethod
+    def getPciList(cache=True):
+        if cache and SysMgr.pciList:
+            return SysMgr.pciList
+
+        try:
+            with open("/usr/share/misc/pci.ids") as reader:
+                SysMgr.pciList = reader.read().strip().split('\n')
+        except:
+            try:
+                with open("/usr/share/hwdata/pci.ids") as reader:
+                    SysMgr.pciList = reader.read().strip().split('\n')
+            except:
+                SysMgr.pciList = []
+
+        return SysMgr.pciList
+
+
+
+    @staticmethod
+    def getGpuList():
+        gpuNameList = []
+        gpuVendorList = []
+        gpuDeviceList = []
+
+        # get PCI list #
+        pciList = SysMgr.getPciList()
+        if not pciList:
+            return gpuNameList
+
+        pciList = '\n'.join(pciList)
+
+        # get driver list #
+        try:
+            gpuList = [name for name in os.listdir("/dev/dri/")\
+                if name.rstrip("0123456789") == "card"]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return gpuNameList
+
+        for gpu in gpuList:
+            try:
+                vendor = device = "UNKNOWN"
+                commonPath = "/sys/class/drm/" + gpu + "/device/"
+                with open(commonPath + "vendor") as reader:
+                    vendor = reader.read().split("x")[1].strip()
+                with open(commonPath + "device") as reader:
+                    device = reader.read().split("x")[1].strip()
+            except SystemExit: sys.exit(0)
+            except: pass
+
+            vendorStr = "\n" + vendor + "  "
+            deviceStr = "\n\t" + device + "  "
+
+            if vendorStr in pciList:
+                rest = pciList.split(vendorStr, 1)[1]
+                vendorName = rest.split("\n", 1)[0].strip()
+            else:
+                vendorName = 'UNKNOWN'
+
+            if deviceStr in rest and vendorName != 'UNKNOWN':
+                rest = rest.split(deviceStr, 1)[1]
+                deviceName = rest.split("\n", 1)[0].strip()
+            else:
+                deviceName = 'UNKNOWN'
+
+            gpuNameList.append('%s - %s' % (vendorName, deviceName))
+            gpuVendorList.append(vendor)
+            gpuDeviceList.append(device)
+
+        return gpuNameList
+
+
+
+    @staticmethod
     def getGpuInfo():
+        return SysMgr.getGpuInfo_NVIDIA()
+
+
+
+    @staticmethod
+    def getGpuInfo_NVIDIA():
         def _ConvertSMVer2Cores(major, minor):
             # Returns the number of CUDA cores per multiprocessor for a given
             # Compute Capability version. There is no way to retrieve that via
-            # the API, so it needs to be hard-coded.
-            # See _ConvertSMVer2Cores in helper_cuda.h in NVIDIA's CUDA Samples.
+            # the API, so it needs to be hard-coded. See _ConvertSMVer2Cores
+            # in helper_cuda.h in NVIDIA's CUDA Samples.
             return {
                 # Tesla
                 (1, 0):   8,      # SM 1.0
@@ -44253,7 +44337,7 @@ Copyright:
                 (7, 2):  64,      # SM 7.2: GV11b class
                 # Turing
                 (7, 5):  64,      # SM 7.5: TU10x class
-            }.get((major, minor), 64)   # unknown architecture, return a default value
+            }.get((major, minor), 64)   # unknown architecture
 
         CUDA_SUCCESS = 0
         CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16
@@ -44319,7 +44403,8 @@ Copyright:
                     byref(threads_per_core),
                     CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR,
                     device) == CUDA_SUCCESS:
-                    gpuInfo[i]['threads'] = cores.value * threads_per_core.value
+                    gpuInfo[i]['threads'] = \
+                        cores.value * threads_per_core.value
 
             if cuda.cuDeviceGetAttribute(
                 byref(clockrate), CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
@@ -49089,10 +49174,26 @@ Copyright:
         # CPU #
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<1}".\
-                format('Arch', SysMgr.arch))
+                format('CPU', SysMgr.arch))
 
             if SysMgr.jsonEnable:
                 jsonData['arch'] = SysMgr.arch
+        except: pass
+
+        # GPU #
+        try:
+            gpuList = SysMgr.getGpuList()
+            if not gpuList:
+                raise Exception('no GPU')
+
+            name = 'GPU'
+            for item in gpuList:
+                SysMgr.infoBufferPrint("{0:20} {1:<1}".\
+                    format(name, item))
+                name = ' '
+
+            if SysMgr.jsonEnable:
+                jsonData['gpu'] = gpuList
         except: pass
 
         # OS #
