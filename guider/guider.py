@@ -19125,6 +19125,7 @@ class SysMgr(object):
     lockEnable = False
     logEnable = True
     loggingEnable = False
+    loggingOpsEnable = False
     logoEnable = True
     memEnable = False
     minStatEnable = False
@@ -23963,7 +23964,7 @@ Usage:
     -J                          print in JSON format
     -L  <PATH>                  set log file
     -l  <TYPE>                  set log type
-          [ d:dlt / k:kmsg / j:journal / s:syslog ]
+          [ d:DLT / k:KMSG / j:JOURNAL / s:SYSLOG ]
     -E  <DIR>                   set cache dir
     -H  <LEVEL>                 set function depth level
     -G  <KEYWORD>               set ignore list
@@ -24166,6 +24167,12 @@ Examples:
 
     - {3:1} {2:2} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
+
+    - {3:1} {2:2} and print standard or special logs to sepcific logging systems
+        * d:DLT / k:KMSG / j:JOURNAL / s:SYSLOG
+        # {0:1} {1:1} -l dkjs
+        # {0:1} {1:1} -q STDLOG:dkjs
+        # {0:1} {1:1} -q OPSLOG:dkjs
 
     - {3:1} {2:2} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
         # {0:1} {1:1} -o . -q NRKLOG:100
@@ -33510,14 +33517,7 @@ Copyright:
     def printPipe(line='', newline=True, flush=False, pager=True, trim=True):
         # check logging option #
         if SysMgr.loggingEnable:
-            if SysMgr.dltEnable:
-                DltAnalyzer.doLogDlt(msg=line)
-            if SysMgr.kmsgEnable:
-                LogMgr.doLogKmsg(msg=line)
-            if SysMgr.syslogEnable:
-                LogMgr.doLogSyslog(msg=line)
-            if SysMgr.journalEnable:
-                LogMgr.doLogJournal(msg=line)
+            SysMgr.printLog(line)
 
         # socket output #
         if SysMgr.addrListForPrint and line:
@@ -33783,6 +33783,19 @@ Copyright:
 
 
     @staticmethod
+    def printLog(log, level='INFO'):
+        if SysMgr.dltEnable:
+            DltAnalyzer.doLogDlt(msg=log, level=level)
+        if SysMgr.kmsgEnable:
+            LogMgr.doLogKmsg(msg=log)
+        if SysMgr.syslogEnable:
+            LogMgr.doLogSyslog(msg=log)
+        if SysMgr.journalEnable:
+            LogMgr.doLogJournal(msg=log)
+
+
+
+    @staticmethod
     def printWarn(line, always=False, reason=False, newline=True):
         # print backtrace #
         #SysMgr.printBacktrace()
@@ -33799,6 +33812,11 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         log = '%s%s%s%s' % ('[WARN] ', proc, line, rstring)
+
+        # log #
+        if SysMgr.loggingOpsEnable:
+            SysMgr.printLog(log, level='WARN')
+
         log = '\n%s' % (UtilMgr.convColor(log, 'WARNING', force=True))
 
         if newline:
@@ -33839,6 +33857,11 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         log = '%s%s%s%s' % ('[ERROR] ', proc, line, rstring)
+
+        # log #
+        if SysMgr.loggingOpsEnable:
+            SysMgr.printLog(log, level='ERROR')
+
         log = '\n%s\n' % (UtilMgr.convColor(log, 'FAIL', force=True))
 
         # write log to stdout #
@@ -33881,9 +33904,15 @@ Copyright:
         else:
             prefix = ''
 
+        # build #
+        log = '%s%s%s' % (title, proc, line)
+
+        # log #
+        if SysMgr.loggingOpsEnable:
+            SysMgr.printLog(log)
+
         # color #
-        log = UtilMgr.convColor(
-            '%s%s%s' % (title, proc, line), 'BOLD', force=True)
+        log = UtilMgr.convColor(log, 'BOLD', force=True)
         log = '%s%s' % (prefix, log)
 
         if SysMgr.stdlog:
@@ -33948,6 +33977,11 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         log = '%s%s%s' % ('[STEP] ', proc, line)
+
+        # log #
+        if SysMgr.loggingOpsEnable:
+            SysMgr.printLog(log)
+
         log = '\n%s' % (UtilMgr.convColor(log, 'SPECIAL', force=True))
 
         if SysMgr.stdlog:
@@ -34276,6 +34310,32 @@ Copyright:
         # set kernel log size #
         if 'NRKLOG' in SysMgr.environList:
             SysMgr.kmsgLine = UtilMgr.getEnvironNum('NRKLOG', isInt=True)
+
+        def _setLogger(options):
+            SysMgr.dltEnable = 'd' in options
+            SysMgr.kmsgEnable = 'k' in options
+            SysMgr.journalEnable = 'j' in options
+            SysMgr.syslogEnable = 's' in options
+            if any([
+                SysMgr.dltEnable,
+                SysMgr.kmsgEnable,
+                SysMgr.journalEnable,
+                SysMgr.syslogEnable,
+                ]):
+                SysMgr.colorEnable = False
+                return True
+            else:
+                return False
+
+        # set operation logging #
+        if 'OPSLOG' in SysMgr.environList:
+            options = SysMgr.environList['OPSLOG'][0]
+            SysMgr.loggingOpsEnable = _setLogger(options)
+
+        # set operation logging #
+        if 'STDLOG' in SysMgr.environList:
+            options = SysMgr.environList['STDLOG'][0]
+            SysMgr.loggingEnable = _setLogger(options)
 
         # define threshold list #
         varList = [
@@ -54249,7 +54309,8 @@ class DltAnalyzer(object):
             ntime = time.strftime(
                 '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
 
-            output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}".format(
+            output = ("{0:1}.{1:06d} {2:1} {3:4} "
+                "{4:4} {5:4} {6:5} {7!s:1}").format(
                 ntime, timeUs, uptime, ecuId, apId, ctxId, level, string)
 
             # print log #
@@ -54261,7 +54322,9 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def doLogDlt(appid=b'GIDR', context=b'GIDR', msg=None, level='INFO'):
+    def doLogDlt(
+        appid=b'GIDR', context=b'GIDR', msg=None, level='INFO', split=True):
+
         # get ctypes object #
         SysMgr.importPkgItems('ctypes')
 
@@ -54320,21 +54383,25 @@ class DltAnalyzer(object):
 
             SysMgr.dltCtx = ctx
 
+        # split by newline #
+        msgList = msg.strip().split('\n')
+
         # log #
-        pos = 0
-        while 1:
-            if len(msg[pos:]) >= DLT_USER_BUF_MAX_SIZE:
-                end = DLT_USER_BUF_MAX_SIZE + pos
-            else:
-                end = len(msg)
+        for msg in msgList:
+            pos = 0
+            while 1:
+                if len(msg[pos:]) >= DLT_USER_BUF_MAX_SIZE:
+                    end = DLT_USER_BUF_MAX_SIZE + pos
+                else:
+                    end = len(msg)
 
-            ret = dltObj.dlt_log_string(
-                byref(SysMgr.dltCtx), loglevel, msg[pos:end].encode())
+                ret = dltObj.dlt_log_string(
+                    byref(SysMgr.dltCtx), loglevel, msg[pos:end].encode())
 
-            if end == len(msg):
-                return ret
+                if end == len(msg):
+                    break
 
-            pos = end
+                pos = end
 
         '''
         # unregister #
