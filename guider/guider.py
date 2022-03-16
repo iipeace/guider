@@ -93193,6 +93193,10 @@ class TaskAnalyzer(object):
         else:
             self.reportData['storage'] = {}
 
+        # storage #
+        if 'PMU' in SysMgr.jsonData:
+            self.reportData['PMU'] = SysMgr.jsonData['PMU']
+
         # custom #
         if 'REPORTFUNC' in SysMgr.environList:
             for item in SysMgr.environList['REPORTFUNC']:
@@ -93901,7 +93905,7 @@ class TaskAnalyzer(object):
             plist = perfString[1:-1].split(' / ')
             for stat in plist:
                 metric, value = stat.split(':')
-                jsonData['PMU'][metric] = value.strip()
+                jsonData[metric] = value.strip()
 
 
 
