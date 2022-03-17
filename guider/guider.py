@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220316"
+__revision__ = "220317"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18946,6 +18946,7 @@ class SysMgr(object):
     thresholdData = {}
     prevThresholdData = {}
     thresholdTarget = {}
+    thresholdIntTarget = {}
     thresholdRefreshList = []
     thresholdEventList = {}
     thresholdEventHistory = {}
@@ -21267,6 +21268,9 @@ Commands:
 
     @staticmethod
     def doFreeze():
+        # check root permissino #
+        SysMgr.checkRootPerm()
+
         # get argument #
         if SysMgr.hasMainArg():
             value = SysMgr.getMainArgs()
@@ -21407,23 +21411,44 @@ Commands:
 
     @staticmethod
     def applyThreshold():
-        def _getMaxInterval(node, maxVal=0):
+        def _getMaxInterval(node, maxVal=0, root=None, ilist={}):
             for key, item in node.items():
+                # set root resource #
+                if root:
+                    res = root
+                else:
+                    res = key
+
                 if type(item) is list:
                     for subitem in item:
+                        # check skip condition #
                         if type(subitem) is not dict:
                             continue
-                        val = _getMaxInterval(subitem, maxVal)
+                        elif 'apply' in subitem and subitem['apply'] != 'true':
+                            continue
+
+                        # check sub items #
+                        val = _getMaxInterval(subitem, maxVal, res, ilist)
                         if maxVal < val:
                             maxVal = val
                 elif type(item) is dict:
-                    val = _getMaxInterval(item, maxVal)
+                    # check skip condition #
+                    if 'apply' in item and item['apply'] != 'true':
+                        continue
+
+                    # check items #
+                    val = _getMaxInterval(item, maxVal, res, ilist)
                     if maxVal < val:
                         maxVal = val
                 elif key == 'interval' and UtilMgr.isNumber(item):
                     item = long(item)
                     if maxVal < item:
                         maxVal = item
+
+                    # update resource list for interval #
+                    if item > 0:
+                        ilist.setdefault(res, None)
+
             return maxVal
 
         def _checkResTask(item, lev=0):
@@ -21647,7 +21672,9 @@ Commands:
                 'failed to check task monitoring', reason=True)
 
         # update maximum interval #
-        maxInterval = _getMaxInterval(confData)
+        SysMgr.thresholdIntTarget = {}
+        maxInterval = _getMaxInterval(
+            confData, ilist=SysMgr.thresholdIntTarget)
         if maxInterval > SysMgr.maxInterval:
             SysMgr.maxInterval = maxInterval
 
@@ -62210,6 +62237,9 @@ typedef struct {
                     # add return addresses #
                     if type(raddr) is list:
                         btList += raddr
+                    # stop from wrong address #
+                    elif raddr > self.sp:
+                        break
                     else:
                         btList.append(raddr)
 
@@ -62323,8 +62353,8 @@ typedef struct {
         elif ret[1] == 'JIT':
             # return addr from FP #
             bts = self.backtrace[SysMgr.arch](cur=False)
-            if not bts: return None
-            return [ item[0] for item in bts ]
+            if bts: return [ item[0] for item in bts ]
+            else: return None
         elif ret[2] == '??':
             return None
 
@@ -62344,8 +62374,8 @@ typedef struct {
 
             # return addr from FP #
             bts = self.backtrace[SysMgr.arch](cur=False)
-            if not bts: return None
-            return [ item[0] for item in bts ]
+            if bts: return [ item[0] for item in bts ]
+            else: return None
 
         # get function address from CFA index table #
         dwarf = fobj.attr['dwarf']
@@ -65056,8 +65086,8 @@ typedef struct {
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
-                'failed to get memory usage for %s(%s)' % (self.pid, self.comm),
-                reason=True)
+                'failed to get memory usage for %s(%s)' % \
+                    (self.pid, self.comm), reason=True)
             byteSize = 0
 
         if not unit:
@@ -80480,8 +80510,10 @@ class TaskAnalyzer(object):
 
 
 
-    def addSysInterval(self, key, value):
+    def addSysInterval(self, res, key, value):
         if not SysMgr.maxInterval:
+            return
+        elif not res in SysMgr.thresholdIntTarget:
             return
 
         self.intervalData.setdefault(key, [])
@@ -80492,8 +80524,12 @@ class TaskAnalyzer(object):
 
 
 
-    def addProcInterval(self, pid, target, key, value):
-        if not SysMgr.maxInterval:
+    def addProcInterval(self, res, pid, target, key, value):
+        if not SysMgr.taskThresholdEnable:
+            return
+        elif not SysMgr.maxInterval:
+            return
+        elif not res in SysMgr.thresholdIntTarget:
             return
 
         try:
@@ -92318,7 +92354,7 @@ class TaskAnalyzer(object):
 
         # add CPU interval #
         SysMgr.cpuUsage = totalUsage
-        self.addSysInterval('cpu', totalUsage)
+        self.addSysInterval('cpu', 'cpu', totalUsage)
 
         # get network usage in bytes #
         if SysMgr.isLinux:
@@ -92329,8 +92365,8 @@ class TaskAnalyzer(object):
             netOut = SysMgr.netstat[1] - SysMgr.prevNetstat[1]
 
         # add network interval #
-        self.addSysInterval('inbound', netIn)
-        self.addSysInterval('outbound', netOut)
+        self.addSysInterval('net', 'inbound', netIn)
+        self.addSysInterval('net', 'outbound', netOut)
 
         # convert network usage #
         try:
@@ -92347,7 +92383,7 @@ class TaskAnalyzer(object):
 
         # add memory interval #
         SysMgr.memAvail = availMem
-        self.addSysInterval('available', availMem)
+        self.addSysInterval('mem', 'available', availMem)
 
         # convert color for CPU usage #
         totalUsageStr = r'%3s %%' % totalUsage
@@ -92371,10 +92407,14 @@ class TaskAnalyzer(object):
         swapUsageStr = r'%5s' % swapUsage
         if swapUsagePer == 0:
             pass
-        elif swapUsagePer >= SysMgr.swapPerThreshold:
-            swapUsageStr = convColor(swapUsageStr, 'RED')
         else:
-            swapUsageStr = convColor(swapUsageStr, 'YELLOW')
+            # add swap device interval #
+            self.addSysInterval('swap', 'swap', swapUsagePer)
+
+            if swapUsagePer >= SysMgr.swapPerThreshold:
+                swapUsageStr = convColor(swapUsageStr, 'RED')
+            else:
+                swapUsageStr = convColor(swapUsageStr, 'YELLOW')
 
         # convert color for reclaim stats #
         pgRclmStr = r'%s/%s' % (pgRclmBg, pgRclmFg)
@@ -93096,8 +93136,7 @@ class TaskAnalyzer(object):
             for dev, value in sorted(
                 SysMgr.sysInstance.networkInfo.items()):
                 # check value #
-                if not 'rdiff' in value or \
-                    not 'tdiff' in value:
+                if not 'rdiff' in value or not 'tdiff' in value:
                     continue
 
                 self.reportData['net'][dev] = {}
@@ -93108,7 +93147,7 @@ class TaskAnalyzer(object):
                 rdiff = value['rdiff']
                 tdiff = value['tdiff']
 
-                reportData['trans'] = {
+                reportData['recv'] = {
                     'bytes': rdiff[0],
                     'packets': rdiff[1],
                     'errs': rdiff[2],
@@ -93119,7 +93158,7 @@ class TaskAnalyzer(object):
                     'multicast': rdiff[7]
                     }
 
-                reportData['recv'] = {
+                reportData['trans'] = {
                     'bytes': tdiff[0],
                     'packets': tdiff[1],
                     'errs': tdiff[2],
@@ -93129,6 +93168,10 @@ class TaskAnalyzer(object):
                     'compressed': tdiff[6],
                     'multicast': tdiff[7]
                     }
+
+                # add network device interval #
+                self.addSysInterval('net', dev+':recv', rdiff[0])
+                self.addSysInterval('net', dev+':trans', tdiff[0])
 
         # storage #
         if SysMgr.diskEnable:
@@ -93142,6 +93185,9 @@ class TaskAnalyzer(object):
 
             # calculate diff of read /write on each devices #
             for dev, value in sorted(self.reportData['storage'].items()):
+                # add stroage device interval #
+                self.addSysInterval('storage', dev, value['usagePer'])
+
                 # get read size on this interval #
                 try:
                     value['read'] -= prevStorageData[dev]['read']
@@ -93242,7 +93288,7 @@ class TaskAnalyzer(object):
 
                 # add RSS interval #
                 self.addProcInterval(
-                    pid, value, 'rssInt', value['rss'])
+                    'mem', pid, value, 'rssInt', value['rss'])
 
                 # define now data #
                 nowData = value['stat']
@@ -93250,7 +93296,7 @@ class TaskAnalyzer(object):
                 # update runtime #
                 value['runtime'] = \
                     long(SysMgr.uptime - \
-                    (float(nowData[self.starttimeIdx]) / 100))
+                        (float(nowData[self.starttimeIdx]) / 100))
 
                 # use total stat #
                 if SysMgr.totalEnable:
@@ -93278,7 +93324,7 @@ class TaskAnalyzer(object):
 
                     # add CPU interval #
                     self.addProcInterval(
-                        pid, value, 'cpuInt', value['ttime'])
+                        'cpu', pid, value, 'cpuInt', value['ttime'])
 
                     continue
 
@@ -93314,7 +93360,7 @@ class TaskAnalyzer(object):
 
                 # add CPU interval #
                 self.addProcInterval(
-                    pid, value, 'cpuInt', value['ttime'])
+                    'cpu', pid, value, 'cpuInt', value['ttime'])
 
                 # child utime #
                 cutick = nowData[self.cutimeIdx] - prevData[self.cutimeIdx]
@@ -94066,7 +94112,8 @@ class TaskAnalyzer(object):
 
         printCnt = 0
         for dev, value in sorted(storageData.items(),
-            key=lambda e: e[1]['load'] if 'load' in e[1] else 0, reverse=True):
+            key=lambda e: e[1]['load'] if 'load' in e[1] else 0,
+            reverse=True):
 
             # skip total usage #
             if dev == 'total':
@@ -94580,6 +94627,7 @@ class TaskAnalyzer(object):
             ret = SysMgr.addPrint('\tNone\n')
             if not ret:
                 return
+
         SysMgr.addPrint(oneLine)
 
 
@@ -95114,6 +95162,11 @@ class TaskAnalyzer(object):
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
+            try:
+                status = value['status']
+            except SystemExit: sys.exit(0)
+            except:
+                status = None
 
             # save cmdline info #
             self.saveCmdlineData(value['taskPath'], idx)
@@ -95135,11 +95188,15 @@ class TaskAnalyzer(object):
 
             # swap #
             try:
-                swapSize = \
-                    long(value['status']['VmSwap'].split()[0]) >> 10
+                swapSize = long(status['VmSwap'].split()[0]) >> 10
+                value['swap'] = swapSize
+
+                # add swap interval #
+                self.addProcInterval('swap', idx, value, 'swapInt', swapSize)
             except SystemExit: sys.exit(0)
             except:
                 swapSize = '-'
+                value['swap'] = 0
 
             # shared #
             try:
@@ -95151,10 +95208,8 @@ class TaskAnalyzer(object):
             # switch #
             if not SysMgr.processEnable:
                 try:
-                    value['yield'] = \
-                        value['status']['voluntary_ctxt_switches']
-                    value['preempted'] = \
-                        value['status']['nonvoluntary_ctxt_switches']
+                    value['yield'] = status['voluntary_ctxt_switches']
+                    value['preempted'] = status['nonvoluntary_ctxt_switches']
                 except SystemExit: sys.exit(0)
                 except:
                     value['yield'] = '-'
@@ -95168,7 +95223,7 @@ class TaskAnalyzer(object):
                 else:
                     SysMgr.sysInstance.saveUserInfo()
                     userData = SysMgr.sysInstance.userData
-                    uid = value['status']['Uid'].split()[0]
+                    uid = status['Uid'].split()[0]
                     value['user'] = userData[uid]['name']
             except SystemExit: sys.exit(0)
             except:
@@ -95182,7 +95237,7 @@ class TaskAnalyzer(object):
                     else:
                         fdsize = SysMgr.getNrFd(idx)
                 else:
-                    fdsize = long(value['status']['FDSize'])
+                    fdsize = long(status['FDSize'])
 
                 # update fdsize #
                 value['fdsize'] = fdsize
@@ -95283,7 +95338,7 @@ class TaskAnalyzer(object):
                 elif SysMgr.oomEnable:
                     etc = str(value['oomScore'])
                 elif SysMgr.sigHandlerEnable:
-                    etc = value['status']['SigCgt'].lstrip('0')
+                    etc = status['SigCgt'].lstrip('0')
                 elif not SysMgr.processEnable:
                     pgid = procData[idx]['mainID']
                     etc = '%s(%s)' % (procData[pgid]['comm'], pgid)
@@ -95553,9 +95608,9 @@ class TaskAnalyzer(object):
                     ['VmPeak', 'VmHWM', 'VmData', 'HugetlbPages',
                         'RssAnon', 'RssFile', 'RssShmem']
 
-                if 'status' in value:
+                if status:
                     memstr = ''
-                    memset = value['status']
+                    memset = status
 
                     for item in vmlist:
                         try:
@@ -96283,6 +96338,7 @@ class TaskAnalyzer(object):
             # clear threshold data #
             SysMgr.eventCommandList = {}
             SysMgr.thresholdData = {}
+            SysMgr.thresholdIntTarget = {}
             SysMgr.thresholdEventList = {}
             SysMgr.thresholdEventHistory = {}
         else:
@@ -96745,7 +96801,13 @@ class TaskAnalyzer(object):
         # check swap #
         try:
             if 'swap' in SysMgr.thresholdTarget:
-                self.checkThreshold('swap', 'usagePer', 'SWAP', 'big')
+                if 'swap' in self.intervalData:
+                    intval = self.intervalData['swap']
+                else:
+                    intval = None
+
+                self.checkThreshold(
+                    'swap', 'usagePer', 'SWAP', 'big', intval=intval)
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -96774,19 +96836,25 @@ class TaskAnalyzer(object):
                 if dev == 'total':
                     continue
 
+                # usage percent #
                 target = vals['usagePer']
                 vals.update({'dev': dev})
+
+                if dev in self.intervalData:
+                    intval = self.intervalData[dev]
+                else:
+                    intval = None
 
                 try:
                     # all devices #
                     self.checkThreshold(
                         'storage', 'usagePer', 'STORAGE', 'big',
-                        target, 'DEVICE', addval=vals)
+                        target, 'DEVICE', intval=intval, addval=vals)
 
                     # a specific device #
                     self.checkThreshold(
                         'storage', 'usagePer', 'STORAGE', 'big',
-                        target, dev, addval=vals)
+                        target, dev, intval=intval, addval=vals)
                 except SystemExit: sys.exit(0)
                 except:
                     continue
@@ -96821,14 +96889,29 @@ class TaskAnalyzer(object):
                 # check devices #
                 for item in ['DEVICE', dev]:
                     try:
+                        # get recv interval #
+                        name = dev+':recv'
+                        if name in self.intervalData:
+                            intval = self.intervalData[name]
+                        else:
+                            intval = None
+
                         # recv #
                         self.checkThreshold(
                             'net', 'recv', 'NETWORK', 'big',
-                            recv, item, addval=dinfo)
-                        # send #
+                            recv, item, intval=intval, addval=dinfo)
+
+                        # get trans interval #
+                        name = dev+':trans'
+                        if name in self.intervalData:
+                            intval = self.intervalData[name]
+                        else:
+                            intval = None
+
+                        # trans #
                         self.checkThreshold(
                             'net', 'trans', 'NETWORK', 'big',
-                            trans, item, addval=dinfo)
+                            trans, item, intval=intval, addval=dinfo)
                     except SystemExit: sys.exit(0)
                     except: pass
         except SystemExit: sys.exit(0)
@@ -96980,15 +97063,16 @@ class TaskAnalyzer(object):
         if addval:
             comval.update(addval)
 
-        # add event #
+        # add event info #
         if 'task' in comval:
             addinfo = ''
             for pid, data in comval['task'].items():
                 addinfo += '_%s_%s' % (data['comm'], pid)
-            ename += addinfo
+            ename = '%s_%s' % (ename, addinfo)
         elif 'dev' in comval:
-            ename += comval['dev']
+            ename = '%s_%s' % (ename, comval['dev'])
 
+        # add rest info #
         if item in comval:
             ename = '%s_%s' % (ename, comval[item])
 
@@ -97192,15 +97276,26 @@ class TaskAnalyzer(object):
             if 'apply' in comval and comval['apply'] == 'false':
                 return False
             # check except attribute #
-            elif attr == 'TASK' and 'except' in comval:
-                pid = next(iter(addval['task']))
-                comm = addval['task'][pid]['comm'].lstrip('*')
-                if type(comval['except']) is list:
-                    elist = comval['except']
-                else:
-                    elist = [comval['except']]
-                if UtilMgr.isValidStr(comm, elist):
-                    return False
+            elif 'except' in comval:
+                if attr == 'TASK':
+                    pid = next(iter(addval['task']))
+                    comm = addval['task'][pid]['comm'].lstrip('*')
+
+                    if type(comval['except']) is list:
+                        elist = comval['except']
+                    else:
+                        elist = [comval['except']]
+
+                    if UtilMgr.isValidStr(comm, elist):
+                        return False
+                elif attr == 'DEVICE':
+                    if type(comval['except']) is list:
+                        elist = comval['except']
+                    else:
+                        elist = [comval['except']]
+
+                    if UtilMgr.isValidStr(addval['dev'], elist):
+                        return False
 
             # check oneshot flag #
             oneshot, goneshot, refresh, lock = \
@@ -97216,15 +97311,26 @@ class TaskAnalyzer(object):
                 if 'apply' in comitem and comitem['apply'] == 'false':
                     continue
                 # check except attribute #
-                elif attr == 'TASK' and 'except' in comitem:
-                    pid = next(iter(addval['task']))
-                    comm = addval['task'][pid]['comm'].lstrip('*')
-                    if type(comitem['except']) is list:
-                        elist = comitem['except']
-                    else:
-                        elist = [comitem['except']]
-                    if UtilMgr.isValidStr(comm, elist):
-                        continue
+                elif 'except' in comitem:
+                    if attr == 'TASK':
+                        pid = next(iter(addval['task']))
+                        comm = addval['task'][pid]['comm'].lstrip('*')
+
+                        if type(comitem['except']) is list:
+                            elist = comitem['except']
+                        else:
+                            elist = [comitem['except']]
+
+                        if UtilMgr.isValidStr(comm, elist):
+                            continue
+                    elif attr == 'DEVICE':
+                        if type(comitem['except']) is list:
+                            elist = comitem['except']
+                        else:
+                            elist = [comitem['except']]
+
+                        if UtilMgr.isValidStr(addval['dev'], elist):
+                            return False
 
                 # check oneshot flag #
                 oneshot, goneshot, refresh, lock = \
@@ -97262,8 +97368,8 @@ class TaskAnalyzer(object):
         if 'fd' in tt and tt['fd']:
             maps += [['fd', 'fdsize', 'fdsize', None, 'FD', 'big']]
         # swap #
-        if False and 'swap' in tt and tt['swap']:
-            pass # TODO: implement per-process swap stats #
+        if 'swap' in tt and tt['swap']:
+            maps += [['swap', 'swap', 'swap', 'swapInt', 'SWAP', 'big']]
         # block #
         if SysMgr.blockEnable:
             maps += [
@@ -97321,7 +97427,7 @@ class TaskAnalyzer(object):
                     if not value:
                         if not intval:
                             continue
-                        if set(intval) == set([0]):
+                        elif set(intval) == set([0]):
                             continue
 
                     # add task info #
@@ -97489,15 +97595,20 @@ class TaskAnalyzer(object):
                     evtdata[rank]['rss'] = data['rss']
                     evtdata[rank]['text'] = text
 
-                    # save proc status #
+                    # save status info #
                     path = '%s/%s' % (SysMgr.procPath, pid)
                     self.saveProcStatusData(path, pid)
 
                     # swap #
                     try:
-                        evtdata[rank]['swap'] = \
-                            self.reportData['mem']['procs'][pid]['swap'] = \
-                            long(data['status']['VmSwap'].split()[0]) >> 10
+                        if 'swap' in data:
+                            swap = data['swap']
+                        else:
+                            swap = long(data['status']['VmSwap'].split()[0])
+                            swap = swap >> 10
+
+                        evtdata[rank]['swap'] = swap
+                        self.reportData['mem']['procs'][pid]['swap'] = swap
                     except: pass
 
                     # shared #
