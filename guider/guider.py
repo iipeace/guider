@@ -20983,8 +20983,6 @@ Commands:
 
             return tasks
 
-
-
         # get argument #
         if SysMgr.hasMainArg():
             value = SysMgr.getMainArgs(False)
@@ -21030,7 +21028,7 @@ Commands:
 
             # check command #
             if not cmd in (
-                'CREATE', 'ADD', 'MOVE', 'REMOVE', 'DELETE', 'LIST'):
+                'CREATE', 'ADD', 'MOVE', 'REMOVE', 'DELETE', 'WRITE', 'LIST'):
                 SysMgr.printErr("no suppport '%s' command" % cmd)
                 sys.exit(0)
 
@@ -21049,8 +21047,31 @@ Commands:
                 targetTasks = None
 
             # handle move command #
-            if cmd == 'LIST':
-                # get directory #
+            if cmd == 'WRITE':
+                # get target info #
+                targetDir = SysMgr.getCgroup(sub, name)
+                try:
+                    value, name = target.split('@')
+                except SystemExit: sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "wrong '%s' in VALUE@FILE format" % target, True)
+                    continue
+
+                # get target path #
+                targetFile = os.path.join(targetDir, name)
+
+                # write value #
+                SysMgr.writeFile(targetFile, value)
+
+                # print message #
+                SysMgr.printInfo(
+                    "wrote '%s' to '%s'" % (value, targetFile))
+
+                continue
+            # handle move command #
+            elif cmd == 'LIST':
+                # get target path #
                 targetDir = SysMgr.getCgroup(sub, name)
                 targetFile = os.path.join(targetDir, taskNode)
                 if not os.path.exists(targetFile):
@@ -21080,8 +21101,6 @@ Commands:
                         (convNum(idx), SysMgr.getComm(tid), tid))
 
                 continue
-
-
             # handle move command #
             elif cmd == 'MOVE':
                 # source #
@@ -26360,7 +26379,7 @@ Examples:
                 elif SysMgr.checkMode('cgroup'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <CMD:SUB:NAME:TASK|VAL@FILE> [OPTIONS] [--help]
 
 Description:
     Control cgroups
@@ -26373,6 +26392,15 @@ Options:
     -P                          group threads in a same process
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
+
+Commands:
+    CREATE   create a new group
+    ADD      add specific tasks to a group
+    MOVE     move specific tasks from a group to another group
+    REMOVE   remove specific tasks from a group
+    DELETE   delete a group
+    WRITE    write value to the specific file
+    LIST     print all tasks in a group
                     '''
 
                     helpStr += '''
@@ -26383,6 +26411,9 @@ Examples:
     - Add specific processes to a specific group
         # {0:1} {1:1} ADD:cpu:test1:"*a.out*"
 
+    - Add specific threads to a specific group
+        # {0:1} {1:1} ADD:cpu:test1:"*a.out*" -e t
+
     - Move specific processes between cpu groups
         # {0:1} {1:1} MOVE:cpu/test1:cpu/test2:"*a.out*"
 
@@ -26391,6 +26422,9 @@ Examples:
 
     - Delete a cpu group
         # {0:1} {1:1} DELETE:cpu:test1:*
+
+    - Write value to the specific file
+        # {0:1} {1:1} WRITE:memory:test2:100000@memory.limit_in_bytes
 
     - Print all processes in a cpu group
         # {0:1} {1:1} LIST:cpu:test1:*
