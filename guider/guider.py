@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220317"
+__revision__ = "220318"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18798,6 +18798,7 @@ class SysMgr(object):
     ttyRows = 43
     ttyRowsMargin = 2
     ttyCols = 156
+    ttyData = None
     encoding = None
     remoteRun = False
     magicStr = '@@@@@'
@@ -18946,7 +18947,6 @@ class SysMgr(object):
     thresholdData = {}
     prevThresholdData = {}
     thresholdTarget = {}
-    thresholdIntTarget = {}
     thresholdRefreshList = []
     thresholdEventList = {}
     thresholdEventHistory = {}
@@ -21411,7 +21411,7 @@ Commands:
 
     @staticmethod
     def applyThreshold():
-        def _getMaxInterval(node, maxVal=0, root=None, ilist={}):
+        def _getMaxInterval(node, maxVal=0, root=None):
             for key, item in node.items():
                 # set root resource #
                 if root:
@@ -21428,7 +21428,7 @@ Commands:
                             continue
 
                         # check sub items #
-                        val = _getMaxInterval(subitem, maxVal, res, ilist)
+                        val = _getMaxInterval(subitem, maxVal, res)
                         if maxVal < val:
                             maxVal = val
                 elif type(item) is dict:
@@ -21437,17 +21437,13 @@ Commands:
                         continue
 
                     # check items #
-                    val = _getMaxInterval(item, maxVal, res, ilist)
+                    val = _getMaxInterval(item, maxVal, res)
                     if maxVal < val:
                         maxVal = val
                 elif key == 'interval' and UtilMgr.isNumber(item):
                     item = long(item)
                     if maxVal < item:
                         maxVal = item
-
-                    # update resource list for interval #
-                    if item > 0:
-                        ilist.setdefault(res, None)
 
             return maxVal
 
@@ -21672,9 +21668,7 @@ Commands:
                 'failed to check task monitoring', reason=True)
 
         # update maximum interval #
-        SysMgr.thresholdIntTarget = {}
-        maxInterval = _getMaxInterval(
-            confData, ilist=SysMgr.thresholdIntTarget)
+        maxInterval = _getMaxInterval(confData)
         if maxInterval > SysMgr.maxInterval:
             SysMgr.maxInterval = maxInterval
 
@@ -34565,7 +34559,7 @@ Copyright:
 
             elif option == 'd':
                 SysMgr.checkOptVal(option, value)
-                options = value
+                options = value.replace(' ', '')
 
                 if 'b' in options:
                     SysMgr.bufferLossEnable = True
@@ -34642,7 +34636,7 @@ Copyright:
                 SysMgr.drawFormat = value.strip()
 
             elif option == 'e':
-                options = value
+                options = value.replace(' ', '')
 
                 if 'g' in options:
                     SysMgr.graphEnable = True
@@ -35280,37 +35274,53 @@ Copyright:
                 SysMgr.applyPriority(value)
 
             elif option == 'e':
-                options = value
+                options = value.replace(' ', '')
+
                 if 'i' in options:
                     SysMgr.irqEnable = True
+
                 if 'm' in options:
                     SysMgr.memEnable = True
+
                 if 'n' in options:
                     SysMgr.networkEnable = True
+
                 if 'h' in options:
                     SysMgr.heapEnable = True
+
                 if 'b' in options:
                     SysMgr.blockEnable = True
+
                 if 'p' in options:
                     SysMgr.pipeEnable = True
+
                 if 'P' in options:
                     SysMgr.powerEnable = True
+
                 if 'w' in options:
                     SysMgr.wqEnable = True
+
                 if 'B' in options:
                     SysMgr.binderEnable = True
+
                 if 'd' in options:
                     SysMgr.diskEnable = True
+
                 if 'I' in options:
                     SysMgr.i2cEnable = True
+
                 if 'f' in options:
                     SysMgr.fsEnable = True
+
                 if 'r' in options:
                     SysMgr.resetEnable = True
+
                 if 'g' in options:
                     SysMgr.graphEnable = True
+
                 if 'L' in options:
                     SysMgr.lockEnable = True
+
                 if 'c' in options:
                     SysMgr.cgroupEnable = True
 
@@ -35439,7 +35449,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'd':
-                options = value
+                options = value.replace(' ', '')
 
                 if 'c' in options:
                     SysMgr.cpuEnable = False
@@ -38279,10 +38289,10 @@ Copyright:
             SysMgr.reportEnable = SysMgr.jsonEnable = False
 
             # init number variables #
-            nrTopRank = 10
-            repeatCount = 0
-            progressCnt = 0
-            repeatInterval = 0
+            SysMgr.nrTopRank = 10
+            SysMgr.repeatCount = 0
+            SysMgr.progressCnt = 0
+            SysMgr.repeatInterval = 0
             SysMgr.intervalEnable = 0
 
             # inherit options #
@@ -38472,6 +38482,10 @@ Copyright:
 
         # flush print buffer before fork #
         SysMgr.flushAllForPrint()
+
+        # save tty info #
+        if cmd and SysMgr.ttyData is None:
+            SysMgr.saveTTY()
 
         # create a new process #
         try:
@@ -47369,16 +47383,47 @@ Copyright:
 
 
     @staticmethod
-    def resetTTY():
+    def saveTTY():
         if not SysMgr.isLinux:
             return
         elif not SysMgr.hasStty():
             return
 
-        # reset terminal for recovery #
+        # read current setting #
+        try:
+            subprocess = SysMgr.getPkg('subprocess', False)
+            pd = subprocess.Popen(['stty', '-g'], stdout=subprocess.PIPE)
+            SysMgr.ttyData = pd.stdout.read().strip()
+        except SystemExit: sys.exit(0)
+        except:
+            conf = False
+            SysMgr.printWarn(
+                "failed to get terminal info", reason=True)
+
+
+
+    @staticmethod
+    def resetTTY():
+        if not SysMgr.isLinux:
+            return
+        elif not SysMgr.hasStty():
+            return
+        elif not SysMgr.ttyData:
+            return
+
+        # reset terminal #
         try:
             SysMgr.getPkg('subprocess').Popen(
                 ['stty', 'sane'],
+                stdout=open(os.devnull, 'wb'),
+                stderr=open(os.devnull, 'wb'))
+        except SystemExit: sys.exit(0)
+        except: pass
+
+        # restore terminal #
+        try:
+            SysMgr.getPkg('subprocess').Popen(
+                ['stty', SysMgr.ttyData],
                 stdout=open(os.devnull, 'wb'),
                 stderr=open(os.devnull, 'wb'))
         except SystemExit: sys.exit(0)
@@ -80513,8 +80558,10 @@ class TaskAnalyzer(object):
     def addSysInterval(self, res, key, value):
         if not SysMgr.maxInterval:
             return
-        elif not res in SysMgr.thresholdIntTarget:
+        elif not res in SysMgr.thresholdTarget:
             return
+
+        # TODO: filter only system resource #
 
         self.intervalData.setdefault(key, [])
         self.intervalData[key].append(value)
@@ -80525,15 +80572,18 @@ class TaskAnalyzer(object):
 
 
     def addProcInterval(self, res, pid, target, key, value):
-        if not SysMgr.taskThresholdEnable:
+        if not SysMgr.maxInterval:
             return
-        elif not SysMgr.maxInterval:
+        elif not SysMgr.taskThresholdEnable:
             return
-        elif not res in SysMgr.thresholdIntTarget:
+        elif not res in SysMgr.thresholdTarget:
+            return
+        elif not SysMgr.thresholdTarget[res]:
             return
 
         try:
             target.setdefault(key, self.prevProcData[pid][key])
+        except SystemExit: sys.exit(0)
         except:
             target.setdefault(key, [])
 
@@ -80604,9 +80654,7 @@ class TaskAnalyzer(object):
         convNum = UtilMgr.convNum
 
         # check trace event #
-        if not (SysMgr.cpuEnable or \
-            SysMgr.memEnable or \
-            SysMgr.blockEnable):
+        if not (SysMgr.cpuEnable or SysMgr.memEnable or SysMgr.blockEnable):
             return
 
         # print menu #
@@ -80921,6 +80969,7 @@ class TaskAnalyzer(object):
                     cpuTime = '%5.6f' % value['usage']
                 else:
                     cpuTime = '%5.2f' % value['usage']
+
                 totalCpuTime += value['usage']
 
                 cpuPer = '%5.1f' % usagePercent
@@ -91046,7 +91095,7 @@ class TaskAnalyzer(object):
         # save GPU stat #
         self.saveGpuData()
 
-        # check atop mode #
+        # check system-only monitoring #
         if not SysMgr.taskEnable:
             return
 
@@ -96338,7 +96387,6 @@ class TaskAnalyzer(object):
             # clear threshold data #
             SysMgr.eventCommandList = {}
             SysMgr.thresholdData = {}
-            SysMgr.thresholdIntTarget = {}
             SysMgr.thresholdEventList = {}
             SysMgr.thresholdEventHistory = {}
         else:
@@ -97067,8 +97115,8 @@ class TaskAnalyzer(object):
         if 'task' in comval:
             addinfo = ''
             for pid, data in comval['task'].items():
-                addinfo += '_%s_%s' % (data['comm'], pid)
-            ename = '%s_%s' % (ename, addinfo)
+                addinfo += '%s_%s' % (data['comm'].lstrip('*'), pid)
+            ename = '%s_%s' % (ename, addinfo.lstrip('_'))
         elif 'dev' in comval:
             ename = '%s_%s' % (ename, comval['dev'])
 
@@ -97371,7 +97419,7 @@ class TaskAnalyzer(object):
         if 'swap' in tt and tt['swap']:
             maps += [['swap', 'swap', 'swap', 'swapInt', 'SWAP', 'big']]
         # block #
-        if SysMgr.blockEnable:
+        if 'block' in tt and tt['block']:
             maps += [
                 ['block', 'read', 'read', 'blockInt', 'BLOCK', 'big'],
                 ['block', 'write', 'write', 'blockInt', 'BLOCK', 'big'],
