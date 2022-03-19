@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220318"
+__revision__ = "220319"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24303,8 +24303,9 @@ Examples:
         # {0:1} {1:1} -c "GUIDER utop -g PID"
         # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret"
 
-    - {3:1} {2:2} and execute specific commands for all tasks shown automatically
+    - {3:1} {2:2} and execute specific commands for all or a few tasks shown automatically
         # {0:1} {1:1} -c "GUIDER utop -g PID" -e E
+        # {0:1} {1:1} -c "GUIDER utop -g PID" -e E -q NRTOPRANK:1
         # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
     - {3:1} {2:2} after setting config from guider.conf
