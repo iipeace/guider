@@ -60598,6 +60598,17 @@ typedef struct {
 
     def printIntervalSummary(self):
         def _resetStats():
+            # merge syscall stats #
+            for syscall in self.syscallStat:
+                self.syscallTotalStat.setdefault(syscall, [0, 0])
+                # update maximum elapsed time #
+                if self.syscallTotalStat[syscall][1] < \
+                    self.syscallStat[syscall][1]:
+                    self.syscallTotalStat[syscall][1] = \
+                        self.syscallStat[syscall][1]
+                self.syscallTotalStat[syscall][0] += \
+                    self.syscallStat[syscall][0]
+
             # initialize syscall timetable #
             self.syscallStat = {}
             self.syscallInterStat = {}
@@ -60960,18 +60971,6 @@ typedef struct {
                         (convColor(cntstr, 'YELLOW'), total, avgtime, maxtime,
                             convColor(errstr, 'RED') if err else errstr,
                             stdevstr)
-
-                # merge total stats #
-                for syscall in self.syscallStat:
-                    self.syscallTotalStat.setdefault(syscall, [0, 0])
-                    # update maximum elapsed time #
-                    if self.syscallTotalStat[syscall][1] < \
-                        self.syscallStat[syscall][1]:
-                        self.syscallTotalStat[syscall][1] = \
-                            self.syscallStat[syscall][1]
-                    self.syscallTotalStat[syscall][0] += \
-                        self.syscallStat[syscall][0]
-
             # BREAKPOINT #
             elif self.mode == 'break':
                 try:
