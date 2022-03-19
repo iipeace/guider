@@ -9117,7 +9117,8 @@ class Ext4Analyzer(object):
                     ext4_superblock.INCOMPAT_64BIT) == 0:
                     struct.s_desc_size = ext4_superblock.EXT2_MIN_DESC_SIZE
                 else:
-                    struct.s_desc_size = ext4_superblock.EXT2_MIN_DESC_SIZE_64BIT
+                    struct.s_desc_size = \
+                        ext4_superblock.EXT2_MIN_DESC_SIZE_64BIT
 
                 return struct
 
@@ -12380,7 +12381,8 @@ class FunctionAnalyzer(object):
 
                 while 1:
                     # Get return of addr2line #
-                    addr = proc.stdout.readline().decode().replace('\n', '')[2:]
+                    addr = proc.stdout.readline().\
+                        decode().replace('\n', '')[2:]
                     try:
                         addr = hex(long(addr, 16)).rstrip('L')
                     except SystemExit: sys.exit(0)
@@ -20964,7 +20966,7 @@ Commands:
 
 
     @staticmethod
-    def doCgroup():
+    def doCgroup(cmds=[]):
         def _moveTasks(srcFile, desFile, targetTasks):
             # read target tasks #
             tasks = SysMgr.readFile(srcFile)
@@ -20984,7 +20986,9 @@ Commands:
             return tasks
 
         # get argument #
-        if SysMgr.hasMainArg():
+        if cmds:
+            value = cmds
+        elif SysMgr.hasMainArg():
             value = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
@@ -21253,7 +21257,7 @@ Commands:
             return targetDir
         except SystemExit: sys.exit(0)
         except:
-            SysMgr.printWarn('failed to create cgroup %s' % sub, True, True)
+            SysMgr.printWarn('failed to get cgroup %s' % sub, True, True)
             return False
 
 
