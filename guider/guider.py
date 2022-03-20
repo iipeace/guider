@@ -5476,7 +5476,7 @@ class UtilMgr(object):
                 return long(float(value[:-2]) * sizePB)
 
             SysMgr.printErr(
-                "failed to convert %s to size" % value)
+                "failed to convert '%s' to bytes" % value)
 
             assert False
         except SystemExit: sys.exit(0)
@@ -20966,7 +20966,24 @@ Commands:
 
 
     @staticmethod
-    def doCgroup(cmds=[]):
+    def limitMemory(pid, size):
+        # check root permission #
+        SysMgr.checkRootPerm(msg="limit memory usage using cgroup")
+
+        # set commands for memory size #
+        cmds = [
+            "CREATE:memory:guider_{0:1}:{0:1}".format(pid),
+            "WRITE:memory:guider_{0:1}:{1:1}@memory.limit_in_bytes".format(
+                pid, size)
+        ]
+
+        # execute commands to limit memory #
+        SysMgr.doCgroup(cmds, make=True, remove=True)
+
+
+
+    @staticmethod
+    def doCgroup(cmds=[], make=False, remove=False):
         def _moveTasks(srcFile, desFile, targetTasks):
             # read target tasks #
             tasks = SysMgr.readFile(srcFile)
@@ -21053,7 +21070,7 @@ Commands:
             # handle move command #
             if cmd == 'WRITE':
                 # get target info #
-                targetDir = SysMgr.getCgroup(sub, name)
+                targetDir = SysMgr.getCgroup(sub, name, make, remove)
                 try:
                     value, name = target.split('@')
                 except SystemExit: sys.exit(0)
@@ -21076,7 +21093,7 @@ Commands:
             # handle move command #
             elif cmd == 'LIST':
                 # get target path #
-                targetDir = SysMgr.getCgroup(sub, name)
+                targetDir = SysMgr.getCgroup(sub, name, make, remove)
                 targetFile = os.path.join(targetDir, taskNode)
                 if not os.path.exists(targetFile):
                     SysMgr.printErr(
@@ -21110,7 +21127,8 @@ Commands:
                 # source #
                 try:
                     srcSub, srcName = sub.split('/', 1)
-                    srcDir = SysMgr.getCgroup(srcSub, srcName)
+                    srcDir = SysMgr.getCgroup(
+                        srcSub, srcName, make, remove)
                     srcFile = os.path.join(srcDir, taskNode)
                     if not os.path.exists(srcFile):
                         raise Exception('no file')
@@ -21123,7 +21141,8 @@ Commands:
                 # destination #
                 try:
                     desSub, desName = name.split('/', 1)
-                    desDir = SysMgr.getCgroup(desSub, desName)
+                    desDir = SysMgr.getCgroup(
+                        desSub, desName, make, remove)
                     desFile = os.path.join(desDir, taskNode)
                     if not os.path.exists(desFile):
                         raise Exception('no file')
@@ -21155,12 +21174,12 @@ Commands:
 
             # set make flag #
             if cmd == 'CREATE':
-                makeFlag = True
+                make = True
             else:
-                makeFlag = False
+                make = False
 
             # get directory #
-            targetDir = SysMgr.getCgroup(sub, name, make=makeFlag)
+            targetDir = SysMgr.getCgroup(sub, name, make, remove)
             if not os.path.exists(targetDir):
                 SysMgr.printErr('no target group %s' % targetDir)
                 continue
@@ -24218,6 +24237,9 @@ Examples:
         # {0:1} {1:1} -q STDLOG:dkjs
         # {0:1} {1:1} -q OPSLOG:dkjs
 
+    - {3:1} {2:2} with the memory limitation using cgroup
+        # {0:1} {1:1} -q LIMITMEM:50M
+
     - {3:1} {2:2} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
         # {0:1} {1:1} -o . -q NRKLOG:100
 
@@ -24231,7 +24253,7 @@ Examples:
         # {0:1} {1:1} -o . -b 50m
 
     - {3:1} {2:2} and report the result to ./guider.out with limited memory buffer 50MB loss possible
-        # {0:1} {1:1} -o . -d b
+        # {0:1} {1:1} -o . -b 50m -d b
 
     - {3:1} {2:2} and report the result to ./guider.out without event handling
         # {0:1} {1:1} -o . -d x
@@ -25991,26 +26013,29 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor resources with threshold condition
+    - {2:1} with threshold condition
         # {0:1} {1:1}
         # {0:1} {1:1} -C /tmp/guider.conf
 
-    - Monitor resources with threshold condition and report also in JSON format
+    - {2:1} with threshold condition and report also in JSON format
         # {0:1} {1:1} -j -Q -q TEXTREPORT
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - Monitor resources including normal tasks with threshold condition
+    - {2:1} including normal tasks with threshold condition
         # {0:1} {1:1} -j -q SAVEJSONSTAT
 
-    - Monitor resources without threshold condition until CMD_RELOAD event is received
+    - {2:1} without threshold condition until CMD_RELOAD event is received
         # {0:1} {1:1} -q NOTHRESHOLD
 
-    - Monitor resources after update the threshold data from the specific file
+    - {2:1} after update the threshold data from the specific file
         # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
 
+    - {2:1} with threshold condition with the memory limitation using cgroup
+        # {0:1} {1:1} -q LIMITMEM:50M
+
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Monitor resources')
 
                     helpStr += topSubStr + topCommonStr + examStr
 
@@ -31915,6 +31940,9 @@ Copyright:
             sys.exit(0)
             '''
 
+            # call exit handlers #
+            SysMgr.doExit()
+
             # do terminate #
             os._exit(0)
 
@@ -34408,10 +34436,20 @@ Copyright:
             options = SysMgr.environList['OPSLOG'][0]
             SysMgr.loggingOpsEnable = _setLogger(options)
 
-        # set operation logging #
+        # set standard logging #
         if 'STDLOG' in SysMgr.environList:
             options = SysMgr.environList['STDLOG'][0]
             SysMgr.loggingEnable = _setLogger(options)
+
+        # set memory limit #
+        if 'LIMITMEM' in SysMgr.environList:
+            try:
+                size = SysMgr.environList['LIMITMEM'][0]
+                size = long(UtilMgr.convUnit2Size(size))
+            except: sys.exit(0)
+
+            # set the limited memory size for myself #
+            SysMgr.limitMemory(SysMgr.pid, size)
 
         # define threshold list #
         varList = [
