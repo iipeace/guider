@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220319"
+__revision__ = "220320"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24297,6 +24297,9 @@ Examples:
     - {3:1} {2:2} and execute special commands
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
 
+    - {3:1} {2:2} through the local server having 5555 port
+        # {0:1} {1:1} -X 5555
+
     - {3:1} {2:2} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT@192.168.0.5:5555
 
@@ -33498,6 +33501,9 @@ Copyright:
         else:
             SysMgr.addProcBuffer(SysMgr.bufferString+'\n')
 
+            # send output to nodes registered #
+            SysMgr.sendOutput2Nodes(SysMgr.bufferString)
+
         # flush buffer #
         SysMgr.clearPrint()
 
@@ -33574,39 +33580,49 @@ Copyright:
 
 
     @staticmethod
+    def sendOutput2Nodes(line):
+        if not SysMgr.addrListForPrint:
+            return
+        elif not line:
+            return
+
+        addrListForPrint = dict(SysMgr.addrListForPrint)
+        for addr, cli in addrListForPrint.items():
+            udpSeg = 65507 # maxium UDP diagram size
+            start = 0
+            end = udpSeg
+            while 1:
+                # split by newline #
+                if len(line) >= end:
+                    pos = line[start:end].rfind('\n')
+                    if pos > 0:
+                        end = pos + start
+
+                # send data #
+                ret = cli.send(line[start:end])
+                if not ret:
+                    del SysMgr.addrListForPrint[addr]
+                    break
+                else:
+                    cli.ignore += 1
+
+                if end >= len(line):
+                    break
+
+                # update sending part #
+                start = end
+                end += udpSeg
+
+
+
+    @staticmethod
     def printPipe(line='', newline=True, flush=False, pager=True, trim=True):
         # check logging option #
         if SysMgr.loggingEnable:
             SysMgr.printLog(line)
 
-        # socket output #
-        if SysMgr.addrListForPrint and line:
-            addrListForPrint = dict(SysMgr.addrListForPrint)
-            for addr, cli in addrListForPrint.items():
-                udpSeg = 65507 # maxium UDP diagram size
-                start = 0
-                end = udpSeg
-                while 1:
-                    # split by newline #
-                    if len(line) >= end:
-                        pos = line[start:end].rfind('\n')
-                        if pos > 0:
-                            end = pos + start
-
-                    # send data #
-                    ret = cli.send(line[start:end])
-                    if not ret:
-                        del SysMgr.addrListForPrint[addr]
-                        break
-                    else:
-                        cli.ignore += 1
-
-                    if end >= len(line):
-                        break
-
-                    # update sending part #
-                    start = end
-                    end += udpSeg
+        # send output to nodes registered #
+        SysMgr.sendOutput2Nodes(line)
 
         # check print flag #
         if not SysMgr.printEnable:
@@ -96107,11 +96123,13 @@ class TaskAnalyzer(object):
         else:
             return
 
+        # convert data #
         if type(data) is bytes:
             try:
                 data = data.decode()
             except: pass
 
+        # check data from server #
         if not UtilMgr.isString(data):
             SysMgr.printErr("failed to recognize data from server")
             return
