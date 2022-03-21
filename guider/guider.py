@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220320"
+__revision__ = "220321"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18305,6 +18305,12 @@ class LogMgr(object):
                 "failed to print journal because no journal head")
             return
 
+        # get filter for exit condition #
+        if 'EXITCONDWORD' in SysMgr.environList:
+            cond = SysMgr.environList['EXITCONDWORD']
+        else:
+            cond = None
+
         # initialize variables #
         data = c_void_p(0)
         size = c_size_t(0)
@@ -18413,6 +18419,7 @@ class LogMgr(object):
                     try:
                         decstr = jrlStr.decode('latin-1')
 
+                        # check filter #
                         if not UtilMgr.isValidStr(decstr):
                             continue
 
@@ -18420,6 +18427,9 @@ class LogMgr(object):
                             print(decstr)
 
                         SysMgr.printPipe(decstr, flush=True)
+
+                        # check exit condition #
+                        SysMgr.checkLogCond(decstr, cond)
                     except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printPipe(jrlStr, flush=True)
@@ -18518,6 +18528,12 @@ class LogMgr(object):
         SysMgr.printInfo(
             "start printing kernel log... [ STOP(Ctrl+c) ]")
 
+        # get filter for exit condition #
+        if 'EXITCONDWORD' in SysMgr.environList:
+            cond = SysMgr.environList['EXITCONDWORD']
+        else:
+            cond = None
+
         # check device node #
         try:
             SysMgr.kmsgFd.readline()
@@ -18562,12 +18578,15 @@ class LogMgr(object):
                         except SystemExit: sys.exit(0)
                         except: pass
 
-                    # print to console #
+                   # print to console #
                     if SysMgr.outPath and console:
                         print(line)
 
                     # print #
                     SysMgr.printPipe(line)
+
+                    # check exit condition #
+                    SysMgr.checkLogCond(line, cond)
 
             while 1:
                 memset(buf, 0, size)
@@ -18665,6 +18684,9 @@ class LogMgr(object):
 
                 SysMgr.printPipe(log.rstrip())
 
+            # check exit condition #
+            SysMgr.checkLogCond(log, cond)
+
 
 
     @staticmethod
@@ -18739,7 +18761,7 @@ class LogMgr(object):
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to log journal", True)
+                "failed to log a journal message", True)
             return -1
 
         # print message #
@@ -19429,10 +19451,11 @@ Commands:
 
         # set alarm #
         if SysMgr.intervalEnable:
-            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-            signal.alarm(SysMgr.intervalEnable)
+            cnt = SysMgr.intervalEnable
+        else:
+            cnt = 1
 
-        while 1:
+        for idx in range(cnt):
             ret = func(msg=msg)
             if ret == 0:
                 SysMgr.printInfo(
@@ -19441,11 +19464,6 @@ Commands:
                 SysMgr.printErr(
                     "failed to log a %s message" % mtype)
                 break
-
-            if SysMgr.intervalEnable:
-                SysMgr.waitEvent(forceExit=True)
-            else:
-                os._exit(0)
 
 
 
@@ -24158,6 +24176,9 @@ Examples:
     - {3:1} all {2:2} after user input
         # {0:1} {1:1} -a -W
 
+    - {3:1} all {2:2} and execute specific commands when terminated
+        # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
+
     - {3:1} all {2:2} and quit when specific {2:2} are terminated
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
 
@@ -24900,6 +24921,9 @@ Examples:
     - Log a message
         # {0:1} {1:1} "Hello World!"
         # {0:1} {1:1} -I "Hello World!"
+
+    - Log a message 5 times
+        # {0:1} {1:1} "Hello World!" -R 5
                     '''.format(cmd, mode)
 
                 printCommonStr = '''
@@ -24919,6 +24943,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -X  <REQ@IP:PORT>           set request address
     -Q                          print all rows in a stream
+    -q  <NAME{{:VALUE}}>          set environment variables
 
 Examples:
     - Print logs in real-time
@@ -24932,6 +24957,12 @@ Examples:
 
     - Print logs in real-time until no log
         # {0:1} {1:1} -Q
+
+    - Print logs in real-time until a log containing a specific word is detected
+        # {0:1} {1:1} -q EXITCONDWORD:"*oops*"
+
+    - Print logs in real-time until a log containing a specific word is detected and execute specific commands when terminated
+        # {0:1} {1:1} -q EXITCONDWORD:"*oops*", EXITCONDWORDCMD:"ls -lha"
                     '''.format(cmd, mode)
 
                 # function record #
@@ -34391,6 +34422,25 @@ Copyright:
 
 
     @staticmethod
+    def checkLogCond(log, cond):
+        try:
+            if cond and UtilMgr.isValidStr(log, cond):
+                SysMgr.printWarn(
+                    "detected '%s' in '%s'" % \
+                        (', '.join(cond), log), True)
+
+                # execute exit commands #
+                if 'EXITCONDWORDCMD' in SysMgr.environList:
+                    args = SysMgr.environList['EXITCONDWORDCMD']
+                    SysMgr.executeCommand(args)
+
+                sys.exit(0)
+        except SystemExit: sys.exit(0)
+        except: pass
+
+
+
+    @staticmethod
     def applyEnvironVars():
         def _applyVar(name, tobj, tvar):
             if not name in SysMgr.environList:
@@ -34440,6 +34490,15 @@ Copyright:
         if 'STDLOG' in SysMgr.environList:
             options = SysMgr.environList['STDLOG'][0]
             SysMgr.loggingEnable = _setLogger(options)
+
+        # register exit commands #
+        if 'EXITCMD' in SysMgr.environList:
+            SysMgr.addExitFunc(
+                SysMgr.executeCommand, [SysMgr.environList['EXITCMD']])
+
+            SysMgr.printInfo(
+                "registered exit commands '%s'" % \
+                    ', '.join(SysMgr.environList['EXITCMD']))
 
         # set memory limit #
         if 'LIMITMEM' in SysMgr.environList:
@@ -54393,7 +54452,7 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def handleMessage(dltObj, msg, buf, mode, verb, buffered=False):
+    def handleMessage(dltObj, msg, buf, mode, verb, buffered=False, cond=None):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
 
@@ -54445,6 +54504,7 @@ class DltAnalyzer(object):
                 #string = buf.value.decode("utf8")
                 string = buf.value
                 string = string.decode().strip()
+            except SystemExit: sys.exit(0)
             except:
                 string = [string]
 
@@ -54483,6 +54543,9 @@ class DltAnalyzer(object):
                 SysMgr.addPrint(output, force=True, listBuf=True)
             else:
                 SysMgr.printPipe(output, flush=True)
+
+            # check exit condition #
+            SysMgr.checkLogCond(string, cond)
 
 
 
@@ -54528,7 +54591,7 @@ class DltAnalyzer(object):
             SysMgr.dltObj = None
             SysMgr.printWarn(
                 'failed to find %s to log DLT' % SysMgr.libdltPath, True)
-            sys.exit(0)
+            return -1
 
         # register #
         if not SysMgr.dltCtx:
@@ -54537,14 +54600,14 @@ class DltAnalyzer(object):
             if ret < 0:
                 SysMgr.printErr(
                     "failed to register app '%s'" % appid)
-                sys.exit(0)
+                return -1
 
             ret = dltObj.dlt_register_context(
                 byref(ctx), context, 'Guider'.encode())
             if ret < 0:
                 SysMgr.printErr(
                     "failed to register context '%s'" % context)
-                sys.exit(0)
+                return -1
 
             SysMgr.dltCtx = ctx
 
@@ -54573,6 +54636,8 @@ class DltAnalyzer(object):
         dltObj.dlt_unregister_context(byref(ctx))
         dltObj.dlt_unregister_app()
         '''
+
+        return 0
 
 
 
@@ -55388,6 +55453,12 @@ class DltAnalyzer(object):
             SysMgr.printInfo(
                 "start printing DLT logs... [ STOP(Ctrl+c) ]\n")
 
+        # get filter for exit condition #
+        if 'EXITCONDWORD' in SysMgr.environList:
+            exitCond = SysMgr.environList['EXITCONDWORD']
+        else:
+            exitCond = None
+
         while 1:
             try:
                 # initialize message #
@@ -55430,10 +55501,8 @@ class DltAnalyzer(object):
                         break
 
                     # check log filter #
-                    if level:
-                        mlevel = DltAnalyzer.getMsgLogLevel(msg)
-                        if mlevel > level:
-                            continue
+                    if level and DltAnalyzer.getMsgLogLevel(msg) > level:
+                        continue
 
                     # get data size to be removed #
                     size = msg.headersize + msg.datasize - \
@@ -55462,7 +55531,8 @@ class DltAnalyzer(object):
                         dltObj.dlt_set_storageheader(
                             msg.storageheader, c_char_p(''.encode()))
 
-                    DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verb)
+                    DltAnalyzer.handleMessage(
+                        dltObj, msg, buf, mode, verb, cond=exitCond)
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
@@ -94232,10 +94302,12 @@ class TaskAnalyzer(object):
         # update storage usage #
         SysMgr.sysInstance.updateStorageInfo()
 
-        convSize2Unit = UtilMgr.convSize2Unit
-
         if SysMgr.checkCutCond():
             return
+
+        # define shortcut variables #
+        convColor = UtilMgr.convColor
+        convSize2Unit = UtilMgr.convSize2Unit
 
         SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint((
@@ -94296,7 +94368,7 @@ class TaskAnalyzer(object):
                 # convert color for storage busy rate #
                 busytime = '%3s%%' % busyper
                 if busyper > 0:
-                    busytime = UtilMgr.convColor(busytime, 'RED')
+                    busytime = convColor(busytime, 'RED')
             except SystemExit: sys.exit(0)
             except:
                 busytime = '0%'
@@ -94315,8 +94387,9 @@ class TaskAnalyzer(object):
             try:
                 readSize = value['read'] - \
                     prevStorageData[origDev]['read']
-
-                readSize = convSize2Unit(readSize << 20)
+                if readSize:
+                    readSize = convSize2Unit(readSize << 20)
+                    readSize = convColor(readSize, 'CYAN', 7)
             except SystemExit: sys.exit(0)
             except:
                 readSize = 0
@@ -94325,8 +94398,9 @@ class TaskAnalyzer(object):
             try:
                 writeSize = value['write'] - \
                     prevStorageData[origDev]['write']
-
-                writeSize = convSize2Unit(writeSize << 20)
+                if writeSize:
+                    writeSize = convSize2Unit(writeSize << 20)
+                    writeSize = convColor(writeSize, 'CYAN', 7)
             except SystemExit: sys.exit(0)
             except:
                 writeSize = 0
@@ -94341,7 +94415,7 @@ class TaskAnalyzer(object):
                 try:
                     favail = '%7s' % convSize2Unit(value['favail'])
                     if value['favail'] == 0:
-                        favail = UtilMgr.convColor(favail, 'RED')
+                        favail = convColor(favail, 'RED')
                 except SystemExit: sys.exit(0)
                 except:
                     favail = '%7s' % 0
@@ -94369,9 +94443,9 @@ class TaskAnalyzer(object):
             # convert color for storage usage #
             usePer = '%4s%%' % value['usagePer']
             if value['usagePer'] > SysMgr.diskPerHighThreshold:
-                usePer = UtilMgr.convColor(usePer, 'RED')
+                usePer = convColor(usePer, 'RED')
             elif value['usagePer'] > 0:
-                usePer = UtilMgr.convColor(usePer, 'YELLOW')
+                usePer = convColor(usePer, 'YELLOW')
 
             # make disk stat string #
             option = value['mount']['option']
