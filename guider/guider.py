@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220321"
+__revision__ = "220324"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18176,13 +18176,29 @@ class LogMgr(object):
 
     @staticmethod
     def printSyslog(console=False):
+        # check root permission #
+        SysMgr.checkRootPerm()
+
         # open syslog file #
         try:
             if not SysMgr.syslogFd:
                 SysMgr.syslogFd = open(SysMgr.syslogPath, 'r')
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.syslogPath)
             sys.exit(0)
+
+        # set nonblock attribute #
+        try:
+            if SysMgr.findOption('Q'):
+                SysMgr.setBlock(SysMgr.syslogFd, False)
+                stream = True
+            else:
+                SysMgr.setBlock(SysMgr.syslogFd)
+                stream = False
+        except SystemExit: sys.exit(0)
+        except:
+            pass
 
         SysMgr.printInfo(
             "start printing syslog... [ STOP(Ctrl+c) ]")
@@ -18190,16 +18206,30 @@ class LogMgr(object):
         # set file posiion #
         SysMgr.syslogFd.seek(0)
 
+        # get item for log filter #
+        if 'WATCHLOG' in SysMgr.environList:
+            cond = SysMgr.environList['WATCHLOG'][0].split('+')
+        else:
+            cond = None
+
         while 1:
             log = SysMgr.syslogFd.readline()
-
-            if not UtilMgr.isValidStr(log, inc=True):
+            if not log:
+                if stream:
+                    break
+                else:
+                    time.sleep(0.1)
+            elif not UtilMgr.isValidStr(log, inc=True):
                 continue
 
             if SysMgr.outPath and console:
                 print(log)
 
             SysMgr.printPipe(log, newline=False)
+
+            # check log command #
+            SysMgr.checkLogCond(log, cond)
+
 
 
     @staticmethod
@@ -18305,11 +18335,17 @@ class LogMgr(object):
                 "failed to print journal because no journal head")
             return
 
-        # get filter for exit condition #
-        if 'EXITCONDWORD' in SysMgr.environList:
-            cond = SysMgr.environList['EXITCONDWORD']
+        # get item for log filter #
+        if 'WATCHLOG' in SysMgr.environList:
+            cond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
             cond = None
+
+        # get tail value #
+        if 'TAIL' in SysMgr.environList:
+            since = time.time()
+        else:
+            since = 0
 
         # initialize variables #
         data = c_void_p(0)
@@ -18353,6 +18389,15 @@ class LogMgr(object):
                         break
                 elif res < 1:
                     break
+
+                # check skip condition for time #
+                if since:
+                    ret = systemdObj.sd_journal_get_realtime_usec(
+                        jrl, byref(usec))
+                    if ret == 0:
+                        realtime = usec.value / 1000000
+                        if realtime < since:
+                            continue
 
                 # traverse specific fields #
                 if SysMgr.inputParam:
@@ -18428,7 +18473,7 @@ class LogMgr(object):
 
                         SysMgr.printPipe(decstr, flush=True)
 
-                        # check exit condition #
+                        # check log command #
                         SysMgr.checkLogCond(decstr, cond)
                     except SystemExit: sys.exit(0)
                     except:
@@ -18519,7 +18564,7 @@ class LogMgr(object):
             if not SysMgr.kmsgFd:
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'r')
                 if SysMgr.findOption('Q'):
-                    SysMgr.setNonBlock(SysMgr.kmsgFd)
+                    SysMgr.setBlock(SysMgr.kmsgFd, False)
         except SystemExit: sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
@@ -18528,11 +18573,18 @@ class LogMgr(object):
         SysMgr.printInfo(
             "start printing kernel log... [ STOP(Ctrl+c) ]")
 
-        # get filter for exit condition #
-        if 'EXITCONDWORD' in SysMgr.environList:
-            cond = SysMgr.environList['EXITCONDWORD']
+        # get item for log filter #
+        if 'WATCHLOG' in SysMgr.environList:
+            cond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
             cond = None
+
+        # get tail value #
+        if 'TAIL' in SysMgr.environList:
+            tail = True
+            SysMgr.getUptime()
+        else:
+            tail = False
 
         # check device node #
         try:
@@ -18578,6 +18630,20 @@ class LogMgr(object):
                         except SystemExit: sys.exit(0)
                         except: pass
 
+                    # skip old logs #
+                    if tail:
+                        try:
+                            if not line.startswith('['):
+                                raise Exception('no time')
+
+                            item = line.split(']', 1)[0]
+                            ltime = item[1:]
+
+                            if float(ltime) < SysMgr.uptime:
+                                continue
+                        except SystemExit: sys.exit(0)
+                        except: pass
+
                    # print to console #
                     if SysMgr.outPath and console:
                         print(line)
@@ -18585,7 +18651,7 @@ class LogMgr(object):
                     # print #
                     SysMgr.printPipe(line)
 
-                    # check exit condition #
+                    # check log command #
                     SysMgr.checkLogCond(line, cond)
 
             while 1:
@@ -18641,6 +18707,11 @@ class LogMgr(object):
                 else:
                     ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
 
+                # skip old logs #
+                if tail:
+                    if float(ltime) < SysMgr.uptime:
+                        continue
+
                 # update pos #
                 log = log[pos + 1:]
 
@@ -18684,7 +18755,7 @@ class LogMgr(object):
 
                 SysMgr.printPipe(log.rstrip())
 
-            # check exit condition #
+            # check log command #
             SysMgr.checkLogCond(log, cond)
 
 
@@ -20067,11 +20138,10 @@ Commands:
 
         # condition #
         elif SysMgr.checkMode('ctop'):
-            # check path for config file #
+            # load and check config file #
             if not SysMgr.getOption('C'):
                 if not SysMgr.loadConfig(SysMgr.confFileName):
-                    SysMgr.printErr(
-                        'input effective file path for config')
+                    SysMgr.printErr('wrong file path for config')
                     sys.exit(0)
 
             # ignore output #
@@ -21443,7 +21513,7 @@ Commands:
 
 
     @staticmethod
-    def setNonBlock(fd):
+    def setBlock(fd, block=True):
         fcntl = SysMgr.getPkg('fcntl', False)
 
         try:
@@ -21451,11 +21521,18 @@ Commands:
                 raise Exception('no fcntl')
 
             flag = fcntl.fcntl(fd.fileno(), fcntl.F_GETFL)
-            fcntl.fcntl(fd.fileno(), fcntl.F_SETFL, flag | os.O_NONBLOCK)
+
+            if block:
+                fcntl.fcntl(fd.fileno(), fcntl.F_SETFL, flag & ~os.O_NONBLOCK)
+            else:
+                fcntl.fcntl(fd.fileno(), fcntl.F_SETFL, flag | os.O_NONBLOCK)
+
             return True
+        except SystemExit: sys.exit(0)
         except:
             SysMgr.printWarn(
-                'failed to set NONBLOCK attribute to the socket', reason=True)
+                'failed to set block attribute to the file descriptor',
+                reason=True)
             return False
 
 
@@ -21466,6 +21543,195 @@ Commands:
             return os.environ['HOME']
         except:
             return None
+
+
+
+    @staticmethod
+    def initLogWatcher(data):
+        logList = {
+            'KERNEL': 'printkmsg',
+            'DLT': 'printdlt',
+            'JOURNAL': 'printjrl',
+            'SYSLOG': 'printsys'
+        }
+
+        for name, values in data.items():
+            # check skip condition #
+            if not name in logList:
+                SysMgr.printErr("no support '%s' for log monitoring" % name)
+                continue
+
+            # check type #
+            if type(values) is list:
+                pass
+            elif type(values) is dict:
+                values = [values]
+            else:
+                continue
+
+            for value in values:
+                # check skip conditions #
+                if not 'apply' in value or value['apply'] != 'true':
+                    continue
+                elif not 'filter' in value:
+                    SysMgr.printErr("no filter for '%s' monitoring" % name)
+                    continue
+
+                # get filter #
+                target = value['filter']
+
+                # set event name #
+                event = 'CMD_NOTIFY:log_%s_%s' % (name, target)
+
+                # get condition for exit #
+                if ('oneshot' in value and value['oneshot'] == 'true') or \
+                    ('goneshot' in value and value['goneshot'] == 'true'):
+                    exitCond = ',WATCHLOGEXIT'
+                else:
+                    exitCond = ''
+
+                # set port opt #
+                portOpt = ' -X%s' % SysMgr.localServObj.port
+
+                # set default command #
+                common = [
+                    '-qWATCHLOG:%s,TAIL,WATCHLOGCMD:GUIDER event %s%s%s' \
+                        % (target, event, portOpt, exitCond),
+                    '-dp'
+                ]
+
+                # set command #
+                cmd = [logList[name]] + common
+
+                # set mute flag #
+                if 'NOMUTE' in SysMgr.environList:
+                    mute = False
+                else:
+                    mute = True
+
+                # execute watcher tasks #
+                ret = SysMgr.launchGuider(
+                    cmd, mute=mute, pipe=False, stderr=True)
+                # register the event handling process #
+                if ret > 0:
+                    SysMgr.eventCommandList.setdefault(event, ret)
+
+
+
+    @staticmethod
+    def initFuncWatcher(data):
+        funcList = {
+            'NATIVE': 'btrace',
+            'SYSCALL': 'strace',
+            'PYTHON': 'pytrace',
+            'SIGNAL': 'sigtrace'
+        }
+
+        for name, values in data.items():
+            # check skip condition #
+            if not name in funcList:
+                SysMgr.printErr(
+                    "no support '%s' for funcion monitoring" % name)
+                continue
+
+            # check type #
+            if type(values) is list:
+                pass
+            elif type(values) is dict:
+                values = [values]
+            else:
+                continue
+
+            for value in values:
+                # check skip conditions #
+                if not 'apply' in value or value['apply'] != 'true':
+                    continue
+                elif not 'filter' in value:
+                    SysMgr.printErr(
+                        "no function filter for '%s' monitoring" % name)
+                    continue
+                elif not 'thread' in value:
+                    SysMgr.printErr(
+                        "no thread filter for '%s' monitoring" % name)
+                    continue
+
+                # get function filter #
+                target = value['filter']
+
+                # get task filter #
+                task = value['thread']
+
+                # set event name #
+                event = 'CMD_NOTIFY:func_%s_%s' % (name, target)
+
+                # get condition for exit #
+                if ('oneshot' in value and value['oneshot'] == 'true') or \
+                    ('goneshot' in value and value['goneshot'] == 'true'):
+                    exitCond = '|exit'
+                else:
+                    exitCond = ''
+
+                # set mute flag #
+                if 'NOMUTE' in SysMgr.environList:
+                    mute = False
+                else:
+                    mute = True
+
+                # set port opt #
+                portOpt = ' -X%s' % SysMgr.localServObj.port
+
+                # set handle command #
+                handleCmd = 'GUIDER event %s%s' % (event, portOpt)
+
+                # set default command #
+                common = ['-g%s' % task]
+
+                # set filter command #
+                if name == 'SIGNAL':
+                    # define mandatory environment variables #
+                    addCmd = '-qWATCHLOG:%s,WATCHLOGCMD:%s' % \
+                        (target, handleCmd)
+                    # append main option #
+                    if 'main' in value and value['main'] == 'true':
+                        addCmd += ',ONLYPROC'
+                    # composite values #
+                    common += [addCmd]
+
+                    addCmd = '-c%s' % target.replace('+', ',')
+                else:
+                    addCmd = '-c'
+                    for func in target.split('+'):
+                        addCmd += '%s|exec:%s%s,' % \
+                            (func, handleCmd, exitCond)
+                    addCmd = addCmd.rstrip(',')
+
+                    # append main option #
+                    if 'main' in value and value['main'] == 'true':
+                        common += ['-qONLYPROC']
+
+                common += [addCmd]
+
+                # append mute option #
+                if mute:
+                    common += ['-dp']
+
+                # append syscall option #
+                if name == 'SYSCALL':
+                    common += ['-t%s' % target.replace('+', ',')]
+
+                # append process group option #
+                if 'group' in value and value['group'] == 'true':
+                    common += ['-P']
+
+                # set command #
+                cmd = [funcList[name]] + common
+
+                # execute watcher tasks #
+                ret = SysMgr.launchGuider(
+                    cmd, mute=mute, pipe=False, stderr=True)
+                # register the event handling process #
+                if ret > 0:
+                    SysMgr.eventCommandList.setdefault(event, ret)
 
 
 
@@ -21484,7 +21750,8 @@ Commands:
                         # check skip condition #
                         if type(subitem) is not dict:
                             continue
-                        elif 'apply' in subitem and subitem['apply'] != 'true':
+                        elif 'apply' in subitem and \
+                            subitem['apply'] != 'true':
                             continue
 
                         # check sub items #
@@ -21589,7 +21856,7 @@ Commands:
                 if res.upper() == 'COMMAND':
                     continue
                 # no support resources for task monitoring #
-                elif res == 'storage' or res == 'net':
+                elif res in ('storage', 'net', 'log', 'func'):
                     continue
 
                 if _checkValues(cond, None):
@@ -21709,6 +21976,14 @@ Commands:
         # check fd #
         if 'fd' in SysMgr.thresholdTarget:
             SysMgr.addEnvironVar('ACTUALFD')
+
+        # check log #
+        if 'log' in SysMgr.thresholdData:
+            SysMgr.initLogWatcher(SysMgr.thresholdData['log'])
+
+        # check func #
+        if 'func' in SysMgr.thresholdData:
+            SysMgr.initFuncWatcher(SysMgr.thresholdData['func'])
 
         # check task monitoring condition #
         try:
@@ -24889,7 +25164,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
 
     - {3:1} and execute specific commands {4:1} {7:1}
-        # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
+        # {0:1} {1:1} -g a.out -c "*|exec:ls -lha;sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
 
     - {3:1} {7:1} and draw timeline segments for all function calls
@@ -24958,11 +25233,14 @@ Examples:
     - Print logs in real-time until no log
         # {0:1} {1:1} -Q
 
+    - Print logs generated since now in real-time
+        # {0:1} {1:1} -q TAIL
+
     - Print logs in real-time until a log containing a specific word is detected
-        # {0:1} {1:1} -q EXITCONDWORD:"*oops*"
+        # {0:1} {1:1} -q WATCHLOG:"*oops*"
 
     - Print logs in real-time until a log containing a specific word is detected and execute specific commands when terminated
-        # {0:1} {1:1} -q EXITCONDWORD:"*oops*", EXITCONDWORDCMD:"ls -lha"
+        # {0:1} {1:1} -q WATCHLOG:"*oops*", WATCHLOGCMD:"ls -lha"
                     '''.format(cmd, mode)
 
                 # function record #
@@ -26059,11 +26337,14 @@ Examples:
     - {2:1} without threshold condition until CMD_RELOAD event is received
         # {0:1} {1:1} -q NOTHRESHOLD
 
-    - {2:1} after update the threshold data from the specific file
+    - {2:1} after updating original threshold data from the specific file
         # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
 
     - {2:1} with threshold condition with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
+
+    - {2:1} with threshold condition and print the output of child tasks
+        # {0:1} {1:1} -q NOMUTE
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode, 'Monitor resources')
@@ -26274,6 +26555,9 @@ Examples:
 
     - {2:1} with connection retry to dlt-daemon every 1,000 ms
         # {0:1} {1:1} -q RETRYCONN:1000
+
+    - {2:1} generated since now
+        # {0:1} {1:1} -q TAIL
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode, "Monitor DLT logs")
@@ -26529,8 +26813,8 @@ Examples:
         # {0:1} {1:1} "a.out, test.txt" -o output.txt
 
     - Print the last file of the target files
-        # {0:1} {1:1} "a.out, test.txt" -q tail
-        # {0:1} {1:1} "a.out, test.txt" -q tail:100
+        # {0:1} {1:1} "a.out, test.txt" -q TAIL
+        # {0:1} {1:1} "a.out, test.txt" -q TAIL:100
                     '''.format(cmd, mode)
 
                 # dump #
@@ -27026,7 +27310,7 @@ Options:
         # {0:1} {1:1} -g a.out -c "jump:sleep#5"
 
     - {2:1} execute specific commands
-        # {0:1} {1:1} -g a.out -c "exec:ls -lha:sleep 1"
+        # {0:1} {1:1} -g a.out -c "exec:ls -lha;sleep 1"
         # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
                     '''.format(cmd, mode, 'Control the target to')
 
@@ -29126,7 +29410,7 @@ Commands:
     CMD_FILTER:ITEM        set the task filter
     CMD_INTERVAL:TIME      change the monitoring interval
     CMD_PAUSE              pause all monitoring activities
-    CMD_RELOAD             reload the threshold config
+    CMD_RELOAD:PATH        reload the threshold config
     CMD_RESTART            restart the Guider process
     CMD_SAVE{{:TIME@NAME}}   save the monitoring results
     CMD_STOP               stop the threshold monitoring
@@ -31971,6 +32255,13 @@ Copyright:
             sys.exit(0)
             '''
 
+            # update exit list to prevent recursive calls #
+            newExitList = []
+            for idx, item in enumerate(SysMgr.exitFuncList):
+                if item[0] != SysMgr.stopHandler:
+                    newExitList.append(item)
+            SysMgr.exitFuncList = newExitList
+
             # call exit handlers #
             SysMgr.doExit()
 
@@ -34424,16 +34715,20 @@ Copyright:
     @staticmethod
     def checkLogCond(log, cond):
         try:
-            if cond and UtilMgr.isValidStr(log, cond):
-                SysMgr.printWarn(
-                    "detected '%s' in '%s'" % \
-                        (', '.join(cond), log), True)
+            # check condition #
+            if not cond or not UtilMgr.isValidStr(log, cond):
+                return
 
-                # execute exit commands #
-                if 'EXITCONDWORDCMD' in SysMgr.environList:
-                    args = SysMgr.environList['EXITCONDWORDCMD']
-                    SysMgr.executeCommand(args)
+            SysMgr.printWarn(
+                "detected '%s' in '%s'" % (', '.join(cond), log), True)
 
+            # execute watch commands #
+            if 'WATCHLOGCMD' in SysMgr.environList:
+                args = SysMgr.environList['WATCHLOGCMD']
+                SysMgr.executeCommand(args)
+
+            # check exit condition #
+            if 'WATCHLOGEXIT' in SysMgr.environList:
                 sys.exit(0)
         except SystemExit: sys.exit(0)
         except: pass
@@ -38456,10 +38751,10 @@ Copyright:
 
                 # append option values #
                 for idx, val in enumerate(cmd):
-                    if val.startswith('-d'):
+                    if val.startswith('-d') and disOptVal:
                         cmd[idx] = val + disOptVal
                         applyDisable = True
-                    elif val.startswith('-e'):
+                    elif val.startswith('-e') and enOptVal:
                         cmd[idx] = val + enOptVal
                         applyEnable = True
 
@@ -54452,7 +54747,8 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def handleMessage(dltObj, msg, buf, mode, verb, buffered=False, cond=None):
+    def handleMessage(
+        dltObj, msg, buf, mode, verb, buffered=False, cond=None, since=0):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
 
@@ -54464,6 +54760,10 @@ class DltAnalyzer(object):
         ecuId = msg.storageheader.contents.ecu.decode()
         apId = msg.extendedheader.contents.apid.decode()
         ctxId = msg.extendedheader.contents.ctid.decode()
+
+        # check time condition #
+        if since and msg.storageheader.contents.seconds < since:
+            return
 
         # summarizing #
         if mode == 'top':
@@ -54527,6 +54827,7 @@ class DltAnalyzer(object):
             try:
                 level = DltAnalyzer.getMsgLogLevel(msg)
                 level = DltAnalyzer.msgColorList[level]
+            except SystemExit: sys.exit(0)
             except:
                 level = ''
 
@@ -55409,11 +55710,13 @@ class DltAnalyzer(object):
                 dltObj.dlt_receiver_receive_socket.restype = c_int
                 dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
                 incVerb = False
+                verbVal = c_int(0)
             elif hasattr(dltObj, 'dlt_receiver_receive'):
                 dltObj.dlt_receiver_receive.argtypes = [c_void_p, c_int]
                 dltObj.dlt_receiver_receive.restype = c_int
                 dlt_receiver_receive = dltObj.dlt_receiver_receive
                 incVerb = True
+                verbVal = c_int(1)
             else:
                 raise Exception('no DLT receiver')
         except:
@@ -55453,11 +55756,17 @@ class DltAnalyzer(object):
             SysMgr.printInfo(
                 "start printing DLT logs... [ STOP(Ctrl+c) ]\n")
 
-        # get filter for exit condition #
-        if 'EXITCONDWORD' in SysMgr.environList:
-            exitCond = SysMgr.environList['EXITCONDWORD']
+        # get item for log filter #
+        if 'WATCHLOG' in SysMgr.environList:
+            exitCond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
             exitCond = None
+
+        # get tail value #
+        if 'TAIL' in SysMgr.environList:
+            since = time.time()
+        else:
+            since = 0
 
         while 1:
             try:
@@ -55470,12 +55779,7 @@ class DltAnalyzer(object):
 
                 # check DLT data to be read #
                 try:
-                    if incVerb:
-                        ret = dlt_receiver_receive(
-                            byref(dltReceiver), c_int(0))
-                    else:
-                        ret = dlt_receiver_receive(byref(dltReceiver))
-
+                    ret = dlt_receiver_receive(byref(dltReceiver), verbVal)
                     if ret <= 0:
                         continue
                 except:
@@ -55531,8 +55835,10 @@ class DltAnalyzer(object):
                         dltObj.dlt_set_storageheader(
                             msg.storageheader, c_char_p(''.encode()))
 
+                    # handle a message #
                     DltAnalyzer.handleMessage(
-                        dltObj, msg, buf, mode, verb, cond=exitCond)
+                        dltObj, msg, buf, mode, verb,
+                        cond=exitCond, since=since)
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
@@ -57450,7 +57756,7 @@ typedef struct {
                 _flushPrint(newline=False)
 
                 # execute commands #
-                for item in cmdset[1].split(':'):
+                for item in cmdset[1].split(';'):
                     command = item.strip()
                     if command.endswith('&'):
                         command = command[:-1]
@@ -57460,7 +57766,7 @@ typedef struct {
 
                     param = command.split()
 
-                    self.execBgCmd(execCmd=param, mute=False, wait=wait)
+                    self.execBgCmd(param, mute=False, wait=wait)
 
             elif cmd == 'thread':
                 ret = self.loadPyLib()
@@ -57966,19 +58272,40 @@ typedef struct {
 
 
 
-    def execBgCmd(self, execCmd, mute=True, wait=True):
-        pid = SysMgr.createProcess()
-        if pid < 0:
-            return pid
-        elif pid > 0:
+    def execBgCmd(self, cmd, mute=True, wait=True):
+        # launch Guider #
+        if (UtilMgr.isString(cmd) and cmd.startswith('GUIDER ')) or \
+            (type(cmd) is list and cmd[0] == 'GUIDER'):
+
+            # build command list #
+            if type(cmd) is list:
+                cmdList = cmd[1:]
+            else:
+                cmdList = UtilMgr.parseCommand(cmd.lstrip('GUIDER '))
+
+            # launch command #
+            try:
+                ret = SysMgr.launchGuider(
+                    cmdList, pipe=False, stderr=True,
+                    stream=False, logo=False, log=True)
+            except SystemExit: sys.exit(0)
+            except:
+                ret = False
+                SysMgr.printErr(
+                    "failed to launch %s" % __module__, reason=True)
+        # launch command #
+        else:
+            ret = SysMgr.createProcess(cmd, mute=mute)
+
+        # check task #
+        if ret is False or ret < 0:
+            return -1
+        elif ret > 0:
             if wait:
-                os.waitpid(pid, 0)
+                os.waitpid(ret, 0)
             return
 
-        # execute #
-        SysMgr.executeProcess(cmd=execCmd, mute=mute)
-
-        # execute fail #
+        # temrinate #
         os._exit(0)
 
 
@@ -62104,7 +62431,7 @@ typedef struct {
         needNewline = False
         isPaused = False
         for cmd in SysMgr.customCmd:
-            item = cmd.split('|', 1)
+            item = cmd.split('|')
             # skip #
             if not UtilMgr.isValidStr(sym, [item[0]]):
                 continue
@@ -62112,15 +62439,17 @@ typedef struct {
             elif len(item) == 1:
                 isPaused = True
                 break
-            # execute commands #
-            elif len(item) > 1:
+
+            for command in item[1:]:
                 # check skip condition #
-                if exceptFilter and \
-                    UtilMgr.isValidStr(item[1], exceptFilter, inc=True):
+                if not exceptFilter:
+                    pass
+                elif UtilMgr.isValidStr(command, exceptFilter):
                     continue
 
+                # execute commands #
                 args = self.readArgs()
-                self.executeCmd([item[1]], sym, None, args)
+                self.executeCmd([command], sym, None, args)
                 needNewline = True
 
         # check return #
@@ -63117,7 +63446,8 @@ typedef struct {
 
         # execute remote commands #
         for cmd in SysMgr.customCmd:
-            self.executeCmd([cmd], sym=None, fname=None, args=args, force=True)
+            self.executeCmd(
+                [cmd], sym=None, fname=None, args=args, force=True)
 
 
 
@@ -63852,6 +64182,12 @@ typedef struct {
                 sys.exit(0)
 
             self.printContext(regs=False, sig=False)
+
+        # handle watch command #
+        if 'WATCHLOG' in SysMgr.environList:
+            # check exit condition #
+            SysMgr.checkLogCond(
+                name, SysMgr.environList['WATCHLOG'][0].split('+'))
 
 
 
@@ -64838,7 +65174,8 @@ typedef struct {
 
         # check symbol #
         if SysMgr.customCmd:
-            self.checkSymbol(self.syscall, newline=True, exceptFilter=['ret'])
+            self.checkSymbol(
+                self.syscall, newline=True, exceptFilter=['ret*'])
 
 
 
@@ -65019,14 +65356,19 @@ typedef struct {
             if SysMgr.customCmd:
                 needUpdateRegs = False
                 for cmd in SysMgr.customCmd:
-                    item = cmd.split('|', 1)
+                    item = cmd.split('|')
                     # skip #
                     if not UtilMgr.isValidStr(name, [item[0]]):
                         continue
+                    elif len(item) == 1:
+                        continue
+
                     # execute commands #
-                    elif len(item) > 1 and 'ret' in item[1]:
+                    for command in item[1:]:
+                        if not command.startswith('ret'):
+                            continue
                         args = self.readArgs()
-                        self.executeCmd([item[1]], name, None, args)
+                        self.executeCmd([command], name, None, args)
                         needUpdateRegs = True
 
                 # update final regset #
@@ -96415,6 +96757,67 @@ class TaskAnalyzer(object):
             SysMgr.printInfo((
                 "updated the task filter to %s by '%s' command "
                 "for %s event") % (value, cmd, name))
+        # NOTIFY #
+        elif cmd.startswith('NOTIFY:'):
+            value = UtilMgr.lstrip(cmd, 'NOTIFY:').strip()
+            if not value:
+                SysMgr.printErr(
+                    "failed to handle notify event '%s'" % cmd)
+                return None
+
+            # print message #
+            SysMgr.printInfo(
+                "be notified of '%s' event" % value)
+
+            # get event info #
+            try:
+                item, name, target = UtilMgr.cleanItem(value.split('_', 2))
+            except SystemExit: sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to get event info from '%s'" % value, True)
+                return None
+
+            # search event command #
+            if not item in SysMgr.thresholdData:
+                return None
+
+            # init variables #
+            eventList = []
+            self.reportData.setdefault('event', {})
+
+            for _name, _values in SysMgr.thresholdData[item].items():
+                if name != _name:
+                    continue
+
+                # check type #
+                if type(_values) is list:
+                    pass
+                elif type(_values) is dict:
+                    _values = [_values]
+                else:
+                    continue
+
+                for _value in _values:
+                    # check skip condition #
+                    if not 'apply' in _value or _value['apply'] != 'true':
+                        continue
+                    # check log condition #
+                    elif 'filter' in _value and target == _value['filter']:
+                        # check oneshot flag #
+                        oneshot, goneshot, refresh, lock = \
+                            TaskAnalyzer.getThresholdAttr(_value)
+
+                        # set threshold #
+                        ename = self.setThresholdEvent(
+                            _value, 'filter', item, None, True, name,
+                            None, None, oneshot, goneshot, refresh, lock)
+                        if ename:
+                            eventList.append(ename)
+
+            # handle events #
+            if eventList:
+                self.handleThresholdEvents()
         # ENABLE / DISABLE #
         elif cmd.startswith('ENABLE:') or cmd.startswith('DISABLE:'):
             if cmd.startswith('ENABLE:'):
@@ -96519,13 +96922,37 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo("start reloading threshold config")
 
-            # reload threshold config #
-            SysMgr.applyThreshold()
+            # get file path #
+            path = UtilMgr.lstrip(cmd, 'RELOAD')
+            if not path:
+                path = SysMgr.confFileName
+            elif path.startswith(':'):
+                path = path[1:]
+            else:
+                SysMgr.printErr("wrong comand format for 'RELOAD'")
+                return None
 
-            # reset events #
-            SysMgr.eventCommandList = {}
+            # convert path #
+            path = os.path.abspath(path)
+
+            # terminate event handling tasks #
+            if SysMgr.eventCommandList:
+                SysMgr.terminateTasks(
+                    SysMgr.eventCommandList.values(), signal.SIGINT)
+                SysMgr.eventCommandList = {}
+
+            # reset threshold data #
+            ConfigMgr.confData = {}
             SysMgr.thresholdEventHistory = {}
             SysMgr.thresholdEventList = {}
+
+            # load and check config file #
+            if not SysMgr.loadConfig(path):
+                SysMgr.printErr("wrong path '%s' for config" % path)
+                return None
+
+            # reload threshold config #
+            SysMgr.applyThreshold()
         # PAUSE #
         elif cmd.startswith('PAUSE'):
             # clear buffer #
@@ -96552,8 +96979,13 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo("stop the threshold monitoring")
 
+            # terminate event handling tasks #
+            if SysMgr.eventCommandList:
+                SysMgr.terminateTasks(
+                    SysMgr.eventCommandList.values(), signal.SIGINT)
+                SysMgr.eventCommandList = {}
+
             # clear threshold data #
-            SysMgr.eventCommandList = {}
             SysMgr.thresholdData = {}
             SysMgr.thresholdEventList = {}
             SysMgr.thresholdEventHistory = {}
@@ -96796,9 +97228,6 @@ class TaskAnalyzer(object):
 
 
     def executeEventCommand(self, eventList):
-        if not eventList:
-            return
-
         for event in eventList:
             value = self.reportData['event'][event]
             if not 'command' in value or \
@@ -96838,10 +97267,10 @@ class TaskAnalyzer(object):
                     # parent task #
                     else:
                         try:
-                            # check fork failure #
-                            if ret < 0: continue
                             # register the event handling process #
-                            SysMgr.eventCommandList.setdefault(event, ret)
+                            if ret > 0:
+                                SysMgr.eventCommandList.setdefault(event, ret)
+
                             continue
                         except SystemExit: sys.exit(0)
                         except: pass
@@ -97084,7 +97513,8 @@ class TaskAnalyzer(object):
                 raise Exception()
 
             # total inbound #
-            for direct, name in [['inbound', 'NETIN'], ['outbound', 'NETOUT']]:
+            for direct, name in [
+                ['inbound', 'NETIN'], ['outbound', 'NETOUT']]:
                 target = self.reportData['net'][direct]
                 intval = self.intervalData[direct]
                 self.checkThreshold(
@@ -97358,6 +97788,8 @@ class TaskAnalyzer(object):
         self.reportData['event'][ename] = dict(comval)
         self.reportData['event'][ename]['run'] = run
         SysMgr.thresholdEventHistory.setdefault(ename, None)
+
+        return ename
 
 
 
