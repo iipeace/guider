@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220324"
+__revision__ = "220325"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8509,7 +8509,8 @@ class Timeline(object):
                 font_size = self.config.FONT_SIZE - 1
             # set text attributes for new task #
             else:
-                segment_label = "%s%s %s" % (prefix, segment.text, durationstr)
+                segment_label = "%s%s %s" % \
+                    (prefix, segment.text, durationstr)
                 color = 'rgb(255,0,0)'
                 font_size = self.config.FONT_SIZE - 0.5
 
@@ -11253,9 +11254,9 @@ class FunctionAnalyzer(object):
             'customCnt': 0, 'customTotal': 0, 'pagePair': None,
             'pagePairCnt': 0, 'pagePairTotal': 0.0, 'pagePairMin': 0.0,
             'pagePairMax': 0.0, 'pagePairAvr': 0.0, 'pageRemainMin': 0.0,
-            'pageRemainMax': 0.0, 'pageRemainAvr': 0.0, 'pageRemainTotal': 0.0,
-            'lockTryCnt': 0, 'unlockCnt': 0, 'syscallCnt': 0,
-            'totalTickCnt': 0
+            'pageRemainMax': 0.0, 'pageRemainAvr': 0.0,
+            'pageRemainTotal': 0.0, 'lockTryCnt': 0, 'unlockCnt': 0,
+            'syscallCnt': 0, 'totalTickCnt': 0
         }
 
         self.init_ctxData = {
@@ -14068,10 +14069,10 @@ class FunctionAnalyzer(object):
 
 
 
-    def makeKernelSymList(self, subStack, indentLen):
+    def makeKernelSymList(self, subStack, ilen):
         symbolStack = ''
         stackIdx = 0
-        appliedIndentLen = indentLen
+        appliedilen = ilen
 
         if not subStack:
             return ' None'
@@ -14086,12 +14087,12 @@ class FunctionAnalyzer(object):
                 else:
                     symbolSet = ' <- %s' % str(self.posData[pos]['symbol'])
 
-                lpos = appliedIndentLen + \
+                lpos = appliedilen + \
                     len(symbolStack[stackIdx:]) + len(symbolSet)
                 if symbolStack != '' and lpos > SysMgr.lineLength:
                     stackIdx = len(symbolStack)
-                    symbolStack = '%s\n%s' % (symbolStack, ' ' * indentLen)
-                    appliedIndentLen = 0
+                    symbolStack = '%s\n%s' % (symbolStack, ' ' * ilen)
+                    appliedilen = 0
 
                 symbolStack += symbolSet
         except SystemExit: sys.exit(0)
@@ -14101,10 +14102,10 @@ class FunctionAnalyzer(object):
 
 
 
-    def makeUserSymList(self, subStack, indentLen):
+    def makeUserSymList(self, subStack, ilen):
         symbolStack = ''
         stackIdx = 0
-        appliedIndentLen = indentLen
+        appliedilen = ilen
 
         if self.sort == 'sym':
             for sym in subStack:
@@ -14116,13 +14117,13 @@ class FunctionAnalyzer(object):
                     symbolSet = \
                         ' <- %s [%s]' % (sym, self.userSymData[sym]['origBin'])
 
-                lpos = appliedIndentLen + \
+                lpos = appliedilen + \
                     len(symbolStack[stackIdx:]) + len(symbolSet)
                 if symbolStack != '' and lpos > SysMgr.lineLength:
                     stackIdx = len(symbolStack)
                     symbolStack = \
-                        '%s\n%s' % (symbolStack, ' ' * indentLen)
-                    appliedIndentLen = 0
+                        '%s\n%s' % (symbolStack, ' ' * ilen)
+                    appliedilen = 0
 
                 symbolStack += symbolSet
         elif self.sort == 'pos':
@@ -14194,8 +14195,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 4) + 3
-                    symbolStack = self.makeUserSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4) + 3
+                    symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe(
                     "\t\t +{0:>7} |{1:32}".format(
@@ -14263,8 +14264,8 @@ class FunctionAnalyzer(object):
             argsInfo = ' %s' % args
 
             # Make user call info #
-            indentLen = 32
-            nowLen = indentLen
+            ilen = 32
+            nowLen = ilen
             try:
                 last = call[2][0]
                 stack = call[2][1]
@@ -14282,8 +14283,8 @@ class FunctionAnalyzer(object):
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
-                                (userCall, ' ' * indentLen, nextCall)
-                            nowLen = indentLen + len(nextCall)
+                                (userCall, ' ' * ilen, nextCall)
+                            nowLen = ilen + len(nextCall)
                     except: pass
             except SystemExit: sys.exit(0)
             except: pass
@@ -14349,8 +14350,8 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        indentLen = len("\t" * 4 * 4) + 3
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+                        ilen = len("\t" * 4 * 4) + 3
+                        symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
                         "\t\t +{0:>7} |{1:32}".format(
@@ -14432,8 +14433,8 @@ class FunctionAnalyzer(object):
                     # Pass unmeaningful part #
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 4) + 3
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4) + 3
+                    symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe(
                     "\t\t +{0:>7} |{1:32}".format(
@@ -14475,8 +14476,8 @@ class FunctionAnalyzer(object):
             argsInfo = ' %s' % args
 
             # Make user call info #
-            indentLen = 32
-            nowLen = indentLen
+            ilen = 32
+            nowLen = ilen
             try:
                 last = call[2][0]
                 stack = call[2][1]
@@ -14494,15 +14495,15 @@ class FunctionAnalyzer(object):
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
-                                (userCall, ' ' * indentLen, nextCall)
-                            nowLen = indentLen + len(nextCall)
+                                (userCall, ' ' * ilen, nextCall)
+                            nowLen = ilen + len(nextCall)
                     except: pass
             except SystemExit: sys.exit(0)
             except: pass
 
             # Make kernel call info #
-            indentLen = 32
-            nowLen = indentLen
+            ilen = 32
+            nowLen = ilen
             try:
                 last = call[3][0]
                 stack = call[3][1]
@@ -14518,8 +14519,8 @@ class FunctionAnalyzer(object):
                         else:
                             kernelCall = \
                                 '%s\n%s %s' % \
-                                (kernelCall, ' ' * indentLen, nextCall)
-                            nowLen = indentLen + len(nextCall)
+                                (kernelCall, ' ' * ilen, nextCall)
+                            nowLen = ilen + len(nextCall)
                     except: pass
             except SystemExit: sys.exit(0)
             except: pass
@@ -14602,8 +14603,8 @@ class FunctionAnalyzer(object):
                         if cpuPer < 1 and not SysMgr.showAll:
                             break
 
-                        indentLen = len("\t" * 4 * 4)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+                        ilen = len("\t" * 4 * 4)
+                        symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
                         "\t +{0:7.1f}% |{1:32}".format(cpuPer, symbolStack))
@@ -14760,8 +14761,8 @@ class FunctionAnalyzer(object):
                     # Pass unmeaningful part #
                     continue
                 else:
-                    indentLen = 10
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+                    ilen = 10
+                    symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 try:
                     mergedSymbolChain[symbolStack] += cpuCnt
@@ -14834,8 +14835,8 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        indentLen = len("\t" * 4 * 4)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+                        ilen = len("\t" * 4 * 4)
+                        symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
                         format(convSize(pageFreeCnt << 12), symbolStack))
@@ -14880,8 +14881,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     symbolStack = '\tNone'
                 else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4)
+                    symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
                     format(convSize(pageFreeCnt << 12), symbolStack))
@@ -14967,22 +14968,22 @@ class FunctionAnalyzer(object):
                         convSize(cachePages << 12),
                         convSize(kernelPages <<12))
 
-                    indentLen = len(printBuf)
-                    appliedIndentLen = indentLen
+                    ilen = len(printBuf)
+                    appliedilen = ilen
 
                     for seq, call in enumerate(allocCall.split(' <- ')):
                         if seq > 0 and \
-                            appliedIndentLen + len(call) > lineLength:
-                            printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
-                            appliedIndentLen = indentLen
+                            appliedilen + len(call) > lineLength:
+                            printBuf = "%s\n%s" % (printBuf, ' ' * ilen)
+                            appliedilen = ilen
                         printBuf = "%s<- %s " % (printBuf, call)
-                        appliedIndentLen += (len(call) + 4)
+                        appliedilen += (len(call) + 4)
 
                     SysMgr.printPipe(printBuf)
 
                     printBuf = "{0:5}{1:>30}|".format(' ', '[FREE]')
-                    indentLen = len(printBuf)
-                    appliedIndentLen = indentLen
+                    ilen = len(printBuf)
+                    appliedilen = ilen
 
                     for index, call in enumerate(freeCall.split(' <- ')):
                         clen = len(call) + 4
@@ -14990,16 +14991,16 @@ class FunctionAnalyzer(object):
                         if index == 0:
                             clen -= 4
 
-                        if index > 0 and appliedIndentLen + clen > lineLength:
-                            printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
-                            appliedIndentLen = indentLen
+                        if index > 0 and appliedilen + clen > lineLength:
+                            printBuf = "%s\n%s" % (printBuf, ' ' * ilen)
+                            appliedilen = ilen
 
                         if index == 0:
                             printBuf = "%s %s" % (printBuf, call)
                         else:
                             printBuf = "%s <- %s" % (printBuf, call)
 
-                        appliedIndentLen += clen
+                        appliedilen += clen
 
                     SysMgr.printPipe(printBuf)
 
@@ -15074,21 +15075,21 @@ class FunctionAnalyzer(object):
                     convSize(cachePages << 12),
                     convSize(kernelPages << 12))
 
-                indentLen = len(printBuf)
-                appliedIndentLen = indentLen
+                ilen = len(printBuf)
+                appliedilen = ilen
 
                 for seq, call in enumerate(allocCall.split(' <- ')):
-                    if seq > 0 and appliedIndentLen + len(call) > lineLength:
-                        printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
-                        appliedIndentLen = indentLen
+                    if seq > 0 and appliedilen + len(call) > lineLength:
+                        printBuf = "%s\n%s" % (printBuf, ' ' * ilen)
+                        appliedilen = ilen
                     printBuf = "%s<- %s " % (printBuf, call)
-                    appliedIndentLen += (len(call) + 4)
+                    appliedilen += (len(call) + 4)
 
                 SysMgr.printPipe(printBuf)
 
                 printBuf = "{0:5}{1:>30}|".format(' ', '[FREE]')
-                indentLen = len(printBuf)
-                appliedIndentLen = indentLen
+                ilen = len(printBuf)
+                appliedilen = ilen
 
                 for index, call in enumerate(freeCall.split(' <- ')):
                     clen = len(call) + 4
@@ -15096,16 +15097,16 @@ class FunctionAnalyzer(object):
                     if index == 0:
                         clen -= 4
 
-                    if index > 0 and appliedIndentLen + clen > lineLength:
-                        printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
-                        appliedIndentLen = indentLen
+                    if index > 0 and appliedilen + clen > lineLength:
+                        printBuf = "%s\n%s" % (printBuf, ' ' * ilen)
+                        appliedilen = ilen
 
                     if index == 0:
                         printBuf = "%s %s" % (printBuf, call)
                     else:
                         printBuf = "%s <- %s" % (printBuf, call)
 
-                    appliedIndentLen += clen
+                    appliedilen += clen
 
                 SysMgr.printPipe(printBuf)
 
@@ -15217,8 +15218,8 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        indentLen = len("\t" * 4 * 9)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+                        ilen = len("\t" * 4 * 9)
+                        symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
                         "\t+ {0:>7}({1:>6}/{2:>6}/{3:>6})|{4:32}".\
@@ -15288,8 +15289,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 9)
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 9)
+                    symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe(
                     "\t+ {0:>7}({1:>6}/{2:>6}/{3:>6})|{4:32}".format(
@@ -15369,8 +15370,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeUserSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4)
+                    symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
                     format(convSize(heapSize), symbolStack))
@@ -15419,8 +15420,8 @@ class FunctionAnalyzer(object):
             SysMgr.printPipe('%s\n%s' % (title, len(title) * '-'))
 
             # Make user call info #
-            indentLen = 32
-            nowLen = indentLen
+            ilen = 32
+            nowLen = ilen
             try:
                 userCall = ' %s[%s]' % \
                     (usersym, self.userSymData[usersym]['origBin'])
@@ -15448,14 +15449,14 @@ class FunctionAnalyzer(object):
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
-                                (userCall, ' ' * indentLen, nextCall)
-                            nowLen = indentLen + len(nextCall)
+                                (userCall, ' ' * ilen, nextCall)
+                            nowLen = ilen + len(nextCall)
                     except: pass
             except: pass
 
             # Make kernel call info #
-            indentLen = 32
-            nowLen = indentLen
+            ilen = 32
+            nowLen = ilen
             try:
                 kernelCall = ' %s' % (kernelsym)
                 nowLen += len(kernelCall)
@@ -15481,8 +15482,8 @@ class FunctionAnalyzer(object):
                             nowLen += len(nextCall)
                         else:
                             kernelCall = '%s\n%s %s' % \
-                                (kernelCall, ' ' * indentLen, nextCall)
-                            nowLen = indentLen + len(nextCall)
+                                (kernelCall, ' ' * ilen, nextCall)
+                            nowLen = ilen + len(nextCall)
                     except: pass
             except: pass
 
@@ -15544,8 +15545,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeUserSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4)
+                    symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe("\t+ {0:8} |{1:32}".\
                     format(lockTryCnt, symbolStack))
@@ -15618,8 +15619,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeUserSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4)
+                    symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe("\t+ {0:8} |{1:32}".\
                     format(unlockCnt, symbolStack))
@@ -15689,8 +15690,8 @@ class FunctionAnalyzer(object):
             SysMgr.printPipe('%s\n%s' % (title, len(title) * '-'))
 
             # Make user call info #
-            indentLen = 32
-            nowLen = indentLen
+            ilen = 32
+            nowLen = ilen
             try:
                 last = userstack[0]
                 stack = userstack[1]
@@ -15708,8 +15709,8 @@ class FunctionAnalyzer(object):
                             nowLen += len(nextCall)
                         else:
                             userCall = '%s\n%s %s' % \
-                                (userCall, ' ' * indentLen, nextCall)
-                            nowLen = indentLen + len(nextCall)
+                                (userCall, ' ' * ilen, nextCall)
+                            nowLen = ilen + len(nextCall)
                     except: pass
             except SystemExit: sys.exit(0)
             except: pass
@@ -15772,8 +15773,8 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        indentLen = len("\t" * 4 * 4)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+                        ilen = len("\t" * 4 * 4)
+                        symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
                         format(convSize(blockWrCnt << 9), symbolStack))
@@ -15821,8 +15822,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     symbolStack = '\tNone'
                 else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4)
+                    symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
                     format(convSize(blockWrCnt << 9), symbolStack))
@@ -15921,8 +15922,8 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        indentLen = len("\t" * 4 * 4)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+                        ilen = len("\t" * 4 * 4)
+                        symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe("\t+ {0:8} |{1:32}".\
                         format(convSize(blockRdCnt << 9), symbolStack))
@@ -15967,8 +15968,8 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     symbolStack = '\tNone'
                 else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+                    ilen = len("\t" * 4 * 4)
+                    symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe("\t+ {0:>8} |{1:32}".\
                     format(convSize(blockRdCnt << 9), symbolStack))
@@ -16556,18 +16557,18 @@ class FileAnalyzer(object):
 
     def printIntervalInfo(self):
         # Merge process info into a global list #
-        for procData in self.intervalProcData:
-            for pid, procInfo in procData.items():
+        for data in self.intervalProcData:
+            for pid, info in data.items():
                 try:
-                    if self.procList[pid]['pageCnt'] < procInfo['pageCnt']:
-                        self.procList[pid]['pageCnt'] = procInfo['pageCnt']
+                    if self.procList[pid]['pageCnt'] < info['pageCnt']:
+                        self.procList[pid]['pageCnt'] = info['pageCnt']
                 except:
                     self.procList[pid] = dict(self.init_procData)
                     self.procList[pid]['tids'] = {}
-                    self.procList[pid]['pageCnt'] = procInfo['pageCnt']
-                    self.procList[pid]['comm'] = procInfo['comm']
+                    self.procList[pid]['pageCnt'] = info['pageCnt']
+                    self.procList[pid]['comm'] = info['comm']
 
-                for tid, val in procInfo['tids'].items():
+                for tid, val in info['tids'].items():
                     try:
                         self.procList[pid]['tids'][tid]
                     except:
@@ -16580,16 +16581,16 @@ class FileAnalyzer(object):
             sys.exit(0)
 
         # Merge file info into a global list #
-        for fileData in self.intervalFileData:
-            for fileName, fileStat in fileData.items():
+        for data in self.intervalFileData:
+            for name, stat in data.items():
                 try:
-                    fl = self.fileList[fileName]
-                    if fl['pageCnt'] < fileStat['pageCnt']:
-                        fl['pageCnt'] = fileStat['pageCnt']
+                    fl = self.fileList[name]
+                    if fl['pageCnt'] < stat['pageCnt']:
+                        fl['pageCnt'] = stat['pageCnt']
                 except:
-                    self.fileList[fileName] = dict(FileAnalyzer.init_mapData)
-                    self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
-                    self.fileList[fileName]['totalSize'] = fileStat['totalSize']
+                    self.fileList[name] = dict(FileAnalyzer.init_mapData)
+                    self.fileList[name]['pageCnt'] = stat['pageCnt']
+                    self.fileList[name]['totalSize'] = stat['totalSize']
 
         if not self.fileList:
             SysMgr.printErr('no file profiled')
@@ -16645,9 +16646,8 @@ class FileAnalyzer(object):
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                threadInfo = \
-                    "{0:>16}({1:>7}) |".format(
-                        threadVal['comm'][:SysMgr.commLen], tid)
+                threadInfo = "{0:>16}({1:>7}) |".format(
+                    threadVal['comm'][:SysMgr.commLen], tid)
 
                 linePos += threadLength
 
@@ -17537,28 +17537,28 @@ class FileAnalyzer(object):
             pidInfo = ''
             lineLength = SysMgr.lineLength
             pidLength = len(" %16s (%6s) |" % ('', ''))
-            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
-            linePos = indentLength + pidLength
+            ilength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
+            linePos = ilength + pidLength
 
             # print hard-linked list #
             if val['hardLink'] > 1:
                 for fileLink, tmpVal in val['linkList'].items():
                     if fileName != fileLink:
                         SysMgr.printPipe(
-                            (' ' * indentLength) + '| -> ' + fileLink)
+                            (' ' * ilength) + '| -> ' + fileLink)
 
             # print process list #
             for pid, comm in val['pids'].items():
                 if linePos > lineLength:
-                    linePos = indentLength + pidLength
-                    pidInfo += '\n' + (' ' * indentLength) + '|'
+                    linePos = ilength + pidLength
+                    pidInfo += '\n' + (' ' * ilength) + '|'
 
                 pidInfo += " %16s (%7s) |" % \
                     (comm[:SysMgr.commLen], pid)
 
                 linePos += pidLength
 
-            SysMgr.printPipe((' ' * indentLength) + '|' + pidInfo)
+            SysMgr.printPipe((' ' * ilength) + '|' + pidInfo)
             SysMgr.printPipe(oneLine)
 
         if self.readaheadStr:
@@ -18208,9 +18208,9 @@ class LogMgr(object):
 
         # get item for log filter #
         if 'WATCHLOG' in SysMgr.environList:
-            cond = SysMgr.environList['WATCHLOG'][0].split('+')
+            watchcond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
-            cond = None
+            watchcond = None
 
         while 1:
             log = SysMgr.syslogFd.readline()
@@ -18228,7 +18228,7 @@ class LogMgr(object):
             SysMgr.printPipe(log, newline=False)
 
             # check log command #
-            SysMgr.checkLogCond(log, cond)
+            SysMgr.checkLogCond(log, watchcond)
 
 
 
@@ -18337,9 +18337,9 @@ class LogMgr(object):
 
         # get item for log filter #
         if 'WATCHLOG' in SysMgr.environList:
-            cond = SysMgr.environList['WATCHLOG'][0].split('+')
+            watchcond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
-            cond = None
+            watchcond = None
 
         # get tail value #
         if 'TAIL' in SysMgr.environList:
@@ -18474,7 +18474,7 @@ class LogMgr(object):
                         SysMgr.printPipe(decstr, flush=True)
 
                         # check log command #
-                        SysMgr.checkLogCond(decstr, cond)
+                        SysMgr.checkLogCond(decstr, watchcond)
                     except SystemExit: sys.exit(0)
                     except:
                         SysMgr.printPipe(jrlStr, flush=True)
@@ -18575,9 +18575,9 @@ class LogMgr(object):
 
         # get item for log filter #
         if 'WATCHLOG' in SysMgr.environList:
-            cond = SysMgr.environList['WATCHLOG'][0].split('+')
+            watchcond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
-            cond = None
+            watchcond = None
 
         # get tail value #
         if 'TAIL' in SysMgr.environList:
@@ -18652,7 +18652,7 @@ class LogMgr(object):
                     SysMgr.printPipe(line)
 
                     # check log command #
-                    SysMgr.checkLogCond(line, cond)
+                    SysMgr.checkLogCond(line, watchcond)
 
             while 1:
                 memset(buf, 0, size)
@@ -18756,7 +18756,7 @@ class LogMgr(object):
                 SysMgr.printPipe(log.rstrip())
 
             # check log command #
-            SysMgr.checkLogCond(log, cond)
+            SysMgr.checkLogCond(log, watchcond)
 
 
 
@@ -20156,6 +20156,10 @@ Commands:
 
             # set threshold handle flag #
             SysMgr.thresholdEnable = True
+
+            # disable color and encoding #
+            SysMgr.colorEnable = False
+            SysMgr.encodeEnable = False
 
         # DLT #
         elif SysMgr.checkMode('dlttop'):
@@ -21624,7 +21628,8 @@ Commands:
             'NATIVE': 'btrace',
             'SYSCALL': 'strace',
             'PYTHON': 'pytrace',
-            'SIGNAL': 'sigtrace'
+            'SIGNAL': 'sigtrace',
+            'DBUS': 'printdbus'
         }
 
         for name, values in data.items():
@@ -21667,9 +21672,11 @@ Commands:
                 # get condition for exit #
                 if ('oneshot' in value and value['oneshot'] == 'true') or \
                     ('goneshot' in value and value['goneshot'] == 'true'):
-                    exitCond = '|exit'
+                    logExitCond = ',WATCHLOGEXIT'
+                    funcExitCond = '|exit'
                 else:
-                    exitCond = ''
+                    logExitCond = ''
+                    funcExitCond = ''
 
                 # set mute flag #
                 if 'NOMUTE' in SysMgr.environList:
@@ -21684,16 +21691,25 @@ Commands:
                 handleCmd = 'GUIDER event %s%s' % (event, portOpt)
 
                 # set default command #
-                common = ['-g%s' % task]
+                if name == 'DBUS':
+                    common = []
+                else:
+                    common = ['-g%s' % task]
+
+                # append syscall option #
+                if name == 'SYSCALL':
+                    common += ['-t%s' % target.replace('+', ',')]
 
                 # set filter command #
-                if name == 'SIGNAL':
+                if name in ('SIGNAL', 'DBUS'):
                     # define mandatory environment variables #
                     addCmd = '-qWATCHLOG:%s,WATCHLOGCMD:%s' % \
                         (target, handleCmd)
                     # append main option #
                     if 'main' in value and value['main'] == 'true':
-                        addCmd += ',ONLYPROC'
+                        addCmd += ',ONLYPROC%s' % logExitCond
+                    else:
+                        addCmd += logExitCond
                     # composite values #
                     common += [addCmd]
 
@@ -21702,33 +21718,25 @@ Commands:
                     addCmd = '-c'
                     for func in target.split('+'):
                         addCmd += '%s|exec:%s%s,' % \
-                            (func, handleCmd, exitCond)
+                            (func, handleCmd, funcExitCond)
                     addCmd = addCmd.rstrip(',')
 
                     # append main option #
                     if 'main' in value and value['main'] == 'true':
                         common += ['-qONLYPROC']
-
                 common += [addCmd]
 
-                # append mute option #
-                if mute:
-                    common += ['-dp']
-
-                # append syscall option #
-                if name == 'SYSCALL':
-                    common += ['-t%s' % target.replace('+', ',')]
-
                 # append process group option #
-                if 'group' in value and value['group'] == 'true':
-                    common += ['-P']
+                if name != 'DBUS' and \
+                    'group' in value and value['group'] == 'true':
+                        common += ['-P']
 
                 # set command #
                 cmd = [funcList[name]] + common
 
                 # execute watcher tasks #
                 ret = SysMgr.launchGuider(
-                    cmd, mute=mute, pipe=False, stderr=True)
+                    cmd, mute=mute, pipe=False, stderr=True, copyOpt=False)
                 # register the event handling process #
                 if ret > 0:
                     SysMgr.eventCommandList.setdefault(event, ret)
@@ -27923,6 +27931,11 @@ Examples:
     - {2:1} except for specific messages
         # {0:1} {1:1} -G sendData
 
+    - {2:1} with detailed information in real-time until a log containing a specific word is detected
+        # {0:1} {1:1} -q WATCHLOG:"*oops*"
+
+    - {2:1} with detailed information in real-time until a log containing a specific word is detected and execute specific commands when terminated
+        # {0:1} {1:1} -q WATCHLOG:"*oops*", WATCHLOGCMD:"ls -lha"
                     '''.format(cmd, mode, 'Print D-Bus messages')
 
                     # printkmsg / printsys #
@@ -27936,18 +27949,18 @@ Examples:
                     # printjrl #
                     if SysMgr.checkMode('printjrl'):
                         helpStr += '''
-    - Print all journals
+    - {2:1} for all
         # {0:1} {1:1} -a
 
-    - Print journals including specific words in real-time
+    - {2:1} including specific words in real-time
         # {0:1} {1:1} -g test
 
-    - Print journals with all fields in real-time
+    - {2:1} with all fields in real-time
         # {0:1} {1:1} -I
 
-    - Print journals with specific fields in real-time
+    - {2:1} with specific fields in real-time
         # {0:1} {1:1} -I _TIME, _COMM, _PID
-                    '''.format(cmd, mode)
+                    '''.format(cmd, mode, 'Print the systemd journal')
 
                     # printdlt #
                     if SysMgr.checkMode('printdlt'):
@@ -34720,7 +34733,7 @@ Copyright:
                 return
 
             SysMgr.printWarn(
-                "detected '%s' in '%s'" % (', '.join(cond), log), True)
+                "detected '%s' in %s" % (', '.join(cond), [log]), True)
 
             # execute watch commands #
             if 'WATCHLOGCMD' in SysMgr.environList:
@@ -34729,7 +34742,8 @@ Copyright:
 
             # check exit condition #
             if 'WATCHLOGEXIT' in SysMgr.environList:
-                sys.exit(0)
+                os.kill(SysMgr.pid, signal.SIGINT)
+                signal.pause()
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -37002,8 +37016,8 @@ Copyright:
     @staticmethod
     def handleEventInput():
         def _sendEvent(event, ip, port):
-            # update uptime #
-            SysMgr.updateUptime()
+            # get uptime #
+            uptime = SysMgr.getUptime()
 
             # convert event name #
             for idx, item in enumerate(list(event)):
@@ -37026,7 +37040,7 @@ Copyright:
             for item in event:
                 try:
                     networkObject.request = item
-                    networkObject.send('%s@%s' % (item, SysMgr.uptime))
+                    networkObject.send('%s@%s' % (item, uptime))
                     SysMgr.printInfo(
                         "sent event '%s' to %s:%s" % (item, ip, port))
                 except SystemExit: sys.exit(0)
@@ -37323,7 +37337,7 @@ Copyright:
                 return []
 
         # update uptime #
-        SysMgr.updateUptime()
+        uptime = SysMgr.getUptime()
 
         # get socket inode address list of Guider processes #
         for pid in pids:
@@ -37366,7 +37380,7 @@ Copyright:
                 for item in event:
                     try:
                         networkObject.request = item
-                        networkObject.send('%s@%s' % (item, SysMgr.uptime))
+                        networkObject.send('%s@%s' % (item, uptime))
                         SysMgr.printInfo(
                             "sent event '%s' to %s:%s for %s(%s)" % \
                                 (item, ip, port, comm, pid))
@@ -37966,7 +37980,7 @@ Copyright:
         commIdx = ConfigMgr.STAT_ATTR.index("COMM")
 
         # update uptime #
-        SysMgr.updateUptime()
+        uptime = SysMgr.getUptime()
 
         # get my info #
         myComm = SysMgr.getComm(SysMgr.pid)
@@ -38020,7 +38034,7 @@ Copyright:
                 # runtime #
                 procStart = \
                     float(statList[gstatList.index("STARTTIME")]) / 100
-                runtime = long(SysMgr.uptime - procStart)
+                runtime = long(uptime - procStart)
 
                 # ppid #
                 ppid = statList[gstatList.index("PPID")]
@@ -38126,7 +38140,7 @@ Copyright:
     @staticmethod
     def waitUptime(deadline):
         while 1:
-            current = SysMgr.updateUptime()
+            current = SysMgr.getUptime()
             if current <= deadline:
                 time.sleep(0.1)
                 SysMgr.printWarn(
@@ -38432,7 +38446,7 @@ Copyright:
                 ret = SysMgr.createProcess(cmd.split())
 
             # check return #
-            if ret < 0:
+            if ret is False or ret < 0:
                 continue
 
             # ignore signals and wait for child #
@@ -38442,7 +38456,11 @@ Copyright:
             except SystemExit: sys.exit(0)
             except: pass
             finally:
-                SysMgr.setNormalSignal()
+                try:
+                    SysMgr.setNormalSignal()
+                except SystemExit: sys.exit(0)
+                except:
+                    pass
 
 
 
@@ -38541,11 +38559,15 @@ Copyright:
 
 
     @staticmethod
-    def initTimes():
+    def initTimes(first=True):
         # update start time #
-        SysMgr.startInitTime = SysMgr.startTime = SysMgr.updateUptime()
-        startRecTime = 0  # start time for Recording #
-        startRunTime = 0  # start time for Process #
+        if first:
+            newtime = SysMgr.updateUptime()
+        else:
+            newtime = SysMgr.getUptime()
+        SysMgr.startInitTime = SysMgr.startTime = newtime
+        SysMgr.startRecTime = 0  # start time for Recording #
+        SysMgr.startRunTime = 0  # start time for Process #
 
 
 
@@ -38665,7 +38687,7 @@ Copyright:
     @staticmethod
     def launchGuider(
         cmd, log=False, mute=False, pipe=True, stderr=False,
-        wait=False, stream=True, logo=True):
+        wait=False, stream=True, logo=True, copyOpt=True):
         '''
         - desc: launch a new Guider process as a child
         - pros: save memory such as ELF caches
@@ -38745,7 +38767,7 @@ Copyright:
             # inherit options #
             disOptVal = SysMgr.getOption('d')
             enOptVal = SysMgr.getOption('e')
-            if disOptVal or enOptVal:
+            if copyOpt and (disOptVal or enOptVal):
                 applyDisable = False
                 applyEnable = False
 
@@ -38959,7 +38981,7 @@ Copyright:
         # child #
         elif pid == 0:
             # init times #
-            SysMgr.initTimes()
+            SysMgr.initTimes(False)
             SysMgr.getRuntime()
 
             # update parent PID #
@@ -42089,7 +42111,7 @@ Copyright:
                 if not ret:
                     break
 
-                current = SysMgr.updateUptime()
+                current = SysMgr.getUptime()
 
                 for item in ret:
                     path, events, fname = item
@@ -42112,9 +42134,8 @@ Copyright:
                     else:
                         fpath = path
 
-                    SysMgr.printPipe(
-                        "[%.6f] %s@%s" % \
-                            (current, '|'.join(events), fpath))
+                    SysMgr.printPipe("[%.6f] %s@%s" % \
+                        (current, '|'.join(events), fpath))
 
                     # execute command #
                     for cmd in targetInfo[path]['cmd']:
@@ -52103,6 +52124,7 @@ class DbusMgr(object):
     connCache = {}
     dbgObj = None
     isTopMode = False
+    watchList = []
 
     G_IO_ERROR_TYPE = [
         'G_IO_ERROR_FAILED',
@@ -53718,12 +53740,12 @@ class DbusMgr(object):
                 # check time #
                 if jsonData["type"] != "enter":
                     return
+            except SystemExit: sys.exit(0)
             except:
                 return
 
             # check args #
             try:
-                # check syscall #
                 if ctype == "sendmsg" or ctype == "recvmsg":
                     if type(jsonData["args"]["msg"]) is dict:
                         msgList = jsonData["args"]["msg"]["msg_iov"]
@@ -53990,6 +54012,7 @@ class DbusMgr(object):
                                 direction, srcInfo, desInfo, serial,
                                 UtilMgr.convSize2Unit(hsize), addInfo)
 
+                        # check skip condition #
                         if effectiveReply:
                             pass
                         elif SysMgr.customCmd and \
@@ -54000,6 +54023,10 @@ class DbusMgr(object):
                         # finish printing this message #
                         if not isTopMode:
                             SysMgr.printPipe(msgStr, flush=True)
+
+                            # check log command #
+                            SysMgr.checkLogCond(msgStr, DbusMgr.watchList)
+
                             continue
 
                     # set task default dict #
@@ -54281,6 +54308,11 @@ class DbusMgr(object):
         interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
+
+        # get item for log filter #
+        if 'WATCHLOG' in SysMgr.environList:
+            DbusMgr.watchList = \
+                SysMgr.environList['WATCHLOG'][0].split('+')
 
         # initialize system stat #
         SysMgr.exceptCommFilter = True
@@ -55758,9 +55790,9 @@ class DltAnalyzer(object):
 
         # get item for log filter #
         if 'WATCHLOG' in SysMgr.environList:
-            exitCond = SysMgr.environList['WATCHLOG'][0].split('+')
+            watchcond = SysMgr.environList['WATCHLOG'][0].split('+')
         else:
-            exitCond = None
+            watchcond = None
 
         # get tail value #
         if 'TAIL' in SysMgr.environList:
@@ -55838,7 +55870,7 @@ class DltAnalyzer(object):
                     # handle a message #
                     DltAnalyzer.handleMessage(
                         dltObj, msg, buf, mode, verb,
-                        cond=exitCond, since=since)
+                        cond=watchcond, since=since)
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printWarn(
@@ -70386,7 +70418,8 @@ class ElfAnalyzer(object):
                     SysMgr.printInfo(failLog, prefix=False, title=False)
 
                 SysMgr.printWarn(
-                    "failed to load '%s' as an ELF object" % path, reason=True)
+                    "failed to load '%s' as an ELF object" % path,
+                    reason=True)
 
                 if raiseExcept:
                     raise Exception('wrong binary')
@@ -78206,8 +78239,7 @@ class TaskAnalyzer(object):
                 # draw text #
                 text(long(x), long(y), name, style='italic',
                     fontsize=self.lfsize*2, color='green', fontweight='bold',
-                    bbox=dict(boxstyle=feature, facecolor='gold',
-                    alpha=0.7))
+                    bbox=dict(boxstyle=feature, facecolor='gold', alpha=0.7))
             except SystemExit: sys.exit(0)
             except:
                 SysMgr.printErr(
@@ -81913,8 +81945,9 @@ class TaskAnalyzer(object):
                 moduleTable[module]['refCnt'] = 1
                 refCnt = moduleTable[module]['refCnt']
 
-                SysMgr.addPrint(
-                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
+                SysMgr.addPrint((
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|"
+                    "{2:^32}|{5:>12}|{6:^8}|\n").\
                     format('LOAD', current, module, comm, tid, '', refCnt))
                 printCnt += 1
 
@@ -81929,9 +81962,11 @@ class TaskAnalyzer(object):
                 moduleTable[module]['refCnt'] = 0
                 refCnt = moduleTable[module]['refCnt']
 
-                SysMgr.addPrint(
-                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
-                    format('FREE', current, module, comm, tid, lifetime, refCnt))
+                SysMgr.addPrint((
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|"
+                    "{2:^32}|{5:>12}|{6:^8}|\n").\
+                    format('FREE', current, module, comm,
+                        tid, lifetime, refCnt))
                 printCnt += 1
 
             # module refcount increase #
@@ -81940,8 +81975,9 @@ class TaskAnalyzer(object):
                 moduleTable[module]['refCnt'] = val[4]
                 refCnt = moduleTable[module]['refCnt']
 
-                SysMgr.addPrint(
-                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
+                SysMgr.addPrint((
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|"
+                    "{2:^32}|{5:>12}|{6:^8}|\n").\
                     format('GET', current, module, comm, tid, '', refCnt))
                 printCnt += 1
 
@@ -81959,9 +81995,11 @@ class TaskAnalyzer(object):
                 else:
                     elapsed = ''
 
-                SysMgr.addPrint(
-                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
-                    format('PUT', current, module, comm, tid, elapsed, refCnt))
+                SysMgr.addPrint((
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|"
+                    "{2:^32}|{5:>12}|{6:^8}|\n").\
+                    format('PUT', current, module, comm,
+                        tid, elapsed, refCnt))
                 printCnt += 1
 
         if printCnt == 0:
@@ -84507,18 +84545,18 @@ class TaskAnalyzer(object):
         convUnit2Size = UtilMgr.convUnit2Size
 
         # Split stats #
-        tokenList = procLine.split('|')
+        tokens = procLine.split('|')
 
         # Get Total resource usage #
         if 'total' not in procIndexData and \
-            tokenList[0].startswith('Total'):
+            tokens[0].startswith('Total'):
 
             # CPU & BLOCK stat #
             m = re.match((
                 r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*'
                 r'(?P<user>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*'
-                r'(?P<block>\-*[0-9]+)'), tokenList[1])
+                r'(?P<block>\-*[0-9]+)'), tokens[1])
             if not m:
                 return
 
@@ -84558,7 +84596,7 @@ class TaskAnalyzer(object):
             m = re.match((
                 r'\s*(?P<free>[0-9]+)\s*\(\s*(?P<freePer>[0-9]+)\s*'
                 r'/\s*(?P<anon>[0-9]+)\s*/\s*(?P<cache>[0-9]+)\s*'
-                r'/\s*(?P<kernel>[0-9]+)'), tokenList[2])
+                r'/\s*(?P<kernel>[0-9]+)'), tokens[2])
             if not m:
                 return
 
@@ -84591,11 +84629,11 @@ class TaskAnalyzer(object):
             procIndexData['total']['kernelmem'] = kernelMem
 
             try:
-                procIndexData['total']['blk'] = tokenList[5]
+                procIndexData['total']['blk'] = tokens[5]
             except:
                 procIndexData['total']['blk'] = '-'
 
-            m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokenList[3])
+            m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokens[3])
             if not m:
                 return
 
@@ -84605,26 +84643,26 @@ class TaskAnalyzer(object):
             procIndexData['total']['swap'] = long(d['swap'])
 
             try:
-                procIndexData['total']['rclm'] = tokenList[4].strip()
+                procIndexData['total']['rclm'] = tokens[4].strip()
             except:
                 procIndexData['total']['rclm'] = '-'
 
             try:
-                procIndexData['total']['nrFlt'] = long(tokenList[6])
+                procIndexData['total']['nrFlt'] = long(tokens[6])
             except:
                 procIndexData['total']['nrFlt'] = '-'
 
             try:
-                procIndexData['total']['netIO'] = tokenList[11].strip()
+                procIndexData['total']['netIO'] = tokens[11].strip()
             except:
                 procIndexData['total']['netIO'] = '-'
 
             return
 
         # Get GPU resource usage #
-        elif len(tokenList) == 5:
+        elif len(tokens) == 5:
             m = re.match(
-                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
+                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokens[0])
             if m:
                 d = m.groupdict()
 
@@ -84632,20 +84670,22 @@ class TaskAnalyzer(object):
                 usage = long(d['usage'])
 
                 procIndexData['total'].setdefault('gpu', {})
+
                 TA.procTotData['total'].setdefault('gpu', {})
+                totalData = TA.procTotData['total']['gpu']
 
                 try:
-                    TA.procTotData['total']['gpu'][gpu]['usage'] += usage
+                    totalData[gpu]['usage'] += usage
 
-                    if TA.procTotData['total']['gpu'][gpu]['min'] > usage:
-                        TA.procTotData['total']['gpu'][gpu]['min'] = usage
-                    elif TA.procTotData['total']['gpu'][gpu]['max'] < usage:
-                        TA.procTotData['total']['gpu'][gpu]['max'] = usage
+                    if totalData[gpu]['min'] > usage:
+                        totalData[gpu]['min'] = usage
+                    elif totalData[gpu]['max'] < usage:
+                        totalData[gpu]['max'] = usage
                 except:
-                    TA.procTotData['total']['gpu'][gpu] = {}
-                    TA.procTotData['total']['gpu'][gpu]['usage'] = usage
-                    TA.procTotData['total']['gpu'][gpu]['min'] = usage
-                    TA.procTotData['total']['gpu'][gpu]['max'] = usage
+                    totalData[gpu] = {}
+                    totalData[gpu]['usage'] = usage
+                    totalData[gpu]['min'] = usage
+                    totalData[gpu]['max'] = usage
 
                 try:
                     procIndexData['total']['gpu'][gpu] = usage
@@ -84654,76 +84694,77 @@ class TaskAnalyzer(object):
                 return
 
         # Get Storage resource usage #
-        elif len(tokenList) == 12 and tokenList[0][0] == '/':
+        elif len(tokens) == 12 and tokens[0][0] == '/':
             procIndexData['total'].setdefault('storage', {})
             TA.procTotData['total'].setdefault('storage', {})
 
             try:
                 # get device name #
-                dev = tokenList[0].strip()
+                dev = tokens[0].strip()
                 dev = dev[dev.rfind('/')+1:]
 
                 procIndexData['total']['storage'].setdefault(dev, {})
+                indexData = procIndexData['total']['storage'][dev]
+
                 TA.procTotData['total']['storage'].setdefault(dev, {})
+                totalData = TA.procTotData['total']['storage'][dev]
 
                 # get busy time and average queue-length #
-                busy = convUnit2Size(tokenList[1].strip()[:-1])
-                avq = tokenList[2].strip()
+                busy = convUnit2Size(tokens[1].strip()[:-1])
+                avq = tokens[2].strip()
 
                 # get storage stats in MB #
-                read = convUnit2Size(tokenList[3].strip())
-                write = convUnit2Size(tokenList[4].strip())
+                read = convUnit2Size(tokens[3].strip())
+                write = convUnit2Size(tokens[4].strip())
 
-                freestat = tokenList[5].strip().split('(')
+                freestat = tokens[5].strip().split('(')
                 freeDiff = convUnit2Size(freestat[1][:-1].strip())
 
                 # busy #
                 try:
-                    procIndexData['total']['storage'][dev]['busy'] = busy
-                    TA.procTotData['total']['storage'][dev]['busy'] += busy
+                    indexData['busy'] = busy
+                    totalData['busy'] += busy
                 except:
-                    TA.procTotData['total']['storage'][dev]['busy'] = busy
+                    totalData['busy'] = busy
 
                 # avq #
                 try:
-                    procIndexData['total']['storage'][dev]['avq'] = avq
-                    TA.procTotData['total']['storage'][dev]['avq'] += avq
+                    indexData['avq'] = avq
+                    totalData['avq'] += avq
                 except:
-                    TA.procTotData['total']['storage'][dev]['avq'] = avq
+                    totalData['avq'] = avq
 
                 # read #
                 try:
-                    procIndexData['total']['storage'][dev]['read'] = read
-                    TA.procTotData['total']['storage'][dev]['read'] += read
+                    indexData['read'] = read
+                    totalData['read'] += read
                 except:
-                    TA.procTotData['total']['storage'][dev]['read'] = read
+                    totalData['read'] = read
 
                 # write #
                 try:
-                    procIndexData['total']['storage'][dev]['write'] = \
-                        write
-                    TA.procTotData['total']['storage'][dev]['write'] += write
+                    indexData['write'] = write
+                    totalData['write'] += write
                 except:
-                    TA.procTotData['total']['storage'][dev]['write'] = write
+                    totalData['write'] = write
 
                 # freediff #
                 try:
-                    procIndexData['total']['storage'][dev]['free'] = \
-                        freeDiff
-                    TA.procTotData['total']['storage'][dev]['free'] += freeDiff
+                    indexData['free'] = freeDiff
+                    totalData['free'] += freeDiff
                 except:
-                    TA.procTotData['total']['storage'][dev]['free'] = freeDiff
+                    totalData['free'] = freeDiff
             except SystemExit: sys.exit(0)
             except: pass
 
             return
 
         # Get Network resource usage #
-        elif len(tokenList) == 13 and \
-            not tokenList[0].startswith('Total'):
+        elif len(tokens) == 13 and \
+            not tokens[0].startswith('Total'):
             # check condition #
-            if tokenList[0].strip() == 'ID' or \
-                tokenList[0].strip() == 'Dev':
+            if tokens[0].strip() == 'ID' or \
+                tokens[0].strip() == 'Dev':
                 return
 
             procIndexData['total'].setdefault('netdev', {})
@@ -84731,14 +84772,14 @@ class TaskAnalyzer(object):
 
             try:
                 # get device name #
-                dev = tokenList[0].strip()
+                dev = tokens[0].strip()
 
                 procIndexData['total']['netdev'].setdefault(dev, {})
                 TA.procTotData['total']['netdev'].setdefault(dev, {})
 
                 # get storage stats in MB #
-                recv = convUnit2Size(tokenList[2].strip())
-                tran = convUnit2Size(tokenList[7].strip())
+                recv = convUnit2Size(tokens[2].strip())
+                tran = convUnit2Size(tokens[7].strip())
 
                 # recv #
                 try:
@@ -84758,12 +84799,12 @@ class TaskAnalyzer(object):
             return
 
         # Get Cgroup resource usage #
-        elif len(tokenList) == 9:
-            tokenList = UtilMgr.cleanItem(tokenList, False)
-            if len(tokenList) != 8:
+        elif len(tokens) == 9:
+            tokens = UtilMgr.cleanItem(tokens, False)
+            if len(tokens) != 8:
                 return
 
-            system, proc, task, cpu, thr, mem, read, write = tokenList
+            system, proc, task, cpu, thr, mem, read, write = tokens
 
             # CPU #
             target = 'cgroup.cpu'
@@ -84773,19 +84814,21 @@ class TaskAnalyzer(object):
             except:
                 return
 
-            try:
-                TA.procTotData['total'].setdefault(target, {})
-                TA.procTotData['total'][target][system]['usage'] += usage
+            TA.procTotData['total'].setdefault(target, {})
+            totalData = TA.procTotData['total'][target]
 
-                if TA.procTotData['total'][target][system]['min'] > usage:
-                    TA.procTotData['total'][target][system]['min'] = usage
-                elif TA.procTotData['total'][target][system]['max'] < usage:
-                    TA.procTotData['total'][target][system]['max'] = usage
+            try:
+                totalData[system]['usage'] += usage
+
+                if totalData[system]['min'] > usage:
+                    totalData[system]['min'] = usage
+                elif totalData[system]['max'] < usage:
+                    totalData[system]['max'] = usage
             except:
-                TA.procTotData['total'][target][system] = {}
-                TA.procTotData['total'][target][system]['usage'] = usage
-                TA.procTotData['total'][target][system]['min'] = usage
-                TA.procTotData['total'][target][system]['max'] = usage
+                totalData[system] = {}
+                totalData[system]['usage'] = usage
+                totalData[system]['min'] = usage
+                totalData[system]['max'] = usage
 
             try:
                 procIndexData['total'].setdefault(target, {})
@@ -84800,19 +84843,21 @@ class TaskAnalyzer(object):
             except:
                 return
 
-            try:
-                TA.procTotData['total'].setdefault(target, {})
-                TA.procTotData['total'][target][system]['usage'] = usage
+            TA.procTotData['total'].setdefault(target, {})
+            totalData = TA.procTotData['total'][target]
 
-                if TA.procTotData['total'][target][system]['min'] > usage:
-                    TA.procTotData['total'][target][system]['min'] = usage
-                elif TA.procTotData['total'][target][system]['max'] < usage:
-                    TA.procTotData['total'][target][system]['max'] = usage
+            try:
+                totalData[system]['usage'] = usage
+
+                if totalData[system]['min'] > usage:
+                    totalData[system]['min'] = usage
+                elif totalData[system]['max'] < usage:
+                    totalData[system]['max'] = usage
             except:
-                TA.procTotData['total'][target][system] = {}
-                TA.procTotData['total'][target][system]['usage'] = usage
-                TA.procTotData['total'][target][system]['min'] = usage
-                TA.procTotData['total'][target][system]['max'] = usage
+                totalData[system] = {}
+                totalData[system]['usage'] = usage
+                totalData[system]['min'] = usage
+                totalData[system]['max'] = usage
 
             try:
                 procIndexData['total'].setdefault(target, {})
