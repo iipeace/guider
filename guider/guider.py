@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220326"
+__revision__ = "220327"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3638,8 +3638,8 @@ class ConfigMgr(object):
         'RLIMIT_NLIMITS'
     ]
 
-    # udp/tcp format of system #
-    UDP_ATTR = [
+    # UDP/TCP format #
+    PROTOCOL_ATTR = [
         'sl',
         'local_address',
         'rem_address',
@@ -3655,7 +3655,7 @@ class ConfigMgr(object):
         'drops'
     ]
 
-    # uds format of system #
+    # UDS format #
     UDS_ATTR = [
         'Num',
         'RefCount',
@@ -14681,10 +14681,8 @@ class FunctionAnalyzer(object):
         # Print CPU usage in kernel space #
         title = 'Function CPU-Tick Info'
         SysMgr.clearPrint()
-        SysMgr.printPipe(
-            '[%s] [Cnt: %s] [Interval: %dms] (KERNEL)' % \
+        SysMgr.printPipe('[%s] [Cnt: %s] [Interval: %dms] (KERNEL)' % \
             (title, tCnt, self.periodicEventInterval * 1000))
-
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -18936,6 +18934,7 @@ class SysMgr(object):
     memLowThreshold = 100
     swapPerThreshold = 90
     diskPerHighThreshold = 90
+    fdHighThreshold = 1000
 
     # print condition #
     printCond = dict(
@@ -19088,6 +19087,7 @@ class SysMgr(object):
     addrListForPrint = {}
     addrListForReport = {}
 
+    # number #
     maxCore = 0
     nrCore = 0
     utilProc = 0
@@ -19106,6 +19106,10 @@ class SysMgr(object):
     loadavg = ''
     battery = {}
     netInIndex = -1
+    nrUDPSock = 0
+    nrTCPSock = 0
+    nrUDSSock = 0
+    nrTCPConn = 0
 
     # report #
     reportObject = None
@@ -21949,7 +21953,7 @@ Commands:
         # check default resources #
         resourceList = [
             'cpu', 'gpu', 'mem', 'gpumem', 'swap', 'block',
-            'storage', 'net', 'fd', 'task'
+            'storage', 'net', 'fd', 'sock', 'task'
         ]
 
         # check resources for activation #
@@ -26354,6 +26358,9 @@ Examples:
 
     - {2:1} with threshold condition and print the output of child tasks
         # {0:1} {1:1} -q NOMUTE
+
+    - {2:1} without socket profiling
+        # {0:1} {1:1} -q NOSOCKPROF
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode, 'Monitor resources')
@@ -31516,6 +31523,9 @@ Copyright:
         udsBuf = []
         udsPath = '%s/net/unix' % SysMgr.procPath
 
+        # init UDS stats #
+        SysMgr.nrUDSSock = 0
+
         # make dictionary #
         try:
             with open(udsPath, 'r') as fd:
@@ -31532,6 +31542,9 @@ Copyright:
             try:
                 if not line:
                     continue
+
+                # increase UDS socket number #
+                SysMgr.nrUDSSock += 1
 
                 uds = line.split()
 
@@ -31557,14 +31570,17 @@ Copyright:
         if SysMgr.udpListCache:
             return _getStats(addrList)
 
-        inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
-        laddrIdx = ConfigMgr.UDP_ATTR.index('local_address')
+        inodeIdx = ConfigMgr.PROTOCOL_ATTR.index('inode')
+        laddrIdx = ConfigMgr.PROTOCOL_ATTR.index('local_address')
 
         udpBuf = []
         udpFileList = [
             '%s/net/udp' % SysMgr.procPath,
             '%s/net/udp6' % SysMgr.procPath,
         ]
+
+        # init UDP stats #
+        SysMgr.nrUDPSock = 0
 
         for udpPath in udpFileList:
             try:
@@ -31582,6 +31598,9 @@ Copyright:
                 try:
                     if not line:
                         continue
+
+                    # increase UCP socket number #
+                    SysMgr.nrUDPSock += 1
 
                     udp = line.split()
 
@@ -31625,15 +31644,20 @@ Copyright:
         if SysMgr.tcpListCache:
             return _getStats(addrList)
 
-        stIdx = ConfigMgr.UDP_ATTR.index('st')
-        inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
-        laddrIdx = ConfigMgr.UDP_ATTR.index('local_address')
+        stIdx = ConfigMgr.PROTOCOL_ATTR.index('st')
+        inodeIdx = ConfigMgr.PROTOCOL_ATTR.index('inode')
+        laddrIdx = ConfigMgr.PROTOCOL_ATTR.index('local_address')
+        estIdx = ConfigMgr.TCP_STAT.index('ESTABLISHED')
 
         tcpBuf = []
         tcpFileList = [
             '%s/net/tcp' % SysMgr.procPath,
             '%s/net/tcp6' % SysMgr.procPath,
         ]
+
+        # init TCP stats #
+        SysMgr.nrTCPSock = 0
+        SysMgr.nrTCPConn = 0
 
         # make dictionary #
         for tcpPath in tcpFileList:
@@ -31653,6 +31677,9 @@ Copyright:
                     if not line:
                         continue
 
+                    # increase TCP socket number #
+                    SysMgr.nrTCPSock += 1
+
                     tcp = line.split()
 
                     # convert local address #
@@ -31666,7 +31693,7 @@ Copyright:
                     # append remote address #
                     try:
                         rport = long(rport, 16)
-                        if long(rip, 16) > 0 and rport > 0:
+                        if rport > 0 and long(rip, 16) > 0:
                             rip = SysMgr.convCIDR(rip)
                             item = "%s->%s:%s" % (item, rip, rport)
                     except SystemExit: sys.exit(0)
@@ -31674,8 +31701,14 @@ Copyright:
 
                     # define status #
                     try:
-                        stat = '/%s' % \
-                            ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
+                        tcpStat = long(tcp[stIdx], 16)
+
+                        # increase established TCP socket number #
+                        if tcpStat == estIdx:
+                            SysMgr.nrTCPConn += 1
+
+                        stat = '/%s' % ConfigMgr.TCP_STAT[tcpStat]
+                    except SystemExit: sys.exit(0)
                     except:
                         stat = ''
 
@@ -90412,6 +90445,7 @@ class TaskAnalyzer(object):
 
         convNum = UtilMgr.convNum
         convSize = UtilMgr.convSize2Unit
+        convColor = UtilMgr.convColor
 
         # print CPU usage #
         if SysMgr.isLinux:
@@ -90445,13 +90479,17 @@ class TaskAnalyzer(object):
         try:
             curFd = sysFds[0]
             maxFd = sysFds[2]
-            fdUsage = '%.1f' % (curFd / float(maxFd) * 100)
+            fdUsage = '%d' % (curFd / float(maxFd) * 100)
             sysFdStr = '%s(%s%%/%s)' % \
                 (convNum(curFd), fdUsage, convSize(maxFd, True))
         except SystemExit: sys.exit(0)
         except:
             curFd = maxFd = 0
             sysFdStr = '?'
+
+        # get the number of sockets #
+        SysMgr.getSocketAddrList([])
+        SysMgr.getUdsList([])
 
         # print menu #
         if SysMgr.jsonEnable:
@@ -90462,19 +90500,30 @@ class TaskAnalyzer(object):
                 'nrOpenFd': self.nrFd,
                 'nrCurFdHandle': curFd,
                 'nrMaxFdHandle': maxFd,
+                'nrUDPSock': SysMgr.nrUDPSock,
+                'nrTCPSock': SysMgr.nrTCPSock,
+                'nrTCPConn': SysMgr.nrTCPConn,
+                'nrUDSSock': SysMgr.nrUDSSock,
                 'nrFile': len(self.fileData),
                 'comm': SysMgr.comm,
                 'pid': SysMgr.pid,
                 'processes': {},
             }
         else:
-            SysMgr.addPrint(UtilMgr.convColor((
-                "[Top File Info] [Time: %7.3f] [Interval: %.3f] [Proc: %s] "
-                "[Handle: %s] [FD: %s] [File: %s] [SYS: %s/%s] "
-                "[%s(%s): %s]\n") % (SysMgr.uptime, SysMgr.uptimeDiff,
-                    convNum(self.nrProcess), sysFdStr, convNum(self.nrFd),
-                    convNum(len(self.fileData)), sysCpuStr, sysMemStr,
-                    SysMgr.comm, SysMgr.pid, mcpuStr), 'BOLD'))
+            SysMgr.addPrint(convColor((
+                "[Top File Info] [Time: %7.3f] [Inter: %.3f]"
+                " [Proc: %s] [SYS: %s/%s] [%s(%s): %s]\n") % \
+                    (SysMgr.uptime, SysMgr.uptimeDiff,
+                        convNum(self.nrProcess), sysCpuStr, sysMemStr,
+                        SysMgr.comm, SysMgr.pid, mcpuStr), 'BOLD'))
+
+            SysMgr.addPrint(convColor((
+                "%s[Handle: %s] [FD: %s] [File: %s] "
+                "[UDP: %s] [TCP: %s] [TCP(ESTABLISHED): %s] [UDS: %s]\n") % \
+                    (' ' * 16, sysFdStr, convNum(self.nrFd),
+                        convNum(len(self.fileData)), convNum(SysMgr.nrUDPSock),
+                        convNum(SysMgr.nrTCPSock), convNum(SysMgr.nrTCPConn),
+                        convNum(SysMgr.nrUDSSock)), 'BOLD'))
 
             SysMgr.addPrint("%s\n" % twoLine + \
                 ("{0:>16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|"
@@ -90534,8 +90583,8 @@ class TaskAnalyzer(object):
 
             # convert the number of fds #
             nrFd = len(value['fdList'])
-            if nrFd > 1000:
-                nrFd = UtilMgr.convColor(nrFd, 'RED', 6)
+            if nrFd > SysMgr.fdHighThreshold:
+                nrFd = convColor(nrFd, 'RED', 6)
             elif nrFd == 0:
                 break
 
@@ -93609,9 +93658,40 @@ class TaskAnalyzer(object):
         # fd #
         try:
             self.reportData['fd'] = {}
+
             sysFds = SysMgr.getNrSysFdHandle()
-            self.reportData['fd']['curfd'] = sysFds[0]
-            self.reportData['fd']['maxfd'] = sysFds[2]
+            self.reportData['fd']['curFd'] = sysFds[0]
+            self.reportData['fd']['maxFd'] = sysFds[2]
+        except SystemExit: sys.exit(0)
+        except: pass
+
+        # sock #
+        try:
+            self.reportData['sock'] = {}
+
+            # check skip condition #
+            if 'NOSOCKPROF' in SysMgr.environList:
+                raise Exception('no socket profilng')
+
+            # flush socket caches #
+            SysMgr.udpListCache = {}
+            SysMgr.tcpListCache = {}
+            SysMgr.udsListCache = {}
+
+            # get the number of sockets #
+            SysMgr.getSocketAddrList([])
+            SysMgr.getUdsList([])
+
+            self.reportData['sock']['nrUDPSock'] = SysMgr.nrUDPSock
+            self.reportData['sock']['nrTCPSock'] = SysMgr.nrTCPSock
+            self.reportData['sock']['nrTCPConn'] = SysMgr.nrTCPConn
+            self.reportData['sock']['nrUDSSock'] = SysMgr.nrUDSSock
+
+            # add socket interval #
+            self.addSysInterval('sock', 'nrUDPSock', SysMgr.nrUDPSock)
+            self.addSysInterval('sock', 'nrTCPSock', SysMgr.nrTCPSock)
+            self.addSysInterval('sock', 'nrTCPConn', SysMgr.nrTCPConn)
+            self.addSysInterval('sock', 'nrUDSSock', SysMgr.nrUDSSock)
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -95821,16 +95901,16 @@ class TaskAnalyzer(object):
                     fdsize = long(status['FDSize'])
 
                 # update fdsize #
-                value['fdsize'] = fdsize
+                value['fdSize'] = fdsize
 
                 # apply color #
-                if fdsize > 1000:
+                if fdsize > SysMgr.fdHighThreshold:
                     fdstr = convColor(fdsize, 'RED', 4)
                 else:
                     fdstr = fdsize
             except SystemExit: sys.exit(0)
             except:
-                value['fdsize'] = 0
+                value['fdSize'] = 0
                 fdstr = '-'
 
             # scheduling info #
@@ -97624,7 +97704,22 @@ class TaskAnalyzer(object):
         # check fd #
         try:
             if 'fd' in SysMgr.thresholdTarget:
-                self.checkThreshold('fd', 'curfd', 'FD', 'big')
+                self.checkThreshold('fd', 'curFd', 'FD', 'big')
+        except SystemExit: sys.exit(0)
+        except: pass
+
+        # check fd #
+        try:
+            if 'sock' in SysMgr.thresholdTarget:
+                items = ['nrUDPSock', 'nrTCPSock', 'nrTCPConn', 'nrUDSSock']
+                for item in items:
+                    if item in self.intervalData:
+                        intval = self.intervalData[item]
+                    else:
+                        intval = None
+
+                    self.checkThreshold(
+                        'sock', item, 'SOCK', 'big', intval=intval)
         except SystemExit: sys.exit(0)
         except: pass
 
@@ -98038,7 +98133,7 @@ class TaskAnalyzer(object):
             maps += [['gpumem', 'size', None, None, 'GPUMEM', 'big']]
         # fd #
         if 'fd' in tt and tt['fd']:
-            maps += [['fd', 'fdsize', 'fdsize', None, 'FD', 'big']]
+            maps += [['fd', 'fdSize', 'fdSize', None, 'FD', 'big']]
         # swap #
         if 'swap' in tt and tt['swap']:
             maps += [['swap', 'swap', 'swap', 'swapInt', 'SWAP', 'big']]
