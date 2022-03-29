@@ -3,9 +3,9 @@ import site, os, sys, shutil
 
 setup(
     name = 'guider',
-    version = '3.9.89',
+    version = '3.9.891',
     license = 'GPL2',
-    description = 'A system-wide analyzer of performance',
+    description = 'Unified performance analyzer',
     author = 'Peace Lee',
     author_email = 'iipeace5@gmail.com',
     url = 'https://github.com/iipeace/guider',
@@ -13,10 +13,9 @@ setup(
     packages = find_packages(exclude = ['tests*']),
     keywords = ['guider', 'linux', 'analyzer', 'performance', 'profile', 'trace', 'kernel'],
     scripts = ['guider/guider'],
+    data_files = [("guider", ["guider/guider.conf"])],
     zip_safe=False,
-    install_requires = [
-        'psutil; platform_system!="Linux"',
-        ],
+    install_requires = ['psutil; platform_system!="Linux"'],
     classifiers = [
         'Environment :: Console',
         'Natural Language :: English',
