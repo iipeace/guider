@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220327"
+__revision__ = "220329"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19295,6 +19295,7 @@ class SysMgr(object):
     perCoreList = []
     perCoreDrawList = []
     childList = {}
+    gpuMemGetters = None
     pidFilter = None
 
     cliCmdStr = '''
@@ -19948,7 +19949,75 @@ Commands:
 
     @staticmethod
     def getGpuMem():
-        return SysMgr.getNvGpuMem()
+        if SysMgr.gpuMemGetters is None:
+            SysMgr.gpuMemGetters = [
+                SysMgr.getNvGpuMem,   # nvidia #
+                SysMgr.getMaliGpuMem, # mali #
+            ]
+
+        res = {}
+        removeList = []
+        getters = SysMgr.gpuMemGetters
+
+        for func in getters: # pylint: disable=not-an-iterable
+            ret = func()
+            if ret:
+                # merge size #
+                for item in ret:
+                    if item in res:
+                        res[item]['size'] += ret[item]['size']
+                    else:
+                        res[item] = ret[item]
+            else:
+                removeList.append(func)
+
+        # remove invalid getters #
+        if removeList:
+            SysMgr.gpuMemGetters = list(set(getters) - set(removeList))
+
+        return res
+
+
+
+    @staticmethod
+    def getMaliGpuMem():
+        # read Mali GPU memory info #
+        try:
+            path = '/sys/kernel/debug/mali/gpu_memory'
+            if not os.path.exists(path):
+                return
+
+            with open(path, 'rb') as fd:
+                gpuInfo = fd.readlines()[2:]
+        except SystemExit: sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path)
+            return
+
+        gpuStat = {}
+
+        # parse per-process memory info #
+        for item in gpuInfo:
+            try:
+                line = item.decode().split()
+
+                if line[0] == 'Mali':
+                    if line[2] == 'usage':
+                        pid = '0'
+                        comm = 'TOTAL'
+                        size = line[3]
+                    else:
+                        continue
+                else:
+                    comm, pid, mali, malimax, extern, ump, dma = line
+            except SystemExit: sys.exit(0)
+            except:
+                continue
+
+            # save stat #
+            gpuStat.setdefault(pid, {'comm': comm, 'size': long(mali)})
+
+        return gpuStat
 
 
 
@@ -95463,6 +95532,9 @@ class TaskAnalyzer(object):
                 sidType = 'Yld'
                 pgrpType = 'Prmt'
 
+            if 'GPUMEM' in SysMgr.environList:
+                sidType = 'GPU'
+
             if SysMgr.wfcEnable:
                 dprop = 'WFC'
             else:
@@ -95951,6 +96023,13 @@ class TaskAnalyzer(object):
                 except:
                     prtd = '-'
 
+            # GPU memory usage #
+            if isGpuMem:
+                if idx in self.gpuMemData:
+                    yld = convColor(self.gpuMemData[idx]['size'] >> 20, 'CYAN', 5)
+                else:
+                    yld = '-'
+
             try:
                 # get blocked time of parent process waits for its children #
                 if SysMgr.wfcEnable:
@@ -96291,13 +96370,6 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
-            # print GPU memory info #
-            if isGpuMem and idx in self.gpuMemData:
-                SysMgr.addPrint(
-                    "{0:>39} | {1:1}\n".format('GPUMEM',
-                        convColor(convSize(
-                            self.gpuMemData[idx]['size']), 'CYAN')))
-
             # print namespace #
             if SysMgr.nsEnable and value['ns']:
                 SysMgr.addPrint(
@@ -96397,8 +96469,8 @@ class TaskAnalyzer(object):
             tswap = totalStats['swap']
             try:
                 if tswap > 0:
-                    tswap = convSize(totalStats['swap'] << 20)
-                    tswap = convColor(tswap,'YELLOW', 6)
+                    tswap = convSize(totalStats['swap'] << 20, True)
+                    tswap = convColor(tswap,'YELLOW', 5)
             except SystemExit: sys.exit(0)
             except: pass
 
@@ -96406,7 +96478,7 @@ class TaskAnalyzer(object):
             SysMgr.addPrint(
                 ("{0:>{td}}|"
                 "{1:>6}({2:>4}/{3:>4})|"
-                "{4:>3}:{5:>7}|{6:>3}:{7:>6}|"
+                "{4:>4}:{5:>7}|{6:>3}:{7:>5}|"
                 "{8:>4}({9:>4}/{10:>4}/{11:>5})|"
                 "{12:>12}|{13:>14}|{14:>21}|\n").\
                 format('[ TOTAL ]', totalTime, totalStats['utime'],
