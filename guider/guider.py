@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220329"
+__revision__ = "220331"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24703,6 +24703,14 @@ Examples:
     - {3:1} {2:2} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT@192.168.0.5:5555
 
+    - {3:1} {2:2} with sending signals to specific {2:2}
+        # {0:1} {1:1} -k a.out:SIGKILL
+        # {0:1} {1:1} -k a.out:SIGKILL:CONT
+
+    - {3:1} {2:2} with changing CPU affinity for specific {2:2}
+        # {0:1} {1:1} -z a.out:3
+        # {0:1} {1:1} -z a.out:3:CONT
+
     - {3:1} {2:2} with the number in front of the name
         # {0:1} {1:1} -c index
 
@@ -43184,6 +43192,9 @@ Copyright:
             abspath = "[%s]" % (abspath)
             result = [abspath]
 
+            if SysMgr.filterGroup:
+                SysMgr.printPipe()
+
             _getDirs(path, initDir, "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
             UtilMgr.deleteProgress()
@@ -46416,7 +46427,7 @@ Copyright:
                     '\n[%9s] SIZE: %s, %s' % \
                         ('ALLOC', conv(size, True), statstr)
             else:
-                allocstr = '\n[%9s] %s' % ('TIME', SysMgr.updateUptime())
+                allocstr = '\n[%9s] %.3f' % ('TIME', SysMgr.updateUptime())
 
             SysMgr.printPipe('%s%s%s%s%s%s%s' % \
                 (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr),
@@ -48787,6 +48798,7 @@ Copyright:
         self.cmdList["task"] = True
         self.cmdList["signal"] = True
         self.cmdList["printk"] = True
+        self.cmdList["lowmemorykiller/lowmemory_kill"] = True
         self.cmdList["module/module_load"] = True
         self.cmdList["module/module_free"] = True
         self.cmdList["module/module_put"] = True
@@ -81250,6 +81262,9 @@ class TaskAnalyzer(object):
         # print syscall usage #
         self.printSyscallInfo()
 
+        # print LMK info #
+        self.printLMKInfo()
+
         # print binder usage #
         self.printBinderInfo()
 
@@ -82868,6 +82883,35 @@ class TaskAnalyzer(object):
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
+
+
+
+    def printLMKInfo(self):
+        if not self.lmkData:
+            return
+
+        SysMgr.printPipe('\n[Thread LMK Info] (Unit: KB)')
+        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "%10s %16s %10s %10s %10s %10s" % \
+            ('Time', 'Name', 'TID', 'free', 'file', 'minfree'))
+        SysMgr.printPipe(twoLine)
+
+        startTime = float(SysMgr.startTime)
+
+        cnt = 0
+        for msg in self.lmkData:
+            try:
+                SysMgr.printPipe("%10.3f %16s %10s %10s %10s %10s" % \
+                    (round(float(msg[0]) - startTime, 7), msg[1], msg[2],
+                        msg[3], msg[4], msg[5]))
+                cnt += 1
+            except:
+                continue
+
+        if cnt == 0:
+            SysMgr.printPipe("\tNone")
+        SysMgr.printPipe(twoLine)
 
 
 
@@ -87644,6 +87688,7 @@ class TaskAnalyzer(object):
         self.intData = []
         self.depData = []
         self.sigData = []
+        self.lmkData = []
         self.lockTable = {}
         self.flockData = []
         self.futexData = []
@@ -89578,12 +89623,18 @@ class TaskAnalyzer(object):
             threadData['reclaimCnt'] += 1
 
         elif func == "mm_vmscan_kswapd_sleep":
+            popList = []
+
             for key, value in self.reclaimData.items():
                 self.threadData.setdefault(key, dict(self.init_threadData))
                 self.threadData[key]['comm'] = comm
 
                 self.threadData[key]['reclaimWait'] += \
                     ftime - float(value['start'])
+
+                popList.append(key)
+
+            for key in popList:
                 self.reclaimData.pop(key, None)
 
         elif func == "mm_vmscan_direct_reclaim_begin":
@@ -89608,6 +89659,31 @@ class TaskAnalyzer(object):
                     ftime - threadData['dReclaimStart']
 
             threadData['dReclaimStart'] = 0
+
+        elif func == "lowmemory_kill":
+            m = re.match((
+                r'^\s*(?P<comm>.+) \((?P<pid>[0-9]+)\), '
+                r'page cache (?P<other_file>.+) \(limit (?P<minfree>.+)\), '
+                r'free (?P<other_free>.+)'), etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+
+            '''
+            other_free: NR_FREE_PAGES - totalreserve_pages
+            other_file: NR_FILE_PAGES - NR_SHMEM
+            minfree: threshold condition (other_free < minfree && other_file < minfree)
+            '''
+
+            convNum = UtilMgr.convNum
+            other_free = convNum(d['other_free'].upper().rstrip('KB'))
+            other_file = convNum(d['other_file'].upper().rstrip('KB'))
+            minfree = convNum(d['minfree'].upper().rstrip('KB'))
+
+            self.lmkData.append(
+                [time, d['comm'], d['pid'], other_free, other_file, minfree])
 
         elif func == "task_newtask":
             m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
@@ -95532,9 +95608,12 @@ class TaskAnalyzer(object):
                 sidType = 'Yld'
                 pgrpType = 'Prmt'
 
-            if 'GPUMEM' in SysMgr.environList:
+            # check GPU option #
+            if 'GPUMEM' in SysMgr.environList or \
+                'GPUMEMSUM' in SysMgr.environList:
                 sidType = 'GPU'
 
+            # check delay option #
             if SysMgr.wfcEnable:
                 dprop = 'WFC'
             else:
@@ -96024,7 +96103,7 @@ class TaskAnalyzer(object):
                     prtd = '-'
 
             # GPU memory usage #
-            if isGpuMem:
+            if isGpuMem or isGpuMemSum:
                 if idx in self.gpuMemData:
                     yld = convColor(self.gpuMemData[idx]['size'] >> 20, 'CYAN', 5)
                 else:
