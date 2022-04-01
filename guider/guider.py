@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220331"
+__revision__ = "220401"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19592,11 +19592,15 @@ class LeakAnalyzer(object):
             if val["lastPosSize"] == 0:
                 break
 
+            size = val["lastPosSize"]
+            count = val["lastPosCnt"]
+            avg = long(size / count)
+
             SysMgr.printPipe(
                 "{0:>7} | {1:>7} | {2:>7} | {3:<122} ".format(
-                    convSize(val["lastPosSize"]),
-                    convSize(val["count"]),
-                    convSize(long(val["lastPosSize"] / val["count"])),
+                    convSize(size),
+                    convSize(count),
+                    convSize(avg),
                     "%s[%s]" % (sym, val["path"]),
                 )
             )
@@ -19651,20 +19655,23 @@ class LeakAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         count = 0
-        for file, val in sorted(
+        for fpath, val in sorted(
             self.fileData.items(),
             key=lambda e: long(e[1]["lastPosSize"]),
             reverse=True,
         ):
             if val["lastPosSize"] == 0:
                 break
+            elif val["lastPosCnt"] == 0:
+                continue
+
+            size = val["lastPosSize"]
+            count = val["lastPosCnt"]
+            avg = long(size / count)
 
             SysMgr.printPipe(
                 "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
-                    convSize(val["lastPosSize"]),
-                    convSize(val["count"]),
-                    convSize(long(val["lastPosSize"] / val["count"])),
-                    file,
+                    convSize(size), convSize(count), convSize(avg), fpath
                 )
             )
 
@@ -19743,23 +19750,26 @@ class LeakAnalyzer(object):
 
             # merge by symbol #
             sym = val["sym"]
-            self.symData[sym] = dict(self.init_symData)
-            symData = self.symData[sym]
 
             try:
+                symData = self.symData[sym]
                 symData["count"] += val["count"]
                 symData["size"] += val["size"]
-                symData["lastPosCnt"] += val["lastPosCnt"]
                 symData["lastPosSize"] += val["lastPosSize"]
+                if val["lastPosSize"] > 0:
+                    symData["lastPosCnt"] += val["count"]
             except SystemExit:
                 sys.exit(0)
             except:
+                self.symData[sym] = dict(self.init_symData)
+                symData = self.symData[sym]
                 symData["offset"] = val["offset"]
                 symData["path"] = val["path"]
                 symData["count"] = val["count"]
                 symData["size"] = val["size"]
-                symData["lastPosCnt"] = val["lastPosCnt"]
                 symData["lastPosSize"] = val["lastPosSize"]
+                if val["lastPosSize"] > 0:
+                    symData["lastPosCnt"] += val["count"]
                 symData["substack"] = {}
 
             # merge by backtrace #
@@ -19776,22 +19786,24 @@ class LeakAnalyzer(object):
                     except:
                         symData["substack"][substack] = size
 
-            self.fileData[path] = dict(self.init_fileData)
-            fileData = self.fileData[path]
-
             # merge by file #
             try:
+                fileData = self.fileData[path]
                 fileData["count"] += val["count"]
                 fileData["size"] += val["size"]
-                fileData["lastPosCnt"] += val["lastPosCnt"]
                 fileData["lastPosSize"] += val["lastPosSize"]
+                if val["lastPosSize"] > 0:
+                    fileData["lastPosCnt"] += val["count"]
             except SystemExit:
                 sys.exit(0)
             except:
+                self.fileData[path] = dict(self.init_fileData)
+                fileData = self.fileData[path]
                 fileData["count"] = val["count"]
                 fileData["size"] = val["size"]
-                fileData["lastPosCnt"] = val["lastPosCnt"]
                 fileData["lastPosSize"] = val["lastPosSize"]
+                if val["lastPosSize"] > 0:
+                    fileData["lastPosCnt"] = val["count"]
 
             self.totalLeakSize += val["lastPosSize"]
 
@@ -22811,6 +22823,7 @@ class SysMgr(object):
     condExit = False
     sort = None
     sortCond = None
+    sortCondOp = None
 
     # descriptor #
     maxFd = 512
@@ -27591,6 +27604,8 @@ Commands:
         elif value == "f":
             SysMgr.printInfo("sorted by FILE")
             SysMgr.fileTopEnable = True
+        elif value == "s":
+            SysMgr.printInfo("sorted by SWAP")
         elif value == "C":
             if not SysMgr.checkMode("ttop"):
                 SysMgr.printErr(
@@ -27609,6 +27624,13 @@ Commands:
 
         # set values #
         SysMgr.sort = value
+        if cond and len(cond) > 1:
+            if cond[0] == '>':
+                SysMgr.sortCondOp = '>'
+                cond = cond[1:]
+            elif cond[0] == '<':
+                SysMgr.sortCondOp = '<'
+                cond = cond[1:]
         SysMgr.sortCond = cond
 
         return True
@@ -28132,7 +28154,7 @@ Usage:
     -N  <REQ@IP:PORT>           set report address
     -S  <CHARACTER{:VALUE}>     sort by key
           [ c:cpu / m:mem / p:pid / N:name / b:block / w:wfc
-            n:new / f:file / r:runtime:TIME / e:exectime:TIME
+            n:new / f:file / r:runtime / s:swap / e:exectime
             P:prio / C:contextswitch / o:oomscore ]
     -P                          group threads in a same process
     -I  <CMD|FILE>              set input command or file
@@ -28332,16 +28354,19 @@ Examples:
     - {3:1} all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
+        # {0:1} {1:1} -S m:<10 -q ORDERASC
 
     - {3:1} all {2:2} sorted by execution time
         # {0:1} {1:1} -S e
         # {0:1} {1:1} -S e:2h
+        # {0:1} {1:1} -S e:<2h -q ORDERASC
 
     - {3:1} {2:2} with fastest initialization
         # {0:1} {1:1} -q FASTINIT
 
-    - {3:1} threads context-switched more than 5000 after sorting by Context Switch
+    - {3:1} threads context-switched more than 5000 after sorting by context switch
         # {0:1} {1:1} -S C:5000
+        # {0:1} {1:1} -S C:5000 -q ORDERDESC
 
     - {3:1} all {2:2} with changing the CPU scheduling priority every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
@@ -28354,6 +28379,9 @@ Examples:
 
     - {3:1} {2:2} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
+
+    - {3:1} all {2:2} once and report the result including cgroup info to ./guider.out
+        # {0:1} {1:1} -e G -a -o . -R 1
 
     - {3:1} {2:2} and print standard or special logs to sepcific logging systems
         * d:DLT / k:KMSG / j:JOURNAL / s:SYSLOG
@@ -28399,6 +28427,9 @@ Examples:
 
     - {3:1} {2:2} with memory(USS)
         # {0:1} {1:1} -e u
+
+    - {3:1} newly executed {2:2} with memory(USS)
+        # {0:1} {1:1} -I ./a.out -e u
 
     - {3:1} {2:2} with memory(PSS)
         # {0:1} {1:1} -e S
@@ -32610,6 +32641,7 @@ Examples:
     - {3:1} {2:1} after executing the target program with auto start
         # {0:1} {1:1} a.out -T ./libleaktracer.so
         # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so
+        # {0:1} {1:1} a.out -T ./libleaktracer.so -q MUTE
 
     - {3:1} {2:1} after executing the target program with manual start
         # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
@@ -60831,14 +60863,17 @@ class DltAnalyzer(object):
                 int32_t resync_offset;
 
                 /* size parameters */
-                int32_t headersize;    /**< size of complete header including storage header */
-                int32_t datasize;      /**< size of complete payload */
+                int32_t headersize;  /**< size of complete header including storage header */
+                int32_t datasize;  /**< size of complete payload */
 
                 /* buffer for current loaded message */
-                uint8_t headerbuffer[sizeof(DltStorageHeader)+
-                     sizeof(DltStandardHeader)+sizeof(DltStandardHeaderExtra)+sizeof(DltExtendedHeader)];
-                     /**< buffer for loading complete header */
-                uint8_t *databuffer;         /**< buffer for loading payload */
+                uint8_t headerbuffer[
+                    sizeof(DltStorageHeader)+
+                    sizeof(DltStandardHeader)+
+                    sizeof(DltStandardHeaderExtra)+
+                    sizeof(DltExtendedHeader)];
+                    /**< buffer for loading complete header */
+                uint8_t *databuffer;  /**< buffer for loading payload */
                 int32_t databuffersize;
 
                 /* header values of current loaded message */
@@ -83029,6 +83064,7 @@ class TaskAnalyzer(object):
             self.printTick = 0
             self.maxPid = SysMgr.pid
             self.procData = {}
+            self.procFdData = {}
             self.prevProcData = {}
             self.cgroupData = {}
             self.prevCgroupData = {}
@@ -83929,6 +83965,15 @@ class TaskAnalyzer(object):
         SysMgr.procInstance = self.procData
 
     def saveProcInstance(self):
+        # close fds for terminated tasks #
+        for pid in set(self.prevProcData) - set(self.procData):
+            try:
+                os.close(self.procFdData[pid])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
         self.prevProcData = self.procData
         self.procData = {}
         SysMgr.topInstance = self
@@ -102075,15 +102120,17 @@ class TaskAnalyzer(object):
 
     def saveProcData(self, path, tid, pid=None):
         def _getStatBuf(self, path, tid):
-            self.procData[tid]["statFd"] = os.open(path, os.O_RDONLY)
-            statBuf = os.read(self.procData[tid]["statFd"], 1024)
+            fd = os.open(path, os.O_RDONLY)
+            self.procData[tid]["statFd"] = fd
+            statBuf = os.read(fd, 1024)
+            self.procFdData[tid] = fd
 
             if tid in self.prevProcData:
                 self.prevProcData[tid]["alive"] = True
 
             # fd resource is about to run out #
-            if SysMgr.maxKeepFd < self.procData[tid]["statFd"]:
-                os.close(self.procData[tid]["statFd"])
+            if SysMgr.maxKeepFd < fd:
+                os.close(fd)
                 self.procData[tid]["statFd"] = None
                 self.reclaimFds()
 
@@ -102105,21 +102152,19 @@ class TaskAnalyzer(object):
 
         # save stat data #
         try:
-            if (
-                tid in self.prevProcData
-                and "statFd" in self.prevProcData[tid]
-                and self.prevProcData[tid]["statFd"]
-            ):
+            try:
                 prevFd = self.prevProcData[tid]["statFd"]
                 self.procData[tid]["statFd"] = prevFd
                 while 1:
                     os.lseek(prevFd, 0, 0)
-                    statBuf = os.read(self.procData[tid]["statFd"], 1024)
+                    statBuf = os.read(prevFd, 1024)
                     # retry to read for shared descriptor #
                     if statBuf:
                         break
                 self.prevProcData[tid]["alive"] = True
-            else:
+            except SystemExit:
+                sys.exit(0)
+            except:
                 statBuf = _getStatBuf(self, statPath, tid)
         except SystemExit:
             sys.exit(0)
@@ -105129,42 +105174,53 @@ class TaskAnalyzer(object):
     def getSortedProcData(self):
         checkCond = True
 
+        # check order type #
+        if 'ORDERASC' in SysMgr.environList:
+            reverse = False
+        elif 'ORDERDESC' in SysMgr.environList:
+            reverse = True
+        else:
+            reverse = None
+
         # memory #
         if not SysMgr.sort:
             # set CPU usage as default #
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: e[1]["ttime"],
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
         elif SysMgr.sort == "m":
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: long(e[1]["stat"][self.rssIdx]),
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
         # block #
         elif SysMgr.sort == "b":
             sortedProcData = sorted(
-                self.procData.items(), key=lambda e: e[1]["rw"], reverse=True
+                self.procData.items(), key=lambda e: e[1]["rw"],
+                reverse=True if reverse is None else reverse,
             )
         # WFC #
         elif SysMgr.sort == "w":
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: e[1]["cttime"],
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
         # pid #
         elif SysMgr.sort == "p":
             sortedProcData = sorted(
-                self.procData.items(), key=lambda e: long(e[0])
+                self.procData.items(), key=lambda e: long(e[0]),
+                reverse=False if reverse is None else reverse,
             )
             checkCond = False
         # new #
         elif SysMgr.sort == "n":
             sortedProcData = sorted(
-                self.procData.items(), key=lambda e: e[1]["new"], reverse=True
+                self.procData.items(), key=lambda e: e[1]["new"],
+                reverse=True if reverse is None else reverse,
             )
             checkCond = False
         # runtime #
@@ -105172,25 +105228,25 @@ class TaskAnalyzer(object):
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: e[1]["runtime"],
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
         # oomscore #
         elif SysMgr.sort == "o":
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: e[1]["oomScore"],
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
         # priority #
         elif SysMgr.sort == "P":
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: long(e[1]["stat"][self.prioIdx]),
-                reverse=False,
+                reverse=False if reverse is None else reverse,
             )
             checkCond = False
         # exectime #
-        elif SysMgr.sort == "e" or SysMgr.sort == "d":
+        elif SysMgr.sort in ("e", "d"):
             if SysMgr.sort == "e":
                 statName = "execTime"
             elif SysMgr.sort == "d":
@@ -105203,7 +105259,24 @@ class TaskAnalyzer(object):
                 sortedProcData = sorted(
                     self.procData.items(),
                     key=lambda e: e[1][statName],
-                    reverse=True,
+                    reverse=True if reverse is None else reverse,
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                sortedProcData = self.procData.items()
+        # swap #
+        elif SysMgr.sort == "s":
+            try:
+                for idx, value in self.procData.items():
+                    self.saveProcStatusData(value["taskPath"], idx)
+
+                sortedProcData = sorted(
+                    self.procData.items(),
+                    key=lambda e: long(e[1]["status"]["VmSwap"].split()[0])
+                    if e[1]["status"]
+                    else 0,
+                    reverse=True if reverse is None else reverse,
                 )
             except SystemExit:
                 sys.exit(0)
@@ -105231,7 +105304,7 @@ class TaskAnalyzer(object):
                     )
                     if k[0] in prev
                     else 0,
-                    reverse=True,
+                    reverse=True if reverse is None else reverse,
                 )
             except SystemExit:
                 sys.exit(0)
@@ -105244,7 +105317,7 @@ class TaskAnalyzer(object):
                 key=lambda e: long(e[1]["dbusCnt"])
                 if "dbusCnt" in e[1]
                 else 0,
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
             checkCond = False
         # name #
@@ -105252,7 +105325,7 @@ class TaskAnalyzer(object):
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: e[1]["stat"][self.commIdx],
-                reverse=False,
+                reverse=False if reverse is None else reverse,
             )
             checkCond = False
         # CPU #
@@ -105261,17 +105334,31 @@ class TaskAnalyzer(object):
             sortedProcData = sorted(
                 self.procData.items(),
                 key=lambda e: e[1]["ttime"],
-                reverse=True,
+                reverse=True if reverse is None else reverse,
             )
 
         # convert sort condition type to number #
         if checkCond and SysMgr.sortCond:
             try:
-                SysMgr.sortCond = long(SysMgr.sortCond)
+                origCond = SysMgr.sortCond
+
+                if SysMgr.sort in ("r", "e"):
+                    SysMgr.sortCond = UtilMgr.convUnit2Time(origCond)
+                else:
+                    SysMgr.sortCond = UtilMgr.convUnit2Size(origCond)
+
+                if origCond != SysMgr.sortCond:
+                    SysMgr.printInfo(
+                        "converted sort condition '%s' to '%s'"
+                        % (origCond, SysMgr.sortCond)
+                    )
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to convert '%s' to number for sort condition"
-                    % SysMgr.sortCond
+                    % SysMgr.sortCond,
+                    True,
                 )
                 sys.exit(-1)
 
@@ -105620,16 +105707,25 @@ class TaskAnalyzer(object):
                 target = value["rw"]
             elif SysMgr.sort == "w":
                 target = value["cttime"]
+            elif SysMgr.sort == "p":
+                target = long(idx)
             elif SysMgr.sort == "n":
                 target = value["new"]
             elif SysMgr.sort == "o":
                 target = value["oomScore"]
             elif SysMgr.sort == "r":
-                target = value["runtime"] / 1000000000
+                target = value["runtime"]
             elif SysMgr.sort == "e":
                 target = value["execTime"] / 1000000000
             elif SysMgr.sort == "d":
-                target = value["waitTime"]
+                target = value["waitTime"] / 1000000000
+            elif SysMgr.sort == "s":
+                try:
+                    target = long(value["status"]["VmSwap"].split()[0]) << 10
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    target = 0
             elif SysMgr.sort == "C":
                 try:
                     prevStat = self.prevProcData[idx]["status"]
@@ -105656,8 +105752,22 @@ class TaskAnalyzer(object):
                 target = 1
 
             # check sort condition #
-            if SysMgr.sortCond and target < SysMgr.sortCond:
-                return True
+            try:
+                if SysMgr.sortCond:
+                    if not SysMgr.sortCondOp or SysMgr.sortCondOp == '>':
+                        if target <= long(SysMgr.sortCond):
+                            return True
+                        else:
+                            return False
+                    else:
+                        if target >= long(SysMgr.sortCond):
+                            return True
+                        else:
+                            return False
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             # check filter #
             if not SysMgr.filterGroup and not SysMgr.showAll and not target:
