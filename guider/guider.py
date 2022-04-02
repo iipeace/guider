@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220401"
+__revision__ = "220402"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27625,11 +27625,11 @@ Commands:
         # set values #
         SysMgr.sort = value
         if cond and len(cond) > 1:
-            if cond[0] == '>':
-                SysMgr.sortCondOp = '>'
+            if cond[0] == ">":
+                SysMgr.sortCondOp = ">"
                 cond = cond[1:]
-            elif cond[0] == '<':
-                SysMgr.sortCondOp = '<'
+            elif cond[0] == "<":
+                SysMgr.sortCondOp = "<"
                 cond = cond[1:]
         SysMgr.sortCond = cond
 
@@ -32653,10 +32653,14 @@ Examples:
     - {3:1} {2:1} after setting environment variables for 5 seconds
         # {0:1} {1:1} -g a.out -R 5
 
-    - {3:1} {2:1} with binary injection
+    - {3:1} {2:1} {4:1}
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
 
-    - {3:1} {2:1} with binary injection and a temporary writable path
+    - {3:1} including memory tracking {2:1} {4:1}
+        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q MEMPROF
+        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q MEMPROF:3
+
+    - {3:1} {2:1} {4:1} and a temporary writable path
         # {0:1} {1:1} -g a.out -I /var/log/guider -T /home/root/libleaktracer.so
 
     - {3:1} after sending SIGRT2(36) to stop profiling
@@ -32669,7 +32673,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c 15m,20m
         # {0:1} {1:1} -g a.out -c +15m,+20m
 
-    - {3:1} {2:1} with binary injection (wait for new process if no process)
+    - {3:1} {2:1} {4:1} (wait for new process if no process)
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
@@ -32681,7 +32685,8 @@ Examples:
                         cmd,
                         mode,
                         "when SIGINT is received",
-                        "Report memory leakage hints of a specific process",
+                        "Report memory leakage hints of the target process",
+                        "after hooking binary injection",
                     )
 
                 # printslab #
@@ -48501,23 +48506,23 @@ Copyright:
 
             return 0
 
-        def _getOutputPath(isMulti, pid):
+        def _getOutputPath(multiple, pid):
             fname = None
             if SysMgr.inputParam:
                 fname = os.path.abspath(SysMgr.inputParam)
                 if os.path.isdir(fname):
-                    if isMulti:
+                    if multiple:
                         fname = "%s/leaks_%s.out" % (fname, pid)
                     else:
                         fname = "%s/leaks.out" % fname
             elif os.path.exists(SysMgr.tmpPath):
-                if isMulti:
+                if multiple:
                     fname = "%s/leaks_%s.out" % (SysMgr.tmpPath, pid)
                 else:
                     fname = "%s/leaks.out" % SysMgr.tmpPath
             elif SysMgr.isWritable("."):
                 current = os.path.abspath(".")
-                if isMulti:
+                if multiple:
                     fname = "%s/leaks_%s.out" % (current, pid)
                 else:
                     fname = "%s/leaks.out" % current
@@ -48734,6 +48739,20 @@ Copyright:
         SysMgr.ussEnable = True
         tobj = SysMgr.initTaskMon(pid, update=False)
         path = "%s/%s" % (SysMgr.procPath, pid)
+
+        # execute watcher tasks #
+        if "MEMPROF" in SysMgr.environList:
+            interval = UtilMgr.getEnvironNum("MEMPROF", False, 1, False, True)
+            output = os.path.join(
+                os.path.dirname(SysMgr.outPath), "guider_mem_%s.out" % comm
+            )
+            mcmd = ["mtop", "-g%s" % pid, "-i%s" % interval, "-o%s" % output]
+            ret = SysMgr.launchGuider(mcmd, mute=mute, pipe=False, stderr=True)
+            if ret > 0:
+                SysMgr.printInfo(
+                    "start saving the monitoring results of %s(%s) to %s"
+                    % (comm, pid, output)
+                )
 
         # set input file path #
         autostart = False
@@ -83968,7 +83987,7 @@ class TaskAnalyzer(object):
         # close fds for terminated tasks #
         for pid in set(self.prevProcData) - set(self.procData):
             try:
-                os.close(self.procFdData[pid])
+                os.close(self.procFdData.pop(pid, None))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -105175,9 +105194,9 @@ class TaskAnalyzer(object):
         checkCond = True
 
         # check order type #
-        if 'ORDERASC' in SysMgr.environList:
+        if "ORDERASC" in SysMgr.environList:
             reverse = False
-        elif 'ORDERDESC' in SysMgr.environList:
+        elif "ORDERDESC" in SysMgr.environList:
             reverse = True
         else:
             reverse = None
@@ -105199,7 +105218,8 @@ class TaskAnalyzer(object):
         # block #
         elif SysMgr.sort == "b":
             sortedProcData = sorted(
-                self.procData.items(), key=lambda e: e[1]["rw"],
+                self.procData.items(),
+                key=lambda e: e[1]["rw"],
                 reverse=True if reverse is None else reverse,
             )
         # WFC #
@@ -105212,14 +105232,16 @@ class TaskAnalyzer(object):
         # pid #
         elif SysMgr.sort == "p":
             sortedProcData = sorted(
-                self.procData.items(), key=lambda e: long(e[0]),
+                self.procData.items(),
+                key=lambda e: long(e[0]),
                 reverse=False if reverse is None else reverse,
             )
             checkCond = False
         # new #
         elif SysMgr.sort == "n":
             sortedProcData = sorted(
-                self.procData.items(), key=lambda e: e[1]["new"],
+                self.procData.items(),
+                key=lambda e: e[1]["new"],
                 reverse=True if reverse is None else reverse,
             )
             checkCond = False
@@ -105754,7 +105776,7 @@ class TaskAnalyzer(object):
             # check sort condition #
             try:
                 if SysMgr.sortCond:
-                    if not SysMgr.sortCondOp or SysMgr.sortCondOp == '>':
+                    if not SysMgr.sortCondOp or SysMgr.sortCondOp == ">":
                         if target <= long(SysMgr.sortCond):
                             return True
                         else:
