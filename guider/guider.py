@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220402"
+__revision__ = "220403"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23876,11 +23876,26 @@ Commands:
 
         # condition #
         elif SysMgr.checkMode("ctop"):
-            # load and check config file #
+            # check config file #
             if not SysMgr.getOption("C"):
-                if not SysMgr.loadConfig(SysMgr.confFileName):
-                    SysMgr.printErr("wrong file path for config")
-                    sys.exit(-1)
+                # from current dir #
+                if os.path.exists(SysMgr.confFileName):
+                    pass
+                # from py dir #
+                else:
+                    pydir = os.path.dirname(SysMgr.getPyPath())
+                    SysMgr.confFileName = os.path.join(pydir, "guider.conf")
+
+                    # no path #
+                    if not os.path.exists(SysMgr.confFileName):
+                        SysMgr.printErr("no file for config")
+                        sys.exit(-1)
+
+            # load config file #
+            if ConfigMgr.confData:
+                pass
+            elif not SysMgr.loadConfig(SysMgr.confFileName):
+                sys.exit(-1)
 
             # ignore output #
             if not SysMgr.outPath:
@@ -26563,6 +26578,9 @@ Commands:
                 else:
                     targetList.append(line)
 
+            if ConfigMgr.confData:
+                SysMgr.printInfo("loaded config from '%s'" % fname)
+
             return ConfigMgr.confData
         except SystemExit:
             sys.exit(0)
@@ -26635,6 +26653,10 @@ Commands:
                     reason=True,
                 )
             return None
+
+    @staticmethod
+    def getPyPath():
+        return os.path.abspath(os.path.join(os.getcwd(), __file__))
 
     @staticmethod
     def getCmdline(pid, retList=False):
@@ -32470,6 +32492,7 @@ Options:
     -v                          verbose
     -I  <COMMAND>               set commands
     -c  <VARIABLE>              set variables
+    -C  <PATH>                  set config path
     -q  <NAME{{:VALUE}}>          set environment variables
     -u                          run in the background
                         """.format(
@@ -32493,6 +32516,9 @@ Examples:
     - Execute commands with enviornment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
+
+    - Execute a command after converting it using the config file
+        # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
                     """.format(
                         cmd, mode
                     )
@@ -40078,15 +40104,15 @@ Copyright:
                     pass
                 elif not ret:
                     sys.exit(-1)
+
                 # launch commands #
-                else:
-                    cmdList = SysMgr.getConfigItem("command")
-                    if (
-                        cmdList
-                        and "apply" in cmdList
-                        and cmdList["apply"] == "true"
-                    ):
-                        SysMgr.executeCommand(cmdList["list"])
+                cmdList = SysMgr.getConfigItem("command")
+                if (
+                    cmdList
+                    and "apply" in cmdList
+                    and cmdList["apply"] == "true"
+                ):
+                    SysMgr.executeCommand(cmdList["list"])
 
         elif option == "E":
             SysMgr.cacheDirPath = value
@@ -40980,6 +41006,30 @@ Copyright:
 
         # EXEC MODE #
         elif SysMgr.checkMode("exec"):
+            # check config file #
+            if SysMgr.findOption("C"):
+                if not SysMgr.getOption("C"):
+                    # from current dir #
+                    if os.path.exists(SysMgr.confFileName):
+                        pass
+                    # from py dir #
+                    else:
+                        pydir = os.path.dirname(SysMgr.getPyPath())
+                        SysMgr.confFileName = os.path.join(
+                            pydir, "guider.conf"
+                        )
+
+                        # no path #
+                        if not os.path.exists(SysMgr.confFileName):
+                            SysMgr.printErr("no file for config")
+                            sys.exit(-1)
+
+                # load config file #
+                if ConfigMgr.confData:
+                    pass
+                elif not SysMgr.loadConfig(SysMgr.confFileName):
+                    sys.exit(-1)
+
             SysMgr.doExec()
 
         # REQUEST MODE #
@@ -50819,6 +50869,21 @@ Copyright:
         else:
             SysMgr.printErr("no input for command")
             sys.exit(-1)
+
+        # convert command #
+        try:
+            confData = SysMgr.getConfigItem("threshold")
+            cmd = confData["COMMAND"][cmd]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # convert Guider path #
+        if cmd.startswith("GUIDER "):
+            exe = " ".join(SysMgr.getExeCmd(SysMgr.pid))
+            cmd = UtilMgr.lstrip(cmd, "GUIDER ")
+            cmd = "%s %s" % (exe, cmd)
 
         # convert variables #
         if SysMgr.customCmd:
