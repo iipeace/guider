@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220403"
+__revision__ = "220405"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -48600,6 +48600,33 @@ Copyright:
                 SysMgr.printErr("no input for PID or COMM")
                 sys.exit(-1)
 
+        # get signals #
+        startSig = stopSig = None
+        if SysMgr.killFilter:
+            sigList = SysMgr.killFilter
+
+            if len(sigList) >= 2:
+                # start #
+                startSig = SysMgr.getSigNum(sigList[0][0])
+                if not startSig:
+                    SysMgr.printErr(
+                        "wrong signal %s for start" % sigList[0][0]
+                    )
+                    sys.exit(-1)
+                LeakAnalyzer.startSig = startSig
+
+                stopIdx = 1
+            else:
+                stopIdx = 0
+
+            # stop #
+            stopSig = SysMgr.getSigNum(sigList[stopIdx][0])
+            if not stopSig:
+                SysMgr.printErr(
+                    "wrong signal %s for stop" % sigList[stopIdx][0])
+                sys.exit(-1)
+            LeakAnalyzer.stopSig = stopSig
+
         # get PID #
         pid = None
         isMulti = False
@@ -48637,17 +48664,25 @@ Copyright:
 
             # set output path #
             fname = _getOutputPath(isMulti, pid)
-            SysMgr.environList["ENV"].append(
-                "LEAKTRACER_ONSIG_REPORTFILENAME=%s" % fname
-            )
 
-            # set signal #
-            SysMgr.environList["ENV"].append(
-                "LEAKTRACER_ONSIG_STARTALLTHREAD=%s" % LeakAnalyzer.startSig
-            )
-            SysMgr.environList["ENV"].append(
-                "LEAKTRACER_ONSIG_REPORT=%s" % LeakAnalyzer.stopSig
-            )
+            # add start variable #
+            if startSig:
+                SysMgr.environList["ENV"].append(
+                    "LEAKTRACER_ONSIG_STARTALLTHREAD=%s"
+                    % LeakAnalyzer.startSig,
+                )
+            else:
+                SysMgr.environList["ENV"].append(
+                    "LEAKTRACER_ONSTART_STARTALLTHREAD=1"
+                )
+
+            # add report variable #
+            SysMgr.environList["ENV"].extend([
+                "LEAKTRACER_ONSIG_REPORT=%s" % LeakAnalyzer.stopSig,
+                "LEAKTRACER_ONSIG_REPORTFILENAME=%s" % fname,
+                "LEAKTRACER_ONEXIT_REPORT=1"
+                "LEAKTRACER_ONEXIT_REPORTFILENAME=%s" % fname,
+            ])
 
             # create the target process #
             pid = SysMgr.createProcess(inputCmd, mute=mute, chPgid=True)
@@ -48806,12 +48841,12 @@ Copyright:
 
         # set input file path #
         autostart = False
-        if "LEAKTRACER_ONSIG_REPORTFILENAME" in envList:
-            fname = envList["LEAKTRACER_ONSIG_REPORTFILENAME"]
-        elif "LEAKTRACER_AUTO_REPORTFILENAME" in envList:
+        if "LEAKTRACER_ONSTART_STARTALLTHREAD" in envList:
             autostart = True
-            fname = envList["LEAKTRACER_AUTO_REPORTFILENAME"]
+            fname = envList["LEAKTRACER_ONSIG_REPORTFILENAME"]
             startTime = SysMgr.uptime - tobj.procData[pid]["runtime"]
+        elif "LEAKTRACER_ONSIG_REPORTFILENAME" in envList:
+            fname = envList["LEAKTRACER_ONSIG_REPORTFILENAME"]
         else:
             fname = _getOutputPath(isMulti, pid)
 
@@ -48841,36 +48876,11 @@ Copyright:
             LeakAnalyzer.stopSig = 12
 
         # set signal #
-        startSig = stopSig = None
-        if "LEAKTRACER_ONSIG_STARTALLTHREAD" in envList:
-            startSig = long(envList["LEAKTRACER_ONSIG_STARTALLTHREAD"])
         if "LEAKTRACER_ONSIG_REPORT" in envList:
             stopSig = long(envList["LEAKTRACER_ONSIG_REPORT"])
 
-        # get signals #
-        if SysMgr.killFilter:
-            sigList = SysMgr.killFilter
-
-            if len(sigList) >= 2:
-                startSig = SysMgr.getSigNum(sigList[0][0])
-                if not startSig:
-                    SysMgr.printErr(
-                        "wrong signal %s for start" % sigList[0][0]
-                    )
-                    sys.exit(-1)
-
-                stopSig = SysMgr.getSigNum(sigList[1][0])
-                if not stopSig:
-                    SysMgr.printErr("wrong signal %s for stop" % sigList[1][0])
-                    sys.exit(-1)
-            else:
-                stopSig = SysMgr.getSigNum(sigList[0][0])
-                if not stopSig:
-                    SysMgr.printErr("wrong signal %s for stop" % sigList[0][0])
-                    sys.exit(-1)
-
         # add an environment for start signal #
-        if not autostart and not startSig:
+        if not autostart:
             startSig = LeakAnalyzer.startSig
             remoteCmd.insert(
                 0, 'setenv:LEAKTRACER_ONSIG_STARTALLTHREAD#"%s"' % startSig
@@ -48890,8 +48900,6 @@ Copyright:
             )
 
         # check signal handler #
-        tryCnt = 0
-        retryCnt = 5
         while 1:
             # set environment command #
             if remoteCmd:
@@ -48914,6 +48922,9 @@ Copyright:
                     )
                     continue
 
+                # get signal handler info #
+                if "status" in tobj.procData[pid]:
+                    tobj.procData[pid]["status"] = {}
                 tobj.saveProcStatusData(path, pid)
 
                 # check start signal #
@@ -48925,13 +48936,6 @@ Copyright:
                         True,
                     )
 
-                    tryCnt += 1
-                    if tryCnt >= retryCnt:
-                        break
-
-                    time.sleep(1)
-                    continue
-
                 # check stop signal #
                 if stopSig and not UtilMgr.isBitEnabled(stopSig, sigList):
                     SysMgr.printWarn(
@@ -48939,13 +48943,6 @@ Copyright:
                         % (ConfigMgr.SIG_LIST[stopSig], stopSig),
                         True,
                     )
-
-                    tryCnt += 1
-                    if tryCnt >= retryCnt:
-                        break
-
-                    time.sleep(1)
-                    continue
 
                 break
             except SystemExit:
@@ -83231,7 +83228,11 @@ class TaskAnalyzer(object):
                             Debugger.drawFlame(SysMgr.inputParam)
                     # OTHER DRAW MODE #
                     else:
-                        self.drawStats(SysMgr.inputParam)
+                        if "NOMERGE" in SysMgr.environList:
+                            for fpath in list(SysMgr.inputParam):
+                                self.drawStats(fpath)
+                        else:
+                            self.drawStats(SysMgr.inputParam)
                     sys.exit(0)
                 # no path for statistics #
                 else:
@@ -102540,10 +102541,11 @@ class TaskAnalyzer(object):
         try:
             freeMem = memData["MemFree"] >> 10
             freeMemDiff = freeMem - (prevMemData["MemFree"] >> 10)
+            freeMemPer = long(freeMem / float(totalMem) * 100)
         except SystemExit:
             sys.exit(0)
         except:
-            freeMem = freeMemDiff = 0
+            freeMem = freeMemDiff = freeMemPer = 0
             failedStat.append("MemFree")
 
         # available memory #
@@ -102570,7 +102572,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.freeMemEnable = True
-            availMem = availMemDiff = 0
+            availMem = availMemDiff = availMemPer = 0
 
         # anonymous memory #
         try:
@@ -103067,6 +103069,7 @@ class TaskAnalyzer(object):
         if availMem == 0:
             availMem = freeMem
             availMemDiff = freeMemDiff
+            availMemPer = freeMemPer
 
         # add memory interval #
         SysMgr.memAvail = availMem
