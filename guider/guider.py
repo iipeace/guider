@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220405"
+__revision__ = "220407"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6235,7 +6235,7 @@ class UtilMgr(object):
             return None
 
     @staticmethod
-    def getFileList(flist, sort=False):
+    def getFileList(flist, sort=False, exceptDir=False):
         if not flist or type(flist) is not list:
             return []
 
@@ -6261,6 +6261,15 @@ class UtilMgr(object):
             SysMgr.printWarn(
                 "detected redundant files in [ %s ]" % ", ".join(rlist), True
             )
+
+        # exclude dir #
+        if exceptDir:
+            newlist = []
+            for fname in rlist:
+                if os.path.isdir(fname):
+                    continue
+                newlist.append(fname)
+            rlist = newlist
 
         # remove redundant files #
         if sort:
@@ -7763,6 +7772,7 @@ function format_percent(n) {
             return
 
         sys.stdout.write(" " * 6)
+        sys.stdout.write("\b" * 6)
 
         # handle reentrant call exception #
         try:
@@ -22658,6 +22668,7 @@ class SysMgr(object):
     tmpPath = "/tmp"
     kmsgPath = "/dev/kmsg"
     nullPath = "/dev/null"
+    rootdevPath = None
     syslogPath = "/var/log/syslog"
     lmkPath = "/sys/module/lowmemorykiller/parameters/minfree"
     pythonPath = sys.executable
@@ -22824,6 +22835,7 @@ class SysMgr(object):
     sort = None
     sortCond = None
     sortCondOp = None
+    newlined = True
 
     # descriptor #
     maxFd = 512
@@ -23416,6 +23428,7 @@ Commands:
 
         # apply regular expression for first path #
         flist = UtilMgr.convPath(sys.argv[2])
+        flist = UtilMgr.getFileList(flist, exceptDir=True)
         if type(flist) is list and len(flist) > 0:
             sys.argv = sys.argv[:2] + flist + sys.argv[3:]
 
@@ -32584,6 +32597,13 @@ Examples:
         # {0:1} {1:1} /
         # {0:1} {1:1} -I /
 
+    - {2:1} from current working directory after sorting
+        # {0:1} {1:1} -q SORT:SIZE
+        # {0:1} {1:1} -q SORT:TYPE
+
+    - {2:1} including linked directories from current working directory
+        # {0:1} {1:1} -q INCLINK
+
     - {2:1} for specific directories
         # {0:1} {1:1} "/data, /tmp"
 
@@ -38615,6 +38635,9 @@ Copyright:
             # print newline #
             if newline:
                 sys.stdout.write("\n")
+                SysMgr.newlined = True
+            else:
+                SysMgr.newlined = False
 
             # flush buffer #
             if flush or SysMgr.remoteRun:
@@ -38761,6 +38784,11 @@ Copyright:
             prefix = "\n"
         else:
             prefix = ""
+
+        # add newline #
+        if not SysMgr.newlined:
+            prefix += "\n"
+            SysMgr.newlined = True
 
         # build #
         log = "%s%s%s" % (title, proc, line)
@@ -47430,42 +47458,33 @@ Copyright:
             if not fileList or (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
-            totalSize = 0
-            totalFile = 0
-            totalDir = 0
-
             # print progress #
             UtilMgr.printProgress()
 
+            totalSize = 0
+            totalFile = 0
+            totalDir = 0
             blockSize = SysMgr.PAGESIZE
 
-            # sort by size #
-            if SysMgr.showAll:
-                fileList.sort(
-                    key=lambda name: os.path.getsize(
-                        "%s/%s" % (parentPath, name)
-                    ),
-                    reverse=True,
-                )
-            # sort by type #
+            # check including link option #
+            if "INCLINK" in SysMgr.environList:
+                incLink = True
             else:
-                fileList.sort(
-                    key=lambda f: os.path.isfile(os.path.join(parentPath, f))
-                )
+                incLink = False
 
             for idx, subPath in enumerate(fileList):
 
                 fullPath = os.path.join(parentPath, subPath)
-
-                # skip link #
-                if os.path.islink(fullPath):
-                    continue
 
                 subAbsPath = os.path.abspath(fullPath)
 
                 if os.path.isdir(fullPath):
                     totalDir += 1
                     totalSize += blockSize
+
+                    # skip link #
+                    if not incLink and os.path.islink(fullPath):
+                        continue
 
                     if SysMgr.showAll:
                         info = dict(subDirs={}, subFiles={})
@@ -47492,7 +47511,13 @@ Copyright:
                             continue
 
                     totalFile += 1
-                    size = os.stat(fullPath).st_size
+
+                    # get size #
+                    if not incLink and os.path.islink(fullPath):
+                        size = 0
+                    else:
+                        size = os.stat(fullPath).st_size
+
                     if size < blockSize:
                         totalSize += blockSize
                     else:
@@ -47560,33 +47585,42 @@ Copyright:
             convSize = UtilMgr.convSize2Unit
             convColor = UtilMgr.convColor
             blockSize = SysMgr.PAGESIZE
-
-            # sort by size #
-            if SysMgr.showAll:
-                fileList.sort(
-                    key=lambda name: os.path.getsize(
-                        "%s/%s" % (parentPath, name)
-                    )
-                    if os.path.exists("%s/%s" % (parentPath, name))
-                    else 0,
-                    reverse=True,
-                )
-            # sort by type #
-            else:
-                fileList.sort(
-                    key=lambda f: os.path.isfile(os.path.join(parentPath, f))
-                )
-
             BIGSIZE = 1 << 30
+
+            # check including link option #
+            if "INCLINK" in SysMgr.environList:
+                incLink = True
+            else:
+                incLink = False
+
+            # sort #
+            if "SORT" in SysMgr.environList:
+                # sort by size #
+                if "SIZE" in SysMgr.environList["SORT"]:
+                    fileList.sort(
+                        key=lambda name: os.path.getsize(
+                            "%s/%s" % (parentPath, name)
+                        )
+                        if os.path.exists("%s/%s" % (parentPath, name))
+                        else 0,
+                        reverse=True,
+                    )
+                # sort by type #
+                elif "TYPE" in SysMgr.environList["SORT"]:
+                    fileList.sort(
+                        key=lambda f: os.path.isfile(os.path.join(parentPath, f))
+                    )
+                # sort by name #
+                else:
+                    fileList.sort()
+            # sort by name #
+            else:
+                fileList.sort()
 
             for idx, subPath in enumerate(fileList):
                 idc = "|-"
 
                 fullPath = os.path.join(parentPath, subPath)
-
-                # check link #
-                if os.path.islink(fullPath):
-                    pass
 
                 # check dir #
                 if os.path.isdir(fullPath):
@@ -47617,34 +47651,38 @@ Copyright:
                     # update prefix #
                     tmpPrefix = prefix + "|  "
 
-                    # get subdir #
-                    try:
-                        subdirs = os.listdir(fullPath)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            "failed to access %s" % fullPath,
-                            always=True,
-                            reason=True,
+                    # check link #
+                    if not incLink and os.path.islink(fullPath):
+                        pass
+                    else:
+                        # get subdir #
+                        try:
+                            subdirs = os.listdir(fullPath)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                "failed to access %s" % fullPath,
+                                always=True,
+                                reason=True,
+                            )
+                            continue
+
+                        # traverse subdirs #
+                        rlist = _getDirs(
+                            fullPath,
+                            subdirs,
+                            tmpPrefix,
+                            result,
+                            level + 1,
+                            maxLevel,
                         )
-                        continue
 
-                    # traverse subdirs #
-                    rlist = _getDirs(
-                        fullPath,
-                        subdirs,
-                        tmpPrefix,
-                        result,
-                        level + 1,
-                        maxLevel,
-                    )
-
-                    # add to stat #
-                    totalSize += rlist[0]
-                    totalFile += rlist[2]
-                    if isTarget:
-                        totalDir += rlist[1]
+                        # add to stat #
+                        totalSize += rlist[0]
+                        totalFile += rlist[2]
+                        if isTarget:
+                            totalDir += rlist[1]
                 # check file #
                 elif os.path.isfile(fullPath):
                     size = ""
@@ -47696,7 +47734,9 @@ Copyright:
 
                     # get size #
                     try:
-                        if not size:
+                        if not incLink and os.path.islink(fullPath):
+                            size = 0
+                        elif not size:
                             size = os.stat(fullPath).st_size
                             if size < blockSize:
                                 totalSize += blockSize
@@ -47727,10 +47767,30 @@ Copyright:
                     try:
                         if size >= BIGSIZE or condval:
                             color = "RED"
-                        else:
+                        elif size > blockSize:
                             color = "CYAN"
+                        else:
+                            color = None
+
                         sizeStr = convSize(size)
-                        sizeStr = " <%s>" % convColor(sizeStr, color)
+
+                        nrLink = os.stat(fullPath).st_nlink
+                        if nrLink > 1:
+                            linkStr = ", LINK: %s" % nrLink
+                        elif os.path.islink(fullPath):
+                            try:
+                                linkStr = ", LINK: %s" % os.readlink(fullPath)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                linkStr = ""
+                        else:
+                            linkStr = ""
+
+                        sizeStr = (
+                            " <SIZE: %s%s>"
+                            % (convColor(sizeStr, color), linkStr)
+                        )
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -53606,6 +53666,25 @@ Copyright:
         return ret
 
     @staticmethod
+    def getRootDevice():
+        try:
+            if SysMgr.rootdevPath:
+                return SysMgr.rootdevPath
+
+            cmdline = SysMgr.procReadline("cmdline")[0:-1]
+            for item in cmdline.split(" "):
+                if item.startswith("root="):
+                    SysMgr.rootdevPath = UtilMgr.lstrip(item, "root=")
+                    return SysMgr.rootdevPath
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to get root device path", reason=True)
+            SysMgr.rootdevPath = "/dev/root"
+            return SysMgr.rootdevPath
+
+    @staticmethod
     def getChildList(update=True):
         if update:
             SysMgr.updateChildList()
@@ -55390,6 +55469,8 @@ Copyright:
         class MountException(Exception):
             pass
 
+        rootdevPath = SysMgr.getRootDevice()
+
         # parse mount info #
         for l in self.mountData:
             # leave for /proc/mounts #
@@ -55412,6 +55493,10 @@ Copyright:
             right = right.split()
             fs, dev = right[0:2]
             soption = " ".join(right[2:])
+
+            # convert root device path #
+            if dev == "/dev/root" and rootdevPath:
+                dev = rootdevPath
 
             # check skip condition #
             try:
@@ -57267,14 +57352,19 @@ Copyright:
                 splitLen = SysMgr.lineLength - len(diskInfo) - 1
 
                 if val["option"]:
-                    mountList = "%s <%s>" % (val["path"], val["option"])
+                    option = "|".join([val["option"], val["soption"]])
                 else:
-                    mountList = val["path"]
+                    option = val["option"]
+
+                if option:
+                    option = " <%s>" % option
+                mountList = "%s%s" % (val["path"], option)
 
                 mountList = [
                     mountList[i : i + splitLen]
                     for i in range(0, len(mountList), splitLen)
                 ]
+
                 for string in mountList:
                     SysMgr.infoBufferPrint(
                         "{0:85} {1:<1}".format(title, string)
@@ -67925,6 +68015,7 @@ typedef struct {
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
                     if printLog:
                         printLog = False
+
                 continue
 
                 # print ELF object size on RAM for test #
@@ -76827,18 +76918,16 @@ class ElfAnalyzer(object):
             if path != "vdso" and not os.path.exists(path):
                 return None
 
-            # print start message #
-            if log and printMsg:
-                SysMgr.printInfo("start loading binaries...")
-
+            # handle VDSO #
             if path == "vdso":
                 fobj = SysMgr.getVDSO()
 
             # print load message #
             if printMsg:
                 SysMgr.printInfo(
-                    "load %s... " % path, suffix=False, prefix=False
+                    "load %s... " % path, prefix=False, suffix=False
                 )
+                prefix = False
 
             # return a exceptional file object #
             if fobj:
@@ -82088,7 +82177,7 @@ class TaskAnalyzer(object):
         SysMgr.rssEnable = True
 
         # get stats from files #
-        flist = UtilMgr.getFileList(flist)
+        flist = UtilMgr.getFileList(flist, exceptDir=True)
         if not flist:
             SysMgr.printErr("no input for path")
             sys.exit(-1)
@@ -105224,11 +105313,19 @@ class TaskAnalyzer(object):
                 usePer = convColor(usePer, "YELLOW")
 
             # make disk stat string #
-            option = value["mount"]["option"]
+            option = "|".join(
+                [value["mount"]["option"], value["mount"]["soption"]]
+            )
+
             if option:
                 mountInfo = "%s <%s>" % (path, option)
             else:
                 mountInfo = path
+
+            if "NOCUT" in SysMgr.environList:
+                mountLen = None
+            else:
+                mountLen = 51
 
             diskInfo = (
                 "{0:<24}|{1:>4}|{2:>5}|{3:>7}|{4:>7}|{5:>7}({6:>7})|"
@@ -105245,7 +105342,7 @@ class TaskAnalyzer(object):
                 total,
                 favail,
                 fs,
-                mountInfo[:51],
+                mountInfo[:mountLen],
             )
 
             if SysMgr.checkCutCond():
