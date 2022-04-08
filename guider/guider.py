@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220407"
+__revision__ = "220408"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34,20 +34,20 @@ except ImportError:
 
 # convert an unsupported type #
 try:
-    long
+    long  # pylint: disable=used-before-assignment
 except:
     long = int
 
 # prevent MemoryError in python2 #
 try:
-    xrange
+    xrange  # pylint: disable=used-before-assignment
 except:
     xrange = range
 
 # enable JIT compiler #
 try:
     if "JITCOMPILE" in os.environ:
-        from numba import jit
+        from numba import jit  # pylint: disable=import-error
     else:
 
         def jit(func):
@@ -5564,7 +5564,7 @@ class UtilMgr(object):
             if fullname in SysMgr.externList:
                 func = SysMgr.externList[fullname]
             elif sys.version_info < (3, 0, 0):
-                execfile(path)
+                execfile(path)  # pylint: disable=undefined-variable
                 SysMgr.externList[fullname] = locals()[fname]
                 func = SysMgr.externList[fullname]
             else:
@@ -8371,6 +8371,8 @@ class NetworkMgr(object):
                 origPath = path[0]
                 desPath = None
 
+            res = False
+
             # receive file #
             try:
                 res = NetworkMgr.recvFile(
@@ -8407,6 +8409,8 @@ class NetworkMgr(object):
                     origPath = targetPath
             else:
                 origPath = targetPath = path[0]
+
+            res = False
 
             # transfer file #
             try:
@@ -23891,18 +23895,8 @@ Commands:
         elif SysMgr.checkMode("ctop"):
             # check config file #
             if not SysMgr.getOption("C"):
-                # from current dir #
-                if os.path.exists(SysMgr.confFileName):
-                    pass
-                # from py dir #
-                else:
-                    pydir = os.path.dirname(SysMgr.getPyPath())
-                    SysMgr.confFileName = os.path.join(pydir, "guider.conf")
-
-                    # no path #
-                    if not os.path.exists(SysMgr.confFileName):
-                        SysMgr.printErr("no file for config")
-                        sys.exit(-1)
+                # search config file #
+                SysMgr.updateConfigPath()
 
             # load config file #
             if ConfigMgr.confData:
@@ -26561,8 +26555,30 @@ Commands:
             return confData
 
     @staticmethod
+    def updateConfigPath():
+        if os.path.exists(SysMgr.confFileName):
+            return
+
+        for path in [
+            os.getcwd(),
+            os.path.dirname(SysMgr.getPyPath()),
+            os.path.join(sys.prefix, "local/guider")
+        ]:
+            fullPath = os.path.join(path, "guider.conf")
+            if os.path.exists(fullPath):
+                SysMgr.confFileName = fullPath
+                break
+
+        # no path #
+        if not os.path.exists(SysMgr.confFileName):
+            SysMgr.printErr("no file for config")
+            sys.exit(-1)
+
+    @staticmethod
     def loadConfig(fname, verb=True):
         try:
+            fname = os.path.abspath(fname)
+
             targetList = []
             fd = None
             skip = False
@@ -26669,7 +26685,7 @@ Commands:
 
     @staticmethod
     def getPyPath():
-        return os.path.abspath(os.path.join(os.getcwd(), __file__))
+        return os.path.abspath(__file__)
 
     @staticmethod
     def getCmdline(pid, retList=False):
@@ -41036,21 +41052,8 @@ Copyright:
         elif SysMgr.checkMode("exec"):
             # check config file #
             if SysMgr.findOption("C"):
-                if not SysMgr.getOption("C"):
-                    # from current dir #
-                    if os.path.exists(SysMgr.confFileName):
-                        pass
-                    # from py dir #
-                    else:
-                        pydir = os.path.dirname(SysMgr.getPyPath())
-                        SysMgr.confFileName = os.path.join(
-                            pydir, "guider.conf"
-                        )
-
-                        # no path #
-                        if not os.path.exists(SysMgr.confFileName):
-                            SysMgr.printErr("no file for config")
-                            sys.exit(-1)
+                # search config file #
+                SysMgr.updateConfigPath()
 
                 # load config file #
                 if ConfigMgr.confData:
@@ -45870,10 +45873,10 @@ Copyright:
                 minfreqpath = "%s/scaling_min_freq" % commonpath
                 maxfreqpath = "%s/scaling_max_freq" % commonpath
 
+                minres = maxres = govres = False
+
                 # set clock range #
                 try:
-                    minres = maxres = govres = False
-
                     if clock and long(clock) > 0:
                         with open(minfreqpath, "w") as fd:
                             fd.write(clock)
@@ -62435,10 +62438,11 @@ typedef struct {
 
     @staticmethod
     def hookFunc(pid, hookList=[], mode="hook"):
+        comm = SysMgr.getComm(pid)
+        procInfo = "%s(%s)" % (comm, pid)
+
         # attach to target #
         try:
-            comm = SysMgr.getComm(pid)
-            procInfo = "%s(%s)" % (comm, pid)
             dobj = Debugger(pid=pid, attach=False)
             dobj.initValues()
         except SystemExit:
@@ -63544,7 +63548,9 @@ typedef struct {
 
                 if cmd == "dist":
                     try:
-                        idx = long(math.sqrt(val))
+                        idx = long(
+                            math.sqrt(val)  # pylint: disable=used-before-assignment
+                        )
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -68814,6 +68820,8 @@ typedef struct {
         self.traceStatus = True
 
     def getBacktrace(self, limit=32, cur=False, force=False, native=False):
+        restored = True
+
         try:
             if not force and self.btList:
                 return self.btList
@@ -68822,7 +68830,6 @@ typedef struct {
                 return
 
             # set initial flags #
-            restored = True
             self.inBacktrace = True
 
             # return special language callstack #
@@ -69893,7 +69900,7 @@ typedef struct {
                             "symbol": sym,
                             "return": retstr.lstrip("="),
                             "elapsed": origElapsed,
-                            "caller": addStrlstrip("-> "),
+                            "caller": addStr.lstrip("-> "),
                         }
                     # build string output #
                     else:
@@ -76952,10 +76959,10 @@ class ElfAnalyzer(object):
 
                     return fobj
 
+            raiseExcept = False
+
             # create a new object #
             try:
-                raiseExcept = False
-
                 elfObj = ElfAnalyzer(path)
                 if not elfObj or not elfObj.ret:
                     raiseExcept = True
@@ -85177,7 +85184,7 @@ class TaskAnalyzer(object):
         # ticklabel_format(useOffset=False)
         locator_params(axis="x", nbins=30)
         obj = figure(num=1, figsize=(10, 10), facecolor="b", edgecolor="k")
-        obj.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+        obj.subplots_adjust(left=0.06, top=0.95, bottom=0.04, hspace=0.3)
         return obj
 
     @staticmethod
@@ -85761,25 +85768,23 @@ class TaskAnalyzer(object):
                 xtickLabel = list(map(long, xtickLabel))
 
                 # apply time format #
-                if "NOTIMEFORMAT" in SysMgr.environList:
-                    useFormat = False
-                else:
+                if not "NOTIMEFORMAT" in SysMgr.environList:
                     try:
-                        useFormat = True
                         xtickLabel = list(map(UtilMgr.convTime, xtickLabel))
                     except:
                         pass
 
-                if len(str(xtickLabel[0])) > 5:
-                    for idx, item in enumerate(list(xtickLabel)):
-                        if idx & 1:
-                            xtickLabel[idx] = "\n%s" % item
-                    ax.set_xticklabels(xtickLabel)
+                for idx, item in enumerate(list(xtickLabel)):
+                    if idx & 1:
+                        xtickLabel[idx] = "\n%s" % item
+                ax.set_xticklabels(xtickLabel)
 
-                if not useFormat and xtickLabel[0] != xtickLabel[-1]:
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    xtickLabel[-1] = "   TIME(Sec)"
-                    ax.set_xticklabels(xtickLabel)
+                ax.set_xticklabels(xtickLabel)
+                lastIdx = len(ax.get_xticks().tolist())
+                if lastIdx > 2: pos = 2
+                else: pos = 1
+                xtickLabel[lastIdx-pos] = "   TIME(Sec)"
+                ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -85802,7 +85807,10 @@ class TaskAnalyzer(object):
                             sys.exit(0)
                         except:
                             xtickLabel[seq] = " "
-                xtickLabel[-1] = "   RUN(NR)"
+
+                ax.set_xticklabels(xtickLabel)
+                lastIdx = len(ax.get_xticks().tolist())
+                xtickLabel[lastIdx-1] = "   RUN(NR)"
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
@@ -85815,12 +85823,19 @@ class TaskAnalyzer(object):
                 xlim([xtickLabel[0], xtickLabel[-1]])
                 for seq, cnt in enumerate(xtickLabel):
                     try:
-                        xtickLabel[seq] = nrTask[timeline.index(long(cnt))]
+                        val = nrTask[timeline.index(long(cnt))]
+                        if seq & 1:
+                            xtickLabel[seq] = "\n%s" % val
+                        else:
+                            xtickLabel[seq] = val
                     except SystemExit:
                         sys.exit(0)
                     except:
                         xtickLabel[seq] = " "
-                xtickLabel[-1] = "   TASK(NR)"
+
+                ax.set_xticklabels(xtickLabel)
+                lastIdx = len(ax.get_xticks().tolist())
+                xtickLabel[lastIdx-1] = "   TASK(NR)"
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
@@ -88588,9 +88603,9 @@ class TaskAnalyzer(object):
 
         try:
             # save graph #
-            savefig(
+            savefig(  # pylint: disable=undefined-variable
                 outputFile, dpi=SysMgr.matplotlibDpi
-            )  # pylint: disable=undefined-variable
+            )
             clf()  # pylint: disable=undefined-variable
 
             # get output size #
@@ -93486,8 +93501,9 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printThreadTree():
+        orig = SysMgr.processEnable
+
         try:
-            orig = SysMgr.processEnable
             SysMgr.processEnable = False
 
             # save task info #
