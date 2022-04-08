@@ -7,18 +7,39 @@
 # Software Foundation; either version 2 of the License, or (at your option)
 # any later version.
 
-# check python #
-if [ ! $PYTHON ]; then
-    PYTHON=$(which python || which python3 || which python2)
-    if [ ! $PYTHON ]; then
-        echo "[Error] fail to find python"
-        exit 1
-    fi
-fi
-
 # export CMDLINE for Guider #
 CMDLINE=$0
 export CMDLINE
 
-# launch Guider #
-$PYTHON -m guider "$@"
+# check PYTHON variable #
+if [ $PYTHON ]; then
+    $PYTHON -m guider "$@"
+    exit 0
+fi
+
+# check python binaries #
+for cmd in python3 python python2
+do
+    # check a python binary #
+    RES=$(which $cmd 2> /dev/null)
+    if [ $? -ne "0" ]; then
+        continue;
+    fi
+
+    # launch Guider #
+    PYTHON=$cmd
+    $cmd -m guider "$@"
+
+    # check result #
+    if [ $? -eq "0" ]; then
+        exit 0
+    fi
+done
+
+# print error message #
+if [ ! $PYTHON ]; then
+    echo "[Error] failed to find python"
+else
+    echo "[Error] failed to find Guider module"
+fi
+exit 1
