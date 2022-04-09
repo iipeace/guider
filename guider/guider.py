@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220408"
+__revision__ = "220409"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25782,6 +25782,7 @@ Commands:
             "block",
             "storage",
             "net",
+            "load",
             "fd",
             "sock",
             "task",
@@ -108603,6 +108604,24 @@ class TaskAnalyzer(object):
                         sys.exit(0)
                     except:
                         pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check loadavg #
+        try:
+            if "load" in SysMgr.thresholdTarget:
+                if "load" in self.intervalData:
+                    intval = self.intervalData["load"]
+                else:
+                    intval = None
+
+                for attr in ["load1m", "load5m", "load15m"]:
+                    self.checkThreshold(
+                        "load", attr, "LOAD", "big",
+                        self.reportData["system"][attr], intval=intval
+                    )
         except SystemExit:
             sys.exit(0)
         except:
