@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220409"
+__revision__ = "220410"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17929,10 +17929,12 @@ class FunctionAnalyzer(object):
         # Print CPU usage in kernel space #
         title = "Function CPU-Tick Info"
         SysMgr.clearPrint()
-        SysMgr.printPipe(
-            "[%s] [Cnt: %s] [Interval: %dms] (KERNEL)"
-            % (title, tCnt, self.periodicEventInterval * 1000)
+        titleStr = "[%s] [Cnt: %s] [Interval: %dms] (KERNEL)" % (
+            title,
+            tCnt,
+            self.periodicEventInterval * 1000,
         )
+        SysMgr.printPipe(titleStr)
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SysMgr.printPipe(twoLine)
@@ -18025,6 +18027,13 @@ class FunctionAnalyzer(object):
                 except:
                     mergedSymbolChain[symbolStack] = cpuCnt
 
+            # define sample list for flame graph #
+            if "FLAME" in SysMgr.environList:
+                drawflame = True
+                callList = {}
+            else:
+                drawflame = False
+
             # Print stacks by symbol #
             for chain, tick in sorted(
                 mergedSymbolChain.items(), key=lambda e: e[1], reverse=True
@@ -18033,12 +18042,23 @@ class FunctionAnalyzer(object):
                 if cpuPer < 1 and not SysMgr.showAll:
                     break
 
+                # add a sample for flame graph #
+                if drawflame:
+                    callList[chain.lstrip("<- ")] = tick
+
                 SysMgr.printPipe("{0:7.1f}% |{1:32}".format(cpuPer, chain))
 
             SysMgr.printPipe(oneLine)
 
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
+
+            # draw flame graph #
+            Debugger.drawFlame(
+                callList=callList,
+                title=titleStr,
+                outFile=SysMgr.outPath + ".cpu.kernel",
+            )
 
         SysMgr.printPipe("\n\n")
 
@@ -26563,7 +26583,7 @@ Commands:
         for path in [
             os.getcwd(),
             os.path.dirname(SysMgr.getPyPath()),
-            os.path.join(sys.prefix, "local/guider")
+            os.path.join(sys.prefix, "local/guider"),
         ]:
             fullPath = os.path.join(path, "guider.conf")
             if os.path.exists(fullPath):
@@ -29385,6 +29405,9 @@ Examples:
 
     - {3:1} based on ./guider.dat except for user-level call-stacks to ./guider.out
         # {0:1} {1:1} -d u
+
+    - {3:1} based on ./guider.dat to ./guider.out and draw the flame graph
+        # {0:1} {1:1} -q FLAME
 
     - Report all the analysis result {2:1} having TID 1234 or COMM including a.out to ./guider.out
         # {0:1} {1:1} -o . -g "1234, a.out" -a
@@ -47620,7 +47643,9 @@ Copyright:
                 # sort by type #
                 elif "TYPE" in SysMgr.environList["SORT"]:
                     fileList.sort(
-                        key=lambda f: os.path.isfile(os.path.join(parentPath, f))
+                        key=lambda f: os.path.isfile(
+                            os.path.join(parentPath, f)
+                        )
                     )
                 # sort by name #
                 else:
@@ -47799,9 +47824,9 @@ Copyright:
                         else:
                             linkStr = ""
 
-                        sizeStr = (
-                            " <SIZE: %s%s>"
-                            % (convColor(sizeStr, color), linkStr)
+                        sizeStr = " <SIZE: %s%s>" % (
+                            convColor(sizeStr, color),
+                            linkStr,
                         )
                     except SystemExit:
                         sys.exit(0)
@@ -48695,7 +48720,8 @@ Copyright:
             stopSig = SysMgr.getSigNum(sigList[stopIdx][0])
             if not stopSig:
                 SysMgr.printErr(
-                    "wrong signal %s for stop" % sigList[stopIdx][0])
+                    "wrong signal %s for stop" % sigList[stopIdx][0]
+                )
                 sys.exit(-1)
             LeakAnalyzer.stopSig = stopSig
 
@@ -48749,12 +48775,14 @@ Copyright:
                 )
 
             # add report variable #
-            SysMgr.environList["ENV"].extend([
-                "LEAKTRACER_ONSIG_REPORT=%s" % LeakAnalyzer.stopSig,
-                "LEAKTRACER_ONSIG_REPORTFILENAME=%s" % fname,
-                "LEAKTRACER_ONEXIT_REPORT=1"
-                "LEAKTRACER_ONEXIT_REPORTFILENAME=%s" % fname,
-            ])
+            SysMgr.environList["ENV"].extend(
+                [
+                    "LEAKTRACER_ONSIG_REPORT=%s" % LeakAnalyzer.stopSig,
+                    "LEAKTRACER_ONSIG_REPORTFILENAME=%s" % fname,
+                    "LEAKTRACER_ONEXIT_REPORT=1"
+                    "LEAKTRACER_ONEXIT_REPORTFILENAME=%s" % fname,
+                ]
+            )
 
             # create the target process #
             pid = SysMgr.createProcess(inputCmd, mute=mute, chPgid=True)
@@ -53691,8 +53719,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn(
-                "failed to get root device path", reason=True)
+            SysMgr.printWarn("failed to get root device path", reason=True)
             SysMgr.rootdevPath = "/dev/root"
             return SysMgr.rootdevPath
 
@@ -63558,7 +63585,9 @@ typedef struct {
                 if cmd == "dist":
                     try:
                         idx = long(
-                            math.sqrt(val)  # pylint: disable=used-before-assignment
+                            math.sqrt(
+                                val
+                            )  # pylint: disable=used-before-assignment
                         )
                     except SystemExit:
                         sys.exit(0)
@@ -66860,7 +66889,9 @@ typedef struct {
         return "\n".join(tagList)
 
     @staticmethod
-    def drawFlame(inputFile=None, callList={}, title="", suffix=False):
+    def drawFlame(
+        inputFile=None, callList={}, title="", suffix=False, outFile=None
+    ):
         if not inputFile and not callList:
             SysMgr.printErr("no input for flamegraph")
             sys.exit(-1)
@@ -66884,6 +66915,10 @@ typedef struct {
             outputPath = UtilMgr.getDrawOutputPath(
                 fileName, "flamegraph", suffix=suffix
             )
+        elif outFile:
+            outputPath = outFile
+            if not outputPath.endswith(".svg"):
+                outputPath += ".svg"
         else:
             outputPath = "flamegraph.svg"
 
@@ -85790,9 +85825,11 @@ class TaskAnalyzer(object):
 
                 ax.set_xticklabels(xtickLabel)
                 lastIdx = len(ax.get_xticks().tolist())
-                if lastIdx > 2: pos = 2
-                else: pos = 1
-                xtickLabel[lastIdx-pos] = "   TIME(Sec)"
+                if lastIdx > 2:
+                    pos = 2
+                else:
+                    pos = 1
+                xtickLabel[lastIdx - pos] = "   TIME(Sec)"
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
@@ -85819,7 +85856,7 @@ class TaskAnalyzer(object):
 
                 ax.set_xticklabels(xtickLabel)
                 lastIdx = len(ax.get_xticks().tolist())
-                xtickLabel[lastIdx-1] = "   RUN(NR)"
+                xtickLabel[lastIdx - 1] = "   RUN(NR)"
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
@@ -85844,7 +85881,7 @@ class TaskAnalyzer(object):
 
                 ax.set_xticklabels(xtickLabel)
                 lastIdx = len(ax.get_xticks().tolist())
-                xtickLabel[lastIdx-1] = "   TASK(NR)"
+                xtickLabel[lastIdx - 1] = "   TASK(NR)"
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
@@ -108627,8 +108664,12 @@ class TaskAnalyzer(object):
 
                 for attr in ["load1m", "load5m", "load15m"]:
                     self.checkThreshold(
-                        "load", attr, "LOAD", "big",
-                        self.reportData["system"][attr], intval=intval
+                        "load",
+                        attr,
+                        "LOAD",
+                        "big",
+                        self.reportData["system"][attr],
+                        intval=intval,
                     )
         except SystemExit:
             sys.exit(0)
