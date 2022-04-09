@@ -3,7 +3,7 @@ import site, os, sys, shutil
 
 setup(
     name = 'guider',
-    version = '3.9.891',
+    version = '3.9.892',
     license = 'GPL2',
     description = 'Unified performance analyzer',
     author = 'Peace Lee',
@@ -40,7 +40,7 @@ build & install command
     # python3 setup.py build
     # python3 setup.py install
 pypi upload command
-    # sudo python3 -m pip install twine
+    # sudo python3 -m pip install twine wheel
     # rm dist/* -rf
     # sudo python3 setup.py sdist bdist_wheel
     # python3 -m twine upload --repository pypi dist/*
