@@ -22969,9 +22969,9 @@ class SysMgr(object):
     truncEnable = True
     ttyEnable = False
     ueventEnable = False
-    userEnable = True
-    userEnableWarn = True
-    userRecordEnable = True
+    userEnable = False
+    userEnableWarn = False
+    userRecordEnable = False
     ussEnable = False
     vssEnable = False
     waitEnable = False
@@ -29191,10 +29191,10 @@ Options:
   [collect]
     -e  <CHARACTER>             enable options
           [ b:block | c:cgroup | e:encode | g:graph
-            h:heap | L:lock | m:mem | p:pipe ]
+            h:heap | L:lock | m:mem | p:pipe | u:user ]
     -d  <CHARACTER>             disable options
           [ a:all | c:cpu | C:compress | e:encode
-            g:general | l:latency | L:log | u:user ]
+            g:general | l:latency | L:log ]
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -29238,46 +29238,49 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} all threads to ./guider.dat
+    - {2:1} for all threads to ./guider.dat
         # {0:1} {1:1} -s .
 
-    - {2:1} all threads to ./guider.dat for only 3 minutes
+    - {2:1} including user-level call-stacks for all threads to ./guider.dat
+        # {0:1} {1:1} -s .
+
+    - {2:1} for all threads to ./guider.dat for only 3 minutes
         # {0:1} {1:1} -s . -R 3m
 
-    - {2:1} all threads to ./guider.dat every 3 minutes continuously
+    - {2:1} for all threads to ./guider.dat every 3 minutes continuously
         # {0:1} {1:1} -s . -R 3m:1:1
 
-    - {2:1} specific threads having TID bigger than 1024 to ./guider.dat in the background
+    - {2:1} for specific threads having TID bigger than 1024 to ./guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
 
-    - record specific function events including memory, block, heap for all threads to ./guider.dat
+    - {2:1} including memory, block, heap for all threads to ./guider.dat
         # {0:1} {1:1} -s . -e m, b, h
 
-    - record specific function events including all syscalls for all threads to ./guider.dat
+    - {2:1} including all syscalls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -t
 
-    - {2:1} all threads and save recording commands to specific script file
+    - {2:1} for all threads and save recording commands to specific script file
         # {0:1} {1:1} -B guider.cmd
 
-    - record specific function events including softirq_entry event for all threads to ./guider.dat
+    - {2:1} including softirq_entry event for all threads to ./guider.dat
         # {0:1} {1:1} -s . -c "softirq_entry:vec==1"
 
-    - record specific function events including segmentation fault for all threads to ./guider.dat in real-time
+    - {2:1} including segmentation fault for all threads to ./guider.dat in real-time
         # {0:1} {1:1} -s . -d c -K "segflt:bad_area" -e p
 
-    - record specific function events including blocking for all threads to ./guider.dat
+    - {2:1} including blocking for all threads to ./guider.dat
         # {0:1} {1:1} -s . -d c -K "block:schedule"
 
-    - {2:1} all threads to ./guider.dat and execute user commands
+    - {2:1} for all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - record all kernel function calls for all threads to ./guider.dat
+    - Record all kernel function calls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -e g
 
     - report the results of analyzing the recorded data
         => See report command
                     """.format(
-                        cmd, mode, "Record default function events"
+                        cmd, mode, "Record function events"
                     )
 
                 # file record #
@@ -29297,7 +29300,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          [ e:encode | g:genearlInfo ]
+          [ e:encode | g:general ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W  <SEC>                   wait for input
@@ -29361,7 +29364,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          [ e:encode | g:genearlInfo | l:latency ]
+          [ e:encode | g:general | l:latency | u:user ]
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
@@ -29374,25 +29377,28 @@ Options:
 
                     helpStr += """
 Examples:
-    - {3:1} based on guider.dat to ./guider.out
+    - {3:1} based on ./guider.dat to ./guider.out
         # {0:1} {1:1}
 
     - {3:1} based on trace.dat
         # {0:1} {1:1} trace.dat
 
-    - report all the analysis result {2:1} having TID 1234 or COMM including a.out to ./guider.out
+    - {3:1} based on ./guider.dat except for user-level call-stacks to ./guider.out
+        # {0:1} {1:1} -d u
+
+    - Report all the analysis result {2:1} having TID 1234 or COMM including a.out to ./guider.out
         # {0:1} {1:1} -o . -g "1234, a.out" -a
 
-    - {3:1} based on guider.dat to ./guider.out with sched block time
+    - {3:1} based on ./guider.dat to ./guider.out with sched block time
         # {0:1} {1:1} -d l
 
-    - {3:1} based on guider.dat to ./guider.out with higher time resolution
+    - {3:1} based on ./guider.dat to ./guider.out with higher time resolution
         # {0:1} {1:1} -q PRECISE
 
-    - convert compressed recording data to original one
-        # {0:1} {1:1} guider.dat -s .
+    - Convert the compressed recording data to the original one
+        # {0:1} {1:1} ./guider.dat -s .
 
-    - report all the analysis result including interval information for all threads to ./guider.out
+    - Report all the analysis result including interval information for all threads to ./guider.out
         # {0:1} {1:1} -o . -a -i
 
     - {3:1} including preemption info {2:1} to ./guider.out
@@ -29421,7 +29427,7 @@ Examples:
     - {3:1} {2:1} and their siblings to ./guider.out
         # {0:1} {1:1} -o . -P -g 1234, 4567 -a
 
-    - report the function analysis result with maximum 3-depth {2:1} to ./guider.out
+    - Report the function analysis result with maximum 3-depth {2:1} to ./guider.out
         # {0:1} {1:1} -o . -g 1234 -H 3
                     """.format(
                         cmd,
@@ -29447,7 +29453,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          [ e:encode | g:genearlInfo ]
+          [ e:encode | g:general ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W  <SEC>                   wait for input
@@ -37692,9 +37698,6 @@ Copyright:
         if launchPosStart > -1:
             filterList = SysMgr.launchBuffer[launchPosStart + 3 :]
             filterList = filterList[: filterList.find(" -")]
-            if "u" in filterList:
-                SysMgr.userEnable = False
-                SysMgr.userRecordEnable = False
             if "a" in filterList:
                 SysMgr.disableAll = True
             if "c" in filterList:
@@ -37708,6 +37711,11 @@ Copyright:
         if launchPosStart > -1:
             filterList = SysMgr.launchBuffer[launchPosStart + 3 :]
             filterList = filterList[: filterList.find(" -")]
+            if "u" in filterList:
+                dlist = SysMgr.getOption("d")
+                if not dlist or not "u" in dlist:
+                    SysMgr.userEnable = True
+                    SysMgr.userRecordEnable = True
             if "m" in filterList:
                 SysMgr.memEnable = True
             if "b" in filterList:
@@ -40288,6 +40296,9 @@ Copyright:
                 if "c" in options:
                     SysMgr.cgroupEnable = True
 
+                if "u" in options:
+                    SysMgr.userEnable = True
+
                 if not SysMgr.isValidEnableOption(options):
                     SysMgr.printErr(
                         "unrecognized option '%s' to enable" % options
@@ -40431,9 +40442,6 @@ Copyright:
 
                 if "b" in options:
                     SysMgr.blockEnable = False
-
-                if "u" in options:
-                    SysMgr.userEnable = False
 
                 if "p" in options:
                     SysMgr.printEnable = False
@@ -74602,7 +74610,7 @@ class EventAnalyzer(object):
 
         if eventData:
             SysMgr.printPipe(
-                "\n[%s] [ Total: %d ]" % ("Event Info", len(eventData))
+                "\n[%s] [Total: %d]" % ("Event Info", len(eventData))
             )
             SysMgr.printPipe(twoLine)
             try:
@@ -89509,8 +89517,8 @@ class TaskAnalyzer(object):
         # print menu #
         SysMgr.printPipe(
             (
-                "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %s ] "
-                + "[ ContextSwitch: %s ] [ LogSize: %s ] (Unit: Sec/MB/NR)"
+                "[%s] [%s: %0.3f] [%s: %0.3f] [ActiveThread: %s] "
+                + "[ContextSwitch: %s] [LogSize: %s] (Unit: Sec/MB/NR)"
             )
             % (
                 title,
@@ -92492,7 +92500,7 @@ class TaskAnalyzer(object):
         # print title #
         intervalEnable = SysMgr.intervalEnable
         SysMgr.printPipe(
-            "\n[Thread Interval Info] [ Start: %s ] (Unit: %s Sec)"
+            "\n[Thread Interval Info] [Start: %s] (Unit: %s Sec)"
             % (round(float(SysMgr.startTime), 7), intervalEnable)
         )
         SysMgr.printPipe(twoLine)
@@ -97649,7 +97657,7 @@ class TaskAnalyzer(object):
                         self.preemptData[index][2] = ftime
                         self.preemptData[index][3] = core
 
-            elif prev_state in ("S", "D", "t", "T"):
+            elif prev_state in ("S", "D", "t", "T", "I"):
                 # increase yield count except for core sched event #
                 if prev_id != coreId:
                     self.threadData[prev_id]["yield"] += 1
