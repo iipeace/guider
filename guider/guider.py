@@ -18054,11 +18054,12 @@ class FunctionAnalyzer(object):
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
 
             # draw flame graph #
-            Debugger.drawFlame(
-                callList=callList,
-                title=titleStr,
-                outFile=SysMgr.outPath + ".cpu.kernel",
-            )
+            if drawflame:
+                Debugger.drawFlame(
+                    callList=callList,
+                    title=titleStr,
+                    outFile=SysMgr.outPath + ".cpu.kernel",
+                )
 
         SysMgr.printPipe("\n\n")
 
@@ -20193,9 +20194,12 @@ class FileAnalyzer(object):
                     self.fileList[name]["pageCnt"] = stat["pageCnt"]
                     self.fileList[name]["totalSize"] = stat["totalSize"]
 
+        # check result #
         if not self.fileList:
             SysMgr.printErr("no file profiled")
             sys.exit(-1)
+
+        self.procData = self.procList
 
         SysMgr.printLogo(big=True)
 
@@ -20210,78 +20214,7 @@ class FileAnalyzer(object):
         uptime = UtilMgr.convTime(SysMgr.updateUptime())
 
         # print process list #
-        SysMgr.printPipe(
-            (
-                "[%s] [Process : %s] [LastRAM: %s] [Reclaim: %s/%s] "
-                "[Uptime: %s] [Keys: Foward/Back/Save/Quit] "
-                "[Capture: Ctrl+\\]\n%s"
-            )
-            % (
-                "File Process Info",
-                convNum(len(self.procList)),
-                convSize(self.profPageCnt * 4 << 10),
-                convSize(self.pgRclmBg * 4 << 10),
-                convSize(self.pgRclmFg * 4 << 10),
-                uptime,
-                twoLine,
-            )
-        )
-        SysMgr.printPipe(
-            "{0:_^16}({1:_^7})|{2:_^12}|{3:_^16}({4:_^7}) |".format(
-                "Process", "PID", "MaxRAM", "ThreadName", "TID"
-            )
-        )
-        SysMgr.printPipe(twoLine)
-
-        procInfo = "{0:_^16}({1:^7})|{2:11} |".format("", "", "")
-        threadInfo = " {0:^16}({1:^7}) |".format("", "")
-        procLength = len(procInfo)
-        threadLength = len(threadInfo)
-        lineLength = SysMgr.lineLength
-
-        for pid, val in sorted(
-            self.procList.items(),
-            key=lambda e: long(e[1]["pageCnt"]),
-            reverse=True,
-        ):
-            try:
-                rsize = val["pageCnt"] * pageSize
-            except:
-                SysMgr.printWarn(
-                    "failed to get total mapped size for %s" % val["comm"],
-                    reason=True,
-                )
-                continue
-
-            if rsize > 0:
-                rsize = convColor(convSize(rsize), "YELLOW", 11)
-
-            printMsg = "{0:>16}({1:>7})|{2:>11} |".format(
-                val["comm"][: SysMgr.commLen], pid, rsize
-            )
-            linePos = len(printMsg)
-
-            for tid, threadVal in sorted(val["tids"].items(), reverse=True):
-                threadInfo = "{0:>16}({1:>7}) |".format(
-                    threadVal["comm"][: SysMgr.commLen], tid
-                )
-
-                linePos += threadLength
-
-                if linePos > lineLength:
-                    linePos = procLength + threadLength
-                    printMsg += "\n" + (" " * (procLength - 1)) + "|"
-
-                printMsg += threadInfo
-
-            SysMgr.printPipe(printMsg)
-
-        SysMgr.printPipe("%s\n\n" % oneLine)
-
-        # remove invalid files #
-        for fileName in list(self.fileList):
-            if not FileAnalyzer.isValidFile(fileName):
-                self.fileList.pop(fileName, None)
+        self.printProcUsage()
 
         # print file list #
         SysMgr.printPipe(
@@ -20300,7 +20233,7 @@ class FileAnalyzer(object):
             )
         )
 
-        printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format("InitRAM", "File", "%")
+        printMsg = "{0:_^8}|{1:_^8}|{2:_^3}|".format("InitRAM", "File", "%")
 
         if len(self.intervalFileData) > 1:
             for idx in range(1, len(self.intervalFileData)):
@@ -20308,7 +20241,7 @@ class FileAnalyzer(object):
 
         # print title #
         lineLength = SysMgr.lineLength
-        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM", "%")
+        printMsg += "{0:_^8}|{1:_^3}|".format("LastRAM", "%")
         printMsg += "_" * (long((lineLength - len(printMsg)) / 2) - 2)
         printMsg += "Library"
         printMsg += "_" * (lineLength - len(printMsg))
@@ -20343,13 +20276,13 @@ class FileAnalyzer(object):
                 per = 0
 
             if memSize > 0:
-                memSize = convColor(convSize(memSize), "YELLOW", 10)
+                memSize = convColor(convSize(memSize), "YELLOW", 7)
 
             # check whether this file was profiled or not #
             isRep = False
             for fileData in reversed(self.intervalFileData):
                 if fileName in fileData and fileData[fileName]["isRep"]:
-                    printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(
+                    printMsg = "{0:>7} |{1:>7} |{2:>3}|".format(
                         memSize, convSize(fileSize), per
                     )
                     isRep = True
@@ -20360,7 +20293,7 @@ class FileAnalyzer(object):
 
             # calculate diff of on-memory file size #
             if len(self.intervalFileData) > 1:
-                for idx in range(len(self.intervalFileData)):
+                for idx in range(len(self.intervalFileData) - 1):
                     diffNew = 0
                     diffDel = 0
 
@@ -20421,9 +20354,9 @@ class FileAnalyzer(object):
                 per = 0
 
             if totalMemSize > 0:
-                totalMemSize = convColor(convSize(totalMemSize), "YELLOW", 11)
+                totalMemSize = convColor(convSize(totalMemSize), "YELLOW", 7)
 
-            printMsg += "{0:>10} |{1:>3}| {2:1}".format(
+            printMsg += "{0:>7} |{1:>3}| {2:1}".format(
                 totalMemSize, per, fileName
             )
 
@@ -21043,19 +20976,7 @@ class FileAnalyzer(object):
 
         procMap[fileName]["vend"] = endAddr
 
-    def printUsage(self):
-        if not self.procData:
-            SysMgr.printErr("no process profiled")
-            sys.exit(-1)
-        if not self.fileData:
-            SysMgr.printErr("no file profiled")
-            sys.exit(-1)
-
-        SysMgr.printLogo(big=True)
-
-        # print system information #
-        SysMgr.printInfoBuffer()
-
+    def printProcUsage(self):
         # define alias #
         convert = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
@@ -21080,18 +21001,21 @@ class FileAnalyzer(object):
                 twoLine,
             )
         )
+
+        procTitle = "%s(%s)" % ("Thread", "TID")
         SysMgr.printPipe(
-            "{0:_^16}({1:_^7})|{2:_^13}|{3:_^16}({4:_^7}) |".format(
-                "Process", "PID", "RAM", "Thread", "TID"
+            "{0:_^16}({1:_^7})|{2:_^7}|{3:_^120}".format(
+                "Process", "PID", "RAM", procTitle
             )
         )
         SysMgr.printPipe(twoLine)
 
-        procInfo = "{0:^16}({0:^7})|{0:12} |".format("")
-        threadInfo = " {0:^16}({0:^7}) |".format("")
+        procInfo = "{0:^16}({0:^7})|{0:7} |".format("")
+        threadInfo = " {0:^16}({0:^7})".format("")
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SysMgr.lineLength
+        commLen = SysMgr.commLen
 
         for pid, val in sorted(
             self.procData.items(),
@@ -21108,23 +21032,24 @@ class FileAnalyzer(object):
                 continue
 
             if rsize > 0:
-                rsize = convColor(convert(rsize), "YELLOW", 12)
+                rsize = convColor(convert(rsize), "YELLOW", 7)
 
-            printMsg = "{0:>16}({1:>7})|{2:>12} |".format(
-                val["comm"][: SysMgr.commLen], pid, rsize
+            printMsg = "{0:>16}({1:>7})|{2:>7}|".format(
+                val["comm"][:commLen], pid, rsize
             )
             linePos = len(printMsg)
 
-            for tid, threadVal in sorted(val["tids"].items(), reverse=True):
-                threadInfo = "{0:^16}({1:>7}) |".format(
-                    threadVal["comm"][: SysMgr.commLen], tid
+            for tid, threadVal in sorted(val["tids"].items()):
+                threadInfo = "{0:>1}({1:>1})".format(
+                    threadVal["comm"][:commLen], tid
                 )
+                threadInfo = "{0:>25}".format(threadInfo)
 
                 linePos += threadLength
 
                 if linePos > lineLength:
                     linePos = procLength + threadLength
-                    printMsg += "\n" + (" " * (procLength - 1)) + "|"
+                    printMsg += "\n" + (" " * (procLength - 2)) + "|"
 
                 printMsg += threadInfo
 
@@ -21136,6 +21061,29 @@ class FileAnalyzer(object):
         for fileName in list(self.fileData):
             if not FileAnalyzer.isValidFile(fileName):
                 self.fileData.pop(fileName, None)
+
+    def printUsage(self):
+        if not self.procData:
+            SysMgr.printErr("no process profiled")
+            sys.exit(-1)
+        if not self.fileData:
+            SysMgr.printErr("no file profiled")
+            sys.exit(-1)
+
+        SysMgr.printLogo(big=True)
+
+        # print system information #
+        SysMgr.printInfoBuffer()
+
+        # define alias #
+        convert = UtilMgr.convSize2Unit
+        convColor = UtilMgr.convColor
+        convNum = UtilMgr.convNum
+        pageSize = SysMgr.PAGESIZE
+        uptime = UtilMgr.convTime(SysMgr.updateUptime())
+
+        # print process list #
+        self.printProcUsage()
 
         # Print file list #
         SysMgr.printPipe(
@@ -21154,8 +21102,8 @@ class FileAnalyzer(object):
             )
         )
         SysMgr.printPipe(
-            "{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".format(
-                "RAM", "File", "%", "Library & Process"
+            "{0:_^8}|{1:_^8}|{2:_^5}|{3:_^8}|{4:_^121}".format(
+                "RAM", "File", "%", "PSS", "Library & Process"
             )
         )
         SysMgr.printPipe(twoLine)
@@ -21172,12 +21120,19 @@ class FileAnalyzer(object):
             fileSize = nrFilePage * pageSize
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
-                per = UtilMgr.convCpuColor(per, size=5)
+                per = UtilMgr.convCpuColor(per, size=4)
             else:
                 per = 0
 
+            try:
+                pss = long(memSize / len(val["pids"]))
+                if pss > 0:
+                    pss = convColor(convert(pss), "GREEN", 7)
+            except:
+                pss = 0
+
             if memSize > 0:
-                memSize = convColor(convert(memSize), "YELLOW", 11)
+                memSize = convColor(convert(memSize), "YELLOW", 7)
 
             if not val["isRep"]:
                 continue
@@ -21194,12 +21149,13 @@ class FileAnalyzer(object):
 
                 SysMgr.printPipe(
                     (
-                        "{0:>11} |{1:>9} |{2:>5} | {3:1} "
-                        "[Proc: {4:1}] [Link: {5:1}]{6:1}"
+                        "{0:>7} |{1:>7} |{2:>4} |{3:>7} | {4:1} "
+                        "[Proc: {5:1}] [Link: {6:1}]{7:1}"
                     ).format(
                         memSize,
                         convert(fileSize),
                         per,
+                        pss,
                         fileName,
                         len(val["pids"]),
                         convNum(val["hardLink"]),
@@ -21211,7 +21167,7 @@ class FileAnalyzer(object):
             pidInfo = ""
             lineLength = SysMgr.lineLength
             pidLength = len(" %16s (%6s) |" % ("", ""))
-            ilength = len("{0:>11} |{1:>9} |{2:>5} ".format("", "", ""))
+            ilength = len("{0:7} |{0:7} |{0:4} |{0:7} ".format(""))
             linePos = ilength + pidLength
 
             # print hard-linked list #
@@ -63585,9 +63541,9 @@ typedef struct {
                 if cmd == "dist":
                     try:
                         idx = long(
-                            math.sqrt(
+                            math.sqrt(  # pylint: disable=used-before-assignment
                                 val
-                            )  # pylint: disable=used-before-assignment
+                            )
                         )
                     except SystemExit:
                         sys.exit(0)
