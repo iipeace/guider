@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220410"
+__revision__ = "220411"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5041,7 +5041,8 @@ class ConfigMgr(object):
         "POLICY",
         "DELAYBLKTICK",
         "GUESTTIME",
-        "CGUESTTIME" "STARTDATA",  # 43
+        "CGUESTTIME",
+        "STARTDATA",  # 44
         "ENDDATA",
         "STARTBRK",
         "ARGSTART",
@@ -11273,7 +11274,7 @@ class Ext4Analyzer(object):
             def __repr__(self):
                 if self.inode_idx != None:
                     return (
-                        "%s(inode_idx = %s, offset = 0x%X, " "volume_uuid = %s"
+                        "%s(inode_idx = %s, offset = 0x%X, volume_uuid = %s"
                     ) % (
                         type(self).__name__,
                         self.inode_idx,
@@ -15017,7 +15018,7 @@ class FunctionAnalyzer(object):
     def getBinFromServer(self, remoteObj, src, des):
         if not remoteObj or remoteObj == "NONE":
             SysMgr.printErr(
-                "wrong remote address, " "input in the format {IP:PORT}"
+                "wrong remote address, input in the format {IP:PORT}"
             )
             sys.exit(-1)
 
@@ -16980,29 +16981,12 @@ class FunctionAnalyzer(object):
         )
         SysMgr.printPipe(
             (
-                "{0:^16}|{1:^7}|{2:^7}|{3:^6}|{4:^6}|{5:^7}|"
-                "{6:^9}{7:^8}{8:^8}{9:^12}|{10:^8}|{11:^7}|{12:^8}|"
-                "{13:^8}|{14:^9}|{15:^6}|{16:^8}|"
-            ).format(
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-                " ",
-            )
+                "{0:^16}|{0:^7}|{0:^7}|{0:^6}|{0:^6}|{0:^7}|"
+                "{0:^9}{0:^8}{0:^8}{0:^12}|{0:^8}|{0:^7}|{0:^8}|"
+                "{0:^8}|{0:^9}|{0:^6}|{0:^8}|"
+            ).format(" ")
         )
+
         SysMgr.printPipe(
             (
                 "{0:_^16}|{1:_^7}|{2:_^7}|{3:_^6}|{4:_^6}|"
@@ -18251,7 +18235,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     (
-                        "{0:>7}({1:>6}/{2:>6}/{3:>6})|" "{4:^47}|{5:40}| {6:1}"
+                        "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}"
                     ).format(
                         convSize(value["pagePairCnt"] << 12),
                         convSize(typeList["USER"] << 12),
@@ -18556,7 +18540,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(
                     (
-                        "{0:>7}({1:>6}/{2:>6}/{3:>6})|" "{4:^47}|{5:40}| {6:1}"
+                        "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}"
                     ).format(
                         convSize(value["pageCnt"] << 12),
                         convSize(value["userPageCnt"] << 12),
@@ -18816,7 +18800,7 @@ class FunctionAnalyzer(object):
             kernelstack = segment[1]["ksubStackAddr"]
 
             title = (
-                "{0:^32}| {1:>10} | {2:>16}({3:>7})|" "{4:>6} | {5:>15} |"
+                "{0:^32}| {1:>10} | {2:>16}({3:>7})|{4:>6} | {5:>15} |"
             ).format(
                 addr,
                 convSize(size),
@@ -23543,7 +23527,7 @@ Commands:
                     )
                 else:
                     SysMgr.printErr(
-                        "wrong option used, " "use also -s option to save data"
+                        "wrong option used, use also -s option to save data"
                     )
 
                 sys.exit(-1)
@@ -26538,10 +26522,13 @@ Commands:
 
         for path in [
             os.getcwd(),
+            os.path.dirname(os.environ["CMDLINE"])
+            if "CMDLINE" in os.environ
+            else ".",
             os.path.dirname(SysMgr.getPyPath()),
             os.path.join(sys.prefix, "local/guider"),
         ]:
-            fullPath = os.path.join(path, "guider.conf")
+            fullPath = os.path.abspath(os.path.join(path, "guider.conf"))
             if os.path.exists(fullPath):
                 SysMgr.confFileName = fullPath
                 break
@@ -40048,8 +40035,7 @@ Copyright:
             # check writable access #
             if not SysMgr.isWritable(value):
                 SysMgr.printErr(
-                    ("wrong path '%s' for output " "because of permission")
-                    % value
+                    "wrong path '%s' for output because of permission" % value
                 )
                 sys.exit(-1)
 
@@ -42527,6 +42513,12 @@ Copyright:
                 statPath = "%s/%s/stat" % (SysMgr.procPath, pid)
                 with open(statPath, "r") as fd:
                     statList = fd.read().split()
+
+                if len(statList) + 1 < len(ConfigMgr.STAT_ATTR):
+                    SysMgr.printWarn(
+                        "failed to read stat for %s(%s)" % (comm, pid)
+                    )
+                    continue
 
                 statList = SysMgr.mergeCommStat(statList, commIdx)
 
@@ -45670,7 +45662,7 @@ Copyright:
             value = SysMgr.getMainArg()
         else:
             SysMgr.printErr(
-                ("no path to convert file, " "input the path of a text file")
+                "no path to convert file, input the path of a text file"
             )
             sys.exit(-1)
 
@@ -52037,6 +52029,9 @@ Copyright:
 
             # convert string to list #
             statList = statBuf.split()
+            if len(statList) + 1 < len(ConfigMgr.STAT_ATTR):
+                SysMgr.printWarn("failed to read stat for the task")
+                return None
 
             # merge comm parts that splited by space #
             statList = SysMgr.mergeCommStat(statList, COMM_IDX)
@@ -59032,13 +59027,11 @@ class DbusMgr(object):
 
                 for name, arg in sorted(iface.items()):
                     SysMgr.printPipe(
-                        "{0:>23} {1:<23} {2:<12}".format(" ", " ", name)
+                        "{0:>23} {0:<23} {1:<12}".format(" ", name)
                     )
                     for key in sorted(list(arg)):
                         SysMgr.printPipe(
-                            "{0:>23} {1:<23} {2:<10} ({3:<1})".format(
-                                " ", " ", " ", key
-                            )
+                            "{0:>23} {0:<23} {0:<10} ({1:<1})".format(" ", key)
                         )
             SysMgr.printPipe(oneLine)
         if not nrPerProcSignals:
@@ -59127,9 +59120,7 @@ class DbusMgr(object):
                             cproc = name
 
                         SysMgr.printPipe(
-                            "{0:>23} {1:<12} {2:<12} {3:<1}".format(
-                                " ", " ", " ", cproc
-                            )
+                            "{0:>23} {0:<12} {0:<12} {1:<1}".format(" ", cproc)
                         )
             SysMgr.printPipe(oneLine)
         if not nrPerSigProcs:
@@ -59218,7 +59209,7 @@ class DbusMgr(object):
 
                         if data["max"] > 0:
                             name = (
-                                "%s {Min: %.3f, Avr: %.3f, Max: %.3f%s}" "%s"
+                                "%s {Min: %.3f, Avr: %.3f, Max: %.3f%s}%s"
                             ) % (
                                 name,
                                 data["min"],
@@ -60633,7 +60624,7 @@ class DltAnalyzer(object):
             ntime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timeSec))
 
             output = (
-                "{0:1}.{1:06d} {2:1} {3:4} " "{4:4} {5:4} {6:5} {7!s:1}"
+                "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}"
             ).format(ntime, timeUs, uptime, ecuId, apId, ctxId, level, string)
 
             # print log #
@@ -65916,7 +65907,7 @@ typedef struct {
 
         if addr < wordSize:
             SysMgr.printWarn(
-                ("failed to write to %s memory " "because of wrong address")
+                "failed to write to %s memory because of wrong address"
                 % hex(addr).rstrip("L")
             )
             return None
@@ -79501,7 +79492,7 @@ Section header string table index: %d
 
             if debug:
                 printer(
-                    ("\n[%s Section]\n%s\n" "%16s %16s %32s %16s %s\n%s")
+                    ("\n[%s Section]\n%s\n%16s %16s %32s %16s %s\n%s")
                     % (
                         shname,
                         twoLine,
@@ -79598,7 +79589,7 @@ Section header string table index: %d
 
             if debug:
                 printer(
-                    ("\n[%s Section]\n%s\n" "%16s %16s %32s %16s %s\n%s")
+                    ("\n[%s Section]\n%s\n%16s %16s %32s %16s %s\n%s")
                     % (
                         shname,
                         twoLine,
@@ -81987,7 +81978,7 @@ Section header string table index: %d
 
         if debug:
             printer(
-                ("\n[.dynamic Section]\n%s\n" "%16s %20s %1s\n%s")
+                ("\n[.dynamic Section]\n%s\n%16s %20s %1s\n%s")
                 % (twoLine, "Tag", "Type", "Value", twoLine)
             )
 
@@ -83288,6 +83279,7 @@ class TaskAnalyzer(object):
             self.sidIdx = ConfigMgr.STAT_ATTR.index("SESSIONID")
             self.pgrpIdx = ConfigMgr.STAT_ATTR.index("PGRP")
             self.shrIdx = ConfigMgr.STATM_TYPE.index("SHR")
+            self.statCnt = len(ConfigMgr.STAT_ATTR)
 
             # initialize netlink socket #
             try:
@@ -88838,7 +88830,7 @@ class TaskAnalyzer(object):
             totalUsage = 0.0
 
             SysMgr.printPipe(
-                ("\n[Thread Workqueue Info] [Elapsed: %.3f] " "(Unit: Sec/NR)")
+                ("\n[Thread Workqueue Info] [Elapsed: %.3f] (Unit: Sec/NR)")
                 % float(self.totalTime)
             )
             SysMgr.printPipe(twoLine)
@@ -88935,7 +88927,7 @@ class TaskAnalyzer(object):
             totalUsage = 0.0
 
             SysMgr.printPipe(
-                ("\n[Thread IRQ Info] [Elapsed: %.3f] " "(Unit: Sec/NR)")
+                ("\n[Thread IRQ Info] [Elapsed: %.3f] (Unit: Sec/NR)")
                 % float(self.totalTime)
             )
             SysMgr.printPipe(twoLine)
@@ -94761,7 +94753,9 @@ class TaskAnalyzer(object):
             if pid == "total" or value["maxMem"] == 0:
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".format(
+            procInfo = (
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/" "{3:>4}/{4:>4})|{5:>6} |"
+            ).format(
                 value["comm"][:cl],
                 pid,
                 value["ppid"],
@@ -94901,7 +94895,9 @@ class TaskAnalyzer(object):
             if pid == "total" or value["maxVss"] == 0:
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".format(
+            procInfo = (
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/" "{3:>4}/{4:>4})|{5:>6} |"
+            ).format(
                 value["comm"][:cl],
                 pid,
                 value["ppid"],
@@ -102379,6 +102375,12 @@ class TaskAnalyzer(object):
         else:
             # convert string to list #
             statList = statBuf.decode().split()
+            if len(statList) + 1 < self.statCnt:
+                SysMgr.printWarn(
+                    "failed to read stat for the task having TID %s" % tid
+                )
+                self.procData.pop(tid, None)
+                return False
 
             # merge comm parts that splited by space #
             statList = SysMgr.mergeCommStat(statList, self.commIdx)
@@ -108378,12 +108380,19 @@ class TaskAnalyzer(object):
         if SysMgr.thresholdRefreshList:
             newList = []
             for item in SysMgr.thresholdRefreshList:
-                tick, data = item
+                tick, ename, data = item
+
                 tick -= 1
+                # keep #
                 if tick > 0:
-                    newList.append([tick, data])
+                    newList.append([tick, ename, data])
+                # expired #
                 elif "apply" in data:
                     data["apply"] = "true"
+
+                    # remove event form history #
+                    SysMgr.thresholdEventHistory.pop(ename, None)
+
             SysMgr.thresholdRefreshList = newList
 
         # check CPU #
@@ -108876,7 +108885,7 @@ class TaskAnalyzer(object):
 
             # update threshold items #
             if refresh:
-                SysMgr.thresholdRefreshList.append([refresh, comval])
+                SysMgr.thresholdRefreshList.append([refresh, ename, comval])
             elif not _checkResource(SysMgr.thresholdData):
                 if SysMgr.thresholdData:
                     SysMgr.prevThresholdData = SysMgr.thresholdData
@@ -108889,22 +108898,21 @@ class TaskAnalyzer(object):
                     True,
                 )
 
-        # handle oneshot command #
-        if goneshot:
-            run = True
-        elif oneshot and not refresh and ename in SysMgr.thresholdEventHistory:
-            run = False
-        else:
-            run = True
-
         # set lock for event #
         if lock:
             SysMgr.eventLockList.setdefault(ename, None)
             SysMgr.printWarn(
-                ("locked the threshold handling " "because of '%s' event")
-                % ename,
+                "locked the threshold handling because of '%s' event" % ename,
                 True,
             )
+
+        # handle oneshot command #
+        if goneshot:
+            run = True
+        elif oneshot and ename in SysMgr.thresholdEventHistory:
+            run = False
+        else:
+            run = True
 
         # set value for event #
         self.reportData["event"][ename] = dict(comval)
