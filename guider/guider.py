@@ -22583,6 +22583,9 @@ class SysMgr(object):
     wordSize = 4
     maxInterval = 0
     ipAddr = None
+    swappiness = 0
+    vmpressure = 0
+    overcommit = 0
 
     # watermark constants #
     cpuPerHighThreshold = 80
@@ -22829,6 +22832,9 @@ class SysMgr(object):
     vmstatFd = None
     vmallocFd = None
     zoneFd = None
+    swappinessFd = None
+    vmpressureFd = None
+    overcommitFd = None
 
     # flag #
     affinityEnable = False
@@ -100940,6 +100946,52 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printWarn("failed to parse slab info", reason=True)
 
+    def saveVmInfo(self):
+        # read swappiness #
+        try:
+            SysMgr.swappiness = long(
+                SysMgr.readProcStat(
+                    SysMgr.swappinessFd,
+                    "sys/vm/swappiness",
+                    SysMgr,
+                    "swappinessFd",
+                )[0].rstrip()
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # read vmpressure #
+        try:
+            SysMgr.vmpressure = long(
+                SysMgr.readProcStat(
+                    SysMgr.vmpressureFd,
+                    "sys/vm/vfs_cache_pressure",
+                    SysMgr,
+                    "vmpressureFd",
+                )[0].rstrip()
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # read overcommit_memory #
+        try:
+            SysMgr.overcommit = long(
+                SysMgr.readProcStat(
+                    SysMgr.overcommitFd,
+                    "sys/vm/overcommit_memory",
+                    SysMgr,
+                    "overcommitFd",
+                )[0].rstrip()
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
     def saveZoneInfo(self):
         # read zone buf #
         memBuf = SysMgr.readProcStat(
@@ -101612,6 +101664,7 @@ class TaskAnalyzer(object):
         if SysMgr.memEnable:
             self.saveSlabInfo()
             self.saveZoneInfo()
+            self.saveVmInfo()
 
         # save GPU memory info #
         self.gpuMemData = SysMgr.getGpuMem()
@@ -104856,6 +104909,20 @@ class TaskAnalyzer(object):
 
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
 
+    def printVmInfo(self, nrIndent):
+        vmInfo = "%s [VM > " % (" " * nrIndent)
+
+        # swappiness #
+        vmInfo += "swappiness: %s" % SysMgr.swappiness
+
+        # vmpressure #
+        vmInfo += ", vmpressure: %s" % SysMgr.vmpressure
+
+        # overcommit #
+        vmInfo += ", overcommit: %s" % SysMgr.overcommit
+
+        SysMgr.addPrint(vmInfo + "\n")
+
     def printZoneUsage(self, nrIndent):
         if not self.zoneData:
             return
@@ -104865,12 +104932,37 @@ class TaskAnalyzer(object):
             SysMgr.jsonData.setdefault("zone", {})
 
         ttyCols = SysMgr.ttyCols
+        convSize = UtilMgr.convSize2Unit
+        convColor = UtilMgr.convColor
+
+        # define stat list #
+        STAT_LIST = [
+            "free",
+            "min",
+            "low",
+            "high",
+            "managed",
+            "present",
+            "spanned",
+        ]
 
         for node, items in sorted(self.zoneData.items()):
+            # check invalid zones #
+            if "spanned" in items and items["spanned"] == 0:
+                continue
+
             zoneData = "%s [%-10s > " % (" " * nrIndent, "N%s" % node)
             lenZone = len(zoneData)
 
-            for info, val in sorted(items.items()):
+            for info in STAT_LIST:
+                # check stats by sequence #
+                if not info in items:
+                    continue
+
+                val = items[info]
+                stat = convSize(val << 12)
+                statOrig = stat
+
                 if SysMgr.jsonEnable:
                     SysMgr.jsonData["zone"].setdefault(node, {})
 
@@ -104883,7 +104975,7 @@ class TaskAnalyzer(object):
                     else:
                         diff = val - self.prevZoneData[node][info]
 
-                    diff = UtilMgr.convSize2Unit(diff << 12)
+                    diff = convSize(diff << 12)
                     ninfo = "diff"
 
                     if SysMgr.jsonEnable:
@@ -104891,6 +104983,11 @@ class TaskAnalyzer(object):
 
                     zoneStat = "%s: %7s / " % (ninfo, diff)
                     lenZoneStat = len(zoneStat)
+                    if diff != "0":
+                        zoneStat = "%s: %7s / " % (
+                            ninfo,
+                            convColor(diff, "YELLOW", 7),
+                        )
 
                     if ttyCols and lenZone + lenZoneStat >= ttyCols:
                         zoneData = "%s\n%s %s" % (
@@ -104903,14 +105000,30 @@ class TaskAnalyzer(object):
                     zoneData += zoneStat
                     lenZone += lenZoneStat
 
-                stat = UtilMgr.convSize2Unit(val << 12)
+                    # apply color #
+                    try:
+                        if val == 0:
+                            pass
+                        elif val <= items["min"]:
+                            stat = convColor(stat, "RED", 6)
+                        elif val <= items["low"]:
+                            stat = convColor(stat, "YELLOW", 6)
+                        elif val <= items["high"]:
+                            stat = convColor(stat, "CYAN", 6)
+                        else:
+                            stat = convColor(stat, "GREEN", 6)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
                 if SysMgr.jsonEnable:
-                    SysMgr.jsonData["zone"][node][info] = stat
+                    SysMgr.jsonData["zone"][node][info] = statOrig
                     continue
 
-                zoneStat = "%s: %6s / " % (info, stat)
+                zoneStat = "%s: %6s / " % (info, statOrig)
                 lenZoneStat = len(zoneStat)
+                zoneStat = "%s: %6s / " % (info, stat)
 
                 if ttyCols and lenZone + lenZoneStat >= ttyCols:
                     zoneData = "%s\n%s %s" % (
@@ -110027,6 +110140,9 @@ class TaskAnalyzer(object):
 
             # print slab stats #
             self.printSlabUsage(nrIndent)
+
+            # print vm stats #
+            self.printVmInfo(nrIndent)
 
             # print zone stats #
             self.printZoneUsage(nrIndent)
