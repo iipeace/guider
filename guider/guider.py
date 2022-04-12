@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220411"
+__revision__ = "220412"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3911,7 +3911,7 @@ class ConfigMgr(object):
             "sys_rseq",
             "sys_kexec_file_load",
         ]
-        + ["sys_null" for idx in range(295, 423, 1)]
+        + ["sys_null" for idx in xrange(295, 423, 1)]
         + SYSCALL_COMMON
     )
 
@@ -4665,7 +4665,7 @@ class ConfigMgr(object):
             "sys_io_pgetevents",
             "sys_rseq",
         ]
-        + ["sys_null" for idx in range(335, 423, 1)]
+        + ["sys_null" for idx in xrange(335, 423, 1)]
         + SYSCALL_COMMON
     )
 
@@ -4799,16 +4799,16 @@ class ConfigMgr(object):
         "fsw",
     ]
 
-    REGS_ARM = ["r%d" % idx for idx in range(16)]
+    REGS_ARM = ["r%d" % idx for idx in xrange(16)]
 
     REGS_AARCH64 = (
-        ["x%d" % idx for idx in range(31)]
+        ["x%d" % idx for idx in xrange(31)]
         + ["sp", "pc", "ELP_mode", "RA_SIGN_STATE", "<none>", "<none>"]
-        + ["reserved" for idx in range(37, 46, 1)]
+        + ["reserved" for idx in xrange(37, 46, 1)]
         + ["VG", "FFR"]
-        + ["p%d" % idx for idx in range(16)]
-        + ["v%d" % idx for idx in range(32)]
-        + ["z%d" % idx for idx in range(32)]
+        + ["p%d" % idx for idx in xrange(16)]
+        + ["v%d" % idx for idx in xrange(32)]
+        + ["z%d" % idx for idx in xrange(32)]
     )
 
     pcRegIndex = {
@@ -4872,7 +4872,7 @@ class ConfigMgr(object):
         "SIGSYS",
         "NONE",
         "NONE",
-    ] + ["SIGRT%d" % idx for idx in range(32)]
+    ] + ["SIGRT%d" % idx for idx in xrange(32)]
     SIGKILL = SIG_LIST.index("SIGKILL")
 
     # signal for MacOS #
@@ -5401,7 +5401,7 @@ class ConfigMgr(object):
             "PTRACE_EVENT_EXIT",
             "PTRACE_EVENT_SECCOMP",
         ]
-        + ["NONE" for idx in range(120)]
+        + ["NONE" for idx in xrange(120)]
         + ["PTRACE_EVENT_STOP"]
     )
     PERF_EVENT_TYPE = [
@@ -5633,7 +5633,7 @@ class UtilMgr(object):
             return False
 
     @staticmethod
-    def convRange(targetList):
+    def convxrange(targetList):
         result = []
 
         for item in targetList:
@@ -5642,7 +5642,7 @@ class UtilMgr(object):
                 if len(nums) == 1:
                     result.append(item)
                 elif len(nums) == 2:
-                    for num in range(long(nums[0]), long(nums[1]) + 1):
+                    for num in xrange(long(nums[0]), long(nums[1]) + 1):
                         result.append(str(num))
                 else:
                     raise Exception()
@@ -5697,7 +5697,7 @@ class UtilMgr(object):
     @staticmethod
     def genRangeDict(prefix, startIdx, endIdx, valStart):
         dictList = {}
-        for index in range(startIdx, endIdx + 1):
+        for index in xrange(startIdx, endIdx + 1):
             name = "%s%s" % (prefix, index)
             value = valStart + index - startIdx
             dictList[name] = value
@@ -6169,7 +6169,7 @@ class UtilMgr(object):
 
     @staticmethod
     def gerPermutation(inputList, union=False):
-        visited = [0 for _ in range(len(inputList))]
+        visited = [0 for _ in xrange(len(inputList))]
         returnList = []
 
         def dfs(cnt, items):
@@ -8305,7 +8305,7 @@ class NetworkMgr(object):
                     start, end = item.split("-")
                     if end == "":
                         end = 65535
-                    for idx in range(long(start), long(end) + 1):
+                    for idx in xrange(long(start), long(end) + 1):
                         newPortList.append(idx)
                 except SystemExit:
                     sys.exit(0)
@@ -9750,7 +9750,7 @@ class Timeline(object):
                 "inter_list": [],
                 "prev": 0,
             }
-            for _ in range(len(self.group_list))
+            for _ in xrange(len(self.group_list))
         ]
 
         try:
@@ -9820,7 +9820,7 @@ class Timeline(object):
         return color_map
 
     def _draw_grid(self, dwg):
-        for x in range(0, self.config.WIDTH, self.config.TICKS):
+        for x in xrange(0, self.config.WIDTH, self.config.TICKS):
             dwg.add(
                 dwg.line(
                     (x, 0),
@@ -9839,7 +9839,7 @@ class Timeline(object):
 
         idx = 0
         convNum = UtilMgr.convNum
-        for y_tick in range(self.config.HEIGHT):
+        for y_tick in xrange(self.config.HEIGHT):
             try:
                 stats = self.group_stat[idx]
                 idx += 1
@@ -9925,7 +9925,7 @@ class Timeline(object):
 
         idx = 0
         groupList = list(self.segment_groups)
-        for y_tick in range(self.config.HEIGHT):
+        for y_tick in xrange(self.config.HEIGHT):
             try:
                 name = groupList[idx]
                 idx += 1
@@ -9988,7 +9988,7 @@ class Timeline(object):
         if annotation:
             g.set_desc(annotation)
 
-        for x_tick_time in range(0, self.config.WIDTH, self.config.TICKS):
+        for x_tick_time in xrange(0, self.config.WIDTH, self.config.TICKS):
             abs_x_tick_time = (x_tick_time * ratio) + start
             tick_time = "{:10}".format(long(abs_x_tick_time))
             g.add(
@@ -11146,7 +11146,7 @@ class Ext4Analyzer(object):
                 group_desc_table_offset = (
                     0x400 // self.block_size + 1
                 ) * self.block_size
-                for group_desc_idx in range(len(self.group_descriptors)):
+                for group_desc_idx in xrange(len(self.group_descriptors)):
                     group_desc_offset = (
                         group_desc_table_offset
                         + group_desc_idx * self.superblock.s_desc_size
@@ -11850,7 +11850,7 @@ class Ext4Analyzer(object):
 
                 blocks = [
                     self.read_block(i)
-                    for i in range(
+                    for i in xrange(
                         start_block_idx, end_block_idx - start_block_idx + 1
                     )
                 ]
@@ -13630,7 +13630,7 @@ class PageAnalyzer(object):
                 )
             )
 
-            for addr in range(addrs, addre + offset, SysMgr.PAGESIZE):
+            for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
                 entry = PageAnalyzer.getPagemapEntry(pid, addr)
 
                 pfn = PageAnalyzer.getPfn(entry)
@@ -14304,7 +14304,7 @@ class FunctionAnalyzer(object):
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index("PAGE_FREE")
         argIndex = FunctionAnalyzer.symStackIdxTable.index("ARGUMENT")
 
-        for cnt in range(pageFreeCnt):
+        for cnt in xrange(pageFreeCnt):
             pfnv = pfn + cnt
             subStackPageInfoIdx = 0
 
@@ -14613,7 +14613,7 @@ class FunctionAnalyzer(object):
                 break
 
         # Make PTE in page table #
-        for cnt in range(pageAllocCnt):
+        for cnt in xrange(pageAllocCnt):
             pfnv = pfn + cnt
             subStackPageInfoIdx = 0
 
@@ -16058,7 +16058,7 @@ class FunctionAnalyzer(object):
                     self.threadData[tid]["kernelPages"] += pageCnt
 
                 # Make PTE in page table #
-                for cnt in range(pageCnt):
+                for cnt in xrange(pageCnt):
                     pfnv = pfn + cnt
 
                     try:
@@ -16121,7 +16121,7 @@ class FunctionAnalyzer(object):
 
                 # Update page table #
                 origPageType = None
-                for cnt in range(pageCnt):
+                for cnt in xrange(pageCnt):
                     pfnv = pfn + cnt
 
                     try:
@@ -16762,6 +16762,7 @@ class FunctionAnalyzer(object):
                         self.threadData[cpid] = dict(self.init_threadData)
                         self.threadData[cpid]["comm"] = ccomm
                         self.threadData[cpid]["new"] = True
+                        self.threadData[cpid]["ptid"] = thread
 
             # Make thread name #
             elif d["func"] == "task_newtask:":
@@ -16779,6 +16780,7 @@ class FunctionAnalyzer(object):
                         self.threadData[pid] = dict(self.init_threadData)
                         self.threadData[pid]["comm"] = p["comm"]
                         self.threadData[pid]["new"] = True
+                        self.threadData[pid]["ptid"] = thread
 
             # Save user event #
             elif (
@@ -20220,7 +20222,7 @@ class FileAnalyzer(object):
         printMsg = "{0:_^8}|{1:_^8}|{2:_^3}|".format("InitRAM", "File", "%")
 
         if len(self.intervalFileData) > 1:
-            for idx in range(1, len(self.intervalFileData)):
+            for idx in xrange(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
         # print title #
@@ -20277,7 +20279,7 @@ class FileAnalyzer(object):
 
             # calculate diff of on-memory file size #
             if len(self.intervalFileData) > 1:
-                for idx in range(len(self.intervalFileData) - 1):
+                for idx in xrange(len(self.intervalFileData) - 1):
                     diffNew = 0
                     diffDel = 0
 
@@ -20305,7 +20307,7 @@ class FileAnalyzer(object):
                             diffNew = fileData[idx][fileName]["pageCnt"]
                         else:
                             if len(nowFileMap) == len(prevFileMap):
-                                for i in range(len(nowFileMap)):
+                                for i in xrange(len(nowFileMap)):
                                     if nowFileMap[i] > prevFileMap[i]:
                                         diffNew += 1
                                     elif nowFileMap[i] < prevFileMap[i]:
@@ -21557,10 +21559,10 @@ class FileAnalyzer(object):
                 try:
                     if SysMgr.guiderObj:
                         val["fileMap"] = [
-                            ord(pagemap[i]) for i in range(tsize)
+                            ord(pagemap[i]) for i in xrange(tsize)
                         ]
                     else:
-                        val["fileMap"] = [pagemap[i] for i in range(tsize)]
+                        val["fileMap"] = [pagemap[i] for i in xrange(tsize)]
 
                     self.profSuccessCnt += 1
 
@@ -23188,7 +23190,7 @@ Commands:
         else:
             cnt = 1
 
-        for idx in range(cnt):
+        for idx in xrange(cnt):
             ret = func(msg=msg)
             if ret == 0:
                 SysMgr.printInfo(
@@ -23513,7 +23515,7 @@ Commands:
 
             # wait for timer #
             try:
-                for cnt in range(SysMgr.repeatInterval):
+                for cnt in xrange(SysMgr.repeatInterval):
                     UtilMgr.printProgress(cnt, SysMgr.repeatInterval)
                     time.sleep(1)
             except SystemExit:
@@ -26211,7 +26213,7 @@ Commands:
                 elif item.count("-") == 1:
                     start, end = item.split("-")
                     if start.strip().isdigit() and end.strip().isdigit():
-                        for idx in range(long(start), long(end) + 1):
+                        for idx in xrange(long(start), long(end) + 1):
                             if not addrs:
                                 newAddrs.append(idx)
                                 continue
@@ -26224,7 +26226,7 @@ Commands:
                         for word in addrs:
                             newAddrs.append("%s.%s" % (word, idx))
                 elif item == "*":
-                    for idx in range(1, 255):
+                    for idx in xrange(1, 255):
                         if not addrs:
                             newAddrs.append(idx)
                         else:
@@ -26463,7 +26465,7 @@ Commands:
         SysMgr.printInfo("set timeout to %s sec\n" % timeoutstr)
 
         # ping #
-        for seq in range(count):
+        for seq in xrange(count):
             try:
                 _doPing(urlList, timeout, seq=seq)
                 time.sleep(interval)
@@ -27274,9 +27276,9 @@ Commands:
         for item in tlist:
             if (
                 item == tid
-                or item in comm
                 or item == ""
                 or SysMgr.isValidTid(tid, item)
+                or UtilMgr.isValidStr(item, [comm])
             ):
                 return False
 
@@ -27293,6 +27295,8 @@ Commands:
                 try:
                     if item == tgid or SysMgr.isValidTid(tgid, item):
                         return False
+                    elif tgid == "0" or tgid.startswith("-"):
+                        continue
                     elif (
                         tgid == tdata[item]["tgid"]
                         or tgid == SysMgr.savedProcTree[item]
@@ -33571,6 +33575,7 @@ Description:
     Allocate physical memory
 
 Options:
+    -i  <SEC>                   set interval
     -R  <TIME>                  set timer
     -v                          verbose
                         """.format(
@@ -33579,19 +33584,25 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} 1G
+    - {2:1} 1G and {3:1} every second
         # {0:1} {1:1} 1G
+
+    - {2:1} 1G and {3:1} every 3 seconds
+        # {0:1} {1:1} 1G -i 3
 
     - {2:1} 200MB using a new process every 3 seconds
         # {0:1} {1:1} 200M:3
 
-    - {2:1} 100MB twice using 2 processes
+    - {2:1} 100MB twice using 2 processes and {3:1} every second
         # {0:1} {1:1} 100M:0:2
 
     - {2:1} 100MB twice using 2 processes and terminate them after 3 seconds
         # {0:1} {1:1} 100M:0:2 -R 3
                     """.format(
-                        cmd, mode, "Allocate physical memory"
+                        cmd,
+                        mode,
+                        "Allocate physical memory",
+                        "print memory stats",
                     )
 
                 # iotest #
@@ -39794,7 +39805,7 @@ Copyright:
                     SysMgr.printErr("no input value for filter" % option)
                     sys.exit(-1)
 
-                perCoreList = UtilMgr.convRange(perCoreList)
+                perCoreList = UtilMgr.convxrange(perCoreList)
 
                 # check value type #
                 for item in perCoreList:
@@ -41446,7 +41457,7 @@ Copyright:
             retval = "*"
         else:
             # convert IP #
-            splitAddr = [addr[i : i + 2] for i in range(0, len(addr), 2)]
+            splitAddr = [addr[i : i + 2] for i in xrange(0, len(addr), 2)]
             for num in reversed(splitAddr):
                 addrList.append(str(long(num, base=16)))
 
@@ -43430,7 +43441,7 @@ Copyright:
         plist = []
         pidlist = []
 
-        for _ in range(cnt):
+        for _ in xrange(cnt):
             try:
                 # create a new process #
                 p = multiprocessing.Process(target=func, args=args)
@@ -43536,7 +43547,7 @@ Copyright:
             os._exit(0)
         # fail #
         else:
-            SysMgr.printErr("failed to create process")
+            SysMgr.printErr("failed to create a new process")
             return -1
 
     @staticmethod
@@ -45500,7 +45511,7 @@ Copyright:
 
                 # draw bar #
                 brange = []
-                for idx in range(-1, 2):
+                for idx in xrange(-1, 2):
                     brange.append(start + idx / 10)
                 ax.bar(
                     brange,
@@ -45537,11 +45548,11 @@ Copyright:
             try:
                 xtickLabel = ax.get_xticks().tolist()
                 xtickLabel = list(map(long, xtickLabel))
-                xtickLabel = list(range(-1, len(totalStats) + 1))
+                xtickLabel = list(xrange(-1, len(totalStats) + 1))
                 ax.set_xticks(xtickLabel)
                 xtickLabel[0] = ""
                 xtickLabel[-1] = "Req"
-                for idx in range(1, len(totalStats) + 1):
+                for idx in xrange(1, len(totalStats) + 1):
                     xtickLabel[idx] = "Min/Avg/Max"
                 ax.set_xticklabels(xtickLabel)
             except:
@@ -49515,7 +49526,7 @@ Copyright:
                 )
 
                 # run loop #
-                for seq in range(repeat):
+                for seq in xrange(repeat):
                     sys.stdout.write(
                         "(%s) %s %s '%s'... "
                         % (
@@ -49679,8 +49690,8 @@ Copyright:
 
         # run tasks #
         ioTasks = {}
-        for _ in range(1):
-            for idx in range(len(workload)):
+        for _ in xrange(1):
+            for idx in xrange(len(workload)):
                 try:
                     pid = SysMgr.createProcess()
                     if pid == 0:
@@ -49869,7 +49880,7 @@ Copyright:
 
         gpuInfo = {}
 
-        for i in range(nGpus.value):
+        for i in xrange(nGpus.value):
             result = cuda.cuDeviceGet(byref(device), i)
             if result != CUDA_SUCCESS:
                 return None
@@ -50414,7 +50425,7 @@ Copyright:
             try:
                 lastReqTime = [0]
                 idx = 1
-                for idx in range(repeat):
+                for idx in xrange(repeat):
                     before = time.time()
 
                     for req in reqs:
@@ -50788,7 +50799,7 @@ Copyright:
             # process #
             if SysMgr.utilProc > 1:
                 if SysMgr.isLinux:
-                    for idx in range(1, SysMgr.utilProc + 1):
+                    for idx in xrange(1, SysMgr.utilProc + 1):
                         # create a new worker #
                         pid = SysMgr.createProcess()
                         if pid == 0:
@@ -50816,7 +50827,7 @@ Copyright:
 
     @staticmethod
     def doExec():
-        def _customRange(start, end, step):
+        def _customxrange(start, end, step):
             r = start
             while r < end:
                 yield r
@@ -50883,7 +50894,7 @@ Copyright:
                     end = long(end)
 
                 # loop in range #
-                for num in _customRange(start, end, step):
+                for num in _customxrange(start, end, step):
                     if type(num) is float:
                         num = round(num, 6)
 
@@ -51020,7 +51031,7 @@ Copyright:
                     signal.pause()
                 else:
                     before = time.time()
-                    sorted([long(random.random()) for i in range(1 << 20)])
+                    sorted([long(random.random()) for i in xrange(1 << 20)])
                     elapsed = time.time() - before
                     SysMgr.printWarn(
                         "%sth %s(%s) took %.6f seconds to finish one job"
@@ -51082,7 +51093,7 @@ Copyright:
         try:
             # process #
             if SysMgr.processEnable:
-                for idx in range(1, nrTask + 1):
+                for idx in xrange(1, nrTask + 1):
                     pid = SysMgr.createProcess()
                     if pid == 0:
                         _cputask(idx, load)
@@ -51093,7 +51104,7 @@ Copyright:
                 threadObj = SysMgr.getPkg("threading")
                 pid = SysMgr.createProcess()
                 if pid == 0:
-                    for idx in range(1, nrTask):
+                    for idx in xrange(1, nrTask):
                         tobj = threadObj.Thread(
                             target=_cputask, args=[idx, load]
                         )
@@ -51269,31 +51280,38 @@ Copyright:
                 else:
                     continue
 
+            # define stat list #
+            STAT_LIST = [
+                "free",
+                "min",
+                "low",
+                "high",
+                "managed",
+                "present",
+                "spanned",
+                "protection",
+            ]
+
             zonestr = "\n"
             for zone, items in sorted(memData.items()):
                 zonestr += "[%9s] " % zone
-                for name, val in sorted(
-                    items.items(),
-                    key=lambda e: long(e[1])
-                    if type(e[1]) != list
-                    else sys.maxsize,
-                ):
-                    if name != "protection":
+
+                for name in STAT_LIST:
+                    val = items[name]
+
+                    if name == "protection":
+                        zonestr = "%s%s: (%7s)" % (
+                            zonestr,
+                            "protection",
+                            ", ".join(val),
+                        )
+                        zonestr = "%s\n" % zonestr
+                    else:
                         zonestr = "%s%s:%7s, " % (
                             zonestr,
                             name,
                             conv(val << 12),
                         )
-
-                if "protection" in items:
-                    zonestr = "%s%s: %7s" % (
-                        zonestr,
-                        "protection",
-                        ", ".join(items["protection"]),
-                    )
-                    zonestr = "%s, " % zonestr
-
-                zonestr = "%s\n" % zonestr
 
             return zonestr[:-2]
 
@@ -51311,6 +51329,9 @@ Copyright:
                 except:
                     SysMgr.printOpenWarn(memPath)
 
+            if not memBuf:
+                return ""
+
             # threshold list #
             threshold = [
                 "FGAPP",
@@ -51320,9 +51341,6 @@ Copyright:
                 "CONPRO",
                 "EMPAPP",
             ]
-
-            if not memBuf:
-                return ""
 
             stats = memBuf.split(",")
             if stats:
@@ -51482,8 +51500,18 @@ Copyright:
             else:
                 raise Exception("wrong arguments")
 
+            # get interval #
+            cont = False
+            interval = long(interval)
             if interval:
+                cont = True
                 interval = UtilMgr.convUnit2Time(interval)
+            elif SysMgr.getOption("i"):
+                try:
+                    interval = long(SysMgr.getOption("i"))
+                except:
+                    SysMgr.printErr("failed to get interval time", True)
+                    sys.exit(-1)
             else:
                 interval = 0
 
@@ -51504,100 +51532,46 @@ Copyright:
             sys.exit(-1)
 
         # set alarm #
-        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(SysMgr.intervalEnable)
+        if SysMgr.getOption("R"):
+            try:
+                timeout = long(SysMgr.getOption("R"))
+            except:
+                SysMgr.printErr("failed to get timeout value", True)
+                sys.exit(-1)
+
+            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+            signal.alarm(timeout)
 
         # create task object #
         obj = TaskAnalyzer(onlyInstance=True)
         obj.saveProcStat()
         pid = SysMgr.pid
-
         pidList = []
-        if count > 0:
-            for _ in range(count):
-                try:
-                    # create a pipe #
-                    rd, wr = os.pipe()
 
-                    pid = SysMgr.createProcess()
-                except SystemExit:
-                    pass
-                except:
-                    SysMgr.printErr("failed to start process", True)
-                    sys.exit(-1)
+        if count == 0:
+            count = sys.maxsize
 
-                if pid == 0:
-                    try:
-                        _allocMemory(size, wr)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr("failed to alloc memory", True)
-                        sys.exit(-1)
-                else:
-                    pidList.append(pid)
-                    os.close(wr)
-
-                    os.read(rd, 1)
-                    os.close(rd)
-
-                    # print stats #
-                    try:
-                        _printUsage(obj, pid, size)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "failed to print memory stats", reason=True
-                        )
-
-                time.sleep(interval)
-        elif interval > 0:
-            while 1:
-                # create a pipe #
-                rd, wr = os.pipe()
-
-                try:
-                    pid = SysMgr.createProcess()
-                except SystemExit:
-                    pass
-                except:
-                    SysMgr.printErr("failed to start process", True)
-                    sys.exit(-1)
-
-                if pid == 0:
-                    try:
-                        _allocMemory(size, wr)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr("failed to alloc memory", True)
-                        sys.exit(-1)
-                else:
-                    pidList.append(pid)
-                    os.close(wr)
-
-                    os.read(rd, 1)
-                    os.close(rd)
-
-                    # print stats #
-                    try:
-                        _printUsage(obj, pid, size)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "failed to print memory stats", reason=True
-                        )
-
-                time.sleep(interval)
-        else:
+        for _ in xrange(count):
             try:
-                interval = 1
+                pid = SysMgr.createProcess()
+            except SystemExit:
+                pass
+            except:
+                SysMgr.printErr("failed to start process", True)
+                sys.exit(-1)
 
+            # child #
+            if pid == 0:
+                try:
+                    _allocMemory(size)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to alloc memory", True)
+                    sys.exit(-1)
+            # parent #
+            elif pid > 0:
                 pidList.append(pid)
-
-                _allocMemory(size, ret=True)
 
                 # print stats #
                 try:
@@ -51609,12 +51583,21 @@ Copyright:
                         "failed to print memory stats", reason=True
                     )
 
-                time.sleep(interval)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to alloc memory", True)
+                # no count #
+                if count == sys.maxsize and interval == 0:
+                    time.sleep(1)
+                else:
+                    time.sleep(interval)
+
+                if count == sys.maxsize and not cont:
+                    break
+            # error #
+            else:
                 sys.exit(-1)
+
+        # set default interval for print #
+        if interval == 0:
+            interval = 1
 
         # wait for childs #
         if pidList:
@@ -51866,7 +51849,7 @@ Copyright:
 
                 sigList = []
                 listLen = len(val) * 4 + 1
-                for pos in range(1, listLen):
+                for pos in xrange(1, listLen):
                     if (
                         UtilMgr.isBitEnabled(pos, val)
                         and len(ConfigMgr.SIG_LIST) > pos
@@ -55242,7 +55225,7 @@ Copyright:
             splitLen = SysMgr.lineLength - 21
             cmdlineList = [
                 self.cmdlineData[i : i + splitLen]
-                for i in range(0, len(self.cmdlineData), splitLen)
+                for i in xrange(0, len(self.cmdlineData), splitLen)
             ]
             for string in cmdlineList:
                 SysMgr.infoBufferPrint("{0:20} {1:<1}".format(title, string))
@@ -56574,7 +56557,7 @@ Copyright:
                 if depth == 0:
                     indent = "\n"
 
-                for _ in range(depth):
+                for _ in xrange(depth):
                     indent = "%s%s|" % (indent, "     ")
 
                 if cstr:
@@ -57358,7 +57341,7 @@ Copyright:
 
                 mountList = [
                     mountList[i : i + splitLen]
-                    for i in range(0, len(mountList), splitLen)
+                    for i in xrange(0, len(mountList), splitLen)
                 ]
 
                 for string in mountList:
@@ -58664,7 +58647,7 @@ class DbusMgr(object):
             return
 
         slist = []
-        for idx in range(cntRes.value):
+        for idx in xrange(cntRes.value):
             slist.append(str(arrayRes[idx].decode()))
 
         dbusObj.dbus_free_string_array(arrayRes)
@@ -61376,7 +61359,7 @@ class DltAnalyzer(object):
                             dltFile.file_position = nextHeaderPos
 
                 # read messages #
-                for index in range(dltFile.counter_total):
+                for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
                     if ret < 0:
                         SysMgr.printWarn(
@@ -61508,9 +61491,9 @@ class DltAnalyzer(object):
                 ]
                 dltObj.dlt_client_main_loop(byref(dltClient), byref(resp), 0)
                 appids = resp.log_info_type.count_app_ids
-                for idx in range(appids):
+                for idx in xrange(appids):
                     app = resp.log_info_type.app_ids[idx]
-                    for num in range(app.count_context_ids):
+                    for num in xrange(app.count_context_ids):
                         con = app.context_id_info[num]
                         SysMgr.printPipe(
                             "[%s] [%s] %s"
@@ -61798,7 +61781,7 @@ class Debugger(object):
                 )
 
             if self.arch == "aarch64":
-                regs = tuple(("x%i" % reg, c_ulong) for reg in range(31))
+                regs = tuple(("x%i" % reg, c_ulong) for reg in xrange(31))
                 _fields_ = regs + (
                     ("sp", c_ulong),
                     ("pc", c_ulong),
@@ -61837,7 +61820,7 @@ class Debugger(object):
                     ("gs", c_ulong),
                 )
             elif self.arch == "arm":
-                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in xrange(18))
             elif self.arch == "x86":
                 _fields_ = (
                     ("ebx", c_ulong),
@@ -64534,7 +64517,7 @@ typedef struct {
             )
             if ret:
                 addrList += ret
-                for _ in range(len(ret)):
+                for _ in xrange(len(ret)):
                     cmdList.append(cmdSet)
                 continue
 
@@ -65981,7 +65964,7 @@ typedef struct {
                 if offset == 0:
                     if size == 0:
                         size = 1
-                    for idx in range(size):
+                    for idx in xrange(size):
                         ret = self.accessMem(
                             self.pokeIdx, addr + (idx * wordSize), data
                         )
@@ -66044,7 +66027,7 @@ typedef struct {
         fdata = data[:offset] + origData + data[offset + origSize :]
 
         # convert type from bytes to word #
-        for idx in range(0, len(fdata), wordSize):
+        for idx in xrange(0, len(fdata), wordSize):
             data = UtilMgr.convStr2Word(fdata[idx : idx + wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr + idx, data)
@@ -66284,7 +66267,7 @@ typedef struct {
 
     def readMultiMsgHdr(self, addr, vlen):
         msgInfo = {}
-        for idx in range(vlen):
+        for idx in xrange(vlen):
             offset = idx * sizeof(self.mmsghdr)
             # read msghdr structure #
             ret = self.readMem(addr + offset, sizeof(self.mmsghdr))
@@ -66316,7 +66299,7 @@ typedef struct {
         iovaddr = cast(addr, c_void_p).value
 
         # get iov info #
-        for idx in range(cnt):
+        for idx in xrange(cnt):
             offset = idx * sizeof(self.iovec)
 
             iov[idx] = {}
@@ -66380,7 +66363,7 @@ typedef struct {
             msginfo["msg_iov"] = {}
 
             # get iov info #
-            for idx in range(iovlen):
+            for idx in xrange(iovlen):
                 offset = idx * sizeof(self.iovec)
 
                 # get iov object #
@@ -68870,7 +68853,7 @@ typedef struct {
                 """
                 # pick addresses from structs #
                 btList = []
-                for idx in range(frames):
+                for idx in xrange(frames):
                     offset = idx * sizeof(self.btframe)
                     obj = cast(addressof(backtrace)+offset, self.btframe_ptr)
                     addr = obj.contents.absolute_pc
@@ -68893,7 +68876,7 @@ typedef struct {
 
                 # pick symbols from structs #
                 self.btList = []
-                for idx in range(frames):
+                for idx in xrange(frames):
                     offset = idx * sizeof(self.btsym)
                     obj = cast(symsAddr + offset, self.btsym_ptr).contents
 
@@ -71137,7 +71120,7 @@ typedef struct {
             # merge only native stack except for interpreter and python stack #
             if not Debugger.envFlags["INCNATIVE"]:
                 lastIdx = 0
-                for idx in range(len(nativeStack)):
+                for idx in xrange(len(nativeStack)):
                     lastIdx = idx
                     if nativeStack[idx][1] == SysMgr.pyCallFunc:
                         break
@@ -71151,7 +71134,7 @@ typedef struct {
                 nativeStack = newStack + bt
             # merge all native stack and python stack #
             else:
-                for idx in range(len(nativeStack)):
+                for idx in xrange(len(nativeStack)):
                     if not bt:
                         break
                     if nativeStack[idx][1] == SysMgr.pyCallFunc:
@@ -72872,7 +72855,7 @@ typedef struct {
                     pass
                 # skip instructions for performance #
                 elif instMode and self.skipInst > 0:
-                    for _ in range(self.skipInst):
+                    for _ in xrange(self.skipInst):
                         self.ptrace(self.cmd)
                 # setup trap #
                 else:
@@ -73307,7 +73290,7 @@ typedef struct {
                 if self.cont(check=True) < 0:
                     sys.exit(-1)
         elif self.mode == "remote":
-            for _ in range(SysMgr.intervalEnable + 1):
+            for _ in xrange(SysMgr.intervalEnable + 1):
                 self.runExecMode()
             SysMgr.printPipe()
             sys.exit(0)
@@ -76249,8 +76232,8 @@ class ElfAnalyzer(object):
             "DW_OP_stack_value",
             "DW_OP_GNU_push_tls_address",
         ]
-        + ["DW_OP_lit%s" % idx for idx in range(32)]
-        + ["DW_OP_reg%s" % idx for idx in range(32)]
+        + ["DW_OP_lit%s" % idx for idx in xrange(32)]
+        + ["DW_OP_reg%s" % idx for idx in xrange(32)]
     )
 
     DW_OPS_DEC_ARGS = set(
@@ -76275,7 +76258,7 @@ class ElfAnalyzer(object):
             "DW_OP_xderef_size",
             "DW_OP_regx",
         ]
-        + ["DW_OP_breg%s" % idx for idx in range(32)]
+        + ["DW_OP_breg%s" % idx for idx in xrange(32)]
     )
 
     DW_OPS_2DEC_ARGS = set(["DW_OP_bregx", "DW_OP_bit_piece"])
@@ -76444,20 +76427,20 @@ class ElfAnalyzer(object):
             "pc",
         )
 
-        def _calculate_range(self, start, count):
+        def _calculate_xrange(self, start, count):
             return ((1 << (count + 1)) - 1) << start
 
         def _printGPR(self, gpr_mask):
             hits = [
                 self.gpr_register_names[i]
-                for i in range(32)
+                for i in xrange(32)
                 if gpr_mask & (1 << i) != 0
             ]
             return "{%s}" % ", ".join(hits)
 
         def _print_registers(self, vfp_mask, prefix):
             hits = [
-                prefix + str(i) for i in range(32) if vfp_mask & (1 << i) != 0
+                prefix + str(i) for i in xrange(32) if vfp_mask & (1 << i) != 0
             ]
             return "{%s}" % ", ".join(hits)
 
@@ -76489,14 +76472,14 @@ class ElfAnalyzer(object):
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return "pop %s" % self._printGPR(
-                self._calculate_range(4, opcode & 0x07)
+                self._calculate_xrange(4, opcode & 0x07)
             )
 
         def _decode_10101nnn(self):
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return "pop %s" % self._printGPR(
-                self._calculate_range(4, opcode & 0x07) | (1 << 14)
+                self._calculate_xrange(4, opcode & 0x07) | (1 << 14)
             )
 
         def _decode_10110000(self):
@@ -76535,7 +76518,7 @@ class ElfAnalyzer(object):
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return "pop %s" % self._print_registers(
-                self._calculate_range(8, opcode & 0x07), "d"
+                self._calculate_xrange(8, opcode & 0x07), "d"
             )
 
         def _decode_11000110_sssscccc(self):
@@ -76545,7 +76528,7 @@ class ElfAnalyzer(object):
             start = (op1 & 0xF0) >> 4
             count = (op1 & 0x0F) >> 0
             return "pop %s" % self._print_registers(
-                self._calculate_range(start, count), "wR"
+                self._calculate_xrange(start, count), "wR"
             )
 
         def _decode_11000111_0000iiii(self):
@@ -76564,7 +76547,7 @@ class ElfAnalyzer(object):
             start = 16 + ((op1 & 0xF0) >> 4)
             count = (op1 & 0x0F) >> 0
             return "pop %s" % self._print_registers(
-                self._calculate_range(start, count), "d"
+                self._calculate_xrange(start, count), "d"
             )
 
         def _decode_11001001_sssscccc(self):
@@ -76574,7 +76557,7 @@ class ElfAnalyzer(object):
             start = (op1 & 0xF0) >> 4
             count = (op1 & 0x0F) >> 0
             return "pop %s" % self._print_registers(
-                self._calculate_range(start, count), "d"
+                self._calculate_xrange(start, count), "d"
             )
 
         def _decode_11001yyy(self):
@@ -76584,7 +76567,7 @@ class ElfAnalyzer(object):
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return "pop %s" % self._print_registers(
-                self._calculate_range(10, opcode & 0x07), "wR"
+                self._calculate_xrange(10, opcode & 0x07), "wR"
             )
 
         def _decode_11010nnn(self):
@@ -77696,7 +77679,7 @@ class ElfAnalyzer(object):
             pos += 1
 
             args = []
-            for _ in range(size):
+            for _ in xrange(size):
                 args.append(struct.unpack("B", table[pos : pos + 1])[0])
                 pos += 1
 
@@ -78673,7 +78656,7 @@ Section header string table index: %d
 
         # parse program sections #
         e_shinterpndx = -1
-        for i in range(e_phnum):
+        for i in xrange(e_phnum):
             fd.seek(e_phoff + e_phentsize * i)
 
             # 32-bit #
@@ -78840,7 +78823,7 @@ Section header string table index: %d
             )
 
         # parse section headers #
-        for i in range(e_shnum):
+        for i in xrange(e_shnum):
             (
                 sh_name,
                 sh_type,
@@ -78986,7 +78969,7 @@ Section header string table index: %d
             fd.seek(sh_offset)
             versym_section = fd.read(sh_size)
 
-            for i in range(long(sh_size / sh_entsize)):
+            for i in xrange(long(sh_size / sh_entsize)):
                 target = versym_section[i * sh_entsize : (i + 1) * sh_entsize]
                 symidx = struct.unpack("H", target)[0]
                 self.attr["versymList"].append(symidx)
@@ -79065,7 +79048,7 @@ Section header string table index: %d
                 offset = 0
                 entsize = 20
                 sentsize = 8
-                for idx in range(sh_info):
+                for idx in xrange(sh_info):
                     target = verdef_section[offset : offset + entsize]
                     (
                         vd_version,
@@ -79079,7 +79062,7 @@ Section header string table index: %d
 
                     # get verdef strings #
                     soffset = offset + vd_aux
-                    for vidx in range(vd_cnt):
+                    for vidx in xrange(vd_cnt):
                         starget = verdef_section[soffset : soffset + sentsize]
                         vda_name, vda_next = struct.unpack("II", starget)
 
@@ -79119,7 +79102,7 @@ Section header string table index: %d
                 # get verneed values #
                 offset = 0
                 entsize = 16
-                for idx in range(sh_info):
+                for idx in xrange(sh_info):
                     target = verneed_section[offset : offset + entsize]
                     (
                         vn_version,
@@ -79131,7 +79114,7 @@ Section header string table index: %d
 
                     # get verneed strings #
                     soffset = offset + entsize
-                    for vidx in range(vn_cnt):
+                    for vidx in xrange(vn_cnt):
                         starget = verneed_section[soffset : soffset + entsize]
                         (
                             vna_hash,
@@ -79194,7 +79177,7 @@ Section header string table index: %d
 
             printCnt = 0
 
-            for i in range(nrItems):
+            for i in xrange(nrItems):
                 target = dynsym_section[i * sh_entsize : (i + 1) * sh_entsize]
                 # 32-bit #
                 if self.is32Bit:
@@ -79380,7 +79363,7 @@ Section header string table index: %d
 
             printCnt = 0
 
-            for i in range(nrItems):
+            for i in xrange(nrItems):
                 if self.is32Bit:
                     (
                         st_name,
@@ -79518,7 +79501,7 @@ Section header string table index: %d
                 printer("\tNone")
 
             printCnt = 0
-            for i in range(nrItems):
+            for i in xrange(nrItems):
                 # 32-bit #
                 if self.is32Bit:
                     sh_offset, sh_info = struct.unpack("II", fd.read(8))
@@ -79616,7 +79599,7 @@ Section header string table index: %d
 
             printCnt = 0
 
-            for i in range(nrItems):
+            for i in xrange(nrItems):
                 # 32-bit #
                 if self.is32Bit:
                     sh_offset, sh_info, sh_addend = struct.unpack(
@@ -80757,7 +80740,7 @@ Section header string table index: %d
 
             # table #
             printCnt = 0
-            for idx in range(fdeCnt):
+            for idx in xrange(fdeCnt):
                 curPos = fd.tell() - sh_offset
 
                 # address for the function #
@@ -80896,7 +80879,7 @@ Section header string table index: %d
             if debug:
                 printer("\n[%s Section]\n%s\n" % (shname, twoLine))
 
-            for idx in range(nrItems):
+            for idx in xrange(nrItems):
                 # read value #
                 fd.seek(sh_offset + idx * EHABI_INDEX_ENTRY_SIZE)
                 data = fd.read(EHABI_INDEX_ENTRY_SIZE)
@@ -80964,7 +80947,7 @@ Section header string table index: %d
 
                         fd.seek(eh_table_offset + 4)
 
-                        for i in range(more_word):
+                        for i in xrange(more_word):
                             # read value #
                             data = fd.read(long(EHABI_INDEX_ENTRY_SIZE / 2))
                             r = struct.unpack("I", data)[0]
@@ -81284,7 +81267,7 @@ Section header string table index: %d
                 printStr = "%4s     %s   [%s]\n" % ("Num", "TAG", "Child")
                 printStr += "%s\n" % twoLine
 
-                for idx in range(len(abbrevDict)):
+                for idx in xrange(len(abbrevDict)):
                     printStr += "\n"
                     for name, value in abbrevDict[idx].items():
                         if value["child"]:
@@ -81992,7 +81975,7 @@ Section header string table index: %d
         if nrItems == 0:
             printer("\tNone")
 
-        for i in range(nrItems):
+        for i in xrange(nrItems):
             fd.seek(sh_offset + i * sh_entsize)
 
             if self.is32Bit:
@@ -83702,9 +83685,13 @@ class TaskAnalyzer(object):
             plist = {}
             if SysMgr.groupProcEnable:
                 for key, value in self.threadData.items():
-                    for item in SysMgr.filterGroup:
-                        if item in value["comm"]:
-                            plist[value["tgid"]] = 0
+                    tgid = value["tgid"]
+                    if tgid == "0" or tgid.startswith("-"):
+                        continue
+                    if key in SysMgr.filterGroup or UtilMgr.isValidStr(
+                        value["comm"]
+                    ):
+                        plist[tgid] = 0
 
             # filter segments #
             segments = self.timelineData["segments"]
@@ -84536,7 +84523,7 @@ class TaskAnalyzer(object):
                                 )
                             )
 
-                            for idx in range(len(filterTotal)):
+                            for idx in xrange(len(filterTotal)):
                                 filterTotal[idx] += cpuList[idx]
 
                             cpuProcUsage["[ TOTAL ]"]["usage"] = " ".join(
@@ -84645,7 +84632,7 @@ class TaskAnalyzer(object):
                                 )
                             )
 
-                            for idx in range(len(filterTotal)):
+                            for idx in xrange(len(filterTotal)):
                                 filterTotal[idx] += cpuList[idx]
 
                             cpuProcDelay["[ TOTAL ]"]["usage"] = " ".join(
@@ -85233,7 +85220,7 @@ class TaskAnalyzer(object):
                 inc = long(ymax / 10)
                 if inc == 0:
                     inc = 1
-                yticks(range(ymin, long(ymax + inc), inc), fontsize=fontsize)
+                yticks(xrange(ymin, long(ymax + inc), inc), fontsize=fontsize)
             else:
                 yticks(fontsize=fontsize)
         else:
@@ -85259,7 +85246,7 @@ class TaskAnalyzer(object):
                 inc = long(ymax / 10)
                 if inc == 0:
                     inc = 1
-                yticks(range(ymin, long(ymax + inc), inc), fontsize=fontsize)
+                yticks(xrange(ymin, long(ymax + inc), inc), fontsize=fontsize)
             else:
                 yticks(fontsize=fontsize)
 
@@ -87954,7 +87941,7 @@ class TaskAnalyzer(object):
             labelList = []
 
             # create new timeline #
-            timeline = range(len(graphStats["timeline"]))
+            timeline = xrange(len(graphStats["timeline"]))
             lent = len(timeline)
 
             cpuUsage = graphStats["cpuUsage"]
@@ -88360,7 +88347,7 @@ class TaskAnalyzer(object):
             tcnt = 0
 
             # create new timeline #
-            timeline = range(len(graphStats["timeline"]))
+            timeline = xrange(len(graphStats["timeline"]))
             lent = len(timeline)
 
             totalRam = graphStats["totalRam"]
@@ -89576,7 +89563,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         # initialize swapper thread per core #
-        for n in range(SysMgr.maxCore + 1):
+        for n in xrange(SysMgr.maxCore + 1):
             try:
                 if SysMgr.perCoreList and n not in SysMgr.perCoreList:
                     continue
@@ -90597,7 +90584,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("%s# %s: %d\n" % ("", "Dep", len(self.depData)))
 
-        for icount in range(len(self.depData)):
+        for icount in xrange(len(self.depData)):
             SysMgr.addPrint(self.depData[icount] + "\n")
 
         SysMgr.doPrint()
@@ -90822,7 +90809,7 @@ class TaskAnalyzer(object):
 
         cnt = 0
         prevCnt = -1
-        for icount in range(len(self.futexData)):
+        for icount in xrange(len(self.futexData)):
             try:
                 value = self.futexData[icount]
 
@@ -90975,7 +90962,7 @@ class TaskAnalyzer(object):
 
         cnt = 0
         prevCnt = -1
-        for icount in range(len(self.flockData)):
+        for icount in xrange(len(self.flockData)):
             try:
                 if not self.flockData[icount][0] in self.threadData:
                     continue
@@ -91402,7 +91389,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         # remove calls of unavailable threads #
-        for icount in range(len(self.syscallData)):
+        for icount in xrange(len(self.syscallData)):
             try:
                 self.threadData[self.syscallData[icount][2]]
             except SystemExit:
@@ -91419,7 +91406,7 @@ class TaskAnalyzer(object):
         prevCnt = -1
         proto = ConfigMgr.SYSCALL_PROTOTYPES
         startTime = float(SysMgr.startTime)
-        for icount in range(len(self.syscallData)):
+        for icount in xrange(len(self.syscallData)):
             try:
                 prevData = self.syscallData[prevCnt]
                 nowData = self.syscallData[icount]
@@ -92247,7 +92234,7 @@ class TaskAnalyzer(object):
                     timeLine = ""
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in range(lval):
+                    for icount in xrange(lval):
                         newFlag = " "
                         dieFlag = " "
 
@@ -92327,7 +92314,7 @@ class TaskAnalyzer(object):
                     timeLine = ""
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in range(lval):
+                    for icount in xrange(lval):
                         newFlag = " "
                         dieFlag = " "
 
@@ -92412,7 +92399,7 @@ class TaskAnalyzer(object):
                     timeLine = ""
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in range(lval):
+                    for icount in xrange(lval):
                         newFlag = " "
                         dieFlag = " "
 
@@ -92510,7 +92497,7 @@ class TaskAnalyzer(object):
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SysMgr.startTime)
         lval = long(float(self.totalTime) / intervalEnable) + 2
-        for icount in range(1, lval):
+        for icount in xrange(1, lval):
             checkEvent = " "
             cnt = icount - 1
 
@@ -92573,7 +92560,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 try:
                     # revise core usage in DVFS system #
                     if self.threadData[key]["coreSchedCnt"] == 0 and (
@@ -92636,7 +92623,7 @@ class TaskAnalyzer(object):
         # total memory usage on timeline #
         timeLine = ""
         timeLineLen = titleLineLen
-        for icount in range(lval):
+        for icount in xrange(lval):
             if timeLineLen + 4 > maxLineLen:
                 timeLine += "\n" + (" " * (titleLineLen + 1))
                 timeLineLen = titleLineLen + 4
@@ -92666,7 +92653,7 @@ class TaskAnalyzer(object):
             brtotal = 0
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += "\n" + (" " * (titleLineLen + 1))
                     timeLineLen = titleLineLen + 4
@@ -92700,7 +92687,7 @@ class TaskAnalyzer(object):
             bwtotal = 0
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += "\n" + (" " * (titleLineLen + 1))
                     timeLineLen = titleLineLen + 4
@@ -92742,7 +92729,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += "\n" + (" " * (titleLineLen + 1))
                     timeLineLen = titleLineLen + 4
@@ -92779,7 +92766,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += "\n" + (" " * (titleLineLen + 1))
                     timeLineLen = titleLineLen + 4
@@ -92822,7 +92809,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += "\n" + (" " * (titleLineLen + 1))
                     timeLineLen = titleLineLen + 4
@@ -92884,7 +92871,7 @@ class TaskAnalyzer(object):
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
             timeline = list(
-                range(
+                xrange(
                     intervalEnable,
                     (timelen + 1) * intervalEnable,
                     intervalEnable,
@@ -92961,7 +92948,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 newFlag = " "
                 dieFlag = " "
 
@@ -93050,7 +93037,7 @@ class TaskAnalyzer(object):
             avgCpuUsage = [x / len(cpuUsageList) for x in totalCpuUsage]
 
             timeline = list(
-                range(
+                xrange(
                     intervalEnable,
                     (timelen + 1) * intervalEnable,
                     intervalEnable,
@@ -93097,7 +93084,7 @@ class TaskAnalyzer(object):
                 inc = long(ymax / 10)
                 if inc == 0:
                     inc = 1
-                yticks(range(0, long(ymax + inc), inc), fontsize=5)
+                yticks(xrange(0, long(ymax + inc), inc), fontsize=5)
             except:
                 pass
 
@@ -93133,7 +93120,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             timeLineLen = titleLineLen
-            for icount in range(lval):
+            for icount in xrange(lval):
                 newFlag = " "
                 dieFlag = " "
 
@@ -93215,7 +93202,7 @@ class TaskAnalyzer(object):
 
                 timeLine = ""
                 timeLineLen = titleLineLen
-                for icount in range(lval):
+                for icount in xrange(lval):
                     newFlag = " "
                     dieFlag = " "
 
@@ -93291,7 +93278,7 @@ class TaskAnalyzer(object):
 
                 timeLine = ""
                 timeLineLen = titleLineLen
-                for icount in range(lval):
+                for icount in xrange(lval):
                     newFlag = " "
                     dieFlag = " "
 
@@ -93378,7 +93365,7 @@ class TaskAnalyzer(object):
 
                 timeLine = ""
                 timeLineLen = titleLineLen
-                for icount in range(lval):
+                for icount in xrange(lval):
                     newFlag = " "
                     dieFlag = " "
 
@@ -94459,7 +94446,7 @@ class TaskAnalyzer(object):
 
         timeLine = ""
         lineLen = len(procInfo)
-        for idx in range(len(TA.procIntData)):
+        for idx in xrange(len(TA.procIntData)):
             if lineLen + margin > maxLineLen:
                 timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                 lineLen = len(procInfo)
@@ -94506,7 +94493,7 @@ class TaskAnalyzer(object):
             timeLine = ""
             lineLen = len(procInfo)
             total = 0
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                     lineLen = len(procInfo)
@@ -94596,7 +94583,7 @@ class TaskAnalyzer(object):
             timeLine = ""
             lineLen = len(procInfo)
             total = 0
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                     lineLen = len(procInfo)
@@ -94665,7 +94652,7 @@ class TaskAnalyzer(object):
             lineLen = len(gpuInfo)
             total = 0
             margin = 5
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (gpuInfoLen - 1)) + "| "
                     lineLen = len(gpuInfo)
@@ -94733,7 +94720,7 @@ class TaskAnalyzer(object):
 
         timeLine = ""
         lineLen = len(procInfo)
-        for idx in range(len(TA.procIntData)):
+        for idx in xrange(len(TA.procIntData)):
             if lineLen + margin > maxLineLen:
                 timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                 lineLen = len(procInfo)
@@ -94779,7 +94766,7 @@ class TaskAnalyzer(object):
             minRss = maxRss = 0
             lineLen = len(procInfo)
             intData = TA.procIntData
-            for idx in range(len(intData)):
+            for idx in xrange(len(intData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                     lineLen = len(procInfo)
@@ -94875,7 +94862,7 @@ class TaskAnalyzer(object):
 
         timeLine = ""
         lineLen = len(procInfo)
-        for idx in range(len(TA.procIntData)):
+        for idx in xrange(len(TA.procIntData)):
             if lineLen + margin > maxLineLen:
                 timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                 lineLen = len(procInfo)
@@ -94921,7 +94908,7 @@ class TaskAnalyzer(object):
             minVss = maxVss = 0
             lineLen = len(procInfo)
             intData = TA.procIntData
-            for idx in range(len(intData)):
+            for idx in xrange(len(intData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                     lineLen = len(procInfo)
@@ -95037,7 +95024,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             lineLen = len(procInfo)
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
                     lineLen = len(procInfo)
@@ -95113,7 +95100,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             lineLen = len(storageInfo)
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (storageInfoLen - 1)) + "| "
                     lineLen = len(storageInfo)
@@ -95179,7 +95166,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             lineLen = len(networkInfo)
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (networkInfoLen - 1)) + "| "
                     lineLen = len(networkInfo)
@@ -95210,7 +95197,7 @@ class TaskAnalyzer(object):
         else:
             spaces = more
 
-        for i in range(1, len(TaskAnalyzer.procIntData) + 1):
+        for i in xrange(1, len(TaskAnalyzer.procIntData) + 1):
             if lineLen + margin > maxLineLen:
                 timeLine += "\n" + (" " * (length - 1)) + "| "
                 lineLen = length
@@ -95266,7 +95253,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             lineLen = len(cgroupInfo)
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (cgroupInfoLen - 1)) + "| "
                     lineLen = len(cgroupInfo)
@@ -95420,7 +95407,7 @@ class TaskAnalyzer(object):
 
             timeLine = ""
             lineLen = len(cgroupInfo)
-            for idx in range(len(TA.procIntData)):
+            for idx in xrange(len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += "\n" + (" " * (cgroupInfoLen - 1)) + "| "
                     lineLen = len(cgroupInfo)
@@ -95929,7 +95916,7 @@ class TaskAnalyzer(object):
                     indent = "\n"
 
                 # make indent #
-                for _ in range(depth):
+                for _ in xrange(depth):
                     indent = "%s%s|" % (indent, " " * 5)
 
                 # add proc info #
@@ -96851,7 +96838,7 @@ class TaskAnalyzer(object):
                     self.thisInterval = float(time) - ftime
                 # long time running intervals #
                 else:
-                    for idx in range(index - 1, -1, -1):
+                    for idx in xrange(index - 1, -1, -1):
                         if ftime > 0:
                             self.thisInterval = float(time) - ftime
                             break
@@ -96863,7 +96850,7 @@ class TaskAnalyzer(object):
                 # recalculate previous intervals if no context switching since profile start #
                 remainTime = curIntval["cpuUsage"]
                 if curIntval["cpuUsage"] > self.thisInterval:
-                    for idx in range(
+                    for idx in xrange(
                         long(curIntval["cpuUsage"] / intervalEnable), -1, -1
                     ):
                         try:
@@ -96952,7 +96939,7 @@ class TaskAnalyzer(object):
             ):
                 # recalculate previous intervals if no context switching since profile start #
                 remainTime = curIntval["preempted"]
-                for idx in range(index + 1, -1, -1):
+                for idx in xrange(index + 1, -1, -1):
                     try:
                         self.intData[idx][key]
                     except SystemExit:
@@ -97263,10 +97250,11 @@ class TaskAnalyzer(object):
         threadData = self.threadData[thread]
 
         # set tgid #
+        tgid = d["tgid"]
         try:
-            if d["tgid"].startswith("-"):
+            if tgid == "0" or tgid.startswith("-"):
                 raise Exception("no tgid")
-            tgid = threadData["tgid"] = d["tgid"]
+            tgid = threadData["tgid"] = tgid
         except:
             try:
                 tgid = threadData["tgid"] = SysMgr.savedProcTree[thread]
@@ -97652,7 +97640,7 @@ class TaskAnalyzer(object):
                         self.preemptData[index][2] = ftime
                         self.preemptData[index][3] = core
 
-            elif prev_state in ("S", "D", "t", "T", "I"):
+            elif prev_state in ("S", "D", "t", "T", "I", "x", "Z"):
                 # increase yield count except for core sched event #
                 if prev_id != coreId:
                     self.threadData[prev_id]["yield"] += 1
@@ -98064,7 +98052,7 @@ class TaskAnalyzer(object):
                 self.threadData[coreId]["kernelPages"] += nr
 
             # make PTE in page table #
-            for cnt in range(nr):
+            for cnt in xrange(nr):
                 pfnv = pfn + cnt
 
                 try:
@@ -98104,7 +98092,7 @@ class TaskAnalyzer(object):
             order = long(d["order"])
             nr = pow(2, order)
 
-            for cnt in range(nr):
+            for cnt in xrange(nr):
                 pfnv = pfn + cnt
 
                 try:
@@ -104842,18 +104830,25 @@ class TaskAnalyzer(object):
         data = "%s [%-5s > " % (" " * nrIndent, "SYSTEM")
         curline = str(data)
 
+        colorList = ["Active", "Inactive", "Cached"]
+
         for name, value in sorted(self.memData.items()):
             if not value or name.startswith("Mem") or name.startswith("Swap"):
                 continue
 
+            size = UtilMgr.convSize2Unit(value << 10)
+
             # add stats in a line #
-            item = "%-15s %7s" % (
-                "%s:" % name,
-                UtilMgr.convSize2Unit(value << 10),
-            )
+            item = "%-15s %7s" % ("%s:" % name, size)
             if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
                 databuf += "%s ]\n" % curline.rstrip(", ")
                 curline = str(edata)
+
+            if name in colorList:
+                item = "%-15s %7s" % (
+                    "%s:" % name,
+                    UtilMgr.convColor(size, "YELLOW", 7),
+                )
 
             curline += "%s, " % item
 
@@ -104910,18 +104905,70 @@ class TaskAnalyzer(object):
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
 
     def printVmInfo(self, nrIndent):
+        if not SysMgr.memEnable:
+            return
+
         vmInfo = "%s [VM > " % (" " * nrIndent)
 
         # swappiness #
         vmInfo += "swappiness: %s" % SysMgr.swappiness
 
         # vmpressure #
-        vmInfo += ", vmpressure: %s" % SysMgr.vmpressure
+        vmInfo += ", cache_pressure: %s" % UtilMgr.convNum(SysMgr.vmpressure)
 
         # overcommit #
         vmInfo += ", overcommit: %s" % SysMgr.overcommit
 
-        SysMgr.addPrint(vmInfo + "\n")
+        SysMgr.addPrint(vmInfo + " ]\n")
+
+    def printLMKStat(self, nrIndent):
+        if not SysMgr.memEnable:
+            return
+
+        # save LMK info #
+        try:
+            memBuf = None
+            SysMgr.lmkFd.seek(0)
+            memBuf = SysMgr.lmkFd.readline()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                memPath = SysMgr.lmkPath
+                SysMgr.lmkFd = open(memPath, "r")
+                memBuf = SysMgr.lmkFd.readline()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(memPath)
+
+        if not memBuf:
+            return
+
+        # threshold list #
+        threshold = [
+            "FGAPP",
+            "VISAPP",
+            "SECSER",
+            "HIDAPP",
+            "CONPRO",
+            "EMPAPP",
+        ]
+
+        lmkstr = "%s [LMK > " % (" " * nrIndent)
+
+        stats = memBuf.split(",")
+        if stats:
+            stats = list(map(long, stats))
+
+        for idx, item in enumerate(stats):
+            lmkstr = "%s%s: %s, " % (
+                lmkstr,
+                threshold[idx],
+                UtilMgr.convSize2Unit(item << 12),
+            )
+
+        SysMgr.addPrint(lmkstr[:-2] + " ]\n")
 
     def printZoneUsage(self, nrIndent):
         if not self.zoneData:
@@ -104975,6 +105022,12 @@ class TaskAnalyzer(object):
                     else:
                         diff = val - self.prevZoneData[node][info]
 
+                    # set color #
+                    if diff > 0:
+                        color = "GREEN"
+                    else:
+                        color = "YELLOW"
+
                     diff = convSize(diff << 12)
                     ninfo = "diff"
 
@@ -104986,7 +105039,7 @@ class TaskAnalyzer(object):
                     if diff != "0":
                         zoneStat = "%s: %7s / " % (
                             ninfo,
-                            convColor(diff, "YELLOW", 7),
+                            convColor(diff, color, 7),
                         )
 
                     if ttyCols and lenZone + lenZoneStat >= ttyCols:
@@ -105175,8 +105228,8 @@ class TaskAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                rdiff = [0 for i in range(len(val["recv"]))]
-                tdiff = [0 for i in range(len(val["tran"]))]
+                rdiff = [0 for i in xrange(len(val["recv"]))]
+                tdiff = [0 for i in xrange(len(val["tran"]))]
 
             try:
                 # convert color for network usage #
@@ -110143,6 +110196,9 @@ class TaskAnalyzer(object):
 
             # print vm stats #
             self.printVmInfo(nrIndent)
+
+            # print LMK stats #
+            self.printLMKStat(nrIndent)
 
             # print zone stats #
             self.printZoneUsage(nrIndent)
