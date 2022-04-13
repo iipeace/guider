@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220412"
+__revision__ = "220413"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23997,6 +23997,8 @@ Commands:
                 raise Exception("no %s" % SysMgr.ldCachePath)
 
             libDict = {}
+
+            # load libs from cache #
             libList = UtilMgr.convBin2Str(SysMgr.ldCachePath)
             for idx, item in enumerate(libList):
                 try:
@@ -24009,6 +24011,21 @@ Commands:
                 except:
                     pass
 
+            # load libs form /usr/local/lib #
+            for path in ["/usr/local/lib", "/usr/local/lib64"]:
+                if not os.path.exists(path):
+                    continue
+
+                for item in os.listdir(path):
+                    if not ".so" in item:
+                        continue
+
+                    value = os.path.join(path, item)
+
+                    libDict.setdefault(item, [])
+                    libDict[item].append(value)
+
+            # save lib list #
             SysMgr.libCache = libDict
         except SystemExit:
             sys.exit(0)
@@ -26535,6 +26552,7 @@ Commands:
             else ".",
             os.path.dirname(SysMgr.getPyPath()),
             os.path.join(sys.prefix, "local/guider"),
+            "/usr/share/guider",
         ]:
             fullPath = os.path.abspath(os.path.join(path, "guider.conf"))
             if os.path.exists(fullPath):
@@ -38464,6 +38482,9 @@ Copyright:
 
                         # run less as pager #
                         SysMgr.pipeForPager = os.popen(poption, "w")
+
+                        # set default signal to prevent abnormal terminal status #
+                        SysMgr.setDefaultSignal()
                     elif UtilMgr.which("more"):
                         SysMgr.pipeForPager = os.popen("more", "w")
                 elif sys.platform.startswith("win"):
@@ -60338,6 +60359,7 @@ class DltAnalyzer(object):
     procInfo = None
     dltData = {"cnt": 0}
     dbgObj = None
+    version = None
 
     @staticmethod
     def printSummary():
@@ -60774,6 +60796,19 @@ class DltAnalyzer(object):
         DLT_ID_SIZE = DltAnalyzer.DLT_ID_SIZE
         DLT_FILTER_MAX = DltAnalyzer.DLT_FILTER_MAX
 
+        class in_addr(Structure):
+            _fields_ = [
+                ("s_addr", c_ulong),
+            ]
+
+        class sockaddr_in(Structure):
+            _fields_ = [
+                ("sin_family", c_short),
+                ("sin_port", c_ushort),
+                ("sin_addr", in_addr),
+                ("sin_zero", c_char * 8),
+            ]
+
         class DltContext(Structure):
             _fields_ = [
                 ("contextID", c_char * 4),
@@ -60794,7 +60829,9 @@ class DltAnalyzer(object):
                  char *buf;                /**< pointer to position within receiver buffer */
                  char *backup_buf;     /** pointer to the buffer with partial messages if any **/
                  int fd;                   /**< connection handle */
+                 DltReceiverType type;     /**< type of connection handle */
                  int32_t buffersize;       /**< size of receiver buffer */
+                 struct sockaddr_in addr;  /**< socket address information */
              } DltReceiver;
             """
 
@@ -60806,7 +60843,9 @@ class DltAnalyzer(object):
                 ("buf", POINTER(c_char)),
                 ("backup_buf", POINTER(c_char)),
                 ("fd", c_int),
+                ("type", c_int),
                 ("buffersize", c_int32),
+                ("addr", sockaddr_in),
             ]
 
         class DltClient(Structure):
@@ -60829,12 +60868,15 @@ class DltAnalyzer(object):
                 ("receiver", DltReceiver),
                 ("sock", c_int),
                 ("servIP", c_char_p),
+                ("hostIP", c_char_p),
                 ("port", c_int),
                 ("serialDevice", c_char_p),
                 ("socketPath", c_char_p),
                 ("ecuid", c_char * DLT_ID_SIZE),
-                ("baudrate", c_int),
+                ("baudrate", c_uint),
                 ("mode", c_int),
+                ("send_serial_header", c_int),
+                ("resync_serial_header", c_int),
             ]
 
         class ContextIDsInfoType(Structure):
@@ -61207,8 +61249,11 @@ class DltAnalyzer(object):
         dltObj.dlt_client_main_loop.argtypes = [c_void_p, c_void_p, c_int]
         dltObj.dlt_client_main_loop.restype = c_int
 
-        dltObj.dlt_receiver_init.argtypes = [c_void_p, c_int, c_int]
+        dltObj.dlt_receiver_init.argtypes = [c_void_p, c_int, c_int, c_int]
         dltObj.dlt_receiver_init.restype = c_int
+
+        dltObj.dlt_get_version.argtypes = [c_char_p, c_int]
+        dltObj.dlt_get_version.restype = None
 
         dltObj.dlt_message_init.argtypes = [c_void_p, c_int]
         dltObj.dlt_message_init.restype = c_int
@@ -61315,10 +61360,66 @@ class DltAnalyzer(object):
             SysMgr.printErr("failed to recognize log level", True)
             sys.exit(-1)
 
+        # get DLT version #
+        try:
+            vbuf = (c_char * 256)()
+            dltObj.dlt_get_version(vbuf, c_int(255))
+            vstr = memoryview(vbuf).tobytes().decode().split("\x00")[0]
+            verstr = " ".join(vstr.split("\n"))
+
+            SysMgr.printInfo(verstr)
+
+            ver = UtilMgr.lstrip(verstr, "DLT Package Version: ")
+            DltAnalyzer.version = tuple(
+                map(int, ver[: ver.find(" ")].split("."))
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to get DLT version", reason=True)
+
+        # set new data structures (>=2.18.6) #
+        legacy = True
+        try:
+            if not DltAnalyzer.version:
+                raise Exception("no version")
+            elif DltAnalyzer.version >= (2, 18, 6):
+                legacy = False
+                raise Exception("recent version")
+
+            # dlt_receiver_init #
+            dltObj.dlt_receiver_init.argtypes = [c_void_p, c_int, c_int]
+            dltObj.dlt_receiver_init.restype = c_int
+
+            def _popFields(struct, items):
+                popList = []
+                for idx, item in enumerate(struct._fields_):
+                    if item[0] in items:
+                        popList.append(idx)
+                for idx in reversed(popList):
+                    struct._fields_.pop(idx)
+
+            # DltReceiver #
+            _popFields(DltReceiver, ("addr", "type"))
+
+            # DltClient #
+            _popFields(
+                DltClient,
+                ("hostIP", "send_serial_header", "resync_serial_header"),
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to set legacy data structures", reason=True
+            )
+
         # messages from file #
         if mode == "print" and flist:
             for path in flist:
-                SysMgr.printInfo("start printing DLT logs from %s...\n" % path)
+                SysMgr.printInfo(
+                    "start printing DLT logs from '%s'...\n" % path
+                )
 
                 # convert path string to utf-8 format #
                 pathOrig = path
@@ -61358,7 +61459,15 @@ class DltAnalyzer(object):
                         else:
                             dltFile.file_position = nextHeaderPos
 
+                    # print progress #
+                    UtilMgr.printProgress(
+                        dltFile.file_position, dltFile.file_length
+                    )
+
+                UtilMgr.deleteProgress()
+
                 # read messages #
+                sys.exit(0)
                 for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
                     if ret < 0:
@@ -61457,6 +61566,7 @@ class DltAnalyzer(object):
                     True,
                 )
 
+                # retry #
                 if retry:
                     time.sleep(retry)
                 else:
@@ -61512,9 +61622,17 @@ class DltAnalyzer(object):
                 SOL_SOCKET, SO_RCVBUF
             )  # pylint: disable=no-member
 
-            ret = dltObj.dlt_receiver_init(
-                byref(dltReceiver), c_int(nrConnSock), c_int(RECVBUFSIZE)
-            )
+            if legacy:
+                ret = dltObj.dlt_receiver_init(
+                    byref(dltReceiver), c_int(nrConnSock), c_int(RECVBUFSIZE)
+                )
+            else:
+                ret = dltObj.dlt_receiver_init(
+                    byref(dltReceiver),
+                    c_int(nrConnSock),
+                    c_int(0),  # 0: SOCKET / 1: UDP / 2: FD #
+                    c_int(RECVBUFSIZE),
+                )
             if ret < 0:
                 SysMgr.printErr("failed to initialize DLT receiver")
                 sys.exit(-1)
@@ -61599,6 +61717,8 @@ class DltAnalyzer(object):
                     ret = dlt_receiver_receive(byref(dltReceiver), verbVal)
                     if ret <= 0:
                         continue
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     sys.exit(-1)
 
