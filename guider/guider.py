@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220414"
+__revision__ = "220415"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -57399,7 +57399,7 @@ Copyright:
                 splitLen = SysMgr.lineLength - len(diskInfo) - 1
 
                 if val["option"]:
-                    option = "|".join([val["option"], val["soption"]])
+                    option = "+".join([val["option"], val["soption"]])
                 else:
                     option = val["option"]
 
@@ -105679,7 +105679,7 @@ class TaskAnalyzer(object):
                 usePer = convColor(usePer, "YELLOW")
 
             # make disk stat string #
-            option = "|".join(
+            option = "+".join(
                 [value["mount"]["option"], value["mount"]["soption"]]
             )
 
