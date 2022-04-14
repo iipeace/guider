@@ -22841,7 +22841,7 @@ class SysMgr(object):
     # flag #
     affinityEnable = False
     avgEnable = False
-    barGraphEnable = False
+    barGraphEnable = None
     binderEnable = False
     blockEnable = False
     bufferLossEnable = False
@@ -28241,9 +28241,9 @@ Options:
             x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:Average | b:buffer
-            c:cpu | C:clone | D:DWARF | e:encode
-            E:exec | g:general | G:gpu | L:log
-            O:color | p:print | t:truncate
+            B:bar | c:cpu | C:clone | D:DWARF
+            e:encode | E:exec | g:general | G:gpu
+            L:log | O:color | p:print | t:truncate
             T:task | x:event ]
                 """
 
@@ -28337,6 +28337,9 @@ Examples:
 
     - {3:1} all {2:2} with bar graphs for all cores
         # {0:1} {1:1} -a -e B
+
+    - {3:1} all {2:2} without bar graphs for all cores
+        # {0:1} {1:1} -a -d B
 
     - {3:1} all {2:2} with minimal stats
         # {0:1} {1:1} -a -e M
@@ -39509,6 +39512,9 @@ Copyright:
 
                 if "C" in options:
                     SysMgr.cloneEnable = False
+
+                if "B" in options:
+                    SysMgr.barGraphEnable = False
 
                 if "O" in options:
                     SysMgr.colorEnable = False
@@ -54759,6 +54765,8 @@ Copyright:
 
         self.printMmapInfo()
 
+        self.printUSBInfo()
+
         if not tree:
             return
 
@@ -54826,6 +54834,36 @@ Copyright:
                     jsonData[name] = value
         except:
             pass
+
+        SysMgr.infoBufferPrint(twoLine)
+
+    def printUSBInfo(self):
+        SysMgr.infoBufferPrint("\n[System USB Info]")
+        SysMgr.infoBufferPrint(twoLine)
+
+        # read USB info #
+        try:
+            with open("/sys/kernel/debug/usb/devices", "r") as fd:
+                data = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            data = None
+
+        # check result #
+        if not data:
+            SysMgr.infoBufferPrint("\tNone")
+            SysMgr.infoBufferPrint(twoLine)
+            return
+
+        for idx, line in enumerate(data):
+            line = line.strip()
+            if line:
+                SysMgr.infoBufferPrint(line)
+            elif idx == 0 or idx == len(data) - 1:
+                pass
+            else:
+                SysMgr.infoBufferPrint(oneLine)
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -55416,6 +55454,21 @@ Copyright:
                 jsonData["address"] = self.cpuInfo["address sizes"]
         except:
             pass
+
+        # oneline #
+        for item in ["online", "possible", "present"]:
+            try:
+                with open("/sys/devices/system/cpu/%s" % item, "r") as fd:
+                    data = fd.readline().strip()
+
+                SysMgr.infoBufferPrint(
+                    "{0:20} {1:<100}".format(item.title(), data)
+                )
+
+                if SysMgr.jsonEnable:
+                    jsonData[item] = data
+            except:
+                pass
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -103902,9 +103955,9 @@ class TaskAnalyzer(object):
 
                     # use short core stats for many-core system #
                     if (
-                        not SysMgr.barGraphEnable
+                        SysMgr.barGraphEnable is None
                         and SysMgr.nrCore > SysMgr.NRMANYCORE
-                    ):
+                    ) or SysMgr.barGraphEnable is False:
                         shortCoreStats += coreStat
                         coreFactor = long(maxCols / lenCoreStat)
                         if (idx + 1) % coreFactor == 0:
