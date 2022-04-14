@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220413"
+__revision__ = "220414"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4682,47 +4682,47 @@ class ConfigMgr(object):
         "edx",
         "ebx",
         "esp",
-        "ebp",
+        "ebp",  # 5 #
         "esi",
         "edi",
         "eip",
         "eflags",
-        "<none>",
+        "<none>",  # 10 #
         "st0",
         "st1",
         "st2",
         "st3",
-        "st4",
+        "st4",  # 15 #
         "st5",
         "st6",
         "st7",
         "<none>",
-        "<none>",
+        "<none>",  # 20 #
         "xmm0",
         "xmm1",
         "xmm2",
         "xmm3",
-        "xmm4",
+        "xmm4",  # 25 #
         "xmm5",
         "xmm6",
         "xmm7",
         "mm0",
-        "mm1",
+        "mm1",  # 30 #
         "mm2",
         "mm3",
         "mm4",
         "mm5",
-        "mm6",
+        "mm6",  # 35 #
         "mm7",
         "fcw",
         "fsw",
         "mxcsr",
-        "es",
+        "es",  # 40 #
         "cs",
         "ss",
         "ds",
         "fs",
-        "gs",
+        "gs",  # 45 #
         "<none>",
         "<none>",
         "tr",
@@ -4735,67 +4735,67 @@ class ConfigMgr(object):
         "rcx",
         "rbx",
         "rsi",
-        "rdi",
+        "rdi",  # 5 #
         "rbp",
         "rsp",
         "r8",
         "r9",
-        "r10",
+        "r10",  # 10 #
         "r11",
         "r12",
         "r13",
         "r14",
-        "r15",
+        "r15",  # 15 #
         "rip",
         "xmm0",
         "xmm1",
         "xmm2",
-        "xmm3",
+        "xmm3",  # 20 #
         "xmm4",
         "xmm5",
         "xmm6",
         "xmm7",
-        "xmm8",
+        "xmm8",  # 25 #
         "xmm9",
         "xmm10",
         "xmm11",
         "xmm12",
-        "xmm13",
+        "xmm13",  # 30 #
         "xmm14",
         "xmm15",
         "st0",
         "st1",
-        "st2",
+        "st2",  # 35 #
         "st3",
         "st4",
         "st5",
         "st6",
-        "st7",
+        "st7",  # 40 #
         "mm0",
         "mm1",
         "mm2",
         "mm3",
-        "mm4",
+        "mm4",  # 45 #
         "mm5",
         "mm6",
         "mm7",
         "rflags",
-        "es",
+        "es",  # 50 #
         "cs",
         "ss",
         "ds",
         "fs",
-        "gs",
+        "gs",  # 55 #
         "<none>",
         "<none>",
         "fs.base",
         "gs.base",
-        "<none>",
+        "<none>",  # 60 #
         "<none>",
         "tr",
         "ldtr",
         "mxcsr",
-        "fcw",
+        "fcw",  # 65 #
         "fsw",
     ]
 
@@ -6293,7 +6293,7 @@ class UtilMgr(object):
         else:
             start = 1
 
-        return text[start:]
+        return text[start:].rstrip("'")
 
     @staticmethod
     def convBin2Str(path, pos=False):
@@ -36787,8 +36787,7 @@ Copyright:
                 return True
 
             # change priority #
-            SysMgr.setPriority(SysMgr.pid, "C", 15, verb=False)
-            SysMgr.setIoPriority(ioclass="IOPRIO_CLASS_IDLE", verb=False)
+            SysMgr.setLowPriority(True)
 
             SysMgr.printLogo(absolute=True, big=True)
 
@@ -38247,15 +38246,10 @@ Copyright:
                     SysMgr.fileSuffix = long(SysMgr.getUptime())
 
                     # change priority #
-                    SysMgr.setPriority(SysMgr.pid, "C", 15, verb=False)
-                    SysMgr.setIoPriority(
-                        ioclass="IOPRIO_CLASS_IDLE", verb=False
-                    )
+                    SysMgr.setLowPriority(True)
 
-                    # flush all data to the file #
-                    SysMgr.newHandler()
-
-                    sys.exit(0)
+                    # flush all data to the file and exit #
+                    SysMgr.stopHandler()
                 # clear buffer as parent #
                 elif pid > 0:
                     SysMgr.clearProcBuffer()
@@ -42299,13 +42293,8 @@ Copyright:
 
     @staticmethod
     def doReadahead(path):
-        # set CPU priority #
-        if SysMgr.prio is None:
-            SysMgr.setPriority(SysMgr.pid, "C", 10)
-
-        # set I/O priority #
-        if SysMgr.ioprio is None:
-            SysMgr.setIoPriority(ioclass="IOPRIO_CLASS_IDLE")
+        # change priority #
+        SysMgr.setLowPriority(force=False, cpuVal=10, verb=True)
 
         # get readahead items #
         (
@@ -47942,6 +47931,16 @@ Copyright:
             SysMgr.printPipe(output)
 
     @staticmethod
+    def setLowPriority(force=False, cpuVal=15, verb=False):
+        # set CPU priority #
+        if force or SysMgr.prio is None:
+            SysMgr.setPriority(SysMgr.pid, "C", cpuVal, verb=verb)
+
+        # set I/O priority #
+        if force or SysMgr.ioprio is None:
+            SysMgr.setIoPriority(ioclass="IOPRIO_CLASS_IDLE", verb=verb)
+
+    @staticmethod
     def getProcAddrBySymbol(pid, symbolList, fileFilter=None):
         resInfo = {}
 
@@ -48263,13 +48262,8 @@ Copyright:
     def doMkCache():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        # set CPU priority #
-        if SysMgr.prio is None:
-            SysMgr.setPriority(SysMgr.pid, "C", 10)
-
-        # set I/O priority #
-        if SysMgr.ioprio is None:
-            SysMgr.setIoPriority(ioclass="IOPRIO_CLASS_IDLE")
+        # change priority #
+        SysMgr.setLowPriority(force=False, cpuVal=10, verb=True)
 
         # set dwarf flag #
         SysMgr.setDwarfFlag()
@@ -65141,7 +65135,7 @@ typedef struct {
         # attach to the thread #
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index("PTRACE_ATTACH")
-        exit = False
+        doExit = False
 
         while 1:
             ret = self.ptrace(cmd)
@@ -65154,9 +65148,13 @@ typedef struct {
                     )
                 elif not SysMgr.isRoot():
                     reason = " because of no root permission"
-                    exit = True
+                    doExit = True
                 else:
                     reason = " because %s" % self.errmsg
+
+                    # check exit condition #
+                    if not self.isAlive():
+                        doExit = True
 
                 # print error message #
                 warnMsg = "failed to attach %s(%s) to guider(%s)%s" % (
@@ -65177,7 +65175,7 @@ typedef struct {
                 SysMgr.printWarn(warnMsg, verb)
 
                 # check return #
-                if exit:
+                if doExit:
                     sys.exit(-1)
                 elif not cont:
                     return -1
@@ -66279,11 +66277,17 @@ typedef struct {
             # read a word #
             word = self.accessMem(self.peekIdx, addr)
             if word == -1:
+                # failed to read partial area #
+                if data:
+                    break
+
+                # failed to read whole area #
                 if verb:
                     SysMgr.printErr(
                         "failed to read memory address %s for %s(%s)"
                         % (hex(addr).rstrip("L"), self.comm, self.pid)
                     )
+
                 return None
 
             if retWord and offset == 0:
@@ -66799,7 +66803,10 @@ typedef struct {
             if addr == 0:
                 return value
             else:
-                return self.readString(addr)
+                ret = self.readString(addr)
+                if not ret:
+                    ret = addr
+                return ret
 
         # convert iov #
         if ref and argname == "vlen" and "vec" in argset:
@@ -66829,7 +66836,7 @@ typedef struct {
             try:
                 return ConfigMgr.FAT_TYPE[c_int(value).value]
             except:
-                return value
+                return "AT_FDCWD"
 
         # convert pointer to buffer #
         if buf and argname == "buf" and syscall in ConfigMgr.SYSCALL_REFBUF:
@@ -108426,8 +108433,7 @@ class TaskAnalyzer(object):
                 return pid
 
             # change priority #
-            SysMgr.setPriority(SysMgr.pid, "C", 15, verb=False)
-            SysMgr.setIoPriority(ioclass="IOPRIO_CLASS_IDLE", verb=False)
+            SysMgr.setLowPriority(True)
 
             # disable report #
             SysMgr.reportEnable = False
