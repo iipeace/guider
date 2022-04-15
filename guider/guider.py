@@ -13862,7 +13862,7 @@ class PageAnalyzer(object):
     def getPagemapEntry(pid, addr):
         maps_path = "{0}/{1}/pagemap".format(SysMgr.procPath, pid)
         if not os.path.isfile(maps_path):
-            SysMgr.printErr("failed to find %s process" % pid)
+            SysMgr.printErr("failed to find the process with %s PID" % pid)
             sys.exit(-1)
 
         pageSize = os.sysconf("SC_PAGE_SIZE")
@@ -19540,7 +19540,7 @@ class LeakAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to analyze leakage for the task having %s PID" % pid,
+                "failed to analyze leakage for the task with %s PID" % pid,
                 True,
             )
             sys.exit(-1)
@@ -20915,9 +20915,14 @@ class FileAnalyzer(object):
         if onlyExec and not isExec:
             return
 
+        # convert file name #
         fileName = d["binName"]
         if fileName.startswith("["):
             fileName = fileName[1:-1]
+        if fileName.endswith(" (deleted)"):
+            fileName = fileName[:-10]
+
+        # set address #
         startAddr = long(d["startAddr"], 16)
         endAddr = long(d["endAddr"], 16)
 
@@ -22986,6 +22991,7 @@ Commands:
     def __init__(self, onlyInstance=False):
         self.cpuInfo = {}
         self.cpuCacheInfo = {}
+        self.cpuCacheData = {}
         self.memInfo = {}
         self.devInfo = {}
         self.diskInfo = {}
@@ -28394,8 +28400,8 @@ Examples:
         # {0:1} {1:1} -a -q GPUMEM
         # {0:1} {1:1} -a -q GPUMEMSUM
 
-    - {3:1} all {2:2} without GPU memory
-        # {0:1} {1:1} -a -q NOGPUMEM
+    - {3:1} all {2:2} with GPU temperature
+        # {0:1} {1:1} -a -q GPUTEMP
 
     - {3:1} all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
@@ -40662,7 +40668,7 @@ Copyright:
 
         # wait for input #
         if SysMgr.waitEnable:
-            SysMgr.waitUserInput(SysMgr.waitEnable, msg="Ctrl+c", force=True)
+            SysMgr.waitUserInput(SysMgr.waitEnable, msg="DEFAULT", force=True)
 
         # LIST MODE #
         if SysMgr.checkMode("list"):
@@ -41721,7 +41727,9 @@ Copyright:
             )
             SysMgr.printBgProcs(cache=True)
         else:
-            SysMgr.printWarn("failed to find %s process" % name, True)
+            SysMgr.printWarn(
+                "failed to find the process with %s PID" % name, True
+            )
 
         return None
 
@@ -42714,7 +42722,9 @@ Copyright:
             wait = 0
 
         # set default message #
-        if msg:
+        if msg == "DEFAULT":
+            msg = "\ninput Enter(Cont) or Ctrl+c(Quit)..."
+        elif msg:
             msg = "\ninput %s key..." % msg
         elif SysMgr.idList:
             msg = "input a task index... ( Help / Quit)"
@@ -46252,7 +46262,8 @@ Copyright:
         pids = SysMgr.convTaskList(filterGroup, exceptMe=True)
         if not pids:
             SysMgr.printErr(
-                "failed to find %s process" % ", ".join(filterGroup)
+                "failed to find the process with %s PID"
+                % ", ".join(filterGroup)
             )
             sys.exit(-1)
 
@@ -49017,7 +49028,7 @@ Copyright:
                 sigList = tobj.procData[pid]["status"]["SigCgt"]
                 if startSig and not UtilMgr.isBitEnabled(startSig, sigList):
                     SysMgr.printWarn(
-                        "failed to find %s(%s) handler for start"
+                        "failed to find %s(%s)'s handler for start"
                         % (ConfigMgr.SIG_LIST[startSig], startSig),
                         True,
                     )
@@ -49025,7 +49036,7 @@ Copyright:
                 # check stop signal #
                 if stopSig and not UtilMgr.isBitEnabled(stopSig, sigList):
                     SysMgr.printWarn(
-                        "failed to find %s(%s) handler for stop"
+                        "failed to find %s(%s)'s handler for stop"
                         % (ConfigMgr.SIG_LIST[stopSig], stopSig),
                         True,
                     )
@@ -53381,8 +53392,13 @@ Copyright:
         except:
             SysMgr.printWarn("failed to save CPU info", reason=True)
 
-    def saveCpuCacheInfo(self):
+    def saveCpuCacheInfo(self, data=False):
         cpuPath = "/sys/devices/system/cpu"
+
+        if data:
+            cpuCacheList = self.cpuCacheData
+        else:
+            cpuCacheList = self.cpuCacheInfo
 
         try:
             corelist = os.listdir(cpuPath)
@@ -53390,7 +53406,10 @@ Copyright:
             for core in corelist:
                 cachePath = "/sys/devices/system/cpu/%s/cache" % core
 
-                self.cpuCacheInfo[core] = ""
+                if data:
+                    core = core.lstrip("cpu")
+
+                cpuCacheList[core] = ""
 
                 try:
                     typelist = os.listdir(cachePath)
@@ -53414,19 +53433,27 @@ Copyright:
                         with open(path, "r") as fd:
                             size = fd.readline()
 
-                        self.cpuCacheInfo[core] = "%sL%s(%s)=%s   " % (
-                            self.cpuCacheInfo[core],
-                            level[:-1],
-                            type[:-1],
-                            size[:-1],
-                        )
+                        if data:
+                            size = UtilMgr.convUnit2Size(size[:-1])
+                            size = UtilMgr.convSize2Unit(size, isInt=True)
+                            if cpuCacheList[core]:
+                                cpuCacheList[core] += "/%s" % size
+                            else:
+                                cpuCacheList[core] = size
+                        else:
+                            cpuCacheList[core] = "%sL%s(%s)=%s   " % (
+                                cpuCacheList[core],
+                                level[:-1],
+                                type[:-1],
+                                size[:-1],
+                            )
                 except SystemExit:
                     sys.exit(0)
                 except:
                     pass
 
-                if not self.cpuCacheInfo[core]:
-                    del self.cpuCacheInfo[core]
+                if not cpuCacheList[core]:
+                    del cpuCacheList[core]
         except SystemExit:
             sys.exit(0)
         except:
@@ -60562,6 +60589,9 @@ class DltAnalyzer(object):
 
     @staticmethod
     def onAlarm(signum, frame):
+        # check user input #
+        SysMgr.waitUserInput(wait=0.000001, msg="DEFAULT")
+
         if DltAnalyzer.dltData["cnt"] or SysMgr.inWaitStatus:
             DltAnalyzer.printSummary()
         elif not SysMgr.condExit:
@@ -62457,7 +62487,12 @@ typedef struct {
             self.isRunning = True
 
             if self.isInRun() is None:
-                SysMgr.printErr("failed to find %s(%s)" % (self.comm, pid))
+                if self.comm:
+                    procInfo = "%s(%s)" % (self.comm, pid)
+                else:
+                    procInfo = "the task with %s TID" % pid
+                SysMgr.printErr("failed to find %s" % procInfo)
+
                 sys.exit(-1)
 
             # update comm #
@@ -67416,7 +67451,7 @@ typedef struct {
             return
 
         # check user input #
-        SysMgr.waitUserInput(wait=0.000001, msg="Ctrl+c")
+        SysMgr.waitUserInput(wait=0.000001, msg="DEFAULT")
 
         # define stop flag #
         needStop = False
@@ -68488,7 +68523,6 @@ typedef struct {
                         try:
                             rvalue = '"%s"' % rvalue.decode("utf-8")
                             rvalue = re.sub("\W+", "", rvalue)
-                            rvalue = rvalue.encode()
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -68497,7 +68531,7 @@ typedef struct {
 
                 # convert reference value #
                 if rvalue:
-                    rvalue = " [%s]" % rvalue
+                    rvalue = "[%s]" % rvalue
                 else:
                     rvalue = ""
 
@@ -84141,7 +84175,7 @@ class TaskAnalyzer(object):
                 waitTime = SysMgr.intervalEnable - delayTime
 
             # wait for next tick #
-            if not SysMgr.waitUserInput(waitTime, msg="Ctrl+c"):
+            if not SysMgr.waitUserInput(waitTime, msg="DEFAULT"):
                 time.sleep(waitTime)
 
     def runTaskTopGen(self):
@@ -102077,7 +102111,7 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn("failed to find %s process" % tid)
+            SysMgr.printWarn("failed to find the process with %s PID" % tid)
             return
 
         try:
@@ -103168,47 +103202,40 @@ class TaskAnalyzer(object):
         if failedStat:
             SysMgr.printWarn("failed to get %s stats" % ", ".join(failedStat))
 
+        titleStr = (
+            "{0:^7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
+            "{6:>6}({7:>3}/{8:>6}/{9:>6}/{10:>5})|"
+            "{11:>5}({12:>4}/{13:>3}/{14:>3})|{15:^11}|{16:^7}|{17:^7}|"
+            "{18:^3}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n"
+        ).format(
+            "ID",
+            "CPU",
+            "Usr",
+            "Ker",
+            "Blk",
+            "IRQ",
+            memTitle,
+            "Per",
+            "User",
+            "Cache",
+            "Kern",
+            "Swap",
+            "Per",
+            "In",
+            "Out",
+            "PgRclm",
+            "BlkRW",
+            "NrFlt",
+            "Blk",
+            "NrSIRQ",
+            "PgMlk",
+            "PgDirt",
+            "Network",
+        )
+
         # print system status menu #
         SysMgr.addPrint(
-            (
-                "%s\n%s%s\n"
-                % (
-                    twoLine,
-                    (
-                        (
-                            "{0:^7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
-                            "{6:>6}({7:>3}/{8:>6}/{9:>6}/{10:>5})|"
-                            "{11:>5}({12:>4}/{13:>3}/{14:>3})|{15:^11}|{16:^7}|{17:^7}|"
-                            "{18:^3}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n"
-                        ).format(
-                            "ID",
-                            "CPU",
-                            "Usr",
-                            "Ker",
-                            "Blk",
-                            "IRQ",
-                            memTitle,
-                            "Per",
-                            "User",
-                            "Cache",
-                            "Kern",
-                            "Swap",
-                            "Per",
-                            "In",
-                            "Out",
-                            "PgRclm",
-                            "BlkRW",
-                            "NrFlt",
-                            "Blk",
-                            "NrSIRQ",
-                            "PgMlk",
-                            "PgDirt",
-                            "Network",
-                        )
-                    ),
-                    oneLine,
-                )
-            ),
+            "%s\n%s%s\n" % (twoLine, titleStr, oneLine),
             newline=3,
         )
 
@@ -103901,16 +103928,29 @@ class TaskAnalyzer(object):
                 # merge frequency info #
                 try:
                     coreFreq = ""
+
+                    # frequency #
                     if curFreq:
                         coreFreq = "%d Mhz" % (long(curFreq) >> 10)
+                    # cache #
                     else:
-                        coreFreq = "? Mhz"
+                        sysObj = SysMgr.sysInstance
+                        if not sysObj.cpuCacheData:
+                            sysObj.saveCpuCacheInfo(True)
+                        try:
+                            coreFreq = sysObj.cpuCacheData[str(idx)]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            coreFreq = "? Mhz"
+
                     if minFreq and maxFreq:
                         coreFreq = "%s [%d-%d]" % (
                             coreFreq,
                             long(minFreq) >> 10,
                             long(maxFreq) >> 10,
                         )
+
                     coreFreq = "%20s|" % coreFreq
                 except SystemExit:
                     sys.exit(0)
@@ -104042,25 +104082,32 @@ class TaskAnalyzer(object):
                         memUsage = None
                         if (
                             self.gpuMemData
-                            and not "NOGPUMEM" in SysMgr.environList
+                            and not "GPUTEMP" in SysMgr.environList
                         ):
-                            memUsage = convSize(self.gpuMemData["0"]["size"])
+                            memUsage = convSize(
+                                self.gpuMemData["0"]["size"],
+                                isInt=True,
+                                unit="M",
+                            )
                     except SystemExit:
                         sys.exit(0)
                     except:
                         pass
 
-                    # set temperature info #
+                    # additional info #
                     try:
+                        # GPU memory #
                         if memUsage:
                             coreFreq = "{0:^6}| {1:1}".format(
                                 memUsage, coreFreq
                             )
+                        # CPU temperature #
                         else:
                             coreFreq = "%3s C | %s" % (value["TEMP"], coreFreq)
                     except SystemExit:
                         sys.exit(0)
                     except:
+                        # GPU temperature #
                         try:
                             coreFreq = "%3s C | %s" % (
                                 coreTempData["GPU"],
@@ -107078,7 +107125,10 @@ class TaskAnalyzer(object):
                     etc = "%s(%s)" % (procData[pgid]["comm"], pgid)
                 else:
                     pgid = procData[idx]["stat"][self.ppidIdx]
-                    etc = "%s(%s)" % (procData[pgid]["comm"], pgid)
+                    if pgid == "0":
+                        etc = "swapper(0)"
+                    else:
+                        etc = "%s(%s)" % (procData[pgid]["comm"], pgid)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -110452,7 +110502,7 @@ def main(args=None):
 
         # wait for input #
         if SysMgr.waitEnable:
-            SysMgr.waitUserInput(SysMgr.waitEnable, msg="Ctrl+c", force=True)
+            SysMgr.waitUserInput(SysMgr.waitEnable, msg="DEFAULT", force=True)
 
         # set normal signal #
         SysMgr.setNormalSignal()
