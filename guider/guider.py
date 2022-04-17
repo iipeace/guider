@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220415"
+__revision__ = "220417"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13862,7 +13862,7 @@ class PageAnalyzer(object):
     def getPagemapEntry(pid, addr):
         maps_path = "{0}/{1}/pagemap".format(SysMgr.procPath, pid)
         if not os.path.isfile(maps_path):
-            SysMgr.printErr("failed to find the process with %s PID" % pid)
+            SysMgr.printErr("failed to find the process with PID %s" % pid)
             sys.exit(-1)
 
         pageSize = os.sysconf("SC_PAGE_SIZE")
@@ -19540,7 +19540,7 @@ class LeakAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to analyze leakage for the task with %s PID" % pid,
+                "failed to analyze leakage for the task with PID %s" % pid,
                 True,
             )
             sys.exit(-1)
@@ -28989,6 +28989,9 @@ Examples:
     - {5:1} and print call contexts {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|print"
 
+    - {5:1} and print call contexts {4:1} {7:1}
+        # {0:1} {1:1} -g a.out -c "write|print"
+
     - {5:1} and print python contexts {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|print" -q PYSTACK
 
@@ -29892,7 +29895,8 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - {2:1} with breakpoint for read including register info for a specific thread
+    - {2:1} with breakpoint for read syscalls {3:1}
+        # {0:1} {1:1} -g 1234 -c read
         # {0:1} {1:1} -g 1234 -c read -a
 
     See the top COMMAND help for more examples.
@@ -29974,7 +29978,8 @@ Examples:
     - Monitor CPU usage on whole system of python calls {3:1}
         # {0:1} {1:1} -g iotop -e c
 
-    - {2:1} with breakpoint for peace including register info {3:1}
+    - {2:1} with breakpoint for peace {3:1}
+        # {0:1} {1:1} -g 1234 -c peace
         # {0:1} {1:1} -g 1234 -c peace -a
 
     - {2:1} {3:1} and draw timeline segments for all python call samples
@@ -30259,7 +30264,8 @@ Examples:
     - Monitor CPU usage on whole system of native function calls {4:1}
         # {0:1} {1:1} -g a.out -e c
 
-    - {3:1} with breakpoint for peace including register info {4:1}
+    - {3:1} with breakpoint for peace {4:1}
+        # {0:1} {1:1} -g 1234 -c peace
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
@@ -30909,7 +30915,7 @@ Description:
                     helpStr += """
 Options:
     -u                          run in the background
-    -a                          show all stats including registers
+    -a                          show all stats with registers
     -g  <COMM|TID>              set task filter
     -I  <RANGE>                 set memory address
     -R  <TIME>                  set timer
@@ -30954,7 +30960,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | e:encode | E:exec | g:general | O:color ]
     -u                          run in the background
-    -a                          show all stats including registers
+    -a                          show all stats with registers
     -g  <COMM|TID{:FILE}>       set task filter
     -t  <SYSCALL>               set syscall
     -I  <COMMAND>               set command
@@ -31054,7 +31060,8 @@ Examples:
     - {4:1} {5:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o .
 
-    - {3:1} with breakpoint for read including register info {5:1}
+    - {3:1} with breakpoint for read {5:1}
+        # {0:1} {1:1} -g a.out -c read
         # {0:1} {1:1} -g a.out -c read -a
 
     - {3:1} {5:1} only for 1 minute
@@ -31104,7 +31111,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | e:encode | D:DWARF | E:exec | g:general ]
     -u                          run in the background
-    -a                          show all stats including registers
+    -a                          show all stats with registers
     -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
@@ -31157,7 +31164,8 @@ Examples:
     - {2:1} {3:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
-    - {2:1} with breakpoint for peace including register info {3:1}
+    - {2:1} with breakpoint for peace {3:1}
+        # {0:1} {1:1} -g a.out -c peace
         # {0:1} {1:1} -g a.out -c peace -a
 
     - {2:1} {3:1} only for 2 seconds
@@ -31189,7 +31197,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
     -u                          run in the background
-    -a                          show all stats including registers
+    -a                          show all stats with registers
     -T  <FILE>                  set target file
     -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
@@ -31261,7 +31269,8 @@ Examples:
     - {3:1} {4:1} and report the result to ./guider.out
         # {0:1} {1:1} -g iotop -o . -a
 
-    - {3:1} with breakpoint for peace including register info {4:1}
+    - {3:1} with breakpoint for peace {4:1}
+        # {0:1} {1:1} -g iotop -c peace
         # {0:1} {1:1} -g iotop -c peace -a
 
     - {3:1} {4:1} only for 2 seconds
@@ -31301,7 +31310,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
     -u                          run in the background
-    -a                          show all stats including registers
+    -a                          show all stats with registers
     -T  <FILE>                  set target file
     -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
@@ -31333,7 +31342,7 @@ Description:
                     helpStr += """
 Options:
     -u                          run in the background
-    -a                          show all stats including registers
+    -a                          show all stats with registers
     -g  <COMM|TID{:FILE}>       set task filter
     -R  <TIME>                  set timer
     -i  <REPEAT>                set repeat count
@@ -37888,7 +37897,7 @@ Copyright:
         SysMgr.printWarn(
             (
                 "failed to import python package: %s, "
-                "try to enter 'pip%s install %s'"
+                "try to run 'pip%s install %s'"
             )
             % (name, sys.version_info[0], pkg),
             True,
@@ -41728,7 +41737,7 @@ Copyright:
             SysMgr.printBgProcs(cache=True)
         else:
             SysMgr.printWarn(
-                "failed to find the process with %s PID" % name, True
+                "failed to find the process with PID %s" % name, True
             )
 
         return None
@@ -42723,11 +42732,11 @@ Copyright:
 
         # set default message #
         if msg == "DEFAULT":
-            msg = "\ninput Enter(Cont) or Ctrl+c(Quit)..."
-        elif msg:
-            msg = "\ninput %s key..." % msg
+            msg = "\ninput ENTER to continue or Ctrl+c to quit..."
         elif SysMgr.idList:
             msg = "input a task index... ( Help / Quit)"
+        elif msg:
+            pass
         else:
             msg = "input a command... ( Help / Quit )"
 
@@ -46262,7 +46271,7 @@ Copyright:
         pids = SysMgr.convTaskList(filterGroup, exceptMe=True)
         if not pids:
             SysMgr.printErr(
-                "failed to find the process with %s PID"
+                "failed to find the process with PID %s"
                 % ", ".join(filterGroup)
             )
             sys.exit(-1)
@@ -48724,6 +48733,7 @@ Copyright:
 
         # get PID #
         pid = None
+        comm = None
         isMulti = False
         startTime = endTime = 0
         if inputCmd:
@@ -48776,7 +48786,7 @@ Copyright:
                 [
                     "LEAKTRACER_ONSIG_REPORT=%s" % LeakAnalyzer.stopSig,
                     "LEAKTRACER_ONSIG_REPORTFILENAME=%s" % fname,
-                    "LEAKTRACER_ONEXIT_REPORT=1"
+                    "LEAKTRACER_ONEXIT_REPORT=1",
                     "LEAKTRACER_ONEXIT_REPORTFILENAME=%s" % fname,
                 ]
             )
@@ -48791,6 +48801,7 @@ Copyright:
             pids = [str(pid)]
 
             # wait for initialization of the target #
+            # TODO: sync with the child to get memory map before termination #
             time.sleep(1)
         else:
             pids = SysMgr.convTaskList(targetList, exceptMe=True)
@@ -62490,7 +62501,7 @@ typedef struct {
                 if self.comm:
                     procInfo = "%s(%s)" % (self.comm, pid)
                 else:
-                    procInfo = "the task with %s TID" % pid
+                    procInfo = "the task with TID %s" % pid
                 SysMgr.printErr("failed to find %s" % procInfo)
 
                 sys.exit(-1)
@@ -68832,7 +68843,7 @@ typedef struct {
         signal.alarm(0)
 
         SysMgr.waitUserInput(
-            wait=0, msg="%s() is detected! press enter to continue..." % sym
+            wait=0, msg="\n%s() is detected! press ENTER to continue..." % sym
         )
 
         # enable timer #
@@ -102111,7 +102122,7 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn("failed to find the process with %s PID" % tid)
+            SysMgr.printWarn("failed to find the process with PID %s" % tid)
             return
 
         try:
