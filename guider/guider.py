@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220417"
+__revision__ = "220418"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28576,8 +28576,11 @@ Examples:
     - Draw items for specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*"
 
-    - Draw items for each file for flamegraph
+    - Draw items for each file
         # {0:1} {1:1} guider.out -q NOMERGE
+
+    - Draw items except for call samples in wait status
+        # {0:1} {1:1} guider.out -q NOWAITCALL
 
     - Draw items for specific tasks
         # {0:1} {1:1} guider.dat -g task3
@@ -28593,6 +28596,16 @@ Examples:
 
     - Draw items for all events and tasks
         # {0:1} {1:1} guider.dat -a
+
+    - Draw items except for load plots including CPU and I/O usage
+        # {0:1} {1:1} guider.dat -q NOLOADPLOT
+
+    - Draw items except for specific memory plots
+        # {0:1} {1:1} guider.dat -q NOMEMFREEPLOT
+        # {0:1} {1:1} guider.dat -q NOMEMANONPLOT
+        # {0:1} {1:1} guider.dat -q NOMEMCACHEPLOT
+        # {0:1} {1:1} guider.dat -q NOMEMPROCPLOT
+        # {0:1} {1:1} guider.dat -q NOMEMSWAPPLOT
 
     - Draw items except for syscalls for timeline segments
         # {0:1} {1:1} guider.dat -q NOSYSCALL
@@ -48067,7 +48080,7 @@ Copyright:
     def setDwarfFlag():
         def _printDwarfStatus(stat):
             statStr = "enabled" if stat else "disabled"
-            SysMgr.printInfo("%s DWARF parser" % statStr)
+            SysMgr.printWarn("%s DWARF parser" % statStr, True)
 
         # check DWARF requirement #
         if SysMgr.dwarfEnable:
@@ -67120,6 +67133,15 @@ typedef struct {
                     )
                     sys.exit(-1)
 
+        # remove samples in WAIT status #
+        if "NOWAITCALL" in SysMgr.environList:
+            newList = {}
+            for item in callList:
+                if item.startswith("WAIT{"):
+                    continue
+                newList[item] = callList[item]
+            callList = newList
+
         # check call samples #
         if not callList:
             SysMgr.printErr("no call sample to draw flame graph")
@@ -67694,6 +67716,7 @@ typedef struct {
                 _finishPrint(self, needStop, term)
                 return
 
+        # print functions #
         totalCnt = 0
         isBtPrinted = False
         for sym, value in sorted(
@@ -67708,8 +67731,6 @@ typedef struct {
             # check percentage #
             try:
                 per = cnt / nrTotal * 100 * floatTotalUsage
-                if per < 1 and not SysMgr.showAll:
-                    break
             except:
                 break
 
@@ -67864,7 +67885,7 @@ typedef struct {
 
             totalCnt += 1
 
-            # backtrace #
+            # print backtraces #
             if value["backtrace"]:
                 # backup backtraces #
                 if SysMgr.jsonEnable:
@@ -67884,6 +67905,7 @@ typedef struct {
                     # set percent #
                     bper = bcnt / float(cnt) * 100
 
+                    # JSON format output #
                     if SysMgr.jsonEnable:
                         jsonData["stats"][sym].setdefault("backtraces", [])
                         jsonData["stats"][sym]["backtraces"].append(
@@ -83523,18 +83545,17 @@ class TaskAnalyzer(object):
                 if SysMgr.inputParam:
                     # FLAME GRAPH MODE #
                     if SysMgr.checkMode("drawflame", True):
-                        if "NOMERGE" in SysMgr.environList:
-                            for fpath in list(SysMgr.inputParam):
-                                Debugger.drawFlame(fpath)
-                        else:
-                            Debugger.drawFlame(SysMgr.inputParam)
+                        drawFunc = Debugger.drawFlame
                     # OTHER DRAW MODE #
                     else:
-                        if "NOMERGE" in SysMgr.environList:
-                            for fpath in list(SysMgr.inputParam):
-                                self.drawStats(fpath)
-                        else:
-                            self.drawStats(SysMgr.inputParam)
+                        drawFunc = self.drawStats
+
+                    if "NOMERGE" in SysMgr.environList:
+                        for fpath in list(SysMgr.inputParam):
+                            drawFunc(fpath)
+                    else:
+                        drawFunc(SysMgr.inputParam)
+
                     sys.exit(0)
                 # no path for statistics #
                 else:
@@ -84432,10 +84453,10 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("failed to read %s\n" % logFile)
+            SysMgr.printErr("failed to read '%s'\n" % logFile)
             sys.exit(-1)
 
-        SysMgr.printStat(r"start processing %s..." % logFile)
+        SysMgr.printStat(r"start processing '%s'..." % logFile)
 
         # context varaible #
         finalLine = 0
@@ -85188,10 +85209,10 @@ class TaskAnalyzer(object):
 
         # check output data #
         if not totalRam:
-            SysMgr.printErr("failed to find statistics data in %s" % logFile)
+            SysMgr.printErr("failed to find statistics data in '%s'" % logFile)
             sys.exit(-1)
         elif not timeline:
-            SysMgr.printErr("failed to find interval data in %s" % logFile)
+            SysMgr.printErr("failed to find interval data in '%s'" % logFile)
             sys.exit(-1)
 
         # get indexes for trim #
@@ -86306,6 +86327,7 @@ class TaskAnalyzer(object):
             conv = UtilMgr.convNum
 
             # start loop #
+            cnt = 0
             for key, val in graphStats.items():
                 if not key.endswith("timeline"):
                     continue
@@ -86418,7 +86440,10 @@ class TaskAnalyzer(object):
                             break
 
                     # ------------------ Total CPU usage ------------------#
-                    if sum(blkWait) > 0:
+                    if (
+                        not "NOLOADPLOT" in SysMgr.environList
+                        and sum(blkWait) > 0
+                    ):
                         for idx, item in enumerate(blkWait):
                             blkWait[idx] += cpuUsage[idx]
 
@@ -86809,7 +86834,7 @@ class TaskAnalyzer(object):
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
         def _drawIo(graphStats, xtype, pos, size):
-            def _drawSystemIo(statList, color, ymax):
+            def _drawSystemIo(statList, color, ymax, name):
                 if not statList:
                     return
 
@@ -86823,11 +86848,15 @@ class TaskAnalyzer(object):
                 minIdx = usage.index(min(usage))
                 maxIdx = usage.index(max(usage))
 
-                minval = "%s%s" % (prefix, convSize(usage[minIdx] << 10))
+                minval = "%s%s%s" % (
+                    prefix,
+                    name,
+                    convSize(usage[minIdx] << 10),
+                )
                 maxsize = convSize(usage[maxIdx] << 10)
                 totalsize = convSize(long(sum(usage)) << 10)
-                maxval = "%s%s" % (prefix, maxsize)
-                lastval = "%s%s" % (prefix, convSize(usage[-1] << 10))
+                maxval = "%s%s%s" % (prefix, name, maxsize)
+                lastval = "%s%s%s" % (prefix, name, convSize(usage[-1] << 10))
 
                 # set color #
                 if prefix:
@@ -86962,34 +86991,46 @@ class TaskAnalyzer(object):
                 if isVisibleTotal:
                     # System Block Read #
                     color = None if fname else "purple"
-                    totalsize, ymax = _drawSystemIo(blkRead, color, ymax)
+                    totalsize, ymax = _drawSystemIo(
+                        blkRead, color, ymax, "[BR]"
+                    )
                     labelList.append("%sBlock Read - %s" % (prefix, totalsize))
 
                     # System Block Write #
                     color = None if fname else "darkgreen"
-                    totalsize, ymax = _drawSystemIo(blkWrite, color, ymax)
+                    totalsize, ymax = _drawSystemIo(
+                        blkWrite, color, ymax, "[BW]"
+                    )
                     labelList.append(
                         "%sBlock Write - %s" % (prefix, totalsize)
                     )
 
                     # System Background Reclaim #
                     color = None if fname else "pink"
-                    totalsize, ymax = _drawSystemIo(reclaimBg, color, ymax)
+                    totalsize, ymax = _drawSystemIo(
+                        reclaimBg, color, ymax, "[RB]"
+                    )
                     labelList.append("%sReclaim BG - %s" % (prefix, totalsize))
 
                     # System Direct Reclaim #
                     color = None if fname else "red"
-                    totalsize, ymax = _drawSystemIo(reclaimDr, color, ymax)
+                    totalsize, ymax = _drawSystemIo(
+                        reclaimDr, color, ymax, "[RF]"
+                    )
                     labelList.append("%sReclaim FG - %s" % (prefix, totalsize))
 
                     # System Network Inbound #
                     color = None if fname else "orange"
-                    totalsize, ymax = _drawSystemIo(netRead, color, ymax)
+                    totalsize, ymax = _drawSystemIo(
+                        netRead, color, ymax, "[NI]"
+                    )
                     labelList.append("%sNetwork In - %s" % (prefix, totalsize))
 
                     # System Network Outbound #
                     color = None if fname else "cyan"
-                    totalsize, ymax = _drawSystemIo(netWrite, color, ymax)
+                    totalsize, ymax = _drawSystemIo(
+                        netWrite, color, ymax, "[NO]"
+                    )
                     labelList.append(
                         "%sNetwork Out - %s" % (prefix, totalsize)
                     )
@@ -87029,8 +87070,13 @@ class TaskAnalyzer(object):
 
                     maxsize = convSize(wrUsage[maxIdx] << 10)
                     totalsize = convSize(long(sum(wrUsage)) << 10)
-                    maxval = "%s%s" % (prefix, maxsize)
-                    lastval = "%s%s" % (prefix, convSize(wrUsage[-1] << 10))
+                    ptype = "[NO]"
+                    maxval = "%s%s%s" % (prefix, ptype, maxsize)
+                    lastval = "%s%s%s" % (
+                        prefix,
+                        ptype,
+                        convSize(wrUsage[-1] << 10),
+                    )
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -87076,8 +87122,13 @@ class TaskAnalyzer(object):
 
                     maxsize = convSize(rdUsage[maxIdx] << 10)
                     totalsize = convSize(long(sum(rdUsage)) << 10)
-                    maxval = "%s%s" % (prefix, maxsize)
-                    lastval = "%s%s" % (prefix, convSize(rdUsage[-1] << 10))
+                    ptype = "[NI]"
+                    maxval = "%s%s%s" % (prefix, ptype, maxsize)
+                    lastval = "%s%s%s" % (
+                        prefix,
+                        ptype,
+                        convSize(rdUsage[-1] << 10),
+                    )
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -87141,8 +87192,13 @@ class TaskAnalyzer(object):
                     maxsize = convSize(wrUsage[maxIdx] << 10)
                     totalsize = convSize(long(sum(wrUsage)) << 10)
                     busyval = busyUsage[maxIdx]
-                    maxval = "%s%s[%s%%]" % (prefix, maxsize, busyval)
-                    lastval = "%s%s" % (prefix, convSize(wrUsage[-1] << 10))
+                    ptype = "[BW]"
+                    maxval = "%s%s%s[%s%%]" % (prefix, ptype, maxsize, busyval)
+                    lastval = "%s%s%s" % (
+                        prefix,
+                        ptype,
+                        convSize(wrUsage[-1] << 10),
+                    )
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -87191,8 +87247,13 @@ class TaskAnalyzer(object):
                     maxsize = convSize(rdUsage[maxIdx] << 10)
                     totalsize = convSize(long(sum(rdUsage)) << 10)
                     busyval = busyUsage[maxIdx]
-                    maxval = "%s%s[%s%%]" % (prefix, maxsize, busyval)
-                    lastval = "%s%s" % (prefix, convSize(rdUsage[-1] << 10))
+                    ptype = "[BR]"
+                    maxval = "%s%s%s[%s%%]" % (prefix, ptype, maxsize, busyval)
+                    lastval = "%s%s%s" % (
+                        prefix,
+                        ptype,
+                        convSize(rdUsage[-1] << 10),
+                    )
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -87261,9 +87322,11 @@ class TaskAnalyzer(object):
 
                     maxsize = convSize(wrUsage[maxIdx] << 10)
                     totalsize = convSize(long(sum(wrUsage)) << 10)
-                    maxval = "%s%s[%s]" % (prefix, idx, maxsize)
-                    lastval = "%s%s[%s]" % (
+                    ptype = "[BW]"
+                    maxval = "%s%s%s[%s]" % (prefix, ptype, idx, maxsize)
+                    lastval = "%s%s%s[%s]" % (
                         prefix,
+                        ptype,
                         convSize(wrUsage[-1] << 10),
                         idx,
                     )
@@ -87320,9 +87383,11 @@ class TaskAnalyzer(object):
 
                     maxsize = convSize(rdUsage[maxIdx] << 10)
                     totalsize = convSize(long(sum(rdUsage)) << 10)
-                    maxval = "%s%s[%s]" % (prefix, idx, maxsize)
-                    lastval = "%s%s[%s]" % (
+                    ptype = "[BR]"
+                    maxval = "%s%s%s[%s]" % (prefix, ptype, idx, maxsize)
+                    lastval = "%s%s%s[%s]" % (
                         prefix,
+                        ptype,
                         convSize(rdUsage[-1] << 10),
                         idx,
                     )
@@ -87427,7 +87492,7 @@ class TaskAnalyzer(object):
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
         def _drawMem(graphStats, xtype, pos, size):
-            def _drawSystemMem(statList, color, ymax):
+            def _drawSystemMem(statList, color, ymax, name):
                 usage = list(map(long, statList))
                 minIdx = usage.index(min(usage))
                 maxIdx = usage.index(max(usage))
@@ -87440,11 +87505,15 @@ class TaskAnalyzer(object):
                 if ymax < maxusage:
                     ymax = maxusage
 
-                minval = "%s%s" % (prefix, convSize(usage[minIdx] << 20))
+                minval = "%s%s%s" % (
+                    prefix,
+                    name,
+                    convSize(usage[minIdx] << 20),
+                )
                 maxsize = convSize(usage[maxIdx] << 20)
-                maxval = "%s%s" % (prefix, maxsize)
+                maxval = "%s%s%s" % (prefix, name, maxsize)
                 lastsize = convSize(usage[-1] << 20)
-                lastval = "%s%s" % (prefix, lastsize)
+                lastval = "%s%s%s" % (prefix, name, lastsize)
 
                 # set color #
                 if prefix:
@@ -87552,12 +87621,32 @@ class TaskAnalyzer(object):
                     prefix = ""
 
                 totalRam = graphStats["%stotalRam" % fname]
-                memFree = graphStats["%smemFree" % fname][:lent]
-                memAnon = graphStats["%smemAnon" % fname][:lent]
-                memCache = graphStats["%smemCache" % fname][:lent]
-                memProc = graphStats["%smemProcUsage" % fname]
                 totalSwap = graphStats["%stotalSwap" % fname]
-                swapUsage = graphStats["%sswapUsage" % fname][:lent]
+
+                if "NOMEMFREEPLOT" in SysMgr.environList:
+                    memFree = [0]
+                else:
+                    memFree = graphStats["%smemFree" % fname][:lent]
+
+                if "NOMEMANONPLOT" in SysMgr.environList:
+                    memAnon = [0]
+                else:
+                    memAnon = graphStats["%smemAnon" % fname][:lent]
+
+                if "NOMEMCACHEPLOT" in SysMgr.environList:
+                    memCache = [0]
+                else:
+                    memCache = graphStats["%smemCache" % fname][:lent]
+
+                if "NOMEMPROCPLOT" in SysMgr.environList:
+                    memProc = {}
+                else:
+                    memProc = graphStats["%smemProcUsage" % fname]
+
+                if "NOMEMSWAPPLOT" in SysMgr.environList:
+                    swapUsage = [0]
+                else:
+                    swapUsage = graphStats["%sswapUsage" % fname][:lent]
 
                 # get margin #
                 margin = self.getMargin()
@@ -87916,7 +88005,9 @@ class TaskAnalyzer(object):
                 # System #
                 else:
                     # System Free Memory #
-                    lastsize, ymax = _drawSystemMem(memFree, "blue", ymax)
+                    lastsize, ymax = _drawSystemMem(
+                        memFree, "blue", ymax, "[RF]"
+                    )
                     if lastsize is not None:
                         if totalRam:
                             label = (
@@ -87930,21 +88021,27 @@ class TaskAnalyzer(object):
                             )
 
                     # System Anon Memory #
-                    lastsize, ymax = _drawSystemMem(memAnon, "skyblue", ymax)
+                    lastsize, ymax = _drawSystemMem(
+                        memAnon, "skyblue", ymax, "[RA]"
+                    )
                     if lastsize is not None:
                         labelList.append(
                             "%sRAM User - %s" % (prefix, lastsize)
                         )
 
                     # System Cache Memory #
-                    lastsize, ymax = _drawSystemMem(memCache, "darkgray", ymax)
+                    lastsize, ymax = _drawSystemMem(
+                        memCache, "darkgray", ymax, "[RC]"
+                    )
                     if lastsize is not None:
                         labelList.append(
                             "%sRAM Cache - %s" % (prefix, lastsize)
                         )
 
                     # System Swap Memory #
-                    lastsize, ymax = _drawSystemMem(swapUsage, "orange", ymax)
+                    lastsize, ymax = _drawSystemMem(
+                        swapUsage, "orange", ymax, "[RS]"
+                    )
                     if lastsize is not None:
                         if totalSwap:
                             label = (
