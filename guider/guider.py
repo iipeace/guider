@@ -19510,17 +19510,15 @@ class LeakAnalyzer(object):
         }
 
         # Get file size #
-        try:
-            stat = os.stat(file)
-            size = UtilMgr.convSize2Unit(stat.st_size)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            size = "??"
+        fsize = UtilMgr.getFileSize(file)
+        if fsize and fsize != "0":
+            fsize = " [%s]" % fsize
+        else:
+            fsize = ""
 
         # Open log file #
         try:
-            SysMgr.printInfo("start loading '%s' [%s]" % (file, size))
+            SysMgr.printInfo("start loading '%s'%s" % (file, fsize))
 
             fd = open(file, "r")
         except SystemExit:
@@ -28569,7 +28567,7 @@ Examples:
 Examples:
     - Draw items for specific files
         # {0:1} {1:1} guider.out
-        # {0:1} {1:1} guider.out guider2.out "guider3 data.out"
+        # {0:1} {1:1} guider.out guider2.out "guider data.out"
         # {0:1} {1:1} "data/*"
         # {0:1} {1:1} guider.dat
 
@@ -28585,9 +28583,15 @@ Examples:
     - Draw items for specific tasks
         # {0:1} {1:1} guider.dat -g task3
         # {0:1} {1:1} guider.dat -g "*"
+        # {0:1} {1:1} guider.dat -g "*java*" -a
+        # {0:1} {1:1} guider.dat -g "*java*" -q NOTOTAL
 
     - Draw items for specific tasks and their siblings
         # {0:1} {1:1} guider.dat -g task3 -P
+
+    - Draw items after concatenating specific files
+        # {0:1} {1:1} guider.out -q CONCATENATE
+        # {0:1} {1:1} guider.out -q CONCATENATE, ONLYTOTAL
 
     - Draw specific items including the specific word
         # {0:1} {1:1} timeline.json -q FILTER:"test*"
@@ -31916,11 +31920,15 @@ Description:
 
                     helpStr += """
 Examples:
-    - Summarize a raw data file for task top mode
-        # {0:1} {1:1} output.raw
+    - Summarize raw data files for task top mode
+        # {0:1} {1:1} output.out
+        # {0:1} {1:1} report1.out report2.out
+
+    - Summarize raw data files for task top mode in reversed order
+        # {0:1} {1:1} report1.out report2.out -q REVERSED
 
     - Summarize a raw data file for task top mode into guider.out
-        # {0:1} {1:1} output.raw -o guider.out
+        # {0:1} {1:1} output.out -o guider.out
                     """.format(
                         cmd, mode
                     )
@@ -39199,10 +39207,14 @@ Copyright:
     @staticmethod
     def reloadFileBuffer(path=None):
         # pylint: disable=no-member
+        SysMgr.procBuffer = []
+
         if path:
             try:
                 fd = open(path, "r")
                 buf = fd.read()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenErr(path)
                 sys.exit(-1)
@@ -39217,8 +39229,12 @@ Copyright:
             if not path:
                 SysMgr.printFd.seek(0, 0)
                 SysMgr.printFd.truncate()
+        except SystemExit:
+            sys.exit(0)
         except:
-            return
+            pass
+
+        return SysMgr.procBuffer
 
     @staticmethod
     def addEnvironVar(name, value="SET"):
@@ -40795,15 +40811,16 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
-            # get file path #
+            # get file list #
             if SysMgr.hasMainArg():
-                fname = SysMgr.getMainArg()
+                args = sys.argv[2:]
+                argList = UtilMgr.getFileList(args)
             else:
-                fname = SysMgr.outFilePath
+                argList = None
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            TaskAnalyzer.doSumReport(fname)
+            TaskAnalyzer.doSumReport(argList)
 
         # PAUSE MODE #
         elif SysMgr.checkMode("pause"):
@@ -82370,11 +82387,7 @@ class TaskAnalyzer(object):
         return found
 
     @staticmethod
-    def doSumReport(fname):
-        if not fname:
-            SysMgr.printErr("no input file")
-            sys.exit(-1)
-
+    def getSummaryData(fname):
         # load file #
         SysMgr.reloadFileBuffer(fname)
 
@@ -82402,8 +82415,45 @@ class TaskAnalyzer(object):
         if reverse:
             SysMgr.procBuffer = list(reversed(SysMgr.procBuffer))
 
+        return SysMgr.procBuffer
+
+    @staticmethod
+    def doSumReport(flist):
+        if not flist:
+            SysMgr.printErr("no input file")
+            sys.exit(-1)
+
+        # get stats from files #
+        flist = UtilMgr.getFileList(flist, exceptDir=True)
+        if not flist:
+            SysMgr.printErr("no input for path")
+            sys.exit(-1)
+
+        # merge files #
+        fdata = []
+        if "REVERSED" in SysMgr.environList:
+            flist = sorted(flist)
+        else:
+            flist = reversed(flist)
+        for fname in flist:
+            # get file size #
+            fsize = UtilMgr.getFileSize(fname)
+            if fsize and fsize != "0":
+                fsize = " [%s]" % fsize
+            else:
+                fsize = ""
+
+            SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
+
+            fdata += TaskAnalyzer.getSummaryData(fname)
+
+        # update proc buffer #
+        SysMgr.procBuffer = fdata
+
         # print summary #
         try:
+            SysMgr.printStat("start summarizing...")
+
             TaskAnalyzer.printIntervalUsage()
         except SystemExit:
             sys.exit(0)
@@ -84430,7 +84480,7 @@ class TaskAnalyzer(object):
                 SysMgr.reportEnable = True
 
     @staticmethod
-    def getStatsFile(logFile, applyOpt=True, verb=False):
+    def getStatsFile(logFile, handle=None, applyOpt=True, verb=False):
         logBuf = None
         infoBuf = None
 
@@ -84463,27 +84513,35 @@ class TaskAnalyzer(object):
 
         # get file handle #
         try:
-            fd = UtilMgr.getTextLines(logFile, verb=verb, retfd=True)
+            if handle:
+                fd = handle
+            else:
+                fd = UtilMgr.getTextLines(logFile, verb=verb, retfd=True)
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr("failed to read '%s'\n" % logFile)
             sys.exit(-1)
 
-        SysMgr.printStat(r"start processing '%s'..." % logFile)
+        # get file size #
+        totalSize = 0
+        if not handle:
+            fsize = UtilMgr.getFileSize(logFile)
+            if fsize and fsize != "0":
+                totalSize = UtilMgr.convUnit2Size(fsize)
+                fsize = " [%s]" % fsize
+            else:
+                fsize = ""
+
+            SysMgr.printStat(r"start processing '%s'%s..." % (logFile, fsize))
 
         # context varaible #
         finalLine = 0
         context = None
         totalRam = None
+        startTime = 0
 
         convSize = UtilMgr.convUnit2Size
-
-        # get total size #
-        try:
-            totalSize = os.stat(logFile).st_size
-        except:
-            totalSize = 0
 
         curSize = 0
         for idx, line in enumerate(fd):
@@ -84559,7 +84617,10 @@ class TaskAnalyzer(object):
                     continue
 
                 try:
-                    timeline.append(long(float(sline[1].split("-")[1])))
+                    tick = long(float(sline[1].split("-")[1]))
+                    if not startTime:
+                        startTime = tick
+                    timeline.append(tick)
                 except:
                     timeline.append(0)
 
@@ -85103,7 +85164,7 @@ class TaskAnalyzer(object):
                     # convert previous stats #
                     for item in intervalList.split():
                         busy, read, write, free = item.split("/")
-                        busyList.append(busy)
+                        busyList.append(long(busy))
                         readList.append(convSize(read) >> 10)
                         writeList.append(convSize(write) >> 10)
                         freeList.append(convSize(free) >> 10)
@@ -85346,6 +85407,7 @@ class TaskAnalyzer(object):
             "nrCore": nrCore[imin:imax],
             "nrTask": nrTask[imin:imax],
             "graphTitle": "Guider Perf Graph",
+            "start": startTime,
         }
 
         return graphStats, chartStats
@@ -85622,6 +85684,7 @@ class TaskAnalyzer(object):
             # define integrated stats #
             graphStats = {}
             chartStats = {}
+            timeList = {}
 
             # parse stats from multiple files #
             for lfile in flist:
@@ -85632,6 +85695,16 @@ class TaskAnalyzer(object):
                 except:
                     continue
 
+                # merge stats for concatenation temporally #
+                if "CONCATENATE" in SysMgr.environList:
+                    try:
+                        timeList[gstats["start"]] = lfile
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+                    continue
+
                 # merge stats #
                 for key, val in gstats.items():
                     fname = os.path.basename(lfile)
@@ -85639,6 +85712,67 @@ class TaskAnalyzer(object):
                         graphStats[key] = val
                     else:
                         graphStats["%s:%s" % (fname, key)] = val
+
+            # concatenate stats in order #
+            if "CONCATENATE" in SysMgr.environList:
+                mergedData = []
+                for stime, path in sorted(
+                    timeList.items(),
+                    key=lambda e: e[0],
+                    reverse=True,
+                ):
+                    mergedData += TaskAnalyzer.getSummaryData(path)
+
+                # save merged data #
+                SysMgr.procBuffer = mergedData
+
+                # set temporary output path for merged data #
+                SysMgr.printFd = None
+                SysMgr.pipeForPager = None
+                origOutput = SysMgr.outPath
+                if SysMgr.outPath:
+                    SysMgr.outPath = os.path.dirname(origOutput)
+                    if not SysMgr.outPath:
+                        SysMgr.outPath = "."
+                else:
+                    SysMgr.outPath = "."
+                SysMgr.outPath = os.path.join(SysMgr.outPath, "merged.out")
+
+                # print summary #
+                try:
+                    SysMgr.printStat("start summarizing...")
+
+                    # get only total flag #
+                    if "ONLYTOTAL" in SysMgr.environList:
+                        onlyTotal = True
+                    else:
+                        onlyTotal = False
+
+                    TaskAnalyzer.printIntervalUsage(
+                        onlyTotal=onlyTotal, onlySummary=True
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to print interval summary", reason=True
+                    )
+
+                # clean up #
+                targetFile = SysMgr.printFd.name
+                SysMgr.procBuffer = []
+                SysMgr.printFd = None
+                SysMgr.outPath = origOutput
+
+                try:
+                    gstats, cstats = TaskAnalyzer.getStatsFile(targetFile)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    sys.exit(-1)
+
+                # merge stats #
+                graphStats = gstats
 
         # initialize environment for drawing #
         TaskAnalyzer.initDrawEnv()
@@ -85657,7 +85791,8 @@ class TaskAnalyzer(object):
                 return
             except:
                 SysMgr.printErr("failed to draw history graph", True)
-            return
+            finally:
+                return
 
         # draw graphs #
         try:
@@ -86596,6 +86731,7 @@ class TaskAnalyzer(object):
                     and SysMgr.filterGroup
                     and "[ TOTAL ]" in cpuProcUsage
                     and cpuProcUsage["[ TOTAL ]"]["count"] > 1
+                    and not "NOTOTAL" in SysMgr.environList
                 ):
                     totalUsage = cpuProcUsage["[ TOTAL ]"]["usage"].split()
                     totalUsage = list(map(long, totalUsage))[:lent]
@@ -95761,7 +95897,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe("%s\n" % oneLine)
 
     @staticmethod
-    def printIntervalUsage():
+    def printIntervalUsage(onlyTotal=False, onlySummary=False):
         def _printMenu(title):
             stars = "*" * long((long(SysMgr.lineLength) - len(title)) / 2)
             SysMgr.printPipe("\n\n\n\n%s%s%s\n\n" % (stars, title, stars))
@@ -95792,18 +95928,26 @@ class TaskAnalyzer(object):
 
             # print interval info #
             TaskAnalyzer.printTimeline()
-            TaskAnalyzer.printEventInterval()
-            TaskAnalyzer.printCpuInterval()
-            TaskAnalyzer.printDlyInterval()
-            TaskAnalyzer.printGpuInterval()
-            TaskAnalyzer.printVssInterval()
-            TaskAnalyzer.printRssInterval()
-            TaskAnalyzer.printBlkInterval()
-            TaskAnalyzer.printStorageInterval()
-            TaskAnalyzer.printNetworkInterval()
-            TaskAnalyzer.printCgCpuInterval()
-            TaskAnalyzer.printCgMemInterval()
-            TaskAnalyzer.printLifeHistory()
+
+            if not onlyTotal:
+                TaskAnalyzer.printEventInterval()
+                TaskAnalyzer.printCpuInterval()
+                TaskAnalyzer.printDlyInterval()
+                TaskAnalyzer.printGpuInterval()
+                TaskAnalyzer.printVssInterval()
+                TaskAnalyzer.printRssInterval()
+                TaskAnalyzer.printBlkInterval()
+                TaskAnalyzer.printStorageInterval()
+                TaskAnalyzer.printNetworkInterval()
+                TaskAnalyzer.printCgCpuInterval()
+                TaskAnalyzer.printCgMemInterval()
+                TaskAnalyzer.printLifeHistory()
+
+        # print detail for only one tick #
+        if onlySummary:
+            _printMenu(" Detailed Statistics ")
+            SysMgr.printPipe(SysMgr.procBuffer[:1])
+            return
 
         # print interval info #
         TaskAnalyzer.printMemAnalysis()
