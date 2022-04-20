@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220418"
+__revision__ = "220420"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28580,7 +28580,7 @@ Examples:
         # {0:1} {1:1} guider.out -q NOMERGE
 
     - Draw items except for call samples in wait status
-        # {0:1} {1:1} guider.out -q NOWAITCALL
+        # {0:1} {1:1} guider.out -q EXCEPTWAIT
 
     - Draw items for specific tasks
         # {0:1} {1:1} guider.dat -g task3
@@ -38273,8 +38273,15 @@ Copyright:
                 pid = SysMgr.createProcess(isDaemon=True, chPgid=True)
                 # save output to file as child #
                 if pid == 0:
-                    # append uptime to the output file #
-                    SysMgr.fileSuffix = long(SysMgr.getUptime())
+                    # append time to the output file #
+                    utcTime = UtilMgr.getUTCTime()
+                    if utcTime:
+                        now = utcTime
+                    else:
+                        now = long(SysMgr.getUptime())
+
+                    # append PID to the output file #
+                    SysMgr.fileSuffix = "%s_%s" % (now, SysMgr.pid)
 
                     # change priority #
                     SysMgr.setLowPriority(True)
@@ -67134,7 +67141,7 @@ typedef struct {
                     sys.exit(-1)
 
         # remove samples in WAIT status #
-        if "NOWAITCALL" in SysMgr.environList:
+        if "EXCEPTWAIT" in SysMgr.environList:
             newList = {}
             for item in callList:
                 if item.startswith("WAIT{"):
@@ -67918,10 +67925,6 @@ typedef struct {
                             }
                         )
                         continue
-
-                    # check break condition #
-                    if bper < 1 and not SysMgr.showAll:
-                        break
 
                     nline = bt.count("\n") + 1
                     if SysMgr.checkCutCond(nline):
@@ -68735,7 +68738,7 @@ typedef struct {
 
         self.totalCall += 1
 
-        if not SysMgr.showAll and bt and type(bt[0]) is list:
+        if Debugger.envFlags["ONLYSYM"] and bt and type(bt[0]) is list:
             # remove anonymous symbol #
             while 1:
                 if sym != "??":
@@ -68753,7 +68756,7 @@ typedef struct {
 
             # remove contiguous symbol #
             while 1:
-                if not bt:
+                if not bt or not SysMgr.showAll:
                     break
                 elif sym == bt[0][1] and filename == bt[0][2]:
                     bt.pop(0)
@@ -72616,6 +72619,10 @@ typedef struct {
             if self.attach(verb=True) < 0:
                 sys.exit(-1)
 
+            # update status to leave clone context #
+            if self.mode == "syscall":
+                self.status = "stop"
+
             # increase the number of childs #
             self.childNum += 1
 
@@ -72661,7 +72668,7 @@ typedef struct {
             self.childNum += 1
             self.myNum = self.childNum
 
-            # change status to leave clone context #
+            # update status to leave clone context #
             if self.mode == "syscall":
                 self.status = "enter"
             else:
@@ -73813,6 +73820,13 @@ typedef struct {
         else:
             mtype = "Trace"
             suffix = ""
+
+        # update suffix of output file name #
+        SysMgr.fileSuffix = "%s_%s_%s" % (
+            instance.comm,
+            instance.pid,
+            SysMgr.pid,
+        )
 
         # print System Info #
         _printSystemStat()
@@ -108651,20 +108665,25 @@ class TaskAnalyzer(object):
         else:
             SysMgr.closePrintFd()
 
+        # get time #
+        timeinfo = UtilMgr.getUTCTime()
+        if not timeinfo:
+            timeinfo = long(SysMgr.uptime)
+
         # change output path #
         if SysMgr.outPath == SysMgr.nullPath:
             SysMgr.outPath = "%s/guider_%s_%s_%s.out" % (
                 SysMgr.tmpPath,
                 event,
                 cmd,
-                long(SysMgr.uptime),
+                timeinfo,
             )
         elif os.path.isdir(SysMgr.outPath):
             SysMgr.outPath = "%s/guider_%s_%s_%s.out" % (
                 SysMgr.outPath,
                 event,
                 cmd,
-                long(SysMgr.uptime),
+                timeinfo,
             )
 
         # change output path #
