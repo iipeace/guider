@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220420"
+__revision__ = "220421"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28593,6 +28593,13 @@ Examples:
         # {0:1} {1:1} guider.out -q CONCATENATE
         # {0:1} {1:1} guider.out -q CONCATENATE, ONLYTOTAL
 
+    - Draw items except for specific resources after concatenating specific files
+        # {0:1} {1:1} guider.out -q CONCATENATE, NOCPUSUMMARY, NOGPUSUMMARY
+        # {0:1} {1:1} guider.out -q CONCATENATE, NODELAYSUMMARY
+        # {0:1} {1:1} guider.out -q CONCATENATE, NOVSSSUMMARY, NORSSSUMMARY
+        # {0:1} {1:1} guider.out -q CONCATENATE, NOBLOCKSUMMARY
+        # {0:1} {1:1} guider.out -q CONCATENATE, NOSTORAGESUMMARY, NONETSUMMARY
+
     - Draw specific items including the specific word
         # {0:1} {1:1} timeline.json -q FILTER:"test*"
         # {0:1} {1:1} timeline.json -q FILTER:"*test"
@@ -28604,12 +28611,19 @@ Examples:
     - Draw items except for load plots including CPU and I/O usage
         # {0:1} {1:1} guider.dat -q NOLOADPLOT
 
+    - Draw items except for specific cpu plots
+        # {0:1} {1:1} guider.dat -q MAXCPUCOND:10
+        # {0:1} {1:1} guider.dat -q AVGCPUCOND:10
+        # {0:1} {1:1} guider.dat -q MINCPUCOND:10
+
     - Draw items except for specific memory plots
         # {0:1} {1:1} guider.dat -q NOMEMFREEPLOT
         # {0:1} {1:1} guider.dat -q NOMEMANONPLOT
         # {0:1} {1:1} guider.dat -q NOMEMCACHEPLOT
         # {0:1} {1:1} guider.dat -q NOMEMPROCPLOT
         # {0:1} {1:1} guider.dat -q NOMEMSWAPPLOT
+        # {0:1} {1:1} guider.dat -q MAXVSSCOND:1024
+        # {0:1} {1:1} guider.dat -q MAXRSSCOND:1024
 
     - Draw items except for syscalls for timeline segments
         # {0:1} {1:1} guider.dat -q NOSYSCALL
@@ -31926,6 +31940,12 @@ Examples:
 
     - Summarize raw data files for task top mode in reversed order
         # {0:1} {1:1} report1.out report2.out -q REVERSED
+
+    - Summarize raw data files for task top mode without process info
+        # {0:1} {1:1} report1.out report2.out -q ONLYTOTAL
+
+    - Summarize raw data files for task top mode without detailed info
+        # {0:1} {1:1} report1.out report2.out -q ONLYSUMMARY
 
     - Summarize a raw data file for task top mode into guider.out
         # {0:1} {1:1} output.out -o guider.out
@@ -35986,7 +36006,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printOpenErr(udsPath)
+            SysMgr.printOpenWarn(udsPath)
             return udsBuf
 
         # remove title #
@@ -36043,7 +36063,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printOpenErr(udpPath)
+                SysMgr.printOpenWarn(udpPath)
                 continue
 
             # remove title #
@@ -36124,7 +36144,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printOpenErr(tcpPath)
+                SysMgr.printOpenWarn(tcpPath)
                 continue
 
             # remove title #
@@ -38262,6 +38282,7 @@ Copyright:
         SysMgr.procBufferSize += len(data)
 
         bufferSize = SysMgr.bufferSize
+        convSize = UtilMgr.convSize2Unit
 
         while SysMgr.procBufferSize > bufferSize > 0:
             # flush all data in buffer to the file #
@@ -38272,8 +38293,8 @@ Copyright:
                         "buffer (%s) exceed %s"
                     )
                     % (
-                        UtilMgr.convSize2Unit(SysMgr.procBufferSize),
-                        UtilMgr.convSize2Unit(SysMgr.bufferSize),
+                        convSize(SysMgr.procBufferSize),
+                        convSize(bufferSize),
                     )
                 )
 
@@ -38313,7 +38334,7 @@ Copyright:
                         "\tincrease buffer size (%s) "
                         "if you want to prevent data loss"
                     )
-                    % UtilMgr.convSize2Unit(SysMgr.bufferSize),
+                    % convSize(bufferSize),
                     True,
                 )
                 SysMgr.bufferOverflowed = True
@@ -43648,7 +43669,8 @@ Copyright:
         SysMgr.eventCommandList = {}
         SysMgr.eventLockList = {}
 
-        # remove JSON object #
+        # reset report resource #
+        SysMgr.reportEnable = False
         SysMgr.reportObject = None
 
         # reinit network #
@@ -82450,11 +82472,23 @@ class TaskAnalyzer(object):
         # update proc buffer #
         SysMgr.procBuffer = fdata
 
+        # get ONLYTOTAL flag #
+        if "ONLYTOTAL" in SysMgr.environList:
+            onlyTotal = True
+        else:
+            onlyTotal = False
+
+        # get ONLYSUMMARY flag #
+        if "ONLYSUMMARY" in SysMgr.environList:
+            onlySummary = True
+        else:
+            onlySummary = False
+
         # print summary #
         try:
             SysMgr.printStat("start summarizing...")
 
-            TaskAnalyzer.printIntervalUsage()
+            TaskAnalyzer.printIntervalUsage(onlyTotal, onlySummary)
         except SystemExit:
             sys.exit(0)
         except:
@@ -83749,6 +83783,15 @@ class TaskAnalyzer(object):
 
             # request service to remote server #
             self.requestService()
+
+            # task top in debug mode #
+            if "DEBUGTOP" in SysMgr.environList:
+                if SysMgr.isLinux:
+                    self.runTaskTop()
+                else:
+                    self.runTaskTopGen()
+
+                sys.exit(0)
 
             # task top mode #
             try:
@@ -85163,7 +85206,10 @@ class TaskAnalyzer(object):
 
                     # convert previous stats #
                     for item in intervalList.split():
-                        busy, read, write, free = item.split("/")
+                        if item == "0":
+                            busy = read = write = free = 0
+                        else:
+                            busy, read, write, free = item.split("/")
                         busyList.append(long(busy))
                         readList.append(convSize(read) >> 10)
                         writeList.append(convSize(write) >> 10)
@@ -85194,7 +85240,10 @@ class TaskAnalyzer(object):
 
                     # convert previous stats e
                     for item in intervalList.split():
-                        recv, tran = item.split("/")
+                        if item == "0":
+                            recv = tran = 0
+                        else:
+                            recv, tran = item.split("/")
                         recvList.append(convSize(recv) >> 10)
                         tranList.append(convSize(tran) >> 10)
 
@@ -85748,6 +85797,46 @@ class TaskAnalyzer(object):
                     else:
                         onlyTotal = False
 
+                    # set ignore flags #
+                    checkMode = SysMgr.checkMode
+                    addEnv = SysMgr.addEnvironVar
+
+                    # check processor #
+                    if not any(
+                        [checkMode("draw", True), checkMode("drawcpu", True)]
+                    ):
+                        addEnv("NOCPUSUMMARY")
+                        addEnv("NOGPUSUMMARY")
+
+                    # check delay #
+                    if not checkMode("drawdelay", True):
+                        addEnv("NODELAYSUMMARY")
+
+                    # check vss #
+                    if not any(
+                        [
+                            checkMode("drawvss", True),
+                            checkMode("drawleak", True),
+                        ]
+                    ):
+                        addEnv("NOVSSSUMMARY")
+
+                    # check rss #
+                    if not checkMode("drawrss", True):
+                        addEnv("NORSSSUMMARY")
+
+                    # check io #
+                    if not any(
+                        [checkMode("draw", True), checkMode("drawio", True)]
+                    ):
+                        addEnv("NOBLOCKSUMMARY")
+                        addEnv("NOSTORAGESUMMARY")
+                        addEnv("NONETSUMMARY")
+
+                    # ignore life info #
+                    addEnv("NOLIFESUMMARY")
+
+                    # print interval info for drawing #
                     TaskAnalyzer.printIntervalUsage(
                         onlyTotal=onlyTotal, onlySummary=True
                     )
@@ -85760,6 +85849,7 @@ class TaskAnalyzer(object):
 
                 # clean up #
                 targetFile = SysMgr.printFd.name
+                del SysMgr.procBuffer
                 SysMgr.procBuffer = []
                 SysMgr.printFd = None
                 SysMgr.outPath = origOutput
@@ -86810,6 +86900,24 @@ class TaskAnalyzer(object):
                 else:
                     targetList = cpuProcUsage
 
+                # get max cpu condition #
+                maxCpuCond = UtilMgr.getEnvironNum(
+                    "MAXCPUCOND", False, 0, False, True
+                )
+
+                # get avg cpu condition #
+                avgCpuCond = UtilMgr.getEnvironNum(
+                    "AVGCPUCOND", False, 0, False, True
+                )
+
+                # get min cpu condition #
+                if "MINCPUCOND" in SysMgr.environList:
+                    minCpuCond = UtilMgr.getEnvironNum(
+                        "MINCPUCOND", False, 0, False, True
+                    )
+                else:
+                    minCpuCond = 0
+
                 # Process CPU usage #
                 for idx, item in sorted(
                     targetList.items(),
@@ -86833,6 +86941,14 @@ class TaskAnalyzer(object):
                     ):
                         continue
 
+                    # check max cpu condition #
+                    if item["maximum"] < maxCpuCond:
+                        continue
+
+                    # check min cpu condition #
+                    if item["minimum"] < minCpuCond:
+                        continue
+
                     usage = item["usage"].split()
                     usage = list(map(long, usage))[:lent]
                     cpuUsage = list(usage)
@@ -86843,6 +86959,10 @@ class TaskAnalyzer(object):
                         avgUsage = round(totalUsage / len(cpuUsage), 1)
                     except:
                         avgUsage = 0
+
+                    # check avg cpu condition #
+                    if avgUsage < avgCpuCond:
+                        continue
 
                     if not SysMgr.blockEnable:
                         # merge CPU usage and wait time for processes #
@@ -87803,6 +87923,12 @@ class TaskAnalyzer(object):
 
                 # Process VSS #
                 if SysMgr.vssEnable:
+
+                    # get max vss condition #
+                    maxVssCond = UtilMgr.getEnvironNum(
+                        "MAXVSSCOND", False, 0, False, True
+                    )
+
                     for key, item in sorted(
                         memProc.items(),
                         key=lambda e: 0
@@ -87826,6 +87952,10 @@ class TaskAnalyzer(object):
                         maxusage = max(usage)
                         if ymax < maxusage:
                             ymax = maxusage
+
+                        # check max vss conditino #
+                        if maxusage < maxVssCond:
+                            continue
 
                         try:
                             minIdx = usage.index(min(usage))
@@ -88039,6 +88169,12 @@ class TaskAnalyzer(object):
 
                 # Process RSS #
                 elif SysMgr.rssEnable or SysMgr.pssEnable or SysMgr.ussEnable:
+
+                    # get max rss condition #
+                    maxRssCond = UtilMgr.getEnvironNum(
+                        "MAXRSSCOND", False, 0, False, True
+                    )
+
                     for key, item in sorted(
                         memProc.items(),
                         key=lambda e: 0
@@ -88066,6 +88202,10 @@ class TaskAnalyzer(object):
                         maxusage = max(usage)
                         if ymax < maxusage:
                             ymax = maxusage
+
+                        # check max rss conditino #
+                        if maxusage < maxRssCond:
+                            continue
 
                         try:
                             minIdx = usage.index(min(usage))
@@ -94404,6 +94544,10 @@ class TaskAnalyzer(object):
 
             return
 
+        # check only total flag #
+        if "ONLYTOTAL" in SysMgr.environList:
+            return
+
         # Get process resource usage #
         m = re.match(
             (
@@ -94863,6 +95007,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printCpuInterval():
+        # check skip flag #
+        if "NOCPUSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         # set comm and pid size #
@@ -94999,6 +95147,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printDlyInterval():
+        # check skip flag #
+        if "NODELAYSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         # set comm and pid size #
@@ -95083,6 +95235,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printGpuInterval():
+        # check skip flag #
+        if "NOGPUSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         # Check GPU data #
@@ -95143,6 +95299,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printRssInterval():
+        # check skip flag #
+        if "NORSSSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         # set comm and pid size #
@@ -95293,6 +95453,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printVssInterval():
+        # check skip flag #
+        if "NOVSSSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         # set comm and pid size #
@@ -95435,6 +95599,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printBlkInterval():
+        # check skip flag #
+        if "NOBLOCKSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         # set comm and pid size #
@@ -95526,6 +95694,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printStorageInterval():
+        # check skip flag #
+        if "NOSTORAGESUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
@@ -95579,16 +95751,25 @@ class TaskAnalyzer(object):
 
                 try:
                     stats = TA.procIntData[idx]["total"]["storage"][dev]
-                    usage = "%s/%s/%s/%s" % (
-                        stats["busy"],
-                        convSize2Unit(stats["read"], True),
-                        convSize2Unit(stats["write"], True),
-                        convSize2Unit(stats["free"], True),
-                    )
+                    if (
+                        stats["busy"]
+                        == stats["read"]
+                        == stats["write"]
+                        == stats["free"]
+                        == 0
+                    ):
+                        usage = "0"
+                    else:
+                        usage = "%s/%s/%s/%s" % (
+                            stats["busy"],
+                            convSize2Unit(stats["read"], True),
+                            convSize2Unit(stats["write"], True),
+                            convSize2Unit(stats["free"], True),
+                        )
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    usage = "0/0/0/0"
+                    usage = "0"
 
                 timeLine += "{0:>21} ".format(usage)
                 lineLen += margin
@@ -95598,6 +95779,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printNetworkInterval():
+        # check skip flag #
+        if "NONETSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
@@ -95645,12 +95830,15 @@ class TaskAnalyzer(object):
 
                 try:
                     stats = TA.procIntData[idx]["total"]["netdev"][dev]
-                    usage = "%s/%s" % (
-                        convSize2Unit(stats["recv"], True),
-                        convSize2Unit(stats["tran"], True),
-                    )
+                    if stats["recv"] == stats["tran"] == 0:
+                        usage = "0"
+                    else:
+                        usage = "%s/%s" % (
+                            convSize2Unit(stats["recv"], True),
+                            convSize2Unit(stats["tran"], True),
+                        )
                 except:
-                    usage = "0/0"
+                    usage = "0"
 
                 timeLine += "{0:>21} ".format(usage)
                 lineLen += margin
@@ -95682,6 +95870,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printCgCpuInterval():
+        # check skip flag #
+        if "NOCGCPUSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
@@ -95743,6 +95935,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printLifeHistory():
+        # check skip flag #
+        if "NOLIFESUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         SysMgr.printPipe("\n[Top Life Info]\n")
@@ -95842,6 +96038,10 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printCgMemInterval():
+        # check skip flag #
+        if "NOCGMEMSUMMARY" in SysMgr.environList:
+            return
+
         TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
@@ -95943,10 +96143,21 @@ class TaskAnalyzer(object):
                 TaskAnalyzer.printCgMemInterval()
                 TaskAnalyzer.printLifeHistory()
 
-        # print detail for only one tick #
+        # print only summary #
         if onlySummary:
+            # print detail for only one tick #
             _printMenu(" Detailed Statistics ")
             SysMgr.printPipe(SysMgr.procBuffer[:1])
+
+            # print lifecycle info #
+            if SysMgr.processEnable:
+                msg = " Process Lifecycle "
+            else:
+                msg = " Thread Lifecycle "
+            _printMenu(msg)
+            TaskAnalyzer.printProcLifecycle()
+
+            # quit #
             return
 
         # print interval info #
