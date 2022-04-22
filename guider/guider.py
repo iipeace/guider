@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220421"
+__revision__ = "220423"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32789,7 +32789,10 @@ Examples:
         # {0:1} {1:1} -g a.out -k 36
         # {0:1} {1:1} -g a.out -k SIGRT2
 
-    - {3:1} when it's RSS reached the specific size
+    - {3:1} {2:1} after starting profiling {5:1}
+        # {0:1} {1:1} -g a.out -c 20m,0
+
+    - {3:1} {5:1}
         # {0:1} {1:1} -g a.out -c 20m
         # {0:1} {1:1} -g a.out -c +20m
         # {0:1} {1:1} -g a.out -c 15m,20m
@@ -32809,6 +32812,7 @@ Examples:
                         "when SIGINT is received",
                         "Report memory leakage hints of the target process",
                         "after hooking binary injection",
+                        "when it's RSS reached the specific size",
                     )
 
                 # printslab #
@@ -48692,7 +48696,8 @@ Copyright:
 
                 if cond <= rss:
                     break
-                time.sleep(1)
+                else:
+                    time.sleep(1)
 
             # set hook #
             if hookCmd:
@@ -48701,17 +48706,27 @@ Copyright:
                     hcmd, pipe=False, stderr=True, log=True, wait=True
                 )
 
+            # check signal #
+            if (
+                not sig
+                or not type(sig) in (int, long)
+                or sig < 0
+                or sig >= len(ConfigMgr.SIG_LIST)
+            ):
+                SysMgr.printErr("wrong signal %s" % sig)
+                return -1
+
             # send signal #
             try:
                 os.kill(long(pid), sig)
                 SysMgr.printStat(
-                    "sent %s to %s(%s) to %s profiling"
+                    "sent %s to %s(%s) to %s memory profiling"
                     % (ConfigMgr.SIG_LIST[sig], comm, pid, purpose)
                 )
             except:
                 SysMgr.printErr(
-                    "failed to send %s to %s profiling"
-                    % (ConfigMgr.SIG_LIST[startSig], purpose),
+                    "failed to send %s to %s memory profiling"
+                    % (ConfigMgr.SIG_LIST[sig], purpose),
                     reason=True,
                 )
                 return -1
@@ -48769,11 +48784,10 @@ Copyright:
 
             if len(sigList) >= 2:
                 # start #
-                startSig = SysMgr.getSigNum(sigList[0][0])
+                sigval = sigList[0][0].strip()
+                startSig = SysMgr.getSigNum(sigval)
                 if not startSig:
-                    SysMgr.printErr(
-                        "wrong signal %s for start" % sigList[0][0]
-                    )
+                    SysMgr.printErr("wrong signal %s for start" % sigval)
                     sys.exit(-1)
                 LeakAnalyzer.startSig = startSig
 
@@ -48782,13 +48796,18 @@ Copyright:
                 stopIdx = 0
 
             # stop #
-            stopSig = SysMgr.getSigNum(sigList[stopIdx][0])
+            sigval = sigList[stopIdx][0].strip()
+            stopSig = SysMgr.getSigNum(sigval)
             if not stopSig:
-                SysMgr.printErr(
-                    "wrong signal %s for stop" % sigList[stopIdx][0]
-                )
+                SysMgr.printErr("wrong signal %s for stop" % sigval)
                 sys.exit(-1)
             LeakAnalyzer.stopSig = stopSig
+
+        # check WAITSIGNAL flag #
+        if "WAITSIGNAL" in SysMgr.environList:
+            waitSignal = True
+        else:
+            waitSignal = False
 
         # get PID #
         pid = None
@@ -48830,7 +48849,7 @@ Copyright:
             fname = _getOutputPath(isMulti, pid)
 
             # add start variable #
-            if startSig:
+            if startSig or len(SysMgr.customCmd) > 1 or waitSignal:
                 SysMgr.environList["ENV"].append(
                     "LEAKTRACER_ONSIG_STARTALLTHREAD=%s"
                     % LeakAnalyzer.startSig,
@@ -48893,10 +48912,10 @@ Copyright:
         else:
             pid = pids[0]
 
-        # get comm #
+        # get comm and check alive #
         comm = SysMgr.getComm(pid)
         if not comm and not SysMgr.isAlive(pid):
-            SysMgr.printErr("%s(%s) is terminated" % (comm, pid))
+            SysMgr.printErr("the task with PID %s is terminated" % pid)
             sys.exit(0)
 
         # get environment variables of the target #
@@ -49122,7 +49141,7 @@ Copyright:
             hcmd = ["hook", "-g%s" % pid, "-c%s" % ",".join(hookCmd), "-I"]
 
         # wait for START signal #
-        if not autostart and startSig and "WAITSIGNAL" in SysMgr.environList:
+        if not autostart and startSig and waitSignal:
             try:
                 SysMgr.printStat(
                     r"start waiting for input... [ START(Ctrl+c) ]"
@@ -49205,14 +49224,14 @@ Copyright:
             try:
                 os.kill(long(pid), startSig)
                 SysMgr.printStat(
-                    "sent %s to %s(%s) to start profiling"
+                    "sent %s to %s(%s) to start memory profiling"
                     % (ConfigMgr.SIG_LIST[startSig], comm, pid)
                 )
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "failed to send %s to start profiling"
+                    "failed to send %s to start memory profiling"
                     % ConfigMgr.SIG_LIST[startSig],
                     reason=True,
                 )
@@ -49246,7 +49265,7 @@ Copyright:
                 os.kill(long(pid), stopSig)
 
                 SysMgr.printStat(
-                    "sent %s to %s(%s) to stop profiling"
+                    "sent %s to %s(%s) to stop memory profiling"
                     % (ConfigMgr.SIG_LIST[stopSig], comm, pid)
                 )
 
@@ -49257,7 +49276,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to send %s to stop profiling"
+                "failed to send %s to stop memory profiling"
                 % ConfigMgr.SIG_LIST[stopSig],
                 reason=True,
             )
@@ -88378,7 +88397,7 @@ class TaskAnalyzer(object):
                 ytickLabel = list(map(long, ytickLabel))
 
                 # convert label units #
-                ytickLabel = [convSize2Unit(val << 20) for val in ytickLabel]
+                ytickLabel = [convSize(val << 20) for val in ytickLabel]
 
                 # remove redundant ticks #
                 lastTick = ""
@@ -94182,7 +94201,7 @@ class TaskAnalyzer(object):
         TA = TaskAnalyzer
         procIndexData = TA.procIntData[index]
 
-        # Get time info #
+        # time #
         if "time" not in procIndexData:
             m = re.match(
                 (
@@ -94205,16 +94224,16 @@ class TaskAnalyzer(object):
                 procIndexData["nrThread"] = d["nrThread"]
             return
 
-        # define converter #
+        # shortcut #
         convUnit2Size = UtilMgr.convUnit2Size
 
-        # Split stats #
+        # split stats #
         tokens = procLine.split("|")
 
-        # Get Total resource usage #
+        # total #
         if "total" not in procIndexData and tokens[0].startswith("Total"):
 
-            # CPU & BLOCK stat #
+            # parse CPU & BLOCK stat #
             m = re.match(
                 (
                     r"\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*"
@@ -94259,7 +94278,7 @@ class TaskAnalyzer(object):
             except:
                 procIndexData["total"]["blkwait"] = 0
 
-            # MEM stat #
+            # parse MEM stat #
             m = re.match(
                 (
                     r"\s*(?P<free>[0-9]+)\s*\(\s*(?P<freePer>[0-9]+)\s*"
@@ -94306,6 +94325,7 @@ class TaskAnalyzer(object):
             except:
                 procIndexData["total"]["blk"] = "-"
 
+            # parse swap stat #
             m = re.match(r"\s*(?P<swap>\-*[0-9]+)", tokens[3])
             if not m:
                 return
@@ -94332,7 +94352,7 @@ class TaskAnalyzer(object):
 
             return
 
-        # Get GPU resource usage #
+        # GPU #
         elif len(tokens) == 5:
             m = re.match(
                 r"\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)", tokens[0]
@@ -94366,9 +94386,9 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
-                return
+            return
 
-        # Get Storage resource usage #
+        # storage #
         elif len(tokens) == 12 and tokens[0][0] == "/":
             procIndexData["total"].setdefault("storage", {})
             TA.procTotData["total"].setdefault("storage", {})
@@ -94436,7 +94456,7 @@ class TaskAnalyzer(object):
 
             return
 
-        # Get Network resource usage #
+        # network #
         elif len(tokens) == 13 and not tokens[0].startswith("Total"):
             # check condition #
             if tokens[0].strip() == "ID" or tokens[0].strip() == "Dev":
@@ -94474,13 +94494,16 @@ class TaskAnalyzer(object):
 
             return
 
-        # Get Cgroup resource usage #
+        # cgroup #
         elif len(tokens) == 9:
             tokens = UtilMgr.cleanItem(tokens, False)
             if len(tokens) != 8:
                 return
 
-            system, proc, task, cpu, thr, mem, read, write = tokens
+            try:
+                system, proc, task, cpu, thr, mem, read, write = tokens
+            except:
+                return
 
             # CPU #
             target = "cgroup.cpu"
@@ -94544,11 +94567,13 @@ class TaskAnalyzer(object):
 
             return
 
-        # check only total flag #
+        # check return condition #
         if "ONLYTOTAL" in SysMgr.environList:
             return
+        elif procLine in (oneLine, twoLine):
+            return
 
-        # Get process resource usage #
+        # process #
         m = re.match(
             (
                 r"\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)"
