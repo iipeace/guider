@@ -15952,7 +15952,7 @@ class FunctionAnalyzer(object):
             SysMgr.printWarn(
                 (
                     "failed to analyze stack data "
-                    "because of corruption (overflow) at %s line\n"
+                    "because of corruption (overflow) at %s\n"
                     "\tso report the results may differ from actual"
                 )
                 % SysMgr.dbgEventLine,
@@ -16568,7 +16568,7 @@ class FunctionAnalyzer(object):
                 SysMgr.printWarn(
                     (
                         "failed to analyze stack data "
-                        "because of corruption (underflow) at %s line\n"
+                        "because of corruption (underflow) at %s\n"
                         "\tso report the results may differ from actual"
                     )
                     % SysMgr.dbgEventLine,
@@ -35710,22 +35710,28 @@ Copyright:
         )
 
     @staticmethod
-    def getLine(start=1):
+    def getLine():
         try:
             inspect = SysMgr.getPkg("inspect")
             lines = ""
-            for stack in inspect.stack()[start:-1]:
-                lines += "%s<" % inspect.getframeinfo(stack[0]).lineno
+            if sys.version_info >= (3, 5, 0):
+                # filename, lineno, function, code_context #
+                for fb in reversed(inspect.trace()):
+                    lines += "%s<" % fb.lineno
+            else:
+                # obj, filename, lineno, function, code_context #
+                for fb in reversed(inspect.trace()):
+                    lines += "%s<" % fb[2]
             return lines.rstrip("<")
         except:
             return None
 
     @staticmethod
-    def getErrMsg(start=2):
+    def getErrMsg():
         et, err, to = sys.exc_info()
-        lineno = SysMgr.getLine(start=start)
+        lineno = SysMgr.getLine()
         if lineno:
-            linestr = " at %s line" % lineno
+            linestr = " at %s" % lineno
         else:
             linestr = ""
 
@@ -38822,7 +38828,7 @@ Copyright:
         SysMgr.flushAllForPrint()
 
         if reason:
-            rstring = " because %s" % SysMgr.getErrMsg(start=3)
+            rstring = " because %s" % SysMgr.getErrMsg()
         else:
             rstring = ""
 
@@ -58240,7 +58246,7 @@ class DbusMgr(object):
             dbusObj.dbus_message_unref(msg)
             # dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
-                "failed to call a D-Bus remote method because %s at %s line"
+                "failed to call a D-Bus remote method because %s at %s"
                 % (DbusMgr.getErrInfo(), SysMgr.getLine())
             )
             return
@@ -58272,7 +58278,7 @@ class DbusMgr(object):
             dbusObj.dbus_message_unref(msg)
             # dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
-                "failed to call a D-Bus remote method because %s at %s line"
+                "failed to call a D-Bus remote method because %s at %s"
                 % (DbusMgr.getErrInfo(), SysMgr.getLine())
             )
             return msg, reply
@@ -58284,10 +58290,7 @@ class DbusMgr(object):
         # pylint: disable=no-member
         def _printWarn(procStr, line, err):
             SysMgr.printWarn(
-                (
-                    "failed to parse D-Bus message for %s at %s line "
-                    "because %s"
-                )
+                ("failed to parse D-Bus message for %s at %s " "because %s")
                 % (procStr, line, err),
                 True,
             )
@@ -58733,7 +58736,7 @@ class DbusMgr(object):
             dbusObj.dbus_message_unref(msg)
             # dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
-                "failed to call a D-Bus remote method because %s at %s line"
+                "failed to call a D-Bus remote method because %s at %s"
                 % (DbusMgr.getErrInfo(), SysMgr.getLine())
             )
             return
@@ -83803,15 +83806,6 @@ class TaskAnalyzer(object):
             # request service to remote server #
             self.requestService()
 
-            # task top in debug mode #
-            if "DEBUGTOP" in SysMgr.environList:
-                if SysMgr.isLinux:
-                    self.runTaskTop()
-                else:
-                    self.runTaskTopGen()
-
-                sys.exit(0)
-
             # task top mode #
             try:
                 if SysMgr.isLinux:
@@ -99076,7 +99070,7 @@ class TaskAnalyzer(object):
                         SysMgr.printWarn(
                             (
                                 "failed to find return of %s for thread %s "
-                                "at %s line\n\tso report the results "
+                                "at %s\n\tso report the results "
                                 "may differ from actual"
                             )
                             % (td["ftxEnt"], thread, SysMgr.curLine)
