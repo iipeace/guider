@@ -48801,6 +48801,23 @@ Copyright:
 
             return fname
 
+        def _sendSignal(sig, comm, pid, purpose):
+            try:
+                os.kill(long(pid), sig)
+                SysMgr.printStat(
+                    "sent %s to %s(%s) to %s memory profiling"
+                    % (ConfigMgr.SIG_LIST[sig], comm, pid, purpose)
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to send %s to %s memory profiling"
+                    % (ConfigMgr.SIG_LIST[sig], purpose),
+                    reason=True,
+                )
+                sys.exit(-1)
+
         # check package #
         SysMgr.getPkg("ctypes")
 
@@ -49000,10 +49017,12 @@ Copyright:
         libPath = None
         ret = FileAnalyzer.getMapFilePath(pid, "libleaktracer")
         if ret:
+            preloaded = True
             SysMgr.printStat(
                 "%s is already preloaded to %s(%s)" % (ret, comm, pid)
             )
         else:
+            preloaded = False
             libPath = SysMgr.getOption("T")
             if libPath:
                 # handle special characters in path #
@@ -49110,16 +49129,18 @@ Copyright:
         # add an environment for start signal #
         if not autostart:
             startSig = LeakAnalyzer.startSig
-            remoteCmd.insert(
-                0, 'setenv:LEAKTRACER_ONSIG_STARTALLTHREAD#"%s"' % startSig
-            )
+            if not preloaded:
+                remoteCmd.insert(
+                    0, 'setenv:LEAKTRACER_ONSIG_STARTALLTHREAD#"%s"' % startSig
+                )
 
         # add an environment variable for stop signal #
         if not stopSig:
             stopSig = LeakAnalyzer.stopSig
-            remoteCmd.insert(
-                0, 'setenv:LEAKTRACER_ONSIG_REPORT#"%s"' % stopSig
-            )
+            if not preloaded:
+                remoteCmd.insert(
+                    0, 'setenv:LEAKTRACER_ONSIG_REPORT#"%s"' % stopSig
+                )
 
         # add an init call for tracing #
         if remoteCmd and not libPath:
@@ -49206,19 +49227,6 @@ Copyright:
         cmd = SysMgr.customCmd
         startSize = endSize = 0
 
-        # get RSS #
-        try:
-            mlist = SysMgr.getMemStat(pid)
-            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-            rss = long(mlist[rssIdx]) << 12
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printWarn(
-                "failed to get RSS info for %s(%s)" % (comm, pid), True, True
-            )
-            rss = 0
-
         # START #
         if cmd:
 
@@ -49227,6 +49235,21 @@ Copyright:
                     return convUnit(value[1:]) + rss
                 else:
                     return convUnit(value)
+
+            # get RSS #
+            try:
+                mlist = SysMgr.getMemStat(pid)
+                rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+                rss = long(mlist[rssIdx]) << 12
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to get RSS info for %s(%s)" % (comm, pid),
+                    True,
+                    True,
+                )
+                rss = 0
 
             # get threshold size #
             if len(cmd) >= 2:
@@ -49250,11 +49273,8 @@ Copyright:
                 if ret < 0:
                     sys.exit(-1)
             # send signal for start #
-            else:
-                try:
-                    os.kill(long(pid), LeakAnalyzer.startSig)
-                except:
-                    pass
+            elif not autostart:
+                _sendSignal(LeakAnalyzer.startSig, comm, pid, "start")
         elif startSig:
             # hook #
             if hookCmd:
@@ -49263,21 +49283,7 @@ Copyright:
                 )
 
             # send signal for start #
-            try:
-                os.kill(long(pid), startSig)
-                SysMgr.printStat(
-                    "sent %s to %s(%s) to start memory profiling"
-                    % (ConfigMgr.SIG_LIST[startSig], comm, pid)
-                )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to send %s to start memory profiling"
-                    % ConfigMgr.SIG_LIST[startSig],
-                    reason=True,
-                )
-                sys.exit(-1)
+            _sendSignal(startSig, comm, pid, "start")
 
         # update start time #
         if not startTime:
@@ -49304,12 +49310,7 @@ Copyright:
                 ret = 0
 
                 # send stop signal to target #
-                os.kill(long(pid), stopSig)
-
-                SysMgr.printStat(
-                    "sent %s to %s(%s) to stop memory profiling"
-                    % (ConfigMgr.SIG_LIST[stopSig], comm, pid)
-                )
+                _sendSignal(stopSig, comm, pid, "stop")
 
             # check exit condition #
             if ret < 0:
