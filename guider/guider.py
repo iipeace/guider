@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220423"
+__revision__ = "220424"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13704,10 +13704,9 @@ class PageAnalyzer(object):
             # get mem stat #
             convSize = UtilMgr.convSize2Unit
             mlist = SysMgr.getMemStat(pid)
-            vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
-            vss = convSize(long(mlist[vssIdx]) << 12)
-            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-            rss = convSize(long(mlist[rssIdx]) << 12)
+            mstat = SysMgr.convMemStat(mlist)
+            vss = convSize(mstat["vss"])
+            rss = convSize(mstat["rss"])
             SysMgr.printPipe(
                 "\n[Mem Info] [Proc: %s(%s)] [VSS: %s] [RSS: %s]"
                 % (comm, pid, vss, rss)
@@ -19559,10 +19558,9 @@ class LeakAnalyzer(object):
 
         try:
             mlist = SysMgr.getMemStat(self.pid)
-            vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
-            vss = convSize(long(mlist[vssIdx]) << 12)
-            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-            rss = convSize(long(mlist[rssIdx]) << 12)
+            mstat = SysMgr.convMemStat(mlist)
+            vss = convSize(mstat["vss"])
+            rss = convSize(mstat["rss"])
         except SystemExit:
             sys.exit(0)
         except:
@@ -23975,13 +23973,16 @@ Commands:
             if not SysMgr.checkRepTopCond():
                 sys.exit(-1)
 
+        # set signal handler #
+        if SysMgr.isDrawMode():
+            SysMgr.setDefaultSignal()
         # print profile option #
-        if not SysMgr.isDrawMode():
+        else:
             SysMgr.printProfileOption()
             SysMgr.printProfileCmd()
 
-        # set handler for exit #
-        SysMgr.setNormalSignal()
+            # set handler for exit #
+            SysMgr.setNormalSignal()
 
         # init network resource data #
         if SysMgr.networkEnable and not SysMgr.sysInstance.networkInfo:
@@ -27239,6 +27240,15 @@ Commands:
                 SysMgr.printOpenWarn(mountPath)
 
     @staticmethod
+    def convMemStat(mlist):
+        vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
+        rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+        return {
+            "vss": long(mlist[vssIdx]) << 12,
+            "rss": long(mlist[rssIdx]) << 12,
+        }
+
+    @staticmethod
     def getMemStat(pid):
         try:
             statmPath = "%s/%s/statm" % (SysMgr.procPath, pid)
@@ -28462,6 +28472,9 @@ Examples:
 
     - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
+
+    - {3:1} {2:2} and save the result except for summary to ./guider.out in real-time until SIGINT signal arrives
+        # {0:1} {1:1} -o . -e p -q NOSUMMARY
 
     - {3:1} {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
@@ -36721,7 +36734,7 @@ Copyright:
             SysMgr.condExit = True
 
         elif SysMgr.isTopMode() or SysMgr.isTraceMode():
-            if SysMgr.outPath:
+            if SysMgr.outPath and not "NOSUMMARY" in SysMgr.environList:
                 # reload data written to file #
                 if SysMgr.pipeEnable:
                     SysMgr.reloadFileBuffer()
@@ -39236,10 +39249,27 @@ Copyright:
             )
 
     @staticmethod
-    def reloadFileBuffer(path=None):
+    def reloadFileBuffer(path=None, retFd=False):
         # pylint: disable=no-member
+
+        # just return descriptor #
+        if retFd:
+            try:
+                if path:
+                    return open(path, "r")
+                else:
+                    return open(SysMgr.printFd.name, "r")
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to reload monitoring data from the file", True
+                )
+                return []
+
         SysMgr.procBuffer = []
 
+        # load raw data from the file #
         if path:
             try:
                 fd = open(path, "r")
@@ -39249,10 +39279,16 @@ Copyright:
             except:
                 SysMgr.printOpenErr(path)
                 sys.exit(-1)
-        else:
+        elif SysMgr.printFd:
             fd = open(SysMgr.printFd.name, "rb")
             buf = fd.read().decode()
+        else:
+            SysMgr.printErr(
+                "failed to reload monitoring data because no target file"
+            )
+            return []
 
+        # split each interval stats #
         try:
             buf = buf.replace("\n\n", "NEWSTAT\n\n")
             SysMgr.procBuffer = buf.split("NEWSTAT")
@@ -84536,7 +84572,9 @@ class TaskAnalyzer(object):
                 SysMgr.reportEnable = True
 
     @staticmethod
-    def getStatsFile(logFile, handle=None, applyOpt=True, verb=False):
+    def getStatsFile(
+        logFile, handle=None, applyOpt=True, onlyStart=False, verb=False
+    ):
         logBuf = None
         infoBuf = None
 
@@ -84674,9 +84712,11 @@ class TaskAnalyzer(object):
 
                 try:
                     tick = long(float(sline[1].split("-")[1]))
-                    if not startTime:
-                        startTime = tick
                     timeline.append(tick)
+                    if not startTime and tick:
+                        startTime = tick
+                        if onlyStart:
+                            return {"start": tick}, {}
                 except:
                     timeline.append(0)
 
@@ -85729,6 +85769,30 @@ class TaskAnalyzer(object):
         return matplotlib
 
     def drawStats(self, flist, outFile=None, onlyGraph=False, onlyChart=False):
+        def _printMemUsage(signum=None, frame=None):
+            pid = SysMgr.pid
+            comm = SysMgr.getComm(pid)
+
+            try:
+                mlist = SysMgr.getMemStat(pid)
+                mstat = SysMgr.convMemStat(mlist)
+                vss = UtilMgr.convSize2Unit(mstat["vss"])
+                rss = UtilMgr.convSize2Unit(mstat["rss"])
+                avl = SysMgr.getAvailMemInfo()
+                SysMgr.printWarn(
+                    "System's AvailableMemory(%s), %s(%s)'s VSS(%s) & RSS(%s)"
+                    % (avl, comm, pid, vss, rss),
+                    True,
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to get memory usage for %s(%s)" % (pid, comm), True
+                )
+
+            signal.alarm(SysMgr.intervalEnable)
+
         # convert str to list #
         if type(flist) is str:
             flist = [flist]
@@ -85748,17 +85812,25 @@ class TaskAnalyzer(object):
             chartStats = {}
             timeList = {}
 
+            # get only start flag #
+            if "CONCATENATE" in SysMgr.environList:
+                concatenated = True
+            else:
+                concatenated = False
+
             # parse stats from multiple files #
             for lfile in flist:
                 try:
-                    gstats, cstats = TaskAnalyzer.getStatsFile(lfile)
+                    gstats, cstats = TaskAnalyzer.getStatsFile(
+                        lfile, onlyStart=concatenated
+                    )
                 except SystemExit:
                     sys.exit(0)
                 except:
                     continue
 
                 # merge stats for concatenation temporally #
-                if "CONCATENATE" in SysMgr.environList:
+                if concatenated:
                     try:
                         timeList[gstats["start"]] = lfile
                     except SystemExit:
@@ -85776,7 +85848,13 @@ class TaskAnalyzer(object):
                         graphStats["%s:%s" % (fname, key)] = val
 
             # concatenate stats in order #
-            if "CONCATENATE" in SysMgr.environList:
+            if concatenated:
+                # set alarm for printing meory usage #
+                if not SysMgr.intervalEnable:
+                    SysMgr.intervalEnable = 1
+                signal.signal(signal.SIGALRM, _printMemUsage)
+                signal.alarm(SysMgr.intervalEnable)
+
                 mergedData = []
                 for stime, path in sorted(
                     timeList.items(),
