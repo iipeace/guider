@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220424"
+__revision__ = "220425"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7018,6 +7018,9 @@ class UtilMgr(object):
         sizeGB = 1073741824
         sizeTB = 1099511627776
         sizePB = 1125899906842624
+        sizeEB = 1152921504606846976
+        # sizeZB = 1180591620717411303424
+        # sizeYB = 120892581961462917470617
 
         if str(value).isdigit():
             return long(value)
@@ -7030,22 +7033,31 @@ class UtilMgr(object):
                 return long(float(value[:-1]) * sizeKB)
             if value.endswith("KB"):
                 return long(float(value[:-2]) * sizeKB)
+
             if value.endswith("M"):
                 return long(float(value[:-1]) * sizeMB)
             if value.endswith("MB"):
                 return long(float(value[:-2]) * sizeMB)
+
             if value.endswith("G"):
                 return long(float(value[:-1]) * sizeGB)
             if value.endswith("GB"):
                 return long(float(value[:-2]) * sizeGB)
+
             if value.endswith("T"):
                 return long(float(value[:-1]) * sizeTB)
             if value.endswith("TB"):
                 return long(float(value[:-2]) * sizeTB)
+
             if value.endswith("P"):
                 return long(float(value[:-1]) * sizePB)
             if value.endswith("PB"):
                 return long(float(value[:-2]) * sizePB)
+
+            if value.endswith("E"):
+                return long(float(value[:-1]) * sizeEB)
+            if value.endswith("EB"):
+                return long(float(value[:-2]) * sizeEB)
 
             SysMgr.printErr("failed to convert '%s' to bytes" % value)
 
@@ -35782,7 +35794,7 @@ Copyright:
         if not SysMgr.customCmd:
             return
 
-        if SysMgr.filterGroup == []:
+        if not SysMgr.filterGroup:
             pidFilter = "common_pid != 0"
         else:
             pidFilter = SysMgr.getPidFilter()
@@ -40881,7 +40893,7 @@ Copyright:
             # get file list #
             if SysMgr.hasMainArg():
                 args = sys.argv[2:]
-                argList = UtilMgr.getFileList(args)
+                argList = UtilMgr.getFileList(args, sort=True, exceptDir=True)
             else:
                 argList = None
 
@@ -48777,27 +48789,27 @@ Copyright:
 
         def _getOutputPath(multiple, pid):
             fname = None
+            dirname = None
+
+            # get dir name #
             if SysMgr.inputParam:
-                fname = os.path.abspath(SysMgr.inputParam)
-                if os.path.isdir(fname):
-                    if multiple:
-                        fname = "%s/leaks_%s.out" % (fname, pid)
-                    else:
-                        fname = "%s/leaks.out" % fname
+                dirname = os.path.abspath(SysMgr.inputParam)
+                if not os.path.isdir(dirname):
+                    fname = dirname
             elif os.path.exists(SysMgr.tmpPath):
-                if multiple:
-                    fname = "%s/leaks_%s.out" % (SysMgr.tmpPath, pid)
-                else:
-                    fname = "%s/leaks.out" % SysMgr.tmpPath
+                dirname = SysMgr.tmpPath
             elif SysMgr.isWritable("."):
-                current = os.path.abspath(".")
-                if multiple:
-                    fname = "%s/leaks_%s.out" % (current, pid)
-                else:
-                    fname = "%s/leaks.out" % current
+                dirname = os.path.abspath(".")
             else:
                 SysMgr.printErr("no input for temporary file path")
                 sys.exit(-1)
+
+            # set file name #
+            if not fname:
+                if multiple:
+                    fname = "%s/leaks_%s.out" % (dirname, pid)
+                else:
+                    fname = "%s/leaks.out" % dirname
 
             return fname
 
@@ -53944,8 +53956,11 @@ Copyright:
         if not hasattr(SysMgr, "exitFuncList"):
             return
 
+        exitList = SysMgr.exitFuncList
+        SysMgr.exitFuncList = []
+
         # call functions registered #
-        for func, args in SysMgr.exitFuncList:
+        for func, args in exitList:
             try:
                 if args:
                     func(*args)
@@ -59453,6 +59468,7 @@ class DbusMgr(object):
 
         def _printSummary(signum, frame):
             def _checkRepeatCnt():
+                # check user event #
                 if SysMgr.condExit:
                     if SysMgr.repeatCount == 0:
                         SysMgr.printWarn("terminated by user\n", True)
@@ -59461,10 +59477,12 @@ class DbusMgr(object):
                 elif SysMgr.repeatCount == 0:
                     return
 
+                # check timer event #
                 SysMgr.progressCnt += 1
                 if SysMgr.repeatCount <= SysMgr.progressCnt:
                     SysMgr.printWarn("terminated by timer\n", True)
-                    os.kill(SysMgr.pid, signal.SIGINT)
+                    if SysMgr.outPath:
+                        SysMgr.removeExitFunc(_printSummary, [0, 0])
                     sys.exit(0)
 
             # check repeat count #
@@ -59473,7 +59491,7 @@ class DbusMgr(object):
                 return
 
             # disable alarm #
-            signal.signal(signal.SIGALRM, signal.SIG_IGN)
+            signal.alarm(0)
 
             # check user input #
             SysMgr.waitUserInput(0.000001)
@@ -59565,14 +59583,13 @@ class DbusMgr(object):
             taskManager.reinitStats()
             SysMgr.printTopStats()
 
-            # check repeat count #
-            _checkRepeatCnt()
-
-            # enable alarm #
-            signal.signal(signal.SIGALRM, _printSummary)
-
             # reset timer #
-            SysMgr.updateTimer()
+            if signum:
+                # check repeat count #
+                _checkRepeatCnt()
+
+                # update timer #
+                SysMgr.updateTimer()
 
         def _executeLoop(rdPipeList):
             tid = SysMgr.syscall("gettid")
@@ -59596,7 +59613,8 @@ class DbusMgr(object):
                 # set handler for exit #
                 if mode == "top":
                     signal.signal(signal.SIGINT, SysMgr.exitHandler)
-                    SysMgr.addExitFunc(_printSummary, [0, 0])
+                    if SysMgr.outPath:
+                        SysMgr.addExitFunc(_printSummary, [0, 0])
                     SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
 
             while 1:
@@ -61889,7 +61907,8 @@ class DltAnalyzer(object):
         if mode == "top":
             # set handler for exit #
             signal.signal(signal.SIGINT, SysMgr.exitHandler)
-            SysMgr.addExitFunc(DltAnalyzer.onAlarm, [0, 0])
+            if SysMgr.outPath:
+                SysMgr.addExitFunc(DltAnalyzer.onAlarm, [0, 0])
             SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
 
             SysMgr.printInfo("start collecting DLT logs... [ STOP(Ctrl+c) ]")
@@ -82504,18 +82523,12 @@ class TaskAnalyzer(object):
             SysMgr.printErr("no input file")
             sys.exit(-1)
 
-        # get stats from files #
-        flist = UtilMgr.getFileList(flist, exceptDir=True)
-        if not flist:
-            SysMgr.printErr("no input for path")
-            sys.exit(-1)
-
         # merge files #
         fdata = []
         if "REVERSED" in SysMgr.environList:
-            flist = sorted(flist)
-        else:
             flist = reversed(flist)
+        else:
+            flist = sorted(flist)
         for fname in flist:
             # get file size #
             fsize = UtilMgr.getFileSize(fname)
@@ -84242,7 +84255,7 @@ class TaskAnalyzer(object):
             procFilter = []
             fileFilter = []
 
-            if SysMgr.filterGroup == []:
+            if not SysMgr.filterGroup:
                 return [procFilter, fileFilter]
 
             newFilter = ",".join(SysMgr.filterGroup)
@@ -85125,7 +85138,7 @@ class TaskAnalyzer(object):
                     d = m.groupdict()
                     comm = d["comm"].strip().replace("^", "")
 
-                    if SysMgr.filterGroup == []:
+                    if not SysMgr.filterGroup:
                         pid = d["pid"]
                         pname = "%s(%s)" % (comm, pid)
                         maxVss = long(sline[1])
@@ -85166,7 +85179,7 @@ class TaskAnalyzer(object):
                     d = m.groupdict()
                     comm = d["comm"].strip().replace("^", "")
 
-                    if SysMgr.filterGroup == []:
+                    if not SysMgr.filterGroup:
                         pid = d["pid"]
                         pname = "%s(%s)" % (comm, pid)
                         maxRss = long(sline[1])
@@ -85205,7 +85218,7 @@ class TaskAnalyzer(object):
                     d = m.groupdict()
                     comm = d["comm"].strip()
 
-                    if SysMgr.filterGroup == []:
+                    if not SysMgr.filterGroup:
                         pid = d["pid"]
                         pname = "%s(%s)" % (comm, pid)
 
@@ -87666,6 +87679,9 @@ class TaskAnalyzer(object):
                         if len(io) == 2:
                             rdUsage.append(long(io[0]) << 10)
                             wrUsage.append(long(io[1]) << 10)
+                        else:
+                            rdUsage.append(0)
+                            wrUsage.append(0)
 
                     # no I/O usage #
                     if len(rdUsage) == len(wrUsage) == 0:
@@ -95747,7 +95763,9 @@ class TaskAnalyzer(object):
             else:
                 bstat = value["blk"]
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".format(
+            procInfo = (
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/" "{3:>4}/{4:>4})| {5:>5} |"
+            ).format(
                 value["comm"],
                 pid,
                 value["ppid"],
@@ -95770,14 +95788,17 @@ class TaskAnalyzer(object):
                 if pid in TA.procIntData[idx]:
                     target = TA.procIntData[idx][pid]
                     if SysMgr.blockEnable:
-                        usage = "%s/%s" % (target["blkrd"], target["blkwr"])
+                        if target["blkrd"] or target["blkwr"]:
+                            usage = "%s/%s" % (
+                                target["blkrd"],
+                                target["blkwr"],
+                            )
+                        else:
+                            usage = 0
                     else:
                         usage = target["blk"]
                 else:
-                    if SysMgr.blockEnable:
-                        usage = "0/0"
-                    else:
-                        usage = 0
+                    usage = 0
 
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += 7
