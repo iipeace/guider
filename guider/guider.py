@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220425"
+__revision__ = "220426"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22896,6 +22896,7 @@ class SysMgr(object):
     groupProcEnable = False
     heapEnable = False
     i2cEnable = False
+    iouringEnable = False
     inWaitStatus = False
     initWssEnable = False
     inotifyEnable = False
@@ -23165,8 +23166,13 @@ Commands:
         if not SysMgr.loadLibcObj():
             return
 
+        # check malloc_trim #
         if not hasattr(SysMgr.libcObj, "malloc_trim"):
             SysMgr.printWarn("no malloc_trim in %s" % SysMgr.libcPath)
+            return
+
+        # check env #
+        if "NOSHRINK" in SysMgr.environList:
             return
 
         # int malloc_trim (size_t pad) #
@@ -29586,7 +29592,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ b:block | B:binder | c:cgroup | d:disk
             e:encode | f:fs | g:graph | i:irq | I:i2c
-            L:lock | m:mem | n:net | p:pipe
+            L:lock | m:mem | n:net | o:io_uring | p:pipe
             r:reset | P:power | w:workqueue ]
     -d  <CHARACTER>             disable options
           [ a:all | c:cpu | C:compress | e:encode
@@ -35847,164 +35853,62 @@ Copyright:
 
     @staticmethod
     def printAnalOption():
-        enableStat = ""
-        disableStat = ""
+        def _setOpt(items, val, name):
+            if val:
+                items["enable"] += name
+            else:
+                items["disable"] += name
 
         if SysMgr.outputFile:
             return
 
+        items = {"enable": "", "disable": ""}
+
         if not SysMgr.isRecordMode() and not SysMgr.isTopMode():
             # common options #
-            enableStat += SysMgr.arch.upper() + " "
-            if SysMgr.warnEnable:
-                enableStat += "WARN "
+            items["enable"] += SysMgr.arch.upper() + " "
+            _setOpt(items, SysMgr.warnEnable, "WARN ")
 
         # function mode #
         if SysMgr.isFuncMode():
-            if not SysMgr.heapEnable:
-                disableStat += "HEAP "
-            else:
-                enableStat += "HEAP "
-
-            if not SysMgr.userEnable:
-                disableStat += "USER "
-            else:
-                enableStat += "USER "
-
-            if SysMgr.customCmd:
-                SysMgr.printInfo(
-                    "selected custom events [ %s ]"
-                    % ", ".join(SysMgr.customCmd)
-                )
+            _setOpt(items, SysMgr.heapEnable, "HEAP ")
+            _setOpt(items, SysMgr.userEnable, "USER ")
         # thread mode #
         else:
-            if SysMgr.intervalEnable > 0:
-                enableStat += "INTERVAL "
-            else:
-                disableStat += "INTERVAL "
+            _setOpt(items, SysMgr.depEnable, "DEP ")
+            _setOpt(items, SysMgr.fsEnable, "FS ")
+            _setOpt(items, SysMgr.intervalEnable, "INTERVAL ")
+            _setOpt(items, SysMgr.irqEnable, "IRQ ")
+            _setOpt(items, SysMgr.keventEnable, "KEVT ")
+            _setOpt(items, SysMgr.latEnable, "LATENCY ")
+            _setOpt(items, SysMgr.networkEnable, "NET ")
+            _setOpt(items, SysMgr.perCoreList, "PERCORE ")
+            _setOpt(items, SysMgr.powerEnable, "POWER ")
+            _setOpt(items, SysMgr.preemptGroup, "PREEMPT ")
+            _setOpt(items, SysMgr.ueventEnable, "UEVT ")
+            _setOpt(items, SysMgr.wqEnable, "WQ ")
+            _setOpt(items, not SysMgr.latEnable, "SCHEDBLK ")
 
-            if SysMgr.latEnable:
-                enableStat += "LATENCY "
-            else:
-                disableStat += "LATENCY "
-
-            if SysMgr.depEnable:
-                enableStat += "DEP "
-            else:
-                disableStat += "DEP "
-
-            if SysMgr.ueventEnable:
-                enableStat += "UEVT "
-            else:
-                disableStat += "UEVT "
-
-            if SysMgr.keventEnable:
-                enableStat += "KEVT "
-            else:
-                disableStat += "KEVT "
-
-            if SysMgr.irqEnable:
-                enableStat += "IRQ "
-            else:
-                disableStat += "IRQ "
-
-            if SysMgr.networkEnable:
-                enableStat += "NET "
-            else:
-                disableStat += "NET "
-
-            if SysMgr.powerEnable:
-                enableStat += "POWER "
-            else:
-                disableStat += "POWER "
-
-            if SysMgr.wqEnable:
-                enableStat += "WQ "
-            else:
-                disableStat += "WQ "
-
-            if SysMgr.fsEnable:
-                enableStat += "FS "
-            else:
-                disableStat += "FS "
-
-            if SysMgr.preemptGroup:
-                enableStat += "PREEMPT "
-            else:
-                disableStat += "PREEMPT "
-
-            if SysMgr.perCoreList:
-                enableStat += "PERCORE "
-            else:
-                disableStat += "PERCORE "
-
-            if SysMgr.latEnable:
-                enableStat += "LATENCY "
-                disableStat += "SCHEDBLK "
-            else:
-                disableStat += "LATENCY "
-                enableStat += "SCHEDBLK "
-
-            if SysMgr.customCmd:
-                SysMgr.printInfo(
-                    "selected custom events [ %s ]"
-                    % ", ".join(SysMgr.customCmd)
-                )
+        if SysMgr.customCmd:
+            SysMgr.printInfo(
+                "selected custom events [ %s ]" % ", ".join(SysMgr.customCmd)
+            )
 
         # common options #
-        if SysMgr.showAll:
-            enableStat += "ALL "
-        else:
-            disableStat += "ALL "
+        _setOpt(items, SysMgr.blockEnable, "BLOCK ")
+        _setOpt(items, SysMgr.compressEnable, "COMP ")
+        _setOpt(items, SysMgr.countEnable, "CUT ")
+        _setOpt(items, SysMgr.cpuEnable, "CPU ")
+        _setOpt(items, SysMgr.disableAll, "DISABLE ")
+        _setOpt(items, SysMgr.groupProcEnable, "PGRP ")
+        _setOpt(items, SysMgr.lockEnable, "LOCK ")
+        _setOpt(items, SysMgr.memEnable, "MEM ")
+        _setOpt(items, SysMgr.printEnable, "PRINT ")
+        _setOpt(items, SysMgr.showAll, "ALL ")
+        _setOpt(items, SysMgr.sysEnable, "SYSCALL ")
 
-        if SysMgr.groupProcEnable:
-            enableStat += "PGRP "
-        else:
-            disableStat += "PGRP "
-
-        if SysMgr.cpuEnable:
-            enableStat += "CPU "
-        else:
-            disableStat += "CPU "
-
-        if SysMgr.memEnable:
-            enableStat += "MEM "
-        else:
-            disableStat += "MEM "
-
-        if SysMgr.blockEnable:
-            enableStat += "BLOCK "
-        else:
-            disableStat += "BLOCK "
-
-        if SysMgr.printEnable:
-            enableStat += "PRINT "
-        else:
-            disableStat += "PRINT "
-
-        if SysMgr.sysEnable:
-            enableStat += "SYSCALL "
-        else:
-            disableStat += "SYSCALL "
-
-        if SysMgr.lockEnable:
-            enableStat += "LOCK "
-        else:
-            disableStat += "LOCK "
-
-        if SysMgr.compressEnable:
-            enableStat += "COMP "
-        else:
-            disableStat += "COMP "
-
-        if SysMgr.countEnable:
-            enableStat += "CUT "
-        else:
-            disableStat += "CUT "
-
-        # check current mode #
-        if SysMgr.disableAll:
-            enableStat += "DISABLE "
+        enableStat = items["enable"]
+        disableStat = items["disable"]
 
         # print options #
         if enableStat:
@@ -36304,267 +36208,88 @@ Copyright:
 
     @staticmethod
     def printProfileOption():
-        enableStat = ""
-        disableStat = ""
+        def _setOpt(items, val, name):
+            if val:
+                items["enable"] += name
+            else:
+                items["disable"] += name
+
+        items = {"enable": "", "disable": ""}
 
         # common options #
-        enableStat += SysMgr.arch.upper() + " "
+        items["enable"] += SysMgr.arch.upper() + " "
 
-        if SysMgr.warnEnable:
-            enableStat += "WARN "
-        else:
-            disableStat += "WARN "
-
-        if SysMgr.pipeEnable:
-            enableStat += "PIPE "
-        else:
-            disableStat += "PIPE "
-
-        if SysMgr.printEnable:
-            enableStat += "PRINT "
-        else:
-            disableStat += "PRINT "
-
-        if SysMgr.cgroupEnable:
-            enableStat += "CGROUP "
-        else:
-            disableStat += "CGROUP "
-
-        if SysMgr.encodeEnable:
-            enableStat += "ENCODE "
-        else:
-            disableStat += "ENCODE "
-
-        if SysMgr.compressEnable:
-            enableStat += "COMP "
-        else:
-            disableStat += "COMP "
-
-        if SysMgr.cpuEnable:
-            enableStat += "CPU "
-        else:
-            disableStat += "CPU "
+        _setOpt(items, SysMgr.cgroupEnable, "CGROUP ")
+        _setOpt(items, SysMgr.compressEnable, "COMP ")
+        _setOpt(items, SysMgr.cpuEnable, "CPU ")
+        _setOpt(items, SysMgr.encodeEnable, "ENCODE ")
+        _setOpt(items, SysMgr.pipeEnable, "PIPE ")
+        _setOpt(items, SysMgr.printEnable, "PRINT ")
+        _setOpt(items, SysMgr.warnEnable, "WARN ")
 
         # check current mode #
         if SysMgr.isTopMode():
             SysMgr.printInfo("<TOP MODE>")
 
             if SysMgr.fileTopEnable:
-                enableStat += "FILE "
+                items["enable"] += "FILE "
             else:
                 if SysMgr.processEnable:
-                    enableStat += "PROCESS "
+                    items["enable"] += "PROCESS "
                 else:
-                    enableStat += "THREAD "
+                    items["enable"] += "THREAD "
 
-                if SysMgr.gpuEnable:
-                    enableStat += "GPU "
-                else:
-                    disableStat += "GPU "
-
-                if SysMgr.memEnable:
-                    enableStat += "MEM "
-                else:
-                    disableStat += "MEM "
-
-                if SysMgr.blockEnable:
-                    enableStat += "BLOCK "
-                else:
-                    disableStat += "BLOCK "
-
-                if SysMgr.irqEnable:
-                    enableStat += "IRQ "
-                else:
-                    disableStat += "IRQ "
-
-                if SysMgr.diskEnable:
-                    enableStat += "DISK "
-                else:
-                    disableStat += "DISK "
-
-                if SysMgr.perfEnable or SysMgr.perfGroupEnable:
-                    enableStat += "PERF "
-                else:
-                    disableStat += "PERF "
-
-                if SysMgr.nsEnable:
-                    enableStat += "NS "
-                else:
-                    disableStat += "NS "
-
-                if SysMgr.wchanEnable:
-                    enableStat += "WCHAN "
-                else:
-                    disableStat += "WCHAN "
-
-                if SysMgr.oomEnable:
-                    enableStat += "OOM "
-                else:
-                    disableStat += "OOM "
-
-                if SysMgr.floatEnable:
-                    enableStat += "FLOAT "
-                else:
-                    disableStat += "FLOAT "
-
-                if SysMgr.sigHandlerEnable:
-                    enableStat += "SIG "
-                else:
-                    disableStat += "SIG "
-
-                if SysMgr.wfcEnable:
-                    enableStat += "WFC "
-                else:
-                    disableStat += "WFC "
-
-                if SysMgr.cmdlineEnable:
-                    enableStat += "CMD "
-                else:
-                    disableStat += "CMD "
-
-                if SysMgr.stackEnable:
-                    enableStat += "STACK "
-
-                if SysMgr.networkEnable:
-                    enableStat += "NET "
-
-                if SysMgr.affinityEnable:
-                    enableStat += "AFNT "
-                else:
-                    disableStat += "AFNT "
-
-                if SysMgr.eventHandleEnable:
-                    enableStat += "EVENT "
-                else:
-                    disableStat += "EVENT "
-
-                if SysMgr.reportFileEnable:
-                    enableStat += "RFILE "
-                else:
-                    disableStat += "RFILE "
-
-                if SysMgr.pssEnable:
-                    enableStat += "PSS "
-                else:
-                    disableStat += "PSS "
-
-                if SysMgr.ussEnable:
-                    enableStat += "USS "
-                else:
-                    disableStat += "USS "
-
-                if SysMgr.wssEnable:
-                    enableStat += "WSS "
-                else:
-                    disableStat += "WSS "
-
-                if SysMgr.minStatEnable:
-                    enableStat += "MIN "
-                else:
-                    disableStat += "MIN "
-
-                if SysMgr.dltEnable:
-                    enableStat += "DLT "
-                else:
-                    disableStat += "DLT "
-
-                if SysMgr.syslogEnable:
-                    enableStat += "SYSLOG "
-                else:
-                    disableStat += "SYSLOG "
-
-                if SysMgr.dwarfEnable:
-                    enableStat += "DWARF "
-                else:
-                    disableStat += "DWARF "
-
-                if SysMgr.thresholdEnable:
-                    enableStat += "THRESHOLD "
-                else:
-                    disableStat += "THRESHOLD "
-
-                if SysMgr.kmsgEnable:
-                    enableStat += "KMSG "
-                else:
-                    disableStat += "KMSG "
-
-                if SysMgr.journalEnable:
-                    enableStat += "JRL "
-                else:
-                    disableStat += "JRL "
-
-                if SysMgr.schedEnable:
-                    enableStat += "SCHED "
-                else:
-                    disableStat += "SCHED "
-
-                if SysMgr.delayEnable:
-                    enableStat += "DELAY "
-                else:
-                    disableStat += "DELAY "
-
-                if SysMgr.groupProcEnable:
-                    enableStat += "PGRP "
-                else:
-                    disableStat += "PGRP "
-
-                if SysMgr.reportEnable:
-                    enableStat += "REPORT "
-                else:
-                    disableStat += "REPORT "
-
-                if SysMgr.totalEnable:
-                    enableStat += "TOTAL "
-                else:
-                    disableStat += "TOTAL "
-
-                if SysMgr.barGraphEnable:
-                    enableStat += "BAR "
-                else:
-                    disableStat += "BAR "
+                _setOpt(items, SysMgr.affinityEnable, "AFNT ")
+                _setOpt(items, SysMgr.barGraphEnable, "BAR ")
+                _setOpt(items, SysMgr.blockEnable, "BLOCK ")
+                _setOpt(items, SysMgr.cmdlineEnable, "CMD ")
+                _setOpt(items, SysMgr.delayEnable, "DELAY ")
+                _setOpt(items, SysMgr.diskEnable, "DISK ")
+                _setOpt(items, SysMgr.dltEnable, "DLT ")
+                _setOpt(items, SysMgr.dwarfEnable, "DWARF ")
+                _setOpt(items, SysMgr.eventHandleEnable, "EVENT ")
+                _setOpt(items, SysMgr.floatEnable, "FLOAT ")
+                _setOpt(items, SysMgr.gpuEnable, "GPU ")
+                _setOpt(items, SysMgr.groupProcEnable, "PGRP ")
+                _setOpt(items, SysMgr.irqEnable, "IRQ ")
+                _setOpt(items, SysMgr.journalEnable, "JRL ")
+                _setOpt(items, SysMgr.kmsgEnable, "KMSG ")
+                _setOpt(items, SysMgr.memEnable, "MEM ")
+                _setOpt(items, SysMgr.minStatEnable, "MIN ")
+                _setOpt(items, SysMgr.networkEnable, "NET")
+                _setOpt(items, SysMgr.nsEnable, "NS ")
+                _setOpt(items, SysMgr.oomEnable, "OOM ")
+                _setOpt(items, SysMgr.perfEnable, "PERF ")
+                _setOpt(items, SysMgr.perfGroupEnable, "PERFPROC ")
+                _setOpt(items, SysMgr.pssEnable, "PSS ")
+                _setOpt(items, SysMgr.reportEnable, "REPORT ")
+                _setOpt(items, SysMgr.reportFileEnable, "RFILE ")
+                _setOpt(items, SysMgr.schedEnable, "SCHED ")
+                _setOpt(items, SysMgr.sigHandlerEnable, "SIG ")
+                _setOpt(items, SysMgr.stackEnable, "STACK ")
+                _setOpt(items, SysMgr.syslogEnable, "SYSLOG ")
+                _setOpt(items, SysMgr.thresholdEnable, "THRESHOLD ")
+                _setOpt(items, SysMgr.totalEnable, "TOTAL ")
+                _setOpt(items, SysMgr.ussEnable, "USS ")
+                _setOpt(items, SysMgr.wchanEnable, "WCHAN ")
+                _setOpt(items, SysMgr.wfcEnable, "WFC ")
+                _setOpt(items, SysMgr.wssEnable, "WSS ")
 
         elif SysMgr.isFuncMode():
             SysMgr.printInfo("<FUNCTION MODE>")
 
             if SysMgr.graphEnable:
-                enableStat += "GRAPH "
+                items["enable"] += "GRAPH "
             else:
-                disableStat += "GRAPH "
+                items["disable"] += "GRAPH "
 
-                if not SysMgr.memEnable:
-                    disableStat += "MEM "
-                else:
-                    enableStat += "MEM "
-
-                if not SysMgr.heapEnable:
-                    disableStat += "HEAP "
-                else:
-                    enableStat += "HEAP "
-
-                if not SysMgr.blockEnable:
-                    disableStat += "BLOCK "
-                else:
-                    enableStat += "BLOCK "
-
-                if not SysMgr.userEnable:
-                    disableStat += "USER "
-                else:
-                    enableStat += "USER "
-
-                if SysMgr.sysEnable:
-                    enableStat += "SYSCALL "
-                else:
-                    disableStat += "SYSCALL "
-
-                if SysMgr.lockEnable:
-                    enableStat += "LOCK "
-                else:
-                    disableStat += "LOCK "
-
-                if SysMgr.disableAll:
-                    enableStat += "DISABLE "
-                else:
-                    disableStat += "DISABLE "
+                _setOpt(items, SysMgr.blockEnable, "BLOCK ")
+                _setOpt(items, SysMgr.disableAll, "DISABLE ")
+                _setOpt(items, SysMgr.heapEnable, "HEAP ")
+                _setOpt(items, SysMgr.lockEnable, "LOCK ")
+                _setOpt(items, SysMgr.memEnable, "MEM ")
+                _setOpt(items, SysMgr.sysEnable, "SYSCALL ")
+                _setOpt(items, SysMgr.userEnable, "USER ")
 
         elif SysMgr.isFileMode():
             SysMgr.printInfo("<FILE MODE>")
@@ -36576,100 +36301,29 @@ Copyright:
             SysMgr.printInfo("<THREAD MODE>")
             SysMgr.threadEnable = True
 
-            if SysMgr.memEnable:
-                enableStat += "MEM "
-            else:
-                disableStat += "MEM "
+            _setOpt(items, SysMgr.binderEnable, "BINDER ")
+            _setOpt(items, SysMgr.blockEnable, "BLOCK ")
+            _setOpt(items, SysMgr.bufferLossEnable, "BUFLOSS ")
+            _setOpt(items, SysMgr.depEnable, "DEP ")
+            _setOpt(items, SysMgr.disableAll, "DISABLE ")
+            _setOpt(items, SysMgr.diskEnable, "DISK ")
+            _setOpt(items, SysMgr.fsEnable, "FS ")
+            _setOpt(items, SysMgr.i2cEnable, "I2C ")
+            _setOpt(items, SysMgr.iouringEnable, "IOURING ")
+            _setOpt(items, SysMgr.irqEnable, "IRQ ")
+            _setOpt(items, SysMgr.keventEnable, "KEVT ")
+            _setOpt(items, SysMgr.latEnable, "LATENCY ")
+            _setOpt(items, SysMgr.lockEnable, "LOCK ")
+            _setOpt(items, SysMgr.memEnable, "MEM ")
+            _setOpt(items, SysMgr.networkEnable, "NET ")
+            _setOpt(items, SysMgr.powerEnable, "POWER ")
+            _setOpt(items, SysMgr.resetEnable, "RESET ")
+            _setOpt(items, SysMgr.sysEnable, "SYSCALL ")
+            _setOpt(items, SysMgr.ueventEnable, "UEVT ")
+            _setOpt(items, SysMgr.wqEnable, "WQ ")
 
-            if SysMgr.blockEnable:
-                enableStat += "BLOCK "
-            else:
-                disableStat += "BLOCK "
-
-            if SysMgr.diskEnable:
-                enableStat += "DISK "
-            else:
-                disableStat += "DISK "
-
-            if SysMgr.irqEnable:
-                enableStat += "IRQ "
-            else:
-                disableStat += "IRQ "
-
-            if SysMgr.ueventEnable:
-                enableStat += "UEVT "
-            else:
-                disableStat += "UEVT "
-
-            if SysMgr.keventEnable:
-                enableStat += "KEVT "
-            else:
-                disableStat += "KEVT "
-
-            if SysMgr.bufferLossEnable:
-                enableStat += "BUFLOSS "
-            else:
-                disableStat += "BUFLOSS "
-
-            if SysMgr.networkEnable:
-                enableStat += "NET "
-            else:
-                disableStat += "NET "
-
-            if SysMgr.depEnable:
-                enableStat += "DEP "
-            else:
-                disableStat += "DEP "
-
-            if SysMgr.latEnable:
-                enableStat += "LATENCY "
-            else:
-                disableStat += "LATENCY "
-
-            if SysMgr.sysEnable:
-                enableStat += "SYSCALL "
-            else:
-                disableStat += "SYSCALL "
-
-            if SysMgr.lockEnable:
-                enableStat += "LOCK "
-            else:
-                disableStat += "LOCK "
-
-            if SysMgr.powerEnable:
-                enableStat += "POWER "
-            else:
-                disableStat += "POWER "
-
-            if SysMgr.wqEnable:
-                enableStat += "WQ "
-            else:
-                disableStat += "WQ "
-
-            if SysMgr.fsEnable:
-                enableStat += "FS "
-            else:
-                disableStat += "FS "
-
-            if SysMgr.binderEnable:
-                enableStat += "BINDER "
-            else:
-                disableStat += "BINDER "
-
-            if SysMgr.i2cEnable:
-                enableStat += "I2C "
-            else:
-                disableStat += "I2C "
-
-            if SysMgr.resetEnable:
-                enableStat += "RESET "
-            else:
-                disableStat += "RESET "
-
-            if SysMgr.disableAll:
-                enableStat += "DISABLE "
-            else:
-                disableStat += "DISABLE "
+        enableStat = items["enable"]
+        disableStat = items["disable"]
 
         # print options #
         if enableStat:
@@ -40410,6 +40064,9 @@ Copyright:
 
                 if "d" in options:
                     SysMgr.diskEnable = True
+
+                if "o" in options:
+                    SysMgr.iouringEnable = True
 
                 if "I" in options:
                     SysMgr.i2cEnable = True
@@ -54177,6 +53834,9 @@ Copyright:
 
         # i2c #
         self.cmdList["i2c"] = sm.i2cEnable
+
+        # io_uring #
+        self.cmdList["io_uring"] = sm.iouringEnable
 
     def runPeriodProc(self):
         pid = SysMgr.createProcess()
@@ -87029,7 +86689,7 @@ class TaskAnalyzer(object):
                     key=lambda e: e[1]["average"],
                     reverse=True,
                 ):
-
+                    # check option #
                     if not SysMgr.cpuEnable:
                         break
 
@@ -96325,6 +95985,9 @@ class TaskAnalyzer(object):
         TaskAnalyzer.procTotData = {}
         TaskAnalyzer.procIntData = []
 
+        # shrink heap #
+        SysMgr.shrinkHeap()
+
     @staticmethod
     def printLeakHint():
         if (
@@ -98450,7 +98113,7 @@ class TaskAnalyzer(object):
                         self.preemptData[index][2] = ftime
                         self.preemptData[index][3] = core
 
-            elif prev_state in ("S", "D", "t", "T", "I", "x", "Z"):
+            elif prev_state in ("S", "D", "t", "T", "I", "x", "X", "Z"):
                 # increase yield count except for core sched event #
                 if prev_id != coreId:
                     self.threadData[prev_id]["yield"] += 1
