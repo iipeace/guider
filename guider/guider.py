@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220426"
+__revision__ = "220427"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21778,7 +21778,7 @@ class LogMgr(object):
             if hasattr(self, "notified") and not self.notified:
                 SysMgr.printErr(
                     (
-                        "please report %s file to "
+                        "please report '%s' to "
                         "https://github.com/iipeace/guider/issues"
                     )
                     % self.errFd.name
@@ -23015,6 +23015,7 @@ Commands:
         self.gpuData = {}
         self.memData = {}
         self.diskData = {}
+        self.blockData = {}
         self.storageData = {}
         self.prevStorageData = {}
         self.storageMapData = {}
@@ -24593,7 +24594,7 @@ Commands:
                     )
 
     @staticmethod
-    def getAvailMemInfo(retstr=True):
+    def getAvailMemInfo(retstr=True, unit=None):
         try:
             # read memory stats #
             memBuf = SysMgr.getMemInfo()
@@ -24618,7 +24619,7 @@ Commands:
             if not retstr:
                 return sysMemStr
 
-            sysMemStr = UtilMgr.convSize2Unit(sysMemStr, True)
+            sysMemStr = UtilMgr.convSize2Unit(sysMemStr, isInt=True, unit=unit)
         except SystemExit:
             sys.exit(0)
         except:
@@ -35745,13 +35746,23 @@ Copyright:
         try:
             inspect = SysMgr.getPkg("inspect")
             lines = ""
+            debug = "DEBUG" in SysMgr.environList
             if sys.version_info >= (3, 5, 0):
                 # filename, lineno, function, code_context #
                 for fb in reversed(inspect.trace()):
+                    if debug:
+                        print(
+                            "[DEBUG] %s() at %s in %s"
+                            % (fb.function, fb.lineno, fb.filename)
+                        )
                     lines += "%s<" % fb.lineno
             else:
                 # obj, filename, lineno, function, code_context #
                 for fb in reversed(inspect.trace()):
+                    if debug:
+                        print(
+                            "[DEBUG] %s() at %s in %s" % (fb[3], fb[2], fb[1])
+                        )
                     lines += "%s<" % fb[2]
             return lines.rstrip("<")
         except:
@@ -47274,7 +47285,13 @@ Copyright:
             totalSize = 0
             totalFile = 0
             totalDir = 0
-            blockSize = SysMgr.PAGESIZE
+
+            # set block size #
+            topDir = parentPath.lstrip("/").split("/", 1)[0]
+            if topDir in ("proc", "sys", "dev"):
+                blockSize = 0
+            else:
+                blockSize = SysMgr.PAGESIZE
 
             # check including link option #
             if "INCLINK" in SysMgr.environList:
@@ -47310,7 +47327,8 @@ Copyright:
                         maxLevel,
                     )
 
-                    totalSize += totalInfo[0]
+                    if blockSize:
+                        totalSize += totalInfo[0]
                     totalDir += totalInfo[1]
                     totalFile += totalInfo[2]
 
@@ -47323,7 +47341,9 @@ Copyright:
                     totalFile += 1
 
                     # get size #
-                    if not incLink and os.path.islink(fullPath):
+                    if not blockSize:
+                        size = 0
+                    elif not incLink and os.path.islink(fullPath):
                         size = 0
                     else:
                         size = os.stat(fullPath).st_size
@@ -47394,8 +47414,14 @@ Copyright:
 
             convSize = UtilMgr.convSize2Unit
             convColor = UtilMgr.convColor
-            blockSize = SysMgr.PAGESIZE
             BIGSIZE = 1 << 30
+
+            # set block size #
+            topDir = parentPath.lstrip("/").split("/", 1)[0]
+            if topDir in ("proc", "sys", "dev"):
+                blockSize = 0
+            else:
+                blockSize = SysMgr.PAGESIZE
 
             # check including link option #
             if "INCLINK" in SysMgr.environList:
@@ -47491,7 +47517,8 @@ Copyright:
                         )
 
                         # add to stat #
-                        totalSize += rlist[0]
+                        if blockSize:
+                            totalSize += rlist[0]
                         totalFile += rlist[2]
                         if isTarget:
                             totalDir += rlist[1]
@@ -47507,8 +47534,11 @@ Copyright:
 
                         # get size #
                         try:
-                            size = os.stat(fullPath).st_size
-                            totalSize += size
+                            if blockSize:
+                                size = os.stat(fullPath).st_size
+                                totalSize += size
+                            else:
+                                size = 0
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -47546,7 +47576,9 @@ Copyright:
 
                     # get size #
                     try:
-                        if not incLink and os.path.islink(fullPath):
+                        if not blockSize:
+                            size = 0
+                        elif not incLink and os.path.islink(fullPath):
                             size = 0
                         elif not size:
                             size = os.stat(fullPath).st_size
@@ -47719,13 +47751,12 @@ Copyright:
                 SysMgr.printErr("failed to access %s" % path, reason=True)
                 sys.exit(-1)
 
-            abspath = "[%s]" % (abspath)
-            result = [abspath]
+            result = ["[%s]" % abspath]
 
             if SysMgr.filterGroup:
                 SysMgr.printPipe()
 
-            _getDirs(path, initDir, "  ", result, 0, maxLevel)
+            _getDirs(abspath, initDir, "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
             UtilMgr.deleteProgress()
             SysMgr.printPipe(output)
@@ -53104,6 +53135,9 @@ Copyright:
             self.saveCpuInfo()
             self.saveCpuCacheInfo()
 
+            # block device info #
+            self.saveBlockInfo()
+
             # os specific info #
             self.saveWebOSInfo()
             self.saveLinuxInfo()
@@ -53289,6 +53323,80 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printWarn("failed to save deice info", reason=True)
+
+    def saveBlockInfo(self):
+        try:
+            blockDir = "/sys/block"
+
+            for dirnames in os.walk(blockDir):
+                for dev in dirnames[1]:
+                    # I/O scheduler #
+                    schedPath = os.path.join(blockDir, dev, "queue/scheduler")
+                    schedList = SysMgr.readFile(schedPath).split()
+                    sched = None
+                    for item in schedList:
+                        if item.startswith("["):
+                            sched = item.strip("[]")
+                            break
+
+                    # readahead size in KB #
+                    raPath = os.path.join(blockDir, dev, "queue/read_ahead_kb")
+                    ra = SysMgr.readFile(raPath)
+                    if ra:
+                        ra = UtilMgr.convSize2Unit(long(ra) << 10)
+
+                    # physical block #
+                    sizePath = os.path.join(
+                        blockDir, dev, "queue/physical_block_size"
+                    )
+                    size = SysMgr.readFile(sizePath)
+                    if size:
+                        size = long(size)
+
+                    # write cache #
+                    wrPath = os.path.join(blockDir, dev, "queue/write_cache")
+                    wr = SysMgr.readFile(wrPath)
+                    if wr:
+                        wr = wr.split()
+                        if len(wr) == 2:
+                            wr = wr[1]
+
+                    # min size for random I/O #
+                    minSizePath = os.path.join(
+                        blockDir, dev, "queue/minimum_io_size"
+                    )
+                    minSize = SysMgr.readFile(minSizePath)
+
+                    # optimal size for streaming I/O #
+                    optSizePath = os.path.join(
+                        blockDir, dev, "queue/optimal_io_size"
+                    )
+                    optSize = SysMgr.readFile(optSizePath)
+
+                    # rq_affinity #
+                    afntPath = os.path.join(blockDir, dev, "queue/rq_affinity")
+                    afnt = SysMgr.readFile(afntPath)
+
+                    # io_poll #
+                    pollPath = os.path.join(blockDir, dev, "queue/io_poll")
+                    poll = SysMgr.readFile(pollPath)
+
+                    # save info #
+                    self.blockData[dev] = {
+                        "size": size,
+                        "sched": sched,
+                        "schedList": schedList,
+                        "wrCache": wr,
+                        "readahead": ra,
+                        "minSize": minSize,
+                        "optSize": optSize,
+                        "affinity": afnt,
+                        "poll": poll,
+                    }
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to block deice info", reason=True)
 
     def saveStorageInfo(self, isGeneral):
         blockDir = "/sys/class/block"
@@ -54582,6 +54690,8 @@ Copyright:
         self.printMemInfo()
 
         self.printStorageInfo()
+
+        self.printBlockInfo()
 
         self.printNetworkInfo()
 
@@ -57043,6 +57153,62 @@ Copyright:
             )
 
         SysMgr.infoBufferPrint("%s" % twoLine)
+
+    def printBlockInfo(self):
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("general", {})
+            SysMgr.jsonData["general"]["block"] = self.blockData
+
+        # print block info #
+        SysMgr.infoBufferPrint("\n[System Block Info]")
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(
+            (
+                "{0:>16} {1:>8} {2:>8} {3:>8} {4:>10} "
+                "{5:>8} {6:>8} {7:>8} {8:>1}"
+            ).format(
+                "DEV",
+                "BlkSize",
+                "MinSize",
+                "OptSize",
+                "Readahead",
+                "Affinity",
+                "Poll",
+                "WrCache",
+                "Sched",
+            )
+        )
+        SysMgr.infoBufferPrint(twoLine)
+
+        # print block device info #
+        for dev, data in sorted(self.blockData.items()):
+            try:
+                SysMgr.infoBufferPrint(
+                    (
+                        "{0:>16} {1:>8} {2:>8} {3:>8} {4:>10} "
+                        "{5:>8} {6:>8} {7:>8} {8:>1}"
+                    ).format(
+                        dev,
+                        data["size"],
+                        data["minSize"],
+                        data["optSize"],
+                        data["readahead"],
+                        data["affinity"],
+                        data["poll"],
+                        data["wrCache"],
+                        " ".join(data["schedList"]),
+                    )
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+        if self.blockData:
+            SysMgr.infoBufferPrint(oneLine)
+        else:
+            SysMgr.infoBufferPrint("\tNone\n%s" % oneLine)
 
     def printStorageInfo(self):
         # add JSON stats #
@@ -85450,9 +85616,9 @@ class TaskAnalyzer(object):
             try:
                 mlist = SysMgr.getMemStat(pid)
                 mstat = SysMgr.convMemStat(mlist)
-                vss = UtilMgr.convSize2Unit(mstat["vss"])
-                rss = UtilMgr.convSize2Unit(mstat["rss"])
-                avl = SysMgr.getAvailMemInfo()
+                vss = UtilMgr.convSize2Unit(mstat["vss"], isInt=True, unit="M")
+                rss = UtilMgr.convSize2Unit(mstat["rss"], isInt=True, unit="M")
+                avl = SysMgr.getAvailMemInfo(unit="M")
                 SysMgr.printWarn(
                     "System's AvailableMemory(%s), %s(%s)'s VSS(%s) & RSS(%s)"
                     % (avl, comm, pid, vss, rss),
@@ -85550,7 +85716,9 @@ class TaskAnalyzer(object):
                         SysMgr.outPath = "."
                 else:
                     SysMgr.outPath = "."
-                SysMgr.outPath = os.path.join(SysMgr.outPath, "merged.out")
+                SysMgr.outPath = os.path.join(
+                    SysMgr.outPath, "merged_%s.out" % SysMgr.pid
+                )
 
                 # print summary #
                 try:
@@ -103006,9 +103174,17 @@ class TaskAnalyzer(object):
             else:
                 self.procData[tid]["io"] = {}
                 for line in ioBuf:
-                    name, val = line.split()
+                    # get stats #
+                    ios = line.split()
+                    if len(ios) != 2:
+                        continue
+
+                    # check stats #
+                    name, val = ios
                     if not name in ("read_bytes:", "write_bytes:"):
                         continue
+
+                    # save stats #
                     self.procData[tid]["io"][name[:-1]] = long(val)
 
         # save perf fds #
