@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220427"
+__revision__ = "220428"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -102916,11 +102916,23 @@ class TaskAnalyzer(object):
         cgroupBuf = self.saveTaskData(path, tid, "cgroup")
 
         cstr = ""
+        indentlen = 39
+        linelen = indentlen + 3
         for item in cgroupBuf:
             clist = item[:-1].split(":")
             if len(clist) != 3 or clist[-1] == "/":
                 continue
-            cstr = "%s%s:%s, " % (cstr, clist[1], clist[2])
+
+            new = "%s:%s, " % (clist[1], clist[2])
+
+            if cstr and linelen + len(new) > SysMgr.ttyCols:
+                indent = "\n{0:>{ilen}} | ".format(" ", ilen=indentlen)
+                linelen = len(indent) + len(new)
+            else:
+                indent = ""
+                linelen += len(new)
+
+            cstr = "%s%s%s" % (cstr, indent, new)
 
         if cstr:
             self.procData[tid]["cgroup"] = cstr[:-2]
@@ -103227,7 +103239,7 @@ class TaskAnalyzer(object):
                     self.nsData[node][value].setdefault(tid, 0)
 
                     # update task info #
-                    self.procData[tid]["ns"] += "%s:%s/" % (node, value)
+                    self.procData[tid]["ns"] += "%s:%s, " % (node, value)
         except SystemExit:
             sys.exit(0)
         except:
@@ -105503,7 +105515,7 @@ class TaskAnalyzer(object):
             # add stats in a line #
             item = "%-15s %7s" % ("%s:" % name, size)
             if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
-                databuf += "%s ]\n" % curline.rstrip(", ")
+                databuf += "%s]\n" % curline.rstrip(", ")
                 curline = str(edata)
 
             if name in colorList:
@@ -105516,7 +105528,7 @@ class TaskAnalyzer(object):
 
         # check last line #
         if curline != data:
-            databuf += "%s ]" % curline.rstrip(", \n")
+            databuf += "%s]" % curline.rstrip(", \n")
         databuf = databuf.rstrip(", \n")
 
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
@@ -105553,7 +105565,7 @@ class TaskAnalyzer(object):
                 if nrLine >= cutLine:
                     break
 
-                databuf += "%s ]\n" % curline.rstrip(", ")
+                databuf += "%s]\n" % curline.rstrip(", ")
                 curline = str(edata)
                 nrLine += 1
 
@@ -105581,7 +105593,7 @@ class TaskAnalyzer(object):
         # overcommit #
         vmInfo += ", overcommit: %s" % SysMgr.overcommit
 
-        SysMgr.addPrint(vmInfo + " ]\n")
+        SysMgr.addPrint(vmInfo + "]\n")
 
     def printLMKStat(self, nrIndent):
         if not SysMgr.memEnable:
@@ -105630,7 +105642,7 @@ class TaskAnalyzer(object):
                 UtilMgr.convSize2Unit(item << 12),
             )
 
-        SysMgr.addPrint(lmkstr[:-2] + " ]\n")
+        SysMgr.addPrint(lmkstr[:-2] + "]\n")
 
     def printZoneUsage(self, nrIndent):
         if not self.zoneData:
@@ -105752,7 +105764,7 @@ class TaskAnalyzer(object):
                 lenZone += lenZoneStat
 
             SysMgr.addPrint(
-                "{0:<1}]\n".format(zoneData[:-2]),
+                "{0:<1}]\n".format(zoneData[:-2].rstrip()),
                 newline=zoneData.count("\n") + 1,
             )
 
@@ -105799,7 +105811,7 @@ class TaskAnalyzer(object):
 
         if nrIrq > 0:
             SysMgr.addPrint(
-                "{0:<1}]\n".format(irqData[:-2]),
+                "{0:<1}]\n".format(irqData[:-2].rstrip()),
                 newline=irqData.count("\n") + 1,
             )
 
@@ -107904,14 +107916,16 @@ class TaskAnalyzer(object):
             if SysMgr.nsEnable and value["ns"]:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format(
-                        "NAMESPACE", value["ns"].rstrip("/")
-                    )
+                        "NAMESPACE", value["ns"].rstrip(", ")
+                    ),
+                    newline=value["ns"].count("\n") + 1,
                 )
 
             # print cgroup #
             if "cgroup" in value:
                 SysMgr.addPrint(
-                    "{0:>39} | {1:1}\n".format("CGROUP", value["cgroup"])
+                    "{0:>39} | {1:1}\n".format("CGROUP", value["cgroup"]),
+                    newline=value["cgroup"].count("\n") + 1,
                 )
 
             # print sched #
