@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220428"
+__revision__ = "220429"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25809,6 +25809,13 @@ Commands:
                 sys.exit(0)
             except:
                 pass
+
+        # print target resources #
+        if SysMgr.thresholdTarget:
+            SysMgr.printInfo(
+                "enabled resource events [ %s ]"
+                % ", ".join([res for res in SysMgr.thresholdTarget])
+            )
 
         # check block #
         try:
@@ -102601,7 +102608,7 @@ class TaskAnalyzer(object):
                 try:
                     ptable[mtype]["count"] += 1
                 except:
-                    ptable[mtype]["count"] = long(1)
+                    ptable[mtype]["count"] = 1
             # memory detail info #
             else:
                 prop = tmplist[0]
@@ -103555,6 +103562,9 @@ class TaskAnalyzer(object):
             pgRclmBg = nrBgReclaim = 0
             failedStat.append("MemBgReclaim")
 
+        # add background reclaim interval #
+        self.addSysInterval("mem", "pgRclmBg", pgRclmBg)
+
         # direct reclaim #
         try:
             pgRclmFg = 0
@@ -103590,6 +103600,9 @@ class TaskAnalyzer(object):
         except:
             pgRclmFg = nrDrReclaim = 0
             failedStat.append("MemFgReclaim")
+
+        # add foreground reclaim interval #
+        self.addSysInterval("mem", "pgRclmFg", pgRclmFg)
 
         # mlock #
         try:
@@ -109246,8 +109259,10 @@ class TaskAnalyzer(object):
 
         # check CPU #
         try:
-            if "cpu" in SysMgr.thresholdTarget:
-                self.checkThreshold("cpu", "total", "CPU", "big")
+            if not "cpu" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            self.checkThreshold("cpu", "total", "CPU", "big")
         except SystemExit:
             sys.exit(0)
         except:
@@ -109292,8 +109307,21 @@ class TaskAnalyzer(object):
 
         # check memory #
         try:
-            if "mem" in SysMgr.thresholdTarget:
-                self.checkThreshold("mem", "available", "MEM", "less")
+            if not "mem" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            # check available memory #
+            self.checkThreshold("mem", "available", "MEM", "less")
+
+            # check reclaimed memory #
+            items = ["pgRclmBg", "pgRclmFg"]
+            for item in items:
+                if item in self.intervalData:
+                    intval = self.intervalData[item]
+                else:
+                    intval = None
+
+                self.checkThreshold("mem", item, "MEM", "big", intval=intval)
         except SystemExit:
             sys.exit(0)
         except:
@@ -109301,8 +109329,10 @@ class TaskAnalyzer(object):
 
         # check GPU memory #
         try:
-            if "gpumem" in SysMgr.thresholdTarget:
-                self.checkThreshold("gpumem", "total", "GPUMEM", "big")
+            if not "gpumem" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            self.checkThreshold("gpumem", "total", "GPUMEM", "big")
         except SystemExit:
             sys.exit(0)
         except:
@@ -109310,15 +109340,17 @@ class TaskAnalyzer(object):
 
         # check swap #
         try:
-            if "swap" in SysMgr.thresholdTarget:
-                if "swap" in self.intervalData:
-                    intval = self.intervalData["swap"]
-                else:
-                    intval = None
+            if not "swap" in SysMgr.thresholdTarget:
+                raise Exception()
 
-                self.checkThreshold(
-                    "swap", "usagePer", "SWAP", "big", intval=intval
-                )
+            if "swap" in self.intervalData:
+                intval = self.intervalData["swap"]
+            else:
+                intval = None
+
+            self.checkThreshold(
+                "swap", "usagePer", "SWAP", "big", intval=intval
+            )
         except SystemExit:
             sys.exit(0)
         except:
@@ -109326,8 +109358,10 @@ class TaskAnalyzer(object):
 
         # check iowait #
         try:
-            if "block" in SysMgr.thresholdTarget:
-                self.checkThreshold("block", "ioWait", "IO", "big")
+            if not "block" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            self.checkThreshold("block", "ioWait", "IO", "big")
         except SystemExit:
             sys.exit(0)
         except:
@@ -109470,21 +109504,23 @@ class TaskAnalyzer(object):
 
         # check loadavg #
         try:
-            if "load" in SysMgr.thresholdTarget:
-                if "load" in self.intervalData:
-                    intval = self.intervalData["load"]
-                else:
-                    intval = None
+            if not "load" in SysMgr.thresholdTarget:
+                raise Exception()
 
-                for attr in ["load1m", "load5m", "load15m"]:
-                    self.checkThreshold(
-                        "load",
-                        attr,
-                        "LOAD",
-                        "big",
-                        self.reportData["system"][attr],
-                        intval=intval,
-                    )
+            if "load" in self.intervalData:
+                intval = self.intervalData["load"]
+            else:
+                intval = None
+
+            for attr in ["load1m", "load5m", "load15m"]:
+                self.checkThreshold(
+                    "load",
+                    attr,
+                    "LOAD",
+                    "big",
+                    self.reportData["system"][attr],
+                    intval=intval,
+                )
         except SystemExit:
             sys.exit(0)
         except:
@@ -109526,8 +109562,10 @@ class TaskAnalyzer(object):
 
         # check fd #
         try:
-            if "fd" in SysMgr.thresholdTarget:
-                self.checkThreshold("fd", "curFd", "FD", "big")
+            if not "fd" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            self.checkThreshold("fd", "curFd", "FD", "big")
         except SystemExit:
             sys.exit(0)
         except:
@@ -109535,17 +109573,19 @@ class TaskAnalyzer(object):
 
         # check fd #
         try:
-            if "sock" in SysMgr.thresholdTarget:
-                items = ["nrUDPSock", "nrTCPSock", "nrTCPConn", "nrUDSSock"]
-                for item in items:
-                    if item in self.intervalData:
-                        intval = self.intervalData[item]
-                    else:
-                        intval = None
+            if not "sock" in SysMgr.thresholdTarget:
+                raise Exception()
 
-                    self.checkThreshold(
-                        "sock", item, "SOCK", "big", intval=intval
-                    )
+            items = ["nrUDPSock", "nrTCPSock", "nrTCPConn", "nrUDSSock"]
+            for item in items:
+                if item in self.intervalData:
+                    intval = self.intervalData[item]
+                else:
+                    intval = None
+
+                self.checkThreshold(
+                    "sock", item, "SOCK", "big", intval=intval
+                )
         except SystemExit:
             sys.exit(0)
         except:
