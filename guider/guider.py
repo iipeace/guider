@@ -70924,7 +70924,7 @@ typedef struct {
             ) = struct.unpack("IQQQQQQQQQQQQQQii", PyFrameObject)
 
         # read PyCodeObject #
-        if sys.version_info >= (3, 7):
+        if sys.version_info >= (3, 8, 0):
             PyCodeObject = self.readMem(f_code, 144)
             (
                 ob_refcnt,
