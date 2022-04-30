@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220429"
+__revision__ = "220430"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -103360,6 +103360,9 @@ class TaskAnalyzer(object):
             freeMem = memData["MemFree"] >> 10
             freeMemDiff = freeMem - (prevMemData["MemFree"] >> 10)
             freeMemPer = long(freeMem / float(totalMem) * 100)
+
+            # add free memory interval #
+            self.addSysInterval("mem", "free", freeMem)
         except SystemExit:
             sys.exit(0)
         except:
@@ -103386,6 +103389,9 @@ class TaskAnalyzer(object):
                 availMemDiff = 0
 
             availMemPer = long(availMem / float(totalMem) * 100)
+
+            # add available memory interval #
+            self.addSysInterval("mem", "available", availMem)
         except SystemExit:
             sys.exit(0)
         except:
@@ -103400,6 +103406,9 @@ class TaskAnalyzer(object):
             anonMemDiff = (
                 vmData["nr_anon_pages"] - self.prevVmData["nr_anon_pages"]
             ) >> 8
+
+            # add anon memory interval #
+            self.addSysInterval("mem", "anon", totalAnonMem)
         except SystemExit:
             sys.exit(0)
         except:
@@ -103414,6 +103423,9 @@ class TaskAnalyzer(object):
             fileMemDiff = (
                 vmData["nr_file_pages"] - self.prevVmData["nr_file_pages"]
             ) >> 8
+
+            # add file cache interval #
+            self.addSysInterval("mem", "file", totalFileMem)
         except SystemExit:
             sys.exit(0)
         except:
@@ -103454,6 +103466,9 @@ class TaskAnalyzer(object):
                 vmData["nr_slab_reclaimable"] + vmData["nr_slab_unreclaimable"]
             ) >> 8
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
+
+            # add slab cache interval #
+            self.addSysInterval("mem", "slab", totalSlabMem)
         except SystemExit:
             sys.exit(0)
         except:
@@ -103859,7 +103874,11 @@ class TaskAnalyzer(object):
 
         # add CPU interval #
         SysMgr.cpuUsage = totalUsage
-        self.addSysInterval("cpu", "cpu", totalUsage)
+        self.addSysInterval("cpu", "total", totalUsage)
+        self.addSysInterval("cpu", "user", userUsage)
+        self.addSysInterval("cpu", "kernel", kerUsage)
+        self.addSysInterval("cpu", "iowait", ioUsage)
+        self.addSysInterval("cpu", "irq", irqUsage)
 
         # get network usage in bytes #
         if SysMgr.isLinux:
@@ -103890,7 +103909,6 @@ class TaskAnalyzer(object):
 
         # add memory interval #
         SysMgr.memAvail = availMem
-        self.addSysInterval("mem", "available", availMem)
 
         # convert color for CPU usage #
         totalUsageStr = r"%3s %%" % totalUsage
@@ -109230,6 +109248,12 @@ class TaskAnalyzer(object):
         if not SysMgr.thresholdData:
             return
 
+        def _getIntval(item):
+            if item in self.intervalData:
+                return self.intervalData[item]
+            else:
+                return None
+
         # init event item #
         self.reportData["event"] = {}
 
@@ -109262,7 +109286,9 @@ class TaskAnalyzer(object):
             if not "cpu" in SysMgr.thresholdTarget:
                 raise Exception()
 
-            self.checkThreshold("cpu", "total", "CPU", "big")
+            for item in ["total", "user", "kernel", "irq", "iowait"]:
+                intval = _getIntval(item)
+                self.checkThreshold("cpu", item, "CPU", "big", intval=intval)
         except SystemExit:
             sys.exit(0)
         except:
@@ -109311,16 +109337,15 @@ class TaskAnalyzer(object):
                 raise Exception()
 
             # check available memory #
-            self.checkThreshold("mem", "available", "MEM", "less")
-
-            # check reclaimed memory #
-            items = ["pgRclmBg", "pgRclmFg"]
+            items = ["available", "free"]
             for item in items:
-                if item in self.intervalData:
-                    intval = self.intervalData[item]
-                else:
-                    intval = None
+                intval = _getIntval(item)
+                self.checkThreshold("mem", item, "MEM", "less", intval=intval)
 
+            # check memory stats #
+            items = ["anon", "file", "slab", "pgRclmBg", "pgRclmFg"]
+            for item in items:
+                intval = _getIntval(item)
                 self.checkThreshold("mem", item, "MEM", "big", intval=intval)
         except SystemExit:
             sys.exit(0)
@@ -109343,11 +109368,7 @@ class TaskAnalyzer(object):
             if not "swap" in SysMgr.thresholdTarget:
                 raise Exception()
 
-            if "swap" in self.intervalData:
-                intval = self.intervalData["swap"]
-            else:
-                intval = None
-
+            intval = _getIntval("swap")
             self.checkThreshold(
                 "swap", "usagePer", "SWAP", "big", intval=intval
             )
@@ -109389,10 +109410,7 @@ class TaskAnalyzer(object):
                 target = vals["usagePer"]
                 vals.update({"dev": dev})
 
-                if dev in self.intervalData:
-                    intval = self.intervalData[dev]
-                else:
-                    intval = None
+                intval = _getIntval(dev)
 
                 try:
                     # all devices #
@@ -109436,7 +109454,7 @@ class TaskAnalyzer(object):
             # total inbound #
             for direct, name in [["inbound", "NETIN"], ["outbound", "NETOUT"]]:
                 target = self.reportData["net"][direct]
-                intval = self.intervalData[direct]
+                intval = _getIntval(direct)
                 self.checkThreshold(
                     "net", direct, name, "big", target, intval=intval
                 )
@@ -109458,10 +109476,7 @@ class TaskAnalyzer(object):
                     try:
                         # get recv interval #
                         name = dev + ":recv"
-                        if name in self.intervalData:
-                            intval = self.intervalData[name]
-                        else:
-                            intval = None
+                        intval = _getIntval(name)
 
                         # recv #
                         self.checkThreshold(
@@ -109477,10 +109492,7 @@ class TaskAnalyzer(object):
 
                         # get trans interval #
                         name = dev + ":trans"
-                        if name in self.intervalData:
-                            intval = self.intervalData[name]
-                        else:
-                            intval = None
+                        intval = _getIntval(name)
 
                         # trans #
                         self.checkThreshold(
@@ -109507,10 +109519,7 @@ class TaskAnalyzer(object):
             if not "load" in SysMgr.thresholdTarget:
                 raise Exception()
 
-            if "load" in self.intervalData:
-                intval = self.intervalData["load"]
-            else:
-                intval = None
+            intval = _getIntval("load")
 
             for attr in ["load1m", "load5m", "load15m"]:
                 self.checkThreshold(
@@ -109578,14 +109587,8 @@ class TaskAnalyzer(object):
 
             items = ["nrUDPSock", "nrTCPSock", "nrTCPConn", "nrUDSSock"]
             for item in items:
-                if item in self.intervalData:
-                    intval = self.intervalData[item]
-                else:
-                    intval = None
-
-                self.checkThreshold(
-                    "sock", item, "SOCK", "big", intval=intval
-                )
+                intval = _getIntval(item)
+                self.checkThreshold("sock", item, "SOCK", "big", intval=intval)
         except SystemExit:
             sys.exit(0)
         except:
