@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220430"
+__revision__ = "220501"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28514,14 +28514,17 @@ Examples:
     - {3:1} {2:2} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
+    - {3:1} {2:2} with memory(PSS)
+        # {0:1} {1:1} -e S
+
     - {3:1} {2:2} with memory(USS)
         # {0:1} {1:1} -e u
 
     - {3:1} newly executed {2:2} with memory(USS)
         # {0:1} {1:1} -I ./a.out -e u
 
-    - {3:1} {2:2} with memory(PSS)
-        # {0:1} {1:1} -e S
+    - {3:1} {2:2} with unique physical memory (RSS - Text - Shm)
+        # {0:1} {1:1} -q EXCEPTSHM
 
     - {3:1} all {2:2} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
@@ -28631,6 +28634,9 @@ Examples:
     - Draw items after concatenating specific files
         # {0:1} {1:1} guider.out -q CONCATENATE
         # {0:1} {1:1} guider.out -q CONCATENATE, ONLYTOTAL
+
+    - Draw items after concatenating specific files and converting unique physical memory (RSS - Text - Shm)
+        # {0:1} {1:1} guider.out -q CONCATENATE, EXCEPTSHM
 
     - Draw items except for specific resources after concatenating specific files
         # {0:1} {1:1} guider.out -q CONCATENATE, NOCPUSUMMARY, NOGPUSUMMARY
@@ -31973,23 +31979,26 @@ Description:
 
                     helpStr += """
 Examples:
-    - Summarize raw data files for task top mode
+    - {2:1}
         # {0:1} {1:1} output.out
         # {0:1} {1:1} report1.out report2.out
 
-    - Summarize raw data files for task top mode in reversed order
+    - {2:1} in reversed order
         # {0:1} {1:1} report1.out report2.out -q REVERSED
 
-    - Summarize raw data files for task top mode without process info
+    - {2:1} without process info
         # {0:1} {1:1} report1.out report2.out -q ONLYTOTAL
 
-    - Summarize raw data files for task top mode without detailed info
+    - {2:1} without detailed info
         # {0:1} {1:1} report1.out report2.out -q ONLYSUMMARY
 
-    - Summarize a raw data file for task top mode into guider.out
+    - {2:1} after converting unique physical memory (RSS - Text - Shm)
+        # {0:1} {1:1} -q EXCEPTSHM
+
+    - {2:1} into guider.out
         # {0:1} {1:1} output.out -o guider.out
                     """.format(
-                        cmd, mode
+                        cmd, mode, "Summarize raw data files for task top mode"
                     )
 
                 # kill / send #
@@ -38954,23 +38963,21 @@ Copyright:
         SysMgr.procBuffer = []
 
         # load raw data from the file #
-        if path:
-            try:
-                fd = open(path, "r")
-                buf = fd.read()
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(path)
-                sys.exit(-1)
-        elif SysMgr.printFd:
-            fd = open(SysMgr.printFd.name, "rb")
-            buf = fd.read().decode()
-        else:
-            SysMgr.printErr(
-                "failed to reload monitoring data because no target file"
-            )
-            return []
+        try:
+            if path:
+                buf = open(path, "r").read()
+            elif SysMgr.printFd:
+                buf = open(SysMgr.printFd.name, "rb").read().decode()
+            else:
+                SysMgr.printErr(
+                    "failed to reload monitoring data because no target file"
+                )
+                return []
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(path)
+            sys.exit(-1)
 
         # split each interval stats #
         try:
@@ -94503,7 +94510,8 @@ class TaskAnalyzer(object):
                 r"\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)"
                 r"\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|"
                 r"\s*(?P<cpu>\S+)\(.+/.+/(?P<dly>.+)\)\|\s*"
-                r"(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*"
+                r"(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/\s*"
+                r"(?P<text>.+)\/\s*(?P<shm>.+)\/\s*(?P<swap>.+)\)\|\s*"
                 r"(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/\s*"
                 r"(?P<nrflt>.+)\)\|\s*(?P<sid>.+)\|\s*(?P<user>.+)\|\s*"
                 r"(?P<fd>.+)\|\s*(?P<life>.+)\|\s*(?P<parent>.+)\|"
@@ -94512,6 +94520,14 @@ class TaskAnalyzer(object):
         )
         if not m:
             return
+
+        # check excepting for shm #
+        if "EXCEPTSHM" in SysMgr.environList and (
+            SysMgr.isDrawMode() or SysMgr.checkMode("topsum")
+        ):
+            exceptShm = True
+        else:
+            exceptShm = False
 
         d = m.groupdict()
         pid = d["pid"]
@@ -94694,6 +94710,18 @@ class TaskAnalyzer(object):
 
         # set rss #
         rss = long(d["rss"])
+        if exceptShm:
+            try:
+                rss -= long(d["text"])
+                rss -= long(d["shm"])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+            finally:
+                if rss < 0:
+                    rss = 0
+
         if TA.procTotData[pid]["minMem"] >= rss:
             TA.procTotData[pid]["minMem"] = rss
         if TA.procTotData[pid]["maxMem"] <= rss:
@@ -107201,6 +107229,16 @@ class TaskAnalyzer(object):
             mem,
         ) = _getTypes()
 
+        # check EXCEPTSHM #
+        if (
+            not (SysMgr.pssEnable or SysMgr.ussEnable)
+            and "EXCEPTSHM" in SysMgr.environList
+        ):
+            exceptShm = True
+            mem = "U" + mem
+        else:
+            exceptShm = False
+
         # check GPU memory sum #
         if "GPUMEMSUM" in SysMgr.environList:
             isGpuMemSum = True
@@ -107365,7 +107403,7 @@ class TaskAnalyzer(object):
                 # clear reference bits #
                 SysMgr.clearPageRefs(idx, val="1")
 
-            # get comm #
+            # comm #
             comm = value["comm"]
             if self.isKernelThread(idx):
                 if comm.startswith("*"):
@@ -107373,18 +107411,13 @@ class TaskAnalyzer(object):
                 else:
                     comm = "[%s]" % comm
 
-            # get parent ID #
+            # parent ID #
             if SysMgr.processEnable:
                 pid = stat[self.ppidIdx]
             else:
                 pid = value["mainID"]
 
-            # get code size #
-            codeSize = (
-                long(stat[self.ecodeIdx]) - long(stat[self.scodeIdx])
-            ) >> 20
-
-            # get sched #
+            # sched priority #
             SCHED_POLICY = ConfigMgr.SCHED_POLICY
             nrPrio = long(stat[self.prioIdx])
             if SCHED_POLICY[long(stat[self.policyIdx])] == "C":
@@ -107392,7 +107425,7 @@ class TaskAnalyzer(object):
             else:
                 schedValue = "%3d" % (abs(nrPrio + 1))
 
-            # get lifetime #
+            # lifetime #
             lifeTime = convTime(value["runtime"])
 
             # save status info to get memory status #
@@ -107435,15 +107468,7 @@ class TaskAnalyzer(object):
                 swapSize = "-"
                 value["swap"] = 0
 
-            # shared #
-            try:
-                shr = long(value["statm"][self.shrIdx]) >> 8
-            except SystemExit:
-                sys.exit(0)
-            except:
-                shr = "-"
-
-            # switch #
+            # scheduling info #
             if not SysMgr.processEnable:
                 try:
                     value["yield"] = status["voluntary_ctxt_switches"]
@@ -107471,7 +107496,7 @@ class TaskAnalyzer(object):
             except:
                 value["user"] = "-"
 
-            # save size of file descriptor table #
+            # file descriptor table length #
             try:
                 if useActualFd:
                     if self.isKernelThread(idx):
@@ -107548,7 +107573,7 @@ class TaskAnalyzer(object):
                     yld = "-"
 
             try:
-                # get blocked time of parent process waits for its children #
+                # blocking time of parent process waits for its children #
                 if SysMgr.wfcEnable:
                     dtime = long(value["cttime"])
                 # calculate delayed time in runqueue #
@@ -107573,7 +107598,7 @@ class TaskAnalyzer(object):
             except:
                 dtime = "-"
 
-            # get I/O size #
+            # I/O size #
             try:
                 readSize = value["read"] >> 20
                 if readSize > 0:
@@ -107588,7 +107613,7 @@ class TaskAnalyzer(object):
                 readSize = "-"
                 writeSize = "-"
 
-            # set last field info #
+            # last field info #
             try:
                 if SysMgr.wchanEnable:
                     etc = value["wchan"]
@@ -107612,6 +107637,7 @@ class TaskAnalyzer(object):
             except:
                 etc = "-"
 
+            # sched info #
             try:
                 schedPolicy = SCHED_POLICY[int(stat[self.policyIdx])]
                 sched = "%s%s" % (schedPolicy, schedValue)
@@ -107620,23 +107646,19 @@ class TaskAnalyzer(object):
             except:
                 sched = "?"
 
+            # convert color for priority #
             try:
-                vss = long(stat[self.vssIdx]) >> 20
+                if schedPolicy == "I":
+                    sched = convColor(sched, "WARNING", 4)
+                elif nrPrio < 20:
+                    if nrPrio >= 0:
+                        sched = convColor(sched, "YELLOW", 4)
+                    else:
+                        sched = convColor(sched, "RED", 4)
             except SystemExit:
                 sys.exit(0)
             except:
-                vss = 0
-
-            # get memory details #
-            memBuf, nrss, pss, uss = self.getMemDetails(idx, value["maps"])
-            if SysMgr.pssEnable:
-                mems = pss >> 8
-                value["pss"] = mems
-            elif SysMgr.ussEnable:
-                mems = uss >> 8
-                value["uss"] = mems
-            else:
-                mems = value["rss"]
+                pass
 
             if SysMgr.customCmd:
                 # execute command #
@@ -107654,6 +107676,7 @@ class TaskAnalyzer(object):
             if len(lifeTime.split(":")) > 3:
                 lifeTime = lifeTime[: lifeTime.rfind(":")]
 
+            # convert time format #
             if SysMgr.floatEnable:
                 ttime = "%.1f" % value["ttime"]
                 btime = "%.1f" % value["btime"]
@@ -107665,18 +107688,58 @@ class TaskAnalyzer(object):
             if value["ttime"] >= SysMgr.cpuPerLowThreshold:
                 ttime = convCpuColor(value["ttime"], ttime, size=4)
 
-            # add GPU memory #
+            # vss #
+            try:
+                vss = long(stat[self.vssIdx]) >> 20
+            except SystemExit:
+                sys.exit(0)
+            except:
+                vss = 0
+
+            # physical memory usage #
+            memBuf, nrss, pss, uss = self.getMemDetails(idx, value["maps"])
+            if SysMgr.pssEnable:
+                mems = pss >> 8
+                value["pss"] = mems
+            elif SysMgr.ussEnable:
+                mems = uss >> 8
+                value["uss"] = mems
+            else:
+                mems = value["rss"]
+
+            # add GPU memory usage to physical memory usage #
             if isGpuMemSum and idx in self.gpuMemData:
                 mems += self.gpuMemData[idx]["size"] >> 20
 
-            # convert color for RSS #
-            if mems < SysMgr.memLowThreshold:
-                memstr = mems
-            else:
-                if mems >= SysMgr.memHighThreshold:
-                    memstr = convColor(mems, "RED", 4)
-                else:
-                    memstr = convColor(mems, "YELLOW", 4)
+            # code size #
+            try:
+                codeSize = (
+                    long(stat[self.ecodeIdx]) - long(stat[self.scodeIdx])
+                ) >> 20
+
+                # except for shred text in RSS #
+                if exceptShm:
+                    mems -= codeSize
+                    if mems < 0:
+                        mems = 0
+            except SystemExit:
+                sys.exit(0)
+            except:
+                codeSize = 0
+
+            # shared #
+            try:
+                shr = long(value["statm"][self.shrIdx]) >> 8
+
+                # except for shred memory in RSS #
+                if exceptShm:
+                    mems -= shr
+                    if mems < 0:
+                        mems = 0
+            except SystemExit:
+                sys.exit(0)
+            except:
+                shr = "-"
 
             # convert color for SHM #
             try:
@@ -107690,25 +107753,20 @@ class TaskAnalyzer(object):
             except:
                 pass
 
+            # convert color for physical memory usage #
+            if mems < SysMgr.memLowThreshold:
+                memstr = mems
+            else:
+                if mems >= SysMgr.memHighThreshold:
+                    memstr = convColor(mems, "RED", 4)
+                else:
+                    memstr = convColor(mems, "YELLOW", 4)
+
             # convert color for BTIME #
             if float(btime) > 0:
                 btimestr = convColor(btime, "RED", 4)
             else:
                 btimestr = btime
-
-            # convert color for priority #
-            try:
-                if schedPolicy == "I":
-                    sched = convColor(sched, "WARNING", 4)
-                elif nrPrio < 20:
-                    if nrPrio >= 0:
-                        sched = convColor(sched, "YELLOW", 4)
-                    else:
-                        sched = convColor(sched, "RED", 4)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
 
             # print stats of a process #
             ret = SysMgr.addPrint(
@@ -108127,6 +108185,15 @@ class TaskAnalyzer(object):
         elif taskType == "die":
             taskList = set(self.prevProcData) - set(self.procData)
 
+        # check EXCEPTSHM #
+        if (
+            not (SysMgr.pssEnable or SysMgr.ussEnable)
+            and "EXCEPTSHM" in SysMgr.environList
+        ):
+            exceptShm = True
+        else:
+            exceptShm = False
+
         procCnt = 0
         for tid in sorted(list(map(long, taskList))):
             if SysMgr.checkCutCond():
@@ -108171,13 +108238,6 @@ class TaskAnalyzer(object):
                 pid = value["mainID"]
 
             try:
-                codeSize = (
-                    long(stat[self.ecodeIdx]) - long(stat[self.scodeIdx])
-                ) >> 20
-            except:
-                codeSize = 0
-
-            try:
                 schedPolicy = ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])]
                 if schedPolicy == "C":
                     schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
@@ -108203,10 +108263,6 @@ class TaskAnalyzer(object):
                 swapSize = long(value["status"]["VmSwap"].split()[0]) >> 10
             except:
                 swapSize = "-"
-            try:
-                shr = long(value["statm"][self.shrIdx]) >> 8
-            except:
-                shr = "-"
 
             if SysMgr.blockEnable:
                 try:
@@ -108257,6 +108313,30 @@ class TaskAnalyzer(object):
                 rss = long(stat[self.rssIdx]) >> 8
             except:
                 rss = 0
+
+            try:
+                shr = long(value["statm"][self.shrIdx]) >> 8
+
+                # except for shred text in RSS #
+                if exceptShm:
+                    rss -= shr
+                    if rss < 0:
+                        rss = 0
+            except:
+                shr = "-"
+
+            try:
+                codeSize = (
+                    long(stat[self.ecodeIdx]) - long(stat[self.scodeIdx])
+                ) >> 20
+
+                # except for shred text in RSS #
+                if exceptShm:
+                    rss -= codeSize
+                    if rss < 0:
+                        rss = 0
+            except:
+                codeSize = 0
 
             # print thread information #
             SysMgr.addPrint(
