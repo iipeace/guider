@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220501"
+__revision__ = "220502"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32809,12 +32809,12 @@ Options:
                     helpStr += """
 Examples:
     - {3:1} {2:1} after executing the target program with auto start
-        # {0:1} {1:1} a.out -T ./libleaktracer.so
-        # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so
-        # {0:1} {1:1} a.out -T ./libleaktracer.so -q MUTE
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so
+        # {0:1} {1:1} ./a.out -o ./guider.out -T ./libleaktracer.so
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q MUTE
 
     - {3:1} {2:1} after executing the target program with manual start
-        # {0:1} {1:1} a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
+        # {0:1} {1:1} ./a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
 
     - {3:1} {2:1} after setting environment variables
         # {0:1} {1:1} -g a.out
@@ -95237,12 +95237,12 @@ class TaskAnalyzer(object):
         # Print GPU usage #
         for gpu, stat in TA.procTotData["total"]["gpu"].items():
             try:
-                avg = stat["usage"] / len(TA.procIntData)
+                avg = stat["usage"] / float(len(TA.procIntData))
             except:
                 avg = 0
 
             # get stats #
-            stats = "%d/%d/%d/%d" % (
+            stats = "%d/%.1f/%d/%d" % (
                 stat["min"] if stat["min"] > 0 else 0,
                 avg,
                 stat["max"],
@@ -102541,8 +102541,7 @@ class TaskAnalyzer(object):
         fpath = "%s/%s" % (path, "smaps")
         ptable = {"ANON": {}, "FILE": {}, "STACK": {}, "ETC": {}, "SHM": {}}
 
-        checkCnt = 0
-        checklist = [
+        checklist = (
             "Size:",
             "Rss:",
             "Pss:",
@@ -102553,7 +102552,7 @@ class TaskAnalyzer(object):
             "AnonHugePages:",
             "Swap:",
             "Locked:",
-        ]
+        )
 
         # share the map table for main thread #
         try:
@@ -102596,13 +102595,14 @@ class TaskAnalyzer(object):
 
             # memory map info #
             if not line[0].isupper():
-                checkCnt = 0
+                perm = tmplist[1]
 
-                d["range"] = tmplist[0]
-                d["perm"] = tmplist[1]
-                d["offset"] = tmplist[2]
-                d["devid"] = tmplist[3]
-                d["inode"] = tmplist[4]
+                """
+                range = tmplist[0]
+                offset = tmplist[2]
+                devid = tmplist[3]
+                inode = tmplist[4]
+                """
 
                 if len(tmplist) > 5:
                     ptype = tmplist[5]
@@ -102610,7 +102610,7 @@ class TaskAnalyzer(object):
                     ptype = ""
 
                 # shared memory #
-                if d["perm"][3] == "s":
+                if perm[3] == "s":
                     mtype = "SHM"
                     stable[ptype] = 0
                 # file-mapped memory #
@@ -102631,7 +102631,7 @@ class TaskAnalyzer(object):
                     mtype = "ETC"
 
                 # check inaccessible area #
-                isInaccessable = d["perm"].startswith("---")
+                isInaccessable = perm.startswith("---")
 
                 try:
                     ptable[mtype]["count"] += 1
@@ -102639,24 +102639,29 @@ class TaskAnalyzer(object):
                     ptable[mtype]["count"] = 1
             # memory detail info #
             else:
+                # skip 0 size attributes #
+                if tmplist[-2] == '0':
+                    continue
+
                 prop = tmplist[0]
                 val = tmplist[1]
 
+                # skip useless attributes #
+                if not prop in checklist:
+                    continue
+
                 try:
-                    if checklist[checkCnt] == prop:
-                        checkCnt += 1
+                    val = long(val)
+                    try:
+                        ptable[mtype][prop] += val
+                    except:
+                        ptable[mtype][prop] = val
 
-                        val = long(val)
+                    if isInaccessable:
                         try:
-                            ptable[mtype][prop] += val
+                            ptable[mtype]["NOPM"] += val
                         except:
-                            ptable[mtype][prop] = val
-
-                        if isInaccessable:
-                            try:
-                                ptable[mtype]["NOPM"] += val
-                            except:
-                                ptable[mtype]["NOPM"] = val
+                            ptable[mtype]["NOPM"] = val
                 except SystemExit:
                     sys.exit(0)
                 except:
