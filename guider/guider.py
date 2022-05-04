@@ -27064,7 +27064,7 @@ Commands:
                 stat = fd.read()
 
             # convert string to list #
-            statList = stat.split(")")[1].split()
+            statList = stat.split(") ", 1)[1].split()
 
             if statList[0] == "Z":
                 return False
@@ -31477,6 +31477,8 @@ Options:
         # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE"
         # {0:1} {1:1} -g a.out -c "usercall:printf#12345"
         # {0:1} {1:1} -g a.out -c "usercall:getenv#PATH"
+        # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0" -q PRINTDIFF
+        # {0:1} {1:1} -g a.out -c "usercall:malloc#1024, usercall:memset#@malloc#0#1024" -q PRINTDIFF
 
     - {2:1} call the specific syscall
         # {0:1} {1:1} -g a.out -c "syscall:getpid"
@@ -61894,33 +61896,34 @@ class Debugger(object):
     pyElapsed = -1
     strSize = -1
     envFlags = {
-        "TRACEBP": False,
-        "EXCEPTWAIT": False,
-        "ONLYSYM": False,
-        "EXCEPTLD": False,
-        "NOMUTE": False,
-        "NOSTRIP": False,
-        "SYNCTASK": False,
-        "PRINTARG": False,
+        "COMPLETECALL": False,
+        "CONTALONE": False,
         "CONVARG": False,
+        "EXCEPTLD": False,
+        "EXCEPTWAIT": False,
+        "HIDESYM": False,
+        "INCNATIVE": False,
+        "INCOVERHEAD": False,
+        "INTERCALL": False,
         "NOARG": False,
         "NOFILE": False,
-        "CONTALONE": False,
-        "INCNATIVE": False,
-        "PYSTACK": False,
-        "ONLYOK": False,
-        "ONLYFAIL": False,
-        "WAITCLONE": False,
-        "COMPLETECALL": False,
-        "TIMELINE": False,
-        "NOSAMPLECACHE": False,
+        "NOMUTE": False,
         "NORETBT": False,
-        "INTERCALL": False,
-        "STDEV": False,
-        "PRINTHIST": False,
-        "HIDESYM": False,
+        "NOSAMPLECACHE": False,
+        "NOSTRIP": False,
+        "ONLYFAIL": False,
+        "ONLYOK": False,
+        "ONLYSYM": False,
+        "PRINTARG": False,
+        "PRINTDIFF": False,
         "PRINTDELAY": False,
-        "INCOVERHEAD": False,
+        "PRINTHIST": False,
+        "PYSTACK": False,
+        "STDEV": False,
+        "SYNCTASK": False,
+        "TIMELINE": False,
+        "TRACEBP": False,
+        "WAITCLONE": False,
     }
 
     def getSigStruct(self):
@@ -65740,6 +65743,12 @@ typedef struct {
         # apply register set #
         self.setRegs()
 
+        # get previous stats #
+        if Debugger.envFlags["PRINTDIFF"]:
+            prevCpu = self.getTotalCpuTick()
+            prevMem = SysMgr.getMemStat(self.pid)
+            prevTime = time.time()
+
         # call function #
         self.cont(check=True)
         if not wait:
@@ -65757,6 +65766,22 @@ typedef struct {
                 continue
 
             break
+
+        # get next stats and print diff of stats #
+        if Debugger.envFlags["PRINTDIFF"]:
+            diff = time.time() - prevTime
+            afterCpu = self.getTotalCpuTick()
+            cpu = (afterCpu[0] - prevCpu[0]) / 100.0
+            prevMem = SysMgr.convMemStat(prevMem)
+            afterMem = SysMgr.getMemStat(self.pid)
+            afterMem = SysMgr.convMemStat(afterMem)
+            vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
+            rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
+            SysMgr.printWarn(
+                "Elapsed: %.6f Sec, CPU: %.3f Sec, VSS: %s, RSS: %s"
+                % (diff, cpu, vss, rss),
+                True,
+            )
 
         # read regs to check results #
         if not self.updateRegs():
@@ -67516,7 +67541,7 @@ typedef struct {
         ttimeStr = UtilMgr.convCpuColor(ttime, "%d%%" % ttime)
         cpuStr = "%s(U%d%%+S%d%%)" % (ttimeStr, utime, stime)
 
-        # get Memory usage for target #
+        # get memory usage for target #
         rssStr = self.getMemUsage()
 
         # get CPU usage for system #
@@ -72253,7 +72278,7 @@ typedef struct {
             if status:
                 return stat.split(") ", 1)[1][0]
             else:
-                return stat.split(")")[1].split()
+                return stat.split(") ", 1)[1].split()
         except SystemExit:
             sys.exit(0)
         except:
@@ -72300,7 +72325,7 @@ typedef struct {
             return "0"
 
         # convert string to list #
-        statList = stat.split(")")[1].split()
+        statList = stat.split(") ", 1)[1].split()
 
         # get RSS size #
         try:
@@ -72319,6 +72344,24 @@ typedef struct {
             return byteSize
         else:
             return UtilMgr.convSize2Unit(byteSize, True)
+
+    def getTotalCpuTick(self):
+        # get task CPU usage #
+        stat = self.getStatList(retstr=True)
+        if not stat:
+            SysMgr.printWarn(
+                "failed to get CPU usage for %s(%s)" % (self.comm, self.pid)
+            )
+            return [0, 0, 0]
+
+        statList = stat.split(") ", 1)[1].split()
+
+        # get total CPU time #
+        utime = long(statList[self.utimeIdx - 2])
+        stime = long(statList[self.stimeIdx - 2])
+        ttime = utime + stime
+
+        return [ttime, utime, stime]
 
     def getCpuUsage(self, system=False):
         # get system CPU usage #
@@ -72350,7 +72393,7 @@ typedef struct {
         self.prevStat = stat
 
         # convert string to list #
-        statList = stat.split(")")[1].split()
+        statList = stat.split(") ", 1)[1].split()
         if not statList:
             return [0, 0, 0, ctime]
 
