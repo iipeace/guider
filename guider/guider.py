@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220502"
+__revision__ = "220504"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28746,6 +28746,8 @@ Examples:
 
     - Draw items with y range 1-100
         # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
+        # {0:1} {1:1} guider.out worstcase.out -q YRANGE:10:
+        # {0:1} {1:1} guider.out worstcase.out -q YRANGE::100
 
     - Draw items with specific font size
         # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
@@ -48414,7 +48416,9 @@ Copyright:
                 vss = conv(long(procData[vssIdx]), unit="M")
                 rss = long(procData[rssIdx]) << 12
                 rssUnit = conv(rss, unit="M")
-                tobj.saveProcSmapsData(tobj.procData[pid]["taskPath"], pid)
+                tobj.saveProcSmapsData(
+                    tobj.procData[pid]["taskPath"], pid, mini=True
+                )
                 memBuf, nrss, pss, uss = tobj.getMemDetails(
                     pid, tobj.procData[pid]["maps"]
                 )
@@ -51302,7 +51306,7 @@ Copyright:
             procs = obj.procData
             prevProcs = obj.prevProcData
             if SysMgr.isRoot():
-                obj.saveProcSmapsData(procPath, pid)
+                obj.saveProcSmapsData(procPath, pid, mini=True)
                 ret = obj.getMemDetails(pid, procs[pid]["maps"])
                 statstr = "RSS: %s, PSS: %s, USS: %s" % (
                     conv(ret[1] << 10),
@@ -85473,25 +85477,34 @@ class TaskAnalyzer(object):
     def drawYticks(ax, ymax, fontsize=5, adjust=True):
         # pylint: disable=undefined-variable
         if "YRANGE" in SysMgr.environList:
-            yrange = SysMgr.environList["YRANGE"][0].split(":")
-            yminval, ymaxval = UtilMgr.cleanItem(yrange, False)
+            yminval, ymaxval = SysMgr.environList["YRANGE"][0].split(":")
 
             # set ymin #
-            if yminval:
-                ax.set_ylim(bottom=long(yminval))
-                ymin = long(yminval)
-            else:
-                ymin = long(min(ax.get_yticks().tolist()))
-                if ymin < 0:
-                    ymin = 0
-                    ax.set_ylim(bottom=0)
+            try:
+                yminval = long(yminval)
+            except:
+                yminval = 0
+            finally:
+                if yminval:
+                    ax.set_ylim(bottom=long(yminval))
+                    ymin = long(yminval)
+                else:
+                    ymin = long(min(ax.get_yticks().tolist()))
+                    if ymin < 0:
+                        ymin = 0
+                        ax.set_ylim(bottom=0)
 
             # set ymax #
-            if ymaxval:
-                ax.set_ylim(top=long(ymaxval))
-                ymax = long(ymaxval)
-            else:
-                ymax = long(min(ax.get_yticks().tolist()))
+            try:
+                ymaxval = long(ymaxval)
+            except:
+                ymaxval = 0
+            finally:
+                if ymaxval:
+                    ax.set_ylim(top=long(ymaxval))
+                    ymax = long(ymaxval)
+                else:
+                    ymax = long(min(ax.get_yticks().tolist()))
 
             # adjust ticks #
             if adjust:
@@ -88119,7 +88132,6 @@ class TaskAnalyzer(object):
 
                 # Process RSS #
                 elif SysMgr.rssEnable or SysMgr.pssEnable or SysMgr.ussEnable:
-
                     # get max rss condition #
                     maxRssCond = UtilMgr.getEnvironNum(
                         "MAXRSSCOND", False, 0, False, True
@@ -96723,9 +96735,8 @@ class TaskAnalyzer(object):
                 break
 
             # get memory details #
-            if not value["maps"]:
-                TaskAnalyzer.saveProcSmapsData(value["taskPath"], key)
-
+            value["maps"] = None
+            TaskAnalyzer.saveProcSmapsData(value["taskPath"], key)
             if not value["maps"]:
                 continue
 
@@ -102526,7 +102537,7 @@ class TaskAnalyzer(object):
         return procTree
 
     @staticmethod
-    def saveProcSmapsData(path, tid):
+    def saveProcSmapsData(path, tid, mini=False):
         # check root permission #
         if not SysMgr.isRoot():
             return
@@ -102541,26 +102552,35 @@ class TaskAnalyzer(object):
         fpath = "%s/%s" % (path, "smaps")
         ptable = {"ANON": {}, "FILE": {}, "STACK": {}, "ETC": {}, "SHM": {}}
 
-        checklist = (
-            "Size:",
-            "Rss:",
-            "Pss:",
-            "Shared_Clean:",
-            "Shared_Dirty:",
-            "Private_Dirty:",
-            "Referenced:",
-            "AnonHugePages:",
-            "Swap:",
-            "Locked:",
-        )
+        if mini:
+            checklist = (
+                "Size:",
+                "Rss:",
+                "Pss:",
+                "Shared_Clean:",
+                "Shared_Dirty:",
+            )
+        else:
+            checklist = (
+                "Size:",
+                "Rss:",
+                "Pss:",
+                "Shared_Clean:",
+                "Shared_Dirty:",
+                "Private_Dirty:",
+                "Referenced:",
+                "AnonHugePages:",
+                "Swap:",
+                "Locked:",
+            )
+
+        procData = SysMgr.procInstance
 
         # share the map table for main thread #
         try:
-            ppid = SysMgr.procInstance[tid]["mainID"]
-            if SysMgr.procInstance[ppid]["maps"]:
-                SysMgr.procInstance[tid]["maps"] = SysMgr.procInstance[ppid][
-                    "maps"
-                ]
+            ppid = procData[tid]["mainID"]
+            if procData[ppid]["maps"]:
+                procData[tid]["maps"] = procData[ppid]["maps"]
                 return
         except SystemExit:
             sys.exit(0)
@@ -102568,7 +102588,7 @@ class TaskAnalyzer(object):
             pass
 
         try:
-            SysMgr.procInstance[tid]["maps"] = ptable
+            procData[tid]["maps"] = ptable
         except SystemExit:
             sys.exit(0)
         except:
@@ -102581,11 +102601,11 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.procInstance[tid]["maps"] = None
+            procData[tid]["maps"] = None
             SysMgr.printOpenWarn(fpath)
             return
 
-        # check kernel thread #
+        # check buf #
         if not buf:
             return
 
@@ -102640,18 +102660,16 @@ class TaskAnalyzer(object):
             # memory detail info #
             else:
                 # skip 0 size attributes #
-                if tmplist[-2] == '0':
+                if tmplist[-2] == "0":
                     continue
 
-                prop = tmplist[0]
-                val = tmplist[1]
-
                 # skip useless attributes #
+                prop = tmplist[0]
                 if not prop in checklist:
                     continue
 
                 try:
-                    val = long(val)
+                    val = long(tmplist[1])
                     try:
                         ptable[mtype][prop] += val
                     except:
@@ -102673,10 +102691,8 @@ class TaskAnalyzer(object):
 
         # share the map table for main thread #
         try:
-            ppid = SysMgr.procInstance[tid]["mainID"]
-            SysMgr.procInstance[ppid]["maps"] = SysMgr.procInstance[tid][
-                "maps"
-            ]
+            ppid = procData[tid]["mainID"]
+            procData[ppid]["maps"] = procData[tid]["maps"]
         except:
             pass
 
@@ -105222,7 +105238,7 @@ class TaskAnalyzer(object):
             if not SysMgr.totalEnable and value["btime"] >= 100:
                 value["btime"] = 0
 
-    def getMemDetails(self, idx, maps):
+    def getMemDetails(self, idx, maps, vss=0):
         rss = 0
         sss = 0
         pss = 0
@@ -105246,62 +105262,68 @@ class TaskAnalyzer(object):
 
             try:
                 prop = "Size:"
+                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     "VSS:",
-                    convSize(item[prop] << 10),
+                    convSize(val << 10),
                 )
             except:
-                tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
+                tmpstr = "%s%s%7s / " % (tmpstr, "VSS:", 0)
 
             try:
                 prop = "Rss:"
+                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     prop.upper(),
-                    convSize(item[prop] << 10),
+                    convSize(val << 10),
                 )
-                rss += item[prop]
+                rss += val
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = "Pss:"
+                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     prop.upper(),
-                    convSize(item[prop] << 10),
+                    convSize(val << 10),
                 )
-                pss += item[prop]
+                pss += val
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = "Swap:"
+                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     prop.upper(),
-                    convSize(item[prop] << 10),
+                    convSize(val << 10),
                 )
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = "AnonHugePages:"
+                val = item[prop]
                 tmpstr = "%s%s:%5s / " % (
                     tmpstr,
                     "HUGE",
-                    convSize(item[prop] << 10, True),
+                    convSize(val << 10, True),
                 )
             except:
                 tmpstr = "%s%s:%5s / " % (tmpstr, "HUGE", 0)
 
             try:
                 prop = "Locked:"
+                val = item[prop]
                 tmpstr = "%s%s%6s / " % (
                     tmpstr,
                     "LOCK:",
-                    convSize(item[prop] << 10, True),
+                    convSize(val << 10, True),
                 )
             except:
                 tmpstr = "%s%s%6s / " % (tmpstr, "LOCK:", 0)
@@ -105314,21 +105336,23 @@ class TaskAnalyzer(object):
 
             try:
                 prop = "Shared_Dirty:"
-                sss += item[prop]
+                val = item[prop]
+                sss += val
                 tmpstr = "%s%s:%7s / " % (
                     tmpstr,
                     "SDRT",
-                    convSize(item[prop] << 10),
+                    convSize(val << 10),
                 )
             except:
                 tmpstr = "%s%s:%7s / " % (tmpstr, "SDRT", 0)
 
             try:
                 prop = "Private_Dirty:"
+                val = item[prop]
                 tmpstr = "%s%s:%7s" % (
                     tmpstr,
                     "PDRT",
-                    convSize(item[prop] << 10),
+                    convSize(val << 10),
                 )
             except:
                 tmpstr = "%s%s:%7s" % (tmpstr, "PDRT", 0)
@@ -105371,9 +105395,8 @@ class TaskAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    self.procData[idx]["wss"][
-                        key
-                    ] = "[%s]" % UtilMgr.convColor(wss, "RED", 7)
+                    initVal = "[%s]" % UtilMgr.convColor(wss, "RED", 7)
+                    self.procData[idx]["wss"][key] = initVal
 
         # update pss #
         pss = pss >> 2
@@ -105383,7 +105406,12 @@ class TaskAnalyzer(object):
 
         # update history for wss #
         if SysMgr.wssEnable:
-            unitItems = (("RSS", rss), ("PSS", pss), ("USS", uss))
+            unitItems = (
+                ("VSS", vss),
+                ("RSS", rss),
+                ("PSS", pss),
+                ("USS", uss),
+            )
             for item in unitItems:
                 name = item[0]
                 unit = UtilMgr.convSize2Unit(item[1] << 10)
@@ -105394,9 +105422,8 @@ class TaskAnalyzer(object):
                         unit,
                     )
                 else:
-                    self.procData[idx]["wss"][
-                        name
-                    ] = "[%s]" % UtilMgr.convColor(unit, "RED", 7)
+                    initVal = "[%s]" % UtilMgr.convColor(unit, "RED", 7)
+                    self.procData[idx]["wss"][name] = initVal
 
         if not SysMgr.memEnable:
             memBuf = []
@@ -105637,7 +105664,7 @@ class TaskAnalyzer(object):
 
         # check last line #
         if curline != data:
-            databuf += "%s ]" % curline.rstrip(", \n")
+            databuf += "%s]" % curline.rstrip(", \n")
         databuf = databuf.rstrip(", \n")
 
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
@@ -107458,7 +107485,9 @@ class TaskAnalyzer(object):
 
             # save memory map info to get memory details #
             if SysMgr.memEnable or SysMgr.pssEnable or SysMgr.ussEnable:
-                TaskAnalyzer.saveProcSmapsData(value["taskPath"], idx)
+                TaskAnalyzer.saveProcSmapsData(
+                    value["taskPath"], idx, mini=True
+                )
 
             # swap #
             try:
@@ -107702,7 +107731,9 @@ class TaskAnalyzer(object):
                 vss = 0
 
             # physical memory usage #
-            memBuf, nrss, pss, uss = self.getMemDetails(idx, value["maps"])
+            memBuf, nrss, pss, uss = self.getMemDetails(
+                idx, value["maps"], vss=vss << 10
+            )
             if SysMgr.pssEnable:
                 mems = pss >> 8
                 value["pss"] = mems
@@ -107897,6 +107928,7 @@ class TaskAnalyzer(object):
                 memBuf.insert(0, ["USS", ""])
                 memBuf.insert(0, ["PSS", ""])
                 memBuf.insert(0, ["RSS", ""])
+                memBuf.insert(0, ["VSS", ""])
 
             # print memory details #
             for memData in memBuf:
@@ -107934,7 +107966,7 @@ class TaskAnalyzer(object):
                             isFirstLined = False
 
                         pstr = pstr[slimit:]
-                elif len(pstr) > limit:
+                elif len(UtilMgr.removeColor(pstr)) > limit:
                     sizes = pstr.split("->")
                     sizes.pop(1)
                     pstr = "->".join(sizes)
