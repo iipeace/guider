@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220504"
+__revision__ = "220505"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13642,42 +13642,84 @@ class PageAnalyzer(object):
                 )
             )
 
+            totalPresent = 0
+            totalSwapped = 0
+            totalSoftdirty = 0
+            totalExmapped = 0
+            totalFile = 0
+            totalRef = 0
+
             for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
                 entry = PageAnalyzer.getPagemapEntry(pid, addr)
 
                 pfn = PageAnalyzer.getPfn(entry)
 
                 isPresent = PageAnalyzer.isPresent(entry)
+                if isPresent:
+                    totalPresent += 1
 
                 isSwapped = PageAnalyzer.isSwapped(entry)
+                if isSwapped:
+                    totalSwapped += 1
 
                 isSoftdirty = PageAnalyzer.isSoftdirty(entry)
+                if isSoftdirty:
+                    totalSoftdirty += 1
 
                 isExmapped = PageAnalyzer.isExmapped(entry)
+                if isExmapped:
+                    totalExmapped += 1
 
                 isFile = PageAnalyzer.isFilePage(entry)
+                if isFile:
+                    totalFile += 1
+
+                isRef = PageAnalyzer.getPagecount(pfn)
+                if isRef:
+                    totalRef += 1
 
                 bflags = hex(PageAnalyzer.getPageFlags(pfn)).rstrip("L")
 
                 sflags = PageAnalyzer.getFlagTypes(bflags)
 
-                SysMgr.printPipe(
+                SysMgr.addPrint(
                     (
                         "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
-                        "{6:^8}|{7:^7}| {8}({9} )"
+                        "{6:^8}|{7:^7}| {8}({9} )\n"
                     ).format(
                         hex(addr).rstrip("L"),
                         hex(pfn).rstrip("L"),
                         isPresent,
                         isSwapped,
                         isFile,
-                        PageAnalyzer.getPagecount(pfn),
+                        isRef,
                         isSoftdirty,
                         isExmapped,
                         bflags,
                         sflags,
-                    )
+                    ),
+                    force=True,
                 )
+
+            # print total stats #
+            SysMgr.printPipe(
+                (
+                    "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
+                    "{6:^8}|{7:^7}|\n{8:1}"
+                ).format(
+                    "[TOTAL]",
+                    "",
+                    totalPresent,
+                    totalSwapped,
+                    totalFile,
+                    totalRef,
+                    totalSoftdirty,
+                    totalExmapped,
+                    oneLine,
+                )
+            )
+
+            SysMgr.doPrint(clear=True)
 
             SysMgr.printPipe("%s\n" % oneLine)
 
@@ -31015,8 +31057,11 @@ Examples:
 
     - {2:1} heap to the sepcific file
         # {0:1} {1:1} -g a.out -I heap -o dump.out
+
+    - {2:1} heap's bitmap to the sepcific file
+        # {0:1} {1:1} -g a.out -I heap -o dump.out -q RESBITMAP
                     """.format(
-                        cmd, mode, "Dump target"
+                        cmd, mode, "Dump the target"
                     )
 
                 # strace #
@@ -34520,6 +34565,12 @@ Copyright:
                     args[3],
                     args[4],
                     args[5],
+                )
+
+            # print error code #
+            if SysMgr.warnEnable and ret < 0:
+                SysMgr.printWarn(
+                    "%s for %s() syscall" % (SysMgr.getErrReason(), syscall)
                 )
 
             return ret
@@ -74610,6 +74661,7 @@ typedef struct {
             return 0
         size = end - start
 
+        # print status #
         if verb:
             SysMgr.printInfo(
                 "start dumping memory %s-%s [%s] for %s(%s)"
@@ -74632,6 +74684,39 @@ typedef struct {
         except:
             SysMgr.printOpenErr(output)
             return 0
+
+        # handle RESBITMAP variable #
+        if "RESBITMAP" in SysMgr.environList:
+            # get page aligned size #
+            pageSize = SysMgr.PAGESIZE
+            tsize = long((size + pageSize - 1) / pageSize)
+            rsize = tsize * pageSize
+
+            table = [0] * tsize
+
+            # check present bit for each page #
+            for idx in range(tsize):
+                entry = PageAnalyzer.getPagemapEntry(
+                    self.pid, start + (idx * pageSize)
+                )
+                res = PageAnalyzer.isPresent(entry)
+                if res:
+                    table[idx] = 1
+
+            # write memory to file #
+            table = bytes(table)
+            fd.write(table)
+
+            # close output file for sync #
+            if verb:
+                SysMgr.printStat(
+                    "start writing bitmap data [%s] to %s"
+                    % (UtilMgr.convSize2Unit(sys.getsizeof(table)), output)
+                )
+
+            fd.close()
+
+            return size
 
         # define buffer and chunk size #
         offset = start
