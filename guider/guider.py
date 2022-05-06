@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220505"
+__revision__ = "220506"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6048,16 +6048,6 @@ class UtilMgr(object):
         return False
 
     @staticmethod
-    def drawGraph(inFile, outFile=None):
-        instance = TaskAnalyzer(onlyInstance=True)
-        instance.drawStats(inFile, outFile=outFile, onlyGraph=True)
-
-    @staticmethod
-    def drawChart(inFile, outFile=None):
-        instance = TaskAnalyzer(onlyInstance=True)
-        instance.drawStats(inFile, outFile=outFile, onlyChart=True)
-
-    @staticmethod
     def convWord2Str(word):
         try:
             return struct.pack("L", word)
@@ -6714,11 +6704,11 @@ class UtilMgr(object):
             return path
 
     @staticmethod
-    def convStr2Num(string, verb=True):
+    def convStr2Num(string, verb=True, onlyHex=False):
         try:
             if isinstance(string, (int, long)):
                 return string
-            elif string.isdigit():
+            elif not onlyHex and string.isdigit():
                 string = long(string)
             else:
                 string = long(string, 16)
@@ -28141,6 +28131,7 @@ Commands:
                 "convert": ("Text", "Linux/MacOS/Windows"),
                 "draw": ("System", "Linux/MacOS/Windows"),
                 "drawavg": ("Average", "Linux/MacOS/Windows"),
+                "drawbitmap": ("Bitmap", "Linux/MacOS/Windows"),
                 "drawcpu": ("CPU", "Linux/MacOS/Windows"),
                 "drawcpuavg": ("CPU", "Linux/MacOS/Windows"),
                 "drawdelay": ("Delay", "Linux/MacOS/Windows"),
@@ -31799,6 +31790,20 @@ Usage:
 
 Description:
     Draw CPU delay graphs
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # bitmap draw #
+                elif SysMgr.checkMode("drawbitmap"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw bitmap
                         """.format(
                         cmd, mode
                     )
@@ -41150,6 +41155,8 @@ Copyright:
         elif SysMgr.checkMode("drawdelay", True):
             return True
         elif SysMgr.checkMode("drawflame", True):
+            return True
+        elif SysMgr.checkMode("drawbitmap", True):
             return True
         elif SysMgr.checkMode("drawmem", True):
             return True
@@ -74653,10 +74660,10 @@ typedef struct {
                 return 0
 
         # convert range #
-        start = UtilMgr.convStr2Num(ret[0])
+        start = UtilMgr.convStr2Num(ret[0], onlyHex=True)
         if not start:
             return 0
-        end = UtilMgr.convStr2Num(ret[1])
+        end = UtilMgr.convStr2Num(ret[1], onlyHex=True)
         if not end:
             return 0
         size = end - start
@@ -74692,6 +74699,7 @@ typedef struct {
             tsize = long((size + pageSize - 1) / pageSize)
             rsize = tsize * pageSize
 
+            # init bitmap #
             table = [0] * tsize
 
             # check present bit for each page #
@@ -74704,8 +74712,8 @@ typedef struct {
                     table[idx] = 1
 
             # write memory to file #
-            table = bytes(table)
-            fd.write(table)
+            btable = bytes(table)
+            fd.write(btable)
 
             # close output file for sync #
             if verb:
@@ -83688,6 +83696,8 @@ class TaskAnalyzer(object):
                     # FLAME GRAPH MODE #
                     if SysMgr.checkMode("drawflame", True):
                         drawFunc = Debugger.drawFlame
+                    elif SysMgr.checkMode("drawbitmap", True):
+                        drawFunc = TaskAnalyzer.drawBitmap
                     # OTHER DRAW MODE #
                     else:
                         drawFunc = self.drawStats
@@ -85572,6 +85582,72 @@ class TaskAnalyzer(object):
                 avgList.setdefault(sname, value)
 
         return avgList
+
+    @staticmethod
+    def drawBitmap(inputFile):
+        # pylint: disable=undefined-variable
+
+        # check file #
+        if type(inputFile) is list:
+            if len(inputFile) > 1:
+                SysMgr.printErr("no support multiple files")
+                sys.exit(0)
+            inputFile = inputFile[0]
+
+        # load bitmap from file #
+        try:
+            table = list(open(inputFile, "rb").read())
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to read bitmap from '%s'" % inputFile, True
+            )
+            sys.exit(0)
+
+        # initialize environment for drawing #
+        TaskAnalyzer.initDrawEnv()
+
+        # set frame #
+        _, ax = subplots()
+
+        # set title #
+        suptitle("Guider Bitmap", fontsize=8)
+
+        # set size of table #
+        num = long(len(table) ** (1 / 2))
+
+        # convert 0 values #
+        table = [-1 if not val else val for val in table]
+
+        # create a new bitmap #
+        bitmap = []
+        prevPos = 0
+        for pos in range(num, len(table), num):
+            bitmap.append(table[prevPos:pos])
+            prevPos = pos
+
+        # attach remaining bits #
+        if prevPos < len(table) - 1:
+            last = table[prevPos : len(table)]
+            last += [0] * (num - len(last))
+            bitmap.append(last)
+
+        # draw bitmap #
+        ax.imshow(bitmap, cmap="binary", aspect="auto")
+
+        # set font size #
+        if "FONTSIZE" in SysMgr.environList:
+            fontsize = UtilMgr.getEnvironNum("FONTSIZE", isInt=True)
+        else:
+            fontsize = 3
+
+        # set font size #
+        xticks(fontsize=fontsize)
+        yticks(fontsize=fontsize)
+
+        # save map to file #
+        TaskAnalyzer.saveImage(inputFile, "bitmap")
 
     @staticmethod
     def drawFigure():
