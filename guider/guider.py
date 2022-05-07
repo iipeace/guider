@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220506"
+__revision__ = "220507"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13553,9 +13553,15 @@ class PageAnalyzer(object):
 
             SysMgr.checkRootPerm()
 
-            vrange = vaddr.split("-")
-            rangeCnt = len(vrange)
+            # get address range #
+            if vaddr == "heap" or vaddr == "stack":
+                vaddr = "[%s]" % vaddr
 
+                vrange = FileAnalyzer.getMapAddr(pid, vaddr)
+            else:
+                vrange = vaddr.split("-")
+
+            rangeCnt = len(vrange)
             if rangeCnt > 2:
                 SysMgr.printErr(
                     "failed to recognize address, "
@@ -13568,7 +13574,10 @@ class PageAnalyzer(object):
                         addrs = long(vrange[0], base=16)
                         addre = addrs
                     else:
-                        addrs = long(vrange[0])
+                        try:
+                            addrs = long(vrange[0])
+                        except:
+                            addrs = long(vrange[0], base=16)
                         addre = addrs
                 except SystemExit:
                     sys.exit(0)
@@ -13584,7 +13593,10 @@ class PageAnalyzer(object):
                         if vrange[1].startswith("0x"):
                             addre = long(vrange[1], base=16)
                         else:
-                            addre = long(vrange[1])
+                            try:
+                                addre = long(vrange[1])
+                            except:
+                                addre = long(vrange[1], base=16)
 
                         offset = 0
                     else:
@@ -13615,7 +13627,7 @@ class PageAnalyzer(object):
 
             SysMgr.printPipe(
                 (
-                    "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
+                    "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^6}|"
                     "{6:^8}|{7:^7}| {8}({9})\n{10}"
                 ).format(
                     "VADDR",
@@ -13674,11 +13686,11 @@ class PageAnalyzer(object):
 
                 SysMgr.addPrint(
                     (
-                        "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
-                        "{6:^8}|{7:^7}| {8}({9} )\n"
+                        "{0:>17} |{1:>15} |{2:>8} |{3:>5} |{4:>5} |"
+                        "{5:>5} |{6:>7} |{7:>6} | {8}({9} )\n"
                     ).format(
                         hex(addr).rstrip("L"),
-                        hex(pfn).rstrip("L"),
+                        hex(pfn).rstrip("L") if pfn else "",
                         isPresent,
                         isSwapped,
                         isFile,
@@ -13694,8 +13706,8 @@ class PageAnalyzer(object):
             # print total stats #
             SysMgr.printPipe(
                 (
-                    "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
-                    "{6:^8}|{7:^7}|\n{8:1}"
+                    "{0:>17} |{1:>15} |{2:>8} |{3:>5} |{4:>5} |"
+                    "{5:>5} |{6:>7} |{7:>6} |\n{8:1}"
                 ).format(
                     "[TOTAL]",
                     "",
@@ -85620,6 +85632,22 @@ class TaskAnalyzer(object):
         # convert 0 values #
         table = [-1 if not val else val for val in table]
 
+        # get stats and build info string #
+        nrTotal = len(table)
+        nrExist = table.count(1)
+        nrEmpty = table.count(-1)
+        convNum = UtilMgr.convNum
+        info = (
+            "- Unit: PAGE(4,096)\n"
+            "- Total: %s\n"
+            "- Exist: %s\n"
+            "- Empty: %s\n"
+        ) % (
+            convNum(nrTotal * SysMgr.PAGESIZE),
+            convNum(nrExist * SysMgr.PAGESIZE),
+            convNum(nrEmpty * SysMgr.PAGESIZE),
+        )
+
         # create a new bitmap #
         bitmap = []
         prevPos = 0
@@ -85633,6 +85661,9 @@ class TaskAnalyzer(object):
             last += [0] * (num - len(last))
             bitmap.append(last)
 
+        # draw base #
+        figObj = TaskAnalyzer.drawFigure()
+
         # draw bitmap #
         ax.imshow(bitmap, cmap="binary", aspect="auto")
 
@@ -85645,6 +85676,9 @@ class TaskAnalyzer(object):
         # set font size #
         xticks(fontsize=fontsize)
         yticks(fontsize=fontsize)
+
+        # draw bitmap info #
+        figObj.text(0, 1, info, va="top", ha="left", size=3)
 
         # save map to file #
         TaskAnalyzer.saveImage(inputFile, "bitmap")
