@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220507"
+__revision__ = "220508"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -85596,7 +85596,7 @@ class TaskAnalyzer(object):
         return avgList
 
     @staticmethod
-    def drawBitmap(inputFile):
+    def drawBitmap(inputFile, unit=4096):
         # pylint: disable=undefined-variable
 
         # check file #
@@ -85630,22 +85630,23 @@ class TaskAnalyzer(object):
         num = long(len(table) ** (1 / 2))
 
         # convert 0 values #
-        table = [-1 if not val else val for val in table]
+        table = [3 if not val else val for val in table]
 
         # get stats and build info string #
         nrTotal = len(table)
         nrExist = table.count(1)
-        nrEmpty = table.count(-1)
+        nrEmpty = table.count(3)
         convNum = UtilMgr.convNum
         info = (
-            "- Unit: PAGE(4,096)\n"
+            "- Unit: %s\n"
             "- Total: %s\n"
             "- Exist: %s\n"
             "- Empty: %s\n"
         ) % (
-            convNum(nrTotal * SysMgr.PAGESIZE),
-            convNum(nrExist * SysMgr.PAGESIZE),
-            convNum(nrEmpty * SysMgr.PAGESIZE),
+            convNum(unit),
+            convNum(nrTotal * unit),
+            convNum(nrExist * unit),
+            convNum(nrEmpty * unit),
         )
 
         # create a new bitmap #
@@ -85658,20 +85659,26 @@ class TaskAnalyzer(object):
         # attach remaining bits #
         if prevPos < len(table) - 1:
             last = table[prevPos : len(table)]
-            last += [0] * (num - len(last))
+            last += [2] * (num - len(last))
             bitmap.append(last)
 
         # draw base #
         figObj = TaskAnalyzer.drawFigure()
 
         # draw bitmap #
-        ax.imshow(bitmap, cmap="binary", aspect="auto")
+        ax.grid(color='w', linewidth=0.1)
+        ax.imshow(bitmap, cmap="RdGy", aspect="auto")
 
         # set font size #
         if "FONTSIZE" in SysMgr.environList:
             fontsize = UtilMgr.getEnvironNum("FONTSIZE", isInt=True)
         else:
             fontsize = 3
+
+        ax.set_xlim(left=0, right=num-1)
+        ax.set_xticks(range(0, num-1, 1))
+        ax.set_ylim(top=0)
+        ax.set_yticks(range(0, num-1, 1))
 
         # set font size #
         xticks(fontsize=fontsize)
