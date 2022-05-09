@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220508"
+__revision__ = "220509"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6604,17 +6604,17 @@ class UtilMgr(object):
         while 1:
             try:
                 data = fd.readline()
-                curSize = fd.tell()
                 if not data:
                     break
+
                 buf.append(data)
+
+                if verb:
+                    UtilMgr.printProgress(fd.tell(), totalSize)
             except SystemExit:
                 sys.exit(0)
             except:
                 break
-
-            if verb:
-                UtilMgr.printProgress(curSize, totalSize)
 
         if verb:
             UtilMgr.deleteProgress()
@@ -10043,7 +10043,8 @@ class Timeline(object):
             UtilMgr.printProgress(idx, len(self.segments))
             self._draw_segment(segment, dwg, start)
 
-        UtilMgr.deleteProgress()
+        if self.segments:
+            UtilMgr.deleteProgress()
 
     def _draw_segment(self, segment, dwg, start=0):
         x0 = float(segment.time_start - self.time_start) * self.ratio
@@ -15153,12 +15154,13 @@ class FunctionAnalyzer(object):
                 else:
                     offsetList.append(value["offset"])
 
+        if self.posData:
+            UtilMgr.deleteProgress()
+
         # Get symbols and source path from last binary #
         if binPath != "":
             if self.getFileSymbolInfo(binPath, offsetList) == -1:
                 nrNoFile += 1
-
-        UtilMgr.deleteProgress()
 
         if nrNoFile > 0:
             SysMgr.printWarn(
@@ -15876,6 +15878,7 @@ class FunctionAnalyzer(object):
             SysMgr.dbgEventLine += 1
 
             ret = self.parseEventLog(liter, desc, plist)
+
             UtilMgr.printProgress(curIdx, lastIdx)
 
             # Skip lines before first meaningful event #
@@ -15902,11 +15905,12 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
+        if lines:
+            UtilMgr.deleteProgress()
+
         # update finish time #
         if self.finishTime == "0":
             self.finishTime = self.lastTime
-
-        UtilMgr.deleteProgress()
 
         # Save stack of last events per core #
         for idx in list(self.coreCtx):
@@ -19880,7 +19884,8 @@ class LeakAnalyzer(object):
 
             self.totalLeakSize += val["lastPosSize"]
 
-        UtilMgr.deleteProgress()
+        if cnt:
+            UtilMgr.deleteProgress()
 
     def resolveSymbols(self, proc):
         cnt = 0
@@ -19927,7 +19932,8 @@ class LeakAnalyzer(object):
                 self.posData[posid]["callList"] = {}
                 self.posData[posid]["callList"][pos] = None
 
-        UtilMgr.deleteProgress()
+        if cnt:
+            UtilMgr.deleteProgress()
 
     def parseLines(self, fd):
         callinfo = {}
@@ -28973,7 +28979,7 @@ Examples:
     - {3:1} except for arguments {7:1}
         # {0:1} {1:1} -g a.out -q NOARG
 
-    - {3:1} except for file {7:1}
+    - {3:1} except for file info {7:1}
         # {0:1} {1:1} -g a.out -q NOFILE
 
     - {3:1} except for ld {7:1}
@@ -29039,10 +29045,12 @@ Examples:
     - {3:1} related to specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
         # {0:1} {1:1} -g a.out -c -T "/usr/lib/*"
+        # {0:1} {1:1} -g a.out -c -q TARGETFILE:"/usr/lib/*"
 
     - {3:1} except for specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
         # {0:1} {1:1} -g a.out -c -T "^/usr/lib/*"
+        # {0:1} {1:1} -g a.out -c -q EXCETPFILE:"/usr/lib/*"
 
     - {5:1} including specific word in a hidden state
         # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
@@ -29173,8 +29181,8 @@ Examples:
 
     - {5:1} and call specific functions every time {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
-        # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE"
-        # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345"
+        # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE\\n"
+        # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345\\n"
         # {0:1} {1:1} -g a.out -c "write|usercall:getenv#PATH, usercall:write#1#@getenv#1024"
 
     - {5:1} and call specific syscalls {4:1} {7:1}
@@ -31522,9 +31530,10 @@ Options:
 
     - {2:1} call the specific function
         # {0:1} {1:1} -g a.out -c "usercall:sleep#3"
-        # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE"
-        # {0:1} {1:1} -g a.out -c "usercall:printf#12345"
+        # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE\\n"
+        # {0:1} {1:1} -g a.out -c "usercall:printf#12345\\n"
         # {0:1} {1:1} -g a.out -c "usercall:getenv#PATH"
+        # {0:1} {1:1} -g a.out -c "usercall:malloc_stats"
         # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0" -q PRINTDIFF
         # {0:1} {1:1} -g a.out -c "usercall:malloc#1024, usercall:memset#@malloc#0#1024" -q PRINTDIFF
 
@@ -47825,9 +47834,11 @@ Copyright:
                 result[abspath] = dict(subDirs={})
 
             _getDirsJson(result, path, 0, -1)
+
             jsonResult = UtilMgr.convDict2Str(
                 result, pretty=not SysMgr.streamEnable
             )
+
             UtilMgr.deleteProgress()
             SysMgr.printPipe(jsonResult)
         else:
@@ -47845,7 +47856,9 @@ Copyright:
                 SysMgr.printPipe()
 
             _getDirs(abspath, initDir, "  ", result, 0, maxLevel)
+
             output = "\n%s\n" % "\n".join(result)
+
             UtilMgr.deleteProgress()
             SysMgr.printPipe(output)
 
@@ -51655,7 +51668,8 @@ Copyright:
             wroteSize += len(chunk)
             UtilMgr.printProgress(wroteSize, fileSize)
 
-        UtilMgr.deleteProgress()
+        if wroteSize:
+            UtilMgr.deleteProgress()
 
         outfileSize = long(os.fstat(outfd.fileno()).st_size)
         outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
@@ -51741,7 +51755,8 @@ Copyright:
             wroteSize += len(chunk)
             UtilMgr.printProgress(wroteSize, fileSize)
 
-        UtilMgr.deleteProgress()
+        if wroteSize:
+            UtilMgr.deleteProgress()
 
         outfileSize = long(os.fstat(outfd.fileno()).st_size)
         outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
@@ -61607,7 +61622,6 @@ class DltAnalyzer(object):
                 UtilMgr.deleteProgress()
 
                 # read messages #
-                sys.exit(0)
                 for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
                     if ret < 0:
@@ -64588,13 +64602,15 @@ typedef struct {
         # ignore breakpoints for command #
         if self.execCmd:
             return
+        elif not self.bpList:
+            return
+        # check fault flag from shared memory #
+        elif self.getFaultFlag():
+            return
 
+        # get tgid #
         if not tgid:
             tgid = self.pid
-
-        # check fault flag from shared memory #
-        if self.getFaultFlag():
-            return
 
         if verb:
             SysMgr.printStat(
@@ -68261,6 +68277,18 @@ typedef struct {
         else:
             needStop = False
 
+        # get target file list #
+        if "TARGETFILE" in SysMgr.environList:
+            targetFileList = SysMgr.environList["TARGETFILE"]
+        else:
+            targetFileList = []
+
+        # get except file list #
+        if "EXCEPTFILE" in SysMgr.environList:
+            exceptFileList = SysMgr.environList["EXCEPTFILE"]
+        else:
+            exceptFielList = []
+
         # register default libraries #
         for fpath in list(self.pmap):
             # update start address #
@@ -68286,6 +68314,18 @@ typedef struct {
         prevRss = 0
         for mfile in list(self.pmap):
             try:
+                # check file filter #
+                if targetFileList and not UtilMgr.isValidStr(
+                    mfile, targetFileList
+                ):
+                    ElfAnalyzer.failedFiles[mfile] = True
+                    continue
+                elif exceptFileList and UtilMgr.isValidStr(
+                    mfile, exceptFileList
+                ):
+                    ElfAnalyzer.failedFiles[mfile] = True
+                    continue
+
                 # check file validation #
                 if (
                     mfile in ElfAnalyzer.cachedFiles
@@ -73957,7 +73997,8 @@ typedef struct {
             except:
                 pass
 
-        UtilMgr.deleteProgress()
+        if instance.callList:
+            UtilMgr.deleteProgress()
 
         # print call table #
         convert = UtilMgr.convNum
@@ -83924,6 +83965,9 @@ class TaskAnalyzer(object):
             self.lastJob[self.lastCore]["job"] = self.lastEvent
             self.lastJob[self.lastCore]["time"] = self.finishTime
 
+        if lines:
+            UtilMgr.deleteProgress()
+
         # print the number of missed sched data #
         if self.nrSchedLoss:
             SysMgr.printWarn(
@@ -83935,8 +83979,6 @@ class TaskAnalyzer(object):
         # update finish time #
         if self.finishTime == "0":
             self.finishTime = time
-
-        UtilMgr.deleteProgress()
 
         # update anonymous comm #
         for idx, val in self.threadData.items():
@@ -85390,7 +85432,8 @@ class TaskAnalyzer(object):
                         )
                         cpuProcUsage[pname]["maximum"] = max(cpuList)
 
-        UtilMgr.deleteProgress()
+        if curSize:
+            UtilMgr.deleteProgress()
 
         # check output data #
         if not totalRam:
@@ -85638,10 +85681,7 @@ class TaskAnalyzer(object):
         nrEmpty = table.count(3)
         convNum = UtilMgr.convNum
         info = (
-            "- Unit: %s\n"
-            "- Total: %s\n"
-            "- Exist: %s\n"
-            "- Empty: %s\n"
+            "- Unit: %s\n" "- Total: %s\n" "- Used: %s\n" "- Freed: %s\n"
         ) % (
             convNum(unit),
             convNum(nrTotal * unit),
@@ -85652,7 +85692,7 @@ class TaskAnalyzer(object):
         # create a new bitmap #
         bitmap = []
         prevPos = 0
-        for pos in range(num, len(table), num):
+        for pos in xrange(num, len(table), num):
             bitmap.append(table[prevPos:pos])
             prevPos = pos
 
@@ -85666,8 +85706,13 @@ class TaskAnalyzer(object):
         figObj = TaskAnalyzer.drawFigure()
 
         # draw bitmap #
-        ax.grid(color='w', linewidth=0.1)
-        ax.imshow(bitmap, cmap="RdGy", aspect="auto")
+        ax.imshow(
+            bitmap,
+            cmap="RdGy",
+            aspect="auto",
+            interpolation="nearest",
+            extent=[0, num, num, 0],
+        )
 
         # set font size #
         if "FONTSIZE" in SysMgr.environList:
@@ -85675,10 +85720,10 @@ class TaskAnalyzer(object):
         else:
             fontsize = 3
 
-        ax.set_xlim(left=0, right=num-1)
-        ax.set_xticks(range(0, num-1, 1))
-        ax.set_ylim(top=0)
-        ax.set_yticks(range(0, num-1, 1))
+        # set ticks #
+        ax.set_xticks(xrange(0, num, 1))
+        ax.set_yticks(xrange(0, num, 1))
+        ax.grid(color="w", linewidth=0.1)
 
         # set font size #
         xticks(fontsize=fontsize)
@@ -95023,10 +95068,10 @@ class TaskAnalyzer(object):
             idx += 1
             UtilMgr.printProgress(idx, len(SysMgr.procBuffer))
 
-        UtilMgr.deleteProgress()
-
         if idx == 0:
             return
+
+        UtilMgr.deleteProgress()
 
         # calculate final stat #
         for pid, val in TaskAnalyzer.procTotData.items():
