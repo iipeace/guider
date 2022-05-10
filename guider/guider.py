@@ -499,9 +499,9 @@ class ConfigMgr(object):
     # epoll op type #
     EPOLL_CMD_TYPE = [
         "EPOLL_CTL_NONE",  # None
-        "EPOLL_CTL_ADD",  # Add a file decriptor to the interface
-        "EPOLL_CTL_DEL",  # Remove a file decriptor from the interface
-        "EPOLL_CTL_MOD",  # Change file decriptor epoll_event structure
+        "EPOLL_CTL_ADD",  # Add a file descriptor to the interface
+        "EPOLL_CTL_DEL",  # Remove a file descriptor from the interface
+        "EPOLL_CTL_MOD",  # Change file descriptor epoll_event structure
     ]
 
     # epoll event type #
@@ -537,7 +537,7 @@ class ConfigMgr(object):
         13: "MADV_UNMERGEABLE",  # KSM may not merge identical pages
         14: "MADV_HUGEPAGE",  # Worth backing with hugepages
         15: "MADV_NOHUGEPAGE",  # Not worth backing with hugepages
-        16: "MADV_DONTDUMP",  # Explicity exclude from the core dump,
+        16: "MADV_DONTDUMP",  # Explicitly exclude from the core dump,
         17: "MADV_DODUMP",  # Clear the MADV_DONTDUMP flag
         18: "MADV_WIPEONFORK",  # Zero memory on fork, child only
         19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
@@ -5945,7 +5945,7 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(
-                    "failed to parse %s by seperator %s" % (item, sep)
+                    "failed to parse %s by separator %s" % (item, sep)
                 )
                 continue
 
@@ -11217,7 +11217,7 @@ class Ext4Analyzer(object):
             def read_struct(self, structure, offset, platform64=None):
                 """
                 Interprets the bytes at offset as structure and returns
-                the interpreted instance
+                the interpretd instance
                 """
                 raw = self.read(offset, sizeof(structure))
 
@@ -11674,7 +11674,7 @@ class Ext4Analyzer(object):
                 pointed to by i_file_acl) and if check_inline as well as
                 force_inline are set to True, the inode's inline data
                 will not be verified to contain actual extended attributes
-                and instead is just interpreted as such. prefix_overrides
+                and instead is just interpretd as such. prefix_overrides
                 is directly passed to Inode._parse_xattrs.
                 """
                 # Inline xattrs
@@ -14825,7 +14825,7 @@ class FunctionAnalyzer(object):
                 self.userSymData[sym]["pos"] = pos
                 self.userSymData[sym]["origBin"] = self.posData[pos]["origBin"]
 
-            # Make kenel symbol table of last pos in stack #
+            # Make kernel symbol table of last pos in stack #
             try:
                 self.kerSymData[ksym]
             except:
@@ -20849,7 +20849,7 @@ class FileAnalyzer(object):
                 fsize = ""
 
             SysMgr.printInfo(
-                "saved the readahead list to '%s'%s successfuly"
+                "saved the readahead list to '%s'%s successfully"
                 % (raFd.name, fsize)
             )
         except SystemExit:
@@ -24440,7 +24440,7 @@ Commands:
             ret = SysMgr.mount(*value)
             if ret == 0:
                 SysMgr.printInfo(
-                    "mounted %s on '%s' to '%s'%s successfuly"
+                    "mounted %s on '%s' to '%s'%s successfully"
                     % (
                         value[2],
                         os.path.abspath(value[0]),
@@ -24510,7 +24510,7 @@ Commands:
             ret = SysMgr.umount(*value)
             if ret == 0:
                 SysMgr.printInfo(
-                    "unmounted '%s'%s successfuly"
+                    "unmounted '%s'%s successfully"
                     % (os.path.abspath(value[0]), flagStr)
                 )
             else:
@@ -24998,7 +24998,7 @@ Commands:
                 "WRITE",
                 "LIST",
             ):
-                SysMgr.printErr("no suppport '%s' command" % cmd)
+                SysMgr.printErr("no support '%s' command" % cmd)
                 sys.exit(-1)
 
             # get target tasks #
@@ -25499,7 +25499,7 @@ Commands:
             # check skip condition #
             if not name in funcList:
                 SysMgr.printErr(
-                    "no support '%s' for funcion monitoring" % name
+                    "no support '%s' for function monitoring" % name
                 )
                 continue
 
@@ -28189,7 +28189,7 @@ Commands:
                 "mount": ("Mount", "Linux"),
                 "ping": ("ICMP", "Linux/MacOS/Windows"),
                 "print": ("File", "Linux/MacOS/Windows"),
-                "printbind": ("Funcion", "Linux"),
+                "printbind": ("function", "Linux"),
                 "printcg": ("Cgroup", "Linux"),
                 "printdbus": ("D-Bus", "Linux"),
                 "printdbusintro": ("D-Bus", "Linux"),
@@ -28255,7 +28255,7 @@ Commands:
             else:
                 cmd = sys.argv[0]
 
-            # remove pyc file extention #
+            # remove pyc file extension #
             if ".pyc" in cmd:
                 cmd = cmd[: cmd.find(".pyc")]
 
@@ -28520,7 +28520,7 @@ Examples:
     - {3:1} all {2:2} once and report the result including cgroup info to ./guider.out
         # {0:1} {1:1} -e G -a -o . -R 1
 
-    - {3:1} {2:2} and print standard or special logs to sepcific logging systems
+    - {3:1} {2:2} and print standard or special logs to specific logging systems
         * d:DLT / k:KMSG / j:JOURNAL / s:SYSLOG
         # {0:1} {1:1} -l dkjs
         # {0:1} {1:1} -q STDLOG:dkjs
@@ -29287,7 +29287,7 @@ Examples:
     - Print logs in real-time
         # {0:1} {1:1}
 
-    - Print logs to the sepcific file
+    - Print logs to the specific file
         # {0:1} {1:1} -o log.out
 
     - Print logs in real-time for 3 seconds
@@ -30022,7 +30022,7 @@ Examples:
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
-    - {2:1} for a specific binary execution with enviornment variables
+    - {2:1} for a specific binary execution with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
@@ -30102,7 +30102,7 @@ Examples:
         # {0:1} {1:1} iotop -g iotop -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I iotop -g iotop -q TARGETNUM:4, TARGETNUM:5
 
-    - {2:1} for a specific binary execution with enviornment variables
+    - {2:1} for a specific binary execution with environment variables
         # {0:1} {1:1} iotop -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} iotop -q ENVFILE:/data/env.sh
 
@@ -30204,7 +30204,7 @@ Examples:
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
-    - {2:1} for a specific binary execution with enviornment variables
+    - {2:1} for a specific binary execution with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
@@ -30351,7 +30351,7 @@ Examples:
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
-    - {3:1} for a specific binary execution with enviornment variables
+    - {3:1} for a specific binary execution with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG=libs, ENV:LD_DEBUG=bindings
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG=detail, ENV:LD_DEBUG=files
@@ -31057,19 +31057,19 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} memory to the sepcific file
+    - {2:1} memory to the specific file
         # {0:1} {1:1} -g a.out -I 0x1234-0x4567 -o dump.out
 
-    - {2:1} memory mapped to a specific file to the sepcific file
+    - {2:1} memory mapped to a specific file to the specific file
         # {0:1} {1:1} -g a.out -I a.out -o dump.out
 
-    - {2:1} stack to the sepcific file
+    - {2:1} stack to the specific file
         # {0:1} {1:1} -g a.out -I stack -o dump.out
 
-    - {2:1} heap to the sepcific file
+    - {2:1} heap to the specific file
         # {0:1} {1:1} -g a.out -I heap -o dump.out
 
-    - {2:1} heap's bitmap to the sepcific file
+    - {2:1} heap's bitmap to the specific file
         # {0:1} {1:1} -g a.out -I heap -o dump.out -q RESBITMAP
                     """.format(
                         cmd, mode, "Dump the target"
@@ -32512,7 +32512,7 @@ Spec:
     - The format for readahead list
         1. The size for file name list: 4 Bytes
         2. The string for File name list: SIZE bytes
-            - File names are splitted by '#'
+            - File names are split by '#'
         3. Data for readahead chunk: IDX|OFFSET|SIZE
             - IDX for file index in file name list: 2 Bytes
             - OFFSET for file offset: 8 Bytes
@@ -32725,7 +32725,7 @@ Examples:
     - Execute commands with file variables for a directory
         # {0:1} {1:1} -I "ls -lha FILE" -c FILE:/data
 
-    - Execute commands with enviornment variables
+    - Execute commands with environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
 
@@ -32926,7 +32926,7 @@ Examples:
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
 
-    - Print funtions caused memory leakage of a specific process
+    - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
         # {0:1} {1:1} -I ./leaks.out -g a.out
                     """.format(
@@ -34059,7 +34059,7 @@ Examples:
     - {2:1} specific read chunk size for command process
         # {0:1} {1:1} -q READCHUNK:4096
 
-    - {2:1} no output for remote reqeust
+    - {2:1} no output for remote request
         # {0:1} {1:1} -q QUIET
                     """.format(
                         cmd, mode, "{2:1}"
@@ -35826,7 +35826,7 @@ Copyright:
         # get comm #
         comm = SysMgr.getComm(tid)
 
-        # get singal name #
+        # get signal name #
         try:
             signal = ConfigMgr.SIG_LIST[signal]
         except:
@@ -37838,7 +37838,7 @@ Copyright:
                     durationMin = long(durationMin)
                 except:
                     SysMgr.printErr(
-                        "failed to set mininum duration to '%s'" % durationMin,
+                        "failed to set minimum duration to '%s'" % durationMin,
                         True,
                     )
                     sys.exit(-1)
@@ -37846,7 +37846,7 @@ Copyright:
             # apply user event #
             _addUserEvent(inputData)
 
-            # set conver table #
+            # set convert table #
             Timeline.conv_table = {}
             if "CONVGROUP" in SysMgr.environList:
                 try:
@@ -38264,7 +38264,7 @@ Copyright:
 
         addrListForPrint = dict(SysMgr.addrListForPrint)
         for addr, cli in addrListForPrint.items():
-            udpSeg = 65507  # maxium UDP diagram size
+            udpSeg = 65507  # maximum UDP diagram size
             start = 0
             end = udpSeg
             while 1:
@@ -39254,7 +39254,7 @@ Copyright:
             SysMgr.printErr("wrong path '%s'" % os.path.abspath(value), True)
             sys.exit(-1)
 
-        # remove double slashs #
+        # remove double slashes #
         SysMgr.outputFile = os.path.normpath(SysMgr.outputFile)
 
         # support no-report record mode #
@@ -40260,7 +40260,7 @@ Copyright:
                     )
                     sys.exit(-1)
 
-                # remove double slashs #
+                # remove double slashes #
                 SysMgr.cmdEnable = os.path.normpath(SysMgr.cmdEnable)
 
             elif option == "t":
@@ -42980,7 +42980,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "failed to parse enviroment variables", reason=True
+                "failed to parse environment variables", reason=True
             )
             return None
 
@@ -43318,7 +43318,7 @@ Copyright:
 
     @staticmethod
     def waitChild(pid=None, hang=True):
-        # wait for all childs #
+        # wait for all children #
         if not pid:
             while 1:
                 try:
@@ -43329,7 +43329,7 @@ Copyright:
                 if SysMgr.condExit:
                     break
 
-                # check childs #
+                # check children #
                 SysMgr.updateChildList()
                 if SysMgr.isNoChild():
                     break
@@ -43930,7 +43930,7 @@ Copyright:
                 connObj.send("MSG:terminated all worker processes")
 
                 # terminate worker processes #
-                SysMgr.killChilds(sig=signal.SIGINT)
+                SysMgr.killChildren(sig=signal.SIGINT)
 
                 # get pstree #
                 SysMgr.doPstree(
@@ -44801,7 +44801,7 @@ Copyright:
         if not connMan:
             return
 
-        # register to anoter server as a service node #
+        # register to another server as a service node #
         if SysMgr.remoteServObj:
             # create a new thread to manage socket #
             threadObj = SysMgr.getPkg("threading")
@@ -45840,7 +45840,7 @@ Copyright:
                     clockstr = ""
 
                 SysMgr.printInfo(
-                    "set CPU(%s) to %s[%s] successfuly %s"
+                    "set CPU(%s) to %s[%s] successfully %s"
                     % (core, clockstr, curgovernor, affectstring)
                 )
 
@@ -46509,7 +46509,7 @@ Copyright:
             systemdPathList = SysMgr.inputParam.split(",")
             for d in systemdPathList:
                 if not os.path.isdir(d.strip()):
-                    SysMgr.printErr("%s is not an accessable directory" % d)
+                    SysMgr.printErr("%s is not an accessible directory" % d)
                     sys.exit(-1)
         else:
             systemdPathList = ["/etc/systemd/system", "/lib/systemd/system"]
@@ -47084,7 +47084,7 @@ Copyright:
                         if SysMgr.condExit:
                             break
 
-                        # check childs #
+                        # check children #
                         SysMgr.updateChildList()
                         if SysMgr.isNoChild():
                             break
@@ -47092,11 +47092,11 @@ Copyright:
                 # disable printing to file #
                 SysMgr.outPath = SysMgr.printFd = None
 
-                # broadcast term signal to childs and wait for them #
+                # broadcast term signal to children and wait for them #
                 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-                childs = TaskAnalyzer.getDescendantList(SysMgr.pid)
-                SysMgr.killChilds(
-                    sig=signal.SIGINT, childs=childs, wait=True, group=True
+                children = TaskAnalyzer.getDescendantList(SysMgr.pid)
+                SysMgr.killChildren(
+                    sig=signal.SIGINT, children=children, wait=True, group=True
                 )
 
                 # continue processes #
@@ -49286,7 +49286,7 @@ Copyright:
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
-        # wait for childs #
+        # wait for children #
         while 1:
             if not ioTasks:
                 break
@@ -49682,7 +49682,7 @@ Copyright:
             )
             sys.exit(-1)
 
-        # wait for childs #
+        # wait for children #
         while 1:
             if not ioTasks:
                 break
@@ -50774,7 +50774,7 @@ Copyright:
 
                             sys.exit(0)
 
-                    # wait for childs #
+                    # wait for children #
                     SysMgr.waitChild()
                 else:
                     SysMgr.spawnProcess(
@@ -51566,7 +51566,7 @@ Copyright:
         if interval == 0:
             interval = 1
 
-        # wait for childs #
+        # wait for children #
         if pidList:
             while 1:
                 try:
@@ -53756,17 +53756,17 @@ Copyright:
                 SysMgr.childList.pop(pid, None)
 
     @staticmethod
-    def killChilds(sig=None, childs=None, wait=False, group=False):
+    def killChildren(sig=None, children=None, wait=False, group=False):
         if not sig:
             sig = ConfigMgr.SIGKILL
 
         # get child list #
-        if childs is None:
+        if children is None:
             SysMgr.updateChildList()
-            childs = list(SysMgr.childList)
+            children = list(SysMgr.childList)
 
-        # kill childs #
-        SysMgr.terminateTasks(childs, sig, group)
+        # kill children #
+        SysMgr.terminateTasks(children, sig, group)
 
         # remove child list #
         SysMgr.clearChildList()
@@ -53775,9 +53775,9 @@ Copyright:
         if not wait:
             return
 
-        # wait for termination for all childs #
-        childs = set(map(str, childs))
-        if not childs:
+        # wait for termination for all children #
+        children = set(map(str, children))
+        if not children:
             return
 
         while 1:
@@ -53785,13 +53785,13 @@ Copyright:
             tasks = set(SysMgr.getPidList())
 
             # check terminated tasks #
-            termTasks = childs - tasks
-            if termTasks == childs:
+            termTasks = children - tasks
+            if termTasks == children:
                 break
 
             # wait for task termination #
             try:
-                remainTasks = childs - termTasks
+                remainTasks = children - termTasks
 
                 # set timer for force termination for abnormal child tasks #
                 def _onAlarm(signum, frame):
@@ -53857,7 +53857,7 @@ Copyright:
     @staticmethod
     def releaseResource():
         # kill child tasks #
-        SysMgr.killChilds()
+        SysMgr.killChildren()
 
         # close all files #
         SysMgr.closeAllForPrint()
@@ -56608,7 +56608,7 @@ Copyright:
             if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
                 return
 
-            # chek type #
+            # check type #
             if type(root) is not dict:
                 return
 
@@ -56620,11 +56620,11 @@ Copyright:
                 if not "cpu.shares" in subdir:
                     continue
 
-                for parent, childs in subdir.items():
-                    if type(childs) is not dict:
+                for parent, children in subdir.items():
+                    if type(children) is not dict:
                         continue
-                    if "cpu.shares" in childs:
-                        value = childs["cpu.shares"].replace(",", "")
+                    if "cpu.shares" in children:
+                        value = children["cpu.shares"].replace(",", "")
                         newTotal += long(value)
 
             # traverse subdir #
@@ -60294,7 +60294,7 @@ class DbusMgr(object):
                     SysMgr.printWarn("failed to get D-Bus config", reason=True)
             busList.append(bus)
 
-            # get servce list #
+            # get service list #
             if bus:
                 services = DbusMgr.getBusService(bus, tid=tid, addr=listen)
             else:
@@ -60389,7 +60389,7 @@ class DbusMgr(object):
                 SysMgr.streamEnable = True
                 SysMgr.addOption("Q")
 
-                # wait for parent to create all childs #
+                # wait for parent to create all children #
                 if syncLock:
                     lockf(  # pylint: disable=undefined-variable
                         syncLock, LOCK_EX  # pylint: disable=undefined-variable
@@ -61134,7 +61134,7 @@ class DltAnalyzer(object):
             """
             typedef struct
             {
-                uint8_t htyp;           /**< This parameter contains several informations, see definitions below */
+                uint8_t htyp;           /**< This parameter contains several information, see definitions below */
                 uint8_t mcnt;           /**< The message counter is increased with each sent DLT message */
                 uint16_t len;           /**< Length of the complete message, without storage header */
             } PACKED DltStandardHeader;
@@ -61153,7 +61153,7 @@ class DltAnalyzer(object):
             """
             typedef struct
             {
-                uint8_t msin;          /**< messsage info */
+                uint8_t msin;          /**< message info */
                 uint8_t noar;          /**< number of arguments */
                 char apid[DLT_ID_SIZE];          /**< application id */
                 char ctid[DLT_ID_SIZE];          /**< context id */
@@ -62676,9 +62676,9 @@ typedef struct {
         elif not self.isAlive():
             return
 
-        # kill target childs #
+        # kill target children #
         if hasattr(self, "childList"):
-            SysMgr.killChilds(sig=signal.SIGINT, childs=self.childList)
+            SysMgr.killChildren(sig=signal.SIGINT, children=self.childList)
             del self.childList
 
         # detach target #
@@ -65211,7 +65211,7 @@ typedef struct {
                     )
                     return
 
-                # load orignal data from storage #
+                # load original data from storage #
                 origWord = self.loadInst(fname, offset)
 
             # check filter command #
@@ -65729,7 +65729,7 @@ typedef struct {
                 return None
             """
 
-        # RTLD_LAZY | RTLD_GLOABL #
+        # RTLD_LAZY | RTLD_GLOBAL #
         if not flags:
             flags = 0x00001 | 0x00100
 
@@ -66272,7 +66272,7 @@ typedef struct {
         # check address alignment #
         offset = addr % wordSize
 
-        # handle interger-type data #
+        # handle integer-type data #
         if not skipCheck:
             if UtilMgr.isNumber(data):
                 if offset == 0:
@@ -67105,7 +67105,7 @@ typedef struct {
                 cnt = value["cnt"]
                 per = cnt / float(totalCnt) * 100
 
-                # iterate childs #
+                # iterate children #
                 if value["child"]:
                     _iterNode(
                         array,
@@ -68292,7 +68292,7 @@ typedef struct {
         if "EXCEPTFILE" in SysMgr.environList:
             exceptFileList = SysMgr.environList["EXCEPTFILE"]
         else:
-            exceptFielList = []
+            exceptFileList = []
 
         # register default libraries #
         for fpath in list(self.pmap):
@@ -69348,7 +69348,7 @@ typedef struct {
         if update:
             self.getStack()
 
-        # verify addresss #
+        # verify address #
         if not self.startStack <= addr <= self.endStack + addr:
             return None
 
@@ -70418,7 +70418,7 @@ typedef struct {
             else:
                 offset = long(ret[2], 16)
 
-            # load orignal data from storage #
+            # load original data from storage #
             origWord = self.loadInst(fname, offset)
 
             # register this lost breakpoint #
@@ -70828,7 +70828,7 @@ typedef struct {
         if not addr:
             return False
 
-        # get symbol for interpreter #
+        # get symbol for interpretr #
         pySym = ["_PyThreadState_Current", "_PyRuntime"]
         symbolInfo = SysMgr.getProcAddrBySymbol(
             self.pid, pySym, fileFilter=[pyPath]
@@ -70852,13 +70852,13 @@ typedef struct {
         else:
             self.pthreadid = self.remoteUsercall("pthread_self")
 
-        # get address for interpreter #
+        # get address for interpretr #
         pySymbol = list(symbolInfo.values())[0]
         self.pyAddr = long(pySymbol[2], 16)
 
         # version >= 3.7 #
         if pySymbol[3] == "_PyRuntime":
-            # get offset for PyInterpreterState head #
+            # get offset for PyinterpretrState head #
             if ConfigMgr.wordSize == 4:
                 SysMgr.printErr(
                     "not supported yet for PyThreadState on 32-bit"
@@ -71468,7 +71468,7 @@ typedef struct {
         if nativeStack:
             bt.insert(0, [lastAddr, lastName, lastFile])
 
-            # merge only native stack except for interpreter and python stack #
+            # merge only native stack except for interpretr and python stack #
             if not Debugger.envFlags["INCNATIVE"]:
                 lastIdx = 0
                 for idx in xrange(len(nativeStack)):
@@ -72742,7 +72742,7 @@ typedef struct {
             if self.mode == "syscall":
                 self.status = "stop"
 
-            # increase the number of childs #
+            # increase the number of children #
             self.childNum += 1
 
             # wait for tracer of child task #
@@ -72783,7 +72783,7 @@ typedef struct {
             self.forked = True
             signal.alarm(SysMgr.intervalEnable)
 
-            # increase the number of childs #
+            # increase the number of children #
             self.childNum += 1
             self.myNum = self.childNum
 
@@ -73078,7 +73078,7 @@ typedef struct {
                 self.setRegs(newObj=newObj)
                 self.updateRegs()
 
-            # save return vaue #
+            # save return value #
             self.retList[origSym] = long(retval)
             self.prevReturn = str(retval)
 
@@ -73382,7 +73382,7 @@ typedef struct {
 
                 # syscall #
                 elif stat == syscallTrapFlag:
-                    # interprete syscall context #
+                    # interpret syscall context #
                     if syscallMode:
                         self.handleSyscall()
 
@@ -73829,7 +73829,7 @@ typedef struct {
         # draw timeline segment #
         _printTimeline()
 
-        # remove new breakpoins for childs after fork #
+        # remove new breakpoins for children after fork #
         for addr in list(instance.bpNewList):
             instance.removeBp(addr)
 
@@ -74824,7 +74824,7 @@ typedef struct {
         return total
 
     def ptraceEvent(self, reqList):
-        # define architect-independant constant #
+        # define architect-independent constant #
         PTRACE_SETOPTIONS = 0x4200
 
         option = 0
@@ -78836,7 +78836,7 @@ class ElfAnalyzer(object):
             e_class = "64-bit objects"
             wordSize = 8
         else:
-            SysMgr.printWarn(errStr % (path, "it is invaild class"), debug)
+            SysMgr.printWarn(errStr % (path, "it is invalid class"), debug)
             self.ret = None
             return None
 
@@ -82768,7 +82768,7 @@ class TaskAnalyzer(object):
                     else:
                         pass
 
-            # set diff to the union list if this file is lastest one #
+            # set diff to the union list if this file is latest one #
             if nrFiles == 1:
                 cpuStats = statFileList[lfile]["cpuProcUsage"]
                 for pname in list(unionCpuList):
@@ -82882,7 +82882,7 @@ class TaskAnalyzer(object):
                     else:
                         pass
 
-                # set diff to the union list if this file is lastest one #
+                # set diff to the union list if this file is latest one #
                 if nrFiles == 1:
                     gpuStats = statFileList[lfile]["gpuProcUsage"]
                     for pname in list(unionGpuList):
@@ -82996,7 +82996,7 @@ class TaskAnalyzer(object):
                     except:
                         continue
 
-            # set diff to the union list if this file is lastest one #
+            # set diff to the union list if this file is latest one #
             if nrFiles == 1:
                 memStats = statFileList[lfile]["memProcUsage"]
                 for pname in list(unionRssList):
@@ -83990,7 +83990,7 @@ class TaskAnalyzer(object):
             if val["comm"] == "<...>":
                 val["comm"] = "?"
 
-        # add comsumed time of jobs not finished yet to each threads #
+        # add consumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             # apply core off time #
             nrCore = long(idx)
@@ -84684,7 +84684,7 @@ class TaskAnalyzer(object):
 
             SysMgr.printStat(r"start processing '%s'%s..." % (logFile, fsize))
 
-        # context varaible #
+        # context variable #
         finalLine = 0
         context = None
         totalRam = None
@@ -89590,7 +89590,7 @@ class TaskAnalyzer(object):
                 (
                     "\n[Thread Creation Info] [Alive: +] [Die: -] "
                     "[CreatedTime: //] [ChildCount: ||] "
-                    "[CpuUsage: <>] [WaitForChilds: {}] "
+                    "[CpuUsage: <>] [WaitForChildren: {}] "
                     "[WaitOfParent: []]"
                 )
             )
@@ -96722,7 +96722,7 @@ class TaskAnalyzer(object):
         # get nodes in tree #
         def _getTreeNodes(root, pids, enable, taskList):
             initStatus = enable
-            for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
+            for pid, children in sorted(root.items(), key=lambda x: long(x[0])):
                 enable = initStatus
 
                 if enable:
@@ -96730,7 +96730,7 @@ class TaskAnalyzer(object):
                 elif pid in pids:
                     enable = True
 
-                _getTreeNodes(childs, pids, enable, taskList)
+                _getTreeNodes(children, pids, enable, taskList)
 
         # get descendant list #
         _getTreeNodes(procTree, pids, False, taskList)
@@ -96815,7 +96815,7 @@ class TaskAnalyzer(object):
             current = time.time()
 
             initStatus = enable
-            for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
+            for pid, children in sorted(root.items(), key=lambda x: long(x[0])):
                 enable = initStatus
                 indent = ""
 
@@ -96836,7 +96836,7 @@ class TaskAnalyzer(object):
                         comm, targets
                     ):
                         treestr += _printTreeNodes(
-                            childs, depth + 1, targets, enable
+                            children, depth + 1, targets, enable
                         )
                         continue
                     else:
@@ -96913,13 +96913,13 @@ class TaskAnalyzer(object):
                 )
 
                 # add child info #
-                nrChild = len(childs)
+                nrChild = len(children)
                 if nrChild > 0:
                     treestr += "<%s>" % nrChild
 
                 # add child nodes #
                 treestr += "\n%s" % _printTreeNodes(
-                    childs, depth + 1, targets, enable
+                    children, depth + 1, targets, enable
                 )
 
             return treestr
@@ -99476,7 +99476,7 @@ class TaskAnalyzer(object):
 
                 # futex call status #
                 if lockEnter > 0:
-                    # elasped time #
+                    # elapsed time #
                     futexTime = ftime - lockEnter
 
                     if futexTime > td["ftxMax"]:
@@ -100984,7 +100984,7 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
-            # save consol log #
+            # save console log #
             self.consoleData.append([d["thread"], core, time, etc])
 
         elif func == "tracing_mark_write" or func == "0":
@@ -102843,7 +102843,7 @@ class TaskAnalyzer(object):
         mtype = ""
         stable = {}
         ftable = {}
-        isInaccessable = False
+        isInaccessible = False
         fpath = "%s/%s" % (path, "smaps")
         ptable = {"ANON": {}, "FILE": {}, "STACK": {}, "ETC": {}, "SHM": {}}
 
@@ -102946,7 +102946,7 @@ class TaskAnalyzer(object):
                     mtype = "ETC"
 
                 # check inaccessible area #
-                isInaccessable = perm.startswith("---")
+                isInaccessible = perm.startswith("---")
 
                 try:
                     ptable[mtype]["count"] += 1
@@ -102970,7 +102970,7 @@ class TaskAnalyzer(object):
                     except:
                         ptable[mtype][prop] = val
 
-                    if isInaccessable:
+                    if isInaccessible:
                         try:
                             ptable[mtype]["NOPM"] += val
                         except:
@@ -105218,7 +105218,7 @@ class TaskAnalyzer(object):
 
             # calculate diff of read /write on each devices #
             for dev, value in sorted(self.reportData["storage"].items()):
-                # add stroage device interval #
+                # add storage device interval #
                 self.addSysInterval("storage", dev, value["usagePer"])
 
                 # get read size on this interval #
@@ -109172,7 +109172,7 @@ class TaskAnalyzer(object):
             elif path.startswith(":"):
                 path = path[1:]
             else:
-                SysMgr.printErr("wrong comand format for 'RELOAD'")
+                SysMgr.printErr("wrong command format for 'RELOAD'")
                 return None
 
             # convert path #
@@ -110162,7 +110162,7 @@ class TaskAnalyzer(object):
             )
         # update apply flag for oneshot #
         elif oneshot:
-            # define fucntion for checking resources #
+            # define function for checking resources #
             def _checkResource(item):
                 if (
                     type(item) is dict
@@ -111394,7 +111394,7 @@ def main(args=None):
             args = list(map(lambda x: x.encode(), args))
         sys.argv = [__module__] + list(args)
 
-    # init envirnoment #
+    # init environment #
     SysMgr.initEnvironment()
 
     # launch commands #
