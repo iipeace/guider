@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220509"
+__revision__ = "220510"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23286,7 +23286,7 @@ Commands:
             return []
 
     @staticmethod
-    def killSubprocessGroup(procObj, sig=None):
+    def killProcGroup(procObj, sig=None):
         try:
             if not sig:
                 sig = signal.SIGINT
@@ -23847,7 +23847,7 @@ Commands:
             duration = time.time() - startTime
 
         # kill subprocess group #
-        SysMgr.killSubprocessGroup(procObj)
+        SysMgr.killProcGroup(procObj)
 
         SysMgr.printInfo("elapsed %.6f for '%s'" % (duration, cmd))
 
@@ -33611,8 +33611,8 @@ Examples:
         # {0:1} {1:1}
 
     - Print specific kernel configs
-        # {0:1} {1:1} CONFIG_RT_GROUP_SCHED
-        # {0:1} {1:1} -g CONFIG_RT_GROUP_SCHED
+        # {0:1} {1:1} "CONFIG_RT_GROUP_SCHED*"
+        # {0:1} {1:1} -g "CONFIG_RT_GROUP_SCHED*"
 
     - Print kernel config from the specific file
         # {0:1} {1:1} -I /boot/config-4.4.0-210-generic
@@ -44103,12 +44103,12 @@ Copyright:
             finally:
                 try:
                     # kill subprocess group #
-                    SysMgr.killSubprocessGroup(procObj)
+                    SysMgr.killProcGroup(procObj)
 
                     time.sleep(SysMgr.waitDelay)
 
                     # kill subprocess group #
-                    SysMgr.killSubprocessGroup(procObj, signal.SIGKILL)
+                    SysMgr.killProcGroup(procObj, signal.SIGKILL)
 
                     connObj.socket.shutdown(socket.SHUT_RDWR)
                     connObj.close()
@@ -50829,7 +50829,7 @@ Copyright:
                 sys.exit(-1)
 
             # kill subprocess group #
-            SysMgr.killSubprocessGroup(procObj)
+            SysMgr.killProcGroup(procObj)
 
             # get duration time #
             duration = time.time() - startTime
@@ -61608,6 +61608,11 @@ class DltAnalyzer(object):
                             path, dltFile.file_position
                         )
                         if nextHeaderPos is None:
+                            SysMgr.printWarn(
+                                "wrong DLT storage header from '%s'"
+                                % pathOrig,
+                                True,
+                            )
                             break
                         elif dltFile.file_position == nextHeaderPos:
                             break
