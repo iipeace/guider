@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220511"
+__revision__ = "220512"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28786,6 +28786,9 @@ Examples:
     - Draw items on absolute timeline
         # {0:1} {1:1} guider.out -q ABSTIME
 
+    - Draw items on relative timeline
+        # {0:1} {1:1} guider.out -q RELTIME
+
     - Draw items only having backtrace for flamegraph
         # {0:1} {1:1} guider.out -q ONLYBTSTACK
 
@@ -55191,15 +55194,32 @@ Copyright:
         except:
             pass
 
-        # uptime #
+        # starttime #
         try:
-            uptime = UtilMgr.convTime(SysMgr.uptime)
-            uptimeSec = UtilMgr.convNum(SysMgr.uptime)
-            uptimeStr = "%s (%s sec)" % (uptime, uptimeSec)
-            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("Uptime", uptimeStr))
+            startTime = UtilMgr.convTime(SysMgr.startTime)
+            startTimeSec = UtilMgr.convNum(SysMgr.startTime)
+            startTimeStr = "%s (%s sec)" % (startTime, startTimeSec)
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format("StartTime", startTimeStr)
+            )
 
             if SysMgr.jsonEnable:
-                jsonData["uptime"] = uptime
+                jsonData["starttime"] = startTime
+        except:
+            pass
+
+        # endtime #
+        try:
+            endTime = UtilMgr.convTime(SysMgr.uptime)
+            endTimeSec = UtilMgr.convNum(SysMgr.uptime)
+            endTimeStr = "%s (%s sec)" % (endTime, endTimeSec)
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format("EndTime", endTimeStr)
+            )
+
+            if SysMgr.jsonEnable:
+                jsonData["endTime"] = endTime
+                jsonData["uptime"] = endTime
         except:
             pass
 
@@ -86484,6 +86504,14 @@ class TaskAnalyzer(object):
                 xtickLabel = ax.get_xticks().tolist()
                 xtickLabel = list(map(long, xtickLabel))
 
+                # apply relative time #
+                if "RELTIME" in SysMgr.environList:
+                    try:
+                        start = xtickLabel[0]
+                        xtickLabel = [val - start for val in xtickLabel]
+                    except:
+                        pass
+
                 # apply time format #
                 if not "NOTIMEFORMAT" in SysMgr.environList:
                     try:
@@ -105857,6 +105885,7 @@ class TaskAnalyzer(object):
             jsonData = SysMgr.jsonData["system"]
 
             jsonData["uptime"] = SysMgr.uptime
+            jsonData["startTime"] = SysMgr.startTime
             jsonData["interval"] = SysMgr.uptimeDiff
             jsonData["nrCtxt"] = nrCtxt
             jsonData["nrNewThreads"] = nrNewThreads
