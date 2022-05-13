@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220512"
+__revision__ = "220513"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28544,8 +28544,11 @@ Examples:
     - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
 
-    - {3:1} {2:2} and save the result except for summary to ./guider.out in real-time until SIGINT signal arrives
+    - {3:1} {2:2} and save the result composed only of raw data to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p -q NOSUMMARY
+
+    - {3:1} {2:2} and save the result except for the interval summary to ./guider.out in real-time until SIGINT signal arrives
+        # {0:1} {1:1} -o . -q NOINTSUMMARY
 
     - {3:1} {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
@@ -36520,7 +36523,10 @@ Copyright:
                 SysMgr.printInfoBuffer()
 
                 # submit summarized report and details #
-                TaskAnalyzer.printIntervalUsage()
+                if "NOINTSUMMARY" in SysMgr.environList:
+                    SysMgr.printProcBuffer()
+                else:
+                    TaskAnalyzer.printIntervalUsage()
 
                 if os.path.exists(SysMgr.inputFile):
                     # get output size #
@@ -38072,6 +38078,16 @@ Copyright:
     def clearProcBuffer():
         SysMgr.procBufferSize = 0
         SysMgr.procBuffer = []
+
+    @staticmethod
+    def printProcBuffer(suffix="\n"):
+        msg = " Detailed Statistics "
+        stars = "*" * long((long(SysMgr.lineLength) - len(msg)) / 2)
+        SysMgr.printPipe("\n\n%s%s%s\n\n" % (stars, msg, stars))
+        if not SysMgr.procBuffer:
+            SysMgr.printPipe("\n\tNone%s" % suffix)
+        else:
+            SysMgr.printPipe(SysMgr.procBuffer)
 
     @staticmethod
     def addProcBuffer(data):
@@ -74275,17 +74291,11 @@ typedef struct {
             instance.stop(check=True)
 
         # check realtime mode #
-        if SysMgr.procBuffer == []:
+        if not SysMgr.procBuffer:
             return
 
         # print detailed statistics #
-        msg = " Detailed Statistics "
-        stars = "*" * long((long(SysMgr.lineLength) - len(msg)) / 2)
-        SysMgr.printPipe("\n\n%s%s%s\n\n" % (stars, msg, stars))
-        if SysMgr.procBuffer == []:
-            SysMgr.printPipe("\n\tNone%s" % suffix)
-        else:
-            SysMgr.printPipe(SysMgr.procBuffer)
+        SysMgr.printProcBuffer(suffix)
 
     @staticmethod
     def checkPtraceScope():
@@ -96481,7 +96491,7 @@ class TaskAnalyzer(object):
 
         # print detailed statistics #
         _printMenu(" Detailed Statistics ")
-        if SysMgr.procBuffer == []:
+        if not SysMgr.procBuffer:
             SysMgr.printPipe("\n\tNone")
         else:
             SysMgr.printPipe(SysMgr.procBuffer)
@@ -108941,6 +108951,13 @@ class TaskAnalyzer(object):
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
             return ret
+        # SAVERAW #
+        elif cmd == "SAVERAW" or cmd.startswith("SAVERAW:"):
+            ret = self.handleSaveCmd(cmd, name, raw=True)
+            if not ret:
+                # disable event handling for child process #
+                SysMgr.eventHandleEnable = False
+            return ret
         # UPDATE #
         elif cmd.startswith("UPDATE:"):
             # get threshold data #
@@ -109421,7 +109438,7 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.printErr("failed to recognize the request from client")
 
-    def handleSaveCmd(self, cmd, event):
+    def handleSaveCmd(self, cmd, event, raw=False):
         # replace event name #
         origCmd = cmd
         parts = cmd.split("@", 1)
@@ -109429,8 +109446,14 @@ class TaskAnalyzer(object):
         if len(parts) > 1:
             event = "%s_%s" % (event, parts[1])
 
+        # set target command #
+        if raw:
+            target = "SAVERAW"
+        else:
+            target = "SAVE"
+
         # verify save command #
-        if cmd.split(":")[0] != "SAVE":
+        if cmd.split(":")[0] != target:
             SysMgr.printWarn("no support '%s' command" % origCmd, True)
             return -1
 
@@ -109459,6 +109482,10 @@ class TaskAnalyzer(object):
 
             # disable report #
             SysMgr.reportEnable = False
+
+            # disable interval summary #
+            if raw:
+                SysMgr.addEnvironVar("NOINTSUMMARY")
         else:
             SysMgr.closePrintFd()
 
@@ -109487,7 +109514,7 @@ class TaskAnalyzer(object):
         if SysMgr.isLinux:
             # convert timer #
             try:
-                timeunit = cmd.strip("SAVE:")
+                timeunit = cmd.strip("%s:" % target)
                 if not timeunit:
                     raise Exception("no time")
                 sec = UtilMgr.convUnit2Time(timeunit)
