@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220513"
+__revision__ = "220514"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13754,12 +13754,13 @@ class PageAnalyzer(object):
             SysMgr.printOpenErr(fpath)
             sys.exit(-1)
 
+        convSize = UtilMgr.convSize2Unit
+
         if start == end == -1:
             if not comm:
                 comm = SysMgr.getComm(pid)
 
             # get mem stat #
-            convSize = UtilMgr.convSize2Unit
             mlist = SysMgr.getMemStat(pid)
             mstat = SysMgr.convMemStat(mlist)
             vss = convSize(mstat["vss"])
@@ -13775,20 +13776,17 @@ class PageAnalyzer(object):
 
         # print menu #
         menuStr = ""
-        if summaryFlag:
-            menuBuf = menuList = [
-                "AREA",
-                "PERM",
-                "%8s" % "OFFSET",
-                "%6s" % "DEV",
-                "%12s" % "INODE",
-            ]
-        else:
-            menuList = ["AREA", "PERM", "OFFSET", "DEV", "%12s" % "INODE"]
-            menuBuf = str(buf[-1]).split()
+        menuBuf = menuList = [
+            "AREA",
+            "PERM",
+            "%8s" % "OFFSET",
+            "%6s" % "DEV",
+            "%12s" % "INODE",
+            "%5s" % "SIZE",
+        ]
 
         for idx, value in enumerate(menuBuf):
-            if idx < 5:
+            if idx < 6:
                 if idx == 0:
                     text = "{0:^38}".format(menuList[idx])
                 else:
@@ -13799,7 +13797,7 @@ class PageAnalyzer(object):
             value = " " * (len(value) - len(text) + 1)
             menuStr = "%s%s%s" % (menuStr, text, value)
 
-        menuStr = "%s %s" % (menuStr, "TARGET")
+        menuStr = "%s%s" % (menuStr, "TARGET")
         SysMgr.printPipe("%s\n%s\n%s" % (twoLine, menuStr, oneLine))
 
         # set text position #
@@ -13818,10 +13816,13 @@ class PageAnalyzer(object):
                 try:
                     soffset = hex(info["vstart"]).rstrip("L")
                     eoffset = hex(info["vend"]).rstrip("L")
+                    size = convSize(
+                        long(eoffset, 16) - long(soffset, 16), True
+                    )
                     if not fname.startswith("/"):
                         fname = "[%s]" % fname
                     SysMgr.printPipe(
-                        "%18s %18s %4s %8s %6s %12s %s"
+                        "%18s %18s %4s %8s %6s %12s %5s %s"
                         % (
                             soffset,
                             eoffset,
@@ -13829,6 +13830,7 @@ class PageAnalyzer(object):
                             info["offset"],
                             info["devid"],
                             info["inode"],
+                            size,
                             fname,
                         )
                     )
@@ -13871,8 +13873,20 @@ class PageAnalyzer(object):
                 if not eoffset.startswith("0x"):
                     eoffset = "0x%s" % eoffset
 
+                size = convSize(long(eoffset, 16) - long(soffset, 16), True)
+
                 SysMgr.printPipe(
-                    "%18s %18s %s" % (soffset, eoffset, " ".join(target[1:]))
+                    "%18s %18s %4s %8s %6s %12s %5s %s"
+                    % (
+                        soffset,
+                        eoffset,
+                        target[1],
+                        target[2],
+                        target[3],
+                        target[4],
+                        size,
+                        target[5] if len(target) > 5 else " ",
+                    )
                 )
             except SystemExit:
                 sys.exit(0)
@@ -33946,18 +33960,19 @@ Options:
     -v                          verbose
 
 Commands:
-    CMD_BUFFER:TIME        resize the monitoring buffer
-    CMD_CLEAR              clear the monitoring buffer
-    CMD_DISABLE:ATTR       disable monitoring of the specific resource
-    CMD_ENABLE:ATTR        enable monitoring of the specific resource
-    CMD_FILTER:ITEM        set the task filter
-    CMD_INTERVAL:TIME      change the monitoring interval
-    CMD_PAUSE              pause all monitoring activities
-    CMD_RELOAD:PATH        reload the threshold config
-    CMD_RESTART            restart the Guider process
-    CMD_SAVE{{:TIME@NAME}}   save the monitoring results
-    CMD_STOP               stop the threshold monitoring
-    CMD_UPDATE:FILE        update the threshold data
+    CMD_BUFFER:TIME           resize the monitoring buffer
+    CMD_CLEAR                 clear the monitoring buffer
+    CMD_DISABLE:ATTR          disable monitoring of the specific resource
+    CMD_ENABLE:ATTR           enable monitoring of the specific resource
+    CMD_FILTER:ITEM           set the task filter
+    CMD_INTERVAL:TIME         change the monitoring interval
+    CMD_PAUSE                 pause all monitoring activities
+    CMD_RELOAD:PATH           reload the threshold config
+    CMD_RESTART               restart the Guider process
+    CMD_SAVE{{:TIME@NAME}}      save the monitoring results
+    CMD_SAVERAW{{:TIME@NAME}}   save the monitoring results
+    CMD_STOP                  stop the threshold monitoring
+    CMD_UPDATE:FILE           update the threshold data
                         """.format(
                         cmd, mode
                     )
@@ -33982,6 +33997,12 @@ Examples:
         # {0:1} {1:1} CMD_SAVE:3s
         # {0:1} {1:1} CMD_SAVE:1m
         # {0:1} {1:1} CMD_SAVE:2s@FrameDropCase
+
+    - Notify CMD_SAVERAW event {2:1} to save the monitoring results composed only of raw data to the specific file
+        # {0:1} {1:1} CMD_SAVERAW
+        # {0:1} {1:1} CMD_SAVERAW:3s
+        # {0:1} {1:1} CMD_SAVERAW:1m
+        # {0:1} {1:1} CMD_SAVERAW:2s@FrameDropCase
 
     - Notify CMD_BUFFER event {2:1} to resize the monitoring buffer
         # {0:1} {1:1} CMD_BUFFER:500k
