@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220514"
+__revision__ = "220515"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -102889,6 +102889,58 @@ class TaskAnalyzer(object):
         return procTree
 
     @staticmethod
+    def readProcMemStats(path, tid, retPss=True, retShr=False):
+        # check root permission #
+        if not SysMgr.isRoot():
+            return 0, 0
+
+        buf = ""
+        fpath = "%s/%s" % (path, "smaps")
+
+        try:
+            with open(fpath, "r") as fd:
+                buf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(fpath)
+            return 0, 0
+
+        # check buf #
+        if not buf:
+            return 0, 0
+
+        # get PSS #
+        pss = 0
+        shared = 0
+        for line in buf:
+            try:
+                if retPss and line.startswith("Pss:"):
+                    val = line.split()[1]
+                    if val != "0":
+                        pss += long(val)
+                elif retShr and (
+                    line.startswith("Shared_Clean:")
+                    or line.startswith("Shared_Dirty:")
+                ):
+                    val = line.split()[1]
+                    if val != "0":
+                        shared += long(val)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    (
+                        "failed to get memory stats "
+                        "for the task having TID %s"
+                    )
+                    % tid,
+                    reason=True,
+                )
+
+        return pss, shared
+
+    @staticmethod
     def saveProcSmapsData(path, tid, mini=False):
         # check root permission #
         if not SysMgr.isRoot():
@@ -107837,7 +107889,7 @@ class TaskAnalyzer(object):
                 self.saveProcWchanData(value["taskPath"], idx)
 
             # save memory map info to get memory details #
-            if SysMgr.memEnable or SysMgr.pssEnable or SysMgr.ussEnable:
+            if SysMgr.memEnable:
                 TaskAnalyzer.saveProcSmapsData(
                     value["taskPath"], idx, mini=True
                 )
@@ -108083,16 +108135,30 @@ class TaskAnalyzer(object):
             except:
                 vss = 0
 
-            # physical memory usage #
-            memBuf, nrss, pss, uss = self.getMemDetails(
-                idx, value["maps"], vss=vss << 10
-            )
-            if SysMgr.pssEnable:
-                mems = pss >> 8
-                value["pss"] = mems
+            # get physical memory usages #
+            memBuf = []
+            if SysMgr.memEnable:
+                memBuf, nrss, pss, uss = self.getMemDetails(
+                    idx, value["maps"], vss=vss << 10
+                )
+                value["pss"] = pss >> 8
+                value["uss"] = uss >> 8
+            elif SysMgr.pssEnable:
+                pss = TaskAnalyzer.readProcMemStats(
+                    value["taskPath"], idx, retPss=True, retShr=False
+                )[0]
+                value["pss"] = pss >> 10
             elif SysMgr.ussEnable:
-                mems = uss >> 8
-                value["uss"] = mems
+                shared = TaskAnalyzer.readProcMemStats(
+                    value["taskPath"], idx, retPss=False, retShr=True
+                )[1]
+                value["uss"] = value["rss"] - (shared >> 10)
+
+            # get main memory usage #
+            if SysMgr.pssEnable:
+                mems = value["pss"]
+            elif SysMgr.ussEnable:
+                mems = value["uss"]
             else:
                 mems = value["rss"]
 
@@ -110832,6 +110898,12 @@ class TaskAnalyzer(object):
                     _setDefaultInfo(evtdata[rank], pid, comm, runtime)
                     evtdata[rank]["rss"] = data["rss"]
                     evtdata[rank]["text"] = text
+
+                    # add more stats #
+                    if "pss" in data:
+                        evtdata[rank]["pss"] = data["pss"]
+                    if "uss" in data:
+                        evtdata[rank]["uss"] = data["uss"]
 
                     # save status info #
                     path = "%s/%s" % (SysMgr.procPath, pid)
