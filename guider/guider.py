@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220515"
+__revision__ = "220516"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13542,8 +13542,10 @@ class PageAnalyzer(object):
 
             sys.exit(-1)
 
+        vaddrOrig = vaddr
         for pid in sorted(pids):
             comm = SysMgr.getComm(pid)
+            vaddr = vaddrOrig
 
             if not vaddr:
                 PageAnalyzer.printMemoryArea(
@@ -13559,6 +13561,11 @@ class PageAnalyzer(object):
                 vaddr = "[%s]" % vaddr
 
                 vrange = FileAnalyzer.getMapAddr(pid, vaddr)
+                if not vrange:
+                    SysMgr.printErr(
+                        "failed to find memory address for '%s'" % vaddr
+                    )
+                    sys.exit(-1)
             else:
                 vrange = vaddr.split("-")
 
@@ -13571,15 +13578,8 @@ class PageAnalyzer(object):
                 sys.exit(-1)
             else:
                 try:
-                    if vrange[0].startswith("0x"):
-                        addrs = long(vrange[0], base=16)
-                        addre = addrs
-                    else:
-                        try:
-                            addrs = long(vrange[0])
-                        except:
-                            addrs = long(vrange[0], base=16)
-                        addre = addrs
+                    addrs = long(vrange[0], base=16)
+                    addre = addrs
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -13591,22 +13591,26 @@ class PageAnalyzer(object):
 
                 try:
                     if rangeCnt == 2:
-                        if vrange[1].startswith("0x"):
-                            addre = long(vrange[1], base=16)
-                        else:
-                            try:
-                                addre = long(vrange[1])
-                            except:
-                                addre = long(vrange[1], base=16)
-
+                        addre = long(vrange[1], base=16)
                         offset = 0
                     else:
                         offset = SysMgr.PAGESIZE
 
                     if addrs > addre:
+                        # print memory area #
+                        PageAnalyzer.printMemoryArea(
+                            pid, comm=comm, showall=True
+                        )
+                        SysMgr.printPipe(oneLine)
+
+                        # print error message #
                         SysMgr.printErr(
-                            "failed to recognize address, "
-                            "input bigger second address than first address"
+                            (
+                                "failed to recognize address, "
+                                "input bigger second address (%s) "
+                                "than first address (%s)"
+                            )
+                            % (hex(addre), hex(addrs))
                         )
                         sys.exit(-1)
                 except SystemExit:
@@ -13677,12 +13681,12 @@ class PageAnalyzer(object):
                 if isFile:
                     totalFile += 1
 
-                isRef = PageAnalyzer.getPagecount(pfn)
+                isRef = PageAnalyzer.getPageCount(pfn)
                 if isRef:
                     totalRef += 1
 
-                bflags = hex(PageAnalyzer.getPageFlags(pfn)).rstrip("L")
-
+                kflags = PageAnalyzer.getPageFlags(pfn)
+                bflags = hex(kflags).rstrip("L")
                 sflags = PageAnalyzer.getFlagTypes(bflags)
 
                 SysMgr.addPrint(
@@ -13772,7 +13776,7 @@ class PageAnalyzer(object):
 
         start = hex(start)
         end = hex(end)
-        all = hex(-1)
+        alls = hex(-1)
 
         # print menu #
         menuStr = ""
@@ -13849,7 +13853,7 @@ class PageAnalyzer(object):
             tmplist = line.split()
             soffset, eoffset = tmplist[0].split("-")
 
-            if start == end == all:
+            if start == end == alls:
                 switch = 0
             elif "-" in line:
                 soffset = hex(long(soffset, base=16))
@@ -13918,7 +13922,7 @@ class PageAnalyzer(object):
         try:
             f = SysMgr.getFd(path)
             f.seek(offset, 0)
-            return struct.unpack("Q", f.read(size))[0]
+            return struct.unpack("Q" if size == 8 else "I", f.read(size))[0]
         except SystemExit:
             sys.exit(0)
         except:
@@ -13936,10 +13940,10 @@ class PageAnalyzer(object):
             sys.exit(-1)
 
         pageSize = os.sysconf("SC_PAGE_SIZE")
-        pagemap_entry_size = 8
-        offset = long(addr / pageSize) * pagemap_entry_size
+        word = ConfigMgr.wordSize
+        offset = long(addr / pageSize) * word
 
-        return PageAnalyzer.readEntry(maps_path, offset)
+        return PageAnalyzer.readEntry(maps_path, offset, size=word)
 
     @staticmethod
     def getPfn(entry):
@@ -13966,16 +13970,18 @@ class PageAnalyzer(object):
         return (entry & (1 << 61)) != 0
 
     @staticmethod
-    def getPagecount(pfn):
+    def getPageCount(pfn):
         file_path = "%s/kpagecount" % SysMgr.procPath
-        offset = pfn * 8
-        return PageAnalyzer.readEntry(file_path, offset)
+        word = ConfigMgr.wordSize
+        offset = pfn * word
+        return PageAnalyzer.readEntry(file_path, offset, size=word)
 
     @staticmethod
     def getPageFlags(pfn):
         file_path = "%s/kpageflags" % SysMgr.procPath
-        offset = pfn * 8
-        return PageAnalyzer.readEntry(file_path, offset)
+        word = ConfigMgr.wordSize
+        offset = pfn * word
+        return PageAnalyzer.readEntry(file_path, offset, size=word)
 
 
 class FunctionAnalyzer(object):
@@ -19945,6 +19951,7 @@ class LeakAnalyzer(object):
 
     def parseLines(self, fd):
         callinfo = {}
+        total = os.fstat(fd.fileno()).st_size
 
         while 1:
             try:
@@ -19954,19 +19961,21 @@ class LeakAnalyzer(object):
             except:
                 continue
 
+            # check EOF #
             if not line:
                 break
 
             # print progress #
             cur = fd.tell()
-            total = os.fstat(fd.fileno()).st_size
+            if cur > total:
+                total = os.fstat(fd.fileno()).st_size
             UtilMgr.printProgress(cur, total)
 
-            items = line.split(", ")
-
-            if items[0] != "leak":
+            # check prefix #
+            if not line.startswith("leak,"):
                 continue
 
+            items = line.split(", ")
             time = None
             item = {}
 
@@ -19992,20 +20001,23 @@ class LeakAnalyzer(object):
                 else:
                     item[name] = body
 
+            # check size value #
             if not item or not "size" in item or not item["size"].isdigit():
                 continue
+
+            size = long(item["size"])
 
             # save pos in common area #
             for pos in item["stack"]:
                 try:
                     self.posData[pos]["count"] += 1
-                    self.posData[pos]["size"] += long(item["size"])
+                    self.posData[pos]["size"] += size
                 except SystemExit:
                     sys.exit(0)
                 except:
                     self.posData[pos] = dict(self.init_posData)
                     self.posData[pos]["count"] = 1
-                    self.posData[pos]["size"] = long(item["size"])
+                    self.posData[pos]["size"] = size
                     self.posData[pos]["callList"] = {}
 
             try:
@@ -20013,7 +20025,7 @@ class LeakAnalyzer(object):
             except:
                 continue
 
-            self.posData[lastPos]["lastPosSize"] += long(item["size"])
+            self.posData[lastPos]["lastPosSize"] += size
 
             callinfo[time] = item
 
@@ -21261,7 +21273,9 @@ class FileAnalyzer(object):
         # scan tasks #
         for pid in pids:
             try:
-                long(pid)
+                # skip myself #
+                if SysMgr.pid == long(pid):
+                    continue
             except:
                 continue
 
@@ -22653,7 +22667,6 @@ class SysMgr(object):
     repeatCount = 0
     progressCnt = 0
     repeatInterval = 0
-    wordSize = 4
     maxInterval = 0
     ipAddr = None
     swappiness = 0
@@ -107891,7 +107904,7 @@ class TaskAnalyzer(object):
             # save memory map info to get memory details #
             if SysMgr.memEnable:
                 TaskAnalyzer.saveProcSmapsData(
-                    value["taskPath"], idx, mini=True
+                    value["taskPath"], idx, mini=not SysMgr.wssEnable
                 )
 
             # swap #
