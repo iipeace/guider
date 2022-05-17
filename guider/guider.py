@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220516"
+__revision__ = "220517"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13542,12 +13542,30 @@ class PageAnalyzer(object):
 
             sys.exit(-1)
 
-        vaddrOrig = vaddr
+        # get target addresses #
+        if vaddr:
+            vaddrOrig = vaddr.split(",")
+        else:
+            vaddrOrig = None
+
+        # check idle page marking #
+        if "MARKIDLE" in SysMgr.environList:
+            markIdleFlag = True
+            if not SysMgr.checkIdlePageCond():
+                sys.exit(-1)
+        else:
+            markIdleFlag = False
+
+        # check idle page check #
+        if "CHECKIDLE" in SysMgr.environList:
+            checkIdleFlag = True
+        else:
+            checkIdleFlag = False
+
         for pid in sorted(pids):
             comm = SysMgr.getComm(pid)
-            vaddr = vaddrOrig
-
-            if not vaddr:
+            vaddrs = vaddrOrig
+            if not vaddrs:
                 PageAnalyzer.printMemoryArea(
                     pid, comm=comm, showall=SysMgr.showAll
                 )
@@ -13556,179 +13574,212 @@ class PageAnalyzer(object):
 
             SysMgr.checkRootPerm()
 
-            # get address range #
-            if vaddr == "heap" or vaddr == "stack":
-                vaddr = "[%s]" % vaddr
+            targetList = []
+            for vaddr in vaddrs:
+                if not vaddr:
+                    continue
 
-                vrange = FileAnalyzer.getMapAddr(pid, vaddr)
-                if not vrange:
-                    SysMgr.printErr(
-                        "failed to find memory address for '%s'" % vaddr
-                    )
-                    sys.exit(-1)
-            else:
-                vrange = vaddr.split("-")
+                # get address range #
+                if vaddr in ("heap", "stack"):
+                    vaddr = "[%s]" % vaddr
 
-            rangeCnt = len(vrange)
-            if rangeCnt > 2:
-                SysMgr.printErr(
-                    "failed to recognize address, "
-                    "input address such as 102400 or 0x1234a-0x123ff"
-                )
-                sys.exit(-1)
-            else:
-                try:
-                    addrs = long(vrange[0], base=16)
-                    addre = addrs
-                except SystemExit:
-                    sys.exit(0)
-                except:
+                    # get addresses by name #
+                    vrange = FileAnalyzer.getMapAddr(pid, vaddr)
+                    if not vrange:
+                        SysMgr.printErr(
+                            "failed to find memory address for '%s'" % vaddr
+                        )
+                        continue
+
+                    targetList.append(vrange)
+                else:
+                    # get addresses by file #
+                    vranges = FileAnalyzer.getMapAddr(pid, vaddr, retList=True)
+                    if vranges:
+                        targetList += vranges
+                    else:
+                        vrange = vaddr.split("-")
+                        targetList.append(vrange)
+
+            for vrange in targetList:
+                rangeCnt = len(vrange)
+                if rangeCnt > 2:
                     SysMgr.printErr(
                         "failed to recognize address, "
-                        "input address such as 0xabcd or 78901234"
+                        "input address such as 102400 or 0x1234a-0x123ff"
                     )
                     sys.exit(-1)
-
-                try:
-                    if rangeCnt == 2:
-                        addre = long(vrange[1], base=16)
-                        offset = 0
-                    else:
-                        offset = SysMgr.PAGESIZE
-
-                    if addrs > addre:
-                        # print memory area #
-                        PageAnalyzer.printMemoryArea(
-                            pid, comm=comm, showall=True
-                        )
-                        SysMgr.printPipe(oneLine)
-
-                        # print error message #
+                else:
+                    try:
+                        addrs = long(vrange[0], base=16)
+                        addre = addrs
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
                         SysMgr.printErr(
-                            (
-                                "failed to recognize address, "
-                                "input bigger second address (%s) "
-                                "than first address (%s)"
-                            )
-                            % (hex(addre), hex(addrs))
+                            "failed to recognize address, "
+                            "input address such as 0xabcd or 78901234"
                         )
                         sys.exit(-1)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "failed to recognize address, "
-                        "input address such as 0x1234-0x4444"
-                    )
-                    sys.exit(-1)
 
-            SysMgr.printPipe(
-                "\n[Mem Info] [Proc: %s(%s)] [AREA: %s] [HELP: %s]"
-                % (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt")
-            )
+                    try:
+                        if rangeCnt == 2:
+                            addre = long(vrange[1], base=16)
+                            offset = 0
+                        else:
+                            offset = SysMgr.PAGESIZE
 
-            PageAnalyzer.printMemoryArea(pid, addrs, addre)
-            SysMgr.printPipe(twoLine)
+                        if addrs > addre:
+                            # print memory area #
+                            PageAnalyzer.printMemoryArea(
+                                pid, comm=comm, showall=True
+                            )
+                            SysMgr.printPipe(oneLine)
 
-            SysMgr.printPipe(
-                (
-                    "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^6}|"
-                    "{6:^8}|{7:^7}| {8}({9})\n{10}"
-                ).format(
-                    "VADDR",
-                    "PFN",
-                    "PRESENT",
-                    "SWAP",
-                    "FILE",
-                    "REF",
-                    "SDRT",
-                    "EXMAP",
-                    "FLAG",
-                    "FLAGS",
-                    oneLine,
+                            # print error message #
+                            SysMgr.printErr(
+                                (
+                                    "failed to recognize address, "
+                                    "input bigger second address (%s) "
+                                    "than first address (%s)"
+                                )
+                                % (hex(addre), hex(addrs))
+                            )
+                            sys.exit(-1)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "failed to recognize address, "
+                            "input address such as 0x1234-0x4444"
+                        )
+                        sys.exit(-1)
+
+                SysMgr.printPipe(
+                    "\n[Mem Info] [Proc: %s(%s)] [AREA: %s] [HELP: %s]"
+                    % (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt")
                 )
-            )
 
-            totalPresent = 0
-            totalSwapped = 0
-            totalSoftdirty = 0
-            totalExmapped = 0
-            totalFile = 0
-            totalRef = 0
+                # print memory area info #
+                PageAnalyzer.printMemoryArea(pid, addrs, addre)
+                SysMgr.printPipe(twoLine)
 
-            for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
-                entry = PageAnalyzer.getPagemapEntry(pid, addr)
-
-                pfn = PageAnalyzer.getPfn(entry)
-
-                isPresent = PageAnalyzer.isPresent(entry)
-                if isPresent:
-                    totalPresent += 1
-
-                isSwapped = PageAnalyzer.isSwapped(entry)
-                if isSwapped:
-                    totalSwapped += 1
-
-                isSoftdirty = PageAnalyzer.isSoftdirty(entry)
-                if isSoftdirty:
-                    totalSoftdirty += 1
-
-                isExmapped = PageAnalyzer.isExmapped(entry)
-                if isExmapped:
-                    totalExmapped += 1
-
-                isFile = PageAnalyzer.isFilePage(entry)
-                if isFile:
-                    totalFile += 1
-
-                isRef = PageAnalyzer.getPageCount(pfn)
-                if isRef:
-                    totalRef += 1
-
-                kflags = PageAnalyzer.getPageFlags(pfn)
-                bflags = hex(kflags).rstrip("L")
-                sflags = PageAnalyzer.getFlagTypes(bflags)
-
-                SysMgr.addPrint(
+                SysMgr.printPipe(
                     (
-                        "{0:>17} |{1:>15} |{2:>8} |{3:>5} |{4:>5} |"
-                        "{5:>5} |{6:>7} |{7:>6} | {8}({9} )\n"
+                        "{0:^18}|{1:^16}|{2:>5}|{3:>5}|{4:>5}|{5:>5}|"
+                        "{6:>5}|{7:>5}|{8:>5}| {9}({10})\n{11}"
                     ).format(
-                        hex(addr).rstrip("L"),
-                        hex(pfn).rstrip("L") if pfn else "",
-                        isPresent,
-                        isSwapped,
-                        isFile,
-                        isRef,
-                        isSoftdirty,
-                        isExmapped,
-                        bflags,
-                        sflags,
-                    ),
-                    force=True,
+                        "VADDR",
+                        "PFN",
+                        "PRES",
+                        "SWAP",
+                        "FILE",
+                        "REF",
+                        "SDRT",
+                        "EXMAP",
+                        "IDLE",
+                        "FLAG",
+                        "FLAGS",
+                        oneLine,
+                    )
                 )
 
-            # print total stats #
-            SysMgr.printPipe(
-                (
-                    "{0:>17} |{1:>15} |{2:>8} |{3:>5} |{4:>5} |"
-                    "{5:>5} |{6:>7} |{7:>6} |\n{8:1}"
-                ).format(
-                    "[TOTAL]",
-                    "",
-                    totalPresent,
-                    totalSwapped,
-                    totalFile,
-                    totalRef,
-                    totalSoftdirty,
-                    totalExmapped,
-                    oneLine,
+                totalPresent = 0
+                totalSwapped = 0
+                totalSoftdirty = 0
+                totalExmapped = 0
+                totalFile = 0
+                totalRef = 0
+                totalIdle = 0
+
+                for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
+                    # get page frame info #
+                    entry = PageAnalyzer.getPagemapEntry(pid, addr)
+
+                    # get page frame number #
+                    pfn = PageAnalyzer.getPfn(entry)
+
+                    # mark idle pages #
+                    if markIdleFlag:
+                        SysMgr.handleIdlePage(pfn, write=True)
+
+                    isPresent = PageAnalyzer.isPresent(entry)
+                    if isPresent:
+                        totalPresent += 1
+
+                    isSwapped = PageAnalyzer.isSwapped(entry)
+                    if isSwapped:
+                        totalSwapped += 1
+
+                    isSoftdirty = PageAnalyzer.isSoftdirty(entry)
+                    if isSoftdirty:
+                        totalSoftdirty += 1
+
+                    isExmapped = PageAnalyzer.isExmapped(entry)
+                    if isExmapped:
+                        totalExmapped += 1
+
+                    isFile = PageAnalyzer.isFilePage(entry)
+                    if isFile:
+                        totalFile += 1
+
+                    isRef = PageAnalyzer.getPageCount(pfn)
+                    if isRef:
+                        totalRef += 1
+
+                    # check idle pages #
+                    if checkIdleFlag:
+                        isIdle = SysMgr.handleIdlePage(pfn, write=False)
+                        if isIdle:
+                            totalIdle += 1
+                    else:
+                        isIdle = False
+
+                    kflags = PageAnalyzer.getPageFlags(pfn)
+                    bflags = hex(kflags).rstrip("L")
+                    sflags = PageAnalyzer.getFlagTypes(bflags)
+
+                    SysMgr.addPrint(
+                        (
+                            "{0:>17} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
+                            "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9}({10} )\n"
+                        ).format(
+                            hex(addr).rstrip("L"),
+                            hex(pfn).rstrip("L") if pfn else "",
+                            isPresent,
+                            isSwapped,
+                            isFile,
+                            isRef,
+                            isSoftdirty,
+                            isExmapped,
+                            isIdle,
+                            bflags,
+                            sflags,
+                        ),
+                        force=True,
+                    )
+
+                # print total stats #
+                SysMgr.printPipe(
+                    (
+                        "{0:>17} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
+                        "{5:>5}|{6:>5}|{7:>5}|{8:>5}|\n{9:1}"
+                    ).format(
+                        "[TOTAL]",
+                        "",
+                        totalPresent,
+                        totalSwapped,
+                        totalFile,
+                        totalRef,
+                        totalSoftdirty,
+                        totalExmapped,
+                        totalIdle,
+                        oneLine,
+                    )
                 )
-            )
 
-            SysMgr.doPrint(clear=True)
-
-            SysMgr.printPipe("%s\n" % oneLine)
+                SysMgr.doPrint(clear=True)
+                SysMgr.printPipe("%s\n" % oneLine)
 
     @staticmethod
     def printMemoryArea(
@@ -13801,7 +13852,7 @@ class PageAnalyzer(object):
             value = " " * (len(value) - len(text) + 1)
             menuStr = "%s%s%s" % (menuStr, text, value)
 
-        menuStr = "%s%s" % (menuStr, "TARGET")
+        menuStr += "TARGET"
         SysMgr.printPipe("%s\n%s\n%s" % (twoLine, menuStr, oneLine))
 
         # set text position #
@@ -16998,7 +17049,7 @@ class FunctionAnalyzer(object):
                     syscall = sysId
 
                 syscallInfo = ("{0:1} {1:>30}({2:>3}) {3:>12}\n").format(
-                    "%s%s" % (syscallInfo, " " * len(threadInfo)),
+                    syscallInfo + (" " * len(threadInfo)),
                     syscall,
                     sysId,
                     convNum(val),
@@ -17007,7 +17058,7 @@ class FunctionAnalyzer(object):
             if syscallInfo != "":
                 outputCnt += 1
                 SysMgr.printPipe(threadInfo)
-                SysMgr.printPipe("%s%s" % (syscallInfo, oneLine))
+                SysMgr.printPipe(syscallInfo + oneLine)
 
         if outputCnt == 0:
             SysMgr.printPipe("\tNone\n%s" % oneLine)
@@ -20457,7 +20508,7 @@ class FileAnalyzer(object):
         return True
 
     @staticmethod
-    def getMapAddr(pid, fname, fd=None):
+    def getMapAddr(pid, fname, fd=None, retList=False):
         if not fname:
             SysMgr.printWarn("no file name to be searched for address")
             return None
@@ -20466,14 +20517,29 @@ class FileAnalyzer(object):
             if not fd:
                 return None
 
+        addrList = []
+
         # read maps #
         fd.seek(0, 0)
         for item in fd.readlines():
             mdict = FileAnalyzer.parseMapLine(item)
-            if mdict and mdict["binName"]:
-                if mdict["binName"].endswith(fname):
-                    return str(mdict["startAddr"]), str(mdict["endAddr"])
-        return None
+            if not mdict or not mdict["binName"]:
+                continue
+            elif not mdict["binName"].endswith(fname):
+                continue
+
+            start = str(mdict["startAddr"])
+            end = str(mdict["endAddr"])
+
+            if retList:
+                addrList.append([start, end])
+            else:
+                return start, end
+
+        if retList:
+            return addrList
+        else:
+            return None
 
     @staticmethod
     def getMapFilePath(pid, fname, fd=None):
@@ -23033,6 +23099,7 @@ class SysMgr(object):
     wfcEnable = False
     wqEnable = False
     wssEnable = False
+    idlePageEnable = False
 
     cmdList = {}
     rcmdList = {}
@@ -23463,6 +23530,10 @@ Commands:
 
         SysMgr.printProfileOption()
         SysMgr.printProfileCmd()
+
+    @staticmethod
+    def removeFd(fname):
+        SysMgr.fdCache.pop(fname, None)
 
     @staticmethod
     def getFd(fname, perm="rb", verb=True):
@@ -24373,6 +24444,46 @@ Commands:
         except:
             SysMgr.printOpenWarn(path)
             return 0
+
+    @staticmethod
+    def handleIdlePage(pfn, write=True, flush=True):
+        try:
+            # set permission #
+            if write:
+                perm = "wb"
+            else:
+                perm = "rb"
+
+            # get fd #
+            fd = SysMgr.getFd("/sys/kernel/mm/page_idle/bitmap", perm)
+            if not fd:
+                sys.exit(-1)
+
+            # define size #
+            word = ConfigMgr.wordSize
+            bit = word * 8
+
+            # set pos #
+            offset = long(pfn / bit) * word
+            fd.seek(offset, 0)
+
+            # handle operation #
+            if write:
+                val = fd.write(struct.pack("Q", 2**bit - 1))
+                if flush:
+                    fd.flush()
+                return val
+            else:
+                val = fd.read(word)
+                val = struct.unpack("Q", val)[0]
+                if val & 1 << (pfn % 64):
+                    return True
+                else:
+                    return False
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to mark idle page (PFN: %s)" % pfn, True)
 
     @staticmethod
     def clearPageRefs(pid, val):
@@ -31759,6 +31870,15 @@ Examples:
 
     - Print page attributes in specific area for specific processes
         # {0:1} {1:1} a.out -I 0x0-0x4000
+        # {0:1} {1:1} a.out -I libc.so
+        # {0:1} {1:1} a.out -I heap
+        # {0:1} {1:1} a.out -I 0x8000-0x9000,0x12345678
+
+    - Print page attributes after marking idle flag in specific area for specific processes
+        # {0:1} {1:1} a.out -I 0x0-0x4000 -q MARKIDLE
+
+    - Print page attributes including idle flag in specific area for specific processes
+        # {0:1} {1:1} a.out -I 0x0-0x4000 -q CHECKIDLE
                     """.format(
                         cmd, mode
                     )
@@ -35914,7 +36034,7 @@ Copyright:
         # error #
         try:
             if not err.args or err.args[0] == 0:
-                return "%s%s" % (sys.exc_info()[0].__name__, linestr)
+                return sys.exc_info()[0].__name__ + linestr
         except SystemExit:
             sys.exit(0)
         except:
@@ -37138,7 +37258,12 @@ Copyright:
         if listBuf:
             SysMgr.bufferList.append(string)
         else:
-            SysMgr.bufferString = "%s%s" % (SysMgr.bufferString, string)
+            try:
+                SysMgr.bufferString += string
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.bufferString = "%s%s" % (SysMgr.bufferString, string)
 
         SysMgr.bufferRows += newline
 
@@ -38520,7 +38645,12 @@ Copyright:
 
             # append the end color character to head #
             if SysMgr.colorEnable and not SysMgr.jsonEnable:
-                line = "%s%s" % (ConfigMgr.ENDC, line)
+                try:
+                    line = ConfigMgr.ENDC + line
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    line = "%s%s" % (ConfigMgr.ENDC, line)
 
             # rstrip by terminal size #
             try:
@@ -38736,7 +38866,12 @@ Copyright:
 
         # color #
         log = UtilMgr.convColor(log, "BOLD", force=True)
-        log = "%s%s" % (prefix, log)
+        try:
+            log = prefix + log
+        except SystemExit:
+            sys.exit(0)
+        except:
+            log = "%s%s" % (prefix, log)
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -41374,6 +41509,29 @@ Copyright:
             return True
 
     @staticmethod
+    def checkIdlePageCond():
+        if os.path.exists("/sys/kernel/mm/page_idle/bitmap"):
+            return True
+
+        # check kernel version #
+        ver = float(".".join(SysMgr.getKernelVersion().split(".")[0:2]))
+        if ver < 4.3:
+            SysMgr.printErr(
+                (
+                    "failed to use Idle Page Tracking "
+                    "because kernel version %s is lesser than 4.3"
+                )
+                % UtilMgr.convFloat2Str(ver)
+            )
+        else:
+            SysMgr.printErr(
+                "failed to use Idle Page Tracking, "
+                "please check kernel CONFIG_IDLE_PAGE_TRACKING"
+            )
+
+        return False
+
+    @staticmethod
     def checkDiskTopCond():
         if SysMgr.forceEnable:
             return True
@@ -41387,7 +41545,7 @@ Copyright:
             elif not os.path.isfile("%s/self/io" % procPath):
                 SysMgr.printErr(
                     "failed to use bio event to analyze block I/O for tasks, "
-                    "please check kernel config"
+                    "please check kernel configs"
                 )
                 return False
         return True
@@ -41400,7 +41558,7 @@ Copyright:
             return False
         elif not os.path.isfile("%s/self/stack" % SysMgr.procPath):
             SysMgr.printErr(
-                "failed to sample stack, please check kernel config"
+                "failed to sample stack, please check kernel configs"
             )
             return False
         else:
@@ -47712,7 +47870,7 @@ Copyright:
                         except:
                             sizeStr = ""
 
-                        string = "%s%s" % (fullPath, sizeStr)
+                        string = fullPath + sizeStr
                         SysMgr.printPipe(string)
 
                         # apply command #
@@ -54341,11 +54499,17 @@ Copyright:
             # make filter for function mode #
             if SysMgr.filterGroup:
                 try:
-                    cmd = "%s%s" % (cmd, SysMgr.getPidFilter())
+                    try:
+                        cmd += SysMgr.getPidFilter()
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        cmd = "%s%s" % (cmd, SysMgr.getPidFilter())
+
                     if not cmd:
                         raise Exception("no command")
                 except:
-                    SysMgr.printErr("wrong TID %s" % SysMgr.filterGroup)
+                    SysMgr.printErr("wrong TID %s" % SysMgr.filterGroup, True)
                     sys.exit(-1)
 
             # trace except for swapper threads #
@@ -55094,7 +55258,7 @@ Copyright:
 
         # launch option #
         try:
-            launchOption = "%s%s" % (" ".join(sys.argv), " -")
+            launchOption = " ".join(sys.argv) + " -"
             SysMgr.infoBufferPrint(
                 "{0:20} # {1:<1}".format("Launch", launchOption)
             )
@@ -63453,7 +63617,7 @@ typedef struct {
                         return repeat
 
                     # register a return value #
-                    newSym = "%s%s" % (sym, Debugger.RETSTR)
+                    newSym = sym + Debugger.RETSTR
                     self.setRetList.setdefault(newSym, [])
                     self.setRetList[newSym].append(num)
 
@@ -70390,7 +70554,7 @@ typedef struct {
 
             # add backtrace #
             if btstr:
-                callString = "%s%s" % (btstr, callString)
+                callString = btstr + callString
 
             # add entry log to return filter #
             if sym in self.retFilterList:
@@ -71445,7 +71609,7 @@ typedef struct {
             if jsonData:
                 jsonData["backtrace"] = btstr.lstrip().split("\n")
             else:
-                callString = "%s%s" % (btstr, callString)
+                callString = btstr + callString
 
         # JSON output #
         if jsonData:
@@ -71673,7 +71837,7 @@ typedef struct {
                 direction = "(->)"
                 self.addCall(sym)
 
-            symstr = "%s%s" % (" " * 4 * len(self.callstack), sym)
+            symstr = (" " * 4 * len(self.callstack)) + sym
 
             # get time diff #
             diff = self.vdiff
@@ -72015,7 +72179,7 @@ typedef struct {
                 prefix = "\n"
 
             SysMgr.printPipe(
-                "%s%s" % (prefix, callString),
+                prefix + callString,
                 newline=False,
                 flush=True,
                 trim=False,
@@ -72024,7 +72188,7 @@ typedef struct {
         # file output #
         if SysMgr.outPath and callString:
             if defer:
-                callString = "%s%s" % (self.bufferedStr, callString)
+                callString = self.bufferedStr + callString
             self.callPrint.append(callString)
 
         # check symbol #
@@ -73170,7 +73334,7 @@ typedef struct {
             return True
 
         # add the new breakpoint for return #
-        newSym = "%s%s" % (sym, Debugger.RETSTR)
+        newSym = sym + Debugger.RETSTR
         ret = self.injectBp(pos, newSym, fname, reins=True, cmd=None)
         if not ret:
             return False
@@ -74154,13 +74318,13 @@ typedef struct {
                 suffix,
             )
         )
-        SysMgr.printPipe("%s%s" % (twoLine, suffix))
+        SysMgr.printPipe(twoLine + suffix)
         SysMgr.printPipe(
             "{0:^7} | {1:<144}{2:1}".format(
                 "Usage", "Function %s" % addInfo, suffix
             )
         )
-        SysMgr.printPipe("%s%s" % (twoLine, suffix))
+        SysMgr.printPipe(twoLine + suffix)
 
         cnt = 0
         for sym, value in sorted(
@@ -74263,7 +74427,7 @@ typedef struct {
         if cnt == 0:
             SysMgr.printPipe("\tNone%s" % suffix)
 
-        SysMgr.printPipe("%s%s" % (oneLine, suffix))
+        SysMgr.printPipe(oneLine + suffix)
 
         # print histo stats for elapsed time #
         if elapsedTable:
@@ -74290,11 +74454,11 @@ typedef struct {
                     suffix,
                 )
             )
-            SysMgr.printPipe("%s%s" % (twoLine, suffix))
+            SysMgr.printPipe(twoLine + suffix)
             SysMgr.printPipe(
                 "{0:^7} | {1:<144}{2:1}".format("Usage", "Path", suffix)
             )
-            SysMgr.printPipe("%s%s" % (twoLine, suffix))
+            SysMgr.printPipe(twoLine + suffix)
 
             cnt = 0
             for filename, value in sorted(
@@ -74316,7 +74480,7 @@ typedef struct {
             if cnt == 0:
                 SysMgr.printPipe("\tNone%s" % suffix)
 
-            SysMgr.printPipe("%s%s" % (oneLine, suffix))
+            SysMgr.printPipe(oneLine + suffix)
 
         instance.printCallHistory(instance, ctype)
 
@@ -74755,7 +74919,7 @@ typedef struct {
         return True
 
     def dumpMemory(self, meminfo, output, verb=True):
-        if meminfo == "heap" or meminfo == "stack":
+        if meminfo in ("heap", "stack"):
             meminfo = "[%s]" % meminfo
 
         # get range info #
@@ -77694,7 +77858,7 @@ class ElfAnalyzer(object):
             dmSymbol = ElfAnalyzer.demangleJavaSym(dmSymbol)
             """
 
-            demangledSym = "%s%s" % (dmSymbol, version)
+            demangledSym = dmSymbol + version
             ElfAnalyzer.cachedDemangleTable[origSym] = demangledSym
             return demangledSym
         except SystemExit:
@@ -86803,7 +86967,7 @@ class TaskAnalyzer(object):
                             newEvts.append(evt)
                         evts = newEvts
 
-                    evtbox = "%s%s" % (prefix, "\n".join(evts))
+                    evtbox = prefix + "\n".join(evts)
 
                     try:
                         text(
@@ -88342,7 +88506,7 @@ class TaskAnalyzer(object):
                         except:
                             maxIdx = 0
 
-                        key = "%s%s" % (prefix, key)
+                        key = prefix + key
                         minval = "%s [%s]" % (
                             key,
                             convSize(usage[minIdx] << 20),
@@ -88488,7 +88652,7 @@ class TaskAnalyzer(object):
                         except:
                             maxIdx = 0
 
-                        key = "%s%s" % (prefix, key)
+                        key = prefix + key
                         minval = "%s [%s]" % (
                             key,
                             convSize(usage[minIdx] << 20),
@@ -88596,7 +88760,7 @@ class TaskAnalyzer(object):
                         except:
                             maxIdx = 0
 
-                        key = "%s%s" % (prefix, key)
+                        key = prefix + key
                         minval = "%s [%s]" % (
                             key,
                             convSize(usage[minIdx] << 20),
@@ -92211,7 +92375,7 @@ class TaskAnalyzer(object):
                         "{0:1} {1:>30}({2:>3}) {3:>12} "
                         "{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n"
                     ).format(
-                        "%s%s" % (syscallInfo, " " * len(threadInfo)),
+                        syscallInfo + (" " * len(threadInfo)),
                         syscall,
                         sysId,
                         "%.6f" % val["usage"],
@@ -92925,25 +93089,17 @@ class TaskAnalyzer(object):
                     inodeCache[cacheId] = path
 
                     # build final string #
-                    inodeStr = "%s%s" % (
-                        inodeStr,
-                        (
-                            "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                            "{5:>12} {6:<1}\n"
-                        ).format(" ", " ", " ", inode, size, " ", path),
-                    )
+                    inodeStr += (
+                        "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
+                        "{5:>12} {6:<1}\n"
+                    ).format(" ", " ", " ", inode, size, " ", path)
 
                 opSize += totalSize
 
-                devStr = "%s%s" % (
-                    devStr,
-                    (
-                        (
-                            "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                            "{5:>12} {6:<1}\n"
-                        ).format("", "", did, "", convSize(totalSize), fs, dev)
-                    ),
-                )
+                devStr += (
+                    "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} " "{5:>12} {6:<1}\n"
+                ).format("", "", did, "", convSize(totalSize), fs, dev)
+
                 devStr += inodeStr
 
             SysMgr.printPipe(
@@ -93012,27 +93168,18 @@ class TaskAnalyzer(object):
                         path = inodeCache[cacheId]
 
                         # build final string #
-                        inodeStr = "%s%s" % (
-                            inodeStr,
-                            (
-                                "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                                "{5:>12} {6:<1}\n"
-                            ).format(" ", " ", " ", inode, size, " ", path),
-                        )
+                        inodeStr += (
+                            "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
+                            "{5:>12} {6:<1}\n"
+                        ).format(" ", " ", " ", inode, size, " ", path)
 
                     opSize += totalSize
 
-                    devStr = "%s%s" % (
-                        devStr,
-                        (
-                            (
-                                "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                                "{5:>12} {6:<1}\n"
-                            ).format(
-                                "", "", did, "", convSize(totalSize), fs, dev
-                            )
-                        ),
-                    )
+                    devStr += (
+                        "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} "
+                        "{5:>12} {6:<1}\n"
+                    ).format("", "", did, "", convSize(totalSize), fs, dev)
+
                     devStr += inodeStr
 
                 # update previous thread info #
@@ -95488,7 +95635,7 @@ class TaskAnalyzer(object):
                             lflag += "-"
 
                 # append lifecycle flag to usage #
-                usage = "%s%s" % (lflag, usage)
+                usage = lflag + usage
 
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += margin + 2
@@ -97218,26 +97365,23 @@ class TaskAnalyzer(object):
                 except:
                     none = 0
 
-                procDetails = "%s%s" % (
-                    procDetails,
-                    (
-                        "{0:>30} | {1:>8} | {2:>5} | {3:>6} | "
-                        "{4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                        "{9:>12} | {10:>12} | {11:>12} |\n"
-                    ).format(
-                        procInfo,
-                        idx,
-                        item["count"],
-                        vmem,
-                        rss,
-                        pss,
-                        swap,
-                        huge,
-                        lock,
-                        pdirty,
-                        sdirty,
-                        none,
-                    ),
+                procDetails += (
+                    "{0:>30} | {1:>8} | {2:>5} | {3:>6} | "
+                    "{4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
+                    "{9:>12} | {10:>12} | {11:>12} |\n"
+                ).format(
+                    procInfo,
+                    idx,
+                    item["count"],
+                    vmem,
+                    rss,
+                    pss,
+                    swap,
+                    huge,
+                    lock,
+                    pdirty,
+                    sdirty,
+                    none,
                 )
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".format(
@@ -103644,7 +103788,7 @@ class TaskAnalyzer(object):
                 "%s/self/io" % SysMgr.procPath
             ):
                 SysMgr.printWarn(
-                    "failed to use bio event, please check kernel config"
+                    "failed to use bio event, please check kernel configs"
                 )
                 SysMgr.blockEnable = False
             self.procData[tid]["ioData"] = ioBuf
@@ -106665,10 +106809,7 @@ class TaskAnalyzer(object):
                 else:
                     op = "+"
 
-                freeDiff = "%s%s" % (
-                    op,
-                    convSize2Unit(long(abs(freeDiff)) << 20),
-                )
+                freeDiff = op + convSize2Unit(long(abs(freeDiff)) << 20)
             except SystemExit:
                 sys.exit(0)
             except:
