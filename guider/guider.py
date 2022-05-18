@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220517"
+__revision__ = "220518"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13544,7 +13544,7 @@ class PageAnalyzer(object):
 
         # get target addresses #
         if vaddr:
-            vaddrOrig = vaddr.split(",")
+            vaddrOrig = UtilMgr.cleanItem(vaddr.split(","), False)
         else:
             vaddrOrig = None
 
@@ -13555,6 +13555,9 @@ class PageAnalyzer(object):
                 sys.exit(-1)
         else:
             markIdleFlag = False
+
+        convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
 
         # check idle page check #
         if "CHECKIDLE" in SysMgr.environList:
@@ -13574,6 +13577,7 @@ class PageAnalyzer(object):
 
             SysMgr.checkRootPerm()
 
+            # get target address ranges #
             targetList = []
             for vaddr in vaddrs:
                 if not vaddr:
@@ -13598,9 +13602,18 @@ class PageAnalyzer(object):
                     if vranges:
                         targetList += vranges
                     else:
-                        vrange = vaddr.split("-")
+                        vrange = UtilMgr.cleanItem(vaddr.split("-"), False)
                         targetList.append(vrange)
 
+            procPresent = 0
+            procSwapped = 0
+            procSoftdirty = 0
+            procExmapped = 0
+            procFile = 0
+            procRef = 0
+            procIdle = 0
+
+            # print page info in target address ranges #
             for vrange in targetList:
                 rangeCnt = len(vrange)
                 if rangeCnt > 2:
@@ -13666,8 +13679,8 @@ class PageAnalyzer(object):
 
                 SysMgr.printPipe(
                     (
-                        "{0:^18}|{1:^16}|{2:>5}|{3:>5}|{4:>5}|{5:>5}|"
-                        "{6:>5}|{7:>5}|{8:>5}| {9}({10})\n{11}"
+                        "{0:^19}|{1:^16}|{2:>5}|{3:>5}|{4:>5}|{5:>5}|"
+                        "{6:>5}|{7:>5}|{8:>5}| {9} ({10})\n{11}"
                     ).format(
                         "VADDR",
                         "PFN",
@@ -13678,8 +13691,8 @@ class PageAnalyzer(object):
                         "SDRT",
                         "EXMAP",
                         "IDLE",
-                        "FLAG",
-                        "FLAGS",
+                        "ATTRS",
+                        "BITS",
                         oneLine,
                     )
                 )
@@ -13699,41 +13712,54 @@ class PageAnalyzer(object):
                     # get page frame number #
                     pfn = PageAnalyzer.getPfn(entry)
 
-                    # mark idle pages #
-                    if markIdleFlag:
-                        SysMgr.handleIdlePage(pfn, write=True)
-
                     isPresent = PageAnalyzer.isPresent(entry)
                     if isPresent:
                         totalPresent += 1
+                        procPresent += 1
 
                     isSwapped = PageAnalyzer.isSwapped(entry)
                     if isSwapped:
                         totalSwapped += 1
+                        procSwapped += 1
 
                     isSoftdirty = PageAnalyzer.isSoftdirty(entry)
                     if isSoftdirty:
                         totalSoftdirty += 1
+                        procSoftdirty += 1
 
                     isExmapped = PageAnalyzer.isExmapped(entry)
                     if isExmapped:
                         totalExmapped += 1
+                        procExmapped += 1
 
                     isFile = PageAnalyzer.isFilePage(entry)
                     if isFile:
                         totalFile += 1
+                        procFile += 1
 
-                    isRef = PageAnalyzer.getPageCount(pfn)
-                    if isRef:
-                        totalRef += 1
+                    refCnt = PageAnalyzer.getPageCount(pfn)
+                    if refCnt:
+                        totalRef += refCnt
+                        procRef += refCnt
 
-                    # check idle pages #
-                    if checkIdleFlag:
-                        isIdle = SysMgr.handleIdlePage(pfn, write=False)
-                        if isIdle:
+                    # no page #
+                    isIdle = "-"
+                    if not refCnt:
+                        pass
+                    # mark idle pages #
+                    elif markIdleFlag:
+                        if SysMgr.handleIdlePage(pfn, write=True):
+                            isIdle = True
                             totalIdle += 1
-                    else:
-                        isIdle = False
+                            procIdle += 1
+                    # check idle pages #
+                    elif checkIdleFlag:
+                        isIdle = SysMgr.handleIdlePage(pfn, write=False)
+                        if isIdle is None:
+                            isIdle = "-"
+                        elif isIdle:
+                            totalIdle += 1
+                            procIdle += 1
 
                     kflags = PageAnalyzer.getPageFlags(pfn)
                     bflags = hex(kflags).rstrip("L")
@@ -13741,20 +13767,20 @@ class PageAnalyzer(object):
 
                     SysMgr.addPrint(
                         (
-                            "{0:>17} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
-                            "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9}({10} )\n"
+                            "{0:>18} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
+                            "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9} ({10})\n"
                         ).format(
                             hex(addr).rstrip("L"),
                             hex(pfn).rstrip("L") if pfn else "",
                             isPresent,
                             isSwapped,
                             isFile,
-                            isRef,
+                            refCnt,
                             isSoftdirty,
                             isExmapped,
                             isIdle,
-                            bflags,
                             sflags,
+                            bflags,
                         ),
                         force=True,
                     )
@@ -13762,7 +13788,7 @@ class PageAnalyzer(object):
                 # print total stats #
                 SysMgr.printPipe(
                     (
-                        "{0:>17} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
+                        "{0:>18} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
                         "{5:>5}|{6:>5}|{7:>5}|{8:>5}|\n{9:1}"
                     ).format(
                         "[TOTAL]",
@@ -13778,8 +13804,66 @@ class PageAnalyzer(object):
                     )
                 )
 
-                SysMgr.doPrint(clear=True)
+                SysMgr.doPrint(newline=False, clear=True)
                 SysMgr.printPipe("%s\n" % oneLine)
+
+            # print process memory info #
+            SysMgr.printPipe(
+                "\n[Mem Info] [Proc: %s(%s)]" % (SysMgr.getComm(pid), pid)
+            )
+            SysMgr.printPipe(twoLine)
+
+            SysMgr.printPipe(
+                (
+                    "{0:^36}|{1:^10}|{2:^10}|{3:^10}|{4:^10}|"
+                    "{5:^10}|{6:^10}|{7:^10}|\n{8}"
+                ).format(
+                    "%s Areas" % convNum(len(targetList)),
+                    "PRESENT",
+                    "SWAP",
+                    "FILE",
+                    "REFERENCE",
+                    "SOFTDIRTY",
+                    "EXMAP",
+                    "IDLE",
+                    oneLine,
+                )
+            )
+
+            # print total page stats #
+            SysMgr.printPipe(
+                (
+                    "{0:^35} |{1:>9} |{2:>9} |{3:>9} |"
+                    "{4:>9} |{5:>9} |{6:>9} |{7:>9} |"
+                ).format(
+                    "PAGE",
+                    convNum(procPresent),
+                    convNum(procSwapped),
+                    convNum(procFile),
+                    convNum(procRef),
+                    convNum(procSoftdirty),
+                    convNum(procExmapped),
+                    convNum(procIdle),
+                )
+            )
+
+            # print total size stats #
+            SysMgr.printPipe(
+                (
+                    "{0:^35} |{1:>9} |{2:>9} |{3:>9} |"
+                    "{4:>9} |{5:>9} |{6:>9} |{7:>9} |\n{8:1}"
+                ).format(
+                    "SIZE",
+                    convSize(procPresent << 12),
+                    convSize(procSwapped << 12),
+                    convSize(procFile << 12),
+                    convSize(procRef << 12),
+                    convSize(procSoftdirty << 12),
+                    convSize(procExmapped << 12),
+                    convSize(procIdle << 12),
+                    oneLine,
+                )
+            )
 
     @staticmethod
     def printMemoryArea(
@@ -13960,7 +14044,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getFlagTypes(flags):
-        sflags = " "
+        sflags = ""
 
         for idx, val in enumerate(PageAnalyzer.flagList):
             if (long(flags, 16) & (1 << long(idx))) != 0:
@@ -13973,7 +14057,11 @@ class PageAnalyzer(object):
         try:
             f = SysMgr.getFd(path)
             f.seek(offset, 0)
-            return struct.unpack("Q" if size == 8 else "I", f.read(size))[0]
+            data = f.read(size)
+            if data:
+                return struct.unpack("Q" if size == 8 else "I", data)[0]
+            else:
+                return 0
         except SystemExit:
             sys.exit(0)
         except:
@@ -20519,14 +20607,31 @@ class FileAnalyzer(object):
 
         addrList = []
 
+        # check anon #
+        if fname == "anon":
+            allAnon = True
+        else:
+            allAnon = False
+
         # read maps #
         fd.seek(0, 0)
         for item in fd.readlines():
-            mdict = FileAnalyzer.parseMapLine(item)
-            if not mdict or not mdict["binName"]:
+            mdict = FileAnalyzer.parseMapLine(item, needName=not allAnon)
+            if not mdict:
                 continue
-            elif not mdict["binName"].endswith(fname):
-                continue
+
+            # all anon areas #
+            if allAnon:
+                if mdict["perm"].startswith("--"):
+                    continue
+                elif mdict["inode"] != "0":
+                    continue
+            # specific areas #
+            else:
+                if not mdict["binName"]:
+                    continue
+                elif not mdict["binName"].endswith(fname):
+                    continue
 
             start = str(mdict["startAddr"])
             end = str(mdict["endAddr"])
@@ -20731,15 +20836,20 @@ class FileAnalyzer(object):
             dataObj[fileName]["nrMap"] = 1
 
     @staticmethod
-    def parseMapLine(string):
-        m = re.match(
-            (
+    def parseMapLine(string, needName=True):
+        if needName:
+            matchStr = (
                 r"^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) "
-                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+).\s*"
-                r"(?P<binName>.+)"
-            ),
-            string,
-        )
+                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+)"
+                r".\s*(?P<binName>.+)"
+            )
+        else:
+            matchStr = (
+                r"^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) "
+                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+)"
+            )
+
+        m = re.match(matchStr, string)
         if not m:
             return None
 
@@ -24448,6 +24558,10 @@ Commands:
     @staticmethod
     def handleIdlePage(pfn, write=True, flush=True):
         try:
+            # check pfn 0 #
+            if not pfn:
+                return None
+
             # set permission #
             if write:
                 perm = "wb"
@@ -24483,7 +24597,10 @@ Commands:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("failed to mark idle page (PFN: %s)" % pfn, True)
+            SysMgr.printWarn(
+                "failed to mark idle page (PFN: %s)" % hex(pfn), reason=True
+            )
+            return None
 
     @staticmethod
     def clearPageRefs(pid, val):
@@ -31211,7 +31328,7 @@ Examples:
         # {0:1} {1:1} -g a.out -I heap -o dump.out
 
     - {2:1} heap's bitmap to the specific file
-        # {0:1} {1:1} -g a.out -I heap -o dump.out -q RESBITMAP
+        # {0:1} {1:1} -g a.out -I heap -o dump.out -q SAVEBITMAP
                     """.format(
                         cmd, mode, "Dump the target"
                     )
@@ -31871,8 +31988,10 @@ Examples:
     - Print page attributes in specific area for specific processes
         # {0:1} {1:1} a.out -I 0x0-0x4000
         # {0:1} {1:1} a.out -I libc.so
+        # {0:1} {1:1} a.out -I /lib/x86_64-linux-gnu/libc-2.23.so
         # {0:1} {1:1} a.out -I heap
-        # {0:1} {1:1} a.out -I 0x8000-0x9000,0x12345678
+        # {0:1} {1:1} a.out -I anon
+        # {0:1} {1:1} a.out -I 0x8000-0x9000, 0x12345678
 
     - Print page attributes after marking idle flag in specific area for specific processes
         # {0:1} {1:1} a.out -I 0x0-0x4000 -q MARKIDLE
@@ -37251,6 +37370,10 @@ Copyright:
 
     @staticmethod
     def addPrint(string, newline=1, force=False, listBuf=False):
+        # check print flag #
+        if not SysMgr.printEnable:
+            return
+
         if not force and SysMgr.checkCutCond(newline):
             return False
 
@@ -74967,8 +75090,8 @@ typedef struct {
             SysMgr.printOpenErr(output)
             return 0
 
-        # handle RESBITMAP variable #
-        if "RESBITMAP" in SysMgr.environList:
+        # handle SAVEBITMAP variable #
+        if "SAVEBITMAP" in SysMgr.environList:
             # get page aligned size #
             pageSize = SysMgr.PAGESIZE
             tsize = long((size + pageSize - 1) / pageSize)
