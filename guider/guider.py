@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220521"
+__revision__ = "220522"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13562,11 +13562,17 @@ class PageAnalyzer(object):
         convNum = UtilMgr.convNum
         convSize = UtilMgr.convSize2Unit
 
-        # check idle page check #
+        # check idle page checking #
         if "CHECKIDLE" in SysMgr.environList:
             checkIdleFlag = True
         else:
             checkIdleFlag = False
+
+        # check bitmap saving #
+        if "SAVEBITMAP" in SysMgr.environList:
+            saveBitmapFlag = True
+        else:
+            saveBitmapFlag = False
 
         for pid in sorted(pids):
             comm = SysMgr.getComm(pid)
@@ -13616,6 +13622,7 @@ class PageAnalyzer(object):
             procRef = 0
             procIdle = 0
             procTotalFlags = 0
+            pageTable = []
 
             # print page info in target address ranges #
             for vrange in targetList:
@@ -13714,9 +13721,12 @@ class PageAnalyzer(object):
                 # read pagemap #
                 start = long(addrs / pageSize) * wordSize
                 length = addre + offset - addrs
-                count = long(length / pageSize) * wordSize
-                pagemap = PageAnalyzer.getPagemap(pid, start, count)
+                count = long(length / pageSize)
+                pagemap = PageAnalyzer.getPagemap(pid, start, count * wordSize)
                 idx = 0
+
+                if saveBitmapFlag and checkIdleFlag:
+                    pageSubTable = [1] * count
 
                 for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
                     # get page frame info #
@@ -13783,6 +13793,10 @@ class PageAnalyzer(object):
                             totalIdle += 1
                             procIdle += 1
 
+                            # change idle bit #
+                            if saveBitmapFlag:
+                                pageSubTable[long(idx / 8)] = 0
+
                     kflags = PageAnalyzer.getPageFlags(pfn)
                     totalFlags |= kflags
                     bflags = hex(kflags).rstrip("L")
@@ -13836,6 +13850,10 @@ class PageAnalyzer(object):
                 # print all items #
                 SysMgr.doPrint(newline=False, clear=True, isList=True)
                 SysMgr.printPipe("%s\n" % oneLine)
+
+                # merge idle tables #
+                if saveBitmapFlag and checkIdleFlag:
+                    pageTable += pageSubTable
 
             # print process memory info #
             SysMgr.printPipe(
@@ -13904,6 +13922,41 @@ class PageAnalyzer(object):
                     oneLine,
                 )
             )
+
+            # save idle bitmap to the file #
+            if saveBitmapFlag and checkIdleFlag:
+                if SysMgr.printFd:
+                    filename = SysMgr.printFd.name
+                    name, ext = os.path.splitext(filename)
+                    filename = "%s_idlemap%s%s" % (name, pid, ext)
+                else:
+                    filename = "idlemap.out"
+
+                # backup #
+                SysMgr.backupFile(filename)
+
+                # open output file #
+                try:
+                    fd = open(filename, "wb")
+                    os.chmod(filename, 0o777)
+                except:
+                    SysMgr.printOpenErr(filename)
+                    continue
+
+                # write bitmap to file #
+                btable = bytes(pageTable)
+                fd.write(btable)
+
+                # close output file for sync #
+                SysMgr.printStat(
+                    "start writing bitmap data [%s] to %s"
+                    % (
+                        UtilMgr.convSize2Unit(sys.getsizeof(pageTable)),
+                        filename,
+                    )
+                )
+
+                fd.close()
 
     @staticmethod
     def printMemoryArea(
@@ -20665,7 +20718,7 @@ class FileAnalyzer(object):
                 return None
 
         addrList = []
-        allAnon = allFile = allPages = noPerm = False
+        allAnon = allFile = allPages = noPerm = something = False
 
         # check anon #
         if fname == "anon":
@@ -20679,11 +20732,15 @@ class FileAnalyzer(object):
         # check noperm #
         elif fname == "noperm":
             noPerm = True
+        else:
+            something = True
 
         # read maps #
         fd.seek(0, 0)
         for item in fd.readlines():
-            mdict = FileAnalyzer.parseMapLine(item, needName=allFile)
+            mdict = FileAnalyzer.parseMapLine(
+                item, needName=allFile or something
+            )
             if not mdict:
                 continue
 
@@ -20700,7 +20757,7 @@ class FileAnalyzer(object):
                     continue
             # files #
             else:
-                if not mdict["binName"]:
+                if not "binName" in mdict or not mdict["binName"]:
                     continue
                 # all files #
                 elif allFile and mdict["inode"] != "0":
@@ -32076,6 +32133,9 @@ Examples:
 
     - Print page attributes including idle flag in specific area for specific processes
         # {0:1} {1:1} a.out -I 0x0-0x4000 -q CHECKIDLE
+
+    - Save the bitmap including idle page info to the specific file for specific processes
+        # {0:1} {1:1} a.out -I heap -o mem.out -q CHECKIDLE, SAVEBITMAP
                     """.format(
                         cmd, mode
                     )
@@ -78727,7 +78787,7 @@ class ElfAnalyzer(object):
 
     def __str__(self):
         self.__init__(self.path, debug=True, printer=True)
-        return self.logstr
+        return "\n".join(self.logList)
 
     def __init__(
         self,
@@ -78741,9 +78801,9 @@ class ElfAnalyzer(object):
         origPath=None,
     ):
         def _printer(item):
-            if not hasattr(self, "logstr"):
-                self.logstr = ""
-            self.logstr += "\n%s" % item
+            if not hasattr(self, "logList"):
+                self.logList = []
+            self.logList.append(item)
 
         # set printer #
         if printer:
@@ -86114,7 +86174,7 @@ class TaskAnalyzer(object):
         nrEmpty = table.count(3)
         convNum = UtilMgr.convNum
         info = (
-            "- Unit: %s\n" "- Total: %s\n" "- Used: %s\n" "- Freed: %s\n"
+            "- Unit: %s\n" "- Total: %s\n" "- Used: %s\n" "- Unused: %s\n"
         ) % (
             convNum(unit),
             convNum(nrTotal * unit),
@@ -90347,7 +90407,10 @@ class TaskAnalyzer(object):
                     newLine = True
 
                 SysMgr.printPipe(
-                    "{0:<32} {1:>32}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}".format(
+                    (
+                        "{0:<32} {1:>32}({2:>7}) {3:>10} "
+                        "{4:>10.6f} {5:>10.6f}"
+                    ).format(
                         idx,
                         "TOTAL",
                         "-",
