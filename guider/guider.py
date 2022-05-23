@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220522"
+__revision__ = "220523"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13520,7 +13520,9 @@ class PageAnalyzer(object):
     ]
 
     @staticmethod
-    def getPageInfo(pid, vaddr):
+    def getPageInfo(
+        pid, vaddr, markIdleFlag=False, checkIdleFlag=False, verb=True
+    ):
         try:
             if not pid:
                 raise Exception("no pid")
@@ -13548,25 +13550,20 @@ class PageAnalyzer(object):
         else:
             vaddrOrig = None
 
+        if verb:
+            _printPipe = SysMgr.printPipe
+        else:
+            _printPipe = lambda _: True
+
         # check idle page marking #
         if "MARKIDLE" in SysMgr.environList:
             markIdleFlag = True
             if not SysMgr.checkIdlePageCond():
                 sys.exit(-1)
-        else:
-            markIdleFlag = False
-
-        # define shortcut variables #
-        pageSize = SysMgr.PAGESIZE
-        wordSize = 8
-        convNum = UtilMgr.convNum
-        convSize = UtilMgr.convSize2Unit
 
         # check idle page checking #
         if "CHECKIDLE" in SysMgr.environList:
             checkIdleFlag = True
-        else:
-            checkIdleFlag = False
 
         # check bitmap saving #
         if "SAVEBITMAP" in SysMgr.environList:
@@ -13574,14 +13571,23 @@ class PageAnalyzer(object):
         else:
             saveBitmapFlag = False
 
+        # define shortcut variables #
+        wordSize = 8
+        pageSize = SysMgr.PAGESIZE
+        convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
+        errMsg = (
+            "failed to recognize addresses, "
+            "input the address such as 102400 or 0x1234a-0x123ff"
+        )
+
         for pid in sorted(pids):
             comm = SysMgr.getComm(pid)
             vaddrs = vaddrOrig
             if not vaddrs:
                 PageAnalyzer.printMemoryArea(
-                    pid, comm=comm, showall=SysMgr.showAll
+                    pid, comm=comm, showall=SysMgr.showAll, lastLine=True
                 )
-                SysMgr.printPipe(oneLine)
                 continue
 
             SysMgr.checkRootPerm()
@@ -13627,68 +13633,65 @@ class PageAnalyzer(object):
             # print page info in target address ranges #
             for vrange in targetList:
                 rangeCnt = len(vrange)
+
+                # check input count #
                 if rangeCnt > 2:
-                    SysMgr.printErr(
-                        "failed to recognize address, "
-                        "input address such as 102400 or 0x1234a-0x123ff"
-                    )
+                    SysMgr.printErr(errMsg, True)
                     sys.exit(-1)
-                else:
-                    try:
-                        addrs = long(vrange[0], base=16)
-                        addre = addrs
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "failed to recognize address, "
-                            "input address such as 0xabcd or 78901234"
-                        )
-                        sys.exit(-1)
 
-                    try:
-                        if rangeCnt == 2:
-                            addre = long(vrange[1], base=16)
-                            offset = 0
-                        else:
-                            offset = SysMgr.PAGESIZE
+                # check input format #
+                try:
+                    addrs = long(vrange[0], base=16)
+                    addre = addrs
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(errMsg, True)
+                    sys.exit(-1)
 
-                        if addrs > addre:
+                try:
+                    if rangeCnt == 2:
+                        addre = long(vrange[1], base=16)
+                        offset = 0
+                    else:
+                        offset = SysMgr.PAGESIZE
+
+                    # check range #
+                    if addrs > addre:
+                        if verb:
                             # print memory area #
                             PageAnalyzer.printMemoryArea(
-                                pid, comm=comm, showall=True
+                                pid, comm=comm, showall=True, lastLine=True
                             )
-                            SysMgr.printPipe(oneLine)
 
-                            # print error message #
-                            SysMgr.printErr(
-                                (
-                                    "failed to recognize address, "
-                                    "input bigger second address (%s) "
-                                    "than first address (%s)"
-                                )
-                                % (hex(addre), hex(addrs))
-                            )
-                            sys.exit(-1)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
+                        # print error message #
                         SysMgr.printErr(
-                            "failed to recognize address, "
-                            "input address such as 0x1234-0x4444"
+                            (
+                                "failed to recognize addresses, "
+                                "the first address (%s) is bigger than "
+                                "the second address (%s)"
+                            )
+                            % (hex(addrs), hex(addre))
                         )
                         sys.exit(-1)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(errMsg, True)
+                    sys.exit(-1)
 
-                SysMgr.printPipe(
+                _printPipe(
                     "\n[Mem Info] [Proc: %s(%s)] [AREA: %s] [HELP: %s]"
                     % (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt")
                 )
 
                 # print memory area info #
-                PageAnalyzer.printMemoryArea(pid, addrs, addre)
-                SysMgr.printPipe(twoLine)
+                if verb:
+                    PageAnalyzer.printMemoryArea(
+                        pid, addrs, addre, lastLine=True
+                    )
 
-                SysMgr.printPipe(
+                _printPipe(
                     (
                         "{0:^19}|{1:^16}|{2:>5}|{3:>5}|{4:>5}|{5:>5}|"
                         "{6:>5}|{7:>5}|{8:>5}| {9} ({10})\n{11}"
@@ -13827,7 +13830,7 @@ class PageAnalyzer(object):
                 totalFlagsStr = hex(totalFlags).rstrip("L")
 
                 # print total stats #
-                SysMgr.printPipe(
+                _printPipe(
                     (
                         "{0:>18} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
                         "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9} ({10})\n{11:1}"
@@ -13848,20 +13851,23 @@ class PageAnalyzer(object):
                 )
 
                 # print all items #
-                SysMgr.doPrint(newline=False, clear=True, isList=True)
-                SysMgr.printPipe("%s\n" % oneLine)
+                if verb:
+                    SysMgr.doPrint(newline=False, clear=True, isList=True)
+                    _printPipe("%s\n" % oneLine)
+                else:
+                    SysMgr.clearPrint()
 
                 # merge idle tables #
                 if saveBitmapFlag and checkIdleFlag:
                     pageTable += pageSubTable
 
             # print process memory info #
-            SysMgr.printPipe(
+            _printPipe(
                 "\n[Mem Info] [Proc: %s(%s)] [Area: %s)\n%s"
                 % (SysMgr.getComm(pid), pid, convNum(len(targetList)), twoLine)
             )
 
-            SysMgr.printPipe(
+            _printPipe(
                 (
                     "{0:^10}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
                     "{5:^8}|{6:^8}|{7:^8}| {8} ({9})\n{10}"
@@ -13883,7 +13889,7 @@ class PageAnalyzer(object):
             procTotalFlagsStr = hex(procTotalFlags).rstrip("L")
 
             # print total page stats #
-            SysMgr.printPipe(
+            _printPipe(
                 (
                     "{0:^9} |{1:>7} |{2:>7} |{3:>7} |"
                     "{4:>7} |{5:>7} |{6:>7} |{7:>7} | {8}"
@@ -13903,7 +13909,7 @@ class PageAnalyzer(object):
             )
 
             # print total size stats #
-            SysMgr.printPipe(
+            _printPipe(
                 (
                     "{0:^9} |{1:>7} |{2:>7} |{3:>7} |"
                     "{4:>7} |{5:>7} |{6:>7} |{7:>7} | {8}\n{9}"
@@ -95906,7 +95912,7 @@ class TaskAnalyzer(object):
                             lflag += "-"
 
                 # append lifecycle flag to usage #
-                usage = lflag + usage
+                usage = lflag + str(usage)
 
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += margin + 2
