@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220523"
+__revision__ = "220524"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13550,6 +13550,7 @@ class PageAnalyzer(object):
         else:
             vaddrOrig = None
 
+        # set print function #
         if verb:
             _printPipe = SysMgr.printPipe
         else:
@@ -13572,8 +13573,6 @@ class PageAnalyzer(object):
             saveBitmapFlag = False
 
         # define shortcut variables #
-        wordSize = 8
-        pageSize = SysMgr.PAGESIZE
         convNum = UtilMgr.convNum
         convSize = UtilMgr.convSize2Unit
         errMsg = (
@@ -13722,21 +13721,18 @@ class PageAnalyzer(object):
                 totalFlags = 0
 
                 # read pagemap #
-                start = long(addrs / pageSize) * wordSize
                 length = addre + offset - addrs
-                count = long(length / pageSize)
-                pagemap = PageAnalyzer.getPagemap(pid, start, count * wordSize)
-                idx = 0
+                pagemap = PageAnalyzer.getPagemap(pid, addrs, length)
 
+                # create a new pagetable for this area #
                 if saveBitmapFlag and checkIdleFlag:
-                    pageSubTable = [1] * count
+                    pageSubTable = [1] * long(length / SysMgr.PAGESIZE)
 
+                idx = 0
                 for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
                     # get page frame info #
                     try:
-                        entry = struct.unpack(
-                            "Q", pagemap[idx : idx + wordSize]
-                        )[0]
+                        entry = struct.unpack("Q", pagemap[idx : idx + 8])[0]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -13796,7 +13792,7 @@ class PageAnalyzer(object):
                             totalIdle += 1
                             procIdle += 1
 
-                            # change idle bit #
+                            # change a bit in a pagetable #
                             if saveBitmapFlag:
                                 pageSubTable[long(idx / 8)] = 0
 
@@ -13857,7 +13853,7 @@ class PageAnalyzer(object):
                 else:
                     SysMgr.clearPrint()
 
-                # merge idle tables #
+                # merge pagetables #
                 if saveBitmapFlag and checkIdleFlag:
                     pageTable += pageSubTable
 
@@ -13941,28 +13937,27 @@ class PageAnalyzer(object):
                 # backup #
                 SysMgr.backupFile(filename)
 
-                # open output file #
+                # save bitmap to the file #
                 try:
-                    fd = open(filename, "wb")
+                    with open(filename, "wb") as fd:
+                        btable = bytes(pageTable)
+                        fd.write(btable)
                     os.chmod(filename, 0o777)
                 except:
                     SysMgr.printOpenErr(filename)
                     continue
 
-                # write bitmap to file #
-                btable = bytes(pageTable)
-                fd.write(btable)
+                # get output size #
+                fsize = UtilMgr.getFileSize(filename)
+                if fsize and fsize != "0":
+                    fsize = " [%s]" % fsize
+                else:
+                    fsize = ""
 
-                # close output file for sync #
                 SysMgr.printStat(
-                    "start writing bitmap data [%s] to %s"
-                    % (
-                        UtilMgr.convSize2Unit(sys.getsizeof(pageTable)),
-                        filename,
-                    )
+                    "saved the bitmap data to '%s'%s successfully"
+                    % (filename, fsize)
                 )
-
-                fd.close()
 
     @staticmethod
     def printMemoryArea(
@@ -14179,8 +14174,10 @@ class PageAnalyzer(object):
         return path
 
     @staticmethod
-    def getPagemap(pid, offset, size):
+    def getPagemap(pid, addr, size):
         path = PageAnalyzer.getPagemapPath(pid)
+        offset = long(addr / SysMgr.PAGESIZE) * 8
+        size = long(size / SysMgr.PAGESIZE) * 8
 
         try:
             f = SysMgr.getFd(path)
@@ -19798,9 +19795,9 @@ class FunctionAnalyzer(object):
 class LeakAnalyzer(object):
     """Analyzer for leaktracing"""
 
-    # use SIGRT1 and SIGRT2 as default signals #
-    startSig = 35
-    stopSig = 36
+    startSig = 35  # SIGRT1
+    stopSig = 36  # SIGRT2
+    markedIdlePages = False
 
     def __init__(self, file=None, pid=None):
 
@@ -49407,11 +49404,11 @@ Copyright:
         except:
             LeakAnalyzer.stopSig = 12
 
-        # set signal #
+        # set stop signal #
         if "LEAKTRACER_ONSIG_REPORT" in envList:
             stopSig = long(envList["LEAKTRACER_ONSIG_REPORT"])
 
-        # add an environment for start signal #
+        # set start signal and add an environment variable #
         if not autostart:
             startSig = LeakAnalyzer.startSig
             if not preloaded:
@@ -49426,6 +49423,16 @@ Copyright:
                 remoteCmd.insert(
                     0, 'setenv:LEAKTRACER_ONSIG_REPORT#"%s"' % stopSig
                 )
+
+        # register signal handler to mark all pages as idle #
+        def _markIdlePages(signum, frame):
+            SysMgr.printStat(r"start marking all pages as idle...")
+            PageAnalyzer.getPageInfo(
+                [pid], "anon", markIdleFlag=True, verb=False
+            )
+            LeakAnalyzer.markedIdlePages = True
+
+        signal.signal(signal.SIGQUIT, _markIdlePages)
 
         # add an init call for tracing #
         if remoteCmd and not libPath:
@@ -75263,15 +75270,21 @@ typedef struct {
             # write memory to file #
             btable = bytes(table)
             fd.write(btable)
+            fd.close()
 
             # close output file for sync #
             if verb:
-                SysMgr.printStat(
-                    "start writing bitmap data [%s] to %s"
-                    % (UtilMgr.convSize2Unit(sys.getsizeof(table)), output)
-                )
+                # get output size #
+                fsize = UtilMgr.getFileSize(output)
+                if fsize and fsize != "0":
+                    fsize = " [%s]" % fsize
+                else:
+                    fsize = ""
 
-            fd.close()
+                SysMgr.printStat(
+                    "saved the bitmap data to '%s'%s successfully"
+                    % (output, fsize)
+                )
 
             return size
 
@@ -79711,7 +79724,7 @@ Section header string table index: %d
             printer(
                 (
                     "\n[Section Headers]\n%s\n"
-                    "[NR] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s\n%s"
+                    "[NR] %50s%15s%12s%12s%13s(%5s)%8s%5s%5s%7s%6s\n%s"
                 )
                 % (
                     twoLine,
@@ -79719,7 +79732,8 @@ Section header string table index: %d
                     "Type",
                     "Address",
                     "Offset",
-                    "Size(%)",
+                    "Size",
+                    "%",
                     "EntSize",
                     "Flag",
                     "Link",
