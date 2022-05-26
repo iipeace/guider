@@ -23131,6 +23131,7 @@ class SysMgr(object):
     cmdFileCache = {}
     cmdAttachCache = {}
     pciList = []
+    limitDirList = {}
 
     # threshold #
     thresholdData = {}
@@ -29031,8 +29032,11 @@ Examples:
     - {3:1} {2:2} with elapsed times for each step
         # {0:1} {1:1} -q PRINTDELAY
 
-    - {3:1} {2:2} and report to both ./guider.out and console
+    - {3:1} {2:2} and report the results to both ./guider.out and console
         # {0:1} {1:1} -o . -Q
+
+    - {3:1} {2:2} and report the results to ./guider.out after freeing up space in the target directories
+        # {0:1} {1:1} -o . -q LIMITDIRSIZE:./:100M, LIMITDIRSIZE:/home:1G
 
     - {3:1} {2:2} and execute special commands
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
@@ -36980,7 +36984,7 @@ Copyright:
                 SysMgr.saveSysStats()
                 SysMgr.printInfoBuffer()
 
-                # submit summarized report and details #
+                # submit summary report and details #
                 if "NOINTSUMMARY" in SysMgr.environList:
                     SysMgr.printProcBuffer()
                 else:
@@ -37406,6 +37410,41 @@ Copyright:
         target = "%s/%s" % (SysMgr.procPath, path)
         with open(target, "r") as fd:
             return fd.readlines()
+
+    @staticmethod
+    def freeDirs():
+        for path, limitSize in SysMgr.limitDirList.items():
+            # get target dir info #
+            dirInfo = SysMgr.printDirs(path=path, retVal=True)
+            if not dirInfo:
+                continue
+
+            # get current size #
+            try:
+                curSize = dirInfo[next(iter(dirInfo))]["size"]
+                curSize = UtilMgr.convUnit2Size(curSize)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to get current dir info", True)
+                continue
+
+            # get free-up size #
+            try:
+                diff = limitSize - curSize
+                if diff >= 0:
+                    continue
+
+                needSize = abs(diff)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to get free-up size of target dir", True
+                )
+                continue
+
+            # TODO: free up directory size by removing files #
 
     @staticmethod
     def writeTraceCmd(path, val, append=False):
@@ -39661,6 +39700,40 @@ Copyright:
         if "STDLOG" in SysMgr.environList:
             options = SysMgr.environList["STDLOG"][0]
             SysMgr.loggingEnable = _setLogger(options)
+
+        # check target dir #
+        if "LIMITDIRSIZE" in SysMgr.environList:
+            for dirInfo in SysMgr.environList["LIMITDIRSIZE"]:
+                # get target dir and limit size #
+                try:
+                    path, size = UtilMgr.cleanItem(
+                        dirInfo.split(":", 1), union=False
+                    )
+                    if not path or not size:
+                        continue
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to get target dir info to be limited", True
+                    )
+                    continue
+
+                # get limited size #
+                try:
+                    size = UtilMgr.convUnit2Size(size)
+                    if not size:
+                        continue
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to convert reclaim size '%s'" % size, True
+                    )
+                    sys.exit(0)
+
+                # register limit dir info #
+                SysMgr.limitDirList[path] = size
 
         # register exit commands #
         if "EXITCMD" in SysMgr.environList:
@@ -47879,7 +47952,7 @@ Copyright:
         SysMgr.printPipe(oneLine + "\n")
 
     @staticmethod
-    def printDirs(path=".", maxLevel=-1):
+    def printDirs(path=".", maxLevel=-1, retVal=False):
         def _getDirsJson(result, parentPath, level, maxLevel):
             # get subdir #
             try:
@@ -47900,7 +47973,8 @@ Copyright:
                 return (0, 0, 0)
 
             # print progress #
-            UtilMgr.printProgress()
+            if not retVal:
+                UtilMgr.printProgress()
 
             totalSize = 0
             totalFile = 0
@@ -48346,10 +48420,12 @@ Copyright:
 
         # print start directory #
         abspath = os.path.abspath(path)
-        SysMgr.printStat(r"start traversing dirs from '%s'..." % abspath)
+
+        if not retVal:
+            SysMgr.printStat(r"start traversing dirs from '%s'..." % abspath)
 
         # print start path #
-        if SysMgr.jsonEnable:
+        if SysMgr.jsonEnable or retVal:
             result = {}
             if SysMgr.showAll:
                 result[abspath] = dict(subDirs={}, subFiles={})
@@ -48358,12 +48434,12 @@ Copyright:
 
             _getDirsJson(result, path, 0, -1)
 
-            jsonResult = UtilMgr.convDict2Str(
+            if retVal:
+                return result
+
+            output = UtilMgr.convDict2Str(
                 result, pretty=not SysMgr.streamEnable
             )
-
-            UtilMgr.deleteProgress()
-            SysMgr.printPipe(jsonResult)
         else:
             try:
                 initDir = os.listdir(path)
@@ -48382,8 +48458,11 @@ Copyright:
 
             output = "\n%s\n" % "\n".join(result)
 
-            UtilMgr.deleteProgress()
-            SysMgr.printPipe(output)
+        # print results #
+        UtilMgr.deleteProgress()
+        SysMgr.printPipe(output)
+
+        return output
 
     @staticmethod
     def setLowPriority(force=False, cpuVal=15, verb=False):
