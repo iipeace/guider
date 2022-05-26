@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220524"
+__revision__ = "220526"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13521,7 +13521,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(
-        pid, vaddr, markIdleFlag=False, checkIdleFlag=False, verb=True
+        pid, vaddr, markIdle=False, checkIdle=False, retList=False, verb=True
     ):
         try:
             if not pid:
@@ -13544,6 +13544,9 @@ class PageAnalyzer(object):
 
             sys.exit(-1)
 
+        # check root permission #
+        SysMgr.checkRootPerm()
+
         # get target addresses #
         if vaddr:
             vaddrOrig = UtilMgr.cleanItem(vaddr.split(","), False)
@@ -13558,13 +13561,13 @@ class PageAnalyzer(object):
 
         # check idle page marking #
         if "MARKIDLE" in SysMgr.environList:
-            markIdleFlag = True
+            markIdle = True
             if not SysMgr.checkIdlePageCond():
                 sys.exit(-1)
 
         # check idle page checking #
         if "CHECKIDLE" in SysMgr.environList:
-            checkIdleFlag = True
+            checkIdle = True
 
         # check bitmap saving #
         if "SAVEBITMAP" in SysMgr.environList:
@@ -13580,6 +13583,8 @@ class PageAnalyzer(object):
             "input the address such as 102400 or 0x1234a-0x123ff"
         )
 
+        idlePageList = {}
+
         for pid in sorted(pids):
             comm = SysMgr.getComm(pid)
             vaddrs = vaddrOrig
@@ -13589,7 +13594,8 @@ class PageAnalyzer(object):
                 )
                 continue
 
-            SysMgr.checkRootPerm()
+            if retList:
+                idlePageList.setdefault(pid, [])
 
             # get target address ranges #
             targetList = []
@@ -13721,15 +13727,16 @@ class PageAnalyzer(object):
                 totalFlags = 0
 
                 # read pagemap #
-                length = addre + offset - addrs
+                addreNew = addre + offset
+                length = addreNew - addrs
                 pagemap = PageAnalyzer.getPagemap(pid, addrs, length)
 
                 # create a new pagetable for this area #
-                if saveBitmapFlag and checkIdleFlag:
+                if retList or (saveBitmapFlag and checkIdle):
                     pageSubTable = [1] * long(length / SysMgr.PAGESIZE)
 
                 idx = 0
-                for addr in xrange(addrs, addre + offset, SysMgr.PAGESIZE):
+                for addr in xrange(addrs, addreNew, SysMgr.PAGESIZE):
                     # get page frame info #
                     try:
                         entry = struct.unpack("Q", pagemap[idx : idx + 8])[0]
@@ -13778,13 +13785,13 @@ class PageAnalyzer(object):
                     if not refCnt:
                         pass
                     # mark idle pages #
-                    elif markIdleFlag:
+                    elif markIdle:
                         if SysMgr.handleIdlePage(pfn, write=True):
                             isIdle = True
                             totalIdle += 1
                             procIdle += 1
                     # check idle pages #
-                    elif checkIdleFlag:
+                    elif checkIdle:
                         isIdle = SysMgr.handleIdlePage(pfn, write=False)
                         if isIdle is None:
                             isIdle = "-"
@@ -13793,7 +13800,7 @@ class PageAnalyzer(object):
                             procIdle += 1
 
                             # change a bit in a pagetable #
-                            if saveBitmapFlag:
+                            if retList or saveBitmapFlag:
                                 pageSubTable[long(idx / 8)] = 0
 
                     kflags = PageAnalyzer.getPageFlags(pfn)
@@ -13853,8 +13860,12 @@ class PageAnalyzer(object):
                 else:
                     SysMgr.clearPrint()
 
+                # add a new area to list #
+                if retList:
+                    idlePageList[pid].append([addrs, addreNew, pageSubTable])
+
                 # merge pagetables #
-                if saveBitmapFlag and checkIdleFlag:
+                if saveBitmapFlag and checkIdle:
                     pageTable += pageSubTable
 
             # print process memory info #
@@ -13897,9 +13908,7 @@ class PageAnalyzer(object):
                     convNum(procRef),
                     convNum(procSoftdirty),
                     convNum(procExmapped),
-                    convNum(procIdle)
-                    if checkIdleFlag or markIdleFlag
-                    else "-",
+                    convNum(procIdle) if checkIdle or markIdle else "-",
                     PageAnalyzer.getFlagTypes(procTotalFlagsStr),
                 )
             )
@@ -13917,16 +13926,14 @@ class PageAnalyzer(object):
                     convSize(procRef << 12),
                     convSize(procSoftdirty << 12),
                     convSize(procExmapped << 12),
-                    convSize(procIdle << 12)
-                    if checkIdleFlag or markIdleFlag
-                    else "-",
+                    convSize(procIdle << 12) if checkIdle or markIdle else "-",
                     procTotalFlagsStr,
                     oneLine,
                 )
             )
 
             # save idle bitmap to the file #
-            if saveBitmapFlag and checkIdleFlag:
+            if saveBitmapFlag and checkIdle:
                 if SysMgr.printFd:
                     filename = SysMgr.printFd.name
                     name, ext = os.path.splitext(filename)
@@ -13958,6 +13965,8 @@ class PageAnalyzer(object):
                     "saved the bitmap data to '%s'%s successfully"
                     % (filename, fsize)
                 )
+
+        return idlePageList
 
     @staticmethod
     def printMemoryArea(
@@ -19921,7 +19930,7 @@ class LeakAnalyzer(object):
             )
         )
         SysMgr.printPipe(
-            "{0:>7} | {1:>7} | {2:<132} |".format(" ", "Size", "Backtrace")
+            "{0:>7} | {1:>7} | {2:<132} |".format(" ", "Size", " Backtrace")
         )
         SysMgr.printPipe(twoLine)
 
@@ -20057,11 +20066,10 @@ class LeakAnalyzer(object):
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:^16} | {1:^16} | {2:^6} |{3:^50}| {4:^53} |".format(
-                "Time", "Addr", "Size", "Data", "Stack"
+            "{0:^16} | {1:^16} | {2:^6} |{3:^50}| {4:^53}\n{5:1}".format(
+                "Time", "Addr", "Size", "Data", "Stack", oneLine
             )
         )
-        SysMgr.printPipe(oneLine)
 
         for time, items in sorted(
             self.callData.items(), key=lambda e: e[0], reverse=False
@@ -20075,15 +20083,15 @@ class LeakAnalyzer(object):
             )
 
             SysMgr.printPipe(
-                "{0:>16} | {1:>16} | {2:>6} |{3:<50}| {4:<53} |".format(
+                "{0:>16} | {1:>16} | {2:>6} |{3:<50}| {4:<53}\n{5:1}".format(
                     time,
                     items["addr"] if "addr" in items else " ",
                     convSize(long(items["size"])),
                     items["data"][:-1],
                     stack,
+                    oneLine,
                 )
             )
-        SysMgr.printPipe(oneLine)
 
     def mergeSymbols(self):
         cnt = 0
@@ -20206,6 +20214,12 @@ class LeakAnalyzer(object):
     def parseLines(self, fd):
         callinfo = {}
         total = os.fstat(fd.fileno()).st_size
+        pageSize = SysMgr.PAGESIZE
+
+        # check REPORTIDLE variable to report only idle page info #
+        if LeakAnalyzer.markedIdlePages:
+            if not "REPORTIDLE" in SysMgr.environList:
+                LeakAnalyzer.markedIdlePages = False
 
         while 1:
             try:
@@ -20252,6 +20266,8 @@ class LeakAnalyzer(object):
                         sys.exit(0)
                     except:
                         pass
+                elif not SysMgr.showAll and name == "data":
+                    continue
                 else:
                     item[name] = body
 
@@ -20260,6 +20276,23 @@ class LeakAnalyzer(object):
                 continue
 
             size = long(item["size"])
+
+            # filter parts on idle pages #
+            if LeakAnalyzer.markedIdlePages and "addr" in item:
+                # get addr #
+                addr = long(item["addr"], 16)
+                addrNew = long(addr / pageSize) * pageSize
+                addrDiff = addr - addrNew
+
+                # get page-aligned size #
+                sizeNew = long((size + addrDiff + pageSize - 1) / pageSize)
+                sizeNew *= pageSize
+
+                # TODO: update size for idle using idle page table #
+
+                # skip all used chunks #
+                if size < 1:
+                    continue
 
             # save pos in common area #
             for pos in item["stack"]:
@@ -21918,7 +21951,7 @@ class FileAnalyzer(object):
             offset = val["offset"]
             size = val["totalSize"]
 
-            # get page aligned size #
+            # get page-aligned size #
             tsize = long((size + pageSize - 1) / pageSize)
             size = tsize * pageSize
 
@@ -33324,6 +33357,9 @@ Examples:
 
     - {3:1} {2:1} after starting profiling {5:1}
         # {0:1} {1:1} -g a.out -c 20m,0
+
+    - Report idle memory hints of the target process {2:1} after executing the target program with auto start and receiving SIGQUIT for marking all anonymous pages as idle
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTIDLE
 
     - {3:1} {5:1}
         # {0:1} {1:1} -g a.out -c 20m
@@ -49427,9 +49463,7 @@ Copyright:
         # register signal handler to mark all pages as idle #
         def _markIdlePages(signum, frame):
             SysMgr.printStat(r"start marking all pages as idle...")
-            PageAnalyzer.getPageInfo(
-                [pid], "anon", markIdleFlag=True, verb=False
-            )
+            PageAnalyzer.getPageInfo([pid], "anon", markIdle=True, verb=False)
             LeakAnalyzer.markedIdlePages = True
 
         signal.signal(signal.SIGQUIT, _markIdlePages)
@@ -49594,7 +49628,9 @@ Copyright:
 
             # wait for stop threshold or signal #
             try:
-                SysMgr.printStat(r"start monitoring... [ STOP(Ctrl+c) ]")
+                SysMgr.printStat(
+                    r"start monitoring... [ STOP(Ctrl+c), MARK(Ctrl+\) ]"
+                )
 
                 ret = _waitAndKill(tobj, pid, comm, endSize, stopSig, "stop")
             # stop profiling #
@@ -75250,7 +75286,7 @@ typedef struct {
 
         # handle SAVEBITMAP variable #
         if "SAVEBITMAP" in SysMgr.environList:
-            # get page aligned size #
+            # get page-aligned size #
             pageSize = SysMgr.PAGESIZE
             tsize = long((size + pageSize - 1) / pageSize)
             rsize = tsize * pageSize
