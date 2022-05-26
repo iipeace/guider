@@ -33635,6 +33635,10 @@ Examples:
     - Compress a file
         # {0:1} {1:1} guider.out
         # {0:1} {1:1} guider.out -o guider.out.gz
+
+    - Compress multiple files
+        # {0:1} {1:1} "guider.out, guider2.out"
+        # {0:1} {1:1} "guider*.out"
                     """.format(
                         cmd, mode
                     )
@@ -33660,6 +33664,10 @@ Examples:
     - Decompress a file
         # {0:1} {1:1} guider.gz
         # {0:1} {1:1} guider.gz -o guider.out
+
+    - Decompress multiple files
+        # {0:1} {1:1} "guider.out.gz, guider2.out.gz"
+        # {0:1} {1:1} "guider*.gz"
                     """.format(
                         cmd, mode
                     )
@@ -38822,7 +38830,7 @@ Copyright:
                         # run less as pager #
                         SysMgr.pipeForPager = os.popen(poption, "w")
 
-                        # set default signal to prevent abnormal terminal status #
+                        # set signals to prevent abnormal terminal status #
                         SysMgr.setDefaultSignal()
                     elif UtilMgr.which("more"):
                         SysMgr.pipeForPager = os.popen("more", "w")
@@ -52129,80 +52137,93 @@ Copyright:
 
         # check input #
         if SysMgr.hasMainArg():
-            infile = SysMgr.getMainArg()
+            args = SysMgr.getMainArgs()
         else:
             SysMgr.printErr("no path for compression")
             sys.exit(-1)
 
-        # check file #
-        if not os.path.isfile(infile):
-            SysMgr.printErr("wrong path '%s' for decompression" % infile)
+        # get file list #
+        infileList = UtilMgr.getFileList(args, exceptDir=True)
+        if not infileList:
+            SysMgr.printErr("no file for the path")
             sys.exit(-1)
-
-        # check output #
-        outfile = SysMgr.outPath
-        SysMgr.outPath = None
-        if outfile:
-            # check dir #
-            if os.path.isdir(outfile):
-                outfile = os.path.join(outfile, infile + ".gz")
-        else:
-            outfile = "%s.gz" % infile
-
-        # check final input and output path #
-        if infile == outfile:
-            SysMgr.printErr(
-                "both input and output are the same as '%s' " % infile
-            )
-            sys.exit(-1)
-
-        # check exist file #
-        if os.path.exists(outfile):
-            SysMgr.backupFile(outfile)
-
-        # 1MB chunk size #
-        chunkSize = 1 << 20
 
         # get compressor #
         compressor = SysMgr.getPkg("gzip")
 
-        # open input file #
-        infd = open(infile, "rb")
+        for infile in infileList:
+            # check file #
+            if not os.path.isfile(infile):
+                SysMgr.printErr("wrong path '%s' for decompression" % infile)
+                sys.exit(-1)
 
-        # get total file size #
-        wroteSize = 0
-        fileSize = long(os.fstat(infd.fileno()).st_size)
-        infileSizeStr = UtilMgr.convSize2Unit(fileSize)
+            # check output #
+            outfile = SysMgr.outPath
+            SysMgr.outPath = None
+            if outfile:
+                # check dir #
+                if os.path.isdir(outfile):
+                    outfile = os.path.join(outfile, infile + ".gz")
+            else:
+                outfile = "%s.gz" % infile
 
-        # open output file #
-        outfd = compressor.open(outfile, "wb")
-        os.chmod(outfile, 0o777)
+            # check final input and output path #
+            if infile == outfile:
+                SysMgr.printErr(
+                    "both input and output are the same as '%s' " % infile
+                )
+                sys.exit(-1)
 
-        SysMgr.printInfo(
-            "start compressing %s[%s] to %s" % (infile, infileSizeStr, outfile)
-        )
+            # check exist file #
+            if os.path.exists(outfile):
+                SysMgr.backupFile(outfile)
+                newline = False
+            else:
+                newline = True
 
-        while 1:
-            chunk = infd.read(chunkSize)
-            if not chunk:
-                outfd.flush()
-                break
+            # 1MB chunk size #
+            chunkSize = 1 << 20
 
-            outfd.write(chunk)
+            # open input file #
+            infd = open(infile, "rb")
 
-            wroteSize += len(chunk)
-            UtilMgr.printProgress(wroteSize, fileSize)
+            # get total file size #
+            wroteSize = 0
+            fileSize = long(os.fstat(infd.fileno()).st_size)
+            infileSizeStr = UtilMgr.convSize2Unit(fileSize)
 
-        if wroteSize:
-            UtilMgr.deleteProgress()
+            # open output file #
+            outfd = compressor.open(outfile, "wb")
+            os.chmod(outfile, 0o777)
 
-        outfileSize = long(os.fstat(outfd.fileno()).st_size)
-        outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
+            SysMgr.printInfo(
+                "start compressing '%s' [%s] to '%s'"
+                % (infile, infileSizeStr, outfile),
+                prefix=newline,
+            )
 
-        SysMgr.printInfo(
-            "finished compressing %s[%s] to %s[%s]"
-            % (infile, infileSizeStr, outfile, outfileSizeStr)
-        )
+            while 1:
+                chunk = infd.read(chunkSize)
+                if not chunk:
+                    outfd.flush()
+                    break
+
+                outfd.write(chunk)
+
+                wroteSize += len(chunk)
+                UtilMgr.printProgress(wroteSize, fileSize)
+
+            if wroteSize:
+                UtilMgr.deleteProgress()
+
+            outfileSize = long(os.fstat(outfd.fileno()).st_size)
+            outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
+
+            SysMgr.printInfo(
+                "finished compressing '%s' [%s] to '%s' [%s]"
+                % (infile, infileSizeStr, outfile, outfileSizeStr),
+                prefix=False,
+            )
 
     @staticmethod
     def doDecompress():
@@ -52212,84 +52233,96 @@ Copyright:
 
         # check input #
         if SysMgr.hasMainArg():
-            infile = SysMgr.getMainArg()
+            args = SysMgr.getMainArgs()
         else:
             SysMgr.printErr("no path for decompression")
             sys.exit(-1)
 
-        # check file #
-        if not os.path.isfile(infile):
-            SysMgr.printErr("wrong path '%s' for decompression" % infile)
+        # get file list #
+        infileList = UtilMgr.getFileList(args, exceptDir=True)
+        if not infileList:
+            SysMgr.printErr("no file for the path")
             sys.exit(-1)
-
-        # check output #
-        outfile = SysMgr.outPath
-        SysMgr.outPath = None
-        if outfile:
-            # check dir #
-            if os.path.isdir(outfile):
-                outfile = os.path.join(outfile, infile.replace(".gz", ""))
-        else:
-            if infile.endswith(".gz"):
-                outfile = infile.replace(".gz", "")
-            else:
-                outfile = infile + ".decomp"
-
-        # check final input and output path #
-        if infile == outfile:
-            SysMgr.printErr(
-                "both input and output are the same as '%s' " % infile
-            )
-            sys.exit(-1)
-
-        # check exist file #
-        if os.path.exists(outfile):
-            SysMgr.backupFile(outfile)
-
-        # 1MB chunk size #
-        chunkSize = 1 << 20
 
         # get compressor #
         compressor = SysMgr.getPkg("gzip")
 
-        # open input file #
-        infd = compressor.open(infile, "rb")
+        for infile in infileList:
+            # check file #
+            if not os.path.isfile(infile):
+                SysMgr.printErr("wrong path '%s' for decompression" % infile)
+                sys.exit(-1)
 
-        # get total file size #
-        wroteSize = 0
-        fileSize = long(os.fstat(infd.fileno()).st_size)
-        infileSizeStr = UtilMgr.convSize2Unit(fileSize)
+            # check output #
+            outfile = SysMgr.outPath
+            SysMgr.outPath = None
+            if outfile:
+                # check dir #
+                if os.path.isdir(outfile):
+                    outfile = os.path.join(outfile, infile.replace(".gz", ""))
+            else:
+                if infile.endswith(".gz"):
+                    outfile = infile.replace(".gz", "")
+                else:
+                    outfile = infile + ".decomp"
 
-        # open output file #
-        outfd = open(outfile, "wb")
-        os.chmod(outfile, 0o777)
+            # check final input and output path #
+            if infile == outfile:
+                SysMgr.printErr(
+                    "both input and output are the same as '%s' " % infile
+                )
+                sys.exit(-1)
 
-        SysMgr.printInfo(
-            "start decompressing %s[%s] to %s"
-            % (infile, infileSizeStr, outfile)
-        )
+            # check exist file #
+            if os.path.exists(outfile):
+                SysMgr.backupFile(outfile)
+                newline = False
+            else:
+                newline = True
 
-        while 1:
-            chunk = infd.read(chunkSize)
-            if not chunk:
-                outfd.flush()
-                break
+            # 1MB chunk size #
+            chunkSize = 1 << 20
 
-            outfd.write(chunk)
+            # open input file #
+            infd = compressor.open(infile, "rb")
 
-            wroteSize += len(chunk)
-            UtilMgr.printProgress(wroteSize, fileSize)
+            # get total file size #
+            wroteSize = 0
+            fileSize = long(os.fstat(infd.fileno()).st_size)
+            infileSizeStr = UtilMgr.convSize2Unit(fileSize)
 
-        if wroteSize:
-            UtilMgr.deleteProgress()
+            # open output file #
+            outfd = open(outfile, "wb")
+            os.chmod(outfile, 0o777)
 
-        outfileSize = long(os.fstat(outfd.fileno()).st_size)
-        outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
+            SysMgr.printInfo(
+                "start decompressing '%s' [%s] to '%s'"
+                % (infile, infileSizeStr, outfile),
+                prefix=newline,
+            )
 
-        SysMgr.printInfo(
-            "finished decompressing %s[%s] to %s[%s]"
-            % (infile, infileSizeStr, outfile, outfileSizeStr)
-        )
+            while 1:
+                chunk = infd.read(chunkSize)
+                if not chunk:
+                    outfd.flush()
+                    break
+
+                outfd.write(chunk)
+
+                wroteSize += len(chunk)
+                UtilMgr.printProgress(wroteSize, fileSize)
+
+            if wroteSize:
+                UtilMgr.deleteProgress()
+
+            outfileSize = long(os.fstat(outfd.fileno()).st_size)
+            outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
+
+            SysMgr.printInfo(
+                "finished decompressing '%s' [%s] to '%s' [%s]"
+                % (infile, infileSizeStr, outfile, outfileSizeStr),
+                prefix=False,
+            )
 
     @staticmethod
     def doPrintSig(target=None):
