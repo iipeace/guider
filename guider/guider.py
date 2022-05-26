@@ -49225,6 +49225,12 @@ Copyright:
                 else:
                     # convert to absolute path #
                     libPath = os.path.abspath(newPath[0])
+
+                    # override LD_PRELOAD value #
+                    if "LD_PRELOAD" in os.environ:
+                        libPath += ":%s" % os.environ["LD_PRELOAD"]
+
+                    # add PRELOAD path #
                     SysMgr.environList["ENV"].append("LD_PRELOAD=%s" % libPath)
             else:
                 SysMgr.printErr("no path for libleaktracer.so")
@@ -49514,7 +49520,7 @@ Copyright:
                 sigList = tobj.procData[pid]["status"]["SigCgt"]
                 if startSig and not UtilMgr.isBitEnabled(startSig, sigList):
                     SysMgr.printWarn(
-                        "failed to find %s(%s)'s handler for start"
+                        "failed to find %s(%s) handler for start"
                         % (ConfigMgr.SIG_LIST[startSig], startSig),
                         True,
                     )
@@ -49522,7 +49528,7 @@ Copyright:
                 # check stop signal #
                 if stopSig and not UtilMgr.isBitEnabled(stopSig, sigList):
                     SysMgr.printWarn(
-                        "failed to find %s(%s)'s handler for stop"
+                        "failed to find %s(%s) handler for stop"
                         % (ConfigMgr.SIG_LIST[stopSig], stopSig),
                         True,
                     )
@@ -52384,6 +52390,7 @@ Copyright:
                     ):
                         sigList.append(ConfigMgr.SIG_LIST[pos])
 
+                # check skip condition #
                 if not sigList:
                     continue
                 elif SysMgr.jsonEnable:
