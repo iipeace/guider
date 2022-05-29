@@ -23020,6 +23020,7 @@ class SysMgr(object):
     swappiness = 0
     vmpressure = 0
     overcommit = 0
+    nrRun = 0
 
     # watermark constants #
     cpuPerHighThreshold = 80
@@ -24325,6 +24326,25 @@ Commands:
                 else:
                     SysMgr.outPath = SysMgr.nullPath
 
+            # get output dir #
+            if SysMgr.outPath == SysMgr.nullPath:
+                targetDir = SysMgr.tmpPath
+            elif os.path.isdir(SysMgr.outPath):
+                targetDir = SysMgr.outPath
+            else:
+                targetDir = os.path.dirname(SysMgr.outPath)
+
+            # update run number #
+            if not SysMgr.nrRun:
+                try:
+                    SysMgr.updateNrRun(targetDir)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to update sequence number of execution", True
+                    )
+
             # set buffer strip #
             SysMgr.bufferLossEnable = True
 
@@ -25098,6 +25118,38 @@ Commands:
             sysMemStr = 0
         finally:
             return sysMemStr
+
+    @staticmethod
+    def updateNrRun(path):
+        if not path or not os.path.isdir(path):
+            SysMgr.printErr(
+                (
+                    "failed to update sequence number of execution ",
+                    "because wrong directory path '%s'",
+                )
+                % path
+            )
+            return
+
+        # get the file list sorted by name in the output dir #
+        flist = sorted(
+            filter(
+                lambda x: os.path.isfile(os.path.join(path, x)),
+                os.listdir(path),
+            ),
+            reverse=True,
+        )
+
+        # get the number of last execution #
+        for fname in flist:
+            m = re.match(r"^guider_(?P<run>[0-9]+)_*", fname)
+            if not m:
+                continue
+
+            # update the execution number #
+            d = m.groupdict()
+            SysMgr.nrRun = long(d["run"]) + 1
+            return
 
     @staticmethod
     def getMemInfo():
@@ -29439,9 +29491,10 @@ Examples:
         # {0:1} {1:1} "ls" -eD
         # {0:1} {1:1} -I "ls" -eD
 
-    - {3:1} from a specific binary with environment variables
+    - {3:1} from a specific binary with specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {3:1} with backtrace {7:1}
         # {0:1} {1:1} -g a.out -H
@@ -43544,7 +43597,7 @@ Copyright:
                     SysMgr.printErr(
                         "no process related to '%s'" % ", ".join(tasks)
                     )
-                    return
+                    return None
 
                 # copy variables #
                 for pid in pids:
@@ -110185,23 +110238,24 @@ class TaskAnalyzer(object):
         if not timeinfo:
             timeinfo = long(SysMgr.uptime)
 
-        # change output path #
+        # get output dir #
         if SysMgr.outPath == SysMgr.nullPath:
-            SysMgr.outPath = "%s/guider_%s_%s_%s.out" % (
-                SysMgr.tmpPath,
-                event,
-                cmd,
-                timeinfo,
-            )
+            targetDir = SysMgr.tmpPath
         elif os.path.isdir(SysMgr.outPath):
-            SysMgr.outPath = "%s/guider_%s_%s_%s.out" % (
-                SysMgr.outPath,
-                event,
-                cmd,
-                timeinfo,
-            )
+            targetDir = SysMgr.outPath
+        else:
+            targetDir = os.path.dirname(SysMgr.outPath)
 
         # change output path #
+        SysMgr.outPath = "%s/guider_%08d_%s_%s_%s.out" % (
+            targetDir,
+            SysMgr.nrRun,
+            event,
+            cmd,
+            timeinfo,
+        )
+
+        # save output #
         if SysMgr.isLinux:
             # convert timer #
             try:
