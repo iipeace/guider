@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220526"
+__revision__ = "220529"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13974,7 +13974,7 @@ class PageAnalyzer(object):
     ):
 
         count = 0
-        switch = 0
+        switch = False
         fpath = "%s/%s/maps" % (SysMgr.procPath, pid)
 
         if start == end == -1 and not showall:
@@ -14012,9 +14012,9 @@ class PageAnalyzer(object):
                 % (comm, pid, vss, rss)
             )
 
-        start = hex(start)
-        end = hex(end)
-        alls = hex(-1)
+        startHex = hex(start)
+        endHex = hex(end)
+        allsHex = hex(-1)
 
         # print menu #
         menuStr = ""
@@ -14091,15 +14091,15 @@ class PageAnalyzer(object):
             tmplist = line.split()
             soffset, eoffset = tmplist[0].split("-")
 
-            if start == end == alls:
-                switch = 0
+            if startHex == endHex == allsHex:
+                switch = False
             elif "-" in line:
-                soffset = hex(long(soffset, base=16))
-                eoffset = hex(long(eoffset, base=16))
+                soffset = long(soffset, base=16)
+                eoffset = long(eoffset, base=16)
 
-                if start >= soffset and start < eoffset:
-                    switch = 1
-                elif switch == 0:
+                if soffset <= start < eoffset:
+                    switch = True
+                elif not switch:
                     continue
                 elif end < eoffset:
                     break
@@ -14109,19 +14109,22 @@ class PageAnalyzer(object):
 
                 target[4] = "%12s" % target[4]
 
-                if not soffset.startswith("0x"):
-                    soffset = "0x%s" % soffset
+                soffsetHex = hex(soffset)
+                eoffsetHex = hex(eoffset)
 
-                if not eoffset.startswith("0x"):
-                    eoffset = "0x%s" % eoffset
+                if not soffsetHex.startswith("0x"):
+                    soffsetHex = "0x%s" % soffsetHex
 
-                size = convSize(long(eoffset, 16) - long(soffset, 16), True)
+                if not eoffsetHex.startswith("0x"):
+                    eoffsetHex = "0x%s" % eoffsetHex
+
+                size = convSize(eoffset - soffset, True)
 
                 SysMgr.printPipe(
                     "%18s %18s %4s %8s %6s %12s %5s %s"
                     % (
-                        soffset,
-                        eoffset,
+                        soffsetHex,
+                        eoffsetHex,
                         target[1],
                         target[2],
                         target[3],
@@ -14137,12 +14140,13 @@ class PageAnalyzer(object):
 
             count += 1
 
-            if switch == 1 and end <= eoffset:
+            if switch and end <= eoffset:
                 break
 
         if count == 0:
             SysMgr.printPipe("no involved memory area")
-        elif lastLine:
+
+        if lastLine:
             SysMgr.printPipe(oneLine)
 
     @staticmethod
