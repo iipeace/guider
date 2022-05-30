@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220529"
+__revision__ = "220530"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23020,7 +23020,9 @@ class SysMgr(object):
     swappiness = 0
     vmpressure = 0
     overcommit = 0
+    limitRepDirSize = 0
     nrRun = 0
+    nrReport = 0
 
     # watermark constants #
     cpuPerHighThreshold = 80
@@ -24232,11 +24234,22 @@ Commands:
     @staticmethod
     def execTopCmd():
         # check background processes #
-        if not "FASTINIT" in SysMgr.environList:
+        if not "FASTINIT" in SysMgr.environList and not SysMgr.isDrawMode():
             SysMgr.checkBgProcs()
 
         # write user command #
         SysMgr.runProfCmd("BEFORE")
+
+        # set signal handler #
+        if SysMgr.isDrawMode():
+            SysMgr.setDefaultSignal()
+        # print profile option #
+        else:
+            SysMgr.printProfileOption()
+            SysMgr.printProfileCmd()
+
+            # set handler for exit #
+            SysMgr.setNormalSignal()
 
         # thread #
         if SysMgr.checkMode("ttop"):
@@ -24333,6 +24346,9 @@ Commands:
                 targetDir = SysMgr.outPath
             else:
                 targetDir = os.path.dirname(SysMgr.outPath)
+
+            # remove SIGINT handler to ignore creating the report file #
+            signal.signal(signal.SIGINT, SysMgr.exitHandler)
 
             # update run number #
             if not SysMgr.nrRun:
@@ -24436,17 +24452,6 @@ Commands:
             # check command requirement #
             if not SysMgr.checkRepTopCond():
                 sys.exit(-1)
-
-        # set signal handler #
-        if SysMgr.isDrawMode():
-            SysMgr.setDefaultSignal()
-        # print profile option #
-        else:
-            SysMgr.printProfileOption()
-            SysMgr.printProfileCmd()
-
-            # set handler for exit #
-            SysMgr.setNormalSignal()
 
         # init network resource data #
         if SysMgr.networkEnable and not SysMgr.sysInstance.networkInfo:
@@ -29092,7 +29097,7 @@ Examples:
         # {0:1} {1:1} -o . -Q
 
     - {3:1} {2:2} and report the results to ./guider.out after freeing up space in the target directories
-        # {0:1} {1:1} -o . -q LIMITDIRSIZE:./:100M, LIMITDIRSIZE:/home:1G
+        # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G
 
     - {3:1} {2:2} and execute special commands
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
@@ -30965,6 +30970,9 @@ Examples:
         # {0:1} {1:1} -j -Q -q TEXTREPORT
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
+
+    - {2:1} with threshold condition and report the compressed monitoring results to a specific file in the specific directory that is limited in the specific size
+        # {0:1} {1:1} -o /tmp -e C -b 1M -q TEXTREPORT, LIMITREPDIR:10M
 
     - {2:1} including normal tasks with threshold condition
         # {0:1} {1:1} -j -q SAVEJSONSTAT
@@ -37077,7 +37085,7 @@ Copyright:
             sys.exit(0)
             """
 
-            # update exit list to prevent recursive calls #
+            # remove stopHandler in exit list to prevent recursive calls #
             newExitList = []
             for idx, item in enumerate(SysMgr.exitFuncList):
                 if item[0] != SysMgr.stopHandler:
@@ -37469,21 +37477,118 @@ Copyright:
             return fd.readlines()
 
     @staticmethod
-    def freeDirs():
-        for path, limitSize in SysMgr.limitDirList.items():
-            # get target dir info #
-            dirInfo = SysMgr.printDirs(path=path, retVal=True)
-            if not dirInfo:
+    def getDirSize(path):
+        # get target dir info #
+        dirInfo = SysMgr.printDirs(path=path, retVal=True)
+        if not dirInfo:
+            return 0
+
+        # get current size #
+        try:
+            curSize = dirInfo[next(iter(dirInfo))]["size"]
+            curSize = UtilMgr.convUnit2Size(curSize)
+            return curSize
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get current dir info", True)
+            return None
+
+    @staticmethod
+    def freeReportDir():
+        # check limit size #
+        if SysMgr.limitRepDirSize == 0:
+            return 0
+
+        # get output dir #
+        if SysMgr.outPath == SysMgr.nullPath:
+            targetDir = SysMgr.tmpPath
+        elif os.path.isdir(SysMgr.outPath):
+            targetDir = SysMgr.outPath
+        else:
+            targetDir = os.path.dirname(SysMgr.outPath)
+
+        # get total size of the directory #
+        curSize = SysMgr.getDirSize(targetDir)
+        if not curSize:
+            return 0
+
+        # get free-up size #
+        try:
+            diff = SysMgr.limitRepDirSize - curSize
+            if diff >= 0:
+                return 0
+
+            needSize = abs(diff)
+            rmSize = 0
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get free-up size of target dir", True)
+            return 0
+
+        # get the file list sorted by name in the output dir #
+        flist = sorted(
+            filter(
+                lambda x: os.path.isfile(os.path.join(targetDir, x)),
+                os.listdir(targetDir),
+            )
+        )
+
+        # remove report files #
+        for fname in flist:
+            m = re.match(r"^guider_(?P<run>[0-9]+)_*", fname)
+            if not m:
                 continue
 
-            # get current size #
+            fpath = os.path.join(targetDir, fname)
+
+            # get file size #
+            size = UtilMgr.getFileSize(fpath, False)
+
+            msg = "'%s' [%s] to free up space of the report directory" % (
+                fpath,
+                UtilMgr.convSize2Unit(size),
+            )
+
+            # remove the file #
             try:
-                curSize = dirInfo[next(iter(dirInfo))]["size"]
-                curSize = UtilMgr.convUnit2Size(curSize)
+                os.remove(fpath)
+
+                SysMgr.printWarn("removed %s" % msg, True)
+
+                rmSize += size
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("failed to get current dir info", True)
+                SysMgr.printErr("failed to %s" % msg, True)
+
+            if rmSize >= needSize:
+                break
+
+        # print freed up space #
+        if rmSize:
+            curSize = SysMgr.getDirSize(targetDir)
+
+            SysMgr.printInfo(
+                (
+                    "removed a total of %s files "
+                    "to free up space of the report directory [%s]"
+                )
+                % (
+                    UtilMgr.convSize2Unit(rmSize),
+                    UtilMgr.convSize2Unit(curSize),
+                )
+            )
+
+        return rmSize
+
+    @staticmethod
+    def freeDirs():
+        for path, limitSize in SysMgr.limitDirList.items():
+            # get total size of the directory #
+            curSize = SysMgr.getDirSize(path)
+            if not curSize:
                 continue
 
             # get free-up size #
@@ -39758,9 +39863,9 @@ Copyright:
             options = SysMgr.environList["STDLOG"][0]
             SysMgr.loggingEnable = _setLogger(options)
 
-        # check target dir #
-        if "LIMITDIRSIZE" in SysMgr.environList:
-            for dirInfo in SysMgr.environList["LIMITDIRSIZE"]:
+        # get limited dir info #
+        if "LIMITDIR" in SysMgr.environList:
+            for dirInfo in SysMgr.environList["LIMITDIR"]:
                 # get target dir and limit size #
                 try:
                     path, size = UtilMgr.cleanItem(
@@ -39776,7 +39881,7 @@ Copyright:
                     )
                     continue
 
-                # get limited size #
+                # get limit size #
                 try:
                     size = UtilMgr.convUnit2Size(size)
                     if not size:
@@ -39787,10 +39892,23 @@ Copyright:
                     SysMgr.printErr(
                         "failed to convert reclaim size '%s'" % size, True
                     )
-                    sys.exit(0)
+                    sys.exit(-1)
 
                 # register limit dir info #
                 SysMgr.limitDirList[path] = size
+
+        # get limited report dir info #
+        if "LIMITREPDIR" in SysMgr.environList:
+            try:
+                size = SysMgr.environList["LIMITREPDIR"][0]
+                SysMgr.limitRepDirSize = UtilMgr.convUnit2Size(size)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to get the limit size of report directory", True
+                )
+                sys.exit(-1)
 
         # register exit commands #
         if "EXITCMD" in SysMgr.environList:
@@ -39807,9 +39925,11 @@ Copyright:
         if "LIMITMEM" in SysMgr.environList:
             try:
                 size = SysMgr.environList["LIMITMEM"][0]
-                size = long(UtilMgr.convUnit2Size(size))
-            except:
+                size = UtilMgr.convUnit2Size(size)
+            except SystemExit:
                 sys.exit(0)
+            except:
+                sys.exit(-1)
 
             # set the limited memory size for myself #
             SysMgr.limitMemory(SysMgr.pid, size)
@@ -83220,7 +83340,7 @@ class TaskAnalyzer(object):
     def checkFilter(comm, pid):
         found = False
 
-        if UtilMgr.isValidStr(comm):
+        if UtilMgr.isValidStr(comm.strip("*")):
             return True
 
         for idx in list(SysMgr.filterGroup):
@@ -84546,7 +84666,7 @@ class TaskAnalyzer(object):
                     SysMgr.printWarn("buffer size is unlimited", True)
                 else:
                     SysMgr.printInfo(
-                        "buffer size is limited to %s"
+                        "buffer size is limited to [%s]"
                         % UtilMgr.convSize2Unit(SysMgr.bufferSize)
                     )
 
@@ -86535,8 +86655,6 @@ class TaskAnalyzer(object):
                 ymax = long(max(ylist))
 
             ymaxval = ymax + int(ymax / 10)
-            if ymaxval == 0:
-                ymaxval = 1
             if ymaxval > 0:
                 ylim([0, ymaxval])
 
@@ -110215,6 +110333,9 @@ class TaskAnalyzer(object):
             SysMgr.printErr("no output path for '%s' command" % origCmd)
             return -1
 
+        # increase report number #
+        SysMgr.nrReport += 1
+
         if SysMgr.isLinux:
             # create a new process #
             pid = SysMgr.createProcess()
@@ -110223,6 +110344,9 @@ class TaskAnalyzer(object):
 
             # change priority #
             SysMgr.setLowPriority(True)
+
+            # register SIGINT handler #
+            signal.signal(signal.SIGINT, SysMgr.stopHandler)
 
             # disable report #
             SysMgr.reportEnable = False
@@ -110247,13 +110371,17 @@ class TaskAnalyzer(object):
             targetDir = os.path.dirname(SysMgr.outPath)
 
         # change output path #
-        SysMgr.outPath = "%s/guider_%08d_%s_%s_%s.out" % (
+        SysMgr.outPath = "%s/guider_%08d_%08d_%s_%s_%s.out" % (
             targetDir,
             SysMgr.nrRun,
+            SysMgr.nrReport,
             event,
             cmd,
             timeinfo,
         )
+
+        # free up report directory #
+        SysMgr.freeReportDir()
 
         # save output #
         if SysMgr.isLinux:
