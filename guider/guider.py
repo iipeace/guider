@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220530"
+__revision__ = "220531"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25395,10 +25395,10 @@ Commands:
         ]
 
         # execute commands to limit memory #
-        SysMgr.doCgroup(cmds, make=True, remove=True)
+        SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
-    def doCgroup(cmds=[], make=False, remove=False):
+    def doCgroup(cmds=[], make=False, remove=False, verb=True):
         def _moveTasks(srcFile, desFile, targetTasks):
             # read target tasks #
             tasks = SysMgr.readFile(srcFile)
@@ -25548,6 +25548,9 @@ Commands:
 
                 # print tasks #
                 for idx, tid in enumerate(sorted(tasks)):
+                    if not verb:
+                        continue
+
                     SysMgr.printPipe(
                         "[%s] %s(%s)"
                         % (convNum(idx), SysMgr.getComm(tid), tid)
@@ -25603,6 +25606,9 @@ Commands:
 
                 # print tasks #
                 for idx, tid in enumerate(tasks):
+                    if not verb:
+                        continue
+
                     SysMgr.printPipe(
                         "[%s] %s(%s)"
                         % (convNum(idx), SysMgr.getComm(tid), tid)
@@ -25675,6 +25681,9 @@ Commands:
 
             # print tasks #
             for idx, tid in enumerate(tasks):
+                if not verb:
+                    continue
+
                 SysMgr.printPipe(
                     "[%s] %s(%s)" % (convNum(idx), SysMgr.getComm(tid), tid)
                 )
@@ -37485,7 +37494,11 @@ Copyright:
 
         # get current size #
         try:
-            curSize = dirInfo[next(iter(dirInfo))]["size"]
+            item = next(iter(dirInfo))
+            if not "size" in dirInfo[item]:
+                return 0
+
+            curSize = dirInfo[item]["size"]
             curSize = UtilMgr.convUnit2Size(curSize)
             return curSize
         except SystemExit:
@@ -37497,7 +37510,7 @@ Copyright:
     @staticmethod
     def freeReportDir():
         # check limit size #
-        if SysMgr.limitRepDirSize == 0:
+        if not SysMgr.limitRepDirSize:
             return 0
 
         # get output dir #
@@ -37546,9 +37559,10 @@ Copyright:
             # get file size #
             size = UtilMgr.getFileSize(fpath, False)
 
-            msg = "'%s' [%s] to free up space of the report directory" % (
+            msg = "'%s' [%s] to free up space of the report directory [%s]" % (
                 fpath,
                 UtilMgr.convSize2Unit(size),
+                UtilMgr.convSize2Unit(curSize),
             )
 
             # remove the file #
@@ -37572,7 +37586,7 @@ Copyright:
 
             SysMgr.printInfo(
                 (
-                    "removed a total of %s files "
+                    "removed files with a total size of [%s] "
                     "to free up space of the report directory [%s]"
                 )
                 % (
@@ -38445,9 +38459,8 @@ Copyright:
                     if not (3 <= len(values) <= 5):
                         SysMgr.printErr(
                             (
-                                "failed to recognize %s in "
-                                "X:Y:NAME:[CPU|MEM|IO]:[BOX|CIRCLE|LARROW|RARROW]"
-                                "format"
+                                "failed to recognize %s in X:Y:NAME:[CPU|MEM"
+                                "|IO]:[BOX|CIRCLE|LARROW|RARROW] format"
                             )
                             % item
                         )
@@ -38733,6 +38746,8 @@ Copyright:
         try:
             # save image as file #
             imageObject.save(SysMgr.imagePath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr("failed to save image as %s\n" % SysMgr.imagePath)
             return
@@ -39863,6 +39878,9 @@ Copyright:
             options = SysMgr.environList["STDLOG"][0]
             SysMgr.loggingEnable = _setLogger(options)
 
+        convSize2Unit = UtilMgr.convSize2Unit
+        convUnit2Size = UtilMgr.convUnit2Size
+
         # get limited dir info #
         if "LIMITDIR" in SysMgr.environList:
             for dirInfo in SysMgr.environList["LIMITDIR"]:
@@ -39883,7 +39901,7 @@ Copyright:
 
                 # get limit size #
                 try:
-                    size = UtilMgr.convUnit2Size(size)
+                    size = convSize2Unit(size)
                     if not size:
                         continue
                 except SystemExit:
@@ -39900,8 +39918,11 @@ Copyright:
         # get limited report dir info #
         if "LIMITREPDIR" in SysMgr.environList:
             try:
-                size = SysMgr.environList["LIMITREPDIR"][0]
-                SysMgr.limitRepDirSize = UtilMgr.convUnit2Size(size)
+                size = convUnit2Size(SysMgr.environList["LIMITREPDIR"][0])
+                SysMgr.limitRepDirSize = size
+                SysMgr.printInfo(
+                    "limit report directory to [%s]" % convSize2Unit(size)
+                )
             except SystemExit:
                 sys.exit(0)
             except:
@@ -39924,8 +39945,10 @@ Copyright:
         # set memory limit #
         if "LIMITMEM" in SysMgr.environList:
             try:
-                size = SysMgr.environList["LIMITMEM"][0]
-                size = UtilMgr.convUnit2Size(size)
+                size = convUnit2Size(SysMgr.environList["LIMITMEM"][0])
+                SysMgr.printInfo(
+                    "limit process memory to [%s]" % convSize2Unit(size)
+                )
             except SystemExit:
                 sys.exit(0)
             except:
@@ -43905,8 +43928,9 @@ Copyright:
     ):
         """
         - desc: launch a new Guider process as a child
-        - pros: save memory such as ELF caches
-        - pros: control Guider functions such as logo, stdio
+        - pros: can save memory such as ELF caches
+                can control Guider functions such as logo, stdio
+        - cons: should use global variables well
         """
 
         # check mute #
@@ -84666,7 +84690,7 @@ class TaskAnalyzer(object):
                     SysMgr.printWarn("buffer size is unlimited", True)
                 else:
                     SysMgr.printInfo(
-                        "buffer size is limited to [%s]"
+                        "limit buffer size to [%s]"
                         % UtilMgr.convSize2Unit(SysMgr.bufferSize)
                     )
 
@@ -110490,14 +110514,13 @@ class TaskAnalyzer(object):
                     pid = list(value["task"])[0]
                     cmd = cmd.replace("EVTPID", pid)
 
-                # convert SELFPID #
+                # convert variables #
                 cmd = cmd.replace("SELFPID", str(SysMgr.pid))
-
-                # convert EVTNAME #
                 cmd = cmd.replace("EVTNAME", event)
-
-                # convert EVTTIME #
-                cmd = cmd.replace("EVTTIME", str(long(SysMgr.uptime)))
+                cmd = cmd.replace("EVTTIME", str(UtilMgr.getUTCTime()))
+                cmd = cmd.replace("EVTUPTIME", str(long(SysMgr.uptime)))
+                cmd = cmd.replace("NUMRUN", str(SysMgr.nrRun))
+                cmd = cmd.replace("NUMREP", str(SysMgr.nrReport))
 
                 SysMgr.printInfo('executed "%s" by %s event' % (cmd, event))
 
