@@ -13801,7 +13801,14 @@ class PageAnalyzer(object):
 
                             # change a bit in a pagetable #
                             if retList or saveBitmapFlag:
-                                pageSubTable[long(idx / 8)] = 0
+                                try:
+                                    pageSubTable[long(idx / 8)] = 0
+                                except:
+                                    SysMgr.printWarn(
+                                        "failed to save an idle page status",
+                                        always=True,
+                                        reason=True,
+                                    )
 
                     kflags = PageAnalyzer.getPageFlags(pfn)
                     totalFlags |= kflags
@@ -19811,6 +19818,7 @@ class LeakAnalyzer(object):
     startSig = 35  # SIGRT1
     stopSig = 36  # SIGRT2
     markedIdlePages = False
+    idlePageList = []
 
     def __init__(self, file=None, pid=None):
 
@@ -20292,7 +20300,7 @@ class LeakAnalyzer(object):
                 sizeNew = long((size + addrDiff + pageSize - 1) / pageSize)
                 sizeNew *= pageSize
 
-                # TODO: update size for idle using idle page table #
+                # TODO: update idle page size using idle page table #
 
                 # skip all used chunks #
                 if size < 1:
@@ -49249,6 +49257,30 @@ Copyright:
 
     @staticmethod
     def doLeaktrace():
+        def _sendSignal(sig, comm, pid, purpose):
+            # save idle page status #
+            if LeakAnalyzer.markedIdlePages:
+                LeakAnalyzer.idlePageList = PageAnalyzer.getPageInfo(
+                    [pid], "anon", checkIdle=True, retList=True, verb=False
+                )
+
+            # send signal #
+            try:
+                os.kill(long(pid), sig)
+                SysMgr.printStat(
+                    "sent %s to %s(%s) to %s memory profiling"
+                    % (ConfigMgr.SIG_LIST[sig], comm, pid, purpose)
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to send %s to %s memory profiling"
+                    % (ConfigMgr.SIG_LIST[sig], purpose),
+                    reason=True,
+                )
+                sys.exit(-1)
+
         def _waitAndKill(tobj, pid, comm, cond, sig, purpose, hookCmd=None):
             conv = UtilMgr.convSize2Unit
 
@@ -49366,17 +49398,8 @@ Copyright:
 
             # send signal #
             try:
-                os.kill(long(pid), sig)
-                SysMgr.printStat(
-                    "sent %s to %s(%s) to %s memory profiling"
-                    % (ConfigMgr.SIG_LIST[sig], comm, pid, purpose)
-                )
+                _sendSignal(sig, comm, pid, purpose)
             except:
-                SysMgr.printErr(
-                    "failed to send %s to %s memory profiling"
-                    % (ConfigMgr.SIG_LIST[sig], purpose),
-                    reason=True,
-                )
                 return -1
 
             return 0
@@ -49406,23 +49429,6 @@ Copyright:
                     fname = "%s/leaks.out" % dirname
 
             return fname
-
-        def _sendSignal(sig, comm, pid, purpose):
-            try:
-                os.kill(long(pid), sig)
-                SysMgr.printStat(
-                    "sent %s to %s(%s) to %s memory profiling"
-                    % (ConfigMgr.SIG_LIST[sig], comm, pid, purpose)
-                )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to send %s to %s memory profiling"
-                    % (ConfigMgr.SIG_LIST[sig], purpose),
-                    reason=True,
-                )
-                sys.exit(-1)
 
         # check package #
         SysMgr.getPkg("ctypes")
