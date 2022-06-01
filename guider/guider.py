@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220531"
+__revision__ = "220601"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20298,9 +20298,31 @@ class LeakAnalyzer(object):
 
                 # get page-aligned size #
                 sizeNew = long((size + addrDiff + pageSize - 1) / pageSize)
-                sizeNew *= pageSize
 
                 # TODO: update idle page size using idle page table #
+                try:
+                    for mem in LeakAnalyzer.idlePageList[self.pid]:
+                        start, end, bitmap = mem
+
+                        # check scope #
+                        if not (start <= addrNew <= end):
+                            continue
+
+                        diff = addrNew - start
+                        idx = long((diff) / pageSize)
+
+                        # subtract the size of used pages #
+                        for offset in range(sizeNew):
+                            if bitmap[idx + offset]:
+                                size -= pageSize
+
+                        # TODO: consider spanning chunks between two pages #
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "failed to check a idle chunk", True, True
+                    )
 
                 # skip all used chunks #
                 if size < 1:
@@ -49260,6 +49282,7 @@ Copyright:
         def _sendSignal(sig, comm, pid, purpose):
             # save idle page status #
             if LeakAnalyzer.markedIdlePages:
+                SysMgr.printStat(r"start checking all idle pages...")
                 LeakAnalyzer.idlePageList = PageAnalyzer.getPageInfo(
                     [pid], "anon", checkIdle=True, retList=True, verb=False
                 )
@@ -82708,7 +82731,7 @@ Section header string table index: %d
                     except:
                         pass
                 else:
-                    # TODO: implement below code #
+                    # TODO: implement more opcodes #
                     """
                     elif opcode == 'DW_OP_bit_piece':
                     elif opcode == 'DW_OP_GNU_regval_type':
