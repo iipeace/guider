@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220601"
+__revision__ = "220602"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6910,7 +6910,16 @@ class UtilMgr(object):
         return sec
 
     @staticmethod
-    def convTime(time):
+    def convTime(time, remainder=False):
+        try:
+            if not remainder:
+                raise Exception("integer")
+            remain = ".%02d" % long(time * 100 % 100)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            remain = ""
+
         # convert seconds to time #
         try:
             m, s = divmod(time, 60)
@@ -6929,11 +6938,11 @@ class UtilMgr(object):
             else:
                 d = ""
 
-            ctime = "%s%02d:%02d:%02d" % (d, h, m, s)
+            ctime = "%s%02d:%02d:%02d%s" % (d, h, m, s, remain)
         except SystemExit:
             sys.exit(0)
         except:
-            ctime = "%s%02s:%02s:%02s" % ("", "?", "?", "?")
+            ctime = "%s%02s:%02s:%02s%s" % ("", "?", "?", "?", remain)
 
         return ctime.strip()
 
@@ -13802,7 +13811,7 @@ class PageAnalyzer(object):
                             # change a bit in a pagetable #
                             if retList or saveBitmapFlag:
                                 try:
-                                    pageSubTable[long(idx / 8)] = 0
+                                    pageSubTable[long(idx / 8) - 1] = 0
                                 except:
                                     SysMgr.printWarn(
                                         "failed to save an idle page status",
@@ -14098,12 +14107,12 @@ class PageAnalyzer(object):
             tmplist = line.split()
             soffset, eoffset = tmplist[0].split("-")
 
+            soffset = long(soffset, base=16)
+            eoffset = long(eoffset, base=16)
+
             if startHex == endHex == allsHex:
                 switch = False
             elif "-" in line:
-                soffset = long(soffset, base=16)
-                eoffset = long(eoffset, base=16)
-
                 if soffset <= start < eoffset:
                     switch = True
                 elif not switch:
@@ -19901,7 +19910,7 @@ class LeakAnalyzer(object):
         # Merge symbols #
         self.mergeSymbols()
 
-    def printLeakage(self, runtime, profiletime):
+    def printLeakage(self, runtime, profileTime, startTime):
         # define shortcut #
         convSize = UtilMgr.convSize2Unit
 
@@ -19921,13 +19930,14 @@ class LeakAnalyzer(object):
         # function leakage info #
         title = "Function Leakage Info"
         titleStr = (
-            "\n\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] "
-            "[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]"
+            "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
+            "[VSS: %s] [RSS: %s] [Leak: %s] [NrCall: %s]"
         ) % (
             title,
             proc,
+            startTime,
             runtime,
-            profiletime,
+            profileTime,
             vss,
             rss,
             convSize(self.totalLeakSize),
@@ -19997,14 +20007,15 @@ class LeakAnalyzer(object):
         title = "File Leakage Info"
         SysMgr.printPipe(
             (
-                "\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] "
-                "[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]"
+                "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
+                "[VSS: %s] [RSS: %s] [Leak: %s] [NrCall: %s]"
             )
             % (
                 title,
                 proc,
+                startTime,
                 runtime,
-                profiletime,
+                profileTime,
                 vss,
                 rss,
                 convSize(self.totalLeakSize),
@@ -20068,9 +20079,10 @@ class LeakAnalyzer(object):
         # leakage history #
         title = "Leakage History"
         SysMgr.printPipe(
-            "\n[%s] [Total: %s] [CallCount: %s]"
+            "\n[%s] [Start: %s] [Total: %s] [Count: %s]"
             % (
                 title,
+                startTime,
                 convSize(self.totalLeakSize, True),
                 convSize(len(self.callData), True),
             )
@@ -20291,29 +20303,37 @@ class LeakAnalyzer(object):
 
             # filter parts on idle pages #
             if LeakAnalyzer.markedIdlePages and "addr" in item:
-                # get addr #
+                # get start address for a chunk #
                 addr = long(item["addr"], 16)
-                addrNew = long(addr / pageSize) * pageSize
-                addrDiff = addr - addrNew
+                addrStart = long(addr / pageSize) * pageSize
+                addrDiff = addr - addrStart
 
-                # get page-aligned size #
-                sizeNew = long((size + addrDiff + pageSize - 1) / pageSize)
+                # get end address for a chunk #
+                sizeAligned = long((size + addrDiff + pageSize - 1) / pageSize)
+                addrEnd = addrStart + sizeAligned
 
-                # TODO: update idle page size using idle page table #
+                # ignore active part for a chunk #
                 try:
                     for mem in LeakAnalyzer.idlePageList[self.pid]:
-                        start, end, bitmap = mem
+                        mapStart, mapEnd, bitmap = mem
 
                         # check scope #
-                        if not (start <= addrNew <= end):
+                        if addrStart >= mapEnd or addrEnd <= mapStart:
                             continue
 
-                        diff = addrNew - start
-                        idx = long((diff) / pageSize)
+                        # get start address for check #
+                        start = addrStart - mapStart
+                        if start < 0:
+                            sizeAligned += start / pageSize
+                            start = 0
+                        idx = long((start) / pageSize)
 
                         # subtract the size of used pages #
-                        for offset in range(sizeNew):
-                            if bitmap[idx + offset]:
+                        for offset in range(sizeAligned):
+                            targetIdx = idx + offset
+                            if len(bitmap) <= targetIdx:
+                                break
+                            elif bitmap[targetIdx]:
                                 size -= pageSize
 
                         # TODO: consider spanning chunks between two pages #
@@ -20321,12 +20341,15 @@ class LeakAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(
-                        "failed to check a idle chunk", True, True
+                        "failed to check an idle chunk", True, True
                     )
 
                 # skip all used chunks #
                 if size < 1:
                     continue
+
+                # update stack size #
+                item["size"] = size
 
             # save pos in common area #
             for pos in item["stack"]:
@@ -49981,12 +50004,12 @@ Copyright:
             SysMgr.updateTaskMon(tobj, pid)
             endTime = SysMgr.uptime
             runtime = UtilMgr.convTime(tobj.procData[pid]["runtime"])
-            profiletime = UtilMgr.convTime(endTime - startTime)
+            profileTime = UtilMgr.convTime(endTime - startTime)
         except SystemExit:
             sys.exit(0)
         except:
             runtime = "?"
-            profiletime = "?"
+            profileTime = "?"
 
         SysMgr.printStat("wait for %s" % fname)
 
@@ -50027,7 +50050,7 @@ Copyright:
             SysMgr.printInfoBuffer()
 
             # print leakage #
-            lt.printLeakage(runtime, profiletime)
+            lt.printLeakage(runtime, profileTime, startTime)
         except SystemExit:
             sys.exit(0)
         except:
@@ -97682,7 +97705,7 @@ class TaskAnalyzer(object):
         printFunc(
             (
                 "\n[%s Tree Info] [Uptime: %s]%s\n%s\n"
-                "  %-25s %4s(%8s/%11s) <%s>\n%s"
+                "  %-24s %4s(%11s/%15s) <%s>\n%s"
             )
             % (
                 target,
@@ -97747,7 +97770,7 @@ class TaskAnalyzer(object):
                         runtime = long(instance[pid]["starttime"])
                         runtime = current - runtime
 
-                    runtimestr = UtilMgr.convTime(runtime)
+                    runtimestr = UtilMgr.convTime(runtime, True)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -97765,7 +97788,7 @@ class TaskAnalyzer(object):
                         stime = long(instance[pid]["stime"] * 100)
                         ttime = utime + stime
 
-                    ttimestr = UtilMgr.convTime(ttime)
+                    ttimestr = UtilMgr.convTime(ttime, True)
                     if ttime > 0:
                         ttimestr = UtilMgr.convColor(ttimestr, "YELLOW")
                 except SystemExit:
