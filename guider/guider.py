@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220602"
+__revision__ = "220603"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23109,6 +23109,7 @@ class SysMgr(object):
     exitCondMemLess = -1
     cpuUsage = -1
     memAvail = -1
+    memTotal = -1
 
     # path #
     procPath = "/proc"
@@ -106761,6 +106762,8 @@ class TaskAnalyzer(object):
 
         try:
             memTotal = UtilMgr.convSize2Unit(self.memData["MemTotal"] << 10)
+            if SysMgr.memTotal < 0:
+                SysMgr.memTotal = self.memData["MemTotal"] >> 10
         except SystemExit:
             sys.exit(0)
         except:
@@ -111073,6 +111076,18 @@ class TaskAnalyzer(object):
         if not item in comval:
             return
 
+        # convert threshold value (%) #
+        thresholdVal = comval[item]
+        try:
+            if event in ("MEM", "GPUMEM"):
+                if thresholdVal.endswith("%"):
+                    per = long(thresholdVal.rstrip("%")) / 100.0
+                    thresholdVal = long(SysMgr.memTotal * per)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
         # check threshold #
         if not comp:
             value = target
@@ -111083,13 +111098,13 @@ class TaskAnalyzer(object):
             # check items in intervals #
             intval = intval[-comval["interval"] :]
             average = sum(intval) / len(intval)
-            threshold = UtilMgr.convUnit2Size(comval[item])
+            threshold = UtilMgr.convUnit2Size(thresholdVal)
             if (comp == "big" and threshold <= average) or (
                 comp == "less" and threshold >= average
             ):
                 value = average
         else:
-            threshold = UtilMgr.convUnit2Size(comval[item])
+            threshold = UtilMgr.convUnit2Size(thresholdVal)
             if (comp == "big" and threshold <= target) or (
                 comp == "less" and threshold >= target
             ):
@@ -111145,7 +111160,7 @@ class TaskAnalyzer(object):
 
         # add rest info #
         if item in comval:
-            ename = "%s_%s" % (ename, comval[item])
+            ename = "%s_%s" % (ename, thresholdVal)
 
         # replace '/' with '_' for path by event name #
         ename = ename.replace("/", "_")
@@ -111379,7 +111394,24 @@ class TaskAnalyzer(object):
 
         # get current usage #
         if target is None:
-            target = self.reportData[resource][item]
+            if (
+                resource == "gpumem"
+                and item == "total"
+                and not "total" in self.reportData[resource]
+            ):
+                try:
+                    target = self.reportData[resource]["0"]["size"] >> 20
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "failed to check '%s' of '%s'" % (item, resource),
+                        True,
+                        True,
+                    )
+                    return False
+            else:
+                target = self.reportData[resource][item]
 
         # check conditions and trigger events #
         if type(comval) is dict:
@@ -111544,7 +111576,7 @@ class TaskAnalyzer(object):
                         if self.isKernelThread(pid):
                             continue
 
-                    # stat #
+                    # get stat #
                     if res == "gpumem":
                         if not pid in self.gpuMemData:
                             continue
