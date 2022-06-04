@@ -19927,8 +19927,16 @@ class LeakAnalyzer(object):
         # task info #
         proc = "%s(%s)" % (SysMgr.getComm(self.pid), self.pid)
 
-        # function leakage info #
-        title = "Function Leakage Info"
+        # set name #
+        name = "Leakage"
+        if LeakAnalyzer.markedIdlePages:
+            if "REPORTIDLE" in SysMgr.environList:
+                name = "Idle"
+            elif "REPORTACTIVE" in SysMgr.environList:
+                name = "Active"
+
+        # set title #
+        title = "Function %s Info" % name
         titleStr = (
             "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
             "[VSS: %s] [RSS: %s] [Leak: %s] [NrCall: %s]"
@@ -20003,8 +20011,8 @@ class LeakAnalyzer(object):
         if count == 0:
             SysMgr.printPipe("\tNone\n%s" % oneLine)
 
-        # file leakage info #
-        title = "File Leakage Info"
+        # set title #
+        title = "File %s Info" % name
         SysMgr.printPipe(
             (
                 "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
@@ -20242,7 +20250,11 @@ class LeakAnalyzer(object):
 
         # check REPORTIDLE variable to report only idle page info #
         if LeakAnalyzer.markedIdlePages:
-            if not "REPORTIDLE" in SysMgr.environList:
+            if "REPORTIDLE" in SysMgr.environList:
+                bitVal = 0
+            elif "REPORTACTIVE" in SysMgr.environList:
+                bitVal = 1
+            else:
                 LeakAnalyzer.markedIdlePages = False
 
         while 1:
@@ -20333,7 +20345,7 @@ class LeakAnalyzer(object):
                             targetIdx = idx + offset
                             if len(bitmap) <= targetIdx:
                                 break
-                            elif bitmap[targetIdx]:
+                            elif bitmap[targetIdx] != bitVal:
                                 size -= pageSize
 
                         # TODO: consider spanning chunks between two pages #
@@ -33495,6 +33507,9 @@ Examples:
 
     - Report idle memory hints of the target process {2:1} after executing the target program with auto start and receiving SIGQUIT for marking all anonymous pages as idle
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTIDLE
+
+    - Report active memory hints of the target process {2:1} after executing the target program with auto start and receiving SIGQUIT for marking all anonymous pages as idle
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTACTIVE
 
     - {3:1} {5:1}
         # {0:1} {1:1} -g a.out -c 20m
