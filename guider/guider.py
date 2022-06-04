@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220603"
+__revision__ = "220604"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31034,8 +31034,11 @@ Examples:
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - {2:1} with threshold condition and report the compressed monitoring results to a specific file in the specific directory that is limited in the specific size
+    - {2:1} with threshold condition and report the compressed monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove old report files first.
         # {0:1} {1:1} -o /tmp -e C -b 1M -q TEXTREPORT, LIMITREPDIR:10M
+
+    - {2:1} with threshold condition and report the monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove existing files.
+        # {0:1} {1:1} -o /tmp -b 1M -q TEXTREPORT, LIMITREPDIR:10M, REMOVEOTHERS
 
     - {2:1} including normal tasks with threshold condition
         # {0:1} {1:1} -j -q SAVEJSONSTAT
@@ -37602,11 +37605,18 @@ Copyright:
             )
         )
 
+        # check remove variable #
+        if "REMOVEOTHERS" in SysMgr.environList:
+            removeOthers = True
+        else:
+            removeOthers = False
+
         # remove report files #
         for fname in flist:
             m = re.match(r"^guider_(?P<run>[0-9]+)_*", fname)
             if not m:
-                continue
+                if not removeOthers:
+                    continue
 
             fpath = os.path.join(targetDir, fname)
 
