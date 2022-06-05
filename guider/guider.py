@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220604"
+__revision__ = "220605"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19828,6 +19828,8 @@ class LeakAnalyzer(object):
     stopSig = 36  # SIGRT2
     markedIdlePages = False
     idlePageList = []
+    filterCode = None
+    filterValue = 0
 
     def __init__(self, file=None, pid=None):
 
@@ -20257,6 +20259,35 @@ class LeakAnalyzer(object):
             else:
                 LeakAnalyzer.markedIdlePages = False
 
+        # define size filter function #
+        def _sizeChecker(val):
+            return True
+
+        if LeakAnalyzer.filterCode:
+            if LeakAnalyzer.filterCode == "<":
+
+                def _sizeChecker(val):
+                    if val < LeakAnalyzer.filterValue:
+                        return True
+                    else:
+                        return False
+
+            elif LeakAnalyzer.filterCode == ">":
+
+                def _sizeChecker(val):
+                    if val > LeakAnalyzer.filterValue:
+                        return True
+                    else:
+                        return False
+
+            elif LeakAnalyzer.filterCode == "=":
+
+                def _sizeChecker(val):
+                    if val == LeakAnalyzer.filterValue:
+                        return True
+                    else:
+                        return False
+
         while 1:
             try:
                 line = fd.readline()
@@ -20311,7 +20342,10 @@ class LeakAnalyzer(object):
             if not item or not "size" in item or not item["size"].isdigit():
                 continue
 
+            # get allocation size #
             size = long(item["size"])
+            if not _sizeChecker(size):
+                continue
 
             # filter parts on idle pages #
             if LeakAnalyzer.markedIdlePages and "addr" in item:
@@ -33521,6 +33555,11 @@ Examples:
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
+
+    - {3:1} using allocation size filter {2:1} after executing the target program with auto start
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100k"
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100m"
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:"=4096"
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -49551,6 +49590,19 @@ Copyright:
             waitSignal = True
         else:
             waitSignal = False
+
+        # check size filter #
+        if "SIZEFILTER" in SysMgr.environList:
+            try:
+                filters = SysMgr.environList["SIZEFILTER"][0]
+                LeakAnalyzer.filterCode = filters[0]
+                LeakAnalyzer.filterValue = UtilMgr.convUnit2Size(filters[1:])
+                SysMgr.printInfo("applied the size filter '%s'" % filters)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to apply filter '%s'" % filters, True)
+                sys.exit(-1)
 
         # get PID #
         pid = None
