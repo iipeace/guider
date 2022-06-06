@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220605"
+__revision__ = "220606"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14543,7 +14543,8 @@ class FunctionAnalyzer(object):
         SysMgr.totalLine = len(lines)
         SysMgr.printStat("start analyzing data... [ STOP(Ctrl+c) ]")
 
-        self.parseLogs(lines, SysMgr.filterGroup)
+        # parse logs #
+        self.parseLines(lines, SysMgr.filterGroup)
 
         # Check whether data of target thread is collected or nothing #
         if (
@@ -16131,7 +16132,7 @@ class FunctionAnalyzer(object):
                 )
             )
 
-    def parseLogs(self, lines, desc):
+    def parseLines(self, lines, desc):
         curIdx = 0
         lastIdx = len(lines)
 
@@ -16174,7 +16175,7 @@ class FunctionAnalyzer(object):
             SysMgr.curLine += 1
             SysMgr.dbgEventLine += 1
 
-            ret = self.parseEventLog(liter, desc, plist)
+            ret = self.parse(liter, desc, plist)
 
             UtilMgr.printProgress(curIdx, lastIdx)
 
@@ -16994,7 +16995,7 @@ class FunctionAnalyzer(object):
 
         return threadData
 
-    def parseEventLog(self, string, desc, plist=[]):
+    def parse(self, string, desc, plist=[]):
         m = SysMgr.getTraceItem(string)
         if m:
             d = m.groupdict()
@@ -18370,7 +18371,7 @@ class FunctionAnalyzer(object):
                     mergedSymbolChain[symbolStack] = cpuCnt
 
             # define sample list for flame graph #
-            if "FLAME" in SysMgr.environList:
+            if "DRAWFLAME" in SysMgr.environList:
                 drawflame = True
                 callList = {}
             else:
@@ -23428,6 +23429,7 @@ class SysMgr(object):
     journalEnable = False
     jsonEnable = False
     keventEnable = False
+    kvmEnable = False
     kmsgEnable = False
     latEnable = cpuEnable
     leakEnable = False
@@ -24055,12 +24057,18 @@ Commands:
 
     @staticmethod
     def execRecordLoop():
+        skipWait = False
+
         while SysMgr.repeatInterval > 0:
             # set alarm #
             signal.alarm(SysMgr.repeatInterval)
 
             # get init time in buffer for verification #
-            initTime = TaskAnalyzer.getInitTime(SysMgr.inputFile)
+            if SysMgr.graphEnable:
+                skipWait = True
+                initTime = 0
+            else:
+                initTime = TaskAnalyzer.getInitTime(SysMgr.inputFile)
 
             # wait for timer #
             try:
@@ -24086,16 +24094,19 @@ Commands:
                     SysMgr.printErr(
                         "wrong option used, use also -s option to save data"
                     )
-
                 sys.exit(-1)
 
             # check counter #
             if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
+                # check exit condition #
+                if SysMgr.graphEnable:
+                    break
+
                 SysMgr.printWarn("terminated by timer\n", True)
                 sys.exit(-1)
 
             # compare init time with now time for buffer verification #
-            if initTime < TaskAnalyzer.getInitTime(SysMgr.inputFile):
+            if 0 < initTime < TaskAnalyzer.getInitTime(SysMgr.inputFile):
                 SysMgr.printErr(
                     "buffer size is not enough (%sKB)" % SysMgr.getBufferSize()
                 )
@@ -24112,7 +24123,6 @@ Commands:
                 SysMgr.printErr(
                     "wrong option used, use also -s option to save data"
                 )
-
             sys.exit(-1)
 
         if not SysMgr.graphEnable:
@@ -24121,7 +24131,9 @@ Commands:
 
         # wait for user input #
         while 1:
-            if SysMgr.recordStatus:
+            if skipWait:
+                break
+            elif SysMgr.recordStatus:
                 SysMgr.condExit = True
 
                 SysMgr.waitEvent()
@@ -24130,7 +24142,16 @@ Commands:
             else:
                 break
 
-        if not SysMgr.graphEnable:
+        # FUNCTION GRAPH MODE #
+        if SysMgr.graphEnable:
+            if not SysMgr.outputFile:
+                SysMgr.stopRecording()
+                SysMgr.printPipe(SysMgr.readFile(SysMgr.inputFile))
+                sys.exit(0)
+            elif SysMgr.repeatInterval:
+                sys.exit(0)
+        # THREAD & FUNCTION MODE #
+        else:
             # compare init time with now time for buffer verification #
             if initTime < TaskAnalyzer.getInitTime(SysMgr.inputFile):
                 SysMgr.printErr(
@@ -30009,8 +30030,19 @@ Examples:
     - {2:1} for all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
+    - Record all kernel function calls for all threads and print the result
+        # {0:1} {1:1} -e g
+        # {0:1} {1:1} -e g -R 3s
+
     - Record all kernel function calls for all threads to ./guider.dat
-        # {0:1} {1:1} -s . -e g
+        # {0:1} {1:1} -e g -o .
+
+    - Record all kernel function calls for specific threads to ./guider.dat
+        # {0:1} {1:1} -e g -o . -g 1022, 1211
+        # {0:1} {1:1} -e g -o . -g "thread*" -P
+
+    - Record specific kernel function calls for all threads to ./guider.dat
+        # {0:1} {1:1} -e g -o . -c "mutex_*"
 
     - report the results of analyzing the recorded data
         => See report command
@@ -30122,7 +30154,7 @@ Examples:
         # {0:1} {1:1} -d u
 
     - {3:1} based on ./guider.dat to ./guider.out and draw the flame graph
-        # {0:1} {1:1} -q FLAME
+        # {0:1} {1:1} -q DRAWFLAME
 
     - Report all the analysis result {2:1} having TID 1234 or COMM including a.out to ./guider.out
         # {0:1} {1:1} -o . -g "1234, a.out" -a
@@ -30262,8 +30294,8 @@ Options:
     -e  <CHARACTER>             enable options
           [ b:block | B:binder | c:cgroup | d:disk
             e:encode | f:fs | g:graph | i:irq | I:i2c
-            L:lock | m:mem | n:net | o:io_uring | p:pipe
-            r:reset | P:power | w:workqueue ]
+            k:kvm | L:lock | m:mem | n:net | o:io_uring
+            p:pipe | r:reset | P:power | w:workqueue ]
     -d  <CHARACTER>             disable options
           [ a:all | c:cpu | C:compress | e:encode
             g:general ]
@@ -30363,7 +30395,7 @@ Examples:
     - Report the results of analyzing the recorded data
         => See report command
                     """.format(
-                        cmd, mode, "Record default events"
+                        cmd, mode, "Record thread events"
                     )
 
                 # file top #
@@ -37068,6 +37100,7 @@ Copyright:
             _setOpt(items, SysMgr.fsEnable, "FS ")
             _setOpt(items, SysMgr.i2cEnable, "I2C ")
             _setOpt(items, SysMgr.iouringEnable, "IOURING ")
+            _setOpt(items, SysMgr.kvmEnable, "KVM ")
             _setOpt(items, SysMgr.irqEnable, "IRQ ")
             _setOpt(items, SysMgr.keventEnable, "KEVT ")
             _setOpt(items, SysMgr.latEnable, "LATENCY ")
@@ -37416,8 +37449,9 @@ Copyright:
             except:
                 sys.exit(-1)
         else:
-            SysMgr.printErr("failed to save data because the path is not set")
-            sys.exit(-1)
+            SysMgr.printWarn(
+                "failed to save data because the path is not set", True
+            )
 
         # set alarm again #
         signal.signal(signal.SIGALRM, SysMgr.alarmHandler)
@@ -41063,6 +41097,9 @@ Copyright:
 
                 if "o" in options:
                     SysMgr.iouringEnable = True
+
+                if "k" in options:
+                    SysMgr.kvmEnable = True
 
                 if "I" in options:
                     SysMgr.i2cEnable = True
@@ -55006,25 +55043,30 @@ Copyright:
 
         # binder #
         binderFlag = sm.binderEnable
+        self.cmdList["binder/binder_transaction"] = binderFlag
+        self.cmdList["binder/binder_transaction_received"] = binderFlag
         """
         self.cmdList["binder/binder_lock"] = binderFlag
         self.cmdList["binder/binder_locked"] = binderFlag
         self.cmdList["binder/binder_unlock"] = binderFlag
         self.cmdList["binder/binder_set_priority"] = binderFlag
         """
-        self.cmdList["binder/binder_transaction"] = binderFlag
-        self.cmdList["binder/binder_transaction_received"] = binderFlag
 
         # workqueue #
         self.cmdList["workqueue/workqueue_queue_work"] = sm.wqEnable
         self.cmdList["workqueue/workqueue_execute_start"] = sm.wqEnable
         self.cmdList["workqueue/workqueue_execute_end"] = sm.wqEnable
 
+        # TODO: implement analyzer for below events #
+
         # i2c #
         self.cmdList["i2c"] = sm.i2cEnable
 
         # io_uring #
         self.cmdList["io_uring"] = sm.iouringEnable
+
+        # kvm #
+        self.cmdList["kvm"] = sm.iouringEnable
 
     def runPeriodProc(self):
         pid = SysMgr.createProcess()
@@ -55127,10 +55169,9 @@ Copyright:
                     )
 
         def _startFuncGraph(self):
-            # check save option #
-            if not SysMgr.outputFile:
-                SysMgr.printErr("use also -s option to save data")
-                sys.exit(-1)
+            # apply output path for timer #
+            if not SysMgr.outputFile and SysMgr.outPath:
+                SysMgr.applySaveOption(SysMgr.outPath)
 
             # reset events #
             SysMgr.stopRecording()
@@ -55142,18 +55183,40 @@ Copyright:
                 )
                 sys.exit(-1)
 
-            # apply filter #
-            for pid in SysMgr.filterGroup:
+            # apply PID filter #
+            if SysMgr.filterGroup:
+                params = ", ".join(SysMgr.filterGroup)
+
+                # get thread ID #
+                targetTasks = []
+                for item in SysMgr.filterGroup:
+                    targetTasks += SysMgr.getTids(
+                        item, sibling=SysMgr.groupProcEnable
+                    )
+
+                # check thread list #
+                if not targetTasks:
+                    SysMgr.printErr("no task related to '%s'" % params)
+                    sys.exit(0)
+
+                targetTasks = " ".join(list(map(str, targetTasks)))
+
                 try:
-                    pid = str(long(pid))
-                    SysMgr.writeTraceCmd("../set_ftrace_pid", pid, True)
+                    SysMgr.writeTraceCmd(
+                        "../set_ftrace_pid", targetTasks, True
+                    )
+                    SysMgr.printInfo(
+                        "only specific processes [ %s ] are traced"
+                        % targetTasks
+                    )
                 except:
                     SysMgr.printErr(
                         (
-                            "failed to add %s to PID filter "
+                            "failed to add '%s' to PID filter "
                             "for function graph tracing"
                         )
-                        % pid
+                        % params,
+                        True,
                     )
                     sys.exit(-1)
 
@@ -55165,9 +55228,9 @@ Copyright:
             SysMgr.writeTraceCmd(optPath, "funcgraph-duration")
             SysMgr.writeTraceCmd("../max_graph_depth", str(SysMgr.funcDepth))
 
-            if not SysMgr.customCmd:
-                SysMgr.writeTraceCmd("../set_ftrace_filter", "")
-            else:
+            # apply function filter #
+            # TODO: fix filter apply timing (2nd) #
+            if SysMgr.customCmd:
                 params = " ".join(SysMgr.customCmd)
                 SysMgr.printStat(
                     "wait for setting function filter [ %s ]" % params
@@ -55177,8 +55240,10 @@ Copyright:
                     sys.exit(-1)
                 else:
                     SysMgr.printStat(
-                        "finished function filter [ %s ]" % params
+                        "finished applying function filter [ %s ]" % params
                     )
+            else:
+                SysMgr.writeTraceCmd("../set_ftrace_filter", "")
 
             # start tracing #
             self.startTracing()
