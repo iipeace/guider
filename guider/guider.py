@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220606"
+__revision__ = "220607"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23236,8 +23236,6 @@ class SysMgr(object):
     rawFdCache = {}
     syscallCache = {}
     netAddrCache = {}
-    cmdFileCache = {}
-    cmdAttachCache = {}
     pciList = []
     limitDirList = {}
 
@@ -30044,6 +30042,9 @@ Examples:
     - Record specific kernel function calls for all threads to ./guider.dat
         # {0:1} {1:1} -e g -o . -c "mutex_*"
 
+    - Record all kernel function calls that took at least 100 us or longer for all threads to ./guider.dat
+        # {0:1} {1:1} -e g -o . -q ELAPSED:100
+
     - report the results of analyzing the recorded data
         => See report command
                     """.format(
@@ -33384,6 +33385,11 @@ Examples:
     - Execute commands with environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
+
+    - Execute a command and redirect standard I/O of child tasks to specific files
+        # {0:1} {1:1} -I "ls" -q STDIN:"./stdin"
+        # {0:1} {1:1} -I "ls" -q STDOUT:"./stdout"
+        # {0:1} {1:1} -I "ls" -q STDERR:"/dev/null"
 
     - Execute a command after converting it using the config file
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
@@ -37776,7 +37782,7 @@ Copyright:
 
     @staticmethod
     def writeTraceCmd(path, val, append=False):
-        # set file open permission #
+        # set open permission #
         if append:
             perm = "a+"
         else:
@@ -37817,28 +37823,13 @@ Copyright:
                     SysMgr.printErr("failed to write command", True)
                     return -1
 
-        # open for applying command #
+        # open node #
         try:
-            fd = None
             target = "%s%s" % (SysMgr.mountPath, path)
-
             if append:
-                if target in SysMgr.cmdAttachCache:
-                    fd = SysMgr.cmdAttachCache[target]
-                    os.lseek(fd, 0, 0)
-                else:
-                    fd = os.open(target, os.O_RDWR | os.O_CREAT | os.O_APPEND)
-                    SysMgr.cmdAttachCache[target] = fd
+                fd = os.open(target, os.O_RDWR | os.O_CREAT | os.O_APPEND)
             else:
-                try:
-                    fd = SysMgr.cmdFileCache[target]
-                    fd.seek(0)
-                except:
-                    fd = None
-
-                if not fd:
-                    fd = open(target, perm)
-                    SysMgr.cmdFileCache[target] = fd
+                fd = open(target, perm)
         except SystemExit:
             sys.exit(0)
         except:
@@ -37859,22 +37850,22 @@ Copyright:
             SysMgr.printWarn("failed to use %s event" % epath, reason=True)
             return -1
 
-        # apply command #
+        # write value #
         try:
             if append:
                 os.write(fd, bytes(UtilMgr.encodeStr(val)))
                 try:
-                    os.fsync(fd)
+                    os.close(fd)
                 except:
                     pass
             else:
                 fd.write(val)
                 try:
-                    fd.flush()
+                    fd.close()
                 except:
                     pass
 
-            # modify flags in command list #
+            # update command list #
             if path.endswith("/enable"):
                 if val == "1":
                     SysMgr.sysInstance.cmdList[
@@ -37887,9 +37878,8 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.cmdFileCache.pop(target, None)
             SysMgr.printWarn(
-                "failed to apply command '%s' to %s" % (val, path), reason=True
+                "failed to apply command '%s' to %s" % (val, path), True
             )
             return -2
 
@@ -51797,8 +51787,37 @@ Copyright:
 
             startTime = time.time()
 
+            # redirect stdin to file #
+            if "STDIN" in SysMgr.environList:
+                path = SysMgr.environList["STDIN"][0]
+                stdin = open(path, "rb")
+            else:
+                stdin = None
+
+            # redirect stdout to file #
+            if "STDOUT" in SysMgr.environList:
+                path = SysMgr.environList["STDOUT"][0]
+                stdout = open(path, "wb")
+            else:
+                stdout = None
+
+            # redirect stderr to file #
+            if "STDERR" in SysMgr.environList:
+                path = SysMgr.environList["STDERR"][0]
+                stderr = open(path, "wb")
+            else:
+                stderr = None
+
             # create process to communicate #
-            procObj = subprocess.Popen(cmd, shell=True, bufsize=0, env=env)
+            procObj = subprocess.Popen(
+                cmd,
+                shell=True,
+                bufsize=0,
+                env=env,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+            )
 
             # run mainloop #
             try:
@@ -54942,6 +54961,8 @@ Copyright:
         SysMgr.writeTraceCmd("../set_event_pid", "")
         SysMgr.writeTraceCmd("../set_graph_function", "")
         SysMgr.writeTraceCmd("../set_graph_notrace", "")
+        SysMgr.writeTraceCmd("../tracing_max_latency", "0")
+        SysMgr.writeTraceCmd("../tracing_thresh", "0")
         SysMgr.writeTraceCmd("../uprobe_events", "")
         SysMgr.writeTraceCmd("../kprobe_events", "")
 
@@ -55211,11 +55232,7 @@ Copyright:
                     )
                 except:
                     SysMgr.printErr(
-                        (
-                            "failed to add '%s' to PID filter "
-                            "for function graph tracing"
-                        )
-                        % params,
+                        "failed to add '%s' to PID filter" % params,
                         True,
                     )
                     sys.exit(-1)
@@ -55229,11 +55246,10 @@ Copyright:
             SysMgr.writeTraceCmd("../max_graph_depth", str(SysMgr.funcDepth))
 
             # apply function filter #
-            # TODO: fix filter apply timing (2nd) #
             if SysMgr.customCmd:
                 params = " ".join(SysMgr.customCmd)
-                SysMgr.printStat(
-                    "wait for setting function filter [ %s ]" % params
+                SysMgr.printInfo(
+                    "start setting function filter [ %s ]" % params
                 )
                 if SysMgr.writeTraceCmd("../set_ftrace_filter", params) < 0:
                     SysMgr.printErr("failed to set function filter")
@@ -55244,6 +55260,23 @@ Copyright:
                     )
             else:
                 SysMgr.writeTraceCmd("../set_ftrace_filter", "")
+
+            # apply threshold (us) #
+            if "ELAPSED" in SysMgr.environList:
+                threshold = UtilMgr.getEnvironNum("ELAPSED")
+                SysMgr.printInfo(
+                    (
+                        "only specific functions that took "
+                        "at least '%s us' or longer are printed"
+                    )
+                    % UtilMgr.convNum(threshold)
+                )
+                if (
+                    SysMgr.writeTraceCmd("../tracing_thresh", str(threshold))
+                    < 0
+                ):
+                    SysMgr.printErr("failed to set threshold value")
+                    sys.exit(-1)
 
             # start tracing #
             self.startTracing()
