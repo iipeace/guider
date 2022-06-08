@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220607"
+__revision__ = "220608"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5519,6 +5519,16 @@ class UtilMgr(object):
     @staticmethod
     def saveTime():
         UtilMgr.printTime(update=True, verb=False)
+
+    @staticmethod
+    def deepcopy(data):
+        json = SysMgr.getPkg("marshal", False)
+        if not json:
+            json = SysMgr.getPkg("json", False)
+        if json:
+            return json.loads(json.dumps(data))
+        else:
+            return deepcopy(data)
 
     @staticmethod
     def printTime(name=None, update=True, verb=True):
@@ -29670,7 +29680,7 @@ Examples:
     - {3:1} except for specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
         # {0:1} {1:1} -g a.out -c -T "^/usr/lib/*"
-        # {0:1} {1:1} -g a.out -c -q EXCETPFILE:"/usr/lib/*"
+        # {0:1} {1:1} -g a.out -c -q EXCEPTFILE:"/usr/lib/*"
 
     - {5:1} including specific word in a hidden state
         # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
@@ -46714,8 +46724,8 @@ Copyright:
 
                 SysMgr.printErr(
                     (
-                        "failed to set CPU(%s) clock because it only supports \n\t"
-                        "-clock: [%s]\n\t-governor: [%s]"
+                        "failed to set CPU(%s) clock because it"
+                        " only supports \n\t-clock: [%s]\n\t-governor: [%s]"
                     )
                     % (core, avail, governors)
                 )
@@ -47726,6 +47736,33 @@ Copyright:
                 sys.exit(-1)
 
     @staticmethod
+    def getTargetFileList():
+        # get target file list #
+        if "TARGETFILE" in SysMgr.environList:
+            targetFileList = SysMgr.environList["TARGETFILE"]
+        else:
+            targetFileList = []
+
+        # get except file list #
+        if "EXCEPTFILE" in SysMgr.environList:
+            exceptFileList = SysMgr.environList["EXCEPTFILE"]
+        else:
+            exceptFileList = []
+
+        return targetFileList, exceptFileList
+
+    @staticmethod
+    def isExceptFile(mfile, targetFileList, exceptFileList):
+        if targetFileList and not UtilMgr.isValidStr(mfile, targetFileList):
+            ElfAnalyzer.failedFiles[mfile] = True
+            return True
+        elif exceptFileList and UtilMgr.isValidStr(mfile, exceptFileList):
+            ElfAnalyzer.failedFiles[mfile] = True
+            return True
+
+        return False
+
+    @staticmethod
     def doTrace(mode, tid=None):
         def _doCommonJobs(pids, procList):
             # check STOP condition #
@@ -47733,6 +47770,9 @@ Copyright:
                 needStop = True
             else:
                 needStop = False
+
+            # get file list #
+            targetFileList, exceptFileList = SysMgr.getTargetFileList()
 
             # get pid list #
             for tid in pids:
@@ -47772,6 +47812,11 @@ Copyright:
                 for item in mapList:
                     # skip invalid file #
                     if not FileAnalyzer.isValidFile(item, special=True):
+                        continue
+                    # check file filter #
+                    elif SysMgr.isExceptFile(
+                        item, targetFileList, exceptFileList
+                    ):
                         continue
 
                     try:
@@ -47837,11 +47882,15 @@ Copyright:
                 procObj.updateBpList()
 
                 # save per-process breakpoint info #
-                bpList[pid] = deepcopy(procObj.bpList)
-                exceptBpList[pid] = deepcopy(procObj.exceptBpList)
-                targetBpList[pid] = deepcopy(procObj.targetBpList)
-                targetBpFileList[pid] = deepcopy(procObj.targetBpFileList)
-                exceptBpFileList[pid] = deepcopy(procObj.exceptBpFileList)
+                bpList[pid] = UtilMgr.deepcopy(procObj.bpList)
+                exceptBpList[pid] = UtilMgr.deepcopy(procObj.exceptBpList)
+                targetBpList[pid] = UtilMgr.deepcopy(procObj.targetBpList)
+                targetBpFileList[pid] = UtilMgr.deepcopy(
+                    procObj.targetBpFileList
+                )
+                exceptBpFileList[pid] = UtilMgr.deepcopy(
+                    procObj.exceptBpFileList
+                )
 
                 # create a lock for the multi-threaded process #
                 if SysMgr.getTids(pid, sibling=True):
@@ -57708,7 +57757,7 @@ Copyright:
             if type(root) is not dict:
                 return
 
-            tempRoot = deepcopy(root)
+            tempRoot = UtilMgr.deepcopy(root)
 
             # calculate sum for subdirs #
             newTotal = 0
@@ -57736,7 +57785,7 @@ Copyright:
                 if type(subdir) is not dict:
                     continue
 
-                tempSubdir = deepcopy(subdir)
+                tempSubdir = UtilMgr.deepcopy(subdir)
                 for val in list(subdir):
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
@@ -69373,17 +69422,8 @@ typedef struct {
         else:
             needStop = False
 
-        # get target file list #
-        if "TARGETFILE" in SysMgr.environList:
-            targetFileList = SysMgr.environList["TARGETFILE"]
-        else:
-            targetFileList = []
-
-        # get except file list #
-        if "EXCEPTFILE" in SysMgr.environList:
-            exceptFileList = SysMgr.environList["EXCEPTFILE"]
-        else:
-            exceptFileList = []
+        # get file list #
+        targetFileList, exceptFileList = SysMgr.getTargetFileList()
 
         # register default libraries #
         for fpath in list(self.pmap):
@@ -69411,15 +69451,7 @@ typedef struct {
         for mfile in list(self.pmap):
             try:
                 # check file filter #
-                if targetFileList and not UtilMgr.isValidStr(
-                    mfile, targetFileList
-                ):
-                    ElfAnalyzer.failedFiles[mfile] = True
-                    continue
-                elif exceptFileList and UtilMgr.isValidStr(
-                    mfile, exceptFileList
-                ):
-                    ElfAnalyzer.failedFiles[mfile] = True
+                if SysMgr.isExceptFile(mfile, targetFileList, exceptFileList):
                     continue
 
                 # check file validation #
@@ -74843,8 +74875,10 @@ typedef struct {
         ):
             # print timeline #
             _printTimeline()
+
             # remove instance #
             instance.__del__()
+
             # return #
             return
 
@@ -74854,9 +74888,13 @@ typedef struct {
             instance.waitpid()
 
         # notify termination to master process #
-        tgid = long(SysMgr.getTgid(instance.pid))
-        if tgid == instance.pid:
-            os.kill(SysMgr.masterPid, signal.SIGINT)
+        try:
+            tgid = long(SysMgr.getTgid(instance.pid))
+            if tgid == instance.pid:
+                os.kill(SysMgr.masterPid, signal.SIGINT)
+        except:
+            # return #
+            return
 
         # make CPU priority lower #
         SysMgr.setPriority(SysMgr.pid, "C", 19, verb=False)
@@ -78362,7 +78400,6 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getObject(path, fobj=None, cache=True, overlay=None, log=False):
-
         # remove segment number #
         path = path.split(SysMgr.magicStr)[0]
 
@@ -78930,7 +78967,7 @@ class ElfAnalyzer(object):
         self.onlyFunc = onlyFunc
 
         # merge symbol tables #
-        tempSymTable = deepcopy(self.attr["symTable"])
+        tempSymTable = UtilMgr.deepcopy(self.attr["symTable"])
         tempSymTable.update(self.attr["dynsymTable"])
         tempSymTable.update(self.attr["dwarfTable"])
         self.mergedSymTable = tempSymTable
@@ -79838,10 +79875,12 @@ class ElfAnalyzer(object):
                     dobj.mergeSymTable()
                     self.addrTable.update(dobj.addrTable)
                     dobj.addrTable.clear()
-                self.attr["symTable"] = deepcopy(dobj.attr["symTable"])
-                self.attr["dynsymTable"] = deepcopy(dobj.attr["dynsymTable"])
+                self.attr["symTable"] = UtilMgr.deepcopy(dobj.attr["symTable"])
+                self.attr["dynsymTable"] = UtilMgr.deepcopy(
+                    dobj.attr["dynsymTable"]
+                )
                 if "dwarf" in dobj.attr:
-                    self.attr["dwarf"] = deepcopy(dobj.attr["dwarf"])
+                    self.attr["dwarf"] = UtilMgr.deepcopy(dobj.attr["dwarf"])
                 del dobj
 
             # check file #
@@ -81517,7 +81556,7 @@ Section header string table index: %d
                         else:
                             curLine.pop(args[0], None)
                     elif name == "DW_CFA_remember_state":
-                        lineStack.append(copy.deepcopy(curLine))
+                        lineStack.append(UtilMgr.deepcopy(curLine))
                     elif name == "DW_CFA_restore_state":
                         pc = curLine["pc"]
                         curLine = lineStack.pop()
@@ -90832,7 +90871,7 @@ class TaskAnalyzer(object):
                         item[key] = 0
 
                 if not name in wqData:
-                    wqData[name] = deepcopy(item)
+                    wqData[name] = UtilMgr.deepcopy(item)
                     continue
 
                 target = wqData[name]
@@ -106349,7 +106388,7 @@ class TaskAnalyzer(object):
             SysMgr.sysInstance.updateStorageInfo()
 
             # copy storage data into report data structure #
-            self.reportData["storage"] = deepcopy(
+            self.reportData["storage"] = UtilMgr.deepcopy(
                 SysMgr.sysInstance.storageData
             )
 
@@ -111211,12 +111250,12 @@ class TaskAnalyzer(object):
     def updateEventStatus(self):
         # check event handling tasks #
         runList = SysMgr.getChildList()
-        for event, pid in deepcopy(SysMgr.eventCommandList).items():
+        for event, pid in UtilMgr.deepcopy(SysMgr.eventCommandList).items():
             if not pid in runList:
                 SysMgr.eventCommandList.pop(event, None)
 
         # update event lock #
-        for event in deepcopy(SysMgr.eventLockList):
+        for event in UtilMgr.deepcopy(SysMgr.eventLockList):
             if not event in SysMgr.eventCommandList:
                 SysMgr.eventLockList.pop(event, None)
                 SysMgr.printWarn(
