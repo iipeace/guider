@@ -24642,20 +24642,33 @@ Commands:
             SysMgr.loadLibCache()
 
         for key, val in SysMgr.libCache.items():
-            if not key.startswith(lib):
+            # convert for specific caches are only consist of absolute paths #
+            if key.startswith("/"):
+                val = [key]
+                key = os.path.basename(key)
+
+            # check path #
+            if key == lib:
+                pass
+            elif not key.startswith(lib):
+                continue
+            elif inc and key.startswith(lib):
+                pass
+            elif len(key) <= len(lib):
+                continue
+            elif key[len(lib)] == "." or key[len(lib)] == "-":
+                pass
+            else:
                 continue
 
-            if inc and key.startswith(lib):
-                return val
+            # return found values #
+            if len(val) > 1:
+                SysMgr.printWarn(
+                    "multiple libraries [ %s ] exist for %s"
+                    % (", ".join(val), key)
+                )
 
-            if key[len(lib)] == "." or key[len(lib)] == "-":
-                if len(val) > 1:
-                    SysMgr.printWarn(
-                        "multiple libraries [ %s ] exist for %s"
-                        % (", ".join(val), key)
-                    )
-
-                return val
+            return val
 
         return None
 
@@ -24667,7 +24680,7 @@ Commands:
             return True
 
     @staticmethod
-    def loadLib(lib, path=False):
+    def loadLib(lib, path=False, inc=False):
         if not SysMgr.importPkgItems("ctypes", False):
             return
 
@@ -24676,7 +24689,7 @@ Commands:
             return CDLL(lib)
 
         # search ld.so.cache #
-        target = SysMgr.findLib(lib)
+        target = SysMgr.findLib(lib, inc)
         if not target:
             target = ["%s.so" % lib]
             ret = FileAnalyzer.getMapFilePath(SysMgr.pid, lib)
@@ -33137,7 +33150,7 @@ Usage:
     # {0:1} {1:1} <FILE|COMM|PID> -g <OFFSET> [OPTIONS] [--help]
 
 Description:
-    Make ELF caches
+    Make ELF caches in parallel
 
 Options:
     -I  <FILE|COMM|PID>         set input path or process
@@ -33148,11 +33161,14 @@ Options:
 
                     helpStr += """
 Examples:
-    - Make ELF caches for a.out and yes processes
+    - Make ELF caches for a.out and yes processes in parallel
         # {0:1} {1:1} a.out, yes
 
-    - Make ELF caches for /usr/bin/yes
+    - Make a ELF cache for /usr/bin/yes
         # {0:1} {1:1} /usr/bin/yes
+
+    - Make ELF caches for a.out process in parallel ignoring existing cache files
+        # {0:1} {1:1} a.out, yes -q NOFILECACHE
                     """.format(
                         cmd, mode
                     )
@@ -49259,15 +49275,29 @@ Copyright:
             printLog = True
             for item in mapList:
                 try:
-                    eobj = ElfAnalyzer.getObject(item, log=printLog)
-                    if len(pidList) == 1 and eobj:
-                        eobj.mergeSymTable()
-                        if printLog:
-                            printLog = False
+                    SysMgr.printInfo("load %s... " % item)
+
+                    # create a new worker #
+                    pid = SysMgr.createProcess(mute=True)
+                    if pid != 0:
+                        continue
+
+                    # create a file cache #
+                    ElfAnalyzer.getObject(item)
+
+                    # terminate a worker #
+                    sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     pass
+
+            SysMgr.printInfo("start waiting for workers... ", suffix=False)
+
+            # wait for childs #
+            SysMgr.waitChild()
+
+            SysMgr.printInfo("[Done]", prefix=False, title=False)
 
     @staticmethod
     def doSym2addr():
@@ -77854,6 +77884,7 @@ class ElfAnalyzer(object):
             )
 
         def _decode(self):
+            # pylint: disable=too-many-function-args
             """Decode bytecode array, put result into mnemonic_array."""
             sp_opsstr = "vsp = vsp "
             sp_defstr = "vsp = r"
@@ -78634,6 +78665,20 @@ class ElfAnalyzer(object):
                     SysMgr.libdemangleObj = SysMgr.loadLib(
                         SysMgr.libdemanglePath
                     )
+
+            # check standard library #
+            if not SysMgr.libdemangleObj:
+                SysMgr.printWarn(
+                    (
+                        "failed to load demangle object: %s "
+                        "to demangle symbol, so that "
+                        "disable demangle feature"
+                    )
+                    % SysMgr.libdemanglePath,
+                    True,
+                )
+                SysMgr.demangleEnable = False
+                return symbol
 
             # declare demangler #
             if not SysMgr.demangleFunc:
