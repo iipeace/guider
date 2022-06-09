@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220608"
+__revision__ = "220609"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14040,7 +14040,7 @@ class PageAnalyzer(object):
 
         startHex = hex(start)
         endHex = hex(end)
-        allsHex = hex(-1)
+        allHex = hex(-1)
 
         # print menu #
         menuStr = ""
@@ -14120,7 +14120,7 @@ class PageAnalyzer(object):
             soffset = long(soffset, base=16)
             eoffset = long(eoffset, base=16)
 
-            if startHex == endHex == allsHex:
+            if startHex == endHex == allHex:
                 switch = False
             elif "-" in line:
                 if soffset <= start < eoffset:
@@ -20392,7 +20392,6 @@ class LeakAnalyzer(object):
                                 break
                             elif bitmap[targetIdx] != bitVal:
                                 size -= pageSize
-
                         # TODO: consider spanning chunks between two pages #
                 except SystemExit:
                     sys.exit(0)
@@ -24154,7 +24153,22 @@ Commands:
         if SysMgr.graphEnable:
             if not SysMgr.outputFile:
                 SysMgr.stopRecording()
-                SysMgr.printPipe(SysMgr.readFile(SysMgr.inputFile))
+
+                # read trace data #
+                data = SysMgr.readFile(SysMgr.inputFile)
+
+                # parse options #
+                SysMgr.parseAnalOption()
+
+                # apply core filter #
+                if SysMgr.perCoreList:
+                    data = data.split("\n")
+                    data = SysMgr.applyCoreFilter(data)
+                    data = "\n".join(data)
+
+                # print trace data #
+                SysMgr.printPipe(data)
+
                 sys.exit(0)
             elif SysMgr.repeatInterval:
                 sys.exit(0)
@@ -24169,6 +24183,24 @@ Commands:
 
             # save system info #
             SysMgr.saveSysStats()
+
+    @staticmethod
+    def applyCoreFilter(lines):
+        newList = []
+        filterList = set(map(str, SysMgr.perCoreList))
+
+        for line in lines:
+            m = re.match(r"^\s*(?P<time>.+) \|\s*(?P<core>[0-9]+)\)", line)
+            if not m:
+                newList.append(line)
+                continue
+
+            # check core number #
+            d = m.groupdict()
+            if d["core"] in filterList:
+                newList.append(line)
+
+        return newList
 
     @staticmethod
     def getGpuMem():
@@ -30051,27 +30083,40 @@ Examples:
     - {2:1} for all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - Record all kernel function calls for all threads and print the result
+    - {3:1} for all threads and print the result
         # {0:1} {1:1} -e g
         # {0:1} {1:1} -e g -R 3s
+        # {0:1} {1:1} -e g -s -R 3s:9s
 
-    - Record all kernel function calls for all threads to ./guider.dat
+    - {3:1} for all threads and print the result only for specific cores
+        # {0:1} {1:1} -e g -O 1, 2
+
+    - {3:1} for all threads and report the result to ./guider.dat with the compression
+        # {0:1} {1:1} -e g -s .
+
+    - {3:1} for all threads and report the result to ./guider.dat without the compression
+        # {0:1} {1:1} -e g -s . -d C
+
+    - {3:1} for all threads and print the result to ./guider.out
         # {0:1} {1:1} -e g -o .
 
-    - Record all kernel function calls for specific threads to ./guider.dat
+    - {3:1} for specific threads to ./guider.out
         # {0:1} {1:1} -e g -o . -g 1022, 1211
         # {0:1} {1:1} -e g -o . -g "thread*" -P
 
-    - Record specific kernel function calls for all threads to ./guider.dat
+    - Record specific kernel function calls for all threads to ./guider.out
         # {0:1} {1:1} -e g -o . -c "mutex_*"
 
-    - Record all kernel function calls that took at least 100 us or longer for all threads to ./guider.dat
+    - {3:1} that took at least 100 us or longer for all threads to ./guider.out
         # {0:1} {1:1} -e g -o . -q ELAPSED:100
 
     - report the results of analyzing the recorded data
         => See report command
                     """.format(
-                        cmd, mode, "Record function events"
+                        cmd,
+                        mode,
+                        "Record function events",
+                        "Record all kernel function calls",
                     )
 
                 # file record #
@@ -40572,6 +40617,41 @@ Copyright:
                     )
                     sys.exit(-1)
 
+            elif option == "O":
+                SysMgr.checkOptVal(option, value)
+
+                # split core values #
+                perCoreList = UtilMgr.cleanItem(value.split(","))
+                if not perCoreList:
+                    SysMgr.printErr("no input value for filter" % option)
+                    sys.exit(-1)
+
+                perCoreList = UtilMgr.convxrange(perCoreList)
+
+                # check value type #
+                for item in perCoreList:
+                    if not item.isdigit():
+                        SysMgr.printErr(
+                            (
+                                "wrong value for core list, "
+                                "input number in integer format"
+                            )
+                            % option
+                        )
+                        sys.exit(-1)
+
+                SysMgr.printInfo(
+                    "only specific cores [ %s ] are shown"
+                    % ", ".join(perCoreList)
+                )
+
+                # convert items to number #
+                SysMgr.perCoreList = list(map(long, perCoreList))
+
+                if SysMgr.isDrawMode():
+                    SysMgr.perCoreDrawList = SysMgr.perCoreList
+                    SysMgr.perCoreList = []
+
             # ignore below options for function mode #
             elif SysMgr.isFuncMode():
                 SysMgr.functionEnable = True
@@ -40646,41 +40726,6 @@ Copyright:
                         SysMgr.utilProc = long(value)
                     except:
                         pass
-
-            elif option == "O":
-                SysMgr.checkOptVal(option, value)
-
-                # split core values #
-                perCoreList = UtilMgr.cleanItem(value.split(","))
-                if not perCoreList:
-                    SysMgr.printErr("no input value for filter" % option)
-                    sys.exit(-1)
-
-                perCoreList = UtilMgr.convxrange(perCoreList)
-
-                # check value type #
-                for item in perCoreList:
-                    if not item.isdigit():
-                        SysMgr.printErr(
-                            (
-                                "wrong value for core list, "
-                                "input number in integer format"
-                            )
-                            % option
-                        )
-                        sys.exit(-1)
-
-                SysMgr.printInfo(
-                    "only specific cores [ %s ] are shown"
-                    % ", ".join(perCoreList)
-                )
-
-                # convert items to number #
-                SysMgr.perCoreList = list(map(long, perCoreList))
-
-                if SysMgr.isDrawMode():
-                    SysMgr.perCoreDrawList = SysMgr.perCoreList
-                    SysMgr.perCoreList = []
 
             elif option == "t" and not SysMgr.isRecordMode():
                 syscallList = UtilMgr.cleanItem(value.split(","))
@@ -43758,7 +43803,7 @@ Copyright:
                 if pid < 0:
                     sys.exit(-1)
 
-                # ignore signals and wait for child #
+                # ignore signals and wait for children #
                 SysMgr.setIgnoreSignal()
                 os.wait()
                 SysMgr.setNormalSignal()
@@ -43860,7 +43905,7 @@ Copyright:
             if ret is False or ret < 0:
                 continue
 
-            # ignore signals and wait for child #
+            # ignore signals and wait for children #
             try:
                 SysMgr.setIgnoreSignal()
                 os.wait()
@@ -44128,7 +44173,7 @@ Copyright:
             else:
                 rdFd = None
 
-            # wait for child temrination #
+            # wait for children temrination #
             if wait:
                 SysMgr.waitChild(pid)
                 return pid
@@ -48083,7 +48128,7 @@ Copyright:
             except:
                 isFinished = False
 
-            # wait for child tracers as their parent #
+            # wait for children tracers as their parent #
             if SysMgr.pid == parent:
                 if isFinished:
                     while 1:
@@ -49294,7 +49339,7 @@ Copyright:
 
             SysMgr.printInfo("start waiting for workers... ", suffix=False)
 
-            # wait for childs #
+            # wait for children #
             SysMgr.waitChild()
 
             SysMgr.printInfo("[Done]", prefix=False, title=False)
@@ -50341,7 +50386,7 @@ Copyright:
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
-        # wait for children #
+        # wait for childrenren #
         while 1:
             if not ioTasks:
                 break
@@ -50737,7 +50782,7 @@ Copyright:
             )
             sys.exit(-1)
 
-        # wait for children #
+        # wait for childrenren #
         while 1:
             if not ioTasks:
                 break
@@ -51829,7 +51874,7 @@ Copyright:
 
                             sys.exit(0)
 
-                    # wait for children #
+                    # wait for childrenren #
                     SysMgr.waitChild()
                 else:
                     SysMgr.spawnProcess(
@@ -52650,7 +52695,7 @@ Copyright:
         if interval == 0:
             interval = 1
 
-        # wait for children #
+        # wait for childrenren #
         if pidList:
             while 1:
                 try:
@@ -55269,10 +55314,6 @@ Copyright:
                     )
 
         def _startFuncGraph(self):
-            # apply output path for timer #
-            if not SysMgr.outputFile and SysMgr.outPath:
-                SysMgr.applySaveOption(SysMgr.outPath)
-
             # reset events #
             SysMgr.stopRecording()
 
@@ -76034,7 +76075,7 @@ typedef struct {
                 self.initWaitpid = True
 
             while 1:
-                # wait for child #
+                # wait for children #
                 try:
                     ret = waitpid(pid, pointer(status), 0x40000000)
                 except SystemExit:
