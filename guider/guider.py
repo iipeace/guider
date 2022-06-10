@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220609"
+__revision__ = "220610"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -49604,9 +49604,9 @@ Copyright:
                 memBuf, nrss, pss, uss = tobj.getMemDetails(
                     pid, tobj.procData[pid]["maps"]
                 )
-                pss = long(pss) << 12
+                pss = long(pss) << 10
                 pssUnit = conv(pss, unit="M")
-                uss = long(uss) << 12
+                uss = long(uss) << 10
                 ussUnit = conv(uss, unit="M")
 
                 # reset and save proc instance #
@@ -106957,11 +106957,8 @@ class TaskAnalyzer(object):
                     initVal = "[%s]" % UtilMgr.convColor(wss, "RED", 7)
                     self.procData[idx]["wss"][key] = initVal
 
-        # update pss #
-        pss = pss >> 2
-
         # update uss #
-        uss = (rss - sss) >> 2
+        uss = rss - sss
 
         # update history for wss #
         if SysMgr.wssEnable:
@@ -109295,8 +109292,8 @@ class TaskAnalyzer(object):
                 memBuf, nrss, pss, uss = self.getMemDetails(
                     idx, value["maps"], vss=vss << 10
                 )
-                value["pss"] = pss >> 8
-                value["uss"] = uss >> 8
+                value["pss"] = pss >> 10
+                value["uss"] = uss >> 10
             elif SysMgr.pssEnable:
                 pss = TaskAnalyzer.readProcMemStats(
                     value["taskPath"], idx, retPss=True, retShr=False
