@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220610"
+__revision__ = "220612"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30984,6 +30984,9 @@ Examples:
 
     - {3:1} using merged symbols {4:1}
         # {0:1} {1:1} -g a.out -q ALLSYM
+
+    - {3:1} without using incremental sampling rate {4:1}
+        # {0:1} {1:1} -g a.out -q FIXSAMPLING
 
     - {3:1} without using sample cache {4:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
@@ -63479,6 +63482,9 @@ class Debugger(object):
         self.multi = False
         self.errCnt = 0
         self.sampleTime = 0
+        self.sampleTimeOrig = 0
+        self.sampleTimeMax = 0
+        self.incrementalSampling = True
         self.startProfTime = False
         self.showStatus = True
 
@@ -70331,11 +70337,19 @@ typedef struct {
 
         # wait for sampling time #
         if self.runStatus:
-            time.sleep(self.sampleTime)
+            self.sampleTime = self.sampleTimeOrig
+        elif not self.multi or not self.incrementalSampling:
+            self.sampleTime = self.sampleTimeOrig * 2
         else:
-            time.sleep(self.sampleTime * 2)
+            # increase wait time by 2 #
+            if self.sampleTimeMax > self.sampleTime:
+                self.sampleTime *= 2
+            # limit the maximum wait time #
+            else:
+                self.sampleTime = self.sampleTimeMax
+        time.sleep(self.sampleTime)
 
-        # check run status #
+        # update run status #
         self.runStatus = self.isInRun()
 
         # stop target thread #
@@ -72739,11 +72753,7 @@ typedef struct {
         # print unknown call address #
         if fname == "??":
             sym = hex(self.pc).rstrip("L")
-
-            if self.isRealtime:
-                self.addSample(sym, fname, realtime=True, bt=backtrace)
-            elif SysMgr.outPath:
-                self.addSample(sym, fname, bt=backtrace)
+            self.addSample(sym, fname, realtime=self.isRealtime, bt=backtrace)
             return
 
         # check contiguous unknown symbol #
@@ -74735,6 +74745,9 @@ typedef struct {
                 else:
                     self.sampleTime = 0.001
 
+                # save original sampling rate #
+                self.sampleTimeOrig = self.sampleTime
+
                 if not self.multi:
                     SysMgr.printInfo(
                         "do sampling every %s second"
@@ -74744,6 +74757,13 @@ typedef struct {
             # set default interval #
             if not SysMgr.findOption("R") and SysMgr.intervalEnable == 0:
                 SysMgr.intervalEnable = 1
+
+            # set maximum sampling rate #
+            self.sampleTimeMax = float(SysMgr.intervalEnable) / 10
+
+            # check disabling incremental sampling #
+            if "FIXSAMPLING" in SysMgr.environList:
+                self.incrementalSampling = False
         else:
             # set timer handler #
             if SysMgr.intervalEnable:
@@ -98459,12 +98479,9 @@ class TaskAnalyzer(object):
                 except:
                     sys.exit(0)
 
-            # check repeat count #
-            if (
-                SysMgr.isRecordMode()
-                and SysMgr.progressCnt >= SysMgr.repeatInterval
-            ):
-                return 0
+                # check repeat count #
+                if SysMgr.progressCnt >= SysMgr.repeatInterval:
+                    return 0
 
             # update fd #
             try:
