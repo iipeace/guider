@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220612"
+__revision__ = "220613"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9220,10 +9220,12 @@ class NetworkMgr(object):
             proto = "UDP"
 
         localObj = SysMgr.localServObj = networkObject
-        SysMgr.printInfo(
-            "use %s:%d(%s) as local address"
-            % (localObj.ip, localObj.port, proto)
-        )
+
+        if not SysMgr.masterPid:
+            SysMgr.printInfo(
+                "use %s:%d(%s) as local address"
+                % (localObj.ip, localObj.port, proto)
+            )
 
         return networkObject
 
@@ -17243,15 +17245,14 @@ class FunctionAnalyzer(object):
 
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[Function Syscall Info] [Cnt: %s]" % convNum(self.syscallCnt)
+            "[Function Syscall Info] [Cnt: %s]\n%s"
+            % (convNum(self.syscallCnt), twoLine)
         )
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>16}({1:>7}/{2:>7}) {3:>30}({4:>3}) {5:>12}".format(
-                "Name", "TID", "PID", "Syscall", "SID", "Count"
+            "{0:>16}({1:>7}/{2:>7}) {3:>30}({4:>3}) {5:>12}\n{6:1}".format(
+                "Name", "TID", "PID", "Syscall", "SID", "Count", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         outputCnt = 0
         for key, value in sorted(
@@ -17330,7 +17331,7 @@ class FunctionAnalyzer(object):
 
         # Print thread list #
         SysMgr.printPipe(
-            "[%s] [%s: %0.3f] [%s: %0.3f] [Threads: %d] [LogSize: %s]"
+            "[%s] [%s: %0.3f] [%s: %0.3f] [Threads: %d] [LogSize: %s]\n%s"
             % (
                 "Function Thread Info",
                 "Elapsed",
@@ -17339,9 +17340,9 @@ class FunctionAnalyzer(object):
                 round(float(SysMgr.startTime), 7),
                 len(self.threadData),
                 convSize(SysMgr.logSize),
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             (
                 "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|"
@@ -17668,17 +17669,15 @@ class FunctionAnalyzer(object):
         # Print syscall event #
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[Function Syscall Info] [Cnt: %s] (USER)"
-            % convNum(self.syscallCnt)
+            "[Function Syscall Info] [Cnt: %s] (USER)\n%s"
+            % (convNum(self.syscallCnt), twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                "Usage", "Function", "Binary", "Source"
+            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                "Usage", "Function", "Binary", "Source", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         for idx, value in sorted(
             self.userSymData.items(),
@@ -17727,13 +17726,13 @@ class FunctionAnalyzer(object):
 
         # Print syscall file #
         SysMgr.printPipe(
-            "[Function Syscall File Info] [Cnt: %s] (USER)"
-            % convNum(self.syscallCnt)
+            "[Function Syscall File Info] [Cnt: %s] (USER)\n%s"
+            % (twoLine, convNum(self.syscallCnt))
         )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Binary", twoLine)
+        )
 
         for idx, value in sorted(
             self.userFileData.items(),
@@ -17745,10 +17744,10 @@ class FunctionAnalyzer(object):
                 break
 
             SysMgr.printPipe(
-                "{0:>8} | {1:<142}".format(convNum(value["syscallCnt"]), idx)
+                "{0:>8} | {1:<142}\n{2:1}".format(
+                    convNum(value["syscallCnt"]), idx, oneLine
+                )
             )
-
-            SysMgr.printPipe(oneLine)
 
         if self.periodicEventCnt == 0:
             SysMgr.printPipe("\tNone\n%s" % oneLine)
@@ -17762,16 +17761,15 @@ class FunctionAnalyzer(object):
 
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[Function Syscall History] [Cnt: %s]" % convNum(self.syscallCnt)
+            "[Function Syscall History] [Cnt: %s]\n%s"
+            % (convNum(self.syscallCnt), twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".format(
-                "Event", "COMM", "TID", "CORE", "TIME"
+            "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|\n{5:1}".format(
+                "Event", "COMM", "TID", "CORE", "TIME", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         # sort by time #
         for call in self.sysCallData:
@@ -17825,8 +17823,9 @@ class FunctionAnalyzer(object):
             SysMgr.printPipe(
                 "{0:>32}| {1:<121}".format("[Args] ", argsInfo.strip())
             )
-            SysMgr.printPipe("{0:>32}|{1:<121}".format("[User] ", userCall))
-            SysMgr.printPipe(oneLine)
+            SysMgr.printPipe(
+                "{0:>32}|{1:<121}\n{2:1}".format("[User] ", userCall, oneLine)
+            )
 
         SysMgr.printPipe("\n\n")
 
@@ -17846,21 +17845,20 @@ class FunctionAnalyzer(object):
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             SysMgr.printPipe(
-                "[Function %s Info] [Cnt: %s] [Total: %s] (USER)"
+                "[Function %s Info] [Cnt: %s] [Total: %s] (USER)\n%s"
                 % (
                     customList,
                     convNum(self.customTotal),
                     convNum(self.customCnt),
+                    twoLine,
                 )
             )
 
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                    "Usage", "Function", "Binary", "Source"
+                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                    "Usage", "Function", "Binary", "Source", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -17909,17 +17907,18 @@ class FunctionAnalyzer(object):
 
             # Print custom event file in user space #
             SysMgr.printPipe(
-                "[Function %s File Info] [Cnt: %s] [Total: %s] (USER)"
+                "[Function %s File Info] [Cnt: %s] [Total: %s] (USER)\n%s"
                 % (
                     customList,
                     convNum(self.customTotal),
                     convNum(self.customCnt),
+                    twoLine,
                 )
             )
 
-            SysMgr.printPipe(twoLine)
-            SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe(
+                "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Binary", twoLine)
+            )
 
             for idx, value in sorted(
                 self.userFileData.items(),
@@ -17931,12 +17930,10 @@ class FunctionAnalyzer(object):
                     break
 
                 SysMgr.printPipe(
-                    "{0:>8} | {1:<142}".format(
-                        convNum(value["customCnt"]), idx
+                    "{0:>8} | {1:<142}\n{2:1}".format(
+                        convNum(value["customCnt"]), idx, oneLine
                     )
                 )
-
-                SysMgr.printPipe(oneLine)
 
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
@@ -17946,13 +17943,18 @@ class FunctionAnalyzer(object):
         # Print custom event in kernel space #
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[Function %s Info] [Cnt: %s] [Total: %s] (KERNEL)"
-            % (customList, convNum(self.customTotal), convNum(self.customCnt))
+            "[Function %s Info] [Cnt: %s] [Total: %s] (KERNEL)\n%s"
+            % (
+                customList,
+                convNum(self.customTotal),
+                convNum(self.customCnt),
+                twoLine,
+            )
         )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Function", twoLine)
+        )
 
         # Print custom usage of stacks #
         for idx, value in sorted(
@@ -18014,17 +18016,20 @@ class FunctionAnalyzer(object):
 
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[Function %s History] [Cnt: %s] [Total: %s]"
-            % (customList, convNum(self.customTotal), convNum(self.customCnt))
-        )
-
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe(
-            "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".format(
-                "Event", "COMM", "TID", "CORE", "TIME"
+            "[Function %s History] [Cnt: %s] [Total: %s]\n%s"
+            % (
+                customList,
+                convNum(self.customTotal),
+                convNum(self.customCnt),
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
+
+        SysMgr.printPipe(
+            "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|\n{5:1}".format(
+                "Event", "COMM", "TID", "CORE", "TIME", twoLine
+            )
+        )
 
         # sort by time #
         for call in sorted(self.customCallData, key=lambda e: e[1][1]):
@@ -18108,9 +18113,10 @@ class FunctionAnalyzer(object):
             )
             SysMgr.printPipe("{0:>32}|{1:<121}".format("[User] ", userCall))
             SysMgr.printPipe(
-                "{0:>32}|{1:<121}".format("[Kernel] ", kernelCall)
+                "{0:>32}|{1:<121}\n{2:1}".format(
+                    "[Kernel] ", kernelCall, oneLine
+                )
             )
-            SysMgr.printPipe(oneLine)
 
         SysMgr.printPipe("\n\n")
 
@@ -18137,13 +18143,11 @@ class FunctionAnalyzer(object):
             )
 
             # Print call stack #
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:_^9}|{1:_^47}|{2:_^96}".format(
-                    "Usage", "Function", "Binary"
+                "{3:1}\n{0:_^9}|{1:_^47}|{2:_^96}\n{3:1}".format(
+                    "Usage", "Function", "Binary", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -18206,17 +18210,15 @@ class FunctionAnalyzer(object):
             # Print per-symbol #
             title = "Function CPU-Tick Symbol Info"
             SysMgr.printPipe(
-                "[%s] [Cnt: %s] [Interval: %dms] (USER)"
-                % (title, tCnt, self.periodicEventInterval * 1000)
+                "[%s] [Cnt: %s] [Interval: %dms] (USER)\n%s"
+                % (title, tCnt, self.periodicEventInterval * 1000, twoLine)
             )
 
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:_^9}|{1:_^47}|{2:_^96}".format(
-                    "Usage", "Function", "Binary"
+                "{0:_^9}|{1:_^47}|{2:_^96}\n{3:1}".format(
+                    "Usage", "Function", "Binary", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -18234,12 +18236,13 @@ class FunctionAnalyzer(object):
                     break
 
                 SysMgr.printPipe(
-                    "{0:7.1f}% |{1:^47}| {2:48}".format(
-                        cpuPer, idx, self.posData[value["pos"]]["origBin"]
+                    "{0:7.1f}% |{1:^47}| {2:48}\n{3:1}".format(
+                        cpuPer,
+                        idx,
+                        self.posData[value["pos"]]["origBin"],
+                        oneLine,
                     )
                 )
-
-                SysMgr.printPipe(oneLine)
 
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
@@ -18249,13 +18252,13 @@ class FunctionAnalyzer(object):
             # Print tick per-file #
             title = "Function CPU-Tick File Info"
             SysMgr.printPipe(
-                "[%s] [Cnt: %s] [Interval: %dms] (USER)"
-                % (title, tCnt, self.periodicEventInterval * 1000)
+                "[%s] [Cnt: %s] [Interval: %dms] (USER)\n%s"
+                % (title, tCnt, self.periodicEventInterval * 1000, twoLine)
             )
 
-            SysMgr.printPipe(twoLine)
-            SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe(
+                "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Binary", twoLine)
+            )
 
             for idx, value in sorted(
                 self.userFileData.items(),
@@ -18270,9 +18273,9 @@ class FunctionAnalyzer(object):
                 if cpuPer < 1 and not SysMgr.showAll:
                     break
 
-                SysMgr.printPipe("{0:7.1f}% | {1:<142}".format(cpuPer, idx))
-
-                SysMgr.printPipe(oneLine)
+                SysMgr.printPipe(
+                    "{0:7.1f}% | {1:<142}\n{2:1}".format(cpuPer, idx, oneLine)
+                )
 
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
@@ -18287,10 +18290,11 @@ class FunctionAnalyzer(object):
             tCnt,
             self.periodicEventInterval * 1000,
         )
-        SysMgr.printPipe(titleStr)
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{3:1}\n{2:1}\n{0:_^9}|{1:_^144}\n{2:1}".format(
+                "Usage", "Function", twoLine, titleStr
+            )
+        )
 
         # Make exception list to remove a redundant part of stack #
         exceptList = {}
@@ -18432,15 +18436,15 @@ class FunctionAnalyzer(object):
         if SysMgr.userEnable:
             # Print memory reduce by page free in user space #
             SysMgr.clearPrint()
-            SysMgr.printPipe("[%s] [Size: %s] (USER)" % (title, size))
-
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                    "Free", "Function", "Binary", "Source"
+                "[%s] [Size: %s] (USER)\n%s" % (title, size, twoLine)
+            )
+
+            SysMgr.printPipe(
+                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                    "Free", "Function", "Binary", "Source", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -18491,11 +18495,13 @@ class FunctionAnalyzer(object):
 
         # Print memory reduce by page free in kernel space #
         SysMgr.clearPrint()
-        SysMgr.printPipe("[%s] [Size: %s] (KERNEL)" % (title, size))
+        SysMgr.printPipe(
+            "[%s] [Size: %s] (KERNEL)\n%s" % (title, size, twoLine)
+        )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("FREE", "Function"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("FREE", "Function", twoLine)
+        )
 
         for idx, value in sorted(
             self.kerSymData.items(),
@@ -18552,13 +18558,14 @@ class FunctionAnalyzer(object):
         # Print page alloc-free pair in user space #
         if SysMgr.userEnable:
             SysMgr.clearPrint()
-            SysMgr.printPipe("[%s] [Total: %s] (USER)" % (title, size))
+            SysMgr.printPipe(
+                "[%s] [Total: %s] (USER)\n%s" % (title, size, twoLine)
+            )
 
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
                 (
                     "{0:^7}({1:^6}/{2:^6}/{3:^6})|"
-                    "{4:_^47}|{5:_^40}|{6:_^35}"
+                    "{4:_^47}|{5:_^40}|{6:_^35}\n{7:1}"
                 ).format(
                     "Usage",
                     "Usr",
@@ -18567,9 +18574,9 @@ class FunctionAnalyzer(object):
                     "Function",
                     "LifeTime",
                     "Binary",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -18689,15 +18696,15 @@ class FunctionAnalyzer(object):
 
         # Print page alloc-free pair in kernel space #
         SysMgr.clearPrint()
-        SysMgr.printPipe("[%s] [Total: %s] (KERNEL)" % (title, size))
-
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".format(
-                "Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"
+            "[%s] [Total: %s] (KERNEL)\n%s" % (title, size, twoLine)
+        )
+
+        SysMgr.printPipe(
+            "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}\n{6:1}".format(
+                "Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         # Print mem usage of stacks #
         for idx, value in sorted(
@@ -18864,15 +18871,22 @@ class FunctionAnalyzer(object):
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             SysMgr.printPipe(
-                "[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)"
-                % (title, userSize, allocSize, allocCnt, freeSize, freeCnt)
+                "[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)\n%s"
+                % (
+                    title,
+                    userSize,
+                    allocSize,
+                    allocCnt,
+                    freeSize,
+                    freeCnt,
+                    twoLine,
+                )
             )
 
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
                 (
                     "{0:^7}({1:^6}/{2:^6}/{3:^6})|"
-                    "{4:_^47}|{5:_^40}|{6:_^35}"
+                    "{4:_^47}|{5:_^40}|{6:_^35}\n{7:1}"
                 ).format(
                     "Usage",
                     "Usr",
@@ -18881,9 +18895,9 @@ class FunctionAnalyzer(object):
                     "Function",
                     "LifeTime",
                     "Binary",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -18961,17 +18975,23 @@ class FunctionAnalyzer(object):
         # Print memory usage by page allocation in kernel space #
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (KERNEL)"
-            % (title, userSize, allocSize, allocCnt, freeSize, freeCnt)
-        )
-
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe(
-            "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".format(
-                "Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"
+            "[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (KERNEL)\n%s"
+            % (
+                title,
+                userSize,
+                allocSize,
+                allocCnt,
+                freeSize,
+                freeCnt,
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
+
+        SysMgr.printPipe(
+            "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}\n{6:1}".format(
+                "Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", twoLine
+            )
+        )
 
         # Print mem usage of stacks #
         for idx, value in sorted(
@@ -19063,7 +19083,7 @@ class FunctionAnalyzer(object):
         # Print heap usage in user space #
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s Info] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)"
+            "[%s Info] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)%s\n"
             % (
                 title,
                 convSize(self.heapExpSize - self.heapRedSize),
@@ -19071,16 +19091,15 @@ class FunctionAnalyzer(object):
                 UtilMgr.convNum(self.heapExpEventCnt),
                 convSize(self.heapRedSize),
                 UtilMgr.convNum(self.heapRedEventCnt),
+                twoLine,
             )
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                "Usage", "Function", "Binary", "Source"
+            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                "Usage", "Function", "Binary", "Source", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         for idx, value in sorted(
             self.userSymData.items(),
@@ -19140,17 +19159,16 @@ class FunctionAnalyzer(object):
 
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s History] [Cnt: %s]"
-            % (title, UtilMgr.convNum(len(self.heapTable)))
+            "[%s History] [Cnt: %s]\n%s"
+            % (title, UtilMgr.convNum(len(self.heapTable)), twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^32}|{1:_^12}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".format(
-                "VAddr", "Size", "COMM", "TID", "CORE", "TIME"
-            )
+            (
+                "{0:_^32}|{1:_^12}|{2:_^17}({3:_^7})|"
+                "{4:_^8}|{5:_^17}|\n{6:1}"
+            ).format("VAddr", "Size", "COMM", "TID", "CORE", "TIME", twoLine)
         )
-        SysMgr.printPipe(twoLine)
 
         # sort by time #
         for segment in sorted(
@@ -19287,16 +19305,15 @@ class FunctionAnalyzer(object):
         title = "Function Lock-Try Info"
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s] [Cnt: %d] (USER)" % (title, self.lockTryEventCnt)
+            "[%s] [Cnt: %d] (USER)\n%s"
+            % (title, self.lockTryEventCnt, twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                "Usage", "Function", "Binary", "Source"
+            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                "Usage", "Function", "Binary", "Source", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         for idx, value in sorted(
             self.userSymData.items(),
@@ -19346,12 +19363,13 @@ class FunctionAnalyzer(object):
         # Print lock per-file #
         title = "Function Lock-Try File Info"
         SysMgr.printPipe(
-            "[%s] [Cnt: %d] (USER)" % (title, self.lockTryEventCnt)
+            "[%s] [Cnt: %d] (USER)\n%s"
+            % (title, self.lockTryEventCnt, twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Binary", twoLine)
+        )
 
         for idx, value in sorted(
             self.userFileData.items(),
@@ -19363,10 +19381,10 @@ class FunctionAnalyzer(object):
                 break
 
             SysMgr.printPipe(
-                "{0:8} | {1:<142}".format(value["lockTryCnt"], idx)
+                "{0:8} | {1:<142}\n{2:1}".format(
+                    value["lockTryCnt"], idx, oneLine
+                )
             )
-
-            SysMgr.printPipe(oneLine)
 
         if self.periodicEventCnt == 0:
             SysMgr.printPipe("\tNone\n%s" % oneLine)
@@ -19377,16 +19395,14 @@ class FunctionAnalyzer(object):
         title = "Function Unlock Info"
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s] [Cnt: %d] (USER)" % (title, self.unlockEventCnt)
+            "[%s] [Cnt: %d] (USER)\n%s" % (title, self.unlockEventCnt, twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                "Usage", "Function", "Binary", "Source"
+            "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                "Usage", "Function", "Binary", "Source", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         for idx, value in sorted(
             self.userSymData.items(),
@@ -19436,12 +19452,13 @@ class FunctionAnalyzer(object):
         # Print unlock per-file #
         title = "Function Unlock File Info"
         SysMgr.printPipe(
-            "[%s] [Cnt: %d] (USER)" % (title, self.lockTryEventCnt)
+            "[%s] [Cnt: %d] (USER)\n%s"
+            % (title, self.lockTryEventCnt, twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Binary", twoLine)
+        )
 
         for idx, value in sorted(
             self.userFileData.items(),
@@ -19471,17 +19488,16 @@ class FunctionAnalyzer(object):
         title = "Function Lock History"
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s] [Lock: %d] [Unlock: %d]"
-            % (title, self.lockTryEventCnt, self.unlockEventCnt)
+            "[%s] [Lock: %d] [Unlock: %d]\n%s"
+            % (title, self.lockTryEventCnt, self.unlockEventCnt, twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^32}|{1:_^16}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".format(
-                "Event", "TARGET", "COMM", "TID", "CORE", "TIME"
-            )
+            (
+                "{0:_^32}|{1:_^16}|{2:_^17}({3:_^7})|"
+                "{4:_^8}|{5:_^17}|\n{6:1}"
+            ).format("Event", "Target", "COMM", "TID", "Core", "Time", twoLine)
         )
-        SysMgr.printPipe(twoLine)
 
         # sort by time #
         for call in self.lockCallData:
@@ -19532,8 +19548,9 @@ class FunctionAnalyzer(object):
             except:
                 pass
 
-            SysMgr.printPipe("{0:>32}|{1:<121}".format("[User] ", userCall))
-            SysMgr.printPipe(oneLine)
+            SysMgr.printPipe(
+                "{0:>32}|{1:<121}\n{2:1}".format("[User] ", userCall, oneLine)
+            )
 
         SysMgr.printPipe("\n\n")
 
@@ -19553,17 +19570,15 @@ class FunctionAnalyzer(object):
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             SysMgr.printPipe(
-                "[%s] [Size: %s] [Cnt: %s] (USER)"
-                % (title, size, convNum(self.blockWrEventCnt))
+                "[%s] [Size: %s] [Cnt: %s] (USER)\n%s"
+                % (title, size, convNum(self.blockWrEventCnt), twoLine)
             )
 
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                    "Usage", "Function", "Binary", "Source"
+                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                    "Usage", "Function", "Binary", "Source", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -19615,13 +19630,13 @@ class FunctionAnalyzer(object):
         # Print block write in kernel space #
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s] [Size: %s] [Cnt: %s] (KERNEL)"
-            % (title, size, convNum(self.blockWrEventCnt))
+            "[%s] [Size: %s] [Cnt: %s] (KERNEL)\n%s"
+            % (title, size, convNum(self.blockWrEventCnt), twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Function", twoLine)
+        )
 
         # Print block write usage of stacks #
         for idx, value in sorted(
@@ -19719,17 +19734,15 @@ class FunctionAnalyzer(object):
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             SysMgr.printPipe(
-                "[%s] [Size: %s] [Cnt: %s] (USER)"
-                % (title, size, convNum(self.blockRdEventCnt))
+                "[%s] [Size: %s] [Cnt: %s] (USER)\n%s"
+                % (title, size, convNum(self.blockRdEventCnt), twoLine)
             )
 
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".format(
-                    "Usage", "Function", "Binary", "Source"
+                "{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}\n{4:1}".format(
+                    "Usage", "Function", "Binary", "Source", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for idx, value in sorted(
                 self.userSymData.items(),
@@ -19778,13 +19791,13 @@ class FunctionAnalyzer(object):
         # Print block read in kernel space #
         SysMgr.clearPrint()
         SysMgr.printPipe(
-            "[%s] [Size: %s] [Cnt: %s] (KERNEL)"
-            % (title, size, convNum(self.blockRdEventCnt))
+            "[%s] [Size: %s] [Cnt: %s] (KERNEL)\n%s"
+            % (title, size, convNum(self.blockRdEventCnt), twoLine)
         )
 
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:_^9}|{1:_^144}\n{2:1}".format("Usage", "Function", twoLine)
+        )
 
         # Print block read usage of stacks #
         for idx, value in sorted(
@@ -19952,7 +19965,7 @@ class LeakAnalyzer(object):
         title = "Function %s Info" % name
         titleStr = (
             "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-            "[VSS: %s] [RSS: %s] [Leak: %s] [NrCall: %s]"
+            "[VSS: %s] [RSS: %s] [%s: %s] [NrCall: %s]"
         ) % (
             title,
             proc,
@@ -19961,21 +19974,22 @@ class LeakAnalyzer(object):
             profileTime,
             vss,
             rss,
+            name,
             convSize(self.totalLeakSize),
             convSize(len(self.callData)),
         )
         SysMgr.printPipe(titleStr)
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
-                "Size", "Count", "Avg", "Function"
+            "{4:1}\n{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
+                "Size", "Count", "Avg", "Function", twoLine
             )
         )
         SysMgr.printPipe(
-            "{0:>7} | {1:>7} | {2:<132} |".format(" ", "Size", " Backtrace")
+            "{0:>7} | {1:>7} | {2:<132} |\n{3:1}".format(
+                " ", "Size", " Backtrace", twoLine
+            )
         )
-        SysMgr.printPipe(twoLine)
 
         # init flamegraph variable #
         stackList = {}
@@ -20029,7 +20043,7 @@ class LeakAnalyzer(object):
         SysMgr.printPipe(
             (
                 "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-                "[VSS: %s] [RSS: %s] [Leak: %s] [NrCall: %s]"
+                "[VSS: %s] [RSS: %s] [%s: %s] [NrCall: %s]\n%s"
             )
             % (
                 title,
@@ -20039,18 +20053,18 @@ class LeakAnalyzer(object):
                 profileTime,
                 vss,
                 rss,
+                name,
                 convSize(self.totalLeakSize),
                 convSize(len(self.callData)),
+                twoLine,
             )
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
-                "Size", "Count", "Avg", "Path"
+            "{0:>7} | {1:>7} | {2:>7} | {3:<122} |\n{4:1}".format(
+                "Size", "Count", "Avg", "Path", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         count = 0
         for fpath, val in sorted(
@@ -20077,6 +20091,7 @@ class LeakAnalyzer(object):
 
         if count == 0:
             SysMgr.printPipe("\tNone")
+
         SysMgr.printPipe(oneLine)
 
         # check exit condition #
@@ -20100,16 +20115,16 @@ class LeakAnalyzer(object):
         # leakage history #
         title = "Leakage History"
         SysMgr.printPipe(
-            "\n[%s] [Start: %s] [Total: %s] [Count: %s]"
+            "\n[%s] [Start: %s] [Total: %s] [Count: %s]\n%s"
             % (
                 title,
                 startTime,
                 convSize(self.totalLeakSize, True),
                 convSize(len(self.callData), True),
+                twoLine,
             )
         )
 
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:^16} | {1:^16} | {2:^6} |{3:^50}| {4:^53}\n{5:1}".format(
                 "Time", "Addr", "Size", "Data", "Stack", oneLine
@@ -21530,11 +21545,10 @@ class FileAnalyzer(object):
 
         procTitle = "%s(%s)" % ("Thread", "TID")
         SysMgr.printPipe(
-            "{0:_^16}({1:_^7})|{2:_^7}|{3:_^120}".format(
-                "Process", "PID", "RAM", procTitle
+            "{0:_^16}({1:_^7})|{2:_^7}|{3:_^120}\n{4:1}".format(
+                "Process", "PID", "RAM", procTitle, twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         procInfo = "{0:^16}({0:^7})|{0:7} |".format("")
         threadInfo = " {0:^16}({0:^7})".format("")
@@ -21628,11 +21642,10 @@ class FileAnalyzer(object):
             )
         )
         SysMgr.printPipe(
-            "{0:_^8}|{1:_^8}|{2:_^5}|{3:_^8}|{4:_^121}".format(
-                "RAM", "File", "%", "PSS", "Library & Process"
+            "{0:_^8}|{1:_^8}|{2:_^5}|{3:_^8}|{4:_^121}\n{5:1}".format(
+                "RAM", "File", "%", "PSS", "Library & Process", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         for fileName, val in sorted(
             self.fileData.items(),
@@ -28437,7 +28450,9 @@ Commands:
             lines = SysMgr.procReadlines("iomem")
             for item in lines:
                 addrs, name = item.split(":", 1)
-                start, end = addrs.rstrip().split("-")
+                start, end = UtilMgr.cleanItem(
+                    addrs.rstrip().split("-"), False
+                )
                 startaddr = long(start, 16)
                 size = long(end, 16) - startaddr
                 sizeUnit = "%s (%7s)" % (
@@ -33040,6 +33055,9 @@ Examples:
     - {2:1} from specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*.dlt"
 
+    - {2:1} summary from specific files
+        # {0:1} {1:1} "./*.dlt" -q PRINTSUMMARY
+
     - {2:1} including specific words
         # {0:1} {1:1} -g test
 
@@ -37271,7 +37289,10 @@ Copyright:
             SysMgr.condExit = True
 
         elif SysMgr.isTopMode() or SysMgr.isTraceMode():
-            if SysMgr.outPath and not "NOSUMMARY" in SysMgr.environList:
+            # skip summary for Debugger #
+            if Debugger.dbgInstance:
+                pass
+            elif SysMgr.outPath and not "NOSUMMARY" in SysMgr.environList:
                 # reload data written to file #
                 if SysMgr.pipeEnable:
                     SysMgr.reloadFileBuffer()
@@ -37301,7 +37322,8 @@ Copyright:
                         "'%s'%s successfully" % (SysMgr.inputFile, fsize)
                     )
 
-            SysMgr.releaseResource()
+            # broadcast signal to childs and close all FDs #
+            SysMgr.releaseResource(signal.SIGINT)
 
             # unmask signal #
             if signum:
@@ -37987,7 +38009,12 @@ Copyright:
         )
 
         # print on console #
-        print(string.rstrip())
+        try:
+            print(string.rstrip())
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
 
     @staticmethod
     def addPrint(string, newline=1, force=False, isList=False):
@@ -47972,9 +47999,6 @@ Copyright:
                     [signal.SIGCONT, [pid], False, False],
                 )
 
-        # print title #
-        SysMgr.printLogo(big=True, onlyFile=True)
-
         # no use pager #
         if not SysMgr.isTopMode() and not SysMgr.outPath:
             SysMgr.setStream()
@@ -54955,6 +54979,7 @@ Copyright:
                 def _onAlarm(signum, frame):
                     SysMgr.sendSignalProcs(signal.SIGKILL, remainTasks)
 
+                # register kill timer #
                 signal.signal(signal.SIGALRM, _onAlarm)
                 signal.alarm(5)
 
@@ -55013,9 +55038,9 @@ Copyright:
         os._exit(0)
 
     @staticmethod
-    def releaseResource():
+    def releaseResource(sig=None):
         # kill child tasks #
-        SysMgr.killChildren()
+        SysMgr.killChildren(sig)
 
         # close all files #
         SysMgr.closeAllForPrint()
@@ -56119,12 +56144,12 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
     def printMmapInfo(self):
-        SysMgr.infoBufferPrint("\n[Memory Map Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint("\n[Memory Map Info]\n%s" % twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^35} | {1:^32} | {2:<1}".format("ADDR", "SIZE", "NAME")
+            "{0:^35} | {1:^32} | {2:<1}\n{3:1}".format(
+                "ADDR", "SIZE", "NAME", twoLine
+            )
         )
-        SysMgr.infoBufferPrint(twoLine)
 
         # get memory map #
         maps = SysMgr.readMemoryMap()
@@ -56137,7 +56162,7 @@ Copyright:
         for start, value in sorted(maps.items(), key=lambda e: long(e[0])):
             addr = "%16s - %16s" % (value["start"], value["end"])
             SysMgr.infoBufferPrint(
-                "{0:^35} | {1:>32} | {2:<1}".format(
+                "{0:>35} | {1:>32} | {2:<1}".format(
                     addr, value["sizeUnit"], value["name"]
                 )
             )
@@ -60343,12 +60368,13 @@ class DbusMgr(object):
             )
             % (procId, conv(len(perProc)), conv(totalSubscription), twoLine)
         )
+
         SysMgr.printPipe(
-            "{0:^23} {1:<23} {2:^10} {3:>1}".format(
-                "Client", "Server", "Interface", "Args"
+            "{0:^23} {1:<23} {2:^10} {3:>1}\n{4:1}".format(
+                "Client", "Server", "Interface", "Args", oneLine
             )
         )
-        SysMgr.printPipe(oneLine)
+
         for cli, stats in sorted(
             nrPerProcSignals.items(),
             key=lambda e: e[1]["nrSignal"],
@@ -60441,10 +60467,13 @@ class DbusMgr(object):
             )
             % (procId, conv(len(perSig)), conv(totalSubscription), twoLine)
         )
+
         SysMgr.printPipe(
-            "{0:^23} {1:^12} {2:<23}".format("Server", "Interface", "Client")
+            "{0:^23} {1:^12} {2:<23}\n{3:1}".format(
+                "Server", "Interface", "Client", oneLine
+            )
         )
-        SysMgr.printPipe(oneLine)
+
         for serv, stats in sorted(
             nrPerSigProcs.items(),
             key=lambda e: len(e[1]["proxyList"]),
@@ -62790,6 +62819,15 @@ class DltAnalyzer(object):
 
         # messages from file #
         if mode == "print" and flist:
+            # set print mode #
+            if "PRINTSUMMARY" in SysMgr.environList:
+                printMode = "top"
+                if not SysMgr.findOption("Q"):
+                    SysMgr.streamEnable = False
+                DltAnalyzer.procInfo = TaskAnalyzer(onlyInstance=True)
+            else:
+                printMode = mode
+
             for path in flist:
                 SysMgr.printInfo(
                     "start printing DLT logs from '%s'...\n" % path
@@ -62864,13 +62902,18 @@ class DltAnalyzer(object):
 
                     # print message #
                     DltAnalyzer.handleMessage(
-                        dltObj, dltFile.msg, buf, mode, verb, buffered
+                        dltObj, dltFile.msg, buf, printMode, verb, buffered
                     )
 
                 # free file object #
                 ret = dltObj.dlt_file_free(byref(dltFile), verb)
                 if ret < 0:
                     SysMgr.printErr("failed to free a DLTFile object")
+
+            # print summary #
+            if printMode == "top":
+                DltAnalyzer.printSummary()
+                SysMgr.printProcBuffer()
 
             # handle buffered logs #
             if buffered:
@@ -73905,6 +73948,10 @@ typedef struct {
         self.stop()
         self.stop(pid=tid)
 
+        # check memory map #
+        if not self.pmap:
+            self.loadSymbols()
+
         # check lock #
         if self.isBreakMode and not self.lockObj:
             self.lockObj = Debugger.getGlobalLock(self.pid, len(self.bpList))
@@ -75152,10 +75199,9 @@ typedef struct {
 
         if instance.isRealtime:
             mtype = "Top"
-            suffix = "\n"
         else:
             mtype = "Trace"
-            suffix = ""
+        suffix = "\n"
 
         # update suffix of output file name #
         SysMgr.fileSuffix = "%s_%s_%s" % (
@@ -75164,10 +75210,17 @@ typedef struct {
             SysMgr.pid,
         )
 
+        # print logo #
+        if not SysMgr.printFd:
+            SysMgr.printLogo(big=True, onlyFile=True)
+
         # print System Info #
         _printSystemStat()
 
-        SysMgr.printInfo("start analyzing calls...")
+        SysMgr.printInfo(
+            "start analyzing calls of %s(%s)..."
+            % (instance.comm, instance.pid)
+        )
 
         nrTotal = float(len(instance.callList))
 
@@ -75312,13 +75365,11 @@ typedef struct {
                 suffix,
             )
         )
-        SysMgr.printPipe(twoLine + suffix)
         SysMgr.printPipe(
-            "{0:^7} | {1:<144}{2:1}".format(
-                "Usage", "Function %s" % addInfo, suffix
+            "{3:1}{0:^7} | {1:<144}{2:1}{3:1}".format(
+                "Usage", "Function %s" % addInfo, suffix, twoLine + suffix
             )
         )
-        SysMgr.printPipe(twoLine + suffix)
 
         cnt = 0
         for sym, value in sorted(
@@ -75448,11 +75499,11 @@ typedef struct {
                     suffix,
                 )
             )
-            SysMgr.printPipe(twoLine + suffix)
             SysMgr.printPipe(
-                "{0:^7} | {1:<144}{2:1}".format("Usage", "Path", suffix)
+                "{3:1}{0:^7} | {1:<144}{2:1}{3:1}".format(
+                    "Usage", "Path", suffix, twoLine + suffix
+                )
             )
-            SysMgr.printPipe(twoLine + suffix)
 
             cnt = 0
             for filename, value in sorted(
@@ -75476,11 +75527,21 @@ typedef struct {
 
             SysMgr.printPipe(oneLine + suffix)
 
+        # print history #
         instance.printCallHistory(instance, ctype)
 
         # stop target to return original status #
         if needStop:
             instance.stop(check=True)
+
+        try:
+            outFile = SysMgr.printFd.name
+            SysMgr.printInfo(
+                "saved the results into '%s' successfully"
+                % SysMgr.printFd.name
+            )
+        except:
+            pass
 
         # check realtime mode #
         if not SysMgr.procBuffer:
@@ -76214,9 +76275,9 @@ class EventAnalyzer(object):
 
         if eventData:
             SysMgr.printPipe(
-                "\n[%s] [Total: %d]" % ("Event Info", len(eventData))
+                "\n[%s] [Total: %d]\n%s"
+                % ("Event Info", len(eventData), twoLine)
             )
-            SysMgr.printPipe(twoLine)
             try:
                 EventAnalyzer.printEvent()
             except SystemExit:
@@ -90841,10 +90902,10 @@ class TaskAnalyzer(object):
                     "\n[Thread Creation Info] [Alive: +] [Die: -] "
                     "[CreatedTime: //] [ChildCount: ||] "
                     "[CpuUsage: <>] [WaitForChildren: {}] "
-                    "[WaitOfParent: []]"
+                    "[WaitOfParent: []]\n%s"
                 )
+                % twoLine
             )
-            SysMgr.printPipe(twoLine)
 
             cnt = 0
             for key, value in sorted(
@@ -90867,7 +90928,10 @@ class TaskAnalyzer(object):
             SysMgr.printPipe("\n[Thread Signal Info]")
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^6} {1:>10} {2:>40}({3:>7}) {4:^10} {5:>40}({6:>7})".format(
+                (
+                    "{0:^6} {1:>10} {2:>40}({3:>7}) {4:^10} "
+                    "{5:>40}({6:>7})\n{7:1}"
+                ).format(
                     "TYPE",
                     "TIME",
                     "SENDER",
@@ -90875,9 +90939,9 @@ class TaskAnalyzer(object):
                     "SIGNAL",
                     "RECEIVER",
                     "TID",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             cnt = 0
             for val in self.sigData:
@@ -90942,14 +91006,16 @@ class TaskAnalyzer(object):
             totalUsage = 0.0
 
             SysMgr.printPipe(
-                ("\n[Thread Workqueue Info] [Elapsed: %.3f] (Unit: Sec/NR)")
-                % float(self.totalTime)
+                (
+                    "\n[Thread Workqueue Info] [Elapsed: %.3f] "
+                    "(Unit: Sec/NR)\n%s"
+                )
+                % (float(self.totalTime), twoLine)
             )
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
                 (
                     "{0:^32} {1:>12} {2:>10} {3:>10} "
-                    "{4:>10} {5:>10} {6:>10} {7:>10} {8:>6}"
+                    "{4:>10} {5:>10} {6:>10} {7:>10} {8:>6}\n{9:1}"
                 ).format(
                     "Name",
                     "Count",
@@ -90960,9 +91026,9 @@ class TaskAnalyzer(object):
                     "InterMax",
                     "InterMin",
                     "NrTask",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             SysMgr.clearPrint()
 
@@ -91039,14 +91105,13 @@ class TaskAnalyzer(object):
             totalUsage = 0.0
 
             SysMgr.printPipe(
-                ("\n[Thread IRQ Info] [Elapsed: %.3f] (Unit: Sec/NR)")
-                % float(self.totalTime)
+                ("\n[Thread IRQ Info] [Elapsed: %.3f] (Unit: Sec/NR)\n%s")
+                % (float(self.totalTime), twoLine)
             )
-            SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
                 (
                     "{0:^16} {1:<62} {2:>12} {3:>10} {4:>10} "
-                    "{5:>10} {6:>10} {7:>10}"
+                    "{5:>10} {6:>10} {7:>10}\n{8:1}"
                 ).format(
                     "IRQ",
                     "Name",
@@ -91056,9 +91121,9 @@ class TaskAnalyzer(object):
                     "ProcMin",
                     "InterMax",
                     "InterMin",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             SysMgr.clearPrint()
 
@@ -91133,14 +91198,20 @@ class TaskAnalyzer(object):
         # print custom event info #
         if self.customEventInfo:
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread CUSTOM Event Info]")
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe("\n[Thread CUSTOM Event Info]\n%s" % twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:>32}({2:>7}) {3:>10} {4:>10} {5:>10}".format(
-                    "Event", "COMM", "TID", "Count", "MaxPeriod", "MinPeriod"
+                (
+                    "{0:^32} {1:>32}({2:>7}) {3:>10} " "{4:>10} {5:>10}\n{6:1}"
+                ).format(
+                    "Event",
+                    "COMM",
+                    "TID",
+                    "Count",
+                    "MaxPeriod",
+                    "MinPeriod",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             newLine = False
             for idx, val in sorted(
@@ -91197,14 +91268,12 @@ class TaskAnalyzer(object):
         # print custom event history #
         if SysMgr.showAll and len(self.customEventData) > 0:
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread CUSTOM Event History]")
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe("\n[Thread CUSTOM Event History]\n%s" % twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:^10} {2:>16}({3:>7}) {4:<1}".format(
-                    "EVENT", "TIME", "COMM", "TID", "ARG"
+                "{0:^32} {1:^10} {2:>16}({3:>7}) {4:<1}\n{5:1}".format(
+                    "EVENT", "TIME", "COMM", "TID", "ARG", twoLine
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             cnt = 0
             for val in self.customEventData:
@@ -91231,12 +91300,11 @@ class TaskAnalyzer(object):
         # print user event info #
         if self.userEventInfo:
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread User Event Info]")
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe("\n[Thread User Event Info]\n%s" % twoLine)
             SysMgr.printPipe(
                 (
                     "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} "
-                    "{5:>10} {6:>10} {7:>10} {8:>10}"
+                    "{5:>10} {6:>10} {7:>10} {8:>10}\n{9:1}"
                 ).format(
                     "Event",
                     "COMM",
@@ -91247,9 +91315,9 @@ class TaskAnalyzer(object):
                     "ProcMin",
                     "InterMax",
                     "InterMin",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             newLine = False
             for idx, val in sorted(
@@ -91312,14 +91380,22 @@ class TaskAnalyzer(object):
         # print user event history #
         if SysMgr.showAll and len(self.userEventData) > 0:
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread User Event History]")
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe("\n[Thread User Event History]\n%s" % twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) {5:^16} {6:>10}".format(
-                    "EVENT", "TYPE", "TIME", "COMM", "TID", "CALLER", "ELAPSED"
+                (
+                    "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
+                    "{5:^16} {6:>10}\n{7:1}"
+                ).format(
+                    "EVENT",
+                    "TYPE",
+                    "TIME",
+                    "COMM",
+                    "TID",
+                    "CALLER",
+                    "ELAPSED",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             cnt = 0
             callTable = {}
@@ -91367,12 +91443,11 @@ class TaskAnalyzer(object):
         # print kernel event info #
         if self.kernelEventInfo:
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread Kernel Event Info]")
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe("\n[Thread Kernel Event Info]\n%s" % twoLine)
             SysMgr.printPipe(
                 (
                     "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} "
-                    "{5:>10} {6:>10} {7:>10} {8:>10}"
+                    "{5:>10} {6:>10} {7:>10} {8:>10}\n{9:1}"
                 ).format(
                     "Event",
                     "COMM",
@@ -91383,9 +91458,9 @@ class TaskAnalyzer(object):
                     "ProcMin",
                     "InterMax",
                     "InterMin",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             newLine = False
             for idx, val in sorted(
@@ -91450,12 +91525,11 @@ class TaskAnalyzer(object):
             return
 
         SysMgr.clearPrint()
-        SysMgr.printPipe("\n[Thread Kernel Event History]")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Kernel Event History]\n%s" % twoLine)
         SysMgr.printPipe(
             (
                 "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
-                "{5:^22} {6:>10} {7:<1}"
+                "{5:^22} {6:>10} {7:<1}\n{8:1}"
             ).format(
                 "EVENT",
                 "TYPE",
@@ -91465,9 +91539,9 @@ class TaskAnalyzer(object):
                 "CALLER",
                 "ELAPSED",
                 "ARG",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         cnt = 0
         callTable = {}
@@ -91618,7 +91692,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(
             (
                 "[%s] [%s: %0.3f] [%s: %0.3f] [ActiveThread: %s] "
-                + "[ContextSwitch: %s] [LogSize: %s] (Unit: Sec/MB/NR)"
+                "[ContextSwitch: %s] [LogSize: %s] (Unit: Sec/MB/NR)\n%s"
             )
             % (
                 title,
@@ -91629,9 +91703,9 @@ class TaskAnalyzer(object):
                 convNum(self.getRunTaskNum()),
                 convNum(self.cxtSwitch),
                 convSize(SysMgr.logSize),
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         lastAField = "{0:_^17}|{1:_^16}".format("Mem Info", "Process")
         lastBField = "%3s|%3s|%4s(%2s)" % ("Rcl", "Wst", "DRcl", "Nr")
@@ -91653,7 +91727,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(
             (
                 "%16s(%6s/%6s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|"
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|\n%s"
             )
             % (
                 "Name",
@@ -91680,9 +91754,9 @@ class TaskAnalyzer(object):
                 "Buf",
                 "Ker",
                 lastBField,
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         # initialize swapper thread per core #
         for n in xrange(SysMgr.maxCore + 1):
@@ -92662,14 +92736,18 @@ class TaskAnalyzer(object):
             SysMgr.addPrint("%s\n" % oneLine)
 
         # print module info #
-        SysMgr.printPipe("\n[Thread Module Info]")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Module Info]\n%s" % twoLine)
         SysMgr.printPipe(
-            "{0:^32}|{1:^10}|{2:^12}|{3:^10}|{4:^10}|{5:^10}|".format(
-                "Module", "LoadCnt", "LoadTime", "FreeCnt", "GetCnt", "PutCnt"
+            "{0:^32}|{1:^10}|{2:^12}|{3:^10}|{4:^10}|{5:^10}|\n{6:1}".format(
+                "Module",
+                "LoadCnt",
+                "LoadTime",
+                "FreeCnt",
+                "GetCnt",
+                "PutCnt",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         printCnt = 0
         for module, value in moduleTable.items():
@@ -92697,13 +92775,11 @@ class TaskAnalyzer(object):
         if not SysMgr.depEnable:
             return
 
-        SysMgr.printPipe("\n[Thread Dependency Info]")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Dependency Info]\n%s" % twoLine)
         SysMgr.printPipe(
-            "\t%5s/%4s \t%32s(%7s) -> %32s(%7s) \t%5s"
-            % ("Total", "Inter", "From", "TID", "To", "TID", "Event")
+            "\t%5s/%4s \t%32s(%7s) -> %32s(%7s) \t%5s\n%s"
+            % ("Total", "Inter", "From", "TID", "To", "TID", "Event", twoLine)
         )
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe("%s# %s: %d\n" % ("", "Dep", len(self.depData)))
 
         for icount in xrange(len(self.depData)):
@@ -92724,15 +92800,15 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(
             (
                 "\n[Thread Futex Lock Info] [Elapsed: %.3f] "
-                "(Unit: Sec/NR) (LBlock: LOCK_PI)"
+                "(Unit: Sec/NR) (LBlock: LOCK_PI)\n%s"
             )
-            % float(self.totalTime)
+            % (float(self.totalTime), twoLine)
         )
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             (
-                "{0:>16}({1:>7}/{2:>7}) {3:>9} {4:>9} {5:>9} {6:>8} {7:>10} "
-                "{8:>10} {9:>10} {10:>8} {11:>8} {12:>10} {13:>8} {14:>10}"
+                "{0:>16}({1:>7}/{2:>7}) {3:>9} {4:>9} {5:>9} "
+                "{6:>8} {7:>10} {8:>10} {9:>10} {10:>8} {11:>8} "
+                "{12:>10} {13:>8} {14:>10}\n{15:1}"
             ).format(
                 "Name",
                 "TID",
@@ -92749,9 +92825,9 @@ class TaskAnalyzer(object):
                 "LBlock",
                 "NrLBlock",
                 "LastStat",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         tinfo = {
             "ftxTotal": 0,
@@ -92907,12 +92983,13 @@ class TaskAnalyzer(object):
         if not SysMgr.showAll:
             return
 
-        SysMgr.printPipe("\n[Thread Futex Lock History] (Unit: Sec/NR)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "\n[Thread Futex Lock History] (Unit: Sec/NR)\n%s" % twoLine
+        )
         SysMgr.printPipe(
             (
                 "{0:>12} {1:>16}({2:>7}/{3:>7}) {4:>4} {5:^24} "
-                + "{6:^10} {7:>12} {8:>16} {9:>16} {10:>16}"
+                "{6:^10} {7:>12} {8:>16} {9:>16} {10:>16}\n{11:1}"
             ).format(
                 "Time",
                 "Name",
@@ -92925,9 +93002,9 @@ class TaskAnalyzer(object):
                 "Target",
                 "Value",
                 "Timer",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         cnt = 0
         prevCnt = -1
@@ -93021,14 +93098,16 @@ class TaskAnalyzer(object):
             return
 
         outputCnt = 0
-        SysMgr.printPipe("\n[Thread File Lock Info] (Unit: Sec/NR)")
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>16}({1:>6})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}".format(
-                "Name", "TID", "Wait", "Lock", "nrTryLock", "nrLocked"
+            "\n[Thread File Lock Info] (Unit: Sec/NR)\n%s" % twoLine
+        )
+        SysMgr.printPipe(
+            (
+                "{0:>16}({1:>6})\t{2:>12}\t{3:>12}\t" "{4:>10}\t{5:>10}\n{6:1}"
+            ).format(
+                "Name", "TID", "Wait", "Lock", "nrTryLock", "nrLocked", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         for key, value in sorted(
             self.threadData.items(),
@@ -93066,10 +93145,14 @@ class TaskAnalyzer(object):
         if not SysMgr.showAll:
             return
 
-        SysMgr.printPipe("\n[Thread File Lock History] (Unit: Sec/NR)")
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>16}({1:>6}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".format(
+            "\n[Thread File Lock History] (Unit: Sec/NR)\n%s" % twoLine
+        )
+        SysMgr.printPipe(
+            (
+                "{0:>16}({1:>6}) {2:>10} {3:>4} {4:>10} "
+                "{5:>16} {6:>16} {7:>20}\n{8:1}"
+            ).format(
                 "Name",
                 "TID",
                 "Time",
@@ -93078,9 +93161,9 @@ class TaskAnalyzer(object):
                 "Device",
                 "Inode",
                 "Context",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         cnt = 0
         prevCnt = -1
@@ -93147,14 +93230,14 @@ class TaskAnalyzer(object):
             # server #
             outputCnt = 0
             SysMgr.printPipe(
-                "\n[Thread Binder %s Info] [Elapsed: %.3f] (Unit: Sec/NR)"
-                % (item, float(self.totalTime))
+                "\n[Thread Binder %s Info] [Elapsed: %.3f] (Unit: Sec/NR)\n%s"
+                % (item, float(self.totalTime), twoLine)
             )
-            SysMgr.printPipe(twoLine)
+
             SysMgr.printPipe(
                 (
                     "{0:>42} {1:>12} {2:>12} {3:>12} {4:>12} {5:>12} "
-                    "{6:>27} {7:>12}({8:>4})"
+                    "{6:>27} {7:>12}({8:>4})\n{9:1}"
                 ).format(
                     item,
                     "Elapsed",
@@ -93165,9 +93248,9 @@ class TaskAnalyzer(object):
                     "%s[CODE]" % opposite,
                     "Count",
                     "Per",
+                    twoLine,
                 )
             )
-            SysMgr.printPipe(twoLine)
 
             for key, value in sorted(
                 dataList.items(), key=lambda e: e[1]["usage"], reverse=True
@@ -93244,12 +93327,13 @@ class TaskAnalyzer(object):
             return
 
         # history #
-        SysMgr.printPipe("\n[Thread Binder History] (Unit: Sec/NR)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "\n[Thread Binder History] (Unit: Sec/NR)\n%s" % twoLine
+        )
         SysMgr.printPipe(
             (
                 "{0:>10} {1:^8} {7:>10} {3:^45} -> {4:^45} {2:>10} "
-                "{5:>8} {6:>8}"
+                "{5:>8} {6:>8}\n{8:1}"
             ).format(
                 "Time",
                 "Type",
@@ -93259,9 +93343,9 @@ class TaskAnalyzer(object):
                 "Flags",
                 "Code",
                 "Elapsed",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         outputCnt = 0
         for item in self.binderData:
@@ -93323,14 +93407,13 @@ class TaskAnalyzer(object):
 
         outputCnt = 0
         SysMgr.printPipe(
-            "\n[Thread Syscall Info] [Elapsed: %.3f] (Unit: Sec/NR)"
-            % float(self.totalTime)
+            "\n[Thread Syscall Info] [Elapsed: %.3f] (Unit: Sec/NR)\n%s"
+            % (float(self.totalTime), twoLine)
         )
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             (
                 "{0:>16}({1:>7}) {2:>30}({3:>3}) {4:>12} {5:>12} "
-                "{6:>12} {7:>12} {8:>12} {9:>12}"
+                "{6:>12} {7:>12} {8:>12} {9:>12}\n{10:1}"
             ).format(
                 "Name",
                 "TID",
@@ -93342,9 +93425,9 @@ class TaskAnalyzer(object):
                 "Min",
                 "Max",
                 "Avg",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         totalInfo = {}
 
@@ -93489,12 +93572,13 @@ class TaskAnalyzer(object):
         if not SysMgr.showAll:
             return
 
-        SysMgr.printPipe("\n[Thread Syscall History] (Unit: Sec/NR)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "\n[Thread Syscall History] (Unit: Sec/NR)\n%s" % twoLine
+        )
         SysMgr.printPipe(
             (
                 "{0:>10} {1:>16}({2:>7}) {3:>4} {4:>18} {5:>3} "
-                "{6:>5} {7:>10} {8:>16} {9:<1}"
+                "{6:>5} {7:>10} {8:>16} {9:<1}\n{10:1}"
             ).format(
                 "Time",
                 "Name",
@@ -93506,9 +93590,9 @@ class TaskAnalyzer(object):
                 "Elapsed",
                 "Return",
                 "Arguments",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         # remove calls of unavailable threads #
         for icount in xrange(len(self.syscallData)):
@@ -93692,13 +93776,11 @@ class TaskAnalyzer(object):
         if not self.lmkData:
             return
 
-        SysMgr.printPipe("\n[Thread LMK Info] (Unit: KB)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread LMK Info] (Unit: KB)\n%s" % twoLine)
         SysMgr.printPipe(
-            "%10s %16s %10s %10s %10s %10s"
-            % ("Time", "Name", "TID", "free", "file", "minfree")
+            "%10s %16s %10s %10s %10s %10s\n%s"
+            % ("Time", "Name", "TID", "free", "file", "minfree", twoLine)
         )
-        SysMgr.printPipe(twoLine)
 
         startTime = float(SysMgr.startTime)
 
@@ -93728,13 +93810,11 @@ class TaskAnalyzer(object):
         if not self.consoleData or not SysMgr.showAll:
             return
 
-        SysMgr.printPipe("\n[Thread Message Info]")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Message Info]\n%s" % twoLine)
         SysMgr.printPipe(
-            "%16s %7s %4s %10s %30s"
-            % ("Name", "TID", "Core", "Time", "Console message")
+            "%16s %7s %4s %10s %30s\n%s"
+            % ("Name", "TID", "Core", "Time", "Console message", twoLine)
         )
-        SysMgr.printPipe(twoLine)
 
         startTime = float(SysMgr.startTime)
 
@@ -93768,10 +93848,10 @@ class TaskAnalyzer(object):
         orders = " ".join(
             ["{0:>5}".format(UtilMgr.convNum(order)) for order in orderTable]
         )
-        SysMgr.printPipe("\n[Thread Page Info]")
-        SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:^25} {1:>1}".format("Thread / Order", orders))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Page Info]\n%s" % twoLine)
+        SysMgr.printPipe(
+            "{0:^25} {1:>1}\n{2:1}".format("Thread / Order", orders, twoLine)
+        )
 
         # print total pages #
         totalInfo = "{0:^25} ".format("TOTAL")
@@ -93876,8 +93956,7 @@ class TaskAnalyzer(object):
         if not SysMgr.blockEnable:
             return
 
-        SysMgr.printPipe("\n[Thread Block Info] (Unit: NR)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Block Info] (Unit: NR)\n%s" % twoLine)
         SysMgr.printPipe(
             "{0:^25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:^20}".format(
                 "ID",
@@ -93890,11 +93969,11 @@ class TaskAnalyzer(object):
             )
         )
         SysMgr.printPipe(
-            "{0:^25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:^20}".format(
-                "", "", "", "[ACCESS]", "COUNT", "", ""
-            )
+            (
+                "{0:^25} {1:>5} {2:>8} {3:>20} {4:>25} "
+                "{5:^12} {6:^20}\n{7:1}"
+            ).format("", "", "", "[ACCESS]", "COUNT", "", "", twoLine)
         )
-        SysMgr.printPipe(twoLine)
 
         tcnt = 0
         totalStr = "{0:^25}".format("TOTAL")
@@ -93942,14 +94021,12 @@ class TaskAnalyzer(object):
             return
 
         # print menu #
-        SysMgr.printPipe("\n[Thread Open History] (Unit: NR)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread Open History] (Unit: NR)\n%s" % twoLine)
         SysMgr.printPipe(
-            "{0:^10} {1:>25} {2:>6} {3:>6} {4:>1}".format(
-                "Time", "Task(Comm)", "Flags", "Mode", "Name"
+            "{0:^10} {1:>25} {2:>6} {3:>6} {4:>1}\n{5:1}".format(
+                "Time", "Task(Comm)", "Flags", "Mode", "Name", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         # print history #
         for item in self.openData:
@@ -93987,14 +94064,15 @@ class TaskAnalyzer(object):
             return
 
         # print menu #
-        SysMgr.printPipe("\n[Thread FS Info] (Unit: NR)")
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("\n[Thread FS Info] (Unit: NR)\n%s" % twoLine)
         SysMgr.printPipe(
-            "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} {5:>12} {6:<75}".format(
-                "ID", "OPT", "NrDev", "INODE", "Size", "FS", "PATH"
+            (
+                "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
+                "{5:>12} {6:<75}\n{7:1}"
+            ).format(
+                "ID", "OPT", "NrDev", "INODE", "Size", "FS", "PATH", twoLine
             )
         )
-        SysMgr.printPipe(twoLine)
 
         convSize = UtilMgr.convSize2Unit
 
@@ -94228,14 +94306,24 @@ class TaskAnalyzer(object):
         readaheadList = []
 
         # print menu #
-        SysMgr.printPipe("\n[Thread FS History] (Type: Read) (Unit: Byte)")
-        SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>8} {1:>25} {2:>7} {3:>10} {4:>16} {5:>12} {6:<1}".format(
-                "Time", "Task", "Dev", "Inode", "Offset", "Size", "Path"
+            "\n[Thread FS History] (Type: Read) (Unit: Byte)\n%s" % twoLine
+        )
+        SysMgr.printPipe(
+            (
+                "{0:>8} {1:>25} {2:>7} {3:>10} {4:>16} "
+                "{5:>12} {6:<1}\n{7:1}"
+            ).format(
+                "Time",
+                "Task",
+                "Dev",
+                "Inode",
+                "Offset",
+                "Size",
+                "Path",
+                twoLine,
             )
         )
-        SysMgr.printPipe(twoLine)
 
         skipFiles = {}
         for item in self.fsData[0]:
@@ -94583,10 +94671,9 @@ class TaskAnalyzer(object):
         # print title #
         intervalEnable = SysMgr.intervalEnable
         SysMgr.printPipe(
-            "\n[Thread Interval Info] [Start: %s] (Unit: %s Sec)"
-            % (round(float(SysMgr.startTime), 7), intervalEnable)
+            "\n[Thread Interval Info] [Start: %s] (Unit: %s Sec)\n%s"
+            % (round(float(SysMgr.startTime), 7), intervalEnable, twoLine)
         )
-        SysMgr.printPipe(twoLine)
 
         # graph list #
         cpuUsageList = []
@@ -94641,8 +94728,7 @@ class TaskAnalyzer(object):
             else:
                 timeLine += "%s%.2f " % (checkEvent, self.totalTime)
 
-        SysMgr.printPipe("%s %s" % (titleLine, timeLine))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("%s %s\n%s" % (titleLine, timeLine, twoLine))
         SysMgr.clearPrint()
 
         # total CPU usage on timeline #
@@ -96357,9 +96443,11 @@ class TaskAnalyzer(object):
                 convNum(nrProc),
             )
         )
-        SysMgr.printPipe("%s\n" % twoLine)
-        SysMgr.printPipe("{0:^5} | {1:^144} |\n".format("REF", "FILE"))
-        SysMgr.printPipe("%s\n" % oneLine)
+        SysMgr.printPipe(
+            "{2:1}\n{0:^5} | {1:^144} |\n{3:1}\n".format(
+                "REF", "FILE", twoLine, oneLine
+            )
+        )
 
         for filename, value in sorted(
             SysMgr.fileInstance.items(), key=lambda e: long(e[1]), reverse=True
@@ -96373,8 +96461,7 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printTimeline():
-        SysMgr.printPipe("\n[Top Summary Info]\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Summary Info]\n%s\n" % twoLine)
 
         # check available memory type #
         if SysMgr.freeMemEnable:
@@ -96483,14 +96570,12 @@ class TaskAnalyzer(object):
             return
 
         # print title #
-        SysMgr.printPipe("\n[Top Event Info] (Unit: %)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Event Info] (Unit: %%)\n%s\n" % twoLine)
         SysMgr.printPipe(
-            ("{0:^12} | {1:^12} | {2:^12} | {3:1}\n").format(
-                "Timeline", "Realtime", "Interval", "Event"
+            ("{0:^12} | {1:^12} | {2:^12} | {3:1}\n{4:1}\n").format(
+                "Timeline", "Realtime", "Interval", "Event", twoLine
             )
         )
-        SysMgr.printPipe("%s\n" % twoLine)
 
         procIntData = TaskAnalyzer.procIntData
         procEventData = TaskAnalyzer.procEventData
@@ -96537,8 +96622,9 @@ class TaskAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
 
-        SysMgr.printPipe("\n[Top CPU Info] (Unit: %) (New: +) (Die: -)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            "\n[Top CPU Info] (Unit: %%) (New: +) (Die: -)\n%s\n" % twoLine
+        )
 
         if SysMgr.processEnable:
             idName = "PID"
@@ -96599,8 +96685,9 @@ class TaskAnalyzer(object):
             timeLine += "{0:>6} ".format(usage)
             lineLen += margin + 2
 
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % oneLine)
+        SysMgr.printPipe(
+            ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
+        )
 
         # Print CPU usage of processes #
         for pid, value in sorted(
@@ -96662,8 +96749,9 @@ class TaskAnalyzer(object):
             if total == 0:
                 continue
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printDlyInterval():
@@ -96677,8 +96765,9 @@ class TaskAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
 
-        SysMgr.printPipe("\n[Top Delay Info] (Unit: %) (Target: THREAD)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            "\n[Top Delay Info] (Unit: %%) (Target: THREAD)\n%s\n" % twoLine
+        )
 
         if SysMgr.processEnable:
             idName = "PID"
@@ -96745,8 +96834,9 @@ class TaskAnalyzer(object):
             if total == 0:
                 continue
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
+            )
 
             cnt += 1
 
@@ -96765,8 +96855,7 @@ class TaskAnalyzer(object):
         if "gpu" not in TA.procTotData["total"]:
             return
 
-        SysMgr.printPipe("\n[Top GPU Info] (Unit: %)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top GPU Info] (Unit: %%)\n%s\n" % twoLine)
 
         # Print menu #
         gpuInfo = "{0:>23} | {1:^17} |".format("GPU", "Min/Avg/Max/Tot")
@@ -96814,8 +96903,9 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += 7
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(gpuInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printRssInterval():
@@ -96837,8 +96927,9 @@ class TaskAnalyzer(object):
         else:
             mtype = "RSS"
 
-        SysMgr.printPipe("\n[Top %s Info] (Unit: MB) (Change: ^)\n" % mtype)
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            "\n[Top %s Info] (Unit: MB) (Change: ^)\n%s\n" % (mtype, twoLine)
+        )
 
         if SysMgr.processEnable:
             idName = "PID"
@@ -96885,8 +96976,9 @@ class TaskAnalyzer(object):
             timeLine += "{0:>6} ".format(usage)
             lineLen += 7
 
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % oneLine)
+        SysMgr.printPipe(
+            ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
+        )
 
         # Print rss of processes #
         for pid, value in sorted(
@@ -96968,8 +97060,9 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                "{0:1} {1:1}\n{2:1}\n".format(procInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printVssInterval():
@@ -96983,8 +97076,9 @@ class TaskAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
 
-        SysMgr.printPipe("\n[Top VSS Info] (Unit: MB) (Change: ^)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            "\n[Top VSS Info] (Unit: MB) (Change: ^)\n%s\n" % twoLine
+        )
 
         if SysMgr.processEnable:
             idName = "PID"
@@ -97031,8 +97125,9 @@ class TaskAnalyzer(object):
             timeLine += "{0:>6} ".format(usage)
             lineLen += 7
 
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % oneLine)
+        SysMgr.printPipe(
+            "{0:1} {1:1}\n{2:1}\n".format(procInfo, timeLine, oneLine)
+        )
 
         # Print vss of processes #
         for pid, value in sorted(
@@ -97114,8 +97209,9 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                "{0:1} {1:1}\n{2:1}\n".format(procInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printBlkInterval():
@@ -97129,8 +97225,7 @@ class TaskAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
 
-        SysMgr.printPipe("\n[Top Block Info] (Unit: %)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Block Info] (Unit: %%)\n%s\n" % twoLine)
 
         if SysMgr.processEnable:
             idName = "PID"
@@ -97209,13 +97304,13 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += 7
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
+            )
             itemCnt += 1
 
         if itemCnt == 0:
-            SysMgr.printPipe("\tNone\n")
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
 
     @staticmethod
     def printStorageInterval():
@@ -97227,8 +97322,7 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe("\n[Top Storage Info] (Unit: %/MB)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Storage Info] (Unit: %%/MB)\n%s\n" % twoLine)
 
         # Print menu #
         storageInfo = "{0:>16} | {1:^21} |".format(
@@ -97299,8 +97393,9 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>21} ".format(usage)
                 lineLen += margin
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(storageInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(storageInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printNetworkInterval():
@@ -97312,8 +97407,7 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe("\n[Top Network Info] (Unit: Byte)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Network Info] (Unit: Byte)\n%s\n" % twoLine)
 
         # Print menu #
         networkInfo = "{0:>16} | {1:^21} |".format("Device", "In/Out")
@@ -97368,8 +97462,9 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>21} ".format(usage)
                 lineLen += margin
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(networkInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(networkInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printTimelineInterval(margin, length, title, more=0):
@@ -97390,8 +97485,9 @@ class TaskAnalyzer(object):
             timeLine += "{0:>{margin}} ".format(i, margin=margin + more)
             lineLen += margin + spaces
 
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(title, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            ("{0:1} {1:1}\n{2:1}\n").format(title, timeLine, twoLine)
+        )
 
     @staticmethod
     def printCgCpuInterval():
@@ -97403,8 +97499,7 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe("\n[Top Cgroup.CPU Info] (Unit: %)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Cgroup.CPU Info] (Unit: %%)\n%s\n" % twoLine)
 
         # Print menu #
         cpuInfo = "{0:<48} | {1:^21} |".format("Cgroup", "Min/Avg/Max/Tot")
@@ -97455,8 +97550,9 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += margin + 2
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(cgroupInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(cgroupInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printLifeHistory():
@@ -97466,8 +97562,7 @@ class TaskAnalyzer(object):
 
         TA = TaskAnalyzer
 
-        SysMgr.printPipe("\n[Top Life Info]\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe("\n[Top Life Info]\n%s\n" % twoLine)
 
         # set target #
         if SysMgr.processEnable:
@@ -97571,8 +97666,9 @@ class TaskAnalyzer(object):
 
         convSize2Unit = UtilMgr.convSize2Unit
 
-        SysMgr.printPipe("\n[Top Cgroup.Mem Info] (Unit: Byte)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            "\n[Top Cgroup.Mem Info] (Unit: Byte)\n%s\n" % twoLine
+        )
 
         # Print menu #
         memInfo = "{0:<48} | {1:^15} |".format("Cgroup", "Min/Max")
@@ -97618,8 +97714,9 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += margin + 2
 
-            SysMgr.printPipe(("{0:1} {1:1}\n").format(cgroupInfo, timeLine))
-            SysMgr.printPipe("%s\n" % oneLine)
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(cgroupInfo, timeLine, oneLine)
+            )
 
     @staticmethod
     def printIntervalUsage(onlyTotal=False, onlySummary=False):
@@ -98197,8 +98294,9 @@ class TaskAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
 
-        SysMgr.printPipe("\n[Top Memory Details] (Unit: MB/KB/NR)\n")
-        SysMgr.printPipe("%s\n" % twoLine)
+        SysMgr.printPipe(
+            "\n[Top Memory Details] (Unit: MB/KB/NR)\n%s\n" % twoLine
+        )
 
         if SysMgr.processEnable:
             idType = "PID"
