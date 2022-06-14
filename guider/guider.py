@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220613"
+__revision__ = "220614"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -933,6 +933,7 @@ class ConfigMgr(object):
             ),
         ),
         "creat": ("long", (("const char *", "pathname"), ("umode_t", "mode"))),
+        "creat_module": ("long", (("const char *", "name"), ("int", "size"))),
         "delete_module": (
             "long",
             (("const char *", "name_user"), ("unsigned int", "flags")),
@@ -1245,6 +1246,7 @@ class ConfigMgr(object):
                 ("struct old_timeval32 *", "t"),
             ),
         ),
+        "get_kernel_syms": ("long", (("struct kernel_sym *", "table"))),
         "get_mempolicy": (
             "long",
             (
@@ -1263,6 +1265,7 @@ class ConfigMgr(object):
                 ("size_t *", "len_ptr"),
             ),
         ),
+        "get_thread_area": ("long", (("struct user_desc *", "u_info"))),
         "getcpu": (
             "long",
             (
@@ -1517,6 +1520,10 @@ class ConfigMgr(object):
                 ("unsigned long", "num"),
                 ("int", "on"),
             ),
+        ),
+        "iopl": (
+            "long",
+            (("int", "level")),
         ),
         "ioprio_get": ("long", (("int", "which"), ("int", "who"))),
         "ioprio_set": (
@@ -2281,6 +2288,16 @@ class ConfigMgr(object):
                 ("const char *", "special"),
                 ("qid_t", "id"),
                 ("void *", "addr"),
+            ),
+        ),
+        "query_module": (
+            "long",
+            (
+                ("const char *", "name"),
+                ("int", "which"),
+                ("void *", "buf"),
+                ("int", "bufsize"),
+                ("int *", "ret"),
             ),
         ),
         "read": (
@@ -13574,6 +13591,10 @@ class PageAnalyzer(object):
         else:
             vaddrOrig = None
 
+        # update verb #
+        if verb and not SysMgr.printEnable:
+            verb = False
+
         # set print function #
         if verb:
             _printPipe = SysMgr.printPipe
@@ -13607,6 +13628,13 @@ class PageAnalyzer(object):
         idlePageList = {}
 
         for pid in sorted(pids):
+            # read whole bitmap for idle pages #
+            if checkIdle:
+                bitmap = SysMgr.getIdleMap()
+            else:
+                bitmap = None
+
+            # get process name #
             comm = SysMgr.getComm(pid)
             vaddrs = vaddrOrig
             if not vaddrs:
@@ -13771,6 +13799,40 @@ class PageAnalyzer(object):
                     # get page frame number #
                     pfn = PageAnalyzer.getPfn(entry)
 
+                    # no page #
+                    isIdle = "-"
+                    # mark idle pages #
+                    if markIdle:
+                        if SysMgr.handleIdlePage(pfn, write=True):
+                            isIdle = True
+                            totalIdle += 1
+                            procIdle += 1
+                    # check idle pages #
+                    elif checkIdle:
+                        isIdle = SysMgr.handleIdlePage(
+                            pfn, write=False, bitmap=bitmap
+                        )
+                        if isIdle is None:
+                            isIdle = "-"
+                        elif isIdle:
+                            totalIdle += 1
+                            procIdle += 1
+
+                            # change a bit in a pagetable #
+                            if retList or saveBitmapFlag:
+                                try:
+                                    pageSubTable[long(idx / 8) - 1] = 0
+                                except:
+                                    SysMgr.printWarn(
+                                        "failed to save an idle page status",
+                                        always=True,
+                                        reason=True,
+                                    )
+
+                    # check skip condition #
+                    if not verb:
+                        continue
+
                     isPresent = PageAnalyzer.isPresent(entry)
                     if isPresent:
                         totalPresent += 1
@@ -13801,52 +13863,26 @@ class PageAnalyzer(object):
                         totalRef += refCnt
                         procRef += refCnt
 
-                    # no page #
-                    isIdle = "-"
-                    if not refCnt:
-                        pass
-                    # mark idle pages #
-                    elif markIdle:
-                        if SysMgr.handleIdlePage(pfn, write=True):
-                            isIdle = True
-                            totalIdle += 1
-                            procIdle += 1
-                    # check idle pages #
-                    elif checkIdle:
-                        isIdle = SysMgr.handleIdlePage(pfn, write=False)
-                        if isIdle is None:
-                            isIdle = "-"
-                        elif isIdle:
-                            totalIdle += 1
-                            procIdle += 1
-
-                            # change a bit in a pagetable #
-                            if retList or saveBitmapFlag:
-                                try:
-                                    pageSubTable[long(idx / 8) - 1] = 0
-                                except:
-                                    SysMgr.printWarn(
-                                        "failed to save an idle page status",
-                                        always=True,
-                                        reason=True,
-                                    )
-
                     kflags = PageAnalyzer.getPageFlags(pfn)
                     totalFlags |= kflags
-                    bflags = hex(kflags).rstrip("L")
-                    sflags = PageAnalyzer.getFlagTypes(bflags)
+                    if kflags:
+                        bflags = hex(kflags).rstrip("L")
+                        sflags = PageAnalyzer.getFlagTypes(bflags)
+                        bflags = "(%s)" % bflags
+                    else:
+                        sflags = bflags = ""
 
                     SysMgr.addPrint(
                         (
                             "{0:>18} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
-                            "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9} ({10})\n"
+                            "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9} {10}\n"
                         ).format(
                             hex(addr).rstrip("L"),
                             hex(pfn).rstrip("L") if pfn else "",
                             isPresent,
                             isSwapped,
                             isFile,
-                            refCnt,
+                            convSize(refCnt, isInt=True),
                             isSoftdirty,
                             isExmapped,
                             isIdle,
@@ -13871,7 +13907,7 @@ class PageAnalyzer(object):
                         totalPresent,
                         totalSwapped,
                         totalFile,
-                        totalRef,
+                        convSize(totalRef, isInt=True),
                         totalSoftdirty,
                         totalExmapped,
                         totalIdle,
@@ -13933,7 +13969,7 @@ class PageAnalyzer(object):
                     convNum(procPresent),
                     convNum(procSwapped),
                     convNum(procFile),
-                    convNum(procRef),
+                    convSize(procRef, isInt=True),
                     convNum(procSoftdirty),
                     convNum(procExmapped),
                     convNum(procIdle) if checkIdle or markIdle else "-",
@@ -13951,7 +13987,7 @@ class PageAnalyzer(object):
                     convSize(procPresent << 12),
                     convSize(procSwapped << 12),
                     convSize(procFile << 12),
-                    convSize(procRef << 12),
+                    convSize(procRef << 12, isInt=True),
                     convSize(procSoftdirty << 12),
                     convSize(procExmapped << 12),
                     convSize(procIdle << 12) if checkIdle or markIdle else "-",
@@ -24941,7 +24977,17 @@ Commands:
             return 0
 
     @staticmethod
-    def handleIdlePage(pfn, write=True, flush=True):
+    def getIdleMap():
+        try:
+            with open("/sys/kernel/mm/page_idle/bitmap", "rb") as fd:
+                return fd.read(8888888)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+    @staticmethod
+    def handleIdlePage(pfn, write=True, flush=True, bitmap=None):
         try:
             # check pfn 0 #
             if not pfn:
@@ -24964,7 +25010,8 @@ Commands:
 
             # set pos #
             offset = long(pfn / bit) * word
-            fd.seek(offset, 0)
+            if not bitmap:
+                fd.seek(offset, 0)
 
             # handle operation #
             if write:
@@ -24973,7 +25020,11 @@ Commands:
                     fd.flush()
                 return val
             else:
-                val = fd.read(word)
+                if bitmap:
+                    val = bitmap[offset : offset + 8]
+                else:
+                    val = fd.read(word)
+
                 val = struct.unpack("Q", val)[0]
                 if val & 1 << (pfn % 64):
                     return True
@@ -93609,6 +93660,7 @@ class TaskAnalyzer(object):
                     break
 
         cnt = 0
+        nrErr = 0
         prevCnt = -1
         proto = ConfigMgr.SYSCALL_PROTOTYPES
         startTime = float(SysMgr.startTime)
@@ -93631,7 +93683,7 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(
-                        "failed to recognize syscall %s for %s number"
+                        "failed to recognize syscall %s for number %s"
                         % (nowData[0], nowData[4]),
                         True,
                     )
@@ -93706,8 +93758,10 @@ class TaskAnalyzer(object):
                         param = " "
                     except:
                         SysMgr.printWarn(
-                            "failed to analyze syscall info", True, reason=True
+                            "failed to analyze syscall info", reason=True
                         )
+                        param = " "
+                        nrErr += 1
 
                 elif nowData[0] == "RET":
                     eventType = nowData[0]
@@ -93721,6 +93775,7 @@ class TaskAnalyzer(object):
                         sys.exit(0)
                     except:
                         elapsed = " " * 8
+                        nrErr += 1
 
                 try:
                     # convert error code #
@@ -93771,6 +93826,12 @@ class TaskAnalyzer(object):
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
+
+        # print total error #
+        if nrErr:
+            SysMgr.printWarn(
+                "failed to parse a total of %s syscalls" % convNum(nrErr), True
+            )
 
     def printLMKInfo(self):
         if not self.lmkData:
@@ -97582,6 +97643,7 @@ class TaskAnalyzer(object):
             )
         )
 
+        nrPrint = 0
         procIntData = TaskAnalyzer.procIntData
 
         # Print times #
@@ -97651,7 +97713,9 @@ class TaskAnalyzer(object):
                 )
             )
 
-        if not TA.lifeProcData:
+            nrPrint += 1
+
+        if not nrPrint:
             SysMgr.printPipe("\tNone")
 
         SysMgr.printPipe("%s\n" % oneLine)
