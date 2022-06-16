@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220614"
+__revision__ = "220616"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13904,13 +13904,13 @@ class PageAnalyzer(object):
                     ).format(
                         "[TOTAL]",
                         "",
-                        totalPresent,
-                        totalSwapped,
-                        totalFile,
+                        convSize(totalPresent, isInt=True),
+                        convSize(totalSwapped, isInt=True),
+                        convSize(totalFile, isInt=True),
                         convSize(totalRef, isInt=True),
-                        totalSoftdirty,
-                        totalExmapped,
-                        totalIdle,
+                        convSize(totalSoftdirty, isInt=True),
+                        convSize(totalExmapped, isInt=True),
+                        convSize(totalIdle, isInt=True),
                         PageAnalyzer.getFlagTypes(totalFlagsStr),
                         totalFlagsStr,
                         oneLine,
@@ -23461,6 +23461,7 @@ class SysMgr(object):
     exceptCommFilter = False
     execEnable = None
     exitFlag = False
+    inExit = False
     fileEnable = False
     fileTopEnable = False
     fixTargetEnable = False
@@ -23605,6 +23606,7 @@ Commands:
         self.prevIpcData = {}
         self.userData = {}
         self.mountData = None
+        self.mountUpdated = False
         self.loadData = None
         self.nrMaxThread = 0
         self.cmdlineData = None
@@ -29587,6 +29589,7 @@ Examples:
                 cmdListStr = """
 Commands:
     acc      print accumulation stats for specific values [NAME:VAR|REG|VAL]
+    add      add breakpoints
     check    check context and execute next commands [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVT]
     condexit exit if tracing was started
     dist     print distribution stats for specific values [NAME:VAR|REG|VAL]
@@ -29610,6 +29613,7 @@ Commands:
     pyfile   execute specific python file [PATH:SYNC]
     pyscript execute python function [PATH:FUNC:ARGS]
     pystr    execute python code [CODE:SYNC]
+    remove   remove breakpoints
     rdmem    print specific memory or register [VAR|ADDR|REG:SIZE]
     repeat   call again repeatedly [CNT]
     ret      return specific value immediately [VAL]
@@ -29824,6 +29828,17 @@ Examples:
 
     - {5:1} {7:1} and return a specific value immediately {4:1}
         # {0:1} {1:1} -g a.out -c "write|ret:3"
+
+    - {5:1} {7:1} and add breakpoints for specific symbols
+        # {0:1} {1:1} -g a.out -c "*loadData*|add:*close*"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret|add:func1;func2"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret|add:*close*"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret|add:^*close*"
+
+    - {5:1} {7:1} and remove breakpoints for specific symbols
+        # {0:1} {1:1} -g a.out -c "*loadData*|remove:*"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret|remove:func1;func2"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret|remove:^*loadData*"
 
     - {5:1} {7:1} and dump thread stack to the specific file {4:1}
         # {0:1} {1:1} -g a.out -c "write|dump:stack:stack.out"
@@ -37344,6 +37359,11 @@ Copyright:
             if Debugger.dbgInstance:
                 pass
             elif SysMgr.outPath and not "NOSUMMARY" in SysMgr.environList:
+                # update exit status #
+                SysMgr.inExit = True
+
+                SysMgr.printStat("start reporting... [ STOP(Ctrl+\) ]")
+
                 # reload data written to file #
                 if SysMgr.pipeEnable:
                     SysMgr.reloadFileBuffer()
@@ -37375,6 +37395,9 @@ Copyright:
 
             # broadcast signal to childs and close all FDs #
             SysMgr.releaseResource(signal.SIGINT)
+
+            # update exit status #
+            SysMgr.inExit = False
 
             # unmask signal #
             if signum:
@@ -37441,6 +37464,11 @@ Copyright:
 
     @staticmethod
     def newHandler(signum=None, frame=None):
+        # check force exit condition #
+        if SysMgr.inExit:
+            SysMgr.releaseResource()
+            os._exit(0)
+
         SysMgr.condExit = False
 
         if SysMgr.isFileMode():
@@ -38458,11 +38486,13 @@ Copyright:
         except:
             pass
 
+        # get arch type #
+        archPosStart = infoBuf.find("CPU")
+        archPosEnd = infoBuf.find("\n", archPosStart)
+
         # apply arch type #
         if not SysMgr.archOption:
             try:
-                archPosStart = infoBuf.find("Arch")
-                archPosEnd = infoBuf.find("\n", archPosStart)
                 arch = infoBuf[archPosStart:archPosEnd].split()[1]
                 SysMgr.setArch(arch)
             except SystemExit:
@@ -38470,9 +38500,7 @@ Copyright:
             except:
                 pass
 
-        # add anlaysis option #
-        archPosStart = infoBuf.find("Arch")
-        archPosEnd = infoBuf.find("\n", archPosStart)
+        # print arch type #
         if archPosStart >= 0 and archPosEnd >= 0:
             analOption = "{0:20} {1:<100}".format(
                 "Analysis", "# %s" % (" ".join(sys.argv))
@@ -54753,7 +54781,12 @@ Copyright:
             self.updateDiskInfo("next", SysMgr.diskStats)
 
         # update mount data #
-        self.mountData = SysMgr.getMountData()
+        newMountData = SysMgr.getMountData()
+        if self.mountData == newMountData:
+            self.mountUpdated = False
+        else:
+            self.mountUpdated = True
+            self.mountData = newMountData
 
         # check data type #
         if not isGeneral:
@@ -56862,73 +56895,77 @@ Copyright:
 
         rootdevPath = SysMgr.getRootDevice()
 
-        # parse mount info #
-        for l in self.mountData:
-            # leave for /proc/mounts #
-            # dev, path, fs, option, etc1, etc2 = l.split()
+        if self.mountUpdated:
+            # parse mount info #
+            for l in self.mountData:
+                # leave for /proc/mounts #
+                # dev, path, fs, option, etc1, etc2 = l.split()
 
-            # split mount info #
-            values = l.split(" - ")
-            if len(values) != 2:
-                continue
-            left = values[0]
-            right = values[1]
+                # split mount info #
+                values = l.split(" - ")
+                if len(values) != 2:
+                    continue
+                left = values[0]
+                right = values[1]
 
-            # split left-side part #
-            left = left.split()
-            mountid, parentid, devid, root, path = left[:5]
-            major, minor = devid.split(":")
-            option = " ".join(left[5:-1])
+                # split left-side part #
+                left = left.split()
+                mountid, parentid, devid, root, path = left[:5]
+                major, minor = devid.split(":")
+                option = " ".join(left[5:-1])
 
-            # split right-side part #
-            right = right.split()
-            fs, dev = right[0:2]
-            soption = " ".join(right[2:])
+                # split right-side part #
+                right = right.split()
+                fs, dev = right[0:2]
+                soption = " ".join(right[2:])
 
-            # convert root device path #
-            if dev == "/dev/root" and rootdevPath:
-                dev = rootdevPath
+                # convert root device path #
+                if dev == "/dev/root" and rootdevPath:
+                    dev = rootdevPath
 
-            # check skip condition #
-            try:
-                # special device #
-                if not dev.startswith("/"):
-                    rpath = path
-                else:
-                    rpath = os.path.realpath(dev)
-                    dev = os.path.basename(rpath)
+                # check skip condition #
+                try:
+                    # special device #
+                    if not dev.startswith("/"):
+                        rpath = path
+                    else:
+                        rpath = os.path.realpath(dev)
+                        dev = os.path.basename(rpath)
 
-                if fs == "tmpfs":
-                    raise MountException
+                    if fs == "tmpfs":
+                        raise MountException
+                        continue
+
+                    if ":" in dev:
+                        major, minor = dev.split(":")
+                        for mp in self.diskInfo["prev"].values():
+                            if mp["major"] == major and mp["minor"] == minor:
+                                raise MountException
+
+                    # check nodes by device ID #
+                    if not dev in self.diskInfo["prev"]:
+                        for node, attr in self.diskInfo["prev"].items():
+                            if (
+                                attr["major"] == major
+                                and attr["minor"] == minor
+                            ):
+                                raise MountException
+                        continue
+                except MountException:
+                    pass
+                except:
                     continue
 
-                if ":" in dev:
-                    major, minor = dev.split(":")
-                    for mp in self.diskInfo["prev"].values():
-                        if mp["major"] == major and mp["minor"] == minor:
-                            raise MountException
-
-                # check nodes by device ID #
-                if not dev in self.diskInfo["prev"]:
-                    for node, attr in self.diskInfo["prev"].items():
-                        if attr["major"] == major and attr["minor"] == minor:
-                            raise MountException
-                    continue
-            except MountException:
-                pass
-            except:
-                continue
-
-            # save mount info #
-            self.mountInfo[rpath] = {
-                "major": major,
-                "minor": minor,
-                "mountid": mountid,
-                "path": path,
-                "fs": fs,
-                "option": option,
-                "soption": soption,
-            }
+                # save mount info #
+                self.mountInfo[rpath] = {
+                    "major": major,
+                    "minor": minor,
+                    "mountid": mountid,
+                    "path": path,
+                    "fs": fs,
+                    "option": option,
+                    "soption": soption,
+                }
 
         for name, subdir in self.devArchInfo.items():
             for node, devid in subdir.items():
@@ -57705,6 +57742,7 @@ Copyright:
                 # get node name from full-path #
                 dev = key[key.rfind("/") + 1 :]
 
+                # update node name #
                 if ":" in dev:
                     major, minor = dev.split(":")
                     for name, mp in self.diskInfo["prev"].items():
@@ -57719,14 +57757,12 @@ Copyright:
                 read = (
                     long(afterInfo["sectorRead"])
                     - long(beforeInfo["sectorRead"])
-                ) << 9
-                read = read >> 20
+                ) >> 11
 
                 write = (
                     long(afterInfo["sectorWrite"])
                     - long(beforeInfo["sectorWrite"])
-                ) << 9
-                write = write >> 20
+                ) >> 11
 
                 load = long(afterInfo["sectorRead"]) + long(
                     afterInfo["sectorWrite"]
@@ -57761,6 +57797,7 @@ Copyright:
 
                 total = (stat.f_bsize * stat.f_blocks) >> 20
                 free = (stat.f_bsize * stat.f_bavail) >> 20
+
                 if hasattr(stat, "f_favail"):
                     avail = stat.f_favail
                 else:
@@ -64535,41 +64572,43 @@ typedef struct {
 
         def _printCmdErr(cmdset, cmd):
             cmdsetList = {
-                "print": "VAR",
-                "exec": "COMMAND",
-                "ret": "VAL",
-                "check": "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVT",
-                "getret": "CMD",
-                "setret": "VAL:CMD",
-                "getarg": "REG:REG",
-                "inter": "VAL",
-                "interval": "FUNC",
-                "setarg": "REG#VAL:REG#VAL",
-                "wrmem": "VAR|ADDR|REG:VAL:SIZE",
-                "rdmem": "VAR|ADDR|REG:SIZE",
-                "jump": "SYMBOL|ADDR#ARG0#ARG1",
-                "usercall": "FUNC#ARG0#ARG1",
-                "syscall": "SYSCALL#ARG0#ARG1",
-                "load": "PATH",
-                "save": "VAR:VAL:TYPE",
                 "acc": "NAME:VAR|REG|VAL",
+                "add": "SYM;",
+                "check": "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVT",
+                "condexit": "",
                 "dist": "NAME:VAR|REG|VAL",
                 "dump": "NAME|ADDR:FILE",
-                "start": "",
-                "show": "",
-                "hide": "",
+                "exec": "COMMAND",
                 "exit": "",
-                "condexit": "",
-                "map": "",
-                "stop": "",
-                "setenv": "VAR#VAR|VAL",
+                "getarg": "REG:REG",
                 "getenv": "VAR",
-                "repeat": "CNT",
-                "thread": "",
-                "pystr": "CODE:SYNC",
+                "getret": "CMD",
+                "hide": "",
+                "inter": "VAL",
+                "interval": "FUNC",
+                "jump": "SYMBOL|ADDR#ARG0#ARG1",
+                "load": "PATH",
+                "log": "MESSAGE",
+                "map": "",
+                "print": "VAR",
                 "pyfile": "PATH:SYNC",
                 "pyscript": "PATH:FUNC:ARGS",
-                "log": "MESSAGE",
+                "pystr": "CODE:SYNC",
+                "rdmem": "VAR|ADDR|REG:SIZE",
+                "remove": "SYM;",
+                "repeat": "CNT",
+                "ret": "VAL",
+                "save": "VAR:VAL:TYPE",
+                "setarg": "REG#VAL:REG#VAL",
+                "setenv": "VAR#VAR|VAL",
+                "setret": "VAL:CMD",
+                "show": "",
+                "start": "",
+                "stop": "",
+                "syscall": "SYSCALL#ARG0#ARG1",
+                "thread": "",
+                "usercall": "FUNC#ARG0#ARG1",
+                "wrmem": "VAR|ADDR|REG:VAL:SIZE",
             }
 
             if cmd in cmdsetList:
@@ -65071,7 +65110,7 @@ typedef struct {
                     % (cmdstr, itime, convNum(cnt), avg, vmin, vmax, total)
                 )
 
-            elif cmd == "acc" or cmd == "dist":
+            elif cmd in ("acc", "dist"):
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
 
@@ -65219,6 +65258,7 @@ typedef struct {
                     prevStr = ""
                 else:
                     isRet = True if sym.endswith(Debugger.RETSTR) else False
+
                     (
                         tinfo,
                         diffstr,
@@ -65228,6 +65268,7 @@ typedef struct {
                         indent,
                         symColor,
                     ) = self.getBpContext(sym, self.pc, self.readArgs(), isRet)
+
                     prevStr = " %s %s%s%s" % (
                         diffstr,
                         tinfo,
@@ -65359,7 +65400,33 @@ typedef struct {
                 else:
                     _addPrint("\n[%s] %s(%s)" % (cmdstr, self.comm, self.pid))
 
-            elif cmd == "pystr" or cmd == "pyfile":
+            elif cmd == "add":
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(";")
+
+                _addPrint("\n[%s] %s\n" % (cmdstr, cmdset[1]))
+                _flushPrint(newline=False)
+
+                # inject specific brea points #
+                self.loadSymbols()
+                self.injectBpList(memset)
+
+            elif cmd == "remove":
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(";")
+
+                _addPrint("\n[%s] %s\n" % (cmdstr, cmdset[1]))
+                _flushPrint(newline=False)
+
+                self.removeAllBp(target=memset)
+
+            elif cmd in ("pystr", "pyfile"):
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
 
@@ -65572,7 +65639,7 @@ typedef struct {
                 else:
                     skip = False
 
-                # remove all berakpoints #
+                # remove all breakpoints #
                 if not skip:
                     self.removeAllBp(verb=False)
 
@@ -65667,9 +65734,11 @@ typedef struct {
                     "\n[%s] %s sec" % (cmdstr, UtilMgr.convFloat2Str(val))
                 )
                 _flushPrint(newline=False)
-                self.dvalue += val
 
                 time.sleep(val)
+
+                # add elapsed time #
+                self.dvalue += val
 
             elif cmd == "setenv":
                 if len(cmdset) == 1:
@@ -65689,7 +65758,7 @@ typedef struct {
 
                 output = "\n[%s] %s" % (cmdstr, argStr)
 
-                # remove all berakpoints #
+                # remove all breakpoints #
                 self.removeAllBp(verb=False)
 
                 _addPrint(output)
@@ -65726,7 +65795,7 @@ typedef struct {
 
                 output = "\n[%s] %s" % (cmdstr, val)
 
-                # remove all berakpoints #
+                # remove all breakpoints #
                 self.removeAllBp(verb=False)
 
                 _addPrint(output)
@@ -65746,10 +65815,19 @@ typedef struct {
                 self.updateBpList(verb=False)
 
             elif cmd == "stop":
+                if len(cmdset) > 1:
+                    memset = cmdset[1].split(";")
+                else:
+                    memset = None
+
                 _addPrint("\n[%s]\n" % (cmdstr))
                 _flushPrint(newline=False)
 
                 SysMgr.blockSignal(act="unblock")
+
+                if memset:
+                    SysMgr.sendSignalProcs(signal.SIGSTOP, memset)
+
                 SysMgr.waitEvent(exit=True)
 
             elif cmd == "kill":
@@ -65919,11 +65997,8 @@ typedef struct {
         for item in fcache.sortedAddrTable:
             self.removeBp(addr + item, lock=True)
 
-    def removeAllBp(self, tgid=None, verb=True):
-        # ignore breakpoints for command #
-        if self.execCmd:
-            return
-        elif not self.bpList:
+    def removeAllBp(self, tgid=None, verb=True, target=[]):
+        if not self.bpList:
             return
         # check fault flag from shared memory #
         elif self.getFaultFlag():
@@ -65947,6 +66022,25 @@ typedef struct {
         for idx, addr in enumerate(list(self.bpList)):
             if verb:
                 UtilMgr.printProgress(idx, len(self.bpList))
+
+            # check target filter #
+            if target and self.bpList[addr]["symbol"]:
+                skip = False
+                sym = self.bpList[addr]["symbol"]
+
+                for item in target:
+                    if item.startswith("^"):
+                        if UtilMgr.isValidStr(sym, [item[1:]]):
+                            skip = True
+                            break
+                    else:
+                        if not UtilMgr.isValidStr(sym, [item]):
+                            skip = True
+                            break
+
+                if skip:
+                    continue
+
             self.removeBp(addr)
 
         if verb:
@@ -74624,7 +74718,7 @@ typedef struct {
                             self.ptrace(self.cmd)
 
                         if self.isBreakMode:
-                            # remove all breakpoins for new child process #
+                            # remove all breakpoints for new child process #
                             if self.forked:
                                 self.removeAllBp()
 
@@ -75138,13 +75232,14 @@ typedef struct {
         if tgid == instance.pid:
             origPrintFlag = SysMgr.printEnable
             SysMgr.printEnable = True
-            instance.removeAllBp(tgid)
+            if not instance.execCmd:
+                instance.removeAllBp(tgid)
             SysMgr.printEnable = origPrintFlag
 
         # draw timeline segment #
         _printTimeline()
 
-        # remove new breakpoins for children after fork #
+        # remove new breakpoints for children after fork #
         for addr in list(instance.bpNewList):
             instance.removeBp(addr)
 
