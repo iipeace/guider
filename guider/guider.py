@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220616"
+__revision__ = "220618"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13564,10 +13564,14 @@ class PageAnalyzer(object):
         try:
             if not pid:
                 raise Exception("no pid")
-            elif type(pid) is not list or len(pid) != 1:
+            elif type(pid) is not list:
                 raise Exception("wrong pid")
 
-            pids = SysMgr.getTids(pid[0], isThread=False)
+            pids = []
+            for item in pid:
+                ret = SysMgr.getTids(item, isThread=False)
+                if ret:
+                    pids += ret
             if not pids:
                 raise Exception("no task")
         except SystemExit:
@@ -13627,7 +13631,7 @@ class PageAnalyzer(object):
 
         idlePageList = {}
 
-        for pid in sorted(pids):
+        for pidx, pid in enumerate(sorted(pids)):
             # read whole bitmap for idle pages #
             if checkIdle:
                 bitmap = SysMgr.getIdleMap()
@@ -13745,6 +13749,7 @@ class PageAnalyzer(object):
                         pid, addrs, addre, lastLine=True
                     )
 
+                # print menu #
                 _printPipe(
                     (
                         "{0:^19}|{1:^16}|{2:>5}|{3:>5}|{4:>5}|{5:>5}|"
@@ -13872,26 +13877,27 @@ class PageAnalyzer(object):
                     else:
                         sflags = bflags = ""
 
-                    SysMgr.addPrint(
-                        (
-                            "{0:>18} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
-                            "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9} {10}\n"
-                        ).format(
-                            hex(addr).rstrip("L"),
-                            hex(pfn).rstrip("L") if pfn else "",
-                            isPresent,
-                            isSwapped,
-                            isFile,
-                            convSize(refCnt, isInt=True),
-                            isSoftdirty,
-                            isExmapped,
-                            isIdle,
-                            sflags,
-                            bflags,
-                        ),
-                        force=True,
-                        isList=True,
-                    )
+                    if SysMgr.showAll:
+                        SysMgr.addPrint(
+                            (
+                                "{0:>18} |{1:>15} |{2:>5}|{3:>5}|{4:>5}|"
+                                "{5:>5}|{6:>5}|{7:>5}|{8:>5}| {9} {10}\n"
+                            ).format(
+                                hex(addr).rstrip("L"),
+                                hex(pfn).rstrip("L") if pfn else "",
+                                isPresent,
+                                isSwapped,
+                                isFile,
+                                convSize(refCnt, isInt=True),
+                                isSoftdirty,
+                                isExmapped,
+                                isIdle,
+                                sflags,
+                                bflags,
+                            ),
+                            force=True,
+                            isList=True,
+                        )
 
                 procTotalFlags |= totalFlags
                 totalFlagsStr = hex(totalFlags).rstrip("L")
@@ -13920,7 +13926,8 @@ class PageAnalyzer(object):
                 # print all items #
                 if verb:
                     SysMgr.doPrint(newline=False, clear=True, isList=True)
-                    _printPipe("%s\n" % oneLine)
+                    if SysMgr.showAll:
+                        _printPipe("%s\n" % oneLine)
                 else:
                     SysMgr.clearPrint()
 
@@ -14029,6 +14036,10 @@ class PageAnalyzer(object):
                     "saved the bitmap data to '%s'%s successfully"
                     % (filename, fsize)
                 )
+
+            # print split line between proceses #
+            if pidx < len(pids) - 1:
+                _printPipe("\n\n" + splitLine + "\n\n")
 
         return idlePageList
 
@@ -20962,7 +20973,9 @@ class FileAnalyzer(object):
                 # all files #
                 elif allFile and mdict["inode"] != "0":
                     pass
-                elif not mdict["binName"].endswith(fname):
+                elif not mdict["binName"].endswith(
+                    fname
+                ) and not UtilMgr.isValidStr(mdict["binName"], [fname]):
                     continue
 
             start = str(mdict["startAddr"])
@@ -32513,16 +32526,19 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print memory map summary for specific processes
+    - Print memory map summary {3:1}
         # {0:1} {1:1} a.out
+        # {0:1} {1:1} "a.out, systemd"
 
-    - Print memory map details for specific processes
+    - Print memory map details {3:1}
         # {0:1} {1:1} a.out -a
+        # {0:1} {1:1} "a.out, systemd" -a
 
-    - Print page attributes in specific area for specific processes
+    - Print the summary for page attributes in specific area {3:1}
         # {0:1} {1:1} a.out -I 0x0-0x4000
         # {0:1} {1:1} a.out -I libc-2.23.so
         # {0:1} {1:1} a.out -I /lib/x86_64-linux-gnu/libc-2.23.so
+        # {0:1} {1:1} a.out -I "/lib/x86_64-linux-gnu/*"
         # {0:1} {1:1} a.out -I heap, stack
         # {0:1} {1:1} a.out -I anon
         # {0:1} {1:1} a.out -I file
@@ -32530,16 +32546,24 @@ Examples:
         # {0:1} {1:1} a.out -I all
         # {0:1} {1:1} a.out -I 0x8000-0x9000, 0x12345678
 
-    - Print page attributes after marking idle flag in specific area for specific processes
+    - {2:1} in specific area {3:1}
+        # {0:1} {1:1} a.out -I 0x0-0x4000 -a
+        # {0:1} {1:1} a.out -I "/lib/x86_64-linux-gnu/*" -a
+        # {0:1} {1:1} a.out -I heap, stack -a
+
+    - {2:1} after marking idle flag in specific area {3:1}
         # {0:1} {1:1} a.out -I 0x0-0x4000 -q MARKIDLE
 
-    - Print page attributes including idle flag in specific area for specific processes
+    - {2:1} including idle flag in specific area {3:1}
         # {0:1} {1:1} a.out -I 0x0-0x4000 -q CHECKIDLE
 
-    - Save the bitmap including idle page info to the specific file for specific processes
+    - Save the bitmap including idle page info to the specific file {3:1}
         # {0:1} {1:1} a.out -I heap -o mem.out -q CHECKIDLE, SAVEBITMAP
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Print all page attributes",
+                        "for specific processes",
                     )
 
                 # CPU average draw #
@@ -41969,7 +41993,7 @@ Copyright:
 
             # check input #
             if SysMgr.hasMainArg():
-                target = [SysMgr.getMainArg()]
+                target = SysMgr.getMainArgs(union=False)
             else:
                 target = SysMgr.filterGroup
 
