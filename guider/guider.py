@@ -23277,6 +23277,7 @@ class SysMgr(object):
     outputFile = None
     inputParam = None
     outPath = None
+    origOutPath = None
     freezerPath = None
 
     # list #
@@ -28280,7 +28281,7 @@ Commands:
     @staticmethod
     def backupFile(origFile):
         if not origFile or not os.path.isfile(origFile):
-            return
+            return None
 
         try:
             newFile = "%s.old" % origFile
@@ -28296,12 +28297,15 @@ Commands:
             SysMgr.printInfo(
                 "renamed '%s' to '%s' for backup" % (origFile, newFile)
             )
+
+            return newFile
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to backup '%s' to '%s'" % (origFile, newFile), True
             )
+            return None
 
     @staticmethod
     def convRealPath(flist):
@@ -29420,6 +29424,9 @@ Examples:
 
     - Draw items for specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*"
+
+    - Draw items that haven't been summarized yet for specific files
+        # {0:1} {1:1} guider.out -q TOPSUM
 
     - Draw items for each file
         # {0:1} {1:1} guider.out -q NOMERGE
@@ -39476,8 +39483,9 @@ Copyright:
 
             # apply filename extension for compression #
             if SysMgr.compressEnable:
-                SysMgr.inputFile += ".gz"
-                if SysMgr.outPath:
+                if not SysMgr.inputFile.endswith(".gz"):
+                    SysMgr.inputFile += ".gz"
+                if SysMgr.outPath and not SysMgr.outPath.endswith(".gz"):
                     SysMgr.outPath += ".gz"
 
             # backup an exist file #
@@ -40105,35 +40113,53 @@ Copyright:
     @staticmethod
     def reloadFileBuffer(path=None, retFd=False):
         # pylint: disable=no-member
-
-        # just return descriptor #
-        if retFd:
-            try:
-                if path:
-                    return open(path, "r")
-                else:
-                    return open(SysMgr.printFd.name, "r")
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to reload monitoring data from the file", True
-                )
-                return []
-
         SysMgr.procBuffer = []
 
         # load raw data from the file #
         try:
+            # get path #
             if path:
-                buf = open(path, "r").read()
+                pass
             elif SysMgr.printFd:
-                buf = open(SysMgr.printFd.name, "rb").read().decode()
+                path = SysMgr.printFd.name
+
+                # close previous print fd #
+                try:
+                    SysMgr.printFd.close()
+                    SysMgr.printFd = None
+                except:
+                    pass
+
+                SysMgr.outPath = SysMgr.origOutPath
+
+                # backup a exist output file #
+                path = SysMgr.backupFile(path)
             else:
                 SysMgr.printErr(
                     "failed to reload monitoring data because no target file"
                 )
                 return []
+
+            # open file #
+            if UtilMgr.isGzipFile(path):
+                fd = SysMgr.getPkg("gzip", False).open(path, "r")
+            else:
+                fd = open(path, "r")
+
+            # check fd option #
+            if retFd:
+                return fd
+
+            # load data #
+            buf = fd.read()
+
+            # decode data #
+            try:
+                buf = buf.decode()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
         except SystemExit:
             sys.exit(0)
         except:
@@ -41104,7 +41130,7 @@ Copyright:
                 )
                 sys.exit(-1)
 
-            SysMgr.outPath = os.path.normpath(value)
+            SysMgr.origOutPath = SysMgr.outPath = os.path.normpath(value)
 
         elif option == "s":
             SysMgr.applySaveOption(value)
@@ -76567,16 +76593,25 @@ class MemoryFile(object):
     def resize(self, size):
         SysMgr.importPkgItems("ctypes")
 
-        self.mem = bytearray(size)
-        ptr = (c_char * size).from_buffer(self.mem)
+        # orig #
+        orig = self.mem
+        optr = (c_char * len(orig)).from_buffer(orig)
 
-        ret = memmove(ptr, self.addr, size)
+        # new #
+        self.mem = bytearray(size)
+        nptr = (c_char * size).from_buffer(self.mem)
+
+        # memcpy #
+        ret = memmove(nptr, optr, len(orig))
         if ret < 0:
             SysMgr.printErr("failed to copy memory from %s" % self.addr)
         else:
             self.size = size
 
         return ret
+
+    def getsize(self):
+        return len(self.mem)
 
     def read(self, size):
         des = self.pos + size
@@ -76592,12 +76627,47 @@ class MemoryFile(object):
 
     def write(self, buf):
         self.mem = self.mem[: self.pos] + buf + self.mem[self.pos + len(buf) :]
+        self.pos += len(buf)
 
     def tell(self):
         return self.pos
 
     def seek(self, pos):
         self.pos = pos
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while 1:
+            if self.pos == len(self.mem) - 1:
+                raise StopIteration
+
+            data = self.mem[self.pos :]
+            try:
+                data = data.decode()
+            except:
+                pass
+
+            # find newline #
+            pos = data.find("\n")
+
+            # newline #
+            if pos == 0:
+                self.pos += 1
+                return ""
+
+            # EOF #
+            if pos < 0:
+                self.pos = len(self.mem) - 1
+                return data
+
+            # return a line #
+            self.pos += pos
+            return data[self.pos : self.pos + pos]
+
+    def next(self):
+        return self.__next__()
 
 
 class ElfAnalyzer(object):
@@ -86188,6 +86258,28 @@ class TaskAnalyzer(object):
         except:
             SysMgr.printErr("failed to read '%s'\n" % logFile)
             sys.exit(-1)
+
+        # summarize details in advance #
+        if "TOPSUM" in SysMgr.environList:
+            # load whole file #
+            SysMgr.reloadFileBuffer(fd.name)
+
+            # backup print fd #
+            origFd = SysMgr.printFd
+
+            # create a on-memory file #
+            SysMgr.printFd = MemoryFile(name="buf")
+
+            # summarize file data #
+            TaskAnalyzer.printIntervalUsage(onlyTotal=True)
+
+            # convert data to list #
+            fd = SysMgr.printFd
+            fd.seek(0)
+            fd = fd.read(fd.getsize()).decode().split("\n")
+
+            # restore print fd #
+            SysMgr.printFd = origFd
 
         # get file size #
         totalSize = 0
