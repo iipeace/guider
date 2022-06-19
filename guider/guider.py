@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220618"
+__revision__ = "220619"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7160,14 +7160,11 @@ class UtilMgr(object):
         if not pickle:
             return False
 
-        # disable compression for performance #
-        SysMgr.compressEnable = False
-
         # compress by gzip #
-        if SysMgr.compressEnable:
+        if "COMPCACHE" in SysMgr.environList:
             compressor = SysMgr.getPkg("gzip", False)
         else:
-            compressor = None
+            compressor = False
 
         # original object #
         try:
@@ -7195,30 +7192,25 @@ class UtilMgr(object):
         if not os.path.isfile(path):
             return None
 
+        # load pickle object #
         pickle = SysMgr.getPicklePkg(False)
         if not pickle:
             return None
 
-        # disable compression for performance #
-        SysMgr.compressEnable = False
-
-        # decompress by gzip #
-        if SysMgr.compressEnable:
-            decompressor = SysMgr.getPkg("gzip")
-        else:
-            decompressor = None
-
         try:
-            if decompressor:
-                with decompressor.open(path, "rb") as fd:
-                    return pickle.load(fd)
-            else:
-                with open(path, "rb") as fd:
-                    return pickle.load(fd)
+            # try to load compressed cache #
+            with SysMgr.getPkg("gzip").open(path, "rb") as fd:
+                return pickle.load(fd)
         except SystemExit:
             sys.exit(0)
         except:
-            return None
+            try:
+                with open(path, "rb") as fd:
+                    return pickle.load(fd)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return None
 
     @staticmethod
     def printProgress(current=0, dest=0):
@@ -30961,6 +30953,9 @@ Examples:
     - {2:1} for specific processes having specific task name
         # {0:1} {1:1} -g 1234 -q ONLYPROC
 
+    - {2:1} using compressed cache {3:1}
+        # {0:1} {1:1} -g a.out -q COMPCACHE
+
     - {2:1} without using sample cache {3:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
@@ -31081,6 +31076,9 @@ Examples:
 
     - {3:1} without using incremental sampling rate {4:1}
         # {0:1} {1:1} -g a.out -q FIXSAMPLING
+
+    - {3:1} using compressed cache {4:1}
+        # {0:1} {1:1} -g a.out -q COMPCACHE
 
     - {3:1} without using sample cache {4:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
@@ -37198,7 +37196,6 @@ Copyright:
         items["enable"] += SysMgr.arch.upper() + " "
 
         _setOpt(items, SysMgr.cgroupEnable, "CGROUP ")
-        _setOpt(items, SysMgr.compressEnable, "COMP ")
         _setOpt(items, SysMgr.cpuEnable, "CPU ")
         _setOpt(items, SysMgr.encodeEnable, "ENCODE ")
         _setOpt(items, SysMgr.pipeEnable, "PIPE ")
@@ -37217,6 +37214,7 @@ Copyright:
                 else:
                     items["enable"] += "THREAD "
 
+                _setOpt(items, SysMgr.compressEnable, "COMP ")
                 _setOpt(items, SysMgr.affinityEnable, "AFNT ")
                 _setOpt(items, SysMgr.barGraphEnable, "BAR ")
                 _setOpt(items, SysMgr.blockEnable, "BLOCK ")
@@ -37255,6 +37253,8 @@ Copyright:
 
         elif SysMgr.isFuncMode():
             SysMgr.printInfo("<FUNCTION MODE>")
+
+            _setOpt(items, SysMgr.getCompressFlag(), "COMP ")
 
             if SysMgr.graphEnable:
                 items["enable"] += "GRAPH "
@@ -37300,6 +37300,7 @@ Copyright:
             _setOpt(items, SysMgr.sysEnable, "SYSCALL ")
             _setOpt(items, SysMgr.ueventEnable, "UEVT ")
             _setOpt(items, SysMgr.wqEnable, "WQ ")
+            _setOpt(items, SysMgr.getCompressFlag(), "COMP ")
 
         enableStat = items["enable"]
         disableStat = items["disable"]
@@ -37669,6 +37670,16 @@ Copyright:
             return False
 
     @staticmethod
+    def getCompressFlag():
+        # compress data by default #
+        disabledOptions = SysMgr.getOption("d")
+        if disabledOptions and "C" in disabledOptions:
+            ret = False
+        else:
+            ret = True
+        return ret
+
+    @staticmethod
     def saveTraceData(lines, outputFile=None):
         if not outputFile:
             outputFile = SysMgr.outputFile
@@ -37677,16 +37688,8 @@ Copyright:
         # backup file already exists #
         SysMgr.backupFile(outputFile)
 
-        disabledOptions = SysMgr.getOption("d")
-
-        # compress data by default #
-        if disabledOptions and "C" in disabledOptions:
-            compressEnable = False
-        else:
-            compressEnable = True
-
         # compress by gzip #
-        if SysMgr.isRecordMode() and compressEnable:
+        if SysMgr.isRecordMode() and SysMgr.getCompressFlag():
             compressor = SysMgr.getPkg("gzip", False)
         else:
             compressor = None
