@@ -5611,6 +5611,20 @@ class UtilMgr(object):
             sys.exit(-1)
 
     @staticmethod
+    def isGzipFile(path):
+        try:
+            with open(path, "rb") as fd:
+                data = fd.read(2)
+                if struct.unpack("BB", data) == (0x1F, 0x8B):
+                    return True
+                else:
+                    return False
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return False
+
+    @staticmethod
     def compareSyscallSuperset():
         syscallList = (
             ConfigMgr.SYSCALL_COMMON
@@ -6594,10 +6608,9 @@ class UtilMgr(object):
 
         # open gzip file #
         try:
-            with open(fname, "rb") as fd:
-                data = fd.read(2)
-                if struct.unpack("BB", data) != (0x1F, 0x8B):
-                    raise Exception()
+            # check gzip magic number #
+            if not UtilMgr.isGzipFile(fname):
+                raise Exception()
 
             compressor = SysMgr.getPkg("gzip", False)
             fd = compressor.open(fname, "rt")
@@ -7199,7 +7212,7 @@ class UtilMgr(object):
 
         try:
             # try to load compressed cache #
-            with SysMgr.getPkg("gzip").open(path, "rb") as fd:
+            with SysMgr.getPkg("gzip", False).open(path, "rb") as fd:
                 return pickle.load(fd)
         except SystemExit:
             sys.exit(0)
@@ -31817,17 +31830,20 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print the target files
+    - Print target files including gziped files
         # {0:1} {1:1} -I a.out
         # {0:1} {1:1} "a.out, test.txt"
 
-    - Print specific lines including specific words for the target files
+    - Print specific lines including specific words for target files
         # {0:1} {1:1} "a.out, test.txt" -g "peace, best"
 
-    - Print the target files to the output file
+    - Print target files to the output file
         # {0:1} {1:1} "a.out, test.txt" -o output.txt
 
-    - Print the last file of the target files
+    - Print the contents of target files as much as a specified size
+        # {0:1} {1:1} "a.out, test.txt" -q SIZE:1K
+
+    - Print the last file of target files
         # {0:1} {1:1} "a.out, test.txt" -q TAIL
         # {0:1} {1:1} "a.out, test.txt" -q TAIL:100
                     """.format(
@@ -49216,6 +49232,14 @@ Copyright:
             tail = False
             nrLast = 0
 
+        if "SIZE" in SysMgr.environList:
+            try:
+                reqSize = UtilMgr.convUnit2Size(SysMgr.environList["SIZE"][0])
+            except:
+                sys.exit(0)
+        else:
+            reqSize = None
+
         prevStr = ""
 
         # print files #
@@ -49224,13 +49248,18 @@ Copyright:
 
             # open the target file #
             try:
-                fd = open(path, "r")
-                newPos = pos = 0
+                # check gzip magic number #
+                if UtilMgr.isGzipFile(path):
+                    fd = SysMgr.getPkg("gzip", False).open(path, "r")
+                else:
+                    fd = open(path, "r")
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printOpenErr(path)
                 continue
+
+            newPos = pos = 0
 
             # set pos to EOF #
             if tail:
@@ -49282,7 +49311,24 @@ Copyright:
                         continue
 
                 # read data #
-                data = fd.read()
+                try:
+                    if reqSize:
+                        data = fd.read(reqSize)
+                    else:
+                        data = fd.read()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to read data from '%s'" % fd.name)
+                    continue
+
+                # decompress data #
+                try:
+                    data = data.decode()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
                 # handle redundant data #
                 if tail:
