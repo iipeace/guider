@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220619"
+__revision__ = "220620"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28813,6 +28813,7 @@ Commands:
             try:
                 SysMgr.printWarn("terminated by %s\n" % reason, True)
                 os.kill(SysMgr.pid, signal.SIGINT)
+                os.kill(SysMgr.pid, signal.SIGKILL)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -29619,6 +29620,7 @@ Commands:
     condexit exit if tracing was started
     dist     print distribution stats for specific values [NAME:VAR|REG|VAL]
     dump     dump specific memory range to a file [NAME|ADDR:FILE]
+    event    write ftrace log [MESSAGE]
     exec     execute the external command [CMD]
     exit     exit tracing
     filter   print only filtered context [VAR|ADDR|REG|RETTIME|RETVAL:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
@@ -29638,7 +29640,7 @@ Commands:
     pyfile   execute specific python file [PATH:SYNC]
     pyscript execute python function [PATH:FUNC:ARGS]
     pystr    execute python code [CODE:SYNC]
-    remove   remove breakpoints
+    remove   remove breakpoints [FUNC]
     rdmem    print specific memory or register [VAR|ADDR|REG:SIZE]
     repeat   call again repeatedly [CNT]
     ret      return specific value immediately [VAL]
@@ -29652,6 +29654,10 @@ Commands:
     stop     pause tracing
     syscall  call a syscall [FUNC#ARGS]
     thread   create a new thread
+    proctop  print total resource usage for processes [PID|COMM]
+    proctopg print total resource usage for process groups [PID|COMM]
+    thrtop   print total resource usage for threads [PID|COMM]
+    thrtopg  print total resource usage for thread groups [PID|COMM]
     usercall call a specific function [FUNC#ARGS]
     wrmem    change specific memory or register [VAR|ADDR|REG:VAL:SIZE]
                 """
@@ -29692,6 +29698,9 @@ Examples:
 
     - {3:1} using merged symbols {8:1}
         # {0:1} {1:1} "ls" -q ALLSYM
+
+    - {3:1} {8:1} after preloading ELF files from the specific file list
+        # {0:1} {1:1} "ls" -q ELFFILE:./mem.out
 
     - {3:1} {7:1} without file loading messages
         # {0:1} {1:1} -g a.out
@@ -29864,6 +29873,14 @@ Examples:
         # {0:1} {1:1} -g a.out -c "*loadData*|remove:*"
         # {0:1} {1:1} -g a.out -c "*loadData*|getret|remove:func1;func2"
         # {0:1} {1:1} -g a.out -c "*loadData*|getret|remove:^*loadData*"
+
+    - {5:1} {7:1} and write event info of specific symbols into ftrace buffer
+        # {0:1} {1:1} -g a.out -c "*loadData*|event:LOG"
+
+    - {5:1} {7:1} and print resource usage for tasks
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret:proctop:a.out|proctop:a.out"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret:proctop:a.out\\,guider|proctop:a.out\\,guider"
+        # {0:1} {1:1} -g a.out -c "*loadData*|getret:thrtopg:a.out|thrtopg:a.out"
 
     - {5:1} {7:1} and dump thread stack to the specific file {4:1}
         # {0:1} {1:1} -g a.out -c "write|dump:stack:stack.out"
@@ -32910,24 +32927,33 @@ Description:
 Examples:
     - {2:1}
         # {0:1} {1:1} output.out
-        # {0:1} {1:1} report1.out report2.out
+        # {0:1} {1:1} report1.out report2.out.gz
+        # {0:1} {1:1} "output*.out"
+
+    - {2:1} for each file
+        # {0:1} {1:1} report1.out report2.out.gz -q NOMERGE
+        # {0:1} {1:1} "output*.out" -q NOMERGE
+
+    - {2:1} after applying task filter
+        # {0:1} {1:1} output.out -g "a.out*"
+        # {0:1} {1:1} "output*.out" -g "*a.out*"
 
     - {2:1} in reversed order
-        # {0:1} {1:1} report1.out report2.out -q REVERSED
+        # {0:1} {1:1} "report*.out" -q REVERSED
 
     - {2:1} without process info
-        # {0:1} {1:1} report1.out report2.out -q ONLYTOTAL
+        # {0:1} {1:1} "report*.out" -q ONLYTOTAL
 
     - {2:1} without detailed info
-        # {0:1} {1:1} report1.out report2.out -q ONLYSUMMARY
+        # {0:1} {1:1} "report*.out" -q ONLYSUMMARY
 
     - {2:1} after converting unique physical memory (RSS - Text - Shm)
-        # {0:1} {1:1} -q EXCEPTSHM
+        # {0:1} {1:1} "report*.out" -q EXCEPTSHM
 
     - {2:1} into guider.out
-        # {0:1} {1:1} output.out -o guider.out
+        # {0:1} {1:1} output.out.gz -o guider.out
                     """.format(
-                        cmd, mode, "Summarize raw data files for task top mode"
+                        cmd, mode, "Summarize raw data files in the top report"
                     )
 
                 # kill / send #
@@ -38746,6 +38772,10 @@ Copyright:
 
     @staticmethod
     def writeEvent(message, show=True):
+        # check mount path #
+        if not SysMgr.mountPath:
+            SysMgr.mountPath = SysMgr.getDebugfsPath()
+
         # check trace file #
         if not SysMgr.eventLogFd:
             if not SysMgr.eventLogPath:
@@ -38759,7 +38789,9 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printOpenWarn("failed to open %s" % SysMgr.eventLogPath)
+                SysMgr.printOpenWarn(
+                    "failed to open %s" % SysMgr.eventLogPath, True, True
+                )
                 return
 
         # write trace log #
@@ -41826,8 +41858,6 @@ Copyright:
             else:
                 argList = None
 
-            SysMgr.printLogo(big=True, onlyFile=True)
-
             TaskAnalyzer.doSumReport(argList)
 
         # PAUSE MODE #
@@ -44376,7 +44406,7 @@ Copyright:
             # init resource variables #
             SysMgr.taskEnable = True
             SysMgr.cpuEnable = True
-            SysMgr.memEnable = True
+            SysMgr.memEnable = False
             SysMgr.blockEnable = False
             SysMgr.diskEnable = False
             SysMgr.reportEnable = False
@@ -44442,8 +44472,10 @@ Copyright:
             SysMgr.optionList = []
             ConfigMgr.confData = {}
             SysMgr.procBuffer = []
+            SysMgr.exitFuncList = []
             SysMgr.clearPrint()
             SysMgr.groupProcEnable = False
+            SysMgr.customCmd = []
 
             # launch Guider command #
             main(cmd)
@@ -48215,6 +48247,19 @@ Copyright:
         # set dwarf flag #
         SysMgr.setDwarfFlag()
 
+        # preload ELF caches #
+        if "ELFFILE" in SysMgr.environList:
+            elfPath = SysMgr.environList["ELFFILE"][0]
+
+            SysMgr.printStat("start preloading ElF files from '%s'" % elfPath)
+
+            # load ELF files #
+            Debugger.loadElfList(elfPath)
+
+            # move loaded objects to preload list #
+            ElfAnalyzer.preloadedFiles = ElfAnalyzer.cachedFiles
+            ElfAnalyzer.cachedFiles = {}
+
         # get pids #
         if tid:
             allpids = pids = [tid]
@@ -48332,7 +48377,7 @@ Copyright:
                 )
 
                 # remove temporary files #
-                if mode == "breakcall" or mode == "pytrace":
+                if mode in ("breakcall", "pytrace"):
                     # remove all lock files #
                     for lockPath in list(lockList.values()):
                         # remove lock file #
@@ -48369,7 +48414,7 @@ Copyright:
             elif mode == "pycall":
                 dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                 dobj.trace(mode="pycall", wait=wait, multi=multi)
-            elif mode == "breakcall" or mode == "pytrace":
+            elif mode in ("breakcall", "pytrace"):
                 if pid:
                     try:
                         ppid = long(SysMgr.getTgid(pid))
@@ -55261,8 +55306,12 @@ Copyright:
             return
 
         try:
-            # close fd for output #
-            SysMgr.closePrintFd()
+            try:
+                SysMgr.printFd.flush()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             fsize = UtilMgr.convSize2Unit(
                 long(os.fstat(SysMgr.printFd.fileno()).st_size)
@@ -55276,6 +55325,9 @@ Copyright:
                 "finish saving all results into '%s'%s successfully"
                 % (os.path.abspath(SysMgr.printFd.name), fsize)
             )
+
+            # close fd for output #
+            SysMgr.closePrintFd()
         except SystemExit:
             sys.exit(0)
         except:
@@ -64147,6 +64199,43 @@ typedef struct {
             return
 
     @staticmethod
+    def loadElfList(path):
+        try:
+            with open(path, "r") as fd:
+                fdList = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to open '%s' to get ELF file list" % path, True
+            )
+            sys.exit(0)
+
+        for item in fdList:
+            try:
+                # get target file #
+                target = item.split()
+                if not target:
+                    continue
+                elif len(target) == 1:
+                    target = target[0]
+                else:
+                    target = target[-1]
+
+                # check validation #
+                if not target:
+                    continue
+                elif not FileAnalyzer.isValidFile(target):
+                    continue
+
+                # load target file #
+                eobj = ElfAnalyzer.getObject(target.strip("[]"))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to load ELF file '%s'" % target, True)
+
+    @staticmethod
     def hookFunc(pid, hookList=[], mode="hook"):
         comm = SysMgr.getComm(pid)
         procInfo = "%s(%s)" % (comm, pid)
@@ -64677,6 +64766,7 @@ typedef struct {
                 "condexit": "",
                 "dist": "NAME:VAR|REG|VAL",
                 "dump": "NAME|ADDR:FILE",
+                "event": "MESSAGE",
                 "exec": "COMMAND",
                 "exit": "",
                 "getarg": "REG:REG",
@@ -64706,6 +64796,10 @@ typedef struct {
                 "stop": "",
                 "syscall": "SYSCALL#ARG0#ARG1",
                 "thread": "",
+                "proctop": "PID|COMM",
+                "proctopg": "PID|COMM",
+                "thrtop": "PID|COMM",
+                "thrtopg": "PID|COMM",
                 "usercall": "FUNC#ARG0#ARG1",
                 "wrmem": "VAR|ADDR|REG:VAL:SIZE",
             }
@@ -64935,6 +65029,42 @@ typedef struct {
                     res = argStr[: argStr.rfind(",")]
 
                 _addPrint("\n[%s] %s" % (cmdstr, res))
+
+            elif cmd == "event":
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                name = ":".join(cmdset[1:])
+
+                SysMgr.writeEvent(
+                    "EVENT_%s(%s)/%.6f" % (name, sym, self.vdiff), False
+                )
+
+                _addPrint("\n[%s] EVENT_%s" % (cmdstr, name))
+
+            elif cmd in ("proctop", "proctopg", "thrtop", "thrtopg"):
+                if len(cmdset) == 1:
+                    target = "ALL"
+                    filterOpt = ""
+                else:
+                    target = ":".join(cmdset[1:])
+                    filterOpt = "-g %s" % target
+
+                if cmd.startswith("proctop"):
+                    gcmd = "top"
+                elif cmd.startswith("thrtop"):
+                    gcmd = "ttop"
+
+                _addPrint("\n[%s] %s" % (cmdstr, target))
+                _flushPrint()
+
+                rcmd = ["GUIDER", gcmd, "-eT", "-dL", "-R1", "-qfastinit"]
+                if filterOpt:
+                    rcmd += [filterOpt]
+                if cmd.endswith("g"):
+                    rcmd += ["-P"]
+
+                self.execBgCmd(rcmd, mute=False)
 
             elif cmd == "rdmem":
                 if len(cmdset) == 1:
@@ -69832,9 +69962,13 @@ typedef struct {
                     continue
 
                 # load object #
-                eobj = ElfAnalyzer.getObject(
-                    mfile, overlay=self.overlayfsList, log=printLog
-                )
+                if mfile in ElfAnalyzer.preloadedFiles:
+                    eobj = ElfAnalyzer.preloadedFiles[mfile]
+                    ElfAnalyzer.cachedFiles[mfile] = eobj
+                else:
+                    eobj = ElfAnalyzer.getObject(
+                        mfile, overlay=self.overlayfsList, log=printLog
+                    )
                 if eobj:
                     ret = True
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
@@ -78635,6 +78769,7 @@ class ElfAnalyzer(object):
 
     cachedFiles = {}
     cachedHeaderFiles = {}
+    preloadedFiles = {}
     cachedCFAs = {}
     cachedTypes = {}
     strippedFiles = {}
@@ -84141,30 +84276,31 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def doSumReport(flist):
+        def _printSummary(fdata, onlyTotal, onlySummary):
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            # update proc buffer #
+            SysMgr.procBuffer = fdata
+
+            # print summary #
+            try:
+                SysMgr.printStat("start summarizing...")
+
+                TaskAnalyzer.printIntervalUsage(onlyTotal, onlySummary)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to print interval summary", reason=True
+                )
+                return
+
+            # close all files #
+            SysMgr.closeAllForPrint()
+
         if not flist:
             SysMgr.printErr("no input file")
             sys.exit(-1)
-
-        # merge files #
-        fdata = []
-        if "REVERSED" in SysMgr.environList:
-            flist = reversed(flist)
-        else:
-            flist = sorted(flist)
-        for fname in flist:
-            # get file size #
-            fsize = UtilMgr.getFileSize(fname)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
-
-            SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
-
-            fdata += TaskAnalyzer.getSummaryData(fname)
-
-        # update proc buffer #
-        SysMgr.procBuffer = fdata
 
         # get ONLYTOTAL flag #
         if "ONLYTOTAL" in SysMgr.environList:
@@ -84178,15 +84314,43 @@ class TaskAnalyzer(object):
         else:
             onlySummary = False
 
-        # print summary #
-        try:
-            SysMgr.printStat("start summarizing...")
+        # get NOMERGE flag #
+        if "NOMERGE" in SysMgr.environList:
+            merge = False
+        else:
+            merge = True
 
-            TaskAnalyzer.printIntervalUsage(onlyTotal, onlySummary)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("failed to print interval summary", reason=True)
+        # merge files #
+        fdata = []
+        if "REVERSED" in SysMgr.environList:
+            flist = reversed(flist)
+        else:
+            flist = sorted(flist)
+
+        for fname in flist:
+            # update output file #
+            SysMgr.inputFile = fname
+
+            # get file size #
+            fsize = UtilMgr.getFileSize(fname)
+            if fsize and fsize != "0":
+                fsize = " [%s]" % fsize
+            else:
+                fsize = ""
+
+            SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
+
+            data = TaskAnalyzer.getSummaryData(fname)
+
+            # no merge #
+            if not merge:
+                _printSummary(data, onlyTotal, onlySummary)
+                continue
+
+            fdata += data
+
+        if merge:
+            _printSummary(fdata, onlyTotal, onlySummary)
 
     @staticmethod
     def doDiffReports(flist):
@@ -96481,7 +96645,13 @@ class TaskAnalyzer(object):
 
         d = m.groupdict()
         pid = d["pid"]
-        comm = d["comm"]
+        comm = d["comm"].strip("*")
+
+        # check filter #
+        if SysMgr.filterGroup and (
+            not UtilMgr.isValidStr(pid) and not UtilMgr.isValidStr(comm)
+        ):
+            return
 
         try:
             # ignore special processes #
@@ -97914,7 +98084,7 @@ class TaskAnalyzer(object):
             # check filter #
             if SysMgr.filterGroup and (
                 not UtilMgr.isValidStr(pid)
-                or not UtilMgr.isValidStr(value["comm"])
+                and not UtilMgr.isValidStr(value["comm"])
             ):
                 continue
 
