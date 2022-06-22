@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220620"
+__revision__ = "220622"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14141,8 +14141,10 @@ class PageAnalyzer(object):
                     size = convSize(
                         long(eoffset, 16) - long(soffset, 16), True
                     )
+
                     if not fname.startswith("/"):
                         fname = "[%s]" % fname
+
                     SysMgr.printPipe(
                         "%18s %18s %4s %8s %6s %12s %5s %s"
                         % (
@@ -14156,10 +14158,16 @@ class PageAnalyzer(object):
                             fname,
                         )
                     )
+
+                    count += 1
+
                 except SystemExit:
                     sys.exit(0)
                 except:
                     pass
+
+            if count == 0:
+                SysMgr.printPipe("no involved memory area")
 
             if lastLine:
                 SysMgr.printPipe(oneLine)
@@ -38177,6 +38185,7 @@ Copyright:
         if not SysMgr.printEnable:
             return
 
+        # check skip condition #
         if not force and SysMgr.checkCutCond(newline):
             return False
 
@@ -39177,10 +39186,10 @@ Copyright:
         msg = " Detailed Statistics "
         stars = "*" * long((long(SysMgr.lineLength) - len(msg)) / 2)
         SysMgr.printPipe("\n\n%s%s%s\n\n" % (stars, msg, stars))
-        if not SysMgr.procBuffer:
-            SysMgr.printPipe("\n\tNone%s" % suffix)
-        else:
+        if SysMgr.procBuffer:
             SysMgr.printPipe(SysMgr.procBuffer)
+        else:
+            SysMgr.printPipe("\n\tNone%s" % suffix)
 
     @staticmethod
     def addProcBuffer(data):
@@ -48111,7 +48120,8 @@ Copyright:
             except:
                 pass
 
-            if mode != "breakcall" and mode != "pytrace":
+            # check mode #
+            if not mode in ("breakcall", "pytrace"):
                 return
 
             # save original data to be injected for multi-threaded process #
@@ -48137,8 +48147,8 @@ Copyright:
                     os.kill(pid, signal.SIGCONT)
                     continue
                 elif (
-                    mode == "pycall" or mode == "pytrace"
-                ) and not procObj.checkPyVer():
+                    mode in ("pycall", "pytrace") and not procObj.checkPyVer()
+                ):
                     os.kill(pid, signal.SIGCONT)
                     continue
 
@@ -48351,6 +48361,7 @@ Copyright:
             # wait for children tracers as their parent #
             if SysMgr.pid == parent:
                 if isFinished:
+                    SysMgr.termFlag = False
                     while 1:
                         SysMgr.waitEvent(ignChldSig=False, block=False)
                         if SysMgr.condExit:
@@ -52154,7 +52165,7 @@ Copyright:
             # get subprocess object #
             subprocess = SysMgr.getPkg("subprocess")
 
-            SysMgr.printInfo("executed '%s'" % cmd)
+            SysMgr.printInfo("executed '%s'\n" % cmd)
 
             # get environment variables #
             env = SysMgr.getEnvList()
@@ -52214,7 +52225,7 @@ Copyright:
             duration = time.time() - startTime
 
             SysMgr.printInfo(
-                "terminated '%s' and elapsed %s" % (cmd, duration)
+                "terminated '%s' and elapsed %s sec" % (cmd, duration)
             )
 
         def _iterVarCmd(cmd, var):
@@ -62001,12 +62012,9 @@ class DltAnalyzer(object):
     version = None
 
     @staticmethod
-    def printSummary():
+    def printSummary(force=False):
         quitLoop = False
         convSize = UtilMgr.convNum
-
-        # update uptime #
-        SysMgr.updateUptime()
 
         # update CPU usage #
         if DltAnalyzer.dbgObj:
@@ -62055,7 +62063,8 @@ class DltAnalyzer(object):
                 procInfo,
                 mcpuStr,
                 rssStr,
-            )
+            ),
+            force=force,
         )
 
         # update daemon stat #
@@ -62071,13 +62080,14 @@ class DltAnalyzer(object):
             DltAnalyzer.procInfo.printTaskUsage()
             DltAnalyzer.procInfo.reinitStats()
         else:
-            SysMgr.addPrint("%s\n" % twoLine)
+            SysMgr.addPrint("%s\n" % twoLine, force=force)
 
         SysMgr.addPrint(
             "{0:^20} | {1:^19} | {2:^19} |\n{3:1}\n".format(
                 "ECU", "AP", "CONTEXT", twoLine
             ),
             newline=2,
+            force=force,
         )
 
         # traverse DLT table #
@@ -62090,7 +62100,7 @@ class DltAnalyzer(object):
             if ecuId == "cnt":
                 continue
 
-            if quitLoop or SysMgr.checkCutCond():
+            if quitLoop or (not force and SysMgr.checkCutCond()):
                 break
 
             ecuCnt = ecuItem["cnt"]
@@ -62098,7 +62108,7 @@ class DltAnalyzer(object):
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(
                 ecuId, convSize(ecuCnt), ecuPer
             )
-            SysMgr.addPrint(ecuStr)
+            SysMgr.addPrint(ecuStr, force=force)
             dltCnt += 1
 
             for apId, apItem in sorted(
@@ -62109,7 +62119,7 @@ class DltAnalyzer(object):
                 if apId == "cnt":
                     continue
 
-                if quitLoop or SysMgr.checkCutCond():
+                if quitLoop or (not force and SysMgr.checkCutCond()):
                     quitLoop = True
                     break
 
@@ -62119,7 +62129,7 @@ class DltAnalyzer(object):
                 apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(
                     depth, apId, convSize(apCnt), apPer
                 )
-                SysMgr.addPrint(apStr)
+                SysMgr.addPrint(apStr, force=force)
 
                 for ctxId, ctxItem in sorted(
                     apItem.items(),
@@ -62129,7 +62139,7 @@ class DltAnalyzer(object):
                     if ctxId == "cnt":
                         continue
 
-                    if quitLoop or SysMgr.checkCutCond():
+                    if quitLoop or (not force and SysMgr.checkCutCond()):
                         quitLoop = True
                         break
 
@@ -62139,13 +62149,13 @@ class DltAnalyzer(object):
                     ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(
                         depth, ctxId, convSize(ctxCnt), ctxPer
                     )
-                    SysMgr.addPrint(ctxStr)
+                    SysMgr.addPrint(ctxStr, force=force)
 
         if dltCnt == 0:
-            SysMgr.addPrint("\tNone\n")
+            SysMgr.addPrint("\tNone\n", force=force)
 
         if not quitLoop:
-            SysMgr.addPrint("%s\n" % oneLine)
+            SysMgr.addPrint("%s\n" % oneLine, force=force)
 
         SysMgr.printTopStats()
 
@@ -62156,6 +62166,9 @@ class DltAnalyzer(object):
     def onAlarm(signum, frame):
         # check user input #
         SysMgr.waitUserInput(wait=0.000001, msg="DEFAULT")
+
+        # update uptime #
+        SysMgr.updateUptime()
 
         if DltAnalyzer.dltData["cnt"] or SysMgr.inWaitStatus:
             DltAnalyzer.printSummary()
@@ -63064,12 +63077,14 @@ class DltAnalyzer(object):
                 if not SysMgr.findOption("Q"):
                     SysMgr.streamEnable = False
                 DltAnalyzer.procInfo = TaskAnalyzer(onlyInstance=True)
+                action = "summarizing"
             else:
                 printMode = mode
+                action = "printing"
 
             for path in flist:
                 SysMgr.printInfo(
-                    "start printing DLT logs from '%s'...\n" % path
+                    "start %s DLT logs from '%s'..." % (action, path)
                 )
 
                 # convert path string to utf-8 format #
@@ -63122,6 +63137,10 @@ class DltAnalyzer(object):
 
                 UtilMgr.deleteProgress()
 
+                # print a newline #
+                if printMode == "print" and not buffered:
+                    SysMgr.printPipe()
+
                 # read messages #
                 for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
@@ -63151,8 +63170,8 @@ class DltAnalyzer(object):
 
             # print summary #
             if printMode == "top":
-                DltAnalyzer.printSummary()
-                SysMgr.printProcBuffer()
+                SysMgr.printPipe()
+                DltAnalyzer.printSummary(force=True)
 
             # handle buffered logs #
             if buffered:
@@ -71876,6 +71895,7 @@ typedef struct {
             except SystemExit:
                 sys.exit(0)
             except:
+                skip = True
                 elapsed = ""
                 isRetBp = False
 
@@ -75466,17 +75486,24 @@ typedef struct {
             origPrintFlag = SysMgr.printEnable
             SysMgr.printEnable = True
             if not instance.execCmd:
-                instance.removeAllBp(tgid)
-            SysMgr.printEnable = origPrintFlag
+                # block signal #
+                SysMgr.blockSignal(act="block")
 
-        # draw timeline segment #
-        _printTimeline()
+                instance.removeAllBp(tgid)
+
+                # unblock signal #
+                SysMgr.blockSignal(act="unblock")
+
+            SysMgr.printEnable = origPrintFlag
 
         # remove new breakpoints for children after fork #
         for addr in list(instance.bpNewList):
             instance.removeBp(addr)
 
         instance.__del__(stop=True)
+
+        # draw timeline segment #
+        _printTimeline()
 
         # terminate immediately to avoid memory increase due to COW by GC #
         if tgid != instance.pid:
