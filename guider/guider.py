@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220622"
+__revision__ = "220623"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20984,8 +20984,13 @@ class FileAnalyzer(object):
                 if not "binName" in mdict or not mdict["binName"]:
                     continue
                 # all files #
-                elif allFile and mdict["inode"] != "0":
+                elif (
+                    allFile
+                    and mdict["binName"].startswith("/")
+                    and mdict["inode"] != "0"
+                ):
                     pass
+                # a specific file #
                 elif not mdict["binName"].endswith(
                     fname
                 ) and not UtilMgr.isValidStr(mdict["binName"], [fname]):
@@ -63819,9 +63824,6 @@ class Debugger(object):
         self.totalCall = 0
         self.syscallAddr = None
         self.syscallFound = True
-        self.callTable = {}
-        self.btTable = {}
-        self.fileTable = {}
         self.bpList = {}
         self.bpNewList = {}
         self.entryTime = {}
@@ -69624,14 +69626,12 @@ typedef struct {
 
             # print backtraces #
             if value["backtrace"]:
-                # backup backtraces #
-                if SysMgr.jsonEnable:
-                    pass
-                elif SysMgr.outPath:
-                    self.btTable.setdefault(sym, {})
-                    for bt, bcnt in value["backtrace"].items():
-                        self.btTable[sym].setdefault(bt, 0)
-                        self.btTable[sym][bt] += bcnt
+                # update anonymous symbol to prevent wrong merge #
+                if sym == "??":
+                    sym = value["path"]
+
+                if SysMgr.outPath:
+                    self.btTable.setdefault(sym, dict())
 
                 for bt, bcnt in sorted(
                     value["backtrace"].items(),
@@ -69656,6 +69656,11 @@ typedef struct {
                         )
                         continue
 
+                    # merge backtraces #
+                    if SysMgr.outPath:
+                        self.btTable[sym].setdefault(bt, 0)
+                        self.btTable[sym][bt] += bcnt
+
                     nline = bt.count("\n") + 1
                     if SysMgr.checkCutCond(nline):
                         # flush print buffer #
@@ -69673,6 +69678,7 @@ typedef struct {
                     if not ret:
                         break
 
+            # handle rest jobs #
             if SysMgr.jsonEnable:
                 continue
             elif SysMgr.funcDepth > 0:
@@ -70504,6 +70510,10 @@ typedef struct {
                     continue
                 break
 
+        # convert anonymous symbol to filename to prevent call table corruption #
+        if sym == "??":
+            sym = filename
+
         # check wait status #
         if not self.runStatus and self.mode in ("sample", "kernel", "pycall"):
             sym = "WAIT{%s}" % sym
@@ -70556,8 +70566,7 @@ typedef struct {
         try:
             self.fileTable[filename]["cnt"] += 1
         except:
-            self.fileTable[filename] = {}
-            self.fileTable[filename]["cnt"] = 1
+            self.fileTable[filename] = {"cnt": 1}
 
         if not SysMgr.outPath:
             return
@@ -70928,9 +70937,6 @@ typedef struct {
                     # add return addresses #
                     if type(raddr) is list:
                         btList += raddr
-                    # stop from wrong address #
-                    elif raddr > self.sp:
-                        break
                     else:
                         btList.append(raddr)
 
@@ -74568,6 +74574,9 @@ typedef struct {
         self.prevStack = []
         self.childList = []
         self.callList = []
+        self.callTable = {}
+        self.btTable = {}
+        self.fileTable = {}
         self.callPrint = []
         self.cpuUsageList = []
         self.selfCpuUsageList = []
@@ -75426,7 +75435,7 @@ typedef struct {
         # notify termination to master process #
         try:
             tgid = long(SysMgr.getTgid(instance.pid))
-            if tgid == instance.pid:
+            if SysMgr.masterPid and tgid == instance.pid:
                 os.kill(SysMgr.masterPid, signal.SIGINT)
         except:
             # return #
@@ -75630,17 +75639,19 @@ typedef struct {
 
         nrTotal = float(len(instance.callList))
 
+        # check incomplete break mode #
+        if not Debugger.envFlags["COMPLETECALL"] and instance.mode == "break":
+            isIncompleteBreakMode = True
+        else:
+            isIncompleteBreakMode = False
+
         # iterate the call sample list #
         for idx, item in enumerate(instance.callList):
             try:
                 symbol, timestamp, filename = item
 
                 # skip breakpoints for return #
-                if (
-                    not Debugger.envFlags["COMPLETECALL"]
-                    and instance.mode == "break"
-                    and symbol.endswith(Debugger.RETSTR)
-                ):
+                if isIncompleteBreakMode and symbol.endswith(Debugger.RETSTR):
                     nrTotal -= 1
                     continue
 
@@ -75652,9 +75663,10 @@ typedef struct {
                 try:
                     callTable[symbol]["cnt"] += 1
                 except:
-                    callTable[symbol] = {}
-                    callTable[symbol]["cnt"] = 1
-                    callTable[symbol]["path"] = filename
+                    callTable[symbol] = {
+                        "cnt": 1,
+                        "path": filename,
+                    }
 
                 UtilMgr.printProgress(idx, len(instance.callList))
 
@@ -75665,8 +75677,7 @@ typedef struct {
                 try:
                     fileTable[filename]["cnt"] += 1
                 except:
-                    fileTable[filename] = {}
-                    fileTable[filename]["cnt"] = 1
+                    fileTable[filename] = {"cnt": 1}
             except SystemExit:
                 UtilMgr.deleteProgress()
 
@@ -75777,23 +75788,24 @@ typedef struct {
             )
         )
 
-        cnt = 0
+        tcnt = 0
         for sym, value in sorted(
             callTable.items(), key=lambda x: x[1]["cnt"], reverse=True
         ):
+            # convert path to anonymous symbol #
             if sym[0] == "/":
                 sym = "??"
 
+            cnt = value["cnt"]
+
             # get percentage #
             try:
-                per = value["cnt"] / nrTotal * 100
+                per = cnt / nrTotal * 100
             except:
                 break
 
             # add stats #
             if instance.mode == "syscall":
-                cnt = value["cnt"]
-
                 # add time stats #
                 if sym in instance.syscallTotalStat:
                     vals = instance.syscallTotalStat[sym]
@@ -75816,7 +75828,7 @@ typedef struct {
             elif instance.isBreakMode:
                 addVal = "[%s] <Cnt: %s" % (
                     value["path"],
-                    convert(value["cnt"]),
+                    convert(cnt),
                 )
 
                 # set symbol #
@@ -75845,11 +75857,11 @@ typedef struct {
 
                     elapsedTable.append(val["elapsed"])
 
-                addVal = "%s>" % addVal
+                addVal += ">"
             else:
                 addVal = "[%s] <Cnt: %s>" % (
                     value["path"],
-                    convert(value["cnt"]),
+                    convert(cnt),
                 )
 
             SysMgr.printPipe(
@@ -75857,6 +75869,10 @@ typedef struct {
                     "%.1f%%" % per, "%s %s" % (sym, addVal), suffix
                 )
             )
+
+            # update anonymous symbol to prevent wrong merge #
+            if sym == "??":
+                sym = value["path"]
 
             # add backtraces #
             if sym in instance.btTable:
@@ -75866,16 +75882,16 @@ typedef struct {
                     reverse=True,
                 ):
                     # print backtrace and percent #
-                    bper = btcnt / float(value["cnt"]) * 100
+                    bper = btcnt / float(cnt) * 100
                     ret = SysMgr.printPipe(
                         "{0:>17} | {1:<1} <Cnt: {2:1}>".format(
                             "%.1f%%" % bper, bt, convert(btcnt)
                         )
                     )
 
-            cnt += 1
+            tcnt += 1
 
-        if cnt == 0:
+        if tcnt == 0:
             SysMgr.printPipe("\tNone%s" % suffix)
 
         SysMgr.printPipe(oneLine + suffix)
@@ -75911,7 +75927,7 @@ typedef struct {
                 )
             )
 
-            cnt = 0
+            tcnt = 0
             for filename, value in sorted(
                 fileTable.items(), key=lambda x: x[1]["cnt"], reverse=True
             ):
@@ -75926,9 +75942,9 @@ typedef struct {
                     )
                 )
 
-                cnt += 1
+                tcnt += 1
 
-            if cnt == 0:
+            if tcnt == 0:
                 SysMgr.printPipe("\tNone%s" % suffix)
 
             SysMgr.printPipe(oneLine + suffix)
