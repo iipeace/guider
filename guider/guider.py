@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220623"
+__revision__ = "220624"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29257,12 +29257,12 @@ Examples:
     - {3:1} all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
-        # {0:1} {1:1} -S m:<10 -q ORDERASC
+        # {0:1} {1:1} -S "m:<10" -q ORDERASC
 
     - {3:1} all {2:2} sorted by execution time
         # {0:1} {1:1} -S e
         # {0:1} {1:1} -S e:2h
-        # {0:1} {1:1} -S e:<2h -q ORDERASC
+        # {0:1} {1:1} -S "e:<2h" -q ORDERASC
 
     - {3:1} {2:2} with fastest initialization
         # {0:1} {1:1} -q FASTINIT
@@ -29828,6 +29828,9 @@ Examples:
     - {5:1} {7:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o .
         # {0:1} {1:1} -g a.out -c printPeace -o . -q FORCESUMMARY
+
+    - {5:1} {7:1} with monitoring threads and report the result to ./guider.out
+        # {0:1} {1:1} -g a.out -c printPeace -o . -w "BEFORE:{0:1} ttop -Q &"
 
     - {5:1} including specific word {7:1}
         # {0:1} {1:1} -g 1234 -c "*printPeace"
@@ -31006,7 +31009,7 @@ Examples:
     - {2:1} using compressed cache {3:1}
         # {0:1} {1:1} -g a.out -q COMPCACHE
 
-    - {2:1} without using sample cache {3:1}
+    - {2:1} without using previous sample cache {3:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
     - {2:1} and standard output from a specific binary
@@ -31108,6 +31111,9 @@ Examples:
         # {0:1} {1:1} -o .
         # {0:1} {1:1} -o . -q FORCESUMMARY
 
+    - {3:1} with monitoring processes and report the result to ./guider.out when SIGINT arrives
+        # {0:1} {1:1} -o . -w "BEFORE:{0:1} top -Q &"
+
     - {3:1} and report the result in JSON format
         # {0:1} {1:1} -J
         # {0:1} {1:1} -J -Q
@@ -31130,7 +31136,7 @@ Examples:
     - {3:1} using compressed cache {4:1}
         # {0:1} {1:1} -g a.out -q COMPCACHE
 
-    - {3:1} without using sample cache {4:1}
+    - {3:1} without using previous sample cache {4:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
     - {3:1} {4:1} without file loading messages
@@ -34674,7 +34680,7 @@ Examples:
     - {2:1} 250% CPU totally
         # {0:1} {1:1} 250
 
-    - {2:1} 250% CPU totally with custom comm
+    - {2:1} 250% CPU totally with custom process name
         # {0:1} {1:1} 250 -q COMM:newbee
 
     - Create threads in a process using 250% CPU totally
@@ -34716,6 +34722,9 @@ Examples:
 
     - {2:1} 1G and {3:1} every 3 seconds
         # {0:1} {1:1} 1G -i 3
+
+    - {2:1} 1G and {3:1} every second with custom process name
+        # {0:1} {1:1} 1G -q COMM:newbee
 
     - {2:1} 200MB using a new process every 3 seconds
         # {0:1} {1:1} 200M:3
@@ -34763,6 +34772,9 @@ Examples:
     - Read all files from current directory recursively for 3 seconds
         # {0:1} {1:1} . -i 3
         # {0:1} {1:1} -g . -i 3
+
+    - Read all files from current mount point with custom process name
+        # {0:1} {1:1} -q COMM:newbee
 
     - Read specific files 5 times
         # {0:1} {1:1} "read:TEST1,TEST2" -R 5
@@ -37826,7 +37838,7 @@ Copyright:
         elif SysMgr.rcmdList == {}:
             return
 
-        for cmd in SysMgr.rcmdList[time]:
+        for cmd in SysMgr.rcmdList[time.upper()]:
             if len(cmd) == 1:
                 os.system(cmd[0])
                 continue
@@ -38322,7 +38334,7 @@ Copyright:
 
         for item in cmdList:
             sitem = item.split(":")
-            ltime = sitem[0]
+            ltime = sitem[0].upper()
 
             if (
                 len(sitem) < 2
@@ -41079,7 +41091,7 @@ Copyright:
                     else:
                         SysMgr.printErr(
                             (
-                                "wrong value for buffer size, "
+                                "wrong value %s for buffer size, "
                                 "input number bigger than 0"
                             )
                             % option
@@ -41090,7 +41102,7 @@ Copyright:
                 except:
                     SysMgr.printErr(
                         (
-                            "wrong value for buffer size, "
+                            "wrong value %s for buffer size, "
                             "input number in integer format"
                         )
                         % option
@@ -41629,13 +41641,13 @@ Copyright:
 
     @staticmethod
     def isRecordMode():
-        if (
-            SysMgr.checkMode("rec")
-            or SysMgr.checkMode("funcrec")
-            or SysMgr.checkMode("iorec")
-            or SysMgr.checkMode("sysrec")
-            or SysMgr.checkMode("filerec")
-            or SysMgr.checkMode("genrec")
+        if len(sys.argv) > 1 and sys.argv[1] in (
+            "rec",
+            "funcrec",
+            "iorec",
+            "sysrec",
+            "filerec",
+            "genrec",
         ):
             return True
         else:
@@ -41645,7 +41657,7 @@ Copyright:
     def isHelpMode():
         if len(sys.argv) > 1 and sys.argv[1] == "help":
             return True
-        elif "-help" in sys.argv or "--help" in sys.argv or "-h" in sys.argv:
+        elif set(["-help", "--help", "-h"]) & set(sys.argv):
             return True
         else:
             return False
@@ -41668,11 +41680,7 @@ Copyright:
     def isKillMode():
         if len(sys.argv) < 2:
             return False
-        elif (
-            sys.argv[1] == "kill"
-            or sys.argv[1] == "send"
-            or sys.argv[1] == "tkill"
-        ):
+        elif sys.argv[1] in ("kill", "send", "tkill"):
             return True
         else:
             return False
@@ -41700,30 +41708,30 @@ Copyright:
 
     @staticmethod
     def isTopMode():
-        if (
-            SysMgr.checkMode("top")
-            or SysMgr.checkMode("atop")
-            or SysMgr.checkMode("bgtop")
-            or SysMgr.checkMode("btop")
-            or SysMgr.checkMode("cgtop")
-            or SysMgr.checkMode("ctop")
-            or SysMgr.checkMode("dbustop")
-            or SysMgr.checkMode("disktop")
-            or SysMgr.checkMode("dlttop")
-            or SysMgr.checkMode("ftop")
-            or SysMgr.checkMode("ktop")
-            or SysMgr.checkMode("mtop")
-            or SysMgr.checkMode("ntop")
-            or SysMgr.checkMode("ptop")
-            or SysMgr.checkMode("pytop")
-            or SysMgr.checkMode("rtop")
-            or SysMgr.checkMode("slabtop")
-            or SysMgr.checkMode("stacktop")
-            or SysMgr.checkMode("systop")
-            or SysMgr.checkMode("ttop")
-            or SysMgr.checkMode("utop")
-            or SysMgr.checkMode("vtop")
-            or SysMgr.checkMode("wtop")
+        if len(sys.argv) > 1 and sys.argv[1] in (
+            "top",
+            "atop",
+            "bgtop",
+            "btop",
+            "cgtop",
+            "ctop",
+            "dbustop",
+            "disktop",
+            "dlttop",
+            "ftop",
+            "ktop",
+            "mtop",
+            "ntop",
+            "ptop",
+            "pytop",
+            "rtop",
+            "slabtop",
+            "stacktop",
+            "systop",
+            "ttop",
+            "utop",
+            "vtop",
+            "wtop",
         ):
             return True
         else:
@@ -41731,14 +41739,14 @@ Copyright:
 
     @staticmethod
     def isTraceMode():
-        if (
-            SysMgr.checkMode("strace")
-            or SysMgr.checkMode("utrace")
-            or SysMgr.checkMode("btrace")
-            or SysMgr.checkMode("remote")
-            or SysMgr.checkMode("pytrace")
-            or SysMgr.checkMode("leaktrace")
-            or SysMgr.checkMode("sigtrace")
+        if len(sys.argv) > 1 and sys.argv[1] in (
+            "strace",
+            "utrace",
+            "btrace",
+            "remote",
+            "pytrace",
+            "leaktrace",
+            "sigtrace",
         ):
             return True
         else:
@@ -42361,12 +42369,12 @@ Copyright:
 
     @staticmethod
     def isDrawAvgMode():
-        if (
-            SysMgr.checkMode("drawavg", True)
-            or SysMgr.checkMode("drawcpuavg", True)
-            or SysMgr.checkMode("drawmemavg", True)
-            or SysMgr.checkMode("drawvssavg", True)
-            or SysMgr.checkMode("drawrssavg", True)
+        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] in (
+            "drawavg",
+            "drawcpuavg",
+            "drawmemavg",
+            "drawvssavg",
+            "drawrssavg",
         ):
             return True
         else:
@@ -42381,25 +42389,18 @@ Copyright:
             return False
         elif sys.argv[1] == "draw" or orig:
             return True
-        elif SysMgr.checkMode("drawcpu", True):
-            return True
-        elif SysMgr.checkMode("drawdelay", True):
-            return True
-        elif SysMgr.checkMode("drawflame", True):
-            return True
-        elif SysMgr.checkMode("drawbitmap", True):
-            return True
-        elif SysMgr.checkMode("drawmem", True):
-            return True
-        elif SysMgr.checkMode("drawvss", True):
-            return True
-        elif SysMgr.checkMode("drawrss", True):
-            return True
-        elif SysMgr.checkMode("drawleak", True):
-            return True
-        elif SysMgr.checkMode("drawio", True):
-            return True
-        elif SysMgr.checkMode("drawtime", True):
+        elif len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] in (
+            "drawcpu",
+            "drawdelay",
+            "drawflame",
+            "drawbitmap",
+            "drawmem",
+            "drawvss",
+            "drawrss",
+            "drawleak",
+            "drawio",
+            "drawtime",
+        ):
             return True
         elif SysMgr.isDrawAvgMode():
             return True
@@ -42409,11 +42410,11 @@ Copyright:
 
     @staticmethod
     def isPrintLogMode():
-        if (
-            SysMgr.checkMode("printsys")
-            or SysMgr.checkMode("printkmsg")
-            or SysMgr.checkMode("printjrl")
-            or SysMgr.checkMode("printdlt")
+        if len(sys.argv) > 1 and sys.argv[1] in (
+            "printsys",
+            "printkmsg",
+            "printjrl",
+            "printdlt",
         ):
             return True
         else:
@@ -48246,6 +48247,10 @@ Copyright:
         if SysMgr.prio is None:
             SysMgr.setPriority(SysMgr.pid, "C", -20)
 
+        # write user command #
+        if not SysMgr.isTopMode():
+            SysMgr.runProfCmd("BEFORE")
+
         # create event memory #
         Debugger.globalEvent = SysMgr.createShm()
 
@@ -48321,7 +48326,7 @@ Copyright:
 
             sys.exit(-1)
         # check targets #
-        elif len(allpids) > 1 or mode == "breakcall" or mode == "pytrace":
+        elif len(allpids) > 1 or mode in ("breakcall", "pytrace"):
             parent = SysMgr.pid
 
             # set multi-task attributes #
@@ -69461,9 +69466,7 @@ typedef struct {
         for sym, value in sorted(
             self.callTable.items(), key=lambda x: x[1]["cnt"], reverse=True
         ):
-            if sym[0] == "/":
-                sym = "??"
-
+            # get count #
             cnt = value["cnt"]
             cntstr = convert(cnt)
 
@@ -69613,10 +69616,16 @@ typedef struct {
                 if SysMgr.checkCutCond():
                     break
 
+                # convert path to symbol #
+                if sym[0] == "/":
+                    targetSym = "??"
+                else:
+                    targetSym = sym
+
                 ret = SysMgr.addPrint(
                     "{0:>7} | {1:<144}\n".format(
                         convColor("%.1f%%" % per, "YELLOW", 7),
-                        "%s %s" % (convColor(sym, "CYAN"), addVal),
+                        "%s %s" % (convColor(targetSym, "CYAN"), addVal),
                     )
                 )
                 if not ret:
@@ -69626,10 +69635,6 @@ typedef struct {
 
             # print backtraces #
             if value["backtrace"]:
-                # update anonymous symbol to prevent wrong merge #
-                if sym == "??":
-                    sym = value["path"]
-
                 if SysMgr.outPath:
                     self.btTable.setdefault(sym, dict())
 
@@ -75792,10 +75797,6 @@ typedef struct {
         for sym, value in sorted(
             callTable.items(), key=lambda x: x[1]["cnt"], reverse=True
         ):
-            # convert path to anonymous symbol #
-            if sym[0] == "/":
-                sym = "??"
-
             cnt = value["cnt"]
 
             # get percentage #
@@ -75864,15 +75865,17 @@ typedef struct {
                     convert(cnt),
                 )
 
+            # convert path to anonymous symbol #
+            if sym[0] == "/":
+                targetSym = "??"
+            else:
+                targetSym = sym
+
             SysMgr.printPipe(
                 "{0:>7} | {1:<144}{2:1}".format(
-                    "%.1f%%" % per, "%s %s" % (sym, addVal), suffix
+                    "%.1f%%" % per, "%s %s" % (targetSym, addVal), suffix
                 )
             )
-
-            # update anonymous symbol to prevent wrong merge #
-            if sym == "??":
-                sym = value["path"]
 
             # add backtraces #
             if sym in instance.btTable:
