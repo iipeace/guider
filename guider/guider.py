@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220624"
+__revision__ = "220626"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    # from ctypes import *
+    from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -65084,7 +65084,7 @@ typedef struct {
                 _addPrint("\n[%s] %s" % (cmdstr, target))
                 _flushPrint()
 
-                rcmd = ["GUIDER", gcmd, "-eT", "-dL", "-R1", "-qfastinit"]
+                rcmd = ["GUIDER", gcmd, "-eTb", "-dL", "-R1", "-qfastinit"]
                 if filterOpt:
                     rcmd += [filterOpt]
                 if cmd.endswith("g"):
@@ -112065,25 +112065,37 @@ class TaskAnalyzer(object):
         # check value #
         if value is None:
             return
-        # check after time #
-        elif "after" in comval:
+
+        # check time conditions #
+        for key in ("after", "before", "rafter", "rbefore"):
             try:
-                threshold = UtilMgr.convUnit2Time(comval["after"])
-                if SysMgr.uptime < threshold:
-                    return
+                # check field #
+                if not key in comval:
+                    continue
+
+                # get threshold value #
+                threshold = UtilMgr.convUnit2Time(comval[key])
+
+                # check skip conditions #
+                if key == "before":
+                    if SysMgr.uptime > threshold:
+                        return
+                elif key == "after":
+                    if SysMgr.uptime < threshold:
+                        return
+                elif key == "rbefore":
+                    runtime = SysMgr.getRuntime(sec=True)
+                    if runtime > threshold:
+                        return
+                elif key == "rafter":
+                    runtime = SysMgr.getRuntime(sec=True)
+                    if runtime < threshold:
+                        return
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(
-                    "failed to check 'after' condition", True, True
-                )
-        # check before time #
-        elif "before" in comval:
-            try:
-                threshold = UtilMgr.convUnit2Time(comval["before"])
-                if SysMgr.uptime > threshold:
-                    return
-            except:
-                SysMgr.printWarn(
-                    "failed to check 'before' condition", True, True
+                    "failed to check '%s' condition" % key, True, True
                 )
 
         # set event name #
