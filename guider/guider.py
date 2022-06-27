@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220626"
+__revision__ = "220627"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    from ctypes import *
+    # from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -5520,7 +5520,10 @@ class UtilMgr(object):
 
     @staticmethod
     def convFloat2Str(val):
-        return ("%f" % val).rstrip("0")
+        val = ("%f" % val).rstrip("0")
+        if val.endswith("."):
+            val += "0"
+        return val
 
     @staticmethod
     def convStr2Bytes(string):
@@ -6592,11 +6595,7 @@ class UtilMgr(object):
 
         if verb:
             # get output size #
-            fsize = UtilMgr.getFileSize(fname)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(fname)
 
             # set job type #
             if load:
@@ -7766,11 +7765,7 @@ function format_percent(n) {
             os.chmod(path, 0o777)
 
             # get output size #
-            fsize = UtilMgr.getFileSize(path)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(path)
 
             SysMgr.printInfo(
                 "saved flamegraph into '%s'%s successfully" % (path, fsize)
@@ -7780,6 +7775,15 @@ function format_percent(n) {
         except:
             SysMgr.printErr("failed to write flamegraph to %s" % path, True)
             sys.exit(-1)
+
+    @staticmethod
+    def getFileSizeStr(path, string=True):
+        fsize = UtilMgr.getFileSize(path)
+        if fsize and fsize != "0":
+            fsize = " [%s]" % fsize
+        else:
+            fsize = ""
+        return fsize
 
     @staticmethod
     def getFileSize(path, string=True):
@@ -14031,11 +14035,7 @@ class PageAnalyzer(object):
                     continue
 
                 # get output size #
-                fsize = UtilMgr.getFileSize(filename)
-                if fsize and fsize != "0":
-                    fsize = " [%s]" % fsize
-                else:
-                    fsize = ""
+                fsize = UtilMgr.getFileSizeStr(filename)
 
                 SysMgr.printStat(
                     "saved the bitmap data to '%s'%s successfully"
@@ -19953,11 +19953,7 @@ class LeakAnalyzer(object):
         }
 
         # Get file size #
-        fsize = UtilMgr.getFileSize(file)
-        if fsize and fsize != "0":
-            fsize = " [%s]" % fsize
-        else:
-            fsize = ""
+        fsize = UtilMgr.getFileSizeStr(file)
 
         # Open log file #
         try:
@@ -21401,11 +21397,7 @@ class FileAnalyzer(object):
             raFd.close()
 
             # print file size #
-            fsize = UtilMgr.getFileSize(raFd.name)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(raFd.name)
 
             SysMgr.printInfo(
                 "saved the readahead list to '%s'%s successfully"
@@ -25544,11 +25536,7 @@ Commands:
         # get file size #
         if os.path.exists(inputParam):
             # get output size #
-            fsize = UtilMgr.getFileSize(inputParam)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(inputParam)
         else:
             SysMgr.printErr("no %s file" % inputParam)
             sys.exit(-1)
@@ -28813,7 +28801,7 @@ Commands:
         # check reason #
         if exitCond:
             reason = "condition"
-        elif SysMgr.progressCnt >= SysMgr.repeatCount:
+        elif SysMgr.progressCnt >= SysMgr.repeatCount > 0:
             reason = "timer"
         else:
             reason = None
@@ -29715,6 +29703,9 @@ Examples:
     - {3:1} {8:1} after preloading ELF files from the specific file list
         # {0:1} {1:1} "ls" -q ELFFILE:./mem.out
 
+    - {3:1} {8:1} with target process monitoring
+        # {0:1} {1:1} "ls" -w BEFORE:"GUIDER top -g ls -Q &"
+
     - {3:1} {7:1} without file loading messages
         # {0:1} {1:1} -g a.out
 
@@ -29893,6 +29884,9 @@ Examples:
     - {5:1} {7:1} and write event info of specific symbols into ftrace buffer
         # {0:1} {1:1} -g a.out -c "*loadData*|event:LOG"
 
+    - {5:1} {7:1} and run multiple commands when specific function calls return
+        # {0:1} {1:1} -g a.out -c "write|getret:sleep:1\\$exec:ls\\$stop"
+
     - {5:1} {7:1} and print resource usage for tasks
         # {0:1} {1:1} -g a.out -c "*loadData*|getret:proctop:a.out|proctop:a.out"
         # {0:1} {1:1} -g a.out -c "*loadData*|getret:proctop:a.out\\,guider|proctop:a.out\\,guider"
@@ -29909,9 +29903,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|getret" -q NORETBT
 
     - {5:1} {7:1} until {4:1} and save return value to the specific variable
-        # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
+        # {0:1} {1:1} -g a.out -c "write|getret:stop\\$print"
 
-    - {5:1} {7:1} from when return of specific function calls
+    - {5:1} {7:1} from when specific function calls return
         # {0:1} {1:1} -g a.out -c "write|getret:start, *"
 
     - {5:1} {7:1} without truncation
@@ -37481,11 +37475,7 @@ Copyright:
 
                 if os.path.exists(SysMgr.inputFile):
                     # get output size #
-                    fsize = UtilMgr.getFileSize(SysMgr.inputFile)
-                    if fsize and fsize != "0":
-                        fsize = " [%s]" % fsize
-                    else:
-                        fsize = ""
+                    fsize = UtilMgr.getFileSizeStr(SysMgr.inputFile)
 
                     SysMgr.printInfo(
                         "saved the results based monitoring into "
@@ -37621,11 +37611,7 @@ Copyright:
             TaskAnalyzer.printIntervalUsage()
 
             # print output info #
-            fsize = UtilMgr.getFileSize(SysMgr.inputFile)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(SysMgr.inputFile)
 
             SysMgr.printInfo(
                 "saved the results based monitoring into "
@@ -37814,11 +37800,7 @@ Copyright:
             f.close()
 
             # get output size #
-            fsize = UtilMgr.getFileSize(outputFile)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(outputFile)
 
             SysMgr.printInfo(
                 "finish saving trace data into '%s'%s successfully"
@@ -37840,7 +37822,15 @@ Copyright:
 
         for cmd in SysMgr.rcmdList[time.upper()]:
             if len(cmd) == 1:
-                os.system(cmd[0])
+                if cmd[0].endswith("&"):
+                    command = cmd[0].rstrip("& ")
+                    wait = False
+                else:
+                    command = cmd[0]
+                    wait = True
+
+                # execute a command using a new process #
+                SysMgr.execBgCmd(command, mute=False, wait=wait)
                 continue
             elif len(cmd) != 2:
                 continue
@@ -39046,11 +39036,7 @@ Copyright:
             return
 
         # get output size #
-        fsize = UtilMgr.getFileSize(outputPath)
-        if fsize and fsize != "0":
-            fsize = " [%s]" % fsize
-        else:
-            fsize = ""
+        fsize = UtilMgr.getFileSizeStr(outputPath)
 
         SysMgr.printStat(
             "wrote timeline segments into '%s'%s" % (outputPath, fsize)
@@ -39183,11 +39169,7 @@ Copyright:
             return
 
         # get output size #
-        fsize = UtilMgr.getFileSize(SysMgr.imagePath)
-        if fsize and fsize != "0":
-            fsize = " [%s]" % fsize
-        else:
-            fsize = ""
+        fsize = UtilMgr.getFileSizeStr(SysMgr.imagePath)
 
         SysMgr.printStat(
             "saved image into %s%s successfully" % (SysMgr.imagePath, fsize)
@@ -44408,6 +44390,9 @@ Copyright:
 
         # child #
         elif pid == 0:
+            # disable alarm #
+            signal.alarm(0)
+
             # set main environment #
             os.environ["ISMAIN"] = "True"
 
@@ -44417,30 +44402,6 @@ Copyright:
             # disable pager, print output both to file and to stdout #
             if stream:
                 SysMgr.setStream()
-
-            # init resource variables #
-            SysMgr.taskEnable = True
-            SysMgr.cpuEnable = True
-            SysMgr.memEnable = False
-            SysMgr.blockEnable = False
-            SysMgr.diskEnable = False
-            SysMgr.reportEnable = False
-            SysMgr.networkEnable = False
-
-            # init print variables #
-            SysMgr.inputFile = None
-            SysMgr.outPath = None
-            SysMgr.printFd = None
-            SysMgr.printEnable = True
-            SysMgr.encodeEnable = False
-            SysMgr.reportEnable = SysMgr.jsonEnable = False
-
-            # init number variables #
-            SysMgr.nrTopRank = 10
-            SysMgr.repeatCount = 0
-            SysMgr.progressCnt = 0
-            SysMgr.repeatInterval = 0
-            SysMgr.intervalEnable = 0
 
             # inherit options #
             disOptVal = SysMgr.getOption("d")
@@ -44482,15 +44443,50 @@ Copyright:
             if not stderr:
                 sys.stderr.close()
 
-            # initialize variables #
+            # init time variables #
+            SysMgr.startInitTime = 0
+            SysMgr.startTime = 0
+            SysMgr.startRecTime = 0
+            SysMgr.startRunTime = 0
+            SysMgr.startOverheadTime = 0
+
+            # init resource variables #
+            SysMgr.taskEnable = True
+            SysMgr.cpuEnable = True
+            SysMgr.memEnable = False
+            SysMgr.blockEnable = False
+            SysMgr.diskEnable = False
+            SysMgr.reportEnable = False
+            SysMgr.networkEnable = False
+
+            # init print variables #
+            SysMgr.inputFile = None
+            SysMgr.outPath = None
+            SysMgr.printFd = None
+            SysMgr.printEnable = True
+            SysMgr.encodeEnable = False
+            SysMgr.reportEnable = SysMgr.jsonEnable = False
+
+            # init number variables #
+            SysMgr.nrTopRank = 10
+            SysMgr.repeatCount = 0
+            SysMgr.progressCnt = 0
+            SysMgr.repeatInterval = 0
+            SysMgr.intervalEnable = 0
+            SysMgr.maxInterval = 0
+
+            # init other variables #
             SysMgr.parsedAnalOption = False
+            SysMgr.groupProcEnable = False
             SysMgr.optionList = []
             ConfigMgr.confData = {}
             SysMgr.procBuffer = []
             SysMgr.exitFuncList = []
-            SysMgr.clearPrint()
-            SysMgr.groupProcEnable = False
             SysMgr.customCmd = []
+            SysMgr.rcmdList = {}
+
+            # clear print buffer #
+            SysMgr.clearPrint()
 
             # launch Guider command #
             main(cmd)
@@ -44619,6 +44615,51 @@ Copyright:
             return pidlist
 
     @staticmethod
+    def execBgCmd(cmd, mute=True, wait=True):
+        # launch Guider #
+        if (UtilMgr.isString(cmd) and cmd.startswith("GUIDER ")) or (
+            type(cmd) is list and cmd[0] == "GUIDER"
+        ):
+
+            # build command list #
+            if type(cmd) is list:
+                cmdList = cmd[1:]
+            else:
+                cmdList = UtilMgr.parseCommand(cmd.lstrip("GUIDER "))
+
+            # launch command #
+            try:
+                ret = SysMgr.launchGuider(
+                    cmdList,
+                    pipe=False,
+                    stderr=True,
+                    stream=False,
+                    logo=False,
+                    log=True,
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                ret = False
+                SysMgr.printErr(
+                    "failed to launch %s" % __module__, reason=True
+                )
+        # launch command #
+        else:
+            ret = SysMgr.createProcess(cmd, mute=mute)
+
+        # check task #
+        if ret is False or ret < 0:
+            return -1
+        elif ret > 0:
+            if wait:
+                os.waitpid(ret, 0)
+            return
+
+        # temrinate #
+        os._exit(0)
+
+    @staticmethod
     def createProcess(
         cmd=None, isDaemon=False, mute=False, chPgid=False, chMid=False
     ):
@@ -44632,7 +44673,6 @@ Copyright:
 
         # create a new process #
         try:
-            # fork #
             pid = os.fork()
         except SystemExit:
             sys.exit(0)
@@ -50237,14 +50277,23 @@ Copyright:
         path = "%s/%s" % (SysMgr.procPath, pid)
 
         # execute watcher tasks #
+        monTasks = []
         if "MEMPROF" in SysMgr.environList:
             interval = UtilMgr.getEnvironNum("MEMPROF", False, 1, False, True)
             output = os.path.join(
                 os.path.dirname(SysMgr.outPath), "guider_mem_%s.out" % comm
             )
-            mcmd = ["mtop", "-g%s" % pid, "-i%s" % interval, "-o%s" % output]
+            mcmd = [
+                "mtop",
+                "-g%s" % pid,
+                "-i%s" % interval,
+                "-o%s" % output,
+                "-qfastinit",
+            ]
             ret = SysMgr.launchGuider(mcmd, mute=mute, pipe=False, stderr=True)
             if ret > 0:
+                monTasks.append(ret)
+                output = "%s_%s.out" % (UtilMgr.rstrip(output, ".out"), ret)
                 SysMgr.printInfo(
                     "start saving the monitoring results of %s(%s) to %s"
                     % (comm, pid, output)
@@ -50510,6 +50559,12 @@ Copyright:
         except:
             runtime = "?"
             profileTime = "?"
+
+        # terminate worker processes #
+        if monTasks:
+            SysMgr.killChildren(
+                sig=signal.SIGINT, children=monTasks, clear=False
+            )
 
         SysMgr.printStat("wait for %s" % fname)
 
@@ -50830,11 +50885,7 @@ Copyright:
                 fsize = ""
                 if target == "file":
                     # get output size #
-                    fsize = UtilMgr.getFileSize(path)
-                    if fsize == "?":
-                        fsize = ""
-                    elif fsize and fsize != "0":
-                        fsize = "[%s]" % fsize
+                    fsize = UtilMgr.getFileSizeStr(path)
 
                 # declare shortcut function #
                 conv = UtilMgr.convNum
@@ -55187,7 +55238,9 @@ Copyright:
                 SysMgr.childList.pop(pid, None)
 
     @staticmethod
-    def killChildren(sig=None, children=None, wait=False, group=False):
+    def killChildren(
+        sig=None, children=None, wait=False, group=False, clear=True
+    ):
         if not sig:
             sig = ConfigMgr.SIGKILL
 
@@ -55200,7 +55253,8 @@ Copyright:
         SysMgr.terminateTasks(children, sig, group)
 
         # remove child list #
-        SysMgr.clearChildList()
+        if clear:
+            SysMgr.clearChildList()
 
         # check wait flag #
         if not wait:
@@ -63093,8 +63147,11 @@ class DltAnalyzer(object):
                 action = "printing"
 
             for path in flist:
+                # get file size #
+                fsize = UtilMgr.getFileSizeStr(path)
+
                 SysMgr.printInfo(
-                    "start %s DLT logs from '%s'..." % (action, path)
+                    "start %s DLT logs from '%s'%s..." % (action, path, fsize)
                 )
 
                 # convert path string to utf-8 format #
@@ -65090,7 +65147,7 @@ typedef struct {
                 if cmd.endswith("g"):
                     rcmd += ["-P"]
 
-                self.execBgCmd(rcmd, mute=False)
+                SysMgr.execBgCmd(rcmd, mute=False)
 
             elif cmd == "rdmem":
                 if len(cmdset) == 1:
@@ -65620,7 +65677,7 @@ typedef struct {
 
                     param = command.split()
 
-                    self.execBgCmd(param, mute=False, wait=wait)
+                    SysMgr.execBgCmd(param, mute=False, wait=wait)
 
             elif cmd == "thread":
                 ret = self.loadPyLib()
@@ -66172,50 +66229,6 @@ typedef struct {
                 True,
             )
         return ret
-
-    def execBgCmd(self, cmd, mute=True, wait=True):
-        # launch Guider #
-        if (UtilMgr.isString(cmd) and cmd.startswith("GUIDER ")) or (
-            type(cmd) is list and cmd[0] == "GUIDER"
-        ):
-
-            # build command list #
-            if type(cmd) is list:
-                cmdList = cmd[1:]
-            else:
-                cmdList = UtilMgr.parseCommand(cmd.lstrip("GUIDER "))
-
-            # launch command #
-            try:
-                ret = SysMgr.launchGuider(
-                    cmdList,
-                    pipe=False,
-                    stderr=True,
-                    stream=False,
-                    logo=False,
-                    log=True,
-                )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                ret = False
-                SysMgr.printErr(
-                    "failed to launch %s" % __module__, reason=True
-                )
-        # launch command #
-        else:
-            ret = SysMgr.createProcess(cmd, mute=mute)
-
-        # check task #
-        if ret is False or ret < 0:
-            return -1
-        elif ret > 0:
-            if wait:
-                os.waitpid(ret, 0)
-            return
-
-        # temrinate #
-        os._exit(0)
 
     def execute(self, execCmd, mute=True):
         # check mute flag #
@@ -75388,11 +75401,7 @@ typedef struct {
                 )
 
                 # get data size #
-                fsize = UtilMgr.getFileSize(dataPath)
-                if fsize and fsize != "0":
-                    fsize = " [%s]" % fsize
-                else:
-                    fsize = ""
+                fsize = UtilMgr.getFileSizeStr(dataPath)
 
                 SysMgr.printStat(
                     "wrote timeline data into '%s'%s" % (dataPath, fsize)
@@ -76474,11 +76483,7 @@ typedef struct {
             # close output file for sync #
             if verb:
                 # get output size #
-                fsize = UtilMgr.getFileSize(output)
-                if fsize and fsize != "0":
-                    fsize = " [%s]" % fsize
-                else:
-                    fsize = ""
+                fsize = UtilMgr.getFileSizeStr(output)
 
                 SysMgr.printStat(
                     "saved the bitmap data to '%s'%s successfully"
@@ -84378,11 +84383,7 @@ class TaskAnalyzer(object):
             SysMgr.inputFile = fname
 
             # get file size #
-            fsize = UtilMgr.getFileSize(fname)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(fname)
 
             SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
 
@@ -86494,13 +86495,7 @@ class TaskAnalyzer(object):
         # get file size #
         totalSize = 0
         if not handle:
-            fsize = UtilMgr.getFileSize(logFile)
-            if fsize and fsize != "0":
-                totalSize = UtilMgr.convUnit2Size(fsize)
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
-
+            fsize = UtilMgr.getFileSizeStr(logFile)
             SysMgr.printStat(r"start processing '%s'%s..." % (logFile, fsize))
 
         # context variable #
@@ -91297,11 +91292,7 @@ class TaskAnalyzer(object):
             clf()  # pylint: disable=undefined-variable
 
             # get output size #
-            fsize = UtilMgr.getFileSize(outputFile)
-            if fsize and fsize != "0":
-                fsize = " [%s]" % fsize
-            else:
-                fsize = ""
+            fsize = UtilMgr.getFileSizeStr(outputFile)
 
             SysMgr.printStat(
                 "wrote resource %s into '%s'%s" % (itype, outputFile, fsize)
@@ -99131,11 +99122,7 @@ class TaskAnalyzer(object):
                 if compressor and fd:
                     if verb:
                         # get output size #
-                        fsize = UtilMgr.getFileSize(fname)
-                        if fsize and fsize != "0":
-                            fsize = " [%s]" % fsize
-                        else:
-                            fsize = ""
+                        fsize = UtilMgr.getFileSizeStr(fname)
 
                         SysMgr.printStat(
                             r"start checking '%s'%s..." % (fname, fsize)
@@ -112945,11 +112932,7 @@ class TaskAnalyzer(object):
                 os.rename(SysMgr.inputFile, filePath)
 
                 # get output size #
-                fsize = UtilMgr.getFileSize(filePath)
-                if fsize and fsize != "0":
-                    fsize = " [%s]" % fsize
-                else:
-                    fsize = ""
+                fsize = UtilMgr.getFileSizeStr(filePath)
 
                 SysMgr.printStat(
                     (
