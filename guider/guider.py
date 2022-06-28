@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220627"
+__revision__ = "220628"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13568,7 +13568,13 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(
-        pid, vaddr, markIdle=False, checkIdle=False, retList=False, verb=True
+        pid,
+        vaddr,
+        markIdle=False,
+        checkIdle=False,
+        retList=False,
+        verb=True,
+        progress=False,
     ):
         try:
             if not pid:
@@ -13698,7 +13704,11 @@ class PageAnalyzer(object):
             pageTable = []
 
             # print page info in target address ranges #
-            for vrange in targetList:
+            for vcnt, vrange in enumerate(targetList):
+                # print progress #
+                if progress:
+                    UtilMgr.printProgress(vcnt, len(targetList))
+
                 rangeCnt = len(vrange)
 
                 # check input count #
@@ -13769,7 +13779,7 @@ class PageAnalyzer(object):
                         "PRES",
                         "SWAP",
                         "FILE",
-                        "REF",
+                        "SHR",
                         "SDRT",
                         "EXMAP",
                         "IDLE",
@@ -13873,9 +13883,12 @@ class PageAnalyzer(object):
                         procFile += 1
 
                     refCnt = PageAnalyzer.getPageCount(pfn)
-                    if refCnt:
-                        totalRef += refCnt
-                        procRef += refCnt
+                    if refCnt > 1:
+                        refCnt = 1
+                        totalRef += 1
+                        procRef += 1
+                    else:
+                        refCnt = 0
 
                     kflags = PageAnalyzer.getPageFlags(pfn)
                     totalFlags |= kflags
@@ -13948,6 +13961,9 @@ class PageAnalyzer(object):
                 if saveBitmapFlag and checkIdle:
                     pageTable += pageSubTable
 
+            if progress:
+                UtilMgr.deleteProgress()
+
             # print process memory info #
             _printPipe(
                 "\n[Mem Info] [Proc: %s(%s)] [Area: %s)\n%s"
@@ -13963,7 +13979,7 @@ class PageAnalyzer(object):
                     "PRESENT",
                     "SWAP",
                     "FILE",
-                    "REF",
+                    "SHR",
                     "SDRT",
                     "EXMAP",
                     "IDLE",
@@ -14296,10 +14312,7 @@ class PageAnalyzer(object):
     @staticmethod
     def getPagemapEntry(pid, addr):
         path = PageAnalyzer.getPagemapPath(pid)
-
-        pageSize = SysMgr.PAGESIZE
-        offset = long(addr / pageSize) * 8
-
+        offset = long(addr / SysMgr.PAGESIZE) * 8
         return PageAnalyzer.readEntry(path, offset)
 
     @staticmethod
@@ -14328,15 +14341,13 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageCount(pfn):
-        path = "%s/kpagecount" % SysMgr.procPath
-        offset = pfn * 8
-        return PageAnalyzer.readEntry(path, offset)
+        path = SysMgr.procPath + "/kpagecount"
+        return PageAnalyzer.readEntry(path, pfn * 8)
 
     @staticmethod
     def getPageFlags(pfn):
-        path = "%s/kpageflags" % SysMgr.procPath
-        offset = pfn * 8
-        return PageAnalyzer.readEntry(path, offset)
+        path = SysMgr.procPath + "/kpageflags"
+        return PageAnalyzer.readEntry(path, pfn * 8)
 
 
 class FunctionAnalyzer(object):
@@ -25621,18 +25632,31 @@ Commands:
             targetList = UtilMgr.getFiles(path, ["tasks"])
 
             # get all tids #
-            tids = []
-            for f in targetList:
-                tids += SysMgr.readFile(f).split("\n")
+            while 1:
+                tids = []
+                for f in targetList:
+                    tids += SysMgr.readFile(f).split("\n")
 
-            # remove all tasks from sub-groups #
-            SysMgr.writeFile(rootPath, tids)
+                # check items #
+                if not UtilMgr.cleanItem(tids):
+                    break
+
+                # remove all tasks from sub-groups #
+                SysMgr.writeFile(rootPath, tids)
+
+                # wait for a moment #
+                time.sleep(0.1)
 
             # remove target directory #
             for p in sorted(
                 targetList, key=lambda x: x.count("/"), reverse=True
             ):
-                os.rmdir(UtilMgr.rstrip(p, "/tasks"))
+                try:
+                    os.rmdir(UtilMgr.rstrip(p, "/tasks"))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn("failed to remove '%s'" % p, True, True)
 
             return True
         except SystemExit:
@@ -29808,7 +29832,8 @@ Examples:
         # {0:1} {1:1} -g 1234 -c printPeace
 
     - {3:1} except for printPeace {7:1}
-        # {0:1} {1:1} -g 1234 -c ^printPeace
+        # {0:1} {1:1} -g 1234 -c "^printPeace"
+        # {0:1} {1:1} -g 1234 -c "^g_mutex_*, ^pthread_mutex_*"
 
     - {5:1} from a specific binary
         # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
@@ -31815,7 +31840,8 @@ Commands:
                     helpStr += """
 Examples:
     - Make a new cpu group
-        # {0:1} {1:1} CREATE:cpu:test1:*
+        # {0:1} {1:1} CREATE:cpu:test1:
+        # {0:1} {1:1} CREATE:cpu:test1:"*"
 
     - Add specific processes to a specific group
         # {0:1} {1:1} ADD:cpu:test1:"*a.out*"
@@ -33347,14 +33373,16 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print symbol information of specific addresses in a file
+    - Print symbol information of specific addresses from specific files
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
+        # {0:1} {1:1} -I "/usr/lib/*" -g ab1cf
 
-    - Print merged symbol information of specific addresses in a file
+    - Print merged symbol information of specific addresses from a file
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf -q ALLSYM
 
-    - Print symbol information of specific addresses in a process memory map
-        # {0:1} {1:1} -I yes -g ab1cf
+    - Print symbol information of specific addresses from memory map of specific processes
+        # {0:1} {1:1} -I "yes" -g ab1cf
+        # {0:1} {1:1} -I "yes|systemd" -g ab1cf
                     """.format(
                         cmd, mode
                     )
@@ -33471,25 +33499,29 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} specific symbols in a file
+    - {2:1} specific symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
-    - {2:1} specific merged symbols in a file
+    - {2:1} specific merged symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
-    - {2:1} all symbols in a file
-        # {0:1} {1:1} -I /usr/bin/yes -g
+    - {2:1} specific symbols from specific files
+        # {0:1} {1:1} -I "/usr/bin/*" -g testFunc
 
-    - {2:1} specific symbols including specific word in a file
+    - {2:1} all symbols from a file
+        # {0:1} {1:1} -I /usr/bin/yes -g "*"
+
+    - {2:1} specific symbols including specific word from a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc"
         # {0:1} {1:1} -I /usr/bin/yes -g "testFunc*"
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc*"
 
-    - {2:1} specific symbols including specific word in a file
+    - {2:1} specific symbols including specific word from a file
         # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - {2:1} specific symbols in a process memory map
-        # {0:1} {1:1} -I yes -g testFunc
+    - {2:1} specific symbols from memory map of specific processes
+        # {0:1} {1:1} -I "yes" -g testFunc
+        # {0:1} {1:1} -I "yes|systemd" -g testFunc
                     """.format(
                         cmd, mode, "Print information of"
                     )
@@ -33612,10 +33644,10 @@ Options:
 
                     helpStr += """
 Examples:
-    - Execute a command
+    - {2:1}
         # {0:1} {1:1} -I "ls -lha"
 
-    - Execute a command in background
+    - {2:1} in background
         # {0:1} {1:1} -I "ls -lha" -u
 
     - Execute commands with range variables
@@ -33628,15 +33660,18 @@ Examples:
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
 
-    - Execute a command and redirect standard I/O of child tasks to specific files
+    - {2:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} -I "ls" -q STDIN:"./stdin"
         # {0:1} {1:1} -I "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} -I "ls" -q STDERR:"/dev/null"
 
-    - Execute a command after converting it using the config file
+    - {2:1} after converting it using the config file
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
+
+    - {2:1} with the memory limitation using cgroup
+        # {0:1} {1:1} -q LIMITMEM:50M
                     """.format(
-                        cmd, mode
+                        cmd, mode, "Execute a command"
                     )
 
                 # printext #
@@ -48578,12 +48613,17 @@ Copyright:
         pids = list(set(taskList))
         procInfo = ""
 
-        # a single file #
+        # files #
         if not pids:
+            # get file list #
+            fileList = UtilMgr.getFileList(
+                UtilMgr.cleanItem(inputArg.split(","), False), exceptDir=True
+            )
+
             # check file #
-            if not os.path.isfile(inputArg):
+            if not fileList:
                 SysMgr.printErr(
-                    "failed to recognize '%s' as the file or process"
+                    "failed to recognize '%s' as a file or a process"
                     % inputArg
                 )
                 sys.exit(-1)
@@ -48591,32 +48631,33 @@ Copyright:
             menu1st = "Address"
             menu2nd = "Offset"
 
-            filePath = inputArg
-
-            # create an ELF object #
-            try:
-                binObj = ElfAnalyzer.getObject(filePath)
-                if not binObj:
-                    err = SysMgr.getErrMsg()
-                    raise Exception(err)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to load '%s' as an ELF object" % filePath, True
-                )
-                sys.exit(-1)
-
-            for addr in addrList:
+            for filePath in fileList:
+                # create an ELF object #
                 try:
-                    sym, size = binObj.getSymbolByOffset(addr, onlyFunc=False)
-                    resInfo[addr] = [sym, filePath, "N/A"]
-                    if maxSymLen < len(sym) < SysMgr.ttyCols / 2:
-                        maxSymLen = len(sym)
+                    binObj = ElfAnalyzer.getObject(filePath)
+                    if not binObj:
+                        err = SysMgr.getErrMsg()
+                        raise Exception(err)
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    resInfo[addr] = ["??", filePath, "N/A"]
+                    SysMgr.printErr(
+                        "failed to load '%s' as an ELF object" % filePath, True
+                    )
+                    continue
+
+                for addr in addrList:
+                    try:
+                        sym, size = binObj.getSymbolByOffset(
+                            addr, onlyFunc=False
+                        )
+                        resInfo[addr] = [sym, filePath, "N/A"]
+                        if maxSymLen < len(sym) < SysMgr.ttyCols / 2:
+                            maxSymLen = len(sym)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        resInfo[addr] = ["??", filePath, "N/A"]
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr(
@@ -49689,40 +49730,44 @@ Copyright:
         pids = list(set(taskList))
         procInfo = ""
 
-        # a single file #
+        # files #
         if not pids:
+            # get file list #
+            fileList = UtilMgr.getFileList(
+                UtilMgr.cleanItem(inputArg.split(","), False), exceptDir=True
+            )
+
             # check file #
-            if not os.path.isfile(inputArg):
+            if not fileList:
                 SysMgr.printErr(
                     "failed to recognize '%s' as a file or a process"
                     % inputArg
                 )
                 sys.exit(-1)
 
-            filePath = inputArg
+            for filePath in fileList:
+                for sym in SysMgr.filterGroup:
+                    # create an ELF object #
+                    try:
+                        offset = ElfAnalyzer.getSymOffset(sym, filePath)
+                        if not offset:
+                            continue
 
-            for sym in SysMgr.filterGroup:
-                # create an ELF object #
-                try:
-                    offset = ElfAnalyzer.getSymOffset(sym, inputArg)
-                    if not offset:
-                        continue
+                        for item in offset:
+                            resInfo["%s|%s" % (item[1], filePath)] = (
+                                hex(item[0]),
+                                filePath,
+                                None,
+                                item[1],
+                            )
 
-                    for item in offset:
-                        resInfo["%s|%s" % (item[1], filePath)] = (
-                            hex(item[0]),
-                            filePath,
-                            None,
-                            item[1],
-                        )
-
-                        if maxSymLen < len(item[1]) < SysMgr.ttyCols / 2:
-                            maxSymLen = len(item[1])
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr("failed to get '%s' info" % sym, True)
-                    sys.exit(-1)
+                            if maxSymLen < len(item[1]) < SysMgr.ttyCols / 2:
+                                maxSymLen = len(item[1])
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr("failed to get '%s' info" % sym, True)
+                        sys.exit(-1)
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr(
@@ -49834,7 +49879,12 @@ Copyright:
             if LeakAnalyzer.markedIdlePages:
                 SysMgr.printStat(r"start checking all idle pages...")
                 LeakAnalyzer.idlePageList = PageAnalyzer.getPageInfo(
-                    [pid], "anon", checkIdle=True, retList=True, verb=False
+                    [pid],
+                    "anon",
+                    checkIdle=True,
+                    retList=True,
+                    verb=False,
+                    progress=True,
                 )
 
             # send signal #
@@ -50358,7 +50408,9 @@ Copyright:
         # register signal handler to mark all pages as idle #
         def _markIdlePages(signum, frame):
             SysMgr.printStat(r"start marking all pages as idle...")
-            PageAnalyzer.getPageInfo([pid], "anon", markIdle=True, verb=False)
+            PageAnalyzer.getPageInfo(
+                [pid], "anon", markIdle=True, verb=False, progress=True
+            )
             LeakAnalyzer.markedIdlePages = True
 
         signal.signal(signal.SIGQUIT, _markIdlePages)
@@ -55293,6 +55345,13 @@ Copyright:
                 sys.exit(0)
             except:
                 pass
+
+            # remove zombie tasks #
+            aliveChildren = []
+            for pid in children:
+                if SysMgr.isAlive(pid):
+                    aliveChildren.append(pid)
+            chidlren = aliveChildren
 
     @staticmethod
     def removeExitFunc(func, args=None):
@@ -67533,16 +67592,31 @@ typedef struct {
 
         # get next stats and print diff of stats #
         if Debugger.envFlags["PRINTDIFF"]:
+            # time diff #
             diff = time.time() - prevTime
+
+            # CPU diff #
             afterCpu = self.getTotalCpuTick()
-            cpu = (afterCpu[0] - prevCpu[0]) / 100.0
+            cpu = afterCpu[0] - prevCpu[0]
+            if cpu:
+                cpu = "+%d" % cpu
+
             prevMem = SysMgr.convMemStat(prevMem)
             afterMem = SysMgr.getMemStat(self.pid)
             afterMem = SysMgr.convMemStat(afterMem)
+
+            # VSS diff #
             vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
+            if vss != "0" and not vss.startswith("-"):
+                vss = "+" + vss
+
+            # RSS diff #
             rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
+            if rss != "0" and not rss.startswith("-"):
+                rss = "+" + rss
+
             SysMgr.printWarn(
-                "Elapsed: %.6f Sec, CPU: %.3f Sec, VSS: %s, RSS: %s"
+                "TIME: %.6f Sec, CPU: %s%%, VSS: %s, RSS: %s"
                 % (diff, cpu, vss, rss),
                 True,
             )
