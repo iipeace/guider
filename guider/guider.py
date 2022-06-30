@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220628"
+__revision__ = "220630"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21870,7 +21870,7 @@ class FileAnalyzer(object):
                 # check condition #
                 if (
                     self.target != [""]
-                    and not UtilMgr.isValidStr(tid, self.target)
+                    and not tid in self.target
                     and not UtilMgr.isValidStr(comm, self.target)
                 ):
                     continue
@@ -21930,12 +21930,23 @@ class FileAnalyzer(object):
                         except:
                             pass
 
+                # check thread list #
+                if tid in self.procData[pid]["tids"]:
+                    continue
+
                 # update threadData #
-                if not tid in self.procData[pid]["tids"]:
-                    self.procData[pid]["tids"][tid] = dict(
+                threadList = SysMgr.getThreadList(pid)
+                for ttid in threadList:
+                    if ttid in self.procData[pid]["tids"]:
+                        continue
+
+                    self.procData[pid]["tids"][ttid] = dict(
                         self.init_threadData
                     )
-                    self.procData[pid]["tids"][tid]["comm"] = comm
+
+                    self.procData[pid]["tids"][ttid]["comm"] = SysMgr.getComm(
+                        ttid
+                    )
 
     def fillFileMaps(self):
         self.profPageCnt = 0
@@ -23206,6 +23217,7 @@ class SysMgr(object):
     waitDelay = 0.5
     repeatCount = 0
     progressCnt = 0
+    termCnt = 0
     repeatInterval = 0
     maxInterval = 0
     ipAddr = None
@@ -25391,7 +25403,9 @@ Commands:
             if not retstr:
                 return sysMemStr
 
-            sysMemStr = UtilMgr.convSize2Unit(sysMemStr, isInt=True, unit=unit)
+            sysMemStr = UtilMgr.convSize2Unit(
+                sysMemStr, isInt=False, unit=unit
+            )
         except SystemExit:
             sys.exit(0)
         except:
@@ -37892,6 +37906,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr("failed to read '%s'" % path, True)
+            return None
 
     @staticmethod
     def writeFile(path, val):
@@ -55332,11 +55347,18 @@ Copyright:
 
                 # set timer for force termination for abnormal child tasks #
                 def _onAlarm(signum, frame):
-                    SysMgr.sendSignalProcs(signal.SIGKILL, remainTasks)
+                    SysMgr.termCnt += 1
+                    SysMgr.sendSignalProcs(
+                        signal.SIGINT
+                        if SysMgr.termCnt < 5
+                        else signal.SIGKILL,
+                        remainTasks,
+                        verb=False,
+                    )
 
                 # register kill timer #
                 signal.signal(signal.SIGALRM, _onAlarm)
-                signal.alarm(5)
+                signal.alarm(3)
 
                 # wait for termination for child tasks #
                 watchList = ["/proc/%s/comm" % tid for tid in remainTasks]
@@ -64964,6 +64986,94 @@ typedef struct {
             if self.showStatus and not sym in self.hiddenList:
                 SysMgr.addPrint(string)
 
+        def _execFunc(func, *args):
+            # get previous stats #
+            if Debugger.envFlags["PRINTDIFF"]:
+                prevTime, prevCpu, prevMem, prevIo = _getStats()
+
+            ret = func(*args)
+
+            # print diff stats #
+            if Debugger.envFlags["PRINTDIFF"]:
+                _printDiff(prevTime, prevCpu, prevMem, prevIo)
+
+            return ret
+
+        def _getStats():
+            prevTime = time.time()
+            prevCpu = self.getTotalCpuTick()
+            prevMem = SysMgr.getMemStat(self.pid)
+            prevIo = SysMgr.readFile("%s/%s/io" % (SysMgr.procPath, self.pid))
+            return prevTime, prevCpu, prevMem, prevIo
+
+        def _printDiff(prevTime, prevCpu, prevMem, prevIo):
+            # get next stats and print diff of stats #
+            if Debugger.envFlags["PRINTDIFF"]:
+                # time diff #
+                diff = time.time() - prevTime
+
+                # CPU diff #
+                afterCpu = self.getTotalCpuTick()
+                cpu = afterCpu[0] - prevCpu[0]
+                if cpu:
+                    cpu = "+%d" % cpu
+
+                prevMem = SysMgr.convMemStat(prevMem)
+                afterMem = SysMgr.getMemStat(self.pid)
+                afterMem = SysMgr.convMemStat(afterMem)
+
+                # VSS diff #
+                vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
+                if vss != "0" and not vss.startswith("-"):
+                    vss = "+" + vss
+
+                # RSS diff #
+                rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
+                if rss != "0" and not rss.startswith("-"):
+                    rss = "+" + rss
+
+                # I/O diff #
+                readIo = writeIo = 0
+                if prevIo:
+
+                    def _getIoStats(iodata):
+                        ioStats = {}
+                        for line in iodata.split("\n"):
+                            # get stats #
+                            ios = line.split()
+                            if len(ios) != 2:
+                                continue
+
+                            # check stats #
+                            name, val = ios
+                            if not name in ("read_bytes:", "write_bytes:"):
+                                continue
+
+                            ioStats[name[:-1]] = long(val)
+                        return ioStats
+
+                    afterIo = SysMgr.readFile(
+                        "%s/%s/io" % (SysMgr.procPath, self.pid)
+                    )
+                    if afterIo:
+                        beforeIoStats = _getIoStats(prevIo)
+                        afterIoStats = _getIoStats(afterIo)
+
+                        def _getIoDiff(name):
+                            diff = afterIoStats[name] - beforeIoStats[name]
+                            if diff:
+                                diff = "+%s" % UtilMgr.convSize2Unit(diff)
+                            return diff
+
+                        readIo = _getIoDiff("read_bytes")
+                        writeIo = _getIoDiff("write_bytes")
+
+                SysMgr.printWarn(
+                    "TIME: %.6f Sec, CPU: %s%%, VSS: %s, RSS: %s, READ: %s, WRITE: %s"
+                    % (diff, cpu, vss, rss, readIo, writeIo),
+                    True,
+                )
+
         def _handleCmd(cmdset, cmd):
             repeat = True
 
@@ -65596,7 +65706,7 @@ typedef struct {
                     argset = []
 
                 # call function #
-                res = UtilMgr.callPyFunc(path, func, argset)
+                ret = _execFunc(UtilMgr.callPyFunc, path, func, argset)
                 if res:
                     res = UtilMgr.convColor(res, "GREEN")
                 else:
@@ -65735,8 +65845,7 @@ typedef struct {
                         wait = True
 
                     param = command.split()
-
-                    SysMgr.execBgCmd(param, mute=False, wait=wait)
+                    ret = _execFunc(SysMgr.execBgCmd, param, False, wait)
 
             elif cmd == "thread":
                 ret = self.loadPyLib()
@@ -65917,7 +66026,7 @@ typedef struct {
 
                 # get function info #
                 binary = cmdset[1]
-                ret = self.dlopen(binary)
+                ret = _execFunc(self.dlopen, binary)
                 if ret is None:
                     ret = "FAIL"
                 else:
@@ -65960,7 +66069,7 @@ typedef struct {
                 self.removeBp(self.getSyscallAddr(), lock=True)
 
                 # call function #
-                ret = self.remoteSyscall(val, argList)
+                ret = _execFunc(self.remoteSyscall, val, argList)
                 if ret is None:
                     ret = 0
 
@@ -66019,7 +66128,7 @@ typedef struct {
 
                 if not skip:
                     # call function #
-                    ret = self.remoteUsercall(addr, argList)
+                    ret = _execFunc(self.remoteUsercall, addr, argList)
                     if ret is None:
                         ret = 0
 
@@ -67566,12 +67675,6 @@ typedef struct {
         # apply register set #
         self.setRegs()
 
-        # get previous stats #
-        if Debugger.envFlags["PRINTDIFF"]:
-            prevCpu = self.getTotalCpuTick()
-            prevMem = SysMgr.getMemStat(self.pid)
-            prevTime = time.time()
-
         # call function #
         self.cont(check=True)
         if not wait:
@@ -67589,37 +67692,6 @@ typedef struct {
                 continue
 
             break
-
-        # get next stats and print diff of stats #
-        if Debugger.envFlags["PRINTDIFF"]:
-            # time diff #
-            diff = time.time() - prevTime
-
-            # CPU diff #
-            afterCpu = self.getTotalCpuTick()
-            cpu = afterCpu[0] - prevCpu[0]
-            if cpu:
-                cpu = "+%d" % cpu
-
-            prevMem = SysMgr.convMemStat(prevMem)
-            afterMem = SysMgr.getMemStat(self.pid)
-            afterMem = SysMgr.convMemStat(afterMem)
-
-            # VSS diff #
-            vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
-            if vss != "0" and not vss.startswith("-"):
-                vss = "+" + vss
-
-            # RSS diff #
-            rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
-            if rss != "0" and not rss.startswith("-"):
-                rss = "+" + rss
-
-            SysMgr.printWarn(
-                "TIME: %.6f Sec, CPU: %s%%, VSS: %s, RSS: %s"
-                % (diff, cpu, vss, rss),
-                True,
-            )
 
         # read regs to check results #
         if not self.updateRegs():
