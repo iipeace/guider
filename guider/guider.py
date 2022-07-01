@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220630"
+__revision__ = "220701"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6819,6 +6819,10 @@ class UtilMgr(object):
                 "failed to convert color for %s" % color, reason=True
             )
             return str(string)
+
+    @staticmethod
+    def convSize2UnitIgn(size, isInt=False, unit=None):
+        return str(size)
 
     @staticmethod
     def convSize2Unit(size, isInt=False, unit=None):
@@ -29293,6 +29297,9 @@ Examples:
     - {3:1} {2:2} with fastest initialization
         # {0:1} {1:1} -q FASTINIT
 
+    - {3:1} {2:2} without size-unit converting
+        # {0:1} {1:1} -q NOSIZEUNIT
+
     - {3:1} threads context-switched more than 5000 after sorting by context switch
         # {0:1} {1:1} -S C:5000
         # {0:1} {1:1} -S C:5000 -q ORDERDESC
@@ -33248,6 +33255,9 @@ Examples:
     - {2:1} summary from specific files
         # {0:1} {1:1} "./*.dlt" -q PRINTSUMMARY
 
+    - {2:1} with the file name
+        # {0:1} {1:1} "./*.dlt" -q PRINTFILENAME
+
     - {2:1} including specific words
         # {0:1} {1:1} -g test
 
@@ -33667,8 +33677,8 @@ Examples:
     - Execute commands with range variables
         # {0:1} {1:1} -I "touch FILE" -c FILE:1:100:0.1
 
-    - Execute commands with file variables for a directory
-        # {0:1} {1:1} -I "ls -lha FILE" -c FILE:/data
+    - Execute commands with file variables
+        # {0:1} {1:1} -I "ls -lha FILE" -c FILE:"/data/*"
 
     - Execute commands with environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
@@ -33683,7 +33693,7 @@ Examples:
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
     - {2:1} with the memory limitation using cgroup
-        # {0:1} {1:1} -q LIMITMEM:50M
+        # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
                     """.format(
                         cmd, mode, "Execute a command"
                     )
@@ -40358,6 +40368,10 @@ Copyright:
         if "STDLOG" in SysMgr.environList:
             options = SysMgr.environList["STDLOG"][0]
             SysMgr.loggingEnable = _setLogger(options)
+
+        # ignore size unit converting #
+        if "NOSIZEUNIT" in SysMgr.environList:
+            UtilMgr.convSize2Unit = UtilMgr.convSize2UnitIgn
 
         convSize2Unit = UtilMgr.convSize2Unit
         convUnit2Size = UtilMgr.convUnit2Size
@@ -52392,9 +52406,9 @@ Copyright:
                     except:
                         SysMgr.printErr("failed to execute '%s'" % tcmd, True)
                         sys.exit(-1)
-            elif len(item) == 2 and os.path.isdir(item[1]):
+            elif len(item) == 2:
                 key = item[0]
-                flist = UtilMgr.getFiles(item[1], incDir=True)
+                flist = UtilMgr.getFileList([item[1]], exceptDir=True)
                 for item in flist:
                     try:
                         tcmd = cmd.replace(key, item)
@@ -57687,9 +57701,11 @@ Copyright:
                     self.networkInfo[dev]["rdiff"] = []
 
                     for idx, val in enumerate(rlist):
-                        self.networkInfo[dev]["rdiff"].append(
-                            val - self.networkInfo[dev]["recv"][idx]
-                        )
+                        if SysMgr.totalEnable:
+                            rdiff = val
+                        else:
+                            rdiff = val - self.networkInfo[dev]["recv"][idx]
+                        self.networkInfo[dev]["rdiff"].append(rdiff)
                 else:
                     self.networkInfo[dev]["initrecv"] = rlist
 
@@ -57702,9 +57718,11 @@ Copyright:
                     self.networkInfo[dev]["tdiff"] = []
 
                     for idx, val in enumerate(tlist):
-                        self.networkInfo[dev]["tdiff"].append(
-                            val - self.networkInfo[dev]["tran"][idx]
-                        )
+                        if SysMgr.totalEnable:
+                            tdiff = val
+                        else:
+                            tdiff = val - self.networkInfo[dev]["tran"][idx]
+                        self.networkInfo[dev]["tdiff"].append(tdiff)
                 else:
                     self.networkInfo[dev]["inittran"] = tlist
 
@@ -58056,20 +58074,25 @@ Copyright:
                         if mp["major"] == major and mp["minor"] == minor:
                             dev = name
 
-                # define shortcut variable of this device info #
+                # define shortcut variables for this device info #
                 beforeInfo = self.diskInfo["prev"][dev]
                 afterInfo = self.diskInfo["next"][dev]
 
-                # get interval load of this device #
-                read = (
-                    long(afterInfo["sectorRead"])
-                    - long(beforeInfo["sectorRead"])
-                ) >> 11
+                # get interval I/O of this device #
+                if SysMgr.totalEnable:
+                    read = long(afterInfo["sectorRead"]) >> 11
 
-                write = (
-                    long(afterInfo["sectorWrite"])
-                    - long(beforeInfo["sectorWrite"])
-                ) >> 11
+                    write = long(afterInfo["sectorWrite"]) >> 11
+                else:
+                    read = (
+                        long(afterInfo["sectorRead"])
+                        - long(beforeInfo["sectorRead"])
+                    ) >> 11
+
+                    write = (
+                        long(afterInfo["sectorWrite"])
+                        - long(beforeInfo["sectorWrite"])
+                    ) >> 11
 
                 load = long(afterInfo["sectorRead"]) + long(
                     afterInfo["sectorWrite"]
@@ -58080,7 +58103,7 @@ Copyright:
                 iotime = long(afterInfo["ioTime"])
                 iowtime = long(afterInfo["ioWTime"])
 
-                # save recent stat #
+                # save recent stats #
                 storageData[key]["read"] = read
                 storageData[key]["write"] = write
                 storageData[key]["load"] = load
@@ -58095,7 +58118,7 @@ Copyright:
             except:
                 pass
 
-            # get device stat #
+            # get device stats #
             try:
                 if hasattr(os, "statvfs"):
                     stat = os.statvfs(val["path"])
@@ -62345,7 +62368,15 @@ class DltAnalyzer(object):
 
     @staticmethod
     def handleMessage(
-        dltObj, msg, buf, mode, verb, buffered=False, cond=None, since=0
+        dltObj,
+        msg,
+        buf,
+        mode,
+        verb,
+        buffered=False,
+        cond=None,
+        since=0,
+        fname=None,
     ):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
@@ -62437,6 +62468,10 @@ class DltAnalyzer(object):
             output = (
                 "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}"
             ).format(ntime, timeUs, uptime, ecuId, apId, ctxId, level, string)
+
+            if fname:
+                fname = UtilMgr.convColor("[%s] " % fname, "YELLOW")
+                output = fname + output
 
             # print log #
             if buffered:
@@ -63227,6 +63262,12 @@ class DltAnalyzer(object):
                 printMode = mode
                 action = "printing"
 
+            # set print filename flag #
+            if "PRINTFILENAME" in SysMgr.environList:
+                printName = True
+            else:
+                printName = False
+
             for path in flist:
                 # get file size #
                 fsize = UtilMgr.getFileSizeStr(path)
@@ -63308,7 +63349,13 @@ class DltAnalyzer(object):
 
                     # print message #
                     DltAnalyzer.handleMessage(
-                        dltObj, dltFile.msg, buf, printMode, verb, buffered
+                        dltObj,
+                        dltFile.msg,
+                        buf,
+                        printMode,
+                        verb,
+                        buffered,
+                        fname=pathOrig if printName else None,
                     )
 
                 # free file object #
@@ -64920,6 +64967,12 @@ typedef struct {
                     SysMgr.bufferString, flush=True, newline=newline
                 )
 
+                if self.bufferedStr:
+                    SysMgr.printPipe(
+                        self.bufferedStr, flush=True, newline=newline
+                    )
+                    self.bufferedStr = ""
+
             SysMgr.clearPrint()
 
         def _printCmdErr(cmdset, cmd):
@@ -65007,72 +65060,73 @@ typedef struct {
             return prevTime, prevCpu, prevMem, prevIo
 
         def _printDiff(prevTime, prevCpu, prevMem, prevIo):
-            # get next stats and print diff of stats #
-            if Debugger.envFlags["PRINTDIFF"]:
-                # time diff #
-                diff = time.time() - prevTime
+            # time diff #
+            diff = time.time() - prevTime
 
-                # CPU diff #
-                afterCpu = self.getTotalCpuTick()
-                cpu = afterCpu[0] - prevCpu[0]
-                if cpu:
-                    cpu = "+%d" % cpu
+            # CPU diff #
+            afterCpu = self.getTotalCpuTick()
+            cpu = afterCpu[0] - prevCpu[0]
+            if cpu:
+                cpu = "+%d" % cpu
 
-                prevMem = SysMgr.convMemStat(prevMem)
-                afterMem = SysMgr.getMemStat(self.pid)
-                afterMem = SysMgr.convMemStat(afterMem)
+            prevMem = SysMgr.convMemStat(prevMem)
+            afterMem = SysMgr.getMemStat(self.pid)
+            afterMem = SysMgr.convMemStat(afterMem)
 
-                # VSS diff #
-                vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
-                if vss != "0" and not vss.startswith("-"):
-                    vss = "+" + vss
+            # VSS diff #
+            vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
+            if vss != "0" and not vss.startswith("-"):
+                vss = "+" + vss
 
-                # RSS diff #
-                rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
-                if rss != "0" and not rss.startswith("-"):
-                    rss = "+" + rss
+            # RSS diff #
+            rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
+            if rss != "0" and not rss.startswith("-"):
+                rss = "+" + rss
 
-                # I/O diff #
-                readIo = writeIo = 0
-                if prevIo:
+            # I/O diff #
+            readIo = writeIo = 0
+            if prevIo:
 
-                    def _getIoStats(iodata):
-                        ioStats = {}
-                        for line in iodata.split("\n"):
-                            # get stats #
-                            ios = line.split()
-                            if len(ios) != 2:
-                                continue
+                def _getIoStats(iodata):
+                    ioStats = {}
+                    for line in iodata.split("\n"):
+                        # get stats #
+                        ios = line.split()
+                        if len(ios) != 2:
+                            continue
 
-                            # check stats #
-                            name, val = ios
-                            if not name in ("read_bytes:", "write_bytes:"):
-                                continue
+                        # check stats #
+                        name, val = ios
+                        if not name in ("read_bytes:", "write_bytes:"):
+                            continue
 
-                            ioStats[name[:-1]] = long(val)
-                        return ioStats
+                        ioStats[name[:-1]] = long(val)
+                    return ioStats
 
-                    afterIo = SysMgr.readFile(
-                        "%s/%s/io" % (SysMgr.procPath, self.pid)
-                    )
-                    if afterIo:
-                        beforeIoStats = _getIoStats(prevIo)
-                        afterIoStats = _getIoStats(afterIo)
-
-                        def _getIoDiff(name):
-                            diff = afterIoStats[name] - beforeIoStats[name]
-                            if diff:
-                                diff = "+%s" % UtilMgr.convSize2Unit(diff)
-                            return diff
-
-                        readIo = _getIoDiff("read_bytes")
-                        writeIo = _getIoDiff("write_bytes")
-
-                SysMgr.printWarn(
-                    "TIME: %.6f Sec, CPU: %s%%, VSS: %s, RSS: %s, READ: %s, WRITE: %s"
-                    % (diff, cpu, vss, rss, readIo, writeIo),
-                    True,
+                afterIo = SysMgr.readFile(
+                    "%s/%s/io" % (SysMgr.procPath, self.pid)
                 )
+                if afterIo:
+                    beforeIoStats = _getIoStats(prevIo)
+                    afterIoStats = _getIoStats(afterIo)
+
+                    def _getIoDiff(name):
+                        diff = afterIoStats[name] - beforeIoStats[name]
+                        if diff:
+                            diff = "+%s" % UtilMgr.convSize2Unit(diff)
+                        return diff
+
+                    readIo = _getIoDiff("read_bytes")
+                    writeIo = _getIoDiff("write_bytes")
+
+            self.bufferedStr += UtilMgr.convColor(
+                (
+                    "\n%s<stat> TIME: %.6f Sec, CPU: %s%%, VSS: %s, "
+                    "RSS: %s, READ: %s, WRITE: %s"
+                )
+                % (" " * 11, diff, cpu, vss, rss, readIo, writeIo),
+                "YELLOW",
+            )
 
         def _handleCmd(cmdset, cmd):
             repeat = True
@@ -75492,6 +75546,7 @@ typedef struct {
                 if self.cont(check=True) < 0:
                     sys.exit(-1)
         elif self.mode == "remote":
+            Debugger.envFlags["PRINTDIFF"] = True
             for _ in xrange(SysMgr.intervalEnable + 1):
                 self.runExecMode()
             SysMgr.printPipe()
@@ -108485,6 +108540,8 @@ class TaskAnalyzer(object):
             # skip total usage #
             if dev == "total":
                 continue
+            elif SysMgr.totalEnable:
+                pass
             elif value["total"] == 0:
                 continue
 
@@ -108498,9 +108555,13 @@ class TaskAnalyzer(object):
 
             # get readtime #
             try:
-                readtime = (
-                    value["readtime"] - prevStorageData[origDev]["readtime"]
-                )
+                if SysMgr.totalEnable:
+                    readtime = value["readtime"]
+                else:
+                    readtime = (
+                        value["readtime"]
+                        - prevStorageData[origDev]["readtime"]
+                    )
             except SystemExit:
                 sys.exit(0)
             except:
@@ -108508,9 +108569,13 @@ class TaskAnalyzer(object):
 
             # get writetime #
             try:
-                writetime = (
-                    value["writetime"] - prevStorageData[origDev]["writetime"]
-                )
+                if SysMgr.totalEnable:
+                    writetime = value["writetime"]
+                else:
+                    writetime = (
+                        value["writetime"]
+                        - prevStorageData[origDev]["writetime"]
+                    )
             except SystemExit:
                 sys.exit(0)
             except:
@@ -108518,9 +108583,14 @@ class TaskAnalyzer(object):
 
             # get busytime #
             try:
-                iotime = value["iotime"] - prevStorageData[origDev]["iotime"]
-
-                busyper = long(iotime / 10.0 / SysMgr.uptimeDiff)
+                if SysMgr.totalEnable:
+                    iotime = value["iotime"]
+                    busyper = long(iotime / 10.0 / SysMgr.uptime)
+                else:
+                    iotime = (
+                        value["iotime"] - prevStorageData[origDev]["iotime"]
+                    )
+                    busyper = long(iotime / 10.0 / SysMgr.uptimeDiff)
 
                 # convert color for storage busy rate #
                 busytime = "%3s%%" % busyper
@@ -108533,9 +108603,12 @@ class TaskAnalyzer(object):
 
             # get avq #
             try:
-                iowtime = (
-                    value["iowtime"] - prevStorageData[origDev]["iowtime"]
-                )
+                if SysMgr.totalEnable:
+                    iowtime = value["iowtime"]
+                else:
+                    iowtime = (
+                        value["iowtime"] - prevStorageData[origDev]["iowtime"]
+                    )
 
                 avq = "%.1f" % (iowtime / iotime)
             except SystemExit:
@@ -108545,7 +108618,11 @@ class TaskAnalyzer(object):
 
             # get read size on this interval #
             try:
-                readSize = value["read"] - prevStorageData[origDev]["read"]
+                if SysMgr.totalEnable:
+                    readSize = value["read"]
+                else:
+                    readSize = value["read"] - prevStorageData[origDev]["read"]
+
                 if readSize:
                     readSize = convSize2Unit(readSize << 20)
                     readSize = convColor(readSize, "CYAN", 7)
@@ -108556,7 +108633,13 @@ class TaskAnalyzer(object):
 
             # get write size on this interval #
             try:
-                writeSize = value["write"] - prevStorageData[origDev]["write"]
+                if SysMgr.totalEnable:
+                    writeSize = value["write"]
+                else:
+                    writeSize = (
+                        value["write"] - prevStorageData[origDev]["write"]
+                    )
+
                 if writeSize:
                     writeSize = convSize2Unit(writeSize << 20)
                     writeSize = convColor(writeSize, "CYAN", 7)
