@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220701"
+__revision__ = "220703"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7318,7 +7318,8 @@ var fontsize = 12;
 var fontwidth = 0.59;
 var xpad = 10;
 var inverted = true;
-var searchcolor = 'rgb(230,0,230)';
+var searchcolor = 'rgb(255,0,0)';
+var searchstroke = 'rgb(0,0,0)';
 var fluiddrawing = true;
 var truncate_text_right = true;]]>
                 <![CDATA["use strict";
@@ -7633,6 +7634,7 @@ function reset_search() {
     var el = document.querySelectorAll("#frames rect");
     for (var i = 0; i < el.length; i++) {
         orig_load(el[i], "fill")
+        el[i].setAttribute("stroke-width", "0")
     }
     var params = get_params();
     delete params.s;
@@ -7677,7 +7679,9 @@ function search(term) {
             // highlight
             var x = parseFloat(rect.attributes.x.value);
             orig_save(rect, "fill");
-            rect.attributes.fill.value = searchcolor;
+            rect.setAttribute("fill", searchcolor);
+            rect.setAttribute("stroke", searchstroke);
+            rect.setAttribute("stroke-width", "3");
             // remember matches
             if (matches[x] == undefined) {
                 matches[x] = w;
