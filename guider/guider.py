@@ -29817,7 +29817,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
     - {3:1} {7:1} except for DWARF table of specific files
-        # {0:1} {1:1} a.out -q EXCEPTDWARF:"*deno"
+        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
 
     - {3:1} and their injection info {7:1}
         # {0:1} {1:1} -g a.out -q TRACEBP
@@ -29828,7 +29828,7 @@ Examples:
     - {3:1} and print context combined both entry and exit
         # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
 
-    - {3:1} for 4th and 5th new threads in each new processes from a specific binary
+    - {3:1} for 4th and 5th new threads in each new processes {8:1}
         # {0:1} {1:1} a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -q TARGETNUM:4, TARGETNUM:5
 
@@ -29836,7 +29836,7 @@ Examples:
         # {0:1} {1:1} "ls" -eD
         # {0:1} {1:1} -I "ls" -eD
 
-    - {3:1} from a specific binary with specific environment variables
+    - {3:1} {8:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
         # {0:1} {1:1} a.out -q ENVPROC:systemd
@@ -30858,13 +30858,13 @@ Examples:
     - Monitor only failed syscalls {3:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - {2:1} from a specific binary and print standard output for child tasks
+    - {2:1} {4:1} and print standard output for child tasks
         # {0:1} {1:1} a.out -q NOMUTE
 
-    - {2:1} excluding specific environment variable
+    - {2:1} {4:1} excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
 
-    - {2:1} using merged symbols
+    - {2:1} {4:1} using merged symbols
         # {0:1} {1:1} a.out -q ALLSYM
 
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -30903,11 +30903,11 @@ Examples:
     - {2:1} {3:1} after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - {2:1} for 4th and 5th new threads in each new processes from a specific binary
+    - {2:1} for 4th and 5th new threads in each new processes {4:1}
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
-    - {2:1} for a specific binary execution with environment variables
+    - {2:1} {4:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
@@ -30917,7 +30917,11 @@ Examples:
 
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd, mode, "Monitor syscalls", "for specific threads"
+                        cmd,
+                        mode,
+                        "Monitor syscalls",
+                        "for specific threads",
+                        "from a specific binary",
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -31029,7 +31033,7 @@ Examples:
     - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
 
-    - {2:1} from a specific binary
+    - {2:1} {4:1}
         # {0:1} {1:1} a.out
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
@@ -31056,7 +31060,7 @@ Examples:
     - {2:1} without using previous sample cache {3:1}
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
 
-    - {2:1} and standard output from a specific binary
+    - {2:1} and standard output {4:1}
         # {0:1} {1:1} a.out -q NOMUTE
 
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -31064,35 +31068,35 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
-    - {2:1} from a specific binary excluding specific environment variable
+    - {2:1} {4:1} excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
 
-    - {2:1} {3:1} from a specific binary
+    - {2:1} {3:1} {4:1}
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
     - {2:1} for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
-    - {2:1} {3:1} (wait for new target if no task)
+    - {2:1} {3:1} (wait for new target if no task) {4:1}
         # {0:1} {1:1} a.out -g a.out -q WAITTASK
         # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
         # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {2:1} {3:1} even if the master tracer is terminated
+    - {2:1} {3:1} {4:1} even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - {2:1} except for wait status {3:1}
+    - {2:1} {4:1} except for wait status {3:1}
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
     - {2:1} {3:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - {2:1} for 4th and 5th new threads in each new processes from a specific binary
+    - {2:1} for 4th and 5th new threads in each new processes {4:1}
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
-    - {2:1} for a specific binary execution with environment variables
+    - {2:1} {4:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
@@ -31120,6 +31124,7 @@ Examples:
                         mode,
                         "Monitor kernel function calls",
                         "for specific threads",
+                        "from a specific binary",
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -31141,7 +31146,7 @@ Examples:
     - {3:1} {4:1}
         # {0:1} {1:1} -g a.out
 
-    - {3:1} from a specific binary
+    - {3:1} {5:1}
         # {0:1} {1:1} a.out
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
@@ -31197,7 +31202,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q DEBUGINFO -H
         # {0:1} {1:1} -g a.out -q DEBUGINFO:/usr/lib/libc.so
 
-    - {3:1} and standard output from a specific binary
+    - {3:1} and standard output {5:1}
         # {0:1} {1:1} a.out -q NOMUTE
 
     - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -31205,16 +31210,16 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
-    - {3:1} from a specific binary excluding specific environment variable
+    - {3:1} {5:1} excluding specific environment variable
         # {0:1} {1:1} a.out -q REMOVEENV:MAIL
 
     - {3:1} {4:1} with lazy cache loading
-        # {0:1} {1:1} a.out -q LAZYCACHE
+        # {0:1} {1:1} -g a.out -q LAZYCACHE
 
     - {3:1} {4:1} except for DWARF table of specific files
-        # {0:1} {1:1} a.out -q EXCEPTDWARF:"*deno"
+        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
 
-    - {3:1} {4:1} from a specific binary
+    - {3:1} {4:1} {5:1}
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
@@ -31222,33 +31227,36 @@ Examples:
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
     - {3:1} {4:1} (wait for new target if no task)
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {3:1} {4:1} even if the master tracer is terminated
+    - {3:1} {4:1} even if the master tracer is terminated {5:1}
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - {3:1} except for wait status {4:1}
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+    - {3:1} except for samples for wait status {4:1}
+        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
+
+    - {3:1} {4:1} after the target task awakened
+        # {0:1} {1:1} -g a.out -q WAITWAKEUP
 
     - {3:1} except for register info {4:1}
-        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOCONTEXT
 
     - {3:1} {4:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - {3:1} except for no symbol functions {4:1}
-        # {0:1} {1:1} a.out -g a.out -q ONLYSYM
+        # {0:1} {1:1} -g a.out -q ONLYSYM
 
     - {3:1} {4:1} after loading all symbols in stop status
-        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+        # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - {3:1} for 4th and 5th new threads in each new processes from a specific binary
+    - {3:1} for 4th and 5th new threads in each new processes {5:1}
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
 
-    - {3:1} for a specific binary execution with environment variables
+    - {3:1} {5:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG=libs, ENV:LD_DEBUG=bindings
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG=detail, ENV:LD_DEBUG=files
@@ -31303,6 +31311,7 @@ Examples:
                         jitProfStr,
                         "Monitor native function calls",
                         "for specific threads",
+                        "from a specific binary",
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -33684,7 +33693,7 @@ Examples:
     - Execute commands with file variables
         # {0:1} {1:1} -I "ls -lha FILE" -c FILE:"/data/*"
 
-    - Execute commands with environment variables
+    - Execute commands including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
 
@@ -48478,6 +48487,9 @@ Copyright:
 
             # wait for children tracers as their parent #
             if SysMgr.pid == parent:
+                # disable printing to file #
+                SysMgr.outPath = SysMgr.printFd = None
+
                 if isFinished:
                     SysMgr.termFlag = False
                     while 1:
@@ -48489,9 +48501,6 @@ Copyright:
                         SysMgr.updateChildList()
                         if SysMgr.isNoChild():
                             break
-
-                # disable printing to file #
-                SysMgr.outPath = SysMgr.printFd = None
 
                 # broadcast term signal to children and wait for them #
                 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -55352,17 +55361,12 @@ Copyright:
 
         while 1:
             # update child list #
-            tasks = set(SysMgr.getPidList())
-
-            # check terminated tasks #
-            termTasks = children - tasks
-            if termTasks == children:
+            children = children & set(SysMgr.getPidList())
+            if not children:
                 break
 
             # wait for task termination #
             try:
-                remainTasks = children - termTasks
-
                 # set timer for force termination for abnormal child tasks #
                 def _onAlarm(signum, frame):
                     SysMgr.termCnt += 1
@@ -55370,7 +55374,7 @@ Copyright:
                         signal.SIGINT
                         if SysMgr.termCnt < 5
                         else signal.SIGKILL,
-                        remainTasks,
+                        children,
                         verb=False,
                     )
 
@@ -55379,7 +55383,7 @@ Copyright:
                 signal.alarm(3)
 
                 # wait for termination for child tasks #
-                watchList = ["/proc/%s/comm" % tid for tid in remainTasks]
+                watchList = ["/proc/%s/comm" % tid for tid in children]
                 SysMgr.inotify(watchList)
             except SystemExit:
                 sys.exit(0)
@@ -55391,7 +55395,10 @@ Copyright:
             for pid in children:
                 if SysMgr.isAlive(pid):
                     aliveChildren.append(pid)
-            chidlren = aliveChildren
+            children = set(aliveChildren)
+
+        # disable alarm #
+        signal.alarm(0)
 
     @staticmethod
     def removeExitFunc(func, args=None):
@@ -55411,8 +55418,12 @@ Copyright:
         if not hasattr(SysMgr, "exitFuncList"):
             return
 
+        # clear exit handler list #
         exitList = SysMgr.exitFuncList
         SysMgr.exitFuncList = []
+
+        # block signals #
+        SysMgr.setIgnoreSignal()
 
         # call functions registered #
         for func, args in exitList:
@@ -63732,6 +63743,7 @@ class Debugger(object):
         "TIMELINE": False,
         "TRACEBP": False,
         "WAITCLONE": False,
+        "WAITWAKEUP": False,
     }
 
     def getSigStruct(self):
@@ -75529,6 +75541,18 @@ typedef struct {
                 sys.exit(-1)
         elif self.mode in ("sample", "pycall"):
             self.cmd = None
+
+            # set syscall command to wait for wakeup #
+            if self.isRunning and Debugger.envFlags["WAITWAKEUP"]:
+                SysMgr.printInfo(
+                    "start waiting for %s(%s) awakened" % (self.comm, self.pid)
+                )
+                # sleep for syscall wakeup #
+                self.ptrace(self.syscallCmd)
+                self.waitpid()
+
+                self.ptrace(self.syscallCmd)
+                self.waitpid()
         elif self.isBreakMode:
             if self.isRunning:
                 # register breakpoint data #
@@ -110517,9 +110541,7 @@ class TaskAnalyzer(object):
                 execStr = "Exec: %s(%.1f%%)" % (convTime(execTime), execPer)
                 waitStr = "Wait: %s(%.1f%%)" % (convTime(waitTime), waitPer)
                 sliceStr = "NrTimeslice: %s" % convNum(value["nrSlice"])
-
                 schedStr = "%s / %s / %s" % (execStr, waitStr, sliceStr)
-
                 SysMgr.addPrint("{0:>39} | {1:1}\n".format("SCHED", schedStr))
 
             # print delay #
