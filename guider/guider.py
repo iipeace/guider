@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220703"
+__revision__ = "220705"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20585,21 +20585,15 @@ class FileAnalyzer(object):
         SysMgr.setMaxFd()
 
         # set specific file #
-        targetFiles = []
+        targetFiles = SysMgr.customCmd
         if SysMgr.customCmd:
             SysMgr.printInfo(
                 "start checking specific files related to [ %s ]"
                 % ", ".join(SysMgr.customCmd)
             )
 
-            fdList = []
+            # get specific file list #
             convList = UtilMgr.getFileList(SysMgr.customCmd)
-            if not convList:
-                SysMgr.printErr(
-                    "no file related to [ %s ]" % ", ".join(SysMgr.customCmd)
-                )
-                sys.exit(-1)
-
             for fname in convList:
                 try:
                     if os.path.isdir(fname):
@@ -20608,13 +20602,14 @@ class FileAnalyzer(object):
                         ):
                             targetFiles.append(os.path.abspath(subfname))
                     elif os.path.isfile(fname):
-                        fdList.append(open(fname, "r"))
+                        SysMgr.getFd(fname)
                         targetFiles.append(os.path.abspath(fname))
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr("failed to open '%s'" % fname, reason=True)
                     sys.exit(-1)
+        targetFiles = set(targetFiles)
 
         # handle no target case #
         if SysMgr.filterGroup:
@@ -21822,8 +21817,10 @@ class FileAnalyzer(object):
         for pid in pids:
             try:
                 # skip myself #
-                if SysMgr.pid == long(pid):
+                if SysMgr.pid == long(pid) and not SysMgr.customCmd:
                     continue
+            except SystemExit:
+                sys.exit(0)
             except:
                 continue
 
@@ -21955,6 +21952,9 @@ class FileAnalyzer(object):
                     self.procData[pid]["tids"][ttid]["comm"] = SysMgr.getComm(
                         ttid
                     )
+
+        # remove myself from list #
+        self.procData.pop(str(SysMgr.pid), None)
 
     def fillFileMaps(self):
         self.profPageCnt = 0
@@ -27899,6 +27899,19 @@ Commands:
             if not pickle:
                 return None
         return pickle
+
+    @staticmethod
+    def invalidateFile(path):
+        try:
+            with open(path, "br") as f:
+                fd = f.fileno()
+                os.posix_fadvise(
+                    fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED
+                )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to invalidate '%s'" % path, True)
 
     @staticmethod
     def isAlive(tid):
@@ -48642,10 +48655,48 @@ Copyright:
                 except:
                     addrList.append(long(addr))
 
+        def _printRes(procInfo, resInfo, maxSymLen):
+            if procInfo:
+                procInfo = " [Task: %s]" % procInfo
+
+            # make space between symbol and path #
+            maxSymLen += 4
+
+            SysMgr.printPipe("\n[Address Info]%s\n%s" % (procInfo, twoLine))
+            SysMgr.printPipe(
+                "{0:<18} {1:<18} {2:<{maxSymLen}} {3:<1}\n{4:1}".format(
+                    menu1st,
+                    menu2nd,
+                    "Symbol",
+                    "File",
+                    twoLine,
+                    maxSymLen=maxSymLen,
+                )
+            )
+
+            # print symbols from offset list #
+            for addr, val in resInfo.items():
+                SysMgr.printPipe(
+                    "{0:<18} {1:18} {2:<{maxSymLen}} {3:<1}".format(
+                        hex(addr).rstrip("L"),
+                        val[2],
+                        val[0],
+                        val[1],
+                        maxSymLen=maxSymLen,
+                    )
+                )
+
+            if not resInfo:
+                SysMgr.printPipe("\tNone")
+
+            SysMgr.printPipe(oneLine + "\n")
+
+        # init variables #
         resInfo = {}
         menu1st = "Offset"
         menu2nd = "Address"
         maxSymLen = 5
+        procInfo = ""
 
         # get pid list #
         pids = SysMgr.getTids(inputArg)
@@ -48653,7 +48704,6 @@ Copyright:
         for tid in pids:
             taskList.append(SysMgr.getTgid(tid))
         pids = list(set(taskList))
-        procInfo = ""
 
         # files #
         if not pids:
@@ -48700,76 +48750,43 @@ Copyright:
                         sys.exit(0)
                     except:
                         resInfo[addr] = ["??", filePath, "N/A"]
-        # multiple process #
-        elif len(pids) > 1:
-            SysMgr.printErr(
-                (
-                    "failed to select a unique process because "
-                    "[ %s ] are found"
-                )
-                % SysMgr.getCommList(pids)
-            )
-            sys.exit(-1)
-        # a single process #
+
+            # print result #
+            _printRes(procInfo, resInfo, maxSymLen)
         else:
-            pid = pids[0]
-            comm = SysMgr.getComm(pid)
-            procInfo = "%s(%s)" % (comm, pid)
+            for pid in pids:
+                # init variables #
+                resInfo = {}
+                maxSymLen = 5
+                comm = SysMgr.getComm(pid)
+                procInfo = "%s(%s)" % (comm, pid)
 
-            try:
-                dobj = Debugger(pid=pid, attach=False)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to analyze %s" % procInfo, True)
-                sys.exit(-1)
-
-            for addr in addrList:
-                ret = dobj.getSymbolInfo(addr, onlyFunc=False, onlyExec=False)
-                if not ret:
+                try:
+                    dobj = Debugger(pid=pid, attach=False)
+                except SystemExit:
+                    sys.exit(0)
+                except:
                     SysMgr.printErr("failed to analyze %s" % procInfo, True)
-                    sys.exit(-1)
-                elif type(ret) is list:
-                    resInfo[addr] = [ret[0], ret[1], ret[2]]
-                    if maxSymLen < len(ret[0]) < SysMgr.ttyCols / 2:
-                        maxSymLen = len(ret[0])
-                else:
-                    resInfo[addr] = ["??", "??", "N/A"]
+                    continue
 
-        if procInfo:
-            procInfo = " [Task: %s]" % procInfo
+                for addr in addrList:
+                    ret = dobj.getSymbolInfo(
+                        addr, onlyFunc=False, onlyExec=False
+                    )
+                    if not ret:
+                        SysMgr.printErr(
+                            "failed to analyze %s" % procInfo, True
+                        )
+                        continue
+                    elif type(ret) is list:
+                        resInfo[addr] = [ret[0], ret[1], ret[2]]
+                        if maxSymLen < len(ret[0]) < SysMgr.ttyCols / 2:
+                            maxSymLen = len(ret[0])
+                    else:
+                        resInfo[addr] = ["??", "??", "N/A"]
 
-        # make space between symbol and path #
-        maxSymLen += 4
-
-        SysMgr.printPipe("\n[Address Info]%s\n%s" % (procInfo, twoLine))
-        SysMgr.printPipe(
-            "{0:<18} {1:<18} {2:<{maxSymLen}} {3:<1}\n{4:1}".format(
-                menu1st,
-                menu2nd,
-                "Symbol",
-                "File",
-                twoLine,
-                maxSymLen=maxSymLen,
-            )
-        )
-
-        # print symbols from offset list #
-        for addr, val in resInfo.items():
-            SysMgr.printPipe(
-                "{0:<18} {1:18} {2:<{maxSymLen}} {3:<1}".format(
-                    hex(addr).rstrip("L"),
-                    val[2],
-                    val[0],
-                    val[1],
-                    maxSymLen=maxSymLen,
-                )
-            )
-
-        if not resInfo:
-            SysMgr.printPipe("\tNone")
-
-        SysMgr.printPipe(oneLine + "\n")
+                # print result #
+                _printRes(procInfo, resInfo, maxSymLen)
 
     @staticmethod
     def printDirs(path=".", maxLevel=-1, retVal=False):
@@ -49761,6 +49778,52 @@ Copyright:
                 % ",".join(SysMgr.filterGroup)
             )
 
+        def _printRes(procInfo, resInfo, maxSymLen):
+            if procInfo:
+                procInfo = " [Task: %s]" % procInfo
+
+            # make space between symbol and path #
+            maxSymLen += 4
+
+            SysMgr.printPipe("\n[Symbol Info]%s\n%s" % (procInfo, twoLine))
+            SysMgr.printPipe(
+                "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}\n{4:1}".format(
+                    "Symbol",
+                    "Offset",
+                    "Address",
+                    "PATH",
+                    twoLine,
+                    maxSymLen=maxSymLen,
+                )
+            )
+
+            # print symbols from offset list #
+            for sym, val in sorted(resInfo.items()):
+                symbol = sym.split("|")[0]
+                offset, filePath, addr, origsym = val
+
+                if offset is None:
+                    offset = "N/A"
+
+                if addr is None:
+                    addr = "N/A"
+
+                SysMgr.printPipe(
+                    "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}".format(
+                        symbol,
+                        offset.rstrip("L"),
+                        addr.rstrip("L"),
+                        filePath,
+                        maxSymLen=maxSymLen,
+                    )
+                )
+
+            if not resInfo:
+                SysMgr.printPipe("\tNone")
+
+            SysMgr.printPipe(oneLine + "\n")
+
+        # init variables #
         resInfo = {}
         maxSymLen = 5
 
@@ -49810,72 +49873,26 @@ Copyright:
                     except:
                         SysMgr.printErr("failed to get '%s' info" % sym, True)
                         sys.exit(-1)
-        # multiple process #
-        elif len(pids) > 1:
-            SysMgr.printErr(
-                (
-                    "failed to select a unique process because "
-                    "[ %s ] are found"
-                )
-                % SysMgr.getCommList(pids)
-            )
-            sys.exit(-1)
-        # a single process #
+
+            # print result #
+            _printRes(procInfo, resInfo, maxSymLen)
         else:
-            pid = pids[0]
-            comm = SysMgr.getComm(pid)
-            procInfo = "%s(%s)" % (comm, pid)
-            symbolList = SysMgr.filterGroup
+            for pid in pids:
+                # init variables #
+                resInfo = {}
+                maxSymLen = 5
+                comm = SysMgr.getComm(pid)
+                procInfo = "%s(%s)" % (comm, pid)
+                symbolList = SysMgr.filterGroup
 
-            # get symbol offset #
-            resInfo = SysMgr.getProcAddrBySymbol(pid, symbolList)
-            for key, item in resInfo.items():
-                if maxSymLen < len(item[3]) < SysMgr.ttyCols / 2:
-                    maxSymLen = len(item[3])
+                # get symbol offset #
+                resInfo = SysMgr.getProcAddrBySymbol(pid, symbolList)
+                for key, item in resInfo.items():
+                    if maxSymLen < len(item[3]) < SysMgr.ttyCols / 2:
+                        maxSymLen = len(item[3])
 
-        if procInfo:
-            procInfo = " [Task: %s]" % procInfo
-
-        # make space between symbol and path #
-        maxSymLen += 4
-
-        SysMgr.printPipe("\n[Symbol Info]%s\n%s" % (procInfo, twoLine))
-        SysMgr.printPipe(
-            "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}\n{4:1}".format(
-                "Symbol",
-                "Offset",
-                "Address",
-                "PATH",
-                twoLine,
-                maxSymLen=maxSymLen,
-            )
-        )
-
-        # print symbols from offset list #
-        for sym, val in sorted(resInfo.items()):
-            symbol = sym.split("|")[0]
-            offset, filePath, addr, origsym = val
-
-            if offset is None:
-                offset = "N/A"
-
-            if addr is None:
-                addr = "N/A"
-
-            SysMgr.printPipe(
-                "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}".format(
-                    symbol,
-                    offset.rstrip("L"),
-                    addr.rstrip("L"),
-                    filePath,
-                    maxSymLen=maxSymLen,
-                )
-            )
-
-        if not resInfo:
-            SysMgr.printPipe("\tNone")
-
-        SysMgr.printPipe(oneLine + "\n")
+                # print result #
+                _printRes(procInfo, resInfo, maxSymLen)
 
     @staticmethod
     def initTaskMon(pid, update=True):
