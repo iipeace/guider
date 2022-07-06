@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220705"
+__revision__ = "220706"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6031,7 +6031,7 @@ class UtilMgr(object):
                 )
                 outputPath = os.path.join(outputPath, outputFileName)
             elif suffix:
-                dirName = os.path.dirname(os.path.abspath(inputPath))
+                dirName = os.path.dirname(os.path.realpath(inputPath))
                 fileName = "%s_%s.svg" % (
                     os.path.splitext(os.path.basename(inputPath))[0],
                     name,
@@ -6040,7 +6040,7 @@ class UtilMgr(object):
         else:
             outputPath = UtilMgr.prepareForImageFile(inputPath, name)
 
-        return os.path.abspath(outputPath)
+        return os.path.realpath(outputPath)
 
     @staticmethod
     def printSyscalls(systable):
@@ -6152,7 +6152,7 @@ class UtilMgr(object):
 
         for r, d, f in os.walk(path):
             # get full path for upper dir #
-            fdir = os.path.abspath(r)
+            fdir = os.path.realpath(r)
             if not FileAnalyzer.isValidFile(fdir):
                 continue
 
@@ -20179,7 +20179,7 @@ class LeakAnalyzer(object):
             inputFile = SysMgr.inputFile
         else:
             inputFile = "guider.out"
-        inputFile = os.path.abspath(inputFile)
+        inputFile = os.path.realpath(inputFile)
         SysMgr.printStat(r"start drawing flamegraph...")
         Debugger.drawFlame(inputFile, stackList, titleStr, suffix=True)
 
@@ -20585,7 +20585,16 @@ class FileAnalyzer(object):
         SysMgr.setMaxFd()
 
         # set specific file #
-        targetFiles = SysMgr.customCmd
+        targetFiles = []
+
+        # convert target path to abspath #
+        for item in SysMgr.customCmd:
+            if "*" in item:
+                continue
+            path = os.path.realpath(item)
+            targetFiles.append(path)
+
+        # convert target path to realpath #
         if SysMgr.customCmd:
             SysMgr.printInfo(
                 "start checking specific files related to [ %s ]"
@@ -20600,10 +20609,11 @@ class FileAnalyzer(object):
                         for subfname in UtilMgr.getFiles(
                             fname, recursive=SysMgr.recursionEnable
                         ):
-                            targetFiles.append(os.path.abspath(subfname))
+                            SysMgr.getFd(subfname)
+                            targetFiles.append(os.path.realpath(subfname))
                     elif os.path.isfile(fname):
                         SysMgr.getFd(fname)
-                        targetFiles.append(os.path.abspath(fname))
+                        targetFiles.append(os.path.realpath(fname))
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -21300,7 +21310,7 @@ class FileAnalyzer(object):
                 sys.exit(-1)
 
             # get full path #
-            fpath = os.path.abspath(item)
+            fpath = os.path.realpath(item)
             if not os.path.exists(fpath):
                 SysMgr.printWarn(
                     (
@@ -21436,7 +21446,7 @@ class FileAnalyzer(object):
                 raPath = "readahead.list"
 
             # convert to absolute path #
-            raPath = os.path.abspath(raPath)
+            raPath = os.path.realpath(raPath)
 
             # set inode scan flag #
             if not "CONVINODE" in SysMgr.environList:
@@ -21467,7 +21477,7 @@ class FileAnalyzer(object):
         if "RAALLOWLIST" in SysMgr.environList:
             # get list file #
             try:
-                fname = os.path.abspath(SysMgr.environList["RAALLOWLIST"][0])
+                fname = os.path.realpath(SysMgr.environList["RAALLOWLIST"][0])
 
                 SysMgr.printInfo(
                     "apply readahead target list from '%s'" % fname
@@ -21487,7 +21497,7 @@ class FileAnalyzer(object):
         if "RADENYLIST" in SysMgr.environList:
             # get list file #
             try:
-                fname = os.path.abspath(SysMgr.environList["RADENYLIST"][0])
+                fname = os.path.realpath(SysMgr.environList["RADENYLIST"][0])
 
                 SysMgr.printInfo(
                     "apply readahead exception list from '%s'" % fname
@@ -21507,7 +21517,7 @@ class FileAnalyzer(object):
         if "RAADDLIST" in SysMgr.environList:
             # get list file #
             try:
-                fname = os.path.abspath(SysMgr.environList["RAADDLIST"][0])
+                fname = os.path.realpath(SysMgr.environList["RAADDLIST"][0])
 
                 SysMgr.printInfo("apply readahead add list from '%s'" % fname)
 
@@ -21953,9 +21963,6 @@ class FileAnalyzer(object):
                         ttid
                     )
 
-        # remove myself from list #
-        self.procData.pop(str(SysMgr.pid), None)
-
     def fillFileMaps(self):
         self.profPageCnt = 0
 
@@ -21984,6 +21991,7 @@ class FileAnalyzer(object):
                 val["pageCnt"] += mapInfo["pageCnt"]
 
     def mergeFileMapInfo(self, filterList=[]):
+        myPid = str(SysMgr.pid)
         for pid, val in self.procData.items():
             for fileName, scope in val["procMap"].items():
                 # check file filter #
@@ -22011,7 +22019,7 @@ class FileAnalyzer(object):
                 # add pid into file info #
                 if not self.fileData[fileName]["pids"]:
                     self.fileData[fileName]["pids"] = {}
-                if not pid in self.fileData[fileName]["pids"]:
+                if not pid in self.fileData[fileName]["pids"] and pid != myPid:
                     self.fileData[fileName]["pids"][pid] = val["comm"]
 
     def getFilePageMaps(self):
@@ -25185,8 +25193,8 @@ Commands:
                     "mounted %s on '%s' to '%s'%s successfully"
                     % (
                         value[2],
-                        os.path.abspath(value[0]),
-                        os.path.abspath(value[1]),
+                        os.path.realpath(value[0]),
+                        os.path.realpath(value[1]),
                         flagStr,
                     )
                 )
@@ -25253,7 +25261,7 @@ Commands:
             if ret == 0:
                 SysMgr.printInfo(
                     "unmounted '%s'%s successfully"
-                    % (os.path.abspath(value[0]), flagStr)
+                    % (os.path.realpath(value[0]), flagStr)
                 )
             else:
                 errReason = SysMgr.getErrReason()
@@ -25688,17 +25696,19 @@ Commands:
             return False
 
     @staticmethod
-    def limitMemory(pid, size):
+    def limitMemory(pid, attrs):
         # check root permission #
         SysMgr.checkRootPerm(msg="limit memory usage using cgroup")
 
         # set commands for memory size #
-        cmds = [
-            "CREATE:memory:guider_{0:1}:{0:1}".format(pid),
-            "WRITE:memory:guider_{0:1}:{1:1}@memory.limit_in_bytes".format(
-                pid, size
-            ),
-        ]
+        cmds = ["CREATE:memory:guider_{0:1}:{0:1}".format(pid)]
+
+        for item in attrs:
+            cmds.append(
+                "WRITE:memory:guider_{0:1}:{2:1}@memory.{1:1}".format(
+                    pid, item[0], item[1]
+                ),
+            )
 
         # execute commands to limit memory #
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
@@ -27429,7 +27439,7 @@ Commands:
             os.path.join(sys.prefix, "local/guider"),
             "/usr/share/guider",
         ]:
-            fullPath = os.path.abspath(os.path.join(path, "guider.conf"))
+            fullPath = os.path.realpath(os.path.join(path, "guider.conf"))
             if os.path.exists(fullPath):
                 SysMgr.confFileName = fullPath
                 break
@@ -27442,7 +27452,7 @@ Commands:
     @staticmethod
     def loadConfig(fname, verb=True):
         try:
-            fname = os.path.abspath(fname)
+            fname = os.path.realpath(fname)
 
             targetList = []
             fd = None
@@ -27550,7 +27560,7 @@ Commands:
 
     @staticmethod
     def getPyPath():
-        return os.path.abspath(__file__)
+        return os.path.realpath(__file__)
 
     @staticmethod
     def getCmdline(pid, retList=False):
@@ -27901,13 +27911,20 @@ Commands:
         return pickle
 
     @staticmethod
-    def invalidateFile(path):
+    def invalidateFile(path=None, fd=None):
         try:
-            with open(path, "br") as f:
+            if path:
+                f = open(path, "br")
                 fd = f.fileno()
-                os.posix_fadvise(
-                    fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED
+            elif not fd:
+                SysMgr.printErr(
+                    "failed to invalidate file because neither path nor fd"
                 )
+                sys.exit(0)
+
+            os.posix_fadvise(
+                fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED
+            )
         except SystemExit:
             sys.exit(0)
         except:
@@ -28073,7 +28090,7 @@ Commands:
             for item in os.listdir(nodePath):
                 path = os.path.join(nodePath, item)
                 if os.path.islink(path):
-                    path = os.path.abspath(
+                    path = os.path.realpath(
                         os.path.join(nodePath, os.readlink(path))
                     )
                 self.devNodeInfo[item] = path
@@ -28387,12 +28404,11 @@ Commands:
             items = UtilMgr.convPath(fpath, warn=False)
             for path in items:
                 try:
-                    path = os.path.abspath(path)
-                    rpath = os.readlink(path)
+                    rpath = os.path.realpath(path)
                     if not rpath.startswith("/"):
                         dirname = os.path.dirname(path)
                         rpath = os.path.join(dirname, rpath)
-                        rpath = os.path.abspath(rpath)
+                        rpath = os.path.realpath(rpath)
 
                     if exflag:
                         rpath = "^" + rpath
@@ -33720,6 +33736,7 @@ Examples:
 
     - {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
+        # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M, LIMITMEM:swappiness:10
                     """.format(
                         cmd, mode, "Execute a command"
                     )
@@ -37828,7 +37845,7 @@ Copyright:
     def saveTraceData(lines, outputFile=None):
         if not outputFile:
             outputFile = SysMgr.outputFile
-        outputFile = os.path.abspath(outputFile)
+        outputFile = os.path.realpath(outputFile)
 
         # backup file already exists #
         SysMgr.backupFile(outputFile)
@@ -39438,7 +39455,7 @@ Copyright:
         if not SysMgr.inputFile:
             return
 
-        SysMgr.inputFile = os.path.abspath(SysMgr.inputFile)
+        SysMgr.inputFile = os.path.realpath(SysMgr.inputFile)
 
         # check device node #
         if SysMgr.inputFile.startswith("/dev/"):
@@ -39989,12 +40006,12 @@ Copyright:
 
     @staticmethod
     def printOpenErr(path, reason=True):
-        SysMgr.printErr("failed to open '%s'" % os.path.abspath(path), reason)
+        SysMgr.printErr("failed to open '%s'" % os.path.realpath(path), reason)
 
     @staticmethod
     def printOpenWarn(path, always=False, reason=True):
         SysMgr.printWarn(
-            "failed to open '%s'" % os.path.abspath(path), always, reason
+            "failed to open '%s'" % os.path.realpath(path), always, reason
         )
 
     @staticmethod
@@ -40466,17 +40483,37 @@ Copyright:
         # set memory limit #
         if "LIMITMEM" in SysMgr.environList:
             try:
-                size = convUnit2Size(SysMgr.environList["LIMITMEM"][0])
-                SysMgr.printInfo(
-                    "limit process memory to [%s]" % convSize2Unit(size)
-                )
+                attrs = []
+
+                for item in SysMgr.environList["LIMITMEM"]:
+                    values = item.split(":")
+
+                    if len(values) == 1:
+                        name = "limit_in_bytes"
+                        val = convUnit2Size(values[0])
+                    elif len(values) == 2:
+                        name, val = values
+                        val = convUnit2Size(val)
+                    else:
+                        SysMgr.printErr(
+                            "failed to parse '%s' to limit memory" % item
+                        )
+                        sys.exit(-1)
+
+                    attrs.append([name, val])
+
+                    SysMgr.printInfo(
+                        "limit memory '%s' to [%s]"
+                        % (name, convSize2Unit(val))
+                    )
+
+                # set the limited memory size for myself #
+                SysMgr.limitMemory(SysMgr.pid, attrs)
             except SystemExit:
                 sys.exit(0)
             except:
+                SysMgr.printErr("failed to apply memory limit values", True)
                 sys.exit(-1)
-
-            # set the limited memory size for myself #
-            SysMgr.limitMemory(SysMgr.pid, size)
 
         # define threshold list #
         varList = [
@@ -40544,7 +40581,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("wrong path '%s'" % os.path.abspath(value), True)
+            SysMgr.printErr("wrong path '%s'" % os.path.realpath(value), True)
             sys.exit(-1)
 
         # remove double slashes #
@@ -41333,9 +41370,9 @@ Copyright:
         elif option == "C":
             if not ConfigMgr.confData:
                 if value:
-                    SysMgr.confFileName = os.path.abspath(value)
+                    SysMgr.confFileName = os.path.realpath(value)
                 else:
-                    SysMgr.confFileName = os.path.abspath(SysMgr.confFileName)
+                    SysMgr.confFileName = os.path.realpath(SysMgr.confFileName)
 
                 # load configuration #
                 ret = SysMgr.loadConfig(SysMgr.confFileName)
@@ -43534,7 +43571,7 @@ Copyright:
                 )
 
         # get absolute path #
-        path = os.path.abspath(path)
+        path = os.path.realpath(path)
         SysMgr.printInfo("start readahead from '%s'" % path)
         startTime = time.time()
 
@@ -48794,7 +48831,7 @@ Copyright:
             # get subdir #
             try:
                 fileList = os.listdir(parentPath)
-                parentAbsPath = "%s" % (os.path.abspath(parentPath))
+                parentAbsPath = "%s" % (os.path.realpath(parentPath))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -48834,7 +48871,7 @@ Copyright:
 
                 fullPath = os.path.join(parentPath, subPath)
 
-                subAbsPath = os.path.abspath(fullPath)
+                subAbsPath = os.path.realpath(fullPath)
 
                 if os.path.isdir(fullPath):
                     totalDir += 1
@@ -49256,7 +49293,7 @@ Copyright:
             sizeFilter = None
 
         # print start directory #
-        abspath = os.path.abspath(path)
+        abspath = os.path.realpath(path)
 
         if not retVal:
             SysMgr.printStat(r"start traversing dirs from '%s'..." % abspath)
@@ -49504,7 +49541,7 @@ Copyright:
                     pass
 
                 # set path #
-                pathList = [path, os.path.dirname(os.path.abspath(path))]
+                pathList = [path, os.path.dirname(os.path.realpath(path))]
 
                 # set flags #
                 flags = [
@@ -50092,13 +50129,13 @@ Copyright:
 
             # get dir name #
             if SysMgr.inputParam:
-                dirname = os.path.abspath(SysMgr.inputParam)
+                dirname = os.path.realpath(SysMgr.inputParam)
                 if not os.path.isdir(dirname):
                     fname = dirname
             elif os.path.exists(SysMgr.tmpPath):
                 dirname = SysMgr.tmpPath
             elif SysMgr.isWritable("."):
-                dirname = os.path.abspath(".")
+                dirname = os.path.realpath(".")
             else:
                 SysMgr.printErr("no input for temporary file path")
                 sys.exit(-1)
@@ -50205,7 +50242,7 @@ Copyright:
                     sys.exit(-1)
                 else:
                     # convert to absolute path #
-                    libPath = os.path.abspath(newPath[0])
+                    libPath = os.path.realpath(newPath[0])
 
                     # override LD_PRELOAD value #
                     if "LD_PRELOAD" in os.environ:
@@ -50350,7 +50387,7 @@ Copyright:
                     sys.exit(-1)
 
                 # convert to absolute path #
-                libPath = os.path.abspath(newPath[0])
+                libPath = os.path.realpath(newPath[0])
 
                 remoteCmd.append("load:%s" % libPath)
 
@@ -55525,7 +55562,7 @@ Copyright:
 
             SysMgr.printInfo(
                 "finish saving all results into '%s'%s successfully"
-                % (os.path.abspath(SysMgr.printFd.name), fsize)
+                % (os.path.realpath(SysMgr.printFd.name), fsize)
             )
 
             # close fd for output #
@@ -56370,7 +56407,7 @@ Copyright:
             if SysMgr.outputFile:
                 SysMgr.saveCmd = "cat %s_pipe >> %s\n" % (
                     SysMgr.inputFile,
-                    os.path.abspath(SysMgr.outputFile),
+                    os.path.realpath(SysMgr.outputFile),
                 )
 
         # stop tracing #
@@ -56400,7 +56437,7 @@ Copyright:
 
         # write command #
         if SysMgr.cmdEnable is not False and SysMgr.cmdFd:
-            outputPath = os.path.abspath(SysMgr.outputFile)
+            outputPath = os.path.realpath(SysMgr.outputFile)
 
             # remove exist file #
             try:
@@ -67505,7 +67542,7 @@ typedef struct {
 
             # convert path #
             if not path.startswith("/"):
-                current = os.path.abspath(".")
+                current = os.path.realpath(".")
                 path = "%s/%s" % (current, path)
 
             # check file #
@@ -80792,7 +80829,7 @@ class ElfAnalyzer(object):
 
         # update absolute path #
         try:
-            abspath = os.path.abspath(fd.name)
+            abspath = os.path.realpath(fd.name)
             if os.path.exists(abspath):
                 self.path = abspath
         except:
@@ -94868,7 +94905,9 @@ class TaskAnalyzer(object):
         if inodeFilter and "CONVINODE" in SysMgr.environList:
             # get scan dir #
             if not "SET" in SysMgr.environList["CONVINODE"]:
-                targetDir = os.path.abspath(SysMgr.environList["CONVINODE"][0])
+                targetDir = os.path.realpath(
+                    SysMgr.environList["CONVINODE"][0]
+                )
                 # check dir #
                 if not os.path.isdir(targetDir):
                     SysMgr.printErr(
@@ -108045,7 +108084,7 @@ class TaskAnalyzer(object):
         colorList = ["Active", "Inactive", "Cached"]
 
         for name, value in sorted(self.memData.items()):
-            if not value or name.startswith("Mem") or name.startswith("Swap"):
+            if not value:
                 continue
 
             size = UtilMgr.convSize2Unit(value << 10)
@@ -108056,7 +108095,8 @@ class TaskAnalyzer(object):
                 databuf += "%s]\n" % curline.rstrip(", ")
                 curline = str(edata)
 
-            if name in colorList:
+            # set color #
+            if name in colorList or name.endswith("Free"):
                 item = "%-15s %7s" % (
                     "%s:" % name,
                     UtilMgr.convColor(size, "YELLOW", 7),
@@ -111372,7 +111412,7 @@ class TaskAnalyzer(object):
                 return None
 
             # convert path #
-            path = os.path.abspath(path)
+            path = os.path.realpath(path)
 
             # terminate event handling tasks #
             if SysMgr.eventCommandList:
@@ -113540,14 +113580,14 @@ class TaskAnalyzer(object):
         if "EXITCONDFILE" in SysMgr.environList:
             for fpath in SysMgr.environList["EXITCONDFILE"]:
                 if os.path.isfile(fpath):
-                    SysMgr.printInfo("'%s' is found" % os.path.abspath(fpath))
+                    SysMgr.printInfo("'%s' is found" % os.path.realpath(fpath))
                     sys.exit(0)
 
         # removed files #
         if "EXITCONDNOFILE" in SysMgr.environList:
             for fpath in SysMgr.environList["EXITCONDNOFILE"]:
                 if not os.path.isfile(fpath):
-                    SysMgr.printInfo("no '%s'" % os.path.abspath(fpath))
+                    SysMgr.printInfo("no '%s'" % os.path.realpath(fpath))
                     sys.exit(0)
 
         # check functions #
