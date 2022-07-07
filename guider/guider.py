@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220706"
+__revision__ = "220707"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28682,63 +28682,62 @@ Commands:
     @staticmethod
     def checkEnv():
         def _checkMode():
-            if (
-                len(sys.argv) > 1
-                and not SysMgr.checkMode("addr2sym")
-                and not SysMgr.checkMode("bgtop")
-                and not SysMgr.checkMode("cli")
-                and not SysMgr.checkMode("comp")
-                and not SysMgr.checkMode("convert")
-                and not SysMgr.checkMode("cputest")
-                and not SysMgr.checkMode("ctop")
-                and not SysMgr.checkMode("decomp")
-                and not SysMgr.checkMode("disktop")
-                and not (
-                    SysMgr.checkMode("dlttop")
-                    and (SysMgr.isLinux or SysMgr.isDarwin)
-                )
-                and not SysMgr.checkMode("drawreq")
-                and not SysMgr.checkMode("exec")
-                and not (
-                    SysMgr.checkMode("ftop")
-                    and (SysMgr.isLinux or SysMgr.isDarwin)
-                )
-                and not SysMgr.checkMode("iotest")
-                and not (
-                    SysMgr.checkMode("kill")
-                    and (SysMgr.isLinux or SysMgr.isDarwin)
-                )
-                and not SysMgr.checkMode("list")
-                and not SysMgr.checkMode("mkcache")
-                and not SysMgr.checkMode("ntop")
-                and not SysMgr.checkMode("ping")
-                and not SysMgr.checkMode("print")
-                and not SysMgr.checkMode("printdir")
-                and not (
-                    SysMgr.checkMode("printdlt")
-                    and (SysMgr.isLinux or SysMgr.isDarwin)
-                )
-                and not SysMgr.checkMode("printext")
-                and not SysMgr.checkMode("pstree")
-                and not SysMgr.checkMode("readelf")
-                and not SysMgr.checkMode("report")
-                and not SysMgr.checkMode("req")
-                and not SysMgr.checkMode("rtop")
-                and not (
-                    SysMgr.checkMode("server")
-                    and (SysMgr.isLinux or SysMgr.isDarwin)
-                )
-                and not SysMgr.checkMode("strings")
-                and not SysMgr.checkMode("sym2addr")
-                and not SysMgr.checkMode("tail")
-                and not SysMgr.checkMode("top")
-                and not SysMgr.checkMode("topdiff")
-                and not SysMgr.checkMode("topsum")
-                and not SysMgr.isDrawMode()
-                and not SysMgr.isHelpMode()
+            # check args #
+            if len(sys.argv) == 1:
+                return True
+
+            # get command #
+            cmd = sys.argv[1]
+
+            # common commands for all OS #
+            if cmd in (
+                "addr2sym",
+                "bgtop",
+                "cli",
+                "comp",
+                "convert",
+                "cputest",
+                "ctop",
+                "decomp",
+                "disktop",
+                "drawreq",
+                "exec",
+                "flush",
+                "iotest",
+                "list",
+                "mkcache",
+                "ntop",
+                "ping",
+                "print",
+                "printdir",
+                "printext",
+                "pstree",
+                "readelf",
+                "report",
+                "req",
+                "rtop",
+                "strings",
+                "sym2addr",
+                "tail",
+                "top",
+                "topdiff",
+                "topsum",
             ):
-                return False
-            return True
+                return True
+            # only commands for MacOS #
+            elif SysMgr.isDarwin and cmd in (
+                "dlttop",
+                "ftop",
+                "kill",
+                "printdlt",
+                "server",
+            ):
+                return True
+            # specific commands for all OS #
+            elif SysMgr.isDrawMode() or SysMgr.isHelpMode():
+                return True
+
+            return False
 
         # Linux #
         if sys.platform.startswith("linux"):
@@ -28787,7 +28786,7 @@ Commands:
                 pass
             elif not _checkMode():
                 SysMgr.printErr(
-                    "'%s' command is not supported on '%s' platform now"
+                    "'%s' is not supported on '%s' platform"
                     % (sys.argv[1], sys.platform)
                 )
                 sys.exit(-1)
@@ -28808,7 +28807,7 @@ Commands:
                 pass
             elif not _checkMode():
                 SysMgr.printErr(
-                    "'%s' command is not supported on '%s' platform now"
+                    "'%s' is not supported on '%s' platform"
                     % (sys.argv[1], sys.platform)
                 )
                 sys.exit(-1)
@@ -28816,9 +28815,7 @@ Commands:
             # set color flag #
             SysMgr.colorEnable = True
         else:
-            SysMgr.printErr(
-                "'%s' platform is not supported now" % sys.platform
-            )
+            SysMgr.printErr("'%s' platform is not supported" % sys.platform)
             sys.exit(-1)
 
         # check locale #
@@ -34925,6 +34922,40 @@ Examples:
         # {0:1} {1:1} -I udp, udp, udp
                     """.format(
                         cmd, mode
+                    )
+
+                # flush #
+                elif SysMgr.checkMode("flush"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Flush specific file pages on memory
+
+Options:
+    -i  <SEC>                   set interval
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Flush all caches on memory
+        # {0:1} {1:1}
+        # {0:1} {1:1} 1 (page caches)
+        # {0:1} {1:1} 2 (slab caches)
+        # {0:1} {1:1} 3 (both caches)
+
+    - Flush specific file pages for the file
+        # {0:1} {1:1} ./TEST
+
+    - Flush specific file pages for the file every 3 seconds
+        # {0:1} {1:1} ./TEST -i 3
+                    """.format(
+                        cmd,
+                        mode,
                     )
 
                 # list #
@@ -42280,6 +42311,10 @@ Copyright:
             SysMgr.setStream(cut=False)
 
             SysMgr.doMemTest()
+
+        # FLUSH MODE #
+        elif SysMgr.checkMode("flush"):
+            SysMgr.doFlush()
 
         # EXEC MODE #
         elif SysMgr.checkMode("exec"):
@@ -50934,6 +50969,60 @@ Copyright:
             return None
 
     @staticmethod
+    def doFlush():
+        # check root permission #
+        SysMgr.checkRootPerm()
+
+        # get command #
+        if SysMgr.hasMainArg():
+            cmd = SysMgr.getMainArg()
+        elif SysMgr.filterGroup:
+            cmd = SysMgr.filterGroup
+        else:
+            cmd = None
+
+        if SysMgr.findOption("i"):
+            interval = SysMgr.intervalEnable
+        else:
+            interval = None
+
+        while 1:
+            # flush caches #
+            if not cmd:
+                SysMgr.dropCaches("3", verb=True)
+            elif cmd in ("1", "2", "3"):
+                SysMgr.dropCaches(cmd, verb=True)
+            else:
+                SysMgr.printInfo(
+                    "flush file caches for '%s'... " % os.path.realpath(cmd),
+                    suffix=False,
+                )
+                SysMgr.invalidateFile(cmd)
+
+            if interval is None:
+                break
+            else:
+                time.sleep(interval)
+
+    @staticmethod
+    def dropCaches(val, verb=False):
+        try:
+            dropCachePath = "%s/sys/vm/drop_caches" % SysMgr.procPath
+            with open(dropCachePath, "w") as fd:
+                if verb:
+                    SysMgr.printInfo(
+                        "start flushing system caches(%s)... " % val,
+                        suffix=False,
+                    )
+                ret = fd.write(val)
+                if verb:
+                    SysMgr.printInfo("[Done]", prefix=False, title=False)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to flush system cache", reason=True)
+
+    @staticmethod
     def doIoTest():
         # snapshot system info including mount #
         SysMgr()
@@ -50942,22 +51031,8 @@ Copyright:
         writeData = b"0" * 4096
 
         def _flushCache(verb=False):
-            try:
-                ret = SysMgr.checkRootPerm(exit=False, verb=False)
-                if not ret:
-                    raise Exception("no root permission")
-
-                dropCachePath = "%s/sys/vm/drop_caches" % SysMgr.procPath
-                with open(dropCachePath, "w") as fd:
-                    if verb:
-                        SysMgr.printInfo(
-                            "start flushing system cache... ", suffix=False
-                        )
-                    ret = fd.write("3")
-                    if verb:
-                        SysMgr.printInfo("[Done]", prefix=False, title=False)
-            except:
-                SysMgr.printWarn("fali to flush system cache", reason=True)
+            ret = SysMgr.checkRootPerm(verb=False)
+            SysMgr.dropCaches("3", verb)
 
         def _iotask(num, load):
             def _readChunk(fobj, chunk=4096):
@@ -55426,7 +55501,7 @@ Copyright:
                     SysMgr.termCnt += 1
                     SysMgr.sendSignalProcs(
                         signal.SIGINT
-                        if SysMgr.termCnt < 5
+                        if SysMgr.termCnt < 10
                         else signal.SIGKILL,
                         children,
                         verb=False,
@@ -69104,7 +69179,10 @@ typedef struct {
             inputName = "N/A"
             inputList = []
         elif type(inputFile) is list:
-            fileName = inputFile[0]
+            if SysMgr.outPath:
+                fileName = SysMgr.outPath
+            else:
+                fileName = "merged"
             inputName = ", ".join(inputFile)
             inputList = inputFile
         else:
