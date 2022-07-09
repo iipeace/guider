@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220707"
+__revision__ = "220709"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25469,6 +25469,29 @@ Commands:
         )
 
     @staticmethod
+    def madvise(addr, length, advise):
+        try:
+            # load libc #
+            ret = SysMgr.loadLibcObj()
+            if not ret:
+                raise Exception("no library")
+        except SystemExit:
+            sys.exit(0)
+        except:
+            sys.exit(-1)
+
+        # prlimit #
+        if not hasattr(SysMgr.libcObj, "madvise"):
+            SysMgr.printErr("no madvise in libc")
+            sys.exit(-1)
+
+        # define prototype #
+        SysMgr.libcObj.madvise.argtypes = (POINTER(None), c_size_t, c_int)
+        SysMgr.libcObj.madvise.restype = c_int
+
+        return SysMgr.libcObj.madvise(addr, length, advise)
+
+    @staticmethod
     def chRlimit(pid, rtype, slim, hlim):
         rtype = rtype.upper()
         if not rtype in ConfigMgr.RLIMIT_TYPE:
@@ -27911,7 +27934,7 @@ Commands:
         return pickle
 
     @staticmethod
-    def invalidateFile(path=None, fd=None):
+    def invalidateFile(path=None, fd=None, pos=0, size=0):
         try:
             if path:
                 f = open(path, "br")
@@ -27922,8 +27945,12 @@ Commands:
                 )
                 sys.exit(0)
 
+            # get whole file size #
+            if size == 0:
+                size = os.fstat(fd).st_size
+
             os.posix_fadvise(
-                fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED
+                fd, pos, size, os.POSIX_FADV_DONTNEED
             )
         except SystemExit:
             sys.exit(0)
@@ -29010,6 +29037,7 @@ Commands:
                 "decomp": ("Decompress", "Linux/MacOS/Windows"),
                 "dump": ("Memory", "Linux"),
                 "exec": ("Command", "Linux/MacOS/Windows"),
+                "flush": ("Memory", "Linux"),
                 "getafnt": ("Affinity", "Linux"),
                 "mkcache": ("Cache", "Linux/MacOS/Windows"),
                 "mount": ("Mount", "Linux"),
@@ -50553,6 +50581,7 @@ Copyright:
             )
 
         # check signal handler #
+        failCnt = 0
         while 1:
             # set environment command #
             if remoteCmd:
@@ -50571,9 +50600,13 @@ Copyright:
                 ret = FileAnalyzer.getMapFilePath(pid, "libleaktracer")
                 if not ret:
                     SysMgr.printErr(
-                        "failed to find libleaktracer.so on memory map"
+                        "failed to find '%s' on memory map" % libPath
                     )
-                    continue
+                    if failCnt > 3:
+                        sys.exit(-1)
+                    else:
+                        failCnt += 1
+                        continue
 
                 # get signal handler info #
                 if "status" in tobj.procData[pid]:
@@ -50995,7 +51028,6 @@ Copyright:
             else:
                 SysMgr.printInfo(
                     "flush file caches for '%s'... " % os.path.realpath(cmd),
-                    suffix=False,
                 )
                 SysMgr.invalidateFile(cmd)
 
