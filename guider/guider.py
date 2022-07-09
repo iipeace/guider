@@ -25719,17 +25719,79 @@ Commands:
             return False
 
     @staticmethod
-    def limitMemory(pid, attrs):
+    def limitBlock(pids, attrs, devices=[]):
+        if not pids:
+            return
+
+        # check root permission #
+        SysMgr.checkRootPerm(msg="limit block usage using cgroup")
+
+        # set device list for all #
+        if not devices:
+            # save diskstats #
+            SysMgr.updateDiskStats()
+
+            for line in SysMgr.diskStats:
+                try:
+                    devices.append(
+                        ":".join(line.split(sep=None, maxsplit=3)[:2])
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+        name = str(time.time()).split(".")[1]
+
+        # set commands for memory size #
+        cmds = ["CREATE:blkio:guider_{0:1}:{1:1}".format(name, pids[0])]
+
+        # set commands #
+        if len(pids) > 1:
+            for pid in pids[1:]:
+                cmds.append("ADD:blkio:guider_{0:1}:{1:1}".format(name, pid))
+
+        # set commands #
+        for item in attrs:
+            for dev in devices:
+                cmds.append(
+                    (
+                        "WRITE:blkio:guider_{0:1}:{3:1} {2:1}"
+                        "@blkio.throttle.{1:1}"
+                    ).format(
+                        name,
+                        item[0],
+                        item[1],
+                        dev,
+                    ),
+                )
+
+        # execute commands to limit memory #
+        SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
+
+    @staticmethod
+    def limitMemory(pids, attrs):
+        if not pids:
+            return
+
         # check root permission #
         SysMgr.checkRootPerm(msg="limit memory usage using cgroup")
 
-        # set commands for memory size #
-        cmds = ["CREATE:memory:guider_{0:1}:{0:1}".format(pid)]
+        name = str(time.time()).split(".")[1]
 
+        # set commands for memory size #
+        cmds = ["CREATE:memory:guider_{0:1}:{1:1}".format(name, pids[0])]
+
+        # set commands #
+        if len(pids) > 1:
+            for pid in pids[1:]:
+                cmds.append("ADD:memory:guider_{0:1}:{1:1}".format(name, pid))
+
+        # set commands #
         for item in attrs:
             cmds.append(
                 "WRITE:memory:guider_{0:1}:{2:1}@memory.{1:1}".format(
-                    pid, item[0], item[1]
+                    name, item[0], item[1]
                 ),
             )
 
@@ -25984,9 +26046,11 @@ Commands:
 
                 # print message #
                 SysMgr.printInfo(
-                    "added %s %s to '%s' cgroup"
+                    "added %s %s in total to '%s' cgroup"
                     % (convNum(len(targetTasks)), taskType, targetDir)
                 )
+
+                SysMgr.printWarn(SysMgr.getCommList(targetTasks))
 
                 tasks = targetTasks
             # REMOVE #
@@ -26014,6 +26078,8 @@ Commands:
                     "removed %s %s from '%s' cgroup"
                     % (convNum(len(tasks)), taskType, targetDir)
                 )
+
+                SysMgr.printWarn(SysMgr.getCommList(tasks))
 
             # sort targets #
             tasks = sorted(list(map(long, tasks)))
@@ -27949,9 +28015,7 @@ Commands:
             if size == 0:
                 size = os.fstat(fd).st_size
 
-            os.posix_fadvise(
-                fd, pos, size, os.POSIX_FADV_DONTNEED
-            )
+            os.posix_fadvise(fd, pos, size, os.POSIX_FADV_DONTNEED)
         except SystemExit:
             sys.exit(0)
         except:
@@ -29385,6 +29449,13 @@ Examples:
 
     - {3:1} {2:2} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
+        # {0:1} {1:1} -q LIMITMEM:50M, LIMITMEMPID:"*yes*|a.out"
+
+    - {3:1} {2:2} with the block I/O limitation using cgroup
+        # {0:1} {1:1} -q LIMITREAD:50M
+        # {0:1} {1:1} -q LIMITWRITE:50M
+        # {0:1} {1:1} -q LIMITREAD:50M, LIMITREADPID:"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITWRITE:50M, LIMITWRITEPID:"*yes*|a.out"
 
     - {3:1} {2:2} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
         # {0:1} {1:1} -o . -q NRKLOG:100
@@ -31456,6 +31527,13 @@ Examples:
 
     - {2:1} with threshold condition with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
+        # {0:1} {1:1} -q LIMITMEM:50M, LIMITMEMPID:"*yes*|a.out"
+
+    - {2:1} with threshold condition with the block I/O limitation using cgroup
+        # {0:1} {1:1} -q LIMITREAD:50M
+        # {0:1} {1:1} -q LIMITWRITE:50M
+        # {0:1} {1:1} -q LIMITREAD:50M, LIMITREADPID:"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITWRITE:50M, LIMITWRITEPID:"*yes*|a.out"
 
     - {2:1} with threshold condition and print the output of child tasks
         # {0:1} {1:1} -q NOMUTE
@@ -33762,6 +33840,13 @@ Examples:
     - {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M, LIMITMEM:swappiness:10
+        # {0:1} {1:1} -I "a.out" LIMITMEM:50M, LIMITMEMPID:"*yes*|a.out"
+
+    - {2:1} with the block I/O limitation using cgroup
+        # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M
+        # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M
+        # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M, LIMITREADPID:"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M, LIMITWRITEPID:"*yes*|a.out"
                     """.format(
                         cmd, mode, "Execute a command"
                     )
@@ -34918,6 +35003,7 @@ Examples:
         # {0:1} {1:1} write:TEST:100m
         # {0:1} {1:1} "write:TEST:100m, write:TEST2:50m"
         # {0:1} {1:1} -g write:TEST:100m
+        # {0:1} {1:1} write:TEST:100m -q SYNC
                     """.format(
                         cmd, mode
                     )
@@ -40566,12 +40652,105 @@ Copyright:
                         % (name, convSize2Unit(val))
                     )
 
-                # set the limited memory size for myself #
-                SysMgr.limitMemory(SysMgr.pid, attrs)
+                # get limit pids #
+                if "LIMITMEMPID" in SysMgr.environList:
+                    pids = []
+                    for item in SysMgr.environList["LIMITMEMPID"]:
+                        pidList = SysMgr.getTids(item, isThread=False)
+                        if not pidList:
+                            continue
+
+                        pids += pidList
+
+                        # set the limited memory size for targets #
+                        SysMgr.limitMemory(pidList, attrs)
+
+                    if not pids:
+                        SysMgr.printErr(
+                            "no task for '%s'"
+                            % ", ".join(SysMgr.environList["LIMITMEMPID"])
+                        )
+                        sys.exit(-1)
+                else:
+                    pids = [SysMgr.pid]
+
+                    # set the limited memory size for myself #
+                    SysMgr.limitMemory(pids, attrs)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr("failed to apply memory limit values", True)
+                sys.exit(-1)
+
+        # set memory limit #
+        if (
+            "LIMITREAD" in SysMgr.environList
+            or "LIMITWRITE" in SysMgr.environList
+        ):
+            try:
+                attrs = []
+
+                for item in ["LIMITREAD", "LIMITWRITE"]:
+                    if not item in SysMgr.environList:
+                        continue
+
+                    values = SysMgr.environList[item][0].split(":")
+
+                    if len(values) == 1:
+                        if item == "LIMITREAD":
+                            name = "read_bps_device"
+                        else:
+                            name = "write_bps_device"
+                        val = convUnit2Size(values[0])
+                    elif len(values) == 2:
+                        name, val = values
+                        val = convUnit2Size(val)
+                    else:
+                        SysMgr.printErr(
+                            "failed to parse '%s' to limit memory" % item
+                        )
+                        sys.exit(-1)
+
+                    attrs.append([name, val])
+
+                    SysMgr.printInfo(
+                        "limit block '%s' to [%s]" % (name, convSize2Unit(val))
+                    )
+
+                    # get limit pids #
+                    pids = []
+                    for target in ["LIMITREADPID", "LIMITWRITEPID"]:
+                        if not target in SysMgr.environList:
+                            continue
+                        elif not target.startswith(item):
+                            continue
+
+                        for vals in SysMgr.environList[target]:
+                            pidList = SysMgr.getTids(vals, isThread=False)
+                            if not pidList:
+                                continue
+
+                            pids += pidList
+
+                            # set the limited I/O size for targets #
+                            SysMgr.limitBlock(pidList, attrs)
+
+                        if not pids:
+                            SysMgr.printErr(
+                                "no task for '%s'"
+                                % ", ".join(SysMgr.environList["LIMITMEMPID"])
+                            )
+                            sys.exit(-1)
+
+                    if not pids:
+                        pids = [SysMgr.pid]
+
+                        # set the limited I/O size for myself #
+                        SysMgr.limitBlock(pids, attrs)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to apply block limit values", True)
                 sys.exit(-1)
 
         # define threshold list #
@@ -51067,12 +51246,12 @@ Copyright:
             SysMgr.dropCaches("3", verb)
 
         def _iotask(num, load):
-            def _readChunk(fobj, chunk=4096):
+            def _readChunk(fobj, chunk=4096, sync=False):
                 while 1:
                     ret = os.read(fobj, chunk)
                     yield ret
 
-            def _writeChunk(fobj, sync=False, chunk=4096):
+            def _writeChunk(fobj, chunk=4096, sync=False):
                 while 1:
                     ret = os.write(fobj, writeData[:chunk])
                     if sync:
@@ -51169,6 +51348,12 @@ Copyright:
                     % (op, loadStr, direct, path, fsize, conv(repeat))
                 )
 
+                # set sync flag #
+                if "SYNC" in SysMgr.environList:
+                    sync = True
+                else:
+                    sync = False
+
                 # run loop #
                 for seq in xrange(repeat):
                     sys.stdout.write(
@@ -51194,7 +51379,7 @@ Copyright:
                         try:
                             done = 0
                             fd = os.open(path, flag)
-                            for piece in opFunc(fd, chunk=chunk):
+                            for piece in opFunc(fd, chunk, sync):
                                 # update progress #
                                 if isinstance(piece, (int, long)):
                                     done += piece
@@ -51228,7 +51413,7 @@ Copyright:
                                     continue
 
                                 fd = os.open(fpath, flag)
-                                for piece in opFunc(fd, chunk=chunk):
+                                for piece in opFunc(fd, chunk, sync):
                                     if not piece:
                                         break
                                 os.close(fd)
