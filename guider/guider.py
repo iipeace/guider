@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220709"
+__revision__ = "220710"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25741,7 +25741,7 @@ Commands:
                 except:
                     pass
 
-        name = str(time.time()).split(".")[1]
+        name = str(time.time()).replace(".", "")
 
         # set commands for memory size #
         cmds = ["CREATE:blkio:guider_{0:1}:{1:1}".format(name, pids[0])]
@@ -25770,6 +25770,45 @@ Commands:
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
+    def limitCpu(pids, attrs):
+        if not pids:
+            return
+
+        # check root permission #
+        SysMgr.checkRootPerm(msg="limit cpu usage using cgroup")
+
+        name = str(time.time()).replace(".", "")
+
+        # set commands for CPU usage #
+        cmds = ["CREATE:cpu:guider_{0:1}:{1:1}".format(name, pids[0])]
+        cmds.append(
+            "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
+                name, "cfs_period_us", 1000000
+            )
+        )
+        cmds.append(
+            "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
+                name, "rt_period_us", 1000000
+            )
+        )
+
+        # set commands #
+        if len(pids) > 1:
+            for pid in pids[1:]:
+                cmds.append("ADD:cpu:guider_{0:1}:{1:1}".format(name, pid))
+
+        # set commands #
+        for item in attrs:
+            cmds.append(
+                "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
+                    name, item[0], item[1]
+                ),
+            )
+
+        # execute commands to limit memory #
+        SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
+
+    @staticmethod
     def limitMemory(pids, attrs):
         if not pids:
             return
@@ -25777,7 +25816,7 @@ Commands:
         # check root permission #
         SysMgr.checkRootPerm(msg="limit memory usage using cgroup")
 
-        name = str(time.time()).split(".")[1]
+        name = str(time.time()).replace(".", "")
 
         # set commands for memory size #
         cmds = ["CREATE:memory:guider_{0:1}:{1:1}".format(name, pids[0])]
@@ -29447,15 +29486,20 @@ Examples:
         # {0:1} {1:1} -q STDLOG:dkjs
         # {0:1} {1:1} -q OPSLOG:dkjs
 
+    - {3:1} {2:2} with the cpu limitation in ms unit using cgroup
+        # {0:1} {1:1} -q LIMITCPU:200
+        # {0:1} {1:1} -q LIMITCPU:200@"*yes*|a.out"
+
     - {3:1} {2:2} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
-        # {0:1} {1:1} -q LIMITMEM:50M, LIMITMEMPID:"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITMEM:50M@"*yes*|a.out"
 
     - {3:1} {2:2} with the block I/O limitation using cgroup
         # {0:1} {1:1} -q LIMITREAD:50M
         # {0:1} {1:1} -q LIMITWRITE:50M
-        # {0:1} {1:1} -q LIMITREAD:50M, LIMITREADPID:"*yes*|a.out"
-        # {0:1} {1:1} -q LIMITWRITE:50M, LIMITWRITEPID:"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITREAD:50M@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
     - {3:1} {2:2} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
         # {0:1} {1:1} -o . -q NRKLOG:100
@@ -31525,15 +31569,20 @@ Examples:
     - {2:1} after updating original threshold data from the specific file
         # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
 
+    - {2:1} with threshold condition with the cpu limitation in ms unit using cgroup
+        # {0:1} {1:1} -q LIMITCPU:200
+        # {0:1} {1:1} -q LIMITCPU:200@"*yes*|a.out"
+
     - {2:1} with threshold condition with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
-        # {0:1} {1:1} -q LIMITMEM:50M, LIMITMEMPID:"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITMEM:50M@"*yes*|a.out"
 
     - {2:1} with threshold condition with the block I/O limitation using cgroup
         # {0:1} {1:1} -q LIMITREAD:50M
         # {0:1} {1:1} -q LIMITWRITE:50M
-        # {0:1} {1:1} -q LIMITREAD:50M, LIMITREADPID:"*yes*|a.out"
-        # {0:1} {1:1} -q LIMITWRITE:50M, LIMITWRITEPID:"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITREAD:50M@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
     - {2:1} with threshold condition and print the output of child tasks
         # {0:1} {1:1} -q NOMUTE
@@ -33837,16 +33886,21 @@ Examples:
     - {2:1} after converting it using the config file
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
+    - {2:1} with the cpu limitation in ms unit using cgroup
+        # {0:1} {1:1} -q LIMITCPU:200
+        # {0:1} {1:1} -q LIMITCPU:200@"*yes*|a.out"
+
     - {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M, LIMITMEM:swappiness:10
-        # {0:1} {1:1} -I "a.out" LIMITMEM:50M, LIMITMEMPID:"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M@"*yes*|a.out"
 
     - {2:1} with the block I/O limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M
-        # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M, LIMITREADPID:"*yes*|a.out"
-        # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M, LIMITWRITEPID:"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M@"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
                     """.format(
                         cmd, mode, "Execute a command"
                     )
@@ -40625,133 +40679,90 @@ Copyright:
                 % ", ".join(SysMgr.environList["EXITCMD"])
             )
 
-        # set memory limit #
-        if "LIMITMEM" in SysMgr.environList:
-            try:
-                attrs = []
+        # limit resources #
+        try:
+            for item in ("LIMITCPU", "LIMITMEM", "LIMITREAD", "LIMITWRITE"):
+                if not item in SysMgr.environList:
+                    continue
 
-                for item in SysMgr.environList["LIMITMEM"]:
-                    values = item.split(":")
-
-                    if len(values) == 1:
-                        name = "limit_in_bytes"
-                        val = convUnit2Size(values[0])
-                    elif len(values) == 2:
-                        name, val = values
-                        val = convUnit2Size(val)
-                    else:
-                        SysMgr.printErr(
-                            "failed to parse '%s' to limit memory" % item
-                        )
-                        sys.exit(-1)
-
-                    attrs.append([name, val])
-
-                    SysMgr.printInfo(
-                        "limit memory '%s' to [%s]"
-                        % (name, convSize2Unit(val))
-                    )
-
-                # get limit pids #
-                if "LIMITMEMPID" in SysMgr.environList:
-                    pids = []
-                    for item in SysMgr.environList["LIMITMEMPID"]:
-                        pidList = SysMgr.getTids(item, isThread=False)
-                        if not pidList:
-                            continue
-
-                        pids += pidList
-
-                        # set the limited memory size for targets #
-                        SysMgr.limitMemory(pidList, attrs)
-
-                    if not pids:
-                        SysMgr.printErr(
-                            "no task for '%s'"
-                            % ", ".join(SysMgr.environList["LIMITMEMPID"])
-                        )
-                        sys.exit(-1)
+                # set values #
+                if item == "LIMITCPU":
+                    res = "cpu"
+                    name = "cfs_quota_us"
+                    func = SysMgr.limitCpu
+                elif item == "LIMITMEM":
+                    res = "memory"
+                    name = "limit_in_bytes"
+                    func = SysMgr.limitMemory
+                elif item == "LIMITREAD":
+                    res = "I/O read"
+                    name = "read_bps_device"
+                    func = SysMgr.limitBlock
+                elif item == "LIMITWRITE":
+                    res = "I/O write"
+                    name = "write_bps_device"
+                    func = SysMgr.limitBlock
                 else:
-                    pids = [SysMgr.pid]
+                    continue
 
-                    # set the limited memory size for myself #
-                    SysMgr.limitMemory(pids, attrs)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to apply memory limit values", True)
-                sys.exit(-1)
+                for limit in SysMgr.environList[item]:
+                    # get target info #
+                    limit = limit.split("@", 1)
+                    if len(limit) == 1:
+                        limit = limit[0]
+                        targets = []
+                    else:
+                        limit, targets = limit
 
-        # set memory limit #
-        if (
-            "LIMITREAD" in SysMgr.environList
-            or "LIMITWRITE" in SysMgr.environList
-        ):
-            try:
-                attrs = []
-
-                for item in ["LIMITREAD", "LIMITWRITE"]:
-                    if not item in SysMgr.environList:
-                        continue
-
-                    values = SysMgr.environList[item][0].split(":")
-
+                    # get limit info #
+                    values = limit.split(":")
                     if len(values) == 1:
-                        if item == "LIMITREAD":
-                            name = "read_bps_device"
-                        else:
-                            name = "write_bps_device"
                         val = convUnit2Size(values[0])
                     elif len(values) == 2:
                         name, val = values
                         val = convUnit2Size(val)
                     else:
                         SysMgr.printErr(
-                            "failed to parse '%s' to limit memory" % item
+                            "failed to parse '%s' to limit %s" % (item, res)
                         )
                         sys.exit(-1)
 
-                    attrs.append([name, val])
+                    # change us to ms #
+                    if item == "LIMITCPU":
+                        val = long(val) * 1000
+
+                    # set attributes #
+                    attrs = [[name, val]]
 
                     SysMgr.printInfo(
-                        "limit block '%s' to [%s]" % (name, convSize2Unit(val))
+                        "limit %s '%s' to [%s]"
+                        % (res, name, convSize2Unit(val))
                     )
 
                     # get limit pids #
-                    pids = []
-                    for target in ["LIMITREADPID", "LIMITWRITEPID"]:
-                        if not target in SysMgr.environList:
-                            continue
-                        elif not target.startswith(item):
-                            continue
-
-                        for vals in SysMgr.environList[target]:
-                            pidList = SysMgr.getTids(vals, isThread=False)
-                            if not pidList:
-                                continue
-
-                            pids += pidList
-
-                            # set the limited I/O size for targets #
-                            SysMgr.limitBlock(pidList, attrs)
-
+                    if targets:
+                        pids = SysMgr.getTids(
+                            targets,
+                            isThread=not SysMgr.processEnable,
+                            sibling=SysMgr.groupProcEnable,
+                        )
                         if not pids:
-                            SysMgr.printErr(
-                                "no task for '%s'"
-                                % ", ".join(SysMgr.environList["LIMITMEMPID"])
-                            )
-                            sys.exit(-1)
+                            continue
 
-                    if not pids:
-                        pids = [SysMgr.pid]
-
-                        # set the limited I/O size for myself #
-                        SysMgr.limitBlock(pids, attrs)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to apply block limit values", True)
-                sys.exit(-1)
+                        # set resource of specific tasks #
+                        if "EACHTASK" in SysMgr.environList:
+                            for pid in pids:
+                                func([pid], attrs)
+                        else:
+                            func(pids, attrs)
+                    else:
+                        # limit resource of mine #
+                        func([SysMgr.pid], attrs)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to apply %s limit values" % res, True)
+            sys.exit(-1)
 
         # define threshold list #
         varList = [
