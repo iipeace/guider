@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220711"
+__revision__ = "220712"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23625,7 +23625,7 @@ class SysMgr(object):
     perCoreDrawList = []
     childList = {}
     gpuMemGetters = None
-    pidFilter = None
+    pidFilter = ""
 
     cliCmdStr = """
 Commands:
@@ -27773,6 +27773,19 @@ Commands:
             )
 
         return 0
+
+    @staticmethod
+    def getPpid(pid):
+        statusPath = "%s/%s/status" % (SysMgr.procPath, pid)
+        try:
+            with open(statusPath, "r") as fd:
+                for line in fd.readlines():
+                    if line.startswith("PPid"):
+                        return line.split(":")[1].split()[0]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
 
     @staticmethod
     def getTgid(pid):
@@ -41660,10 +41673,6 @@ Copyright:
             SysMgr.printOptionWarn(option, value)
             SysMgr.runBackgroundMode()
 
-        elif option == "D":
-            SysMgr.printOptionWarn(option, value)
-            SysMgr.depEnable = True
-
     @staticmethod
     def isCommonOption(option):
         optionList = "ACEGHLQRWfoqsuz"
@@ -41942,6 +41951,10 @@ Copyright:
 
                 if "g" in options:
                     SysMgr.generalEnable = False
+
+            elif option == "D":
+                SysMgr.printOptionWarn(option, value)
+                SysMgr.depEnable = True
 
             # Ignore options #
             elif SysMgr.isValidOption(option):
@@ -54220,7 +54233,6 @@ Copyright:
             else:
                 return os.kill(pid, nrSig)
 
-        myPid = str(SysMgr.pid)
         SIG_LIST = ConfigMgr.SIG_LIST
         exceptList = list(map(long, exceptList))
 
@@ -54298,12 +54310,14 @@ Copyright:
             sys.exit(-1)
 
         # get pid list #
+        myPid = str(SysMgr.pid)
+        myPpid = str(os.getppid())
         pids = SysMgr.getPidList()
 
         # handle Guider processes #
         nrProc = 0
         for pid in pids:
-            if myPid == pid or not pid.isdigit():
+            if not pid.isdigit() or pid in (myPid, myPpid):
                 continue
 
             # check comm #
@@ -56092,6 +56106,8 @@ Copyright:
             SysMgr.printInfo(
                 "only specific processes [ %s ] are traced" % targetTasks
             )
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 "failed to add '%s' to PID filter" % params,
@@ -56262,10 +56278,8 @@ Copyright:
         SysMgr.writeTraceCmd("../saved_cmdlines_size", "32767")
 
         # set log format #
-        SysMgr.writeTraceCmd("../trace_options", "noirq-info")
-        SysMgr.writeTraceCmd("../trace_options", "noannotate")
-        SysMgr.writeTraceCmd("../trace_options", "print-tgid")
-        SysMgr.writeTraceCmd("../trace_options", "record-tgid")
+        for opt in ("noirq-info", "noannotate", "print-tgid", "record-tgid"):
+            SysMgr.writeTraceCmd("../trace_options", opt)
         SysMgr.writeTraceCmd("../current_tracer", "nop")
 
         SysMgr.printStat(
@@ -56296,7 +56310,7 @@ Copyright:
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        cmd = "%s%s" % (cmd, SysMgr.getPidFilter())
+                        pass
 
                     if not cmd:
                         raise Exception("no command")
@@ -56455,37 +56469,28 @@ Copyright:
 
                 # tid #
                 try:
-                    pid = long(comm)
-                    cmd = "%sprev_pid == %s || next_pid == %s || " % (
-                        cmd,
-                        pid,
-                        pid,
-                    )
+                    # just TID #
+                    if comm.isdigit():
+                        pid = long(comm)
+                        cmd = "%sprev_pid == %s || next_pid == %s || " % (
+                            cmd,
+                            pid,
+                            pid,
+                        )
+                    # TID bigger or lesser #
+                    elif comm.startswith(">") or comm.endswith("<"):
+                        cmd += "prev_pid >= %s || " % long(comm.strip("<>"))
+                        cmd += "next_pid >= %s || " % long(comm.strip("<>"))
+                    # PID bigger or lesser #
+                    elif comm.startswith("<") or comm.endswith(">"):
+                        cmd += "prev_pid <= %s || " % long(comm.strip("<>"))
+                        cmd += "next_pid <= %s || " % long(comm.strip("<>"))
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    try:
-                        ldir = comm.find(">")
-                        if ldir == 0:
-                            cmd += "prev_pid >= %s || " % long(comm[1:])
-                            cmd += "next_pid >= %s || " % long(comm[1:])
-                        elif ldir == len(comm) - 1:
-                            cmd += "prev_pid <= %s || " % long(comm[:-1])
-                            cmd += "next_pid <= %s || " % long(comm[:-1])
+                    pass
 
-                        rdir = comm.find("<")
-                        if rdir == 0:
-                            cmd += "prev_pid <= %s || " % long(comm[1:])
-                            cmd += "next_pid <= %s || " % long(comm[1:])
-                        elif rdir == len(comm) - 1:
-                            cmd += "prev_pid >= %s || " % long(comm[:-1])
-                            cmd += "next_pid >= %s || " % long(comm[:-1])
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-
-            cmd = cmd[0 : cmd.rfind("||")].strip()
+            cmd = cmd[: cmd.rfind("||")].strip()
             if SysMgr.writeTraceCmd("sched/sched_switch/filter", cmd) < 0:
                 SysMgr.printErr(
                     "failed to set filter [ %s ]"
@@ -56530,84 +56535,41 @@ Copyright:
 
         # events for dependency tracing #
         if SysMgr.depEnable:
-            ecmd = "(id == %s || id == %s" % (
-                SysMgr.getNrSyscall("sys_write"),
-                SysMgr.getNrSyscall("sys_futex"),
-            )
-            rcmd = "((id == %s || id == %s" % (
-                SysMgr.getNrSyscall("sys_write"),
-                SysMgr.getNrSyscall("sys_futex"),
-            )
+            ecmd = "("
+            rcmd = "(("
+
+            for syscall in ("sys_write", "sys_futex"):
+                ecmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
+                rcmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
 
             if SysMgr.arch == "arm":
-                ecmd = (
-                    "%s || id == %s || id == %s || id == %s || "
-                    "id == %s || id == %s || id == %s || id == %s)"
-                ) % (
-                    ecmd,
-                    SysMgr.getNrSyscall("sys_recv"),
-                    SysMgr.getNrSyscall("sys_epoll_wait"),
-                    SysMgr.getNrSyscall("sys_poll"),
-                    SysMgr.getNrSyscall("sys_select"),
-                    SysMgr.getNrSyscall("sys_recvfrom"),
-                    SysMgr.getNrSyscall("sys_recvmmsg"),
-                    SysMgr.getNrSyscall("sys_recvmsg"),
-                )
-                rcmd = (
-                    "%s || id == %s || id == %s || id == %s || "
-                    "id == %s || id == %s || id == %s || id == %s)"
-                    "&& ret > 0)"
-                ) % (
-                    rcmd,
-                    SysMgr.getNrSyscall("sys_recv"),
-                    SysMgr.getNrSyscall("sys_poll"),
-                    SysMgr.getNrSyscall("sys_epoll_wait"),
-                    SysMgr.getNrSyscall("sys_select"),
-                    SysMgr.getNrSyscall("sys_recvfrom"),
-                    SysMgr.getNrSyscall("sys_recvmmsg"),
-                    SysMgr.getNrSyscall("sys_recvmsg"),
+                syscallList = (
+                    "sys_recv",
+                    "sys_epoll_wait",
+                    "sys_poll",
+                    "sys_select",
+                    "sys_recvfrom",
+                    "sys_recvmmsg",
+                    "sys_recvmsg",
                 )
             elif SysMgr.arch == "aarch64":
-                ecmd = "%s || id == %s || id == %s || id == %s)" % (
-                    ecmd,
-                    SysMgr.getNrSyscall("sys_recvfrom"),
-                    SysMgr.getNrSyscall("sys_recvmmsg"),
-                    SysMgr.getNrSyscall("sys_recvmsg"),
-                )
-                rcmd = (
-                    "%s || id == %s || id == %s || id == %s) && ret > 0)"
-                    % (
-                        rcmd,
-                        SysMgr.getNrSyscall("sys_recvfrom"),
-                        SysMgr.getNrSyscall("sys_recvmmsg"),
-                        SysMgr.getNrSyscall("sys_recvmsg"),
-                    )
-                )
+                syscallList = ("sys_recvfrom", "sys_recvmmsg", "sys_recvmsg")
             else:
-                ecmd = (
-                    "%s || id == %s || id == %s || id == %s || "
-                    "id == %s || id == %s || id == %s)"
-                ) % (
-                    ecmd,
-                    SysMgr.getNrSyscall("sys_recvfrom"),
-                    SysMgr.getNrSyscall("sys_poll"),
-                    SysMgr.getNrSyscall("sys_epoll_wait"),
-                    SysMgr.getNrSyscall("sys_select"),
-                    SysMgr.getNrSyscall("sys_recvmmsg"),
-                    SysMgr.getNrSyscall("sys_recvmsg"),
+                syscallList = (
+                    "sys_epoll_wait",
+                    "sys_poll",
+                    "sys_select",
+                    "sys_recvfrom",
+                    "sys_recvmmsg",
+                    "sys_recvmsg",
                 )
-                rcmd = (
-                    "%s || id == %s || id == %s || id == %s || "
-                    "id == %s || id == %s || id == %s) && ret > 0)"
-                ) % (
-                    rcmd,
-                    SysMgr.getNrSyscall("sys_recvfrom"),
-                    SysMgr.getNrSyscall("sys_poll"),
-                    SysMgr.getNrSyscall("sys_epoll_wait"),
-                    SysMgr.getNrSyscall("sys_select"),
-                    SysMgr.getNrSyscall("sys_recvmmsg"),
-                    SysMgr.getNrSyscall("sys_recvmsg"),
-                )
+
+            for syscall in syscallList:
+                ecmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
+                rcmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
+
+            ecmd = ecmd.rstrip(" |") + ")"
+            rcmd = rcmd.rstrip(" |") + ") && ret > 0)"
 
             SysMgr.writeTraceCmd("raw_syscalls/sys_enter/filter", ecmd)
             SysMgr.writeTraceCmd("raw_syscalls/sys_exit/filter", rcmd)
@@ -92166,7 +92128,7 @@ class TaskAnalyzer(object):
                 "%s# WORKQUEUE(%s) / Total(%6.3f) / Cnt(%s)\n\n"
                 % ("", convNum(len(wqData)), totalUsage, convNum(totalCnt))
             )
-            SysMgr.doPrint()
+            SysMgr.doPrint(clear=True)
             SysMgr.printPipe(oneLine)
 
         # print interrupt information #
@@ -92252,7 +92214,7 @@ class TaskAnalyzer(object):
                     convNum(totalCnt),
                 )
             )
-            SysMgr.doPrint()
+            SysMgr.doPrint(clear=True)
             SysMgr.printPipe(oneLine)
 
     def printEventInfo(self):
@@ -93839,7 +93801,7 @@ class TaskAnalyzer(object):
         else:
             SysMgr.printPipe("%s" % oneLine)
 
-        SysMgr.doPrint()
+        SysMgr.doPrint(clear=True)
 
     def printDepInfo(self):
         if not SysMgr.depEnable:
@@ -93855,7 +93817,7 @@ class TaskAnalyzer(object):
         for icount in xrange(len(self.depData)):
             SysMgr.addPrint(self.depData[icount] + "\n")
 
-        SysMgr.doPrint()
+        SysMgr.doPrint(clear=True)
         SysMgr.printPipe(oneLine)
 
     def printFutexInfo(self):
@@ -94047,8 +94009,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe("%s\n%s" % (totalFutexInfo, oneLine))
 
             # print thread info #
-            SysMgr.doPrint()
-            SysMgr.clearPrint()
+            SysMgr.doPrint(clear=True)
 
         if not SysMgr.showAll:
             return
@@ -94636,8 +94597,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe("\n%s" % oneLine)
 
             # print thread info #
-            SysMgr.doPrint()
-            SysMgr.clearPrint()
+            SysMgr.doPrint(clear=True)
 
         if not SysMgr.showAll:
             return
@@ -95568,9 +95528,8 @@ class TaskAnalyzer(object):
                     )
 
                 SysMgr.printPipe("%s# %s\n" % ("", "%s(Cnt)" % idx))
-                SysMgr.doPrint()
+                SysMgr.doPrint(clear=True)
                 SysMgr.printPipe(oneLine)
-                SysMgr.clearPrint()
 
         # user event usage on timeline #
         SysMgr.clearPrint()
@@ -95653,9 +95612,8 @@ class TaskAnalyzer(object):
                     )
 
                 SysMgr.printPipe("%s# %s\n" % ("", "%s(Cnt)" % idx))
-                SysMgr.doPrint()
+                SysMgr.doPrint(clear=True)
                 SysMgr.printPipe(oneLine)
-                SysMgr.clearPrint()
 
         # kernel event usage on timeline #
         SysMgr.clearPrint()
@@ -95738,9 +95696,8 @@ class TaskAnalyzer(object):
                     )
 
                 SysMgr.printPipe("%s# %s\n" % ("", "%s(Cnt)" % idx))
-                SysMgr.doPrint()
+                SysMgr.doPrint(clear=True)
                 SysMgr.printPipe(oneLine)
-                SysMgr.clearPrint()
 
     def printIntervalInfo(self):
         # pylint: disable=undefined-variable
