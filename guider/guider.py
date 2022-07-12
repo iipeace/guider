@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220710"
+__revision__ = "220711"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28291,36 +28291,40 @@ Commands:
             return
 
     @staticmethod
-    def getPidFilter():
-        if not SysMgr.pidFilter:
-            cmd = ""
-            for cond in list(SysMgr.filterGroup):
-                try:
-                    cmd += "common_pid == %s || " % long(cond)
-                except:
-                    try:
-                        ldir = cond.find(">")
-                        if ldir == 0:
-                            cmd += "common_pid >= %s || " % long(cond[1:])
-                        elif ldir == len(cond) - 1:
-                            cmd += "common_pid <= %s || " % long(cond[:-1])
+    def getPidFilter(name="common_pid", comm=True, force=True):
+        if SysMgr.pidFilter and force:
+            return SysMgr.pidFilter
 
-                        rdir = cond.find("<")
-                        if rdir == 0:
-                            cmd += "common_pid <= %s || " % long(cond[1:])
-                        elif rdir == len(cond) - 1:
-                            cmd += "common_pid >= %s || " % long(cond[:-1])
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
+        cmd = ""
+        for cond in list(SysMgr.filterGroup):
+            try:
+                # add comm #
+                if comm:
+                    cmd += """%scomm == "*%s*" || """ % (cmd, cond)
 
-            if cmd != "":
-                cmd = "(" + cmd[: cmd.rfind("||")] + ")"
+                # just PID #
+                if cond.isdigit():
+                    cmd += "%s == %s || " % (name, long(cond))
+                # PID bigger or lesser #
+                elif cond.startswith(">") or cond.endswith("<"):
+                    cmd += "%s >= %s || " % (name, long(cond.strip("<>")))
+                    continue
+                # PID bigger or lesser #
+                elif cond.startswith("<") or cond.endswith(">"):
+                    cmd += "%s <= %s || " % (name, long(cond.strip("<>")))
+                    continue
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
+        if cmd != "":
+            cmd = "(" + cmd[: cmd.rfind("||")] + ")"
+
+        if force:
             SysMgr.pidFilter = cmd
 
-        return SysMgr.pidFilter
+        return cmd
 
     @staticmethod
     def isExceptTarget(tid, tdata, comm=None, plist=[]):
@@ -56068,6 +56072,33 @@ Copyright:
         # clear trace filter #
         SysMgr.clearTraceFilter()
 
+    def setPidFilter(self, targets):
+        params = ", ".join(targets)
+
+        # get thread ID #
+        targetTasks = []
+        for item in targets:
+            targetTasks += SysMgr.getTids(item, sibling=SysMgr.findOption("P"))
+
+        # check thread list #
+        if not targetTasks:
+            SysMgr.printErr("no task related to '%s'" % params)
+            sys.exit(0)
+
+        targetTasks = " ".join(list(map(str, targetTasks)))
+
+        try:
+            SysMgr.writeTraceCmd("../set_ftrace_pid", targetTasks, True)
+            SysMgr.printInfo(
+                "only specific processes [ %s ] are traced" % targetTasks
+            )
+        except:
+            SysMgr.printErr(
+                "failed to add '%s' to PID filter" % params,
+                True,
+            )
+            sys.exit(-1)
+
     def startTracing(self):
         # write command to start tracing #
         SysMgr.writeTraceCmd("../tracing_on", "1")
@@ -56131,36 +56162,7 @@ Copyright:
 
             # apply PID filter #
             if SysMgr.filterGroup:
-                params = ", ".join(SysMgr.filterGroup)
-
-                # get thread ID #
-                targetTasks = []
-                for item in SysMgr.filterGroup:
-                    targetTasks += SysMgr.getTids(
-                        item, sibling=SysMgr.groupProcEnable
-                    )
-
-                # check thread list #
-                if not targetTasks:
-                    SysMgr.printErr("no task related to '%s'" % params)
-                    sys.exit(0)
-
-                targetTasks = " ".join(list(map(str, targetTasks)))
-
-                try:
-                    SysMgr.writeTraceCmd(
-                        "../set_ftrace_pid", targetTasks, True
-                    )
-                    SysMgr.printInfo(
-                        "only specific processes [ %s ] are traced"
-                        % targetTasks
-                    )
-                except:
-                    SysMgr.printErr(
-                        "failed to add '%s' to PID filter" % params,
-                        True,
-                    )
-                    sys.exit(-1)
+                self.setPidFilter(SysMgr.filterGroup)
 
             # set function_graph options #
             optPath = "../trace_options"
@@ -56504,60 +56506,27 @@ Copyright:
 
         # build sched filter #
         if SysMgr.filterGroup:
-            cmd = ""
-
-            # apply filter #
-            for comm in list(SysMgr.filterGroup):
-                cmd = """%scomm == "*%s*" || """ % (cmd, comm)
-                try:
-                    pid = long(comm)
-                    cmd = """%spid == %s || """ % (cmd, pid)
-                except:
-                    try:
-                        ldir = comm.find(">")
-                        if ldir == 0:
-                            cmd += "pid >= %s || " % long(comm[1:])
-                        elif ldir == len(comm) - 1:
-                            cmd += "pid <= %s || " % long(comm[:-1])
-
-                        rdir = comm.find("<")
-                        if rdir == 0:
-                            cmd += "pid <= %s || " % long(comm[1:])
-                        elif rdir == len(comm) - 1:
-                            cmd += "pid >= %s || " % long(comm[:-1])
-                    except:
-                        pass
-
-            cmd = cmd[0 : cmd.rfind("||")]
+            cmd = SysMgr.getPidFilter("pid", True, False)
         else:
             cmd = "0"
 
+        # set sched filters #
         filterStr = " ".join(SysMgr.filterGroup)
+        for schedItem in [
+            "wakeup",
+            "wakeup_new",
+            "migrate_task",
+            "process_wait",
+        ]:
+            name = "sched/sched_" + schedItem
+            if not self.cmdList[name]:
+                continue
 
-        if self.cmdList["sched/sched_wakeup"]:
-            if SysMgr.writeTraceCmd("sched/sched_wakeup/filter", cmd) < 0:
-                SysMgr.printErr("failed to set filter [ %s ]" % filterStr)
+            if SysMgr.writeTraceCmd(name + "/filter", cmd) < 0:
+                SysMgr.printErr(
+                    "failed to set '%s' filter to [ %s ]" % (name, filterStr)
+                )
                 sys.exit(-1)
-
-        if self.cmdList["sched/sched_wakeup_new"]:
-            if SysMgr.writeTraceCmd("sched/sched_wakeup_new/filter", cmd) < 0:
-                SysMgr.printErr("failed to set filter [ %s ]" % filterStr)
-                sys.exit(-1)
-
-        if self.cmdList["sched/sched_migrate_task"]:
-            if (
-                SysMgr.writeTraceCmd("sched/sched_migrate_task/filter", cmd)
-                < 0
-            ):
-                SysMgr.printErr("failed to set filter [ %s ]" % filterStr)
-                sys.exit(-1)
-
-        if self.cmdList["sched/sched_process_wait"]:
-            if (
-                SysMgr.writeTraceCmd("sched/sched_process_wait/filter", cmd)
-                < 0
-            ):
-                SysMgr.printWarn("failed to set filter [ %s ]" % filterStr)
 
         # events for dependency tracing #
         if SysMgr.depEnable:
