@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220712"
+__revision__ = "220713"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32127,20 +32127,20 @@ Options:
 Examples:
     - Print target files including gziped files
         # {0:1} {1:1} -I a.out
-        # {0:1} {1:1} "a.out, test.txt"
+        # {0:1} {1:1} "a.out, test*.txt"
 
     - Print specific lines including specific words for target files
-        # {0:1} {1:1} "a.out, test.txt" -g "peace, best"
+        # {0:1} {1:1} "a.out, test*.txt" -g "peace, best"
 
     - Print target files to the output file
-        # {0:1} {1:1} "a.out, test.txt" -o output.txt
+        # {0:1} {1:1} "a.out, test*.txt" -o output.txt
 
     - Print the contents of target files as much as a specified size
-        # {0:1} {1:1} "a.out, test.txt" -q SIZE:1K
+        # {0:1} {1:1} "a.out, test*.txt" -q SIZE:1K
 
     - Print the last file of target files
-        # {0:1} {1:1} "a.out, test.txt" -q TAIL
-        # {0:1} {1:1} "a.out, test.txt" -q TAIL:100
+        # {0:1} {1:1} "a.out, test*.txt" -q TAIL
+        # {0:1} {1:1} "a.out, test*.txt" -q TAIL:100
                     """.format(
                         cmd, mode
                     )
@@ -33198,19 +33198,22 @@ Description:
 Examples:
     - {2:1}
         # {0:1} {1:1} output.out
-        # {0:1} {1:1} report1.out report2.out.gz
+        # {0:1} {1:1} "report1.out, report2.out.gz"
         # {0:1} {1:1} "output*.out"
 
     - {2:1} for each file
-        # {0:1} {1:1} report1.out report2.out.gz -q NOMERGE
+        # {0:1} {1:1} "report1.out, report2.out.gz" -q NOMERGE
         # {0:1} {1:1} "output*.out" -q NOMERGE
 
     - {2:1} after applying task filter
         # {0:1} {1:1} output.out -g "a.out*"
         # {0:1} {1:1} "output*.out" -g "*a.out*"
 
-    - {2:1} in reversed order
-        # {0:1} {1:1} "report*.out" -q REVERSED
+    - {2:1} in reversed file order
+        # {0:1} {1:1} "report*.out" -q REVERSEFILE
+
+    - {2:1} in reversed sample order
+        # {0:1} {1:1} "report*.out" -q REVERSESAMPLE
 
     - {2:1} without process info
         # {0:1} {1:1} "report*.out" -q ONLYTOTAL
@@ -42245,17 +42248,20 @@ Copyright:
 
         # TOPSUM MODE #
         elif SysMgr.checkMode("topsum"):
-            # remove option args #
-            SysMgr.removeOptionArgs()
-
-            # get file list #
+            # check input #
             if SysMgr.hasMainArg():
-                args = sys.argv[2:]
-                argList = UtilMgr.getFileList(args, sort=True, exceptDir=True)
+                inputArg = SysMgr.getMainArgs()
+            elif SysMgr.inputParam:
+                inputArg = str(SysMgr.inputParam).split(",")
+                inputArg = UtilMgr.cleanItem(inputArg, True)
             else:
-                argList = None
+                SysMgr.printErr("no input for PATH")
+                sys.exit(-1)
 
-            TaskAnalyzer.doSumReport(argList)
+            # convert input files #
+            inputArg = UtilMgr.getFileList(inputArg, sort=True, exceptDir=True)
+
+            TaskAnalyzer.doSumReport(inputArg)
 
         # PAUSE MODE #
         elif SysMgr.checkMode("pause"):
@@ -49762,6 +49768,9 @@ Copyright:
             SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
+        # convert input files #
+        inputArg = UtilMgr.getFileList(inputArg, sort=True, exceptDir=True)
+
         # check tail flag #
         if "TAIL" in SysMgr.environList:
             tail = True
@@ -49858,7 +49867,9 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr("failed to read data from '%s'" % fd.name)
+                    SysMgr.printErr(
+                        "failed to read data from '%s'" % fd.name, True
+                    )
                     continue
 
                 # decompress data #
@@ -53927,6 +53938,8 @@ Copyright:
             try:
                 fd.seek(0)
                 statBuf = fd.read()
+            except SystemExit:
+                sys.exit(0)
             except:
                 return None
 
@@ -84893,7 +84906,7 @@ class TaskAnalyzer(object):
 
         # merge files #
         fdata = []
-        if "REVERSED" in SysMgr.environList:
+        if "REVERSEFILE" in SysMgr.environList:
             flist = reversed(flist)
         else:
             flist = sorted(flist)
@@ -84907,14 +84920,25 @@ class TaskAnalyzer(object):
 
             SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
 
+            # summarize data #
             data = TaskAnalyzer.getSummaryData(fname)
+            if not "REVERSESAMPLE" in SysMgr.environList:
+                data.reverse()
 
             # no merge #
             if not merge:
                 _printSummary(data, onlyTotal, onlySummary)
                 continue
 
-            fdata += data
+            # remove redundant data #
+            newData = []
+            for item in data:
+                if item in fdata:
+                    continue
+                newData.append(item)
+
+            # merge data #
+            fdata = newData + fdata
 
         if merge:
             _printSummary(fdata, onlyTotal, onlySummary)
@@ -97202,10 +97226,13 @@ class TaskAnalyzer(object):
         comm = d["comm"].strip("*")
 
         # check filter #
-        if SysMgr.filterGroup and (
-            not UtilMgr.isValidStr(pid) and not UtilMgr.isValidStr(comm)
-        ):
-            return
+        if SysMgr.filterGroup:
+            if (
+                not SysMgr.groupProcEnable
+                and not UtilMgr.isValidStr(pid)
+                and not UtilMgr.isValidStr(comm)
+            ):
+                return
 
         try:
             # ignore special processes #
