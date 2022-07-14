@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220713"
+__revision__ = "220714"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -57144,8 +57144,9 @@ Copyright:
 
         # starttime #
         try:
-            startTime = UtilMgr.convTime(SysMgr.startTime)
-            startTimeSec = UtilMgr.convNum(SysMgr.startTime)
+            startTimeNum = long(SysMgr.startTime.split(".")[0])
+            startTime = UtilMgr.convTime(startTimeNum)
+            startTimeSec = UtilMgr.convNum(startTimeNum)
             startTimeStr = "%s (%s sec)" % (startTime, startTimeSec)
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<1}".format("StartTime", startTimeStr)
@@ -107987,6 +107988,7 @@ class TaskAnalyzer(object):
         rss = 0
         sss = 0
         pss = 0
+        wssTotal = 0
         memBuf = []
 
         if not maps:
@@ -108117,7 +108119,9 @@ class TaskAnalyzer(object):
             if SysMgr.wssEnable:
                 # get current WSS size #
                 try:
-                    wss = convSize(item["Referenced:"] << 10, False)
+                    wssNum = item["Referenced:"] << 10
+                    wssTotal += wssNum
+                    wss = convSize(wssNum, False)
                 except:
                     wss = 0
 
@@ -108145,6 +108149,7 @@ class TaskAnalyzer(object):
 
         # update uss #
         uss = rss - sss
+        wssTotal = wssTotal >> 10
 
         # update history for wss #
         if SysMgr.wssEnable:
@@ -108153,6 +108158,7 @@ class TaskAnalyzer(object):
                 ("RSS", rss),
                 ("PSS", pss),
                 ("USS", uss),
+                ("WSS", wssTotal),
             )
             for item in unitItems:
                 name = item[0]
@@ -110708,12 +110714,12 @@ class TaskAnalyzer(object):
                         long(idx)
                     )
 
+            memItems = ("WSS", "USS", "PSS", "RSS", "VSS")
+
             # insert memory usage stats #
             if SysMgr.wssEnable:
-                memBuf.insert(0, ["USS", ""])
-                memBuf.insert(0, ["PSS", ""])
-                memBuf.insert(0, ["RSS", ""])
-                memBuf.insert(0, ["VSS", ""])
+                for kind in memItems:
+                    memBuf.insert(0, [kind, ""])
 
             # print memory details #
             for memData in memBuf:
@@ -110778,6 +110784,7 @@ class TaskAnalyzer(object):
                     name = mprop
                     title = "MEM(%s)" % mprop
 
+                # print info #
                 ret = SysMgr.addPrint(
                     "{0:>39} | {1:3}: {2:1}\n".format(title, name, tstr),
                     newline,
@@ -114133,6 +114140,7 @@ def main(args=None):
 oneLine = "-" * SysMgr.lineLength
 twoLine = "=" * SysMgr.lineLength
 splitLine = ">" * SysMgr.lineLength
+underLine = "_" * SysMgr.lineLength
 
 # define print method for debugging #
 def dbgp(msg):
