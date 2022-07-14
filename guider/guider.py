@@ -29503,9 +29503,9 @@ Examples:
         # {0:1} {1:1} -q STDLOG:dkjs
         # {0:1} {1:1} -q OPSLOG:dkjs
 
-    - {3:1} {2:2} with the cpu limitation in ms unit using cgroup
-        # {0:1} {1:1} -q LIMITCPU:200
-        # {0:1} {1:1} -q LIMITCPU:200@"*yes*|a.out"
+    - {3:1} {2:2} with the cpu limitation in % unit using cgroup
+        # {0:1} {1:1} -q LIMITCPU:20
+        # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
 
     - {3:1} {2:2} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
@@ -31586,9 +31586,9 @@ Examples:
     - {2:1} after updating original threshold data from the specific file
         # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
 
-    - {2:1} with threshold condition with the cpu limitation in ms unit using cgroup
-        # {0:1} {1:1} -q LIMITCPU:200
-        # {0:1} {1:1} -q LIMITCPU:200@"*yes*|a.out"
+    - {2:1} with threshold condition with the cpu limitation in % unit using cgroup
+        # {0:1} {1:1} -q LIMITCPU:20
+        # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
 
     - {2:1} with threshold condition with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
@@ -33906,9 +33906,9 @@ Examples:
     - {2:1} after converting it using the config file
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
-    - {2:1} with the cpu limitation in ms unit using cgroup
-        # {0:1} {1:1} -q LIMITCPU:200
-        # {0:1} {1:1} -q LIMITCPU:200@"*yes*|a.out"
+    - {2:1} with the cpu limitation in % unit using cgroup
+        # {0:1} {1:1} -q LIMITCPU:20
+        # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
 
     - {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
@@ -40579,6 +40579,95 @@ Copyright:
             pass
 
     @staticmethod
+    def applyLimitVars(varList=[]):
+        try:
+            if not varList:
+                varList = SysMgr.environList
+
+            for item in ("LIMITCPU", "LIMITMEM", "LIMITREAD", "LIMITWRITE"):
+                if not item in varList:
+                    continue
+
+                # set values #
+                if item == "LIMITCPU":
+                    res = "cpu"
+                    name = "cfs_quota_us"
+                    func = SysMgr.limitCpu
+                elif item == "LIMITMEM":
+                    res = "memory"
+                    name = "limit_in_bytes"
+                    func = SysMgr.limitMemory
+                elif item == "LIMITREAD":
+                    res = "I/O read"
+                    name = "read_bps_device"
+                    func = SysMgr.limitBlock
+                elif item == "LIMITWRITE":
+                    res = "I/O write"
+                    name = "write_bps_device"
+                    func = SysMgr.limitBlock
+                else:
+                    continue
+
+                for limit in varList[item]:
+                    # get target info #
+                    limit = limit.split("@", 1)
+                    if len(limit) == 1:
+                        limit = limit[0]
+                        targets = []
+                    else:
+                        limit, targets = limit
+
+                    # get limit info #
+                    values = limit.split(":")
+                    if len(values) == 1:
+                        val = UtilMgr.convUnit2Size(values[0])
+                    elif len(values) == 2:
+                        name, val = values
+                        val = UtilMgr.convUnit2Size(val)
+                    else:
+                        SysMgr.printErr(
+                            "failed to parse '%s' to limit %s" % (item, res)
+                        )
+                        sys.exit(-1)
+
+                    # change %-per-sec to ms #
+                    if item == "LIMITCPU":
+                        unitSize = "%s%%" % val
+                        val = long(val) * 10000
+                    else:
+                        unitSize = UtilMgr.convSize2Unit(val)
+
+                    # set attributes #
+                    attrs = [[name, val]]
+
+                    SysMgr.printInfo("limit %s usage to %s" % (res, unitSize))
+
+                    # get limit pids #
+                    if targets:
+                        pids = SysMgr.getTids(
+                            targets,
+                            isThread=not SysMgr.processEnable,
+                            sibling=SysMgr.groupProcEnable,
+                        )
+                        if not pids:
+                            continue
+
+                        # set resource of specific tasks #
+                        if "EACHTASK" in varList:
+                            for pid in pids:
+                                func([pid], attrs)
+                        else:
+                            func(pids, attrs)
+                    else:
+                        # limit resource of mine #
+                        func([SysMgr.pid], attrs)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to apply %s limit values" % res, True)
+            sys.exit(-1)
+
+    @staticmethod
     def applyEnvironVars():
         def _applyVar(name, tobj, tvar):
             if not name in SysMgr.environList:
@@ -40700,89 +40789,7 @@ Copyright:
             )
 
         # limit resources #
-        try:
-            for item in ("LIMITCPU", "LIMITMEM", "LIMITREAD", "LIMITWRITE"):
-                if not item in SysMgr.environList:
-                    continue
-
-                # set values #
-                if item == "LIMITCPU":
-                    res = "cpu"
-                    name = "cfs_quota_us"
-                    func = SysMgr.limitCpu
-                elif item == "LIMITMEM":
-                    res = "memory"
-                    name = "limit_in_bytes"
-                    func = SysMgr.limitMemory
-                elif item == "LIMITREAD":
-                    res = "I/O read"
-                    name = "read_bps_device"
-                    func = SysMgr.limitBlock
-                elif item == "LIMITWRITE":
-                    res = "I/O write"
-                    name = "write_bps_device"
-                    func = SysMgr.limitBlock
-                else:
-                    continue
-
-                for limit in SysMgr.environList[item]:
-                    # get target info #
-                    limit = limit.split("@", 1)
-                    if len(limit) == 1:
-                        limit = limit[0]
-                        targets = []
-                    else:
-                        limit, targets = limit
-
-                    # get limit info #
-                    values = limit.split(":")
-                    if len(values) == 1:
-                        val = convUnit2Size(values[0])
-                    elif len(values) == 2:
-                        name, val = values
-                        val = convUnit2Size(val)
-                    else:
-                        SysMgr.printErr(
-                            "failed to parse '%s' to limit %s" % (item, res)
-                        )
-                        sys.exit(-1)
-
-                    # change us to ms #
-                    if item == "LIMITCPU":
-                        val = long(val) * 1000
-
-                    # set attributes #
-                    attrs = [[name, val]]
-
-                    SysMgr.printInfo(
-                        "limit %s '%s' to [%s]"
-                        % (res, name, convSize2Unit(val))
-                    )
-
-                    # get limit pids #
-                    if targets:
-                        pids = SysMgr.getTids(
-                            targets,
-                            isThread=not SysMgr.processEnable,
-                            sibling=SysMgr.groupProcEnable,
-                        )
-                        if not pids:
-                            continue
-
-                        # set resource of specific tasks #
-                        if "EACHTASK" in SysMgr.environList:
-                            for pid in pids:
-                                func([pid], attrs)
-                        else:
-                            func(pids, attrs)
-                    else:
-                        # limit resource of mine #
-                        func([SysMgr.pid], attrs)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("failed to apply %s limit values" % res, True)
-            sys.exit(-1)
+        SysMgr.applyLimitVars()
 
         # define threshold list #
         varList = [
@@ -57144,7 +57151,7 @@ Copyright:
 
         # starttime #
         try:
-            startTimeNum = long(SysMgr.startTime.split(".")[0])
+            startTimeNum = long(str(SysMgr.startTime).split(".")[0])
             startTime = UtilMgr.convTime(startTimeNum)
             startTimeSec = UtilMgr.convNum(startTimeNum)
             startTimeStr = "%s (%s sec)" % (startTime, startTimeSec)
