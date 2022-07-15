@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220714"
+__revision__ = "220715"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29218,7 +29218,7 @@ Commands:
         }
 
     @staticmethod
-    def printHelp(force=False):
+    def printHelp(force=False, isExit=True):
         printPipe = SysMgr.printPipe
 
         # help #
@@ -29854,6 +29854,7 @@ Commands:
     add      add breakpoints
     check    check context and execute next commands [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVT]
     condexit exit if tracing was started
+    debug    run debug mode
     dist     print distribution stats for specific values [NAME:VAR|REG|VAL]
     dump     dump specific memory range to a file [NAME|ADDR:FILE]
     event    write ftrace log [MESSAGE]
@@ -29863,6 +29864,7 @@ Commands:
     getarg   print specific registers [REGS]
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
+    help     print help
     hide     hide tracing
     hidden   hide the function call
     setinter print interval time between specific function calls
@@ -30105,6 +30107,9 @@ Examples:
 
     - {5:1} {7:1} and return a specific value immediately {4:1}
         # {0:1} {1:1} -g a.out -c "write|ret:3"
+
+    - {5:1} {7:1} and run debug mode {4:1}
+        # {0:1} {1:1} -g a.out -c "write|debug"
 
     - {5:1} {7:1} and add breakpoints for specific symbols
         # {0:1} {1:1} -g a.out -c "*loadData*|add:*close*"
@@ -35483,7 +35488,8 @@ Copyright:
                 # print help #
                 printPipe(helpStr)
 
-            sys.exit(0)
+            if isExit:
+                sys.exit(0)
 
     @staticmethod
     def getKernelVersion(name=False):
@@ -65278,7 +65284,31 @@ typedef struct {
 
         return argList
 
-    def executeCmd(self, cmdList, sym=None, fname=None, args=[], force=False):
+    def runDebugMode(self, sym=None, fname=None, args=[]):
+        while 1:
+            try:
+                # print message #
+                sys.stdout.write(
+                    "\n[%s] input a command... [HELP/NEXT/EXIT] "
+                    % (UtilMgr.convColor("debug", "PINK", 8))
+                )
+                sys.stdout.flush()
+
+                # read command #
+                cmd = sys.stdin.readline()[:-1]
+                if cmd.strip().upper() in ("", "N", "NEXT"):
+                    break
+
+                # execute command #
+                self.executeCmd([cmd], sym, fname, args, isExit=False)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+    def executeCmd(
+        self, cmdList, sym=None, fname=None, args=[], force=False, isExit=True
+    ):
         def _flushPrint(newline=True):
             if SysMgr.outPath:
                 if SysMgr.showAll:
@@ -65306,6 +65336,7 @@ typedef struct {
                 "add": "SYM;",
                 "check": "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVT",
                 "condexit": "",
+                "debug": "",
                 "dist": "NAME:VAR|REG|VAL",
                 "dump": "NAME|ADDR:FILE",
                 "event": "MESSAGE",
@@ -65314,7 +65345,9 @@ typedef struct {
                 "getarg": "REG:REG",
                 "getenv": "VAR",
                 "getret": "CMD",
+                "help": "",
                 "hide": "",
+                "hidden": "",
                 "inter": "VAL",
                 "interval": "FUNC",
                 "jump": "SYMBOL|ADDR#ARG0#ARG1",
@@ -65839,6 +65872,9 @@ typedef struct {
                         % (val.decode(), hex(addr).rstrip("L"))
                     )
                     return repeat
+
+            elif cmd == "debug":
+                self.runDebugMode(sym, fname, args)
 
             elif cmd == "check":
                 cmds = ":".join(cmdset)
@@ -66715,6 +66751,10 @@ typedef struct {
                 _addPrint("\n[%s]\n" % (cmdstr))
                 sys.exit(0)
 
+            elif cmd == "help":
+                _addPrint("\n[%s]\n" % (cmdstr))
+                SysMgr.printHelp(force=True, isExit=False)
+
             else:
                 raise Exception("no command supported")
 
@@ -66750,7 +66790,8 @@ typedef struct {
             except Exception as ex:
                 _flushPrint()
                 SysMgr.printErr("failed to handle '%s' command" % cmd, True)
-                sys.exit(-1)
+                if isExit:
+                    sys.exit(-1)
 
             # re-register command #
             if repeat:
