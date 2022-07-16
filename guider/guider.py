@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220715"
+__revision__ = "220716"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29143,6 +29143,9 @@ Commands:
                 "hook": ("Function", "Linux"),
                 "kill/tkill": ("Signal", "Linux/MacOS"),
                 "limitcpu": ("CPU", "Linux"),
+                "limitmem": ("Memory", "Linux"),
+                "limitread": ("I/O", "Linux"),
+                "limitwrite": ("I/O", "Linux"),
                 "pause": ("Thread", "Linux"),
                 "remote": ("Command", "Linux"),
                 "rlimit": ("Resource", "Linux"),
@@ -34557,7 +34560,7 @@ Examples:
                 elif SysMgr.checkMode("limitcpu"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TID|PID:PER> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <COMM|TID|PID:PER> [OPTIONS] [--help]
 
 Description:
     Limit CPU usage of threads / processes
@@ -34577,6 +34580,9 @@ Examples:
     - {2:1} for specific threads
         # {0:1} {1:1} yes:20
 
+    - {2:1} for specific threads using cgroup
+        # {0:1} {1:1} yes:20 -q USECGROUP
+
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:20 -q WAITTASK
         # {0:1} {1:1} yes:20 -q WAITTASK:1
@@ -34586,6 +34592,48 @@ Examples:
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
                     """.format(
                         cmd, mode, "Limit CPU usage"
+                    )
+
+                # limitmemory / limitread / limitwrite #
+                elif SysMgr.isLimitMode():
+                    if SysMgr.checkMode("limitmemory"):
+                        res = "memory usage"
+                    elif SysMgr.checkMode("limitread"):
+                        res = "I/O read throughput"
+                    else:
+                        res = "I/O write throughput"
+
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} -g <COMM|TID|PID:SIZE> [OPTIONS] [--help]
+
+Description:
+    Limit {2:1} of threads / processes
+
+Options:
+    -g  <TID|COMM>              set task filter
+    -R  <TIME>                  set timer
+    -P                          group threads in a same process
+    -q  <NAME{{:VALUE}}>          set environment variables
+    -v                          verbose
+                        """.format(
+                        cmd, mode, res
+                    )
+
+                    helpStr += """
+Examples:
+    - {2:1} for specific threads
+        # {0:1} {1:1} yes:20M
+
+    - {2:1} for specific threads (wait for new target if no task)
+        # {0:1} {1:1} yes:20M -q WAITTASK
+        # {0:1} {1:1} yes:20M -q WAITTASK:1
+        # {0:1} {1:1} yes:20M -q WAITTASK, NOPIDCACHE
+
+    - {2:1} of specific threads for 3 seconds
+        # {0:1} {1:1} -g 1234:10M, yes:20M -R 3
+                    """.format(
+                        cmd, mode, "Limit %s" % res
                     )
 
                 # setcpu #
@@ -42502,10 +42550,58 @@ Copyright:
             else:
                 filterGroup = SysMgr.filterGroup
 
-            if SysMgr.checkMode("limitcpu"):
-                limitInfo = SysMgr.getLimitCpuInfo(filterGroup)
+            # check input #
+            if not filterGroup:
+                SysMgr.printErr("no input value for task limit info")
+                sys.exit(-1)
 
-                SysMgr.doLimitCpu(limitInfo, SysMgr.processEnable)
+            # get resource name #
+            if SysMgr.checkMode("limitcpu"):
+                if not "USECGROUP" in SysMgr.environList:
+                    limitInfo = SysMgr.getLimitCpuInfo(filterGroup)
+                    SysMgr.doLimitCpu(limitInfo, SysMgr.processEnable)
+                    sys.exit(0)
+                name = "LIMITCPU"
+            elif SysMgr.checkMode("limitmem"):
+                name = "LIMITMEM"
+            elif SysMgr.checkMode("limitread"):
+                name = "LIMITREAD"
+            elif SysMgr.checkMode("limitwrite"):
+                name = "LIMITWRITE"
+            else:
+                SysMgr.printErr("no support resource limitation")
+                sys.exit(-1)
+
+            # parse limit info #
+            limitList = {name: []}
+            try:
+                for item in filterGroup:
+                    target, value = item.split(":", 1)
+
+                    # check targets #
+                    targets = SysMgr.getTids(
+                        target,
+                        isThread=not SysMgr.processEnable,
+                        sibling=SysMgr.groupProcEnable,
+                    )
+                    if not targets:
+                        SysMgr.printErr("no task for '%s'" % target)
+                        sys.exit(-1)
+
+                    limitList[name].append(value + "@" + target)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to limit resource using %s" % name, True
+                )
+                sys.exit(-1)
+
+            # limit resources #
+            SysMgr.applyLimitVars(limitList)
+
+            # wait for events #
+            SysMgr.waitEvent()
 
         # PSTREE MODE #
         elif SysMgr.checkMode("pstree"):
@@ -42760,7 +42856,12 @@ Copyright:
 
     @staticmethod
     def isLimitMode():
-        if SysMgr.checkMode("limitcpu"):
+        if len(sys.argv) > 1 and sys.argv[1] in (
+            "limitcpu",
+            "limitmem",
+            "limitread",
+            "limitwrite",
+        ):
             return True
         else:
             return False
