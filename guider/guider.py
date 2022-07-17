@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220716"
+__revision__ = "220717"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17790,7 +17790,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    ilen = len("\t" * 4 * 4) + 3
+                    ilen = len("\t" * 16) + 3
                     symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -17971,7 +17971,7 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        ilen = len("\t" * 4 * 4) + 3
+                        ilen = len("\t" * 16) + 3
                         symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
@@ -18075,7 +18075,7 @@ class FunctionAnalyzer(object):
                     # Pass unmeaningful part #
                     continue
                 else:
-                    ilen = len("\t" * 4 * 4) + 3
+                    ilen = len("\t" * 16) + 3
                     symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -18272,7 +18272,7 @@ class FunctionAnalyzer(object):
                         if cpuPer < 1 and not SysMgr.showAll:
                             break
 
-                        ilen = len("\t" * 4 * 4)
+                        ilen = len("\t" * 16)
                         symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
@@ -18556,7 +18556,7 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        ilen = len("\t" * 4 * 4)
+                        ilen = len("\t" * 16)
                         symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
@@ -18613,7 +18613,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     symbolStack = "\tNone"
                 else:
-                    ilen = len("\t" * 4 * 4)
+                    ilen = len("\t" * 16)
                     symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -19215,7 +19215,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    ilen = len("\t" * 4 * 4)
+                    ilen = len("\t" * 16)
                     symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -19425,7 +19425,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    ilen = len("\t" * 4 * 4)
+                    ilen = len("\t" * 16)
                     symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -19514,7 +19514,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     continue
                 else:
-                    ilen = len("\t" * 4 * 4)
+                    ilen = len("\t" * 16)
                     symbolStack = self.makeUserSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -19690,7 +19690,7 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        ilen = len("\t" * 4 * 4)
+                        ilen = len("\t" * 16)
                         symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
@@ -19749,7 +19749,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     symbolStack = "\tNone"
                 else:
-                    ilen = len("\t" * 4 * 4)
+                    ilen = len("\t" * 16)
                     symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -19854,7 +19854,7 @@ class FunctionAnalyzer(object):
                     if not subStack:
                         continue
                     else:
-                        ilen = len("\t" * 4 * 4)
+                        ilen = len("\t" * 16)
                         symbolStack = self.makeUserSymList(subStack, ilen)
 
                     SysMgr.printPipe(
@@ -19910,7 +19910,7 @@ class FunctionAnalyzer(object):
                 if not subStack:
                     symbolStack = "\tNone"
                 else:
-                    ilen = len("\t" * 4 * 4)
+                    ilen = len("\t" * 16)
                     symbolStack = self.makeKernelSymList(subStack, ilen)
 
                 SysMgr.printPipe(
@@ -25809,6 +25809,44 @@ Commands:
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
+    def limitCpuset(pids, attrs):
+        if not pids:
+            return
+
+        # check root permission #
+        SysMgr.checkRootPerm(msg="limit cpuset using cgroup")
+
+        name = str(time.time()).replace(".", "")
+
+        # set commands for CPU usage #
+        cmds = ["CREATE:cpuset:guider_{0:1}:{1:1}".format(name, pids[0])]
+        cmds.append(
+            "WRITE:cpuset:guider_{0:1}:{2:1}@cpuset.{1:1}".format(
+                name, "mems", 0
+            )
+        )
+        cmds.append(
+            "WRITE:cpuset:guider_{0:1}:{2:1}@cpuset.{1:1}".format(
+                name, "cpu_exclusive", 1
+            )
+        )
+
+        # set commands #
+        for item in attrs:
+            cmds.append(
+                "WRITE:cpuset:guider_{0:1}:{2:1}@cpuset.{1:1}".format(
+                    name, item[0], item[1]
+                ),
+            )
+
+        # set commands #
+        for pid in pids:
+            cmds.append("ADD:cpuset:guider_{0:1}:{1:1}".format(name, pid))
+
+        # execute commands to limit memory #
+        SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
+
+    @staticmethod
     def limitMemory(pids, attrs):
         if not pids:
             return
@@ -29143,6 +29181,7 @@ Commands:
                 "hook": ("Function", "Linux"),
                 "kill/tkill": ("Signal", "Linux/MacOS"),
                 "limitcpu": ("CPU", "Linux"),
+                "limitcpuset": ("CPU", "Linux"),
                 "limitmem": ("Memory", "Linux"),
                 "limitread": ("I/O", "Linux"),
                 "limitwrite": ("I/O", "Linux"),
@@ -34582,6 +34621,8 @@ Examples:
 
     - {2:1} for specific threads using cgroup
         # {0:1} {1:1} yes:20 -q USECGROUP
+        # {0:1} {1:1} "yes|a.out":20 -q USECGROUP
+        # {0:1} {1:1} "yes:10, a.out:10" -q USECGROUP
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:20 -q WAITTASK
@@ -34594,14 +34635,20 @@ Examples:
                         cmd, mode, "Limit CPU usage"
                     )
 
-                # limitmemory / limitread / limitwrite #
+                # limitcpuset / limitmemory / limitread / limitwrite #
                 elif SysMgr.isLimitMode():
-                    if SysMgr.checkMode("limitmemory"):
+                    if SysMgr.checkMode("limitcpuset"):
+                        res = "CPU set"
+                        value = "1-2"
+                    elif SysMgr.checkMode("limitmemory"):
                         res = "memory usage"
+                        value = "20M"
                     elif SysMgr.checkMode("limitread"):
                         res = "I/O read throughput"
+                        value = "20M"
                     else:
                         res = "I/O write throughput"
+                        value = "20M"
 
                     helpStr = """
 Usage:
@@ -34623,17 +34670,19 @@ Options:
                     helpStr += """
 Examples:
     - {2:1} for specific threads
-        # {0:1} {1:1} yes:20M
+        # {0:1} {1:1} yes:{3:1}
+        # {0:1} {1:1} "yes|a.out":{3:1}
+        # {0:1} {1:1} "yes:{3:1}, a.out:{3:1}"
 
     - {2:1} for specific threads (wait for new target if no task)
-        # {0:1} {1:1} yes:20M -q WAITTASK
-        # {0:1} {1:1} yes:20M -q WAITTASK:1
-        # {0:1} {1:1} yes:20M -q WAITTASK, NOPIDCACHE
+        # {0:1} {1:1} yes:{3:1} -q WAITTASK
+        # {0:1} {1:1} yes:{3:1} -q WAITTASK:1
+        # {0:1} {1:1} yes:{3:1} -q WAITTASK, NOPIDCACHE
 
     - {2:1} of specific threads for 3 seconds
-        # {0:1} {1:1} -g 1234:10M, yes:20M -R 3
+        # {0:1} {1:1} -g 1234:{3:1}, yes:{3:1} -R 3
                     """.format(
-                        cmd, mode, "Limit %s" % res
+                        cmd, mode, "Limit %s" % res, value
                     )
 
                 # setcpu #
@@ -40638,7 +40687,13 @@ Copyright:
             if not varList:
                 varList = SysMgr.environList
 
-            for item in ("LIMITCPU", "LIMITMEM", "LIMITREAD", "LIMITWRITE"):
+            for item in (
+                "LIMITCPU",
+                "LIMITCPUSET",
+                "LIMITMEM",
+                "LIMITREAD",
+                "LIMITWRITE",
+            ):
                 if not item in varList:
                     continue
 
@@ -40647,6 +40702,10 @@ Copyright:
                     res = "cpu"
                     name = "cfs_quota_us"
                     func = SysMgr.limitCpu
+                elif item == "LIMITCPUSET":
+                    res = "cpuset"
+                    name = "cpus"
+                    func = SysMgr.limitCpuset
                 elif item == "LIMITMEM":
                     res = "memory"
                     name = "limit_in_bytes"
@@ -40674,10 +40733,13 @@ Copyright:
                     # get limit info #
                     values = limit.split(":")
                     if len(values) == 1:
-                        val = UtilMgr.convUnit2Size(values[0])
+                        val = values[0]
+                        if item != "LIMITCPUSET":
+                            val = UtilMgr.convUnit2Size(val)
                     elif len(values) == 2:
                         name, val = values
-                        val = UtilMgr.convUnit2Size(val)
+                        if item != "LIMITCPUSET":
+                            val = UtilMgr.convUnit2Size(val)
                     else:
                         SysMgr.printErr(
                             "failed to parse '%s' to limit %s" % (item, res)
@@ -40688,13 +40750,15 @@ Copyright:
                     if item == "LIMITCPU":
                         unitSize = "%s%%" % val
                         val = long(val) * 10000
+                    elif item == "LIMITCPUSET":
+                        unitSize = val
                     else:
                         unitSize = UtilMgr.convSize2Unit(val)
 
                     # set attributes #
                     attrs = [[name, val]]
 
-                    SysMgr.printInfo("limit %s usage to %s" % (res, unitSize))
+                    SysMgr.printInfo("limit %s to '%s'" % (res, unitSize))
 
                     # get limit pids #
                     if targets:
@@ -42562,6 +42626,8 @@ Copyright:
                     SysMgr.doLimitCpu(limitInfo, SysMgr.processEnable)
                     sys.exit(0)
                 name = "LIMITCPU"
+            elif SysMgr.checkMode("limitcpuset"):
+                name = "LIMITCPUSET"
             elif SysMgr.checkMode("limitmem"):
                 name = "LIMITMEM"
             elif SysMgr.checkMode("limitread"):
@@ -42858,6 +42924,7 @@ Copyright:
     def isLimitMode():
         if len(sys.argv) > 1 and sys.argv[1] in (
             "limitcpu",
+            "limitcpuset",
             "limitmem",
             "limitread",
             "limitwrite",
