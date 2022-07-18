@@ -29552,6 +29552,11 @@ Examples:
         # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
+    - {3:1} {2:2} with the cpu set limitation using cgroup
+        # {0:1} {1:1} -q LIMITCPUSET:1
+        # {0:1} {1:1} -q LIMITCPUSET:"1-2"@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITCPUSET:"1-2&4"@"*yes*|a.out"
+
     - {3:1} {2:2} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
         # {0:1} {1:1} -q LIMITMEM:50M@"*yes*|a.out"
@@ -34646,7 +34651,7 @@ Examples:
                 elif SysMgr.isLimitMode():
                     if SysMgr.checkMode("limitcpuset"):
                         res = "CPU set"
-                        value = "1-2"
+                        value = '"1-2&4"'
                     elif SysMgr.checkMode("limitmem"):
                         res = "memory usage"
                         value = "20M"
@@ -34679,7 +34684,7 @@ Examples:
     - {2:1} for specific threads
         # {0:1} {1:1} yes:{3:1}
         # {0:1} {1:1} "yes|a.out":{3:1}
-        # {0:1} {1:1} "yes:{3:1}, a.out:{3:1}"
+        # {0:1} {1:1} -g yes:{3:1}, a.out:{3:1}
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:{3:1} -q WAITTASK
@@ -34687,7 +34692,7 @@ Examples:
         # {0:1} {1:1} yes:{3:1} -q WAITTASK, NOPIDCACHE
 
     - {2:1} of specific threads for 3 seconds
-        # {0:1} {1:1} -g 1234:{3:1}, yes:{3:1} -R 3
+        # {0:1} {1:1} -g 1234:{3:1},yes:{3:1} -R 3
                     """.format(
                         cmd, mode, "Limit %s" % res, value
                     )
@@ -40739,6 +40744,9 @@ Copyright:
                         targets = []
                     else:
                         limits, targets = limits
+
+                    # convert & to , #
+                    limits = limits.replace("&", ",")
 
                     for limit in limits.split("+"):
                         # get limit info #
