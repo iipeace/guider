@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220717"
+__revision__ = "220718"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25781,11 +25781,13 @@ Commands:
 
         # set commands for CPU usage #
         cmds = ["CREATE:cpu:guider_{0:1}:{1:1}".format(name, pids[0])]
+        # add default period (us) for cfs #
         cmds.append(
             "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
                 name, "cfs_period_us", 1000000
             )
         )
+        # add default period (us) for rt #
         cmds.append(
             "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
                 name, "rt_period_us", 1000000
@@ -29548,6 +29550,7 @@ Examples:
     - {3:1} {2:2} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -q LIMITCPU:20
         # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
     - {3:1} {2:2} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
@@ -31636,6 +31639,7 @@ Examples:
     - {2:1} with threshold condition with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -q LIMITCPU:20
         # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
+        # {0:1} {1:1} -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
     - {2:1} with threshold condition with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
@@ -33954,12 +33958,13 @@ Examples:
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
     - {2:1} with the cpu limitation in % unit using cgroup
-        # {0:1} {1:1} -q LIMITCPU:20
-        # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITCPU:20
+        # {0:1} {1:1} -I "a.out" -q LIMITCPU:20@"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
     - {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
-        # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M, LIMITMEM:swappiness:10
+        # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M+swappiness:10
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M@"*yes*|a.out"
 
     - {2:1} with the block I/O limitation using cgroup
@@ -34618,11 +34623,13 @@ Options:
 Examples:
     - {2:1} for specific threads
         # {0:1} {1:1} yes:20
+        # {0:1} {1:1} "yes:cfs_quota_us:20000+cfs_period_us:100000"
+        # {0:1} {1:1} "yes:rt_quota_us:20000+rt_period_us:100000"
 
-    - {2:1} for specific threads using cgroup
-        # {0:1} {1:1} yes:20 -q USECGROUP
-        # {0:1} {1:1} "yes|a.out":20 -q USECGROUP
-        # {0:1} {1:1} "yes:10, a.out:10" -q USECGROUP
+    - {2:1} for specific threads using signal not cgroup
+        # {0:1} {1:1} yes:20 -q NOCG
+        # {0:1} {1:1} "yes|a.out":20 -q NOCG
+        # {0:1} {1:1} "yes:10, a.out:10" -q NOCG
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:20 -q WAITTASK
@@ -34635,12 +34642,12 @@ Examples:
                         cmd, mode, "Limit CPU usage"
                     )
 
-                # limitcpuset / limitmemory / limitread / limitwrite #
+                # limitcpuset / limitmem / limitread / limitwrite #
                 elif SysMgr.isLimitMode():
                     if SysMgr.checkMode("limitcpuset"):
                         res = "CPU set"
                         value = "1-2"
-                    elif SysMgr.checkMode("limitmemory"):
+                    elif SysMgr.checkMode("limitmem"):
                         res = "memory usage"
                         value = "20M"
                     elif SysMgr.checkMode("limitread"):
@@ -40721,64 +40728,74 @@ Copyright:
                 else:
                     continue
 
-                for limit in varList[item]:
+                for limits in varList[item]:
+                    pids = []
+                    attrs = []
+
                     # get target info #
-                    limit = limit.split("@", 1)
-                    if len(limit) == 1:
-                        limit = limit[0]
+                    limits = limits.rsplit("@", 1)
+                    if len(limits) == 1:
+                        limits = limits[0]
                         targets = []
                     else:
-                        limit, targets = limit
+                        limits, targets = limits
 
-                    # get limit info #
-                    values = limit.split(":")
-                    if len(values) == 1:
-                        val = values[0]
-                        if item != "LIMITCPUSET":
-                            val = UtilMgr.convUnit2Size(val)
-                    elif len(values) == 2:
-                        name, val = values
-                        if item != "LIMITCPUSET":
-                            val = UtilMgr.convUnit2Size(val)
-                    else:
-                        SysMgr.printErr(
-                            "failed to parse '%s' to limit %s" % (item, res)
-                        )
-                        sys.exit(-1)
-
-                    # change %-per-sec to ms #
-                    if item == "LIMITCPU":
-                        unitSize = "%s%%" % val
-                        val = long(val) * 10000
-                    elif item == "LIMITCPUSET":
-                        unitSize = val
-                    else:
-                        unitSize = UtilMgr.convSize2Unit(val)
-
-                    # set attributes #
-                    attrs = [[name, val]]
-
-                    SysMgr.printInfo("limit %s to '%s'" % (res, unitSize))
-
-                    # get limit pids #
-                    if targets:
-                        pids = SysMgr.getTids(
-                            targets,
-                            isThread=not SysMgr.processEnable,
-                            sibling=SysMgr.groupProcEnable,
-                        )
-                        if not pids:
-                            continue
-
-                        # set resource of specific tasks #
-                        if "EACHTASK" in varList:
-                            for pid in pids:
-                                func([pid], attrs)
+                    for limit in limits.split("+"):
+                        # get limit info #
+                        values = limit.split(":")
+                        if len(values) == 1:
+                            val = values[0]
+                            if item != "LIMITCPUSET":
+                                val = UtilMgr.convUnit2Size(val)
+                        elif len(values) == 2:
+                            name, val = values
+                            if item != "LIMITCPUSET":
+                                val = UtilMgr.convUnit2Size(val)
                         else:
-                            func(pids, attrs)
+                            SysMgr.printErr(
+                                "failed to parse '%s' to limit %s"
+                                % (item, res)
+                            )
+                            sys.exit(-1)
+
+                        # convert unit #
+                        if item == "LIMITCPU":
+                            # change %-per-sec to ms #
+                            if len(values) == 1:
+                                val = long(val) * 10000
+                            unitSize = "%sus" % UtilMgr.convNum(val)
+                        elif item == "LIMITCPUSET":
+                            unitSize = val
+                        else:
+                            unitSize = UtilMgr.convSize2Unit(val)
+
+                        # set attributes #
+                        attrs.append([name, val])
+
+                        # print info #
+                        SysMgr.printInfo(
+                            "limit %s(%s) to '%s'" % (res, name, unitSize)
+                        )
+
+                        # get limit pids #
+                        if targets:
+                            pids += SysMgr.getTids(
+                                targets,
+                                isThread=not SysMgr.processEnable,
+                                sibling=SysMgr.groupProcEnable,
+                            )
+                        else:
+                            pids += [str(SysMgr.pid)]
+
+                    # remove redundant tasks #
+                    pids = list(set(pids))
+
+                    # set resource of specific tasks #
+                    if "EACHTASK" in varList:
+                        for pid in pids:
+                            func([pid], attrs)
                     else:
-                        # limit resource of mine #
-                        func([SysMgr.pid], attrs)
+                        func(pids, attrs)
         except SystemExit:
             sys.exit(0)
         except:
@@ -42621,7 +42638,7 @@ Copyright:
 
             # get resource name #
             if SysMgr.checkMode("limitcpu"):
-                if not "USECGROUP" in SysMgr.environList:
+                if "NOCG" in SysMgr.environList:
                     limitInfo = SysMgr.getLimitCpuInfo(filterGroup)
                     SysMgr.doLimitCpu(limitInfo, SysMgr.processEnable)
                     sys.exit(0)
@@ -106846,7 +106863,10 @@ class TaskAnalyzer(object):
                         + irqCoreUsage
                         + idleCoreUsage
                     )
-                    scale = 100 / float(totalStat)
+                    if totalStat:
+                        scale = 100 / float(totalStat)
+                    else:
+                        scale = 1
 
                 # get CPU stats #
                 coreStats[idx]["user"] = long(userCoreUsage * scale)
