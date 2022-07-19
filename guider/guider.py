@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220718"
+__revision__ = "220719"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6912,6 +6912,47 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 return "?"
+
+    @staticmethod
+    def convTime2Unit(sec):
+        sec = float(sec)
+        conv = UtilMgr.convNum
+
+        try:
+            if sec == long(sec):
+                return "%ssec" % conv(sec)
+
+            msSec = sec * 1000
+            msSecInt = long(msSec)
+            if msSec == msSecInt:
+                return "%sms" % msSecInt
+
+            usSec = msSec * 1000
+            usSecInt = long(usSec)
+            if usSec == usSecInt:
+                return "%sus" % usSecInt
+
+            nsSec = usSec * 1000
+            nsSecInt = long(nsSec)
+            if nsSec == nsSecInt:
+                return "%sns" % nsSecInt
+
+            psSec = nsSec * 1000
+            psSecInt = long(psSec)
+            if psSec == psSecInt:
+                return "%sps" % psSecInt
+
+            fsSec = psSec * 1000
+            fsSecInt = long(fsSec)
+            if fsSec == fsSecInt:
+                return "%sfs" % fsSecInt
+
+            return sec
+        except SystemExit:
+            sys.exit(0)
+        except:
+            print(SysMgr.getErrMsg())
+            return "?"
 
     @staticmethod
     def convTime2Sec(time):
@@ -29586,13 +29627,13 @@ Examples:
     - {3:1} {2:2} and report the result to ./guider.out without event handling
         # {0:1} {1:1} -o . -d x
 
-    - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
+    - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p
 
-    - {3:1} {2:2} and save the result composed only of raw data to ./guider.out in real-time until SIGINT signal arrives
+    - {3:1} {2:2} and save the result composed only of raw data to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p -q NOSUMMARY
 
-    - {3:1} {2:2} and save the result except for the interval summary to ./guider.out in real-time until SIGINT signal arrives
+    - {3:1} {2:2} and save the result except for the interval summary to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -q NOINTSUMMARY
 
     - {3:1} {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
@@ -30414,7 +30455,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Record function events
+    Record function events on the system
                         """.format(
                         cmd, mode
                     )
@@ -30550,7 +30591,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Report the size of the files loaded on memory
+    Report all files loaded on the system memory
                         """.format(
                         cmd, mode
                     )
@@ -30754,7 +30795,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Record thread events
+    Record thread events on the system
                         """.format(
                             cmd, mode
                         )
@@ -30765,7 +30806,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Record syscall events
+    Record syscall events on the system
                         """.format(
                             cmd, mode
                         )
@@ -30776,7 +30817,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Record I/O events
+    Record I/O events on the system
                         """.format(
                             cmd, mode
                         )
@@ -30900,7 +30941,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of open files, sockets, pipes
+    Monitor open files on the system
                         """.format(
                         cmd, mode
                     )
@@ -30972,7 +31013,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of cgroup
+    Monitor the status of cgroup on the system
                         """.format(
                         cmd, mode
                     )
@@ -30986,7 +31027,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of vmalloc
+    Monitor memory objects allocated using vmalloc on the system
                     """.format(
                         cmd, mode
                     )
@@ -31013,7 +31054,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of slab
+    Monitor slab objects on the system
 
 Sort:
     size:    the size of an object
@@ -31026,13 +31067,13 @@ Sort:
 
                     examStr = """
 Examples:
-    - Monitor the status of slab
+    - {2:1}
         # {0:1} {1:1}
 
-    - Monitor the status of slab using type filter
+    - {2:1} using type filter
         # {0:1} {1:1} -g dentry
 
-    - Monitor the status of slab sorted by specific values
+    - {2:1} sorted by specific value
         # {0:1} {1:1} -S size
         # {0:1} {1:1} -S active
         # {0:1} {1:1} -S actsize
@@ -31040,7 +31081,7 @@ Examples:
 
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd, mode
+                        cmd, mode, "Monitor slab objects"
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -31052,7 +31093,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor syscalls for a specific thread
+    Monitor syscalls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -31174,7 +31215,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor python calls
+    Monitor python calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -31264,7 +31305,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor kernel function calls
+    Monitor kernel function calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -31377,7 +31418,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor native function calls
+    Monitor native function calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -31564,7 +31605,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor function calls
+    Monitor function calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -31586,7 +31627,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor all system resources
+    Monitor all resources on the system
                         """.format(
                         cmd, mode
                     )
@@ -31610,7 +31651,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor resources with threshold
+    Monitor resources with threshold on the system
                         """.format(
                         cmd, mode
                     )
@@ -31677,7 +31718,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor kernel stacks for threads
+    Monitor kernel stacks for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -31725,7 +31766,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor memory details
+    Monitor memory details on the system
                         """.format(
                         cmd, mode
                     )
@@ -31758,7 +31799,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor WSS(Working Set Size) of specific processes after clearing their all page reference bits
+    Monitor WSS(Working Set Size) for specific processes
                         """.format(
                         cmd, mode
                     )
@@ -31785,7 +31826,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Report system status in JSON format
+    Report all resources on the system in JSON format
                         """.format(
                         cmd, mode
                     )
@@ -31828,7 +31869,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Collect system status in the background until get a stop signal
+    Collect system status in the background until get SIGSTOP
                         """.format(
                         cmd, mode
                     )
@@ -31855,7 +31896,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of storage devices
+    Monitor the status of storage devices on the system
                         """.format(
                         cmd, mode
                     )
@@ -31960,7 +32001,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of network devices
+    Monitor the status of network devices on the system
                         """.format(
                         cmd, mode
                     )
@@ -32208,7 +32249,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Dump target memory
+    Dump memory of the specific process
                         """.format(
                         cmd, mode
                     )
@@ -32242,7 +32283,7 @@ Examples:
     - {2:1} heap's bitmap to the specific file
         # {0:1} {1:1} -g a.out -I heap -o dump.out -q SAVEBITMAP
                     """.format(
-                        cmd, mode, "Dump the target"
+                        cmd, mode, "Dump the specific process's"
                     )
 
                 # strace #
@@ -32252,7 +32293,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace syscalls
+    Trace syscalls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -32403,7 +32444,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace function calls
+    Trace function calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -32489,7 +32530,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace python calls
+    Trace python calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -32602,7 +32643,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace native function calls
+    Trace native function calls for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -32638,7 +32679,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Execute commands remotely
+    Execute commands through specific threads
                         """.format(
                         cmd, mode
                     )
@@ -32728,10 +32769,10 @@ Options:
         # {0:1} {1:1} -g a.out -c "exec:ls -lha;sleep 1"
         # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
                     """.format(
-                        cmd, mode, "Control the target to"
+                        cmd, mode, "Control specific threads to"
                     )
 
-                    helpStr += brkExamStr + remoteExamStr
+                    helpStr += remoteExamStr
 
                 # hook #
                 elif SysMgr.checkMode("hook"):
@@ -32740,7 +32781,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Replace target functions with specific functions for specific processes
+    Replace specific functions for specific processes
 
     Caution) This command will update PLTs in mapped binaries.
 
@@ -32756,10 +32797,10 @@ Options:
     -v                          verbose
 
 Examples:
-    - Replace malloc() calls with mallocHook() calls in libhook.so for specific processes
+    - Replace malloc() with mallocHook() in libhook.so for specific processes
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#mallocHook
 
-    - Replace malloc() calls with mallocHook() calls in libhook.so for specific processes (wait for new target if no task)
+    - Replace malloc() with mallocHook() in libhook.so for specific processes (wait for new target if no task)
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK:1
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK, NOPIDCACHE
@@ -32774,7 +32815,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Print bind status of functions for specific processes
+    Print function binding status for specific processes
 
 Options:
     -u                          run in the background
@@ -32791,10 +32832,10 @@ Environment Variables:
     LD_DEBUG_OUTPUT: PATH
 
 Examples:
-    - Print bind status of all functions for a specific process
+    - Print all function binding status for a specific process
         # {0:1} {1:1} -g a.out
 
-    - Print bind status of specific functions for a specific process
+    - Print specific function binding status for a specific process
         # {0:1} {1:1} -g a.out -c write
                     """.format(
                         cmd, mode
@@ -32807,7 +32848,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace signals
+    Trace signals for specific threads
                         """.format(
                         cmd, mode
                     )
@@ -32841,10 +32882,10 @@ Examples:
     - {2:1} with detailed info for a specific thread
         # {0:1} {1:1} -g a.out -a
 
-    - Trace the SIGINT signal for a specific thread
+    - Trace SIGINT for a specific thread
         # {0:1} {1:1} -g 1234 -c SIGINT
 
-    - Trace the SIGINT signal for a specific thread (print standard output)
+    - Trace SIGINT for a specific thread (print standard output)
         # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
 
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -32874,7 +32915,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Print page attributes for tasks
+    Print page attributes for specific processes
                         """.format(
                         cmd, mode
                     )
@@ -33245,7 +33286,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Summarize a raw data file for task top mode
+    Summarize a raw file for task top mode
                         """.format(
                         cmd, mode
                     )
@@ -33293,7 +33334,7 @@ Usage:
     # {0:1} {1:1} -<SIGNUM|SIGNAME> <PID|COMM> [OPTIONS] [--help]
 
 Description:
-    Send specific signal to specific tasks or all running Guiders
+    Send the specific signal to specific tasks or all Guider processes
 
 Options:
     -i  <SEC>                   set interval
@@ -33306,10 +33347,10 @@ Options:
 
                     helpStr += """
 Examples:
-    - Send the notification signal to all running Guiders
+    - Send the notification signal to all Guider processes
         # {0:1} {1:1}
 
-    - Send SIGSTOP signal to specific tasks
+    - Send SIGSTOP to specific tasks
         # {0:1} {1:1} -sigstop 1234
         # {0:1} {1:1} -sigstop a.out
         # {0:1} {1:1} -sigstop "a.out*"
@@ -33317,16 +33358,16 @@ Examples:
     - Send SIGSTOP to specific tasks after 5 seconds
         # {0:1} {1:1} -sigstop 1234 -W 5s
 
-    - Send SIGSTOP signal to specific tasks until one gets the signal
+    - Send SIGSTOP to specific tasks until one gets the signal
         # {0:1} {1:1} -sigstop a.out -q WAITTASK
         # {0:1} {1:1} -sigstop a.out -q WAITTASK:1
         # {0:1} {1:1} -sigstop a.out -q WAITTASK, NOPIDCACHE
 
-    - Send 9th signal SIGKILL to specific tasks
+    - Send SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
         # {0:1} {1:1} -sigkill 1234
 
-    - Send 9th signal SIGKILL to specific tasks every 2 seconds
+    - Send SIGKILL to specific tasks every 2 seconds
         # {0:1} {1:1} -9 1234 -i 2
         # {0:1} {1:1} -sigkill 1234 -i 2
                     """.format(
@@ -33340,7 +33381,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Pause specific running threads
+    Pause specific threads
 
 Options:
     -g  <TID|COMM>              set task filter
@@ -33354,12 +33395,12 @@ Options:
 
                     helpStr += """
 Examples:
-    - Pause specific running threads for 3 seconds
+    - Pause specific threads for 3 seconds
         # {0:1} {1:1} -g a.out -R 3
         # {0:1} {1:1} -g 1234 -R 3
         # {0:1} {1:1} -g "a*" -R 3
 
-    - Pause specific running threads including a same process group
+    - Pause specific threads including a same process group
         # {0:1} {1:1} -g a.out -P
                     """.format(
                         cmd, mode
@@ -33372,7 +33413,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Freeze specific running tasks
+    Freeze specific tasks
 
 Options:
     -g  <TID|COMM>              set task filter
@@ -33386,12 +33427,12 @@ Options:
 
                     helpStr += """
 Examples:
-    - Freeze specific running processes for 3 seconds
+    - Freeze specific processes for 3 seconds
         # {0:1} {1:1} -g a.out -R 3
         # {0:1} {1:1} -g 1234 -R 3
         # {0:1} {1:1} -g "a*" -R 3
 
-    - Freeze specific running threads including a same process group
+    - Freeze specific threads including a same process group
         # {0:1} {1:1} -g a.out -et -P
                     """.format(
                         cmd, mode
@@ -33557,7 +33598,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show signal status
+    Show signal status for specific processes
 
 Options:
     -o  <DIR|FILE>              set output path
@@ -33654,7 +33695,7 @@ Usage:
     # {0:1} {1:1} <FILE|PID|COMM> -g <OFFSET> [OPTIONS] [--help]
 
 Description:
-    Show symbols of specific addresses in a file or a process memory map
+    Show symbols mapped to specific addresses from specific files or specific processes
 
 Options:
     -I  <FILE|COMM|PID>         set input path or process
@@ -33667,14 +33708,14 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print symbol information of specific addresses from specific files
+    - Print symbos mapped to specific addresses from specific files
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
         # {0:1} {1:1} -I "/usr/lib/*" -g ab1cf
 
-    - Print merged symbol information of specific addresses from a file
+    - Print merged symbols mapped to specific addresses from specific files
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf -q ALLSYM
 
-    - Print symbol information of specific addresses from memory map of specific processes
+    - Print symbols mapped to specific addresses from specific processes
         # {0:1} {1:1} -I "yes" -g ab1cf
         # {0:1} {1:1} -I "yes|systemd" -g ab1cf
                     """.format(
@@ -33688,7 +33729,7 @@ Usage:
     # {0:1} {1:1} <FILE|COMM|PID> -g <OFFSET> [OPTIONS] [--help]
 
 Description:
-    Make ELF caches in parallel
+    Make ELF caches for specific files or specific processes in parallel
 
 Options:
     -I  <FILE|COMM|PID>         set input path or process
@@ -33780,7 +33821,7 @@ Usage:
     # {0:1} {1:1} <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
 
 Description:
-    Show files and offset of specific symbols in a file or a process memory map
+    Show addresses mapped to specific symbols from specific files or specific processes
 
 Options:
     -I  <FILE|COMM|PID>         set input path or process
@@ -33793,31 +33834,32 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} specific symbols from a file
+    - Print specific symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
-    - {2:1} specific merged symbols from a file
+    - Print specific merged symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
-    - {2:1} specific symbols from specific files
+    - Print specific symbols from specific files
         # {0:1} {1:1} -I "/usr/bin/*" -g testFunc
 
-    - {2:1} all symbols from a file
+    - Print all symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*"
 
-    - {2:1} specific symbols including specific word from a file
+    - Print specific symbols including specific word from a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc"
         # {0:1} {1:1} -I /usr/bin/yes -g "testFunc*"
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc*"
 
-    - {2:1} specific symbols including specific word from a file
+    - Print specific symbols including specific word from a file
         # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - {2:1} specific symbols from memory map of specific processes
+    - Print specific symbols from specific processes
         # {0:1} {1:1} -I "yes" -g testFunc
         # {0:1} {1:1} -I "yes|systemd" -g testFunc
                     """.format(
-                        cmd, mode, "Print information of"
+                        cmd,
+                        mode,
                     )
 
                 # printdbusstat #
@@ -33989,7 +34031,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show inode attributes for ext4 filesystem
+    Show ext4 inode attributes from a specific device file
 
 Options:
     -v                          verbose
@@ -34003,10 +34045,10 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print all inode attributes for ext4 filesystem from the specific file
+    - Print all ext4 inode attributes from the specific device file
         # {0:1} {1:1} /dev/sda1
 
-    - Print specific inode attributes for ext4 filesystem from the specific file
+    - Print specific ext4 inode attributes from the specific device file
         # {0:1} {1:1} /dev/sda1 -g data
                     """.format(
                         cmd, mode
@@ -34019,7 +34061,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show directory structure
+    Show the structure of a specific directory
 
 Options:
     -v                          verbose
@@ -34089,7 +34131,7 @@ Description:
     1) Get libleaktracer.so for your CPU architecture from
        https://github.com/iipeace/portable/tree/master/leaktracer.
     2) Run the target process with below specific environment variables
-       if you can't inject the hook binary to the running target process.
+       if you can't inject the hook binary to the target process.
        - Auto start from loader
            $ LD_PRELOAD=./libleaktracer.so \\
              LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
@@ -34130,12 +34172,12 @@ Options:
 
                     helpStr += """
 Examples:
-    - {3:1} {2:1} after executing the target program with auto start
+    - {3:1} {2:1} {6:1} with auto start
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so
         # {0:1} {1:1} ./a.out -o ./guider.out -T ./libleaktracer.so
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q MUTE
 
-    - {3:1} {2:1} after executing the target program with manual start
+    - {3:1} {2:1} {6:1} and waiting for SIGINT to start profiling
         # {0:1} {1:1} ./a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
 
     - {3:1} {2:1} after setting environment variables
@@ -34162,10 +34204,10 @@ Examples:
     - {3:1} {2:1} after starting profiling {5:1}
         # {0:1} {1:1} -g a.out -c 20m,0
 
-    - Report idle memory hints of the target process {2:1} after executing the target program with auto start and receiving SIGQUIT for marking all anonymous pages as idle
+    - Report idle memory hints of the target process {2:1} {6:1} with auto start and receiving SIGQUIT for marking all anonymous pages as idle
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTIDLE
 
-    - Report active memory hints of the target process {2:1} after executing the target program with auto start and receiving SIGQUIT for marking all anonymous pages as idle
+    - Report active memory hints of the target process {2:1} {6:1} with auto start and receiving SIGQUIT for marking all anonymous pages as idle
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTACTIVE
 
     - {3:1} {5:1}
@@ -34179,7 +34221,7 @@ Examples:
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
 
-    - {3:1} using allocation size filter {2:1} after executing the target program with auto start
+    - {3:1} using allocation size filter {2:1} {6:1} with auto start
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100k"
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100m"
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:"=4096"
@@ -34194,6 +34236,7 @@ Examples:
                         "Report memory leakage hints of the target process",
                         "after hooking binary injection",
                         "when it's RSS reached the specific size",
+                        "after executing the target program",
                     )
 
                 # printslab #
@@ -34203,7 +34246,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show system slab info
+    Show slab caches on the system
 
 Options:
     -g  <WORD>                  set target object
@@ -34221,13 +34264,13 @@ Sort:
 
                     helpStr += """
 Examples:
-    - Print system slab info
+    - Print all slab caches
         # {0:1} {1:1} dentry
 
-    - Print system slab info using type filter
+    - Print specific slab caches
         # {0:1} {1:1} -g dentry
 
-    - Print system slab info sorted by specific values
+    - Print all slab caches sorted by specific value
         # {0:1} {1:1} -S size
         # {0:1} {1:1} -S active
         # {0:1} {1:1} -S actsize
@@ -34243,7 +34286,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show system vmalloc info
+    Show memory objects allocated using vmalloc on the system
 
 Options:
     -g  <WORD>                  set target object
@@ -34254,10 +34297,10 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print system vmalloc info
+    - Print all memory objects allocated using vmalloc on the system
         # {0:1} {1:1}
 
-    - Print system vmalloc info using filter
+    - Print specific memory objects allocated using vmalloc on the system
         # {0:1} {1:1} -g fork
                     """.format(
                         cmd, mode
@@ -34303,7 +34346,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show namespace list
+    Show namespaces on the system
 
 Options:
     -a                          show all attributes
@@ -34314,10 +34357,10 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print namespace list
+    - Print namespaces
         # {0:1} {1:1}
 
-    - Print namespace list with tasks
+    - Print namespaces with tasks
         # {0:1} {1:1} -a
                     """.format(
                         cmd, mode
@@ -34330,7 +34373,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show systemd services
+    Show systemd services on the system
 
 Options:
     -a                          show all attributes
@@ -34392,7 +34435,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show the tree of tasks
+    Show the task tree
 
 Options:
     -e  <CHARACTER>             enable options
@@ -34407,20 +34450,20 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print the tree of processes
+    - Print the tree of all processes
         # {0:1} {1:1}
 
     - Print the tree of specific processes
         # {0:1} {1:1} a.out
         # {0:1} {1:1} "a.out, yes"
 
-    - Print the tree of threads
+    - Print the tree of all threads
         # {0:1} {1:1} -e t
 
     - Print the highlighted processes having specific name
         # {0:1} {1:1} -g kworker
 
-    - Print the tree of processes with depth 3
+    - Print the tree of all processes with depth 3
         # {0:1} {1:1} -H 3
                     """.format(
                         cmd, mode
@@ -34433,7 +34476,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Compress a file
+    Compress files
 
 Options:
     -o  <FILE>                  set output path
@@ -34462,7 +34505,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Decompress a file
+    Decompress files
 
 Options:
     -o  <DIR>                   set output path
@@ -34612,7 +34655,7 @@ Usage:
     # {0:1} {1:1} -g <COMM|TID|PID:PER> [OPTIONS] [--help]
 
 Description:
-    Limit CPU usage of threads / processes
+    Limit CPU usage of specific tasks
 
 Options:
     -g  <TID|COMM>              set task filter
@@ -34667,7 +34710,7 @@ Usage:
     # {0:1} {1:1} -g <COMM|TID|PID:SIZE> [OPTIONS] [--help]
 
 Description:
-    Limit {2:1} of threads / processes
+    Limit {2:1} of specific tasks
 
 Options:
     -g  <TID|COMM>              set task filter
@@ -34763,7 +34806,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw graphs for response time
+    Draw graphs for response time of URL requests
 
 Options:
     -v                          verbose
@@ -34776,11 +34819,11 @@ Options:
 
                     helpStr += """
 Examples:
-    - Draw graphs for response time
+    - Draw graphs for response time from specific files
         # {0:1} {1:1} guider.out
         # {0:1} {1:1} "guider*.out"
 
-    - Draw graphs for response time for specific requests
+    - Draw graphs for response time of specific requests
         # {0:1} {1:1} guider.out -g www.google.com
                     """.format(
                         cmd, mode
@@ -34918,7 +34961,7 @@ Usage:
     # {0:1} {1:1} -g <OPTION> -I <PATH> [OPTIONS] [--help]
 
 Description:
-    Print kernel config
+    Print kernel configs
 
 Options:
     -g  <OPTION>                set value
@@ -34937,7 +34980,7 @@ Examples:
         # {0:1} {1:1} "CONFIG_RT_GROUP_SCHED*"
         # {0:1} {1:1} -g "CONFIG_RT_GROUP_SCHED*"
 
-    - Print kernel config from the specific file
+    - Print kernel configs from the specific file
         # {0:1} {1:1} -I /boot/config-4.4.0-210-generic
                     """.format(
                         cmd, mode
@@ -34950,7 +34993,7 @@ Usage:
     # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
-    Get CPU affinity of threads
+    Get CPU affinity of specific threads
 
 Options:
     -g  <TID|COMM>              set values
@@ -34976,7 +35019,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET:MASK> [OPTIONS] [--help]
 
 Description:
-    Set CPU affinity of threads
+    Set CPU affinity of specific threads
 
 Options:
     -g  <TID|COMM:MASK>         set values
@@ -35267,7 +35310,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show running {2:1} processes
+    Show {2:1} processes
 
 Options:
     -Q                          print all rows in a stream
@@ -35283,7 +35326,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Send signal to all running Guider processes to run
+    Send signal to all Guider processes to run
 
 Options:
     -v                          verbose
@@ -35298,7 +35341,7 @@ Usage:
     # {0:1} {1:1} <EVENT> [OPTIONS] [--help]
 
 Description:
-    Notify the event to running Guider processes
+    Notify the event to Guider processes
 
 Options:
     -I  <EVENT>                 set event name
@@ -35443,7 +35486,7 @@ Usage:
     # {0:1} {1:1} <COMMAND> [OPTIONS] [--help]
 
 Description:
-    Request remote commands
+    Request remote commands to the server
 {2:2}
 Options:
     -x  <IP:PORT>               set local address
@@ -40770,8 +40813,10 @@ Copyright:
                         if item == "LIMITCPU":
                             # change %-per-sec to ms #
                             if len(values) == 1:
+                                unitSize = "%s%%" % val
                                 val = long(val) * 10000
-                            unitSize = "%sus" % UtilMgr.convNum(val)
+                            else:
+                                unitSize = UtilMgr.convTime2Unit(val / 1000000)
                         elif item == "LIMITCPUSET":
                             unitSize = val
                         else:
@@ -43437,9 +43482,7 @@ Copyright:
 
             return addr[addr.find(">") + 1 :]
         elif len(pids) > 1:
-            SysMgr.printWarn(
-                "Found multiple running %s processes" % name, True
-            )
+            SysMgr.printWarn("Found multiple %s processes" % name, True)
             SysMgr.printBgProcs(cache=True)
         else:
             SysMgr.printWarn(
@@ -43545,11 +43588,10 @@ Copyright:
             pids = SysMgr.getProcPids(__module__)
             if not pids:
                 if SysMgr.checkMode("event"):
-                    print("\nno running process in the background\n")
+                    print("\nno process in the background\n")
                 else:
                     SysMgr.printWarn(
-                        "failed to find running %s process to send event"
-                        % __module__
+                        "failed to find %s process to send event" % __module__
                     )
                 return []
 
@@ -43697,9 +43739,7 @@ Copyright:
 
         SysMgr.updateBgProcs(cache)
         if not SysMgr.bgProcList:
-            SysMgr.printPipe(
-                "\nno running process in the background\n", pager=False
-            )
+            SysMgr.printPipe("\nno process in the background\n", pager=False)
         else:
             SysMgr.printPipe(SysMgr.getBgProcString(), pager=False)
 
@@ -44689,33 +44729,8 @@ Copyright:
 
             SysMgr.printInfo("executed '%s'" % cmd)
 
-            # launch Guider #
-            if cmd.startswith("GUIDER "):
-                # build command list #
-                cmdList = UtilMgr.parseCommand(UtilMgr.lstrip(cmd, "GUIDER "))
-
-                # launch command #
-                try:
-                    ret = SysMgr.launchGuider(
-                        cmdList,
-                        pipe=False,
-                        stderr=True,
-                        stream=False,
-                        logo=False,
-                        log=True,
-                    )
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    ret = False
-                    SysMgr.printErr(
-                        "failed to launch %s" % __module__, reason=True
-                    )
-            # launch command #
-            else:
-                ret = SysMgr.createProcess(cmd.split())
-
-            # check return #
+            # create a new process #
+            ret = SysMgr.createCmdProcess(cmd)
             if ret is False or ret < 0:
                 continue
 
@@ -45225,18 +45240,39 @@ Copyright:
 
     @staticmethod
     def execBgCmd(cmd, mute=True, wait=True):
-        # launch Guider #
-        if (UtilMgr.isString(cmd) and cmd.startswith("GUIDER ")) or (
-            type(cmd) is list and cmd[0] == "GUIDER"
-        ):
+        # create a new process #
+        ret = SysMgr.createCmdProcess(cmd, mute)
 
-            # build command list #
+        # check task #
+        if ret is False or ret < 0:
+            return -1
+        elif ret > 0:
+            if wait:
+                os.waitpid(ret, 0)
+            return
+
+        # temrinate #
+        os._exit(0)
+
+    @staticmethod
+    def createCmdProcess(cmd, mute=False):
+        # check Guider command #
+        if UtilMgr.isString(cmd) and cmd.startswith("GUIDER "):
+            isGuider = True
+        elif type(cmd) is list and cmd[0] == "GUIDER":
+            isGuider = True
+        else:
+            isGuider = False
+
+        # launch Guider #
+        if isGuider:
+            # remove Guider command #
             if type(cmd) is list:
                 cmdList = cmd[1:]
             else:
-                cmdList = UtilMgr.parseCommand(cmd.lstrip("GUIDER "))
+                cmdList = UtilMgr.parseCommand(UtilMgr.lstrip(cmd, "GUIDER "))
 
-            # launch command #
+            # launch Guider command #
             try:
                 ret = SysMgr.launchGuider(
                     cmdList,
@@ -45257,16 +45293,7 @@ Copyright:
         else:
             ret = SysMgr.createProcess(cmd, mute=mute)
 
-        # check task #
-        if ret is False or ret < 0:
-            return -1
-        elif ret > 0:
-            if wait:
-                os.waitpid(ret, 0)
-            return
-
-        # temrinate #
-        os._exit(0)
+        return ret
 
     @staticmethod
     def createProcess(
@@ -46927,7 +46954,7 @@ Copyright:
                 if SysMgr.pendingSignal(signal.SIGINT):
                     break
 
-            # close running remote task #
+            # close remote task #
             try:
                 pipe.close()
             except:
@@ -48884,8 +48911,8 @@ Copyright:
                 SysMgr.customCmd = ["%s|getret" % SysMgr.pyCallFunc]
             else:
                 SysMgr.customCmd = [SysMgr.pyCallFunc]
-        elif mode == "remote" or mode == "hook":
-            if not SysMgr.customCmd:
+        elif mode in ("remote", "hook", "bind"):
+            if not SysMgr.customCmd and mode != "bind":
                 SysMgr.printErr("failed to get remote command")
                 sys.exit(-1)
             elif inputParam:
@@ -48944,6 +48971,14 @@ Copyright:
                 isThread=isThread,
                 sibling=SysMgr.groupProcEnable,
             )
+
+            # check multiple process #
+            if len(pids) > 1 and mode in ("bind"):
+                SysMgr.printErr(
+                    "no support for multiple processes [%s]"
+                    % SysMgr.getCommList(pids)
+                )
+                sys.exit(0)
 
             # get pids of process groups #
             if mode in ("breakcall", "pytrace"):
@@ -54603,7 +54638,7 @@ Copyright:
             nrProc += 1
 
         if nrProc == 0 and verb:
-            SysMgr.printInfo("no running process in the background")
+            SysMgr.printInfo("no process in the background")
 
     @staticmethod
     def getThreadList(tid):
@@ -56274,7 +56309,7 @@ Copyright:
             # write command to stop tracing #
             SysMgr.writeTraceCmd("../tracing_on", "0")
         elif stat == "1":
-            # no running Guider process except for myself #
+            # no Guider process except for myself #
             if SysMgr.getBgProcCount(cache=True) <= 1:
                 res = SysMgr.readTraceFile("enable")
                 # default status #
@@ -70094,7 +70129,7 @@ typedef struct {
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
         convColor = UtilMgr.convColor
-        convFloat = UtilMgr.convFloat2Str
+        convSec = UtilMgr.convTime2Unit
 
         # set table name #
         if self.mode == "syscall":
@@ -70111,15 +70146,15 @@ typedef struct {
         elif self.mode == "pycall":
             ctype = "Pycall"
             addInfo = "[PATH] <Sample>"
-            sampleStr = " [Freq: %s]" % convFloat(self.sampleTime)
+            sampleStr = " [Freq: %s]" % convSec(self.sampleTime)
         elif self.mode == "kernel":
             ctype = "Kernelcall"
             addInfo = "<Sample>"
-            sampleStr = " [Freq: %s]" % convFloat(self.sampleTime)
+            sampleStr = " [Freq: %s]" % convSec(self.sampleTime)
         else:
             ctype = "Usercall"
             addInfo = "[PATH] <Sample>"
-            sampleStr = " [Freq: %s]" % convFloat(self.sampleTime)
+            sampleStr = " [Freq: %s]" % convSec(self.sampleTime)
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
@@ -76497,7 +76532,7 @@ typedef struct {
 
         # get sampling period #
         if instance.sampleTime > 0:
-            samplingStr = " [Freq: %s] " % UtilMgr.convFloat2Str(
+            samplingStr = " [Freq: %s] " % UtilMgr.convTime2Unit(
                 instance.sampleTime
             )
             freqStr = "(%s%%)" % perSample
@@ -112340,34 +112375,10 @@ class TaskAnalyzer(object):
 
                 SysMgr.printInfo('executed "%s" by %s event' % (cmd, event))
 
-                # launch Guider #
-                if cmd.startswith("GUIDER "):
-                    # build command list #
-                    cmdList = UtilMgr.parseCommand(cmd.lstrip("GUIDER "))
-
-                    # launch command #
-                    try:
-                        ret = SysMgr.launchGuider(
-                            cmdList,
-                            pipe=False,
-                            stderr=True,
-                            stream=False,
-                            logo=False,
-                            log=True,
-                        )
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        ret = False
-                        SysMgr.printErr(
-                            "failed to launch %s" % __module__, reason=True
-                        )
-                # launch command #
-                else:
-                    ret = SysMgr.createProcess(cmd)
-
-                # register the event handling process #
+                # create a new process #
+                ret = SysMgr.createCmdProcess(cmd)
                 if ret:
+                    # register the event handling process #
                     SysMgr.eventCommandList.setdefault(event, ret)
 
     def handleThresholdEvents(self):
