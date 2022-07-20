@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220719"
+__revision__ = "220720"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9604,10 +9604,12 @@ class Timeline(object):
         def _conv_palette(self, palette):
             plist = []
             for palette_entry in palette:
+                """
                 rgb = [
                     int(rgb_value)
                     for rgb_value in re.findall("\d+", palette_entry)
                 ]
+                """
                 color = "rgb%s" % palette_entry
                 plist.append(color)
             return plist
@@ -14186,10 +14188,6 @@ class PageAnalyzer(object):
 
         menuStr += "TARGET"
         SysMgr.printPipe("%s\n%s\n%s" % (twoLine, menuStr, oneLine))
-
-        # set text position #
-        tstr = menuStr.split()
-        pstr = tstr[1]
 
         # print summarized map info #
         if summaryFlag:
@@ -20247,7 +20245,7 @@ class LeakAnalyzer(object):
             )
         )
 
-        for time, items in sorted(
+        for timeval, items in sorted(
             self.callData.items(), key=lambda e: e[0], reverse=False
         ):
 
@@ -20260,7 +20258,7 @@ class LeakAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>16} | {1:>16} | {2:>6} |{3:<50}| {4:<53}\n{5:1}".format(
-                    time,
+                    timeval,
                     items["addr"] if "addr" in items else " ",
                     convSize(long(items["size"])),
                     items["data"][:-1],
@@ -20304,8 +20302,8 @@ class LeakAnalyzer(object):
             # merge by backtrace #
             path = val["path"]
             if val["callList"]:
-                for time in list(val["callList"]):
-                    callinfo = self.callData[time]
+                for timeval in list(val["callList"]):
+                    callinfo = self.callData[timeval]
                     substack = dobj.getBtStr(callinfo["symstack"][1:])
                     dobj.btStr = None
                     size = long(callinfo["size"])
@@ -21178,7 +21176,6 @@ class FileAnalyzer(object):
             # get size info #
             startAddr = long(d["startAddr"], 16)
             endAddr = long(d["endAddr"], 16)
-            size = endAddr - startAddr
 
             anonMap.append([startAddr, endAddr])
 
@@ -21645,7 +21642,6 @@ class FileAnalyzer(object):
         # define alias #
         convert = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
-        convNum = UtilMgr.convNum
         pageSize = SysMgr.PAGESIZE
         uptime = UtilMgr.convTime(SysMgr.updateUptime())
 
@@ -21880,7 +21876,7 @@ class FileAnalyzer(object):
 
             # save stat of process #
             try:
-                ret = procObj.saveProcData(procPath, pid)
+                procObj.saveProcData(procPath, pid)
                 pidComm = procObj.procData[pid]["comm"]
             except SystemExit:
                 sys.exit(0)
@@ -21915,7 +21911,7 @@ class FileAnalyzer(object):
 
                 # save stat of thread #
                 try:
-                    ret = procObj.saveProcData(threadPath, tid)
+                    procObj.saveProcData(threadPath, tid)
                     comm = procObj.procData[tid]["comm"]
                 except SystemExit:
                     sys.exit(0)
@@ -23387,10 +23383,11 @@ class SysMgr(object):
     userEventList = []
     kernelEventList = []
     perfEventChannel = {}
+    perfEventData = {}
+    perfEventList = {}
     perfTargetEvent = []
     ignoreItemList = []
     idList = []
-    perfEventData = {}
     commCache = {}
     commFdCache = {}
     fdCache = {}
@@ -24414,7 +24411,6 @@ Commands:
                     if line[2] == "usage":
                         pid = "0"
                         comm = "TOTAL"
-                        size = line[3]
                     else:
                         continue
                 else:
@@ -27129,7 +27125,6 @@ Commands:
             ]
 
             # define variables #
-            __cpu_mask = c_ulong
             __CPU_SETSIZE = 1024
             __NCPUBITS = sizeof(c_ulong) * 8
             mask = (c_ulong * long(__CPU_SETSIZE / __NCPUBITS))()
@@ -28062,7 +28057,7 @@ Commands:
         ret = libcObj.backtrace(byref(buf), c_int(1024))
         syms = libcObj.backtrace_symbols(byref(buf), c_int(ret))
 
-        sys.exit(0)
+        return syms
 
     @staticmethod
     def isBlkDev(path):
@@ -28283,20 +28278,19 @@ Commands:
             prevIoMsTotal += long(items[12])
             prevWIoMsTotal += long(items[13])
 
+        """
         for dev, stat in dlist.items():
             read = stat["curNrRead"] - stat["prevNrRead"]
             write = stat["curNrWrite"] - stat["prevNrWrite"]
-            io = read + write
 
-        readMsTotal = curReadMsTotal - prevReadMsTotal
-        writeMsTotal = curWriteMsTotal - prevWriteMsTotal
-
-        """
         nrReadTotal = curNrReadTotal - prevNrReadTotal
         nrWriteTotal = curNrWriteTotal - prevNrWriteTotal
         ioMsTotal = curIoMsTotal - prevIoMsTotal
         wIoMsTotal = curWIoMsTotal - prevWIoMsTotal
         """
+
+        readMsTotal = curReadMsTotal - prevReadMsTotal
+        writeMsTotal = curWriteMsTotal - prevWriteMsTotal
 
         retstr = "%s/%s" % (
             UtilMgr.convSize2Unit(readMsTotal),
@@ -30085,6 +30079,9 @@ Examples:
 
     - {3:1} except for no symbol functions {7:1}
         # {0:1} {1:1} -g a.out -q ONLYSYM
+
+    - {3:1} including thread group info {7:1}
+        # {0:1} {1:1} -g a.out -q INCTGINFO
 
     - {3:1} except for arguments {7:1}
         # {0:1} {1:1} -g a.out -q NOARG
@@ -32383,6 +32380,9 @@ Examples:
 
     - {3:1} {5:1} including profiling overhead time
         # {0:1} {1:1} -g a.out -q INCOVERHEAD
+
+    - {3:1} including thread group info {5:1}
+        # {0:1} {1:1} -g a.out -q INCTGINFO
 
     - {3:1} except for arguments {5:1}
         # {0:1} {1:1} -g a.out -q NOARG
@@ -36331,6 +36331,50 @@ Copyright:
             ("__reserved_2", c_uint16),
         ]
 
+        # get perf event list #
+        perfEvents = SysMgr.getPerfEventList()
+
+        # set struct perf_event_attr #
+        perf_attr = struct_perf_event_attr()
+        perf_attr.type = nrType
+        perf_attr.config = nrConfig
+        perf_attr.size = sizeof(perf_attr)
+        perf_attr.disabled = 1
+        # perf_attr.exclude_user = 1
+        # perf_attr.exclude_kernel = 1
+        # perf_attr.exclude_hv = 1
+        # perf_attr.exclude_idle = 1
+
+        # call a perf_event_open syscall #
+        """
+        int perf_event_open(struct perf_event_attr *attr,
+            pid_t pid, int cpu, int group_fd, unsigned long flags);
+        """
+        # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
+        fd = SysMgr.syscall(
+            "sys_perf_event_open", pointer(perf_attr), pid, cpu, -1, 0
+        )
+        if fd < 0:
+            # check root permission #
+            if not SysMgr.checkRootPerm(exit=False, msg="open perf events"):
+                return False
+            else:
+                return -1
+
+        # control perf event #
+        SysMgr.syscall("ioctl", fd, perfEvents["PERF_EVENT_IOC_RESET"], 0)
+        SysMgr.syscall("ioctl", fd, perfEvents["PERF_EVENT_IOC_ENABLE"], 0)
+
+        # free perf_attr object, but memory leak exists now #
+        del perf_attr
+
+        return fd
+
+    @staticmethod
+    def getPerfEventList():
+        if SysMgr.perfEventList:
+            return SysMgr.perfEventList
+
         # define constants for ioctl #
         _IOC_NRBITS = 8
         _IOC_TYPEBITS = 8
@@ -36368,53 +36412,21 @@ Copyright:
         def _IOWR(type, nr, size):
             return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
 
-        # define CMD #
-        PERF_EVENT_IOC_ENABLE = _IO("$", 0)
-        PERF_EVENT_IOC_DISABLE = _IO("$", 1)
-        PERF_EVENT_IOC_REFRESH = _IO("$", 2)
-        PERF_EVENT_IOC_RESET = _IO("$", 3)
-        PERF_EVENT_IOC_PERIOD = _IOW("$", 4, sizeof(c_uint64))
-        PERF_EVENT_IOC_SET_OUTPUT = _IO("$", 5)
-        PERF_EVENT_IOC_SET_FILTER = _IOW("$", 6, sizeof(c_uint))
-        PERF_EVENT_IOC_ID = _IOR("$", 7, sizeof(c_uint64))
-        PERF_EVENT_IOC_SET_BPF = _IOW("$", 8, sizeof(c_uint32))
-        PERF_EVENT_IOC_PAUSE_OUTPUT = _IOW("$", 9, sizeof(c_uint32))
+        # save event list #
+        SysMgr.perfEventList = {
+            "PERF_EVENT_IOC_ENABLE": _IO("$", 0),
+            "PERF_EVENT_IOC_DISABLE": _IO("$", 1),
+            "PERF_EVENT_IOC_REFRESH": _IO("$", 2),
+            "PERF_EVENT_IOC_RESET": _IO("$", 3),
+            "PERF_EVENT_IOC_PERIOD": _IOW("$", 4, sizeof(c_uint64)),
+            "PERF_EVENT_IOC_SET_OUTPUT": _IO("$", 5),
+            "PERF_EVENT_IOC_SET_FILTER": _IOW("$", 6, sizeof(c_uint)),
+            "PERF_EVENT_IOC_ID": _IOR("$", 7, sizeof(c_uint64)),
+            "PERF_EVENT_IOC_SET_BPF": _IOW("$", 8, sizeof(c_uint32)),
+            "PERF_EVENT_IOC_PAUSE_OUTPUT": _IOW("$", 9, sizeof(c_uint32)),
+        }
 
-        # set struct perf_event_attr #
-        perf_attr = struct_perf_event_attr()
-        perf_attr.type = nrType
-        perf_attr.config = nrConfig
-        perf_attr.size = sizeof(perf_attr)
-        perf_attr.disabled = 1
-        # perf_attr.exclude_user = 1
-        # perf_attr.exclude_kernel = 1
-        # perf_attr.exclude_hv = 1
-        # perf_attr.exclude_idle = 1
-
-        # call a perf_event_open syscall #
-        """
-        int perf_event_open(struct perf_event_attr *attr,
-            pid_t pid, int cpu, int group_fd, unsigned long flags);
-        """
-        # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
-        fd = SysMgr.syscall(
-            "sys_perf_event_open", pointer(perf_attr), pid, cpu, -1, 0
-        )
-        if fd < 0:
-            # check root permission #
-            if not SysMgr.checkRootPerm(exit=False, msg="open perf events"):
-                return False
-            else:
-                return -1
-
-        # control perf event #
-        SysMgr.syscall("ioctl", fd, PERF_EVENT_IOC_RESET, 0)
-        SysMgr.syscall("ioctl", fd, PERF_EVENT_IOC_ENABLE, 0)
-
-        # free perf_attr object, but memory leak exists now #
-        del perf_attr
-
-        return fd
+        return SysMgr.perfEventList
 
     @staticmethod
     def readPerfEvents(fdList):
@@ -36500,54 +36512,8 @@ Copyright:
                 ("id", c_uint64),
             ]
 
-        # define IOC for ioctl call #
-        _IOC_NRBITS = 8
-        _IOC_TYPEBITS = 8
-        _IOC_SIZEBITS = 14  # architecture specific
-        _IOC_DIRBITS = 2
-        _IOC_NRMASK = (1 << _IOC_NRBITS) - 1
-        _IOC_TYPEMASK = (1 << _IOC_TYPEBITS) - 1
-        _IOC_SIZEMASK = (1 << _IOC_SIZEBITS) - 1
-        _IOC_DIRMASK = (1 << _IOC_DIRBITS) - 1
-        _IOC_NRSHIFT = 0
-        _IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS
-        _IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS
-        _IOC_DIRSHIFT = _IOC_SIZESHIFT + _IOC_SIZEBITS
-        _IOC_NONE = 0
-        _IOC_WRITE = 1
-        _IOC_READ = 2
-
-        def _IOC(dir, type, nr, size):
-            return (
-                dir << _IOC_DIRSHIFT
-                | ord(type) << _IOC_TYPESHIFT
-                | nr << _IOC_NRSHIFT
-                | size << _IOC_SIZESHIFT
-            )
-
-        def _IO(type, nr):
-            return _IOC(_IOC_NONE, type, nr, 0)
-
-        def _IOR(type, nr, size):
-            return _IOC(_IOC_READ, type, nr, size)
-
-        def _IOW(type, nr, size):
-            return _IOC(_IOC_WRITE, type, nr, size)
-
-        def _IOWR(type, nr, size):
-            return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
-
-        # define CMD #
-        PERF_EVENT_IOC_ENABLE = _IO("$", 0)
-        PERF_EVENT_IOC_DISABLE = _IO("$", 1)
-        PERF_EVENT_IOC_REFRESH = _IO("$", 2)
-        PERF_EVENT_IOC_RESET = _IO("$", 3)
-        PERF_EVENT_IOC_PERIOD = _IOW("$", 4, sizeof(c_uint64))
-        PERF_EVENT_IOC_SET_OUTPUT = _IO("$", 5)
-        PERF_EVENT_IOC_SET_FILTER = _IOW("$", 6, sizeof(c_uint))
-        PERF_EVENT_IOC_ID = _IOR("$", 7, sizeof(c_uint64))
-        PERF_EVENT_IOC_SET_BPF = _IOW("$", 8, sizeof(c_uint32))
-        PERF_EVENT_IOC_PAUSE_OUTPUT = _IOW("$", 9, sizeof(c_uint32))
+        # get perf event list #
+        perfEvents = SysMgr.getPerfEventList()
 
         # declare syscalls #
         SysMgr.libcObj.ioctl.restype = c_int
@@ -36565,7 +36531,7 @@ Copyright:
                 SysMgr.libcObj.read(fd, pointer(pbuf), sizeof(pbuf))
 
                 # control perf event #
-                SysMgr.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
+                SysMgr.libcObj.ioctl(fd, perfEvents["PERF_EVENT_IOC_RESET"], 0)
 
                 # cast buffer to data #
                 retList.append(cast(pbuf, POINTER(c_ulong)).contents.value)
@@ -46938,7 +46904,8 @@ Copyright:
                     if not output:
                         break
 
-                    dataType = pipe.getDataType(output)
+                    # check data type #
+                    # dataType = pipe.getDataType(output)
 
                     if printFlag:
                         print(output[:-1])
@@ -47058,7 +47025,6 @@ Copyright:
 
                 # update window size #
                 windowSize = long(SysMgr.ttyRows / len(cmdPipeList))
-                mod = SysMgr.ttyRows % windowSize
 
                 # wait for event #
                 [read, write, error] = selectObj.select(listenFds, [], [], 0.1)
@@ -50287,7 +50253,6 @@ Copyright:
             mapList = list(set(mapList))
 
             # load symbol caches at once #
-            printLog = True
             for item in mapList:
                 try:
                     SysMgr.printInfo("load %s... " % item)
@@ -51505,7 +51470,7 @@ Copyright:
                         "start flushing system caches(%s)... " % val,
                         suffix=False,
                     )
-                ret = fd.write(val)
+                fd.write(val)
                 if verb:
                     SysMgr.printInfo("[Done]", prefix=False, title=False)
         except SystemExit:
@@ -51522,7 +51487,7 @@ Copyright:
         writeData = b"0" * 4096
 
         def _flushCache(verb=False):
-            ret = SysMgr.checkRootPerm(verb=False)
+            SysMgr.checkRootPerm(verb=False)
             SysMgr.dropCaches("3", verb)
 
         def _iotask(num, load):
@@ -54137,7 +54102,6 @@ Copyright:
         COMM_IDX = ConfigMgr.STAT_ATTR.index("COMM")
         UTIME_IDX = ConfigMgr.STAT_ATTR.index("UTIME")
         STIME_IDX = ConfigMgr.STAT_ATTR.index("STIME")
-        NR_TARGET = len(limitInfo)
 
         elapsed = 0
         nowTime = None
@@ -54424,7 +54388,6 @@ Copyright:
     @staticmethod
     def sendSignalArgs(argList, isThread=False):
         sig = signal.SIGQUIT
-        SIG_LIST = ConfigMgr.SIG_LIST
         if not argList:
             return
 
@@ -55112,9 +55075,7 @@ Copyright:
             func = funcObj.sched_setscheduler
 
             # call sched_setscheduler function #
-            ret = SysMgr.libcObj.sched_setscheduler(
-                pid, argPolicy, byref(argPriority)
-            )
+            ret = func(pid, argPolicy, byref(argPriority))
             if ret != 0:
                 policy = upolicy
                 emsg = SysMgr.getErrReason()
@@ -55220,7 +55181,6 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            conf = False
             SysMgr.printWarn("failed to get terminal info", reason=True)
 
     @staticmethod
@@ -55705,7 +55665,6 @@ Copyright:
 
     def saveStorageInfo(self, isGeneral):
         blockDir = "/sys/class/block"
-        partFile = "%s/partitions" % SysMgr.procPath
 
         # update disk data #
         SysMgr.updateDiskStats()
@@ -57737,8 +57696,6 @@ Copyright:
             return
 
         for l in data:
-            values = l.split()
-
             diskStat = {}
             for idx, item in enumerate(list(l.split())):
                 if len(ConfigMgr.DISKSTAT) <= idx:
@@ -58397,7 +58354,6 @@ Copyright:
         mapTable = {}
         path = None
         node = None
-        prev = None
         devnum = -1
 
         while 1:
@@ -58444,12 +58400,10 @@ Copyright:
                 if not line:
                     continue
                 elif line[0].isdigit():
-                    prev = node
                     node = "/dev/%s" % line.split()[-1]
                     mapTable[node] = path
                 elif line.startswith("Physical Store "):
                     # change previous map info #
-                    prevValue = mapTable[node]
                     mapTable.pop(node, None)
                     path = "/dev/%s" % line.split()[-1]
                     mapTable[node] = path
@@ -58785,8 +58739,6 @@ Copyright:
 
                 # update subfiles #
                 for item in subfiles:
-                    subfile = os.path.join(dirpath, item)
-
                     # check value file #
                     if not item in ConfigMgr.CGROUP_VALUE:
                         continue
@@ -59584,7 +59536,7 @@ Copyright:
             try:
                 # initialize device data #
                 dev = key[key.rfind("/") + 1 :]
-                readSize = readTime = writeSize = writeTime = "?"
+                readSize = writeSize = "?"
 
                 # get real device node #
                 if ":" in dev:
@@ -60207,7 +60159,6 @@ class DbusMgr(object):
             # set EUID #
             euidOrig = _setEuid()
         else:
-            comm = SysMgr.getComm(tid, cache=True)
             SysMgr.printWarn(
                 "failed to recognize %s bus for %s" % (bus, procInfo)
             )
@@ -61520,8 +61471,7 @@ class DbusMgr(object):
                 SysMgr.printErr("failed to update system stat", True)
 
             convNum = UtilMgr.convNum
-            convertSize = UtilMgr.convSize2Unit
-            convertColor = UtilMgr.convColor
+            convSize = UtilMgr.convSize2Unit
 
             for pid in taskList:
                 try:
@@ -61603,7 +61553,7 @@ class DbusMgr(object):
                             )
 
                         count = convNum(value["cnt"])
-                        size = convertSize(data["size"], isInt=True)
+                        size = convSize(data["size"], isInt=True)
 
                         dbusList.append(
                             "{0:>4}({1:>5}/{2:>3}%) {3:1}".format(
@@ -61702,7 +61652,7 @@ class DbusMgr(object):
                 # get available memory for system #
                 sysMemStr = SysMgr.getAvailMemInfo()
             else:
-                cpuStr = mcpuStr = rssStr = sysCpuStr = sysMemStr = "?"
+                mcpuStr = rssStr = sysCpuStr = sysMemStr = "?"
 
             # set error #
             nrErr = prevDbusData["totalErr"]
@@ -61896,11 +61846,6 @@ class DbusMgr(object):
                         DbusMgr.prevData[tid] = {}
                         DbusMgr.prevData[tid]["recvmsg"] = ""
                         DbusMgr.prevData[tid]["sendmsg"] = ""
-
-                    try:
-                        prevData = DbusMgr.prevData[tid][ctype]
-                    except:
-                        prevData = ""
 
                     # check direction #
                     if ctype.startswith("sendm"):
@@ -62427,7 +62372,6 @@ class DbusMgr(object):
         pipeList = []
         busServiceList = {}
         gBusServiceList = {}
-        interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
 
@@ -62537,12 +62481,6 @@ class DbusMgr(object):
 
                     # register methods and properties #
                     if mode == "printintro":
-                        # get service tid #
-                        if pinfo:
-                            ptid = pinfo[pinfo.rfind("(") + 1 : -1]
-                        else:
-                            ptid = None
-
                         introList[service] = DbusMgr.getStats(
                             bus, "introspect", service, procStr=pinfo
                         )
@@ -62561,7 +62499,7 @@ class DbusMgr(object):
                 continue
             # monitor #
             elif mode == "monitor":
-                ret = DbusMgr.runMonitor(bus)
+                DbusMgr.runMonitor(bus)
                 continue
             # signal #
             elif mode == "signal":
@@ -62771,7 +62709,7 @@ class DltAnalyzer(object):
                 DltAnalyzer.dbgObj.pid,
             )
         else:
-            procInfo = cpuStr = mcpuStr = rssStr = sysCpuStr = sysMemStr = "?"
+            procInfo = mcpuStr = rssStr = sysCpuStr = sysMemStr = "?"
 
         # print title #
         SysMgr.addPrint(
@@ -64080,13 +64018,11 @@ class DltAnalyzer(object):
                 dltObj.dlt_receiver_receive_socket.argtypes = [c_void_p]
                 dltObj.dlt_receiver_receive_socket.restype = c_int
                 dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
-                incVerb = False
                 verbVal = c_int(0)
             elif hasattr(dltObj, "dlt_receiver_receive"):
                 dltObj.dlt_receiver_receive.argtypes = [c_void_p, c_int]
                 dltObj.dlt_receiver_receive.restype = c_int
                 dlt_receiver_receive = dltObj.dlt_receiver_receive
-                incVerb = True
                 verbVal = c_int(1)
             else:
                 raise Exception("no DLT receiver")
@@ -64095,7 +64031,6 @@ class DltAnalyzer(object):
             sys.exit(-1)
 
         # save timestamp #
-        prevTime = time.time()
         SysMgr.updateUptime()
 
         # initialize dlt-daemon info #
@@ -64266,6 +64201,7 @@ class Debugger(object):
         "HIDESYM": False,
         "INCNATIVE": False,
         "INCOVERHEAD": False,
+        "INCTGINFO": False,
         "INTERCALL": False,
         "NOARG": False,
         "NOFILE": False,
@@ -64507,7 +64443,7 @@ class Debugger(object):
         self.runStatus = False
         self.attached = attach
         self.execCmd = execCmd
-        self.arch = arch = SysMgr.getArch()
+        self.arch = SysMgr.getArch()
         self.skipInst = 5
         self.indentLen = 20
         self.errmsg = ""
@@ -64791,7 +64727,7 @@ struct cmsghdr {
             )
 
         self.cmsghdr = cmsghdr
-        self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
+        self.cmsghdr_ptr = POINTER(cmsghdr)
 
         """
 typedef struct {
@@ -64809,7 +64745,7 @@ typedef struct {
             )
 
         self.btframe = backtrace_frame_t
-        self.btframe_ptr = btframe_ptr = POINTER(backtrace_frame_t)
+        self.btframe_ptr = POINTER(backtrace_frame_t)
 
         """
 typedef struct {
@@ -64833,7 +64769,7 @@ typedef struct {
             )
 
         self.btsym = backtrace_symbol_t
-        self.btsym_ptr = btsym_ptr = POINTER(backtrace_symbol_t)
+        self.btsym_ptr = POINTER(backtrace_symbol_t)
 
         # apply environment variables #
         self.applyEnviron()
@@ -64999,7 +64935,7 @@ typedef struct {
                     continue
 
                 # load target file #
-                eobj = ElfAnalyzer.getObject(target.strip("[]"))
+                ElfAnalyzer.getObject(target.strip("[]"))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -65405,11 +65341,10 @@ typedef struct {
         return tuple(map(lambda x: -1 if c_int(x).value == -1 else x, ret))
 
     def writeArgs(self, argList):
-        arch = self.arch
-        nrArg = len(argList)
-
         if not argList:
             return
+
+        arch = self.arch
 
         for idx, val in enumerate(argList):
             if val is None or val == "":
@@ -66294,6 +66229,7 @@ typedef struct {
                         sys.exit(0)
                     except:
                         try:
+                            # import math globally #
                             import math
 
                             idx = long(math.sqrt(val))
@@ -67015,7 +66951,7 @@ typedef struct {
             except SystemExit:
                 _flushPrint()
                 sys.exit(0)
-            except Exception as ex:
+            except:
                 _flushPrint()
                 SysMgr.printErr("failed to handle '%s' command" % cmd, True)
                 if isExit:
@@ -68142,7 +68078,7 @@ typedef struct {
 
         # load the library #
         for lib in pylib:
-            ret = self.dlopen(lib)
+            self.dlopen(lib)
             if self.isPyLoaded():
                 return True
 
@@ -68253,7 +68189,6 @@ typedef struct {
 
         # get backup regset #
         self.backupRegs()
-        origPc = self.pc
 
         """
         # change access permission on a page pointed by PC #
@@ -68308,7 +68243,7 @@ typedef struct {
                 newSP -= wordSize
             newSP -= wordSize
             self.setSP(newSP)
-            ret = self.writeMem(newSP, b"\x00" * wordSize)
+            self.writeMem(newSP, b"\x00" * wordSize)
         elif self.arch == "x86":
             # TODO: save all args to stack and install the trap finally #
             SysMgr.printErr(
@@ -70185,12 +70120,8 @@ typedef struct {
         # calculate average for CPU usage #
         if not SysMgr.showAll and SysMgr.cpuEnable:
             floatTotalUsage = ttime / 100
-            floatUserUsage = utime / 100
-            floatSysUsage = stime / 100
         else:
             floatTotalUsage = 1
-            floatUserUsage = 1
-            floatSysUsage = 1
 
         # set comm #
         if self.comm:
@@ -70544,7 +70475,6 @@ typedef struct {
             return
 
         vstart = self.pmap[fname]["vstart"]
-        vend = self.pmap[fname]["vend"]
 
         # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
@@ -70570,7 +70500,6 @@ typedef struct {
             return
 
         vstart = self.pmap[fname]["vstart"]
-        vend = self.pmap[fname]["vend"]
 
         # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
@@ -71234,6 +71163,8 @@ typedef struct {
                 nrSyscall = long(syscall)
             else:
                 nrSyscall = SysMgr.getNrSyscall(syscall)
+
+            # TODO: set syscall number to the specific register #
         except SystemExit:
             sys.exit(0)
         except:
@@ -72491,6 +72422,9 @@ typedef struct {
         # set task info #
         if self.multi:
             tinfo = "%s(%s) " % (self.comm, self.pid)
+            # add thread group info #
+            if self.tgid:
+                tinfo = "%s(%s)/" % (self.tgcomm, self.tgid) + tinfo
         else:
             tinfo = ""
 
@@ -74373,8 +74307,16 @@ typedef struct {
                 callString = "%s)%s" % (argText, bts)
             else:
                 syscall = UtilMgr.convColor(self.syscall, "GREEN")
-                callString = "%3.6f %s(%s) %s(%s)%s" % (
+
+                # get thread group info #
+                if self.tgid:
+                    tginfo = "%s(%s)/" % (self.tgcomm, self.tgid)
+                else:
+                    tginfo = ""
+
+                callString = "%3.6f %s%s(%s) %s(%s)%s" % (
                     diff,
+                    tginfo,
                     self.comm,
                     self.pid,
                     syscall,
@@ -74571,9 +74513,16 @@ typedef struct {
                     if SysMgr.jsonEnable:
                         return
 
+                    # get thread group info #
+                    if self.tgid:
+                        tginfo = "%s(%s)/" % (self.tgcomm, self.tgid)
+                    else:
+                        tginfo = ""
+
                     # build call string #
-                    callString = "%3.6f %s(%s) %s(" % (
+                    callString = "%3.6f %s%s(%s) %s(" % (
                         diff,
+                        tginfo,
                         self.comm,
                         self.pid,
                         convColor(name, "GREEN"),
@@ -75361,6 +75310,19 @@ typedef struct {
         self.prevPyBt = None
         self.prevPyIndent = {}
         self.pretty = not SysMgr.findOption("Q")
+
+        # save tgid info #
+        try:
+            if not Debugger.envFlags["INCTGINFO"]:
+                raise Exception("no tginfo")
+
+            self.tgid = long(SysMgr.getTgid(self.pid))
+            self.tgcomm = SysMgr.getComm(self.tgid)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.tgid = 0
+            self.tgcomm = ""
 
         # update CPU usage for target #
         if hasattr(self, "prevCpuStat"):
