@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220720"
+__revision__ = "220722"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11513,7 +11513,7 @@ class Ext4Analyzer(object):
                         current_path = "/".join(relative_path[:i])
                         raise Ext4Error(
                             "%s (Inode %d) is not a directory."
-                            % (current_path, inode_idx)
+                            % (current_path, self.inode_idx)
                         )
 
                     file_name, inode_idx, file_type = next(
@@ -28017,14 +28017,13 @@ Commands:
 
     @staticmethod
     def getPyConfig(item="all", var=None):
-        # pylint: disable=undefined-variable
         try:
-            SysMgr.importPkgItems("sysconfig")
+            sysconfig = SysMgr.getPkg("sysconfig")
 
             if item == "path":
-                varDict = get_paths()
+                varDict = sysconfig.get_paths()
             else:
-                varDict = get_config_vars()
+                varDict = sysconfig.get_config_vars()
 
             if var:
                 return varDict[var]
@@ -34001,6 +34000,9 @@ Examples:
         # {0:1} {1:1} -I "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} -I "ls" -q STDERR:"/dev/null"
 
+    - {2:1} after blocking specific signals
+        # {0:1} {1:1} -I "sleep 100" -q IGNORESIGNAL:SIGHUP, IGNORESIGNAL:SIGINT
+
     - {2:1} after converting it using the config file
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
@@ -36555,7 +36557,7 @@ Copyright:
 
         # check config #
         try:
-            PMUs = "/sys/bus/event_source/devices"
+            # PMUs = "/sys/bus/event_source/devices"
             attrPath = "%s/sys/kernel/perf_event_paranoid" % SysMgr.procPath
             with open(attrPath, "w+") as fd:
                 """
@@ -37863,7 +37865,8 @@ Copyright:
         if signum == signal.SIGTSTP:
             os.kill(SysMgr.pid, signal.SIGSTOP)
         elif signum == signal.SIGTTIN:
-            sys.stdin.close()
+            if sys.stdin:
+                sys.stdin.close()
             sys.stdin = None
 
     @staticmethod
@@ -40941,6 +40944,28 @@ Copyright:
                 "registered exit commands '%s'"
                 % ", ".join(SysMgr.environList["EXITCMD"])
             )
+
+        # ignore signals #
+        if "IGNORESIGNAL" in SysMgr.environList:
+            for sig in SysMgr.environList["IGNORESIGNAL"]:
+                try:
+                    if UtilMgr.isNumber(sig):
+                        signum = long(sig)
+                    elif sig.upper() in ConfigMgr.SIG_LIST:
+                        signum = ConfigMgr.SIG_LIST.index(sig.upper())
+                    elif "SIG" + sig.upper() in ConfigMgr.SIG_LIST:
+                        signum = ConfigMgr.SIG_LIST.index("SIG" + sig.upper())
+                    else:
+                        raise Exception("no signal")
+
+                    signal.signal(signum, signal.SIG_IGN)
+
+                    SysMgr.printInfo("blocked %s" % ConfigMgr.SIG_LIST[signum])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to block %s signal" % sig, True)
+                    sys.exit(-1)
 
         # limit resources #
         SysMgr.applyLimitVars()
@@ -47200,7 +47225,7 @@ Copyright:
     def doDrawReq():
         def _drawRes(stats):
             # pylint: disable=undefined-variable
-            def _drawMeta(labelList=None):
+            def _drawMeta(labelList, xfsize):
                 # pylint: disable=undefined-variable
                 # draw label #
                 TaskAnalyzer.drawLabel(labelList, draw=True, anchor=(1.12, 1))
@@ -47222,13 +47247,21 @@ Copyright:
                     pass
 
                 # draw grid #
-                xticks(fontsize=self.xfsize)
+                xticks(fontsize=xfsize)
                 grid(which="both", linestyle=":", linewidth=0.2)
                 tick_params(axis="x", direction="in")
                 tick_params(axis="y", direction="in")
 
             # draw base #
-            figObj = TaskAnalyzer.drawFigure()
+            TaskAnalyzer.drawFigure()
+
+            # get font size #
+            if "FONTSIZE" in SysMgr.environList:
+                fontsize = UtilMgr.getEnvironNum("FONTSIZE")
+                xfsize = lfsize = fontsize
+            else:
+                xfsize = UtilMgr.getEnvironNum("XFONTSIZE", False, 4, False)
+                lfsize = UtilMgr.getEnvironNum("LFONTSIZE", False, 3, False)
 
             # draw title #
             ax = subplot2grid((6, 1), (0, 0), rowspan=3, colspan=1)
@@ -47290,7 +47323,7 @@ Copyright:
             except:
                 pass
 
-            _drawMeta(labelList)
+            _drawMeta(labelList, xfsize)
 
             # draw bar plots for requests #
             ax = subplot2grid((6, 1), (3, 0), rowspan=3, colspan=1)
@@ -47325,7 +47358,7 @@ Copyright:
                         UtilMgr.convNum(value),
                         color="black",
                         fontweight="bold",
-                        fontsize=self.lfsize,
+                        fontsize=lfsize,
                     )
 
                 # draw name text over the bar #
@@ -47334,7 +47367,7 @@ Copyright:
                     maxval / 2,
                     req[:maxLabelLen],
                     color="black",
-                    fontsize=self.lfsize,
+                    fontsize=lfsize,
                     rotation=35,
                 )
 
@@ -47354,7 +47387,7 @@ Copyright:
             except:
                 pass
 
-            _drawMeta(None)
+            _drawMeta(None, xfsize)
 
             # save to file #
             TaskAnalyzer.saveImage(SysMgr.inputFile, "graph")
@@ -47555,7 +47588,7 @@ Copyright:
             govpath = "%s/scaling_available_governors" % commonpath
             curgovpath = "%s/scaling_governor" % commonpath
             availfreqpath = "%s/scaling_available_frequencies" % commonpath
-            curfreqpath = "%s/scaling_cur_freq" % commonpath
+            # curfreqpath = "%s/scaling_cur_freq" % commonpath
             minfreqpath = "%s/scaling_min_freq" % commonpath
             maxfreqpath = "%s/scaling_max_freq" % commonpath
 
@@ -47725,7 +47758,6 @@ Copyright:
 
     @staticmethod
     def doSetSched():
-        isProcess = False
         SysMgr.warnEnable = True
 
         # get argument #
@@ -50014,13 +50046,13 @@ Copyright:
                 SysMgr.printOpenErr(path)
                 continue
 
-            newPos = pos = 0
+            pos = 0
 
             # set pos to EOF #
             if tail:
                 try:
                     size = os.stat(path).st_size
-                    pos = fd.seek(0, 2)
+                    fd.seek(0, 2)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -50051,18 +50083,18 @@ Copyright:
                         newSize = os.stat(path).st_size
 
                         # check file size #
-                        if newPos == 0 or size > newSize:
-                            newPos = newSize - nrLast
-                            if newPos < 0:
-                                newPos = 0
+                        if pos == 0 or size > newSize:
+                            pos = newSize - nrLast
+                            if pos < 0:
+                                pos = 0
 
                         # update size #
                         size = newSize
-                        fd.seek(newPos, 0)
+                        fd.seek(pos, 0)
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        newPos = 0
+                        pos = 0
                         continue
 
                 # read data #
@@ -50079,7 +50111,7 @@ Copyright:
                     )
                     continue
 
-                # decompress data #
+                # decode data #
                 try:
                     data = data.decode()
                 except SystemExit:
@@ -50097,9 +50129,6 @@ Copyright:
                         if common:
                             data = data.replace(common, "")
                             origPrevStr = common
-
-                # update pos #
-                pos = fd.tell()
 
                 # handle event #
                 if not data:
@@ -53997,7 +54026,7 @@ Copyright:
                 # set variables for print #
                 printed = True
                 if SysMgr.ttyCols:
-                    maxItemLine = long(SysMgr.ttyCols / maxSigLen) - 1
+                    maxItemLine = long(SysMgr.ttyCols / (maxSigLen + 2)) - 1
                 else:
                     maxItemLine = sys.maxsize
                 nameStr = "%s: " % name
@@ -54007,9 +54036,9 @@ Copyright:
                 for idx, sig in enumerate(sigList):
                     if idx and idx % maxItemLine == 0:
                         string = "%s\n%s" % (string, " " * len(nameStr))
-                    string = "{0:1}{1:{sz}}".format(
+                    string = "{0:1} {1:{sz}}".format(
                         string,
-                        "{0:{sz}}|".format(sig, sz=maxSigLen - 1),
+                        "{0:{sz}}|".format(sig, sz=maxSigLen),
                         sz=maxSigLen,
                     )
 
@@ -60606,7 +60635,7 @@ class DbusMgr(object):
             return
 
         # get item count #
-        cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+        #cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
         # stats #
@@ -61957,7 +61986,7 @@ class DbusMgr(object):
                                 srcInfo = service[src]
                             else:
                                 service[src] = src
-                                ret = _updateServiceProc(bus, tid, service)
+                                _updateServiceProc(bus, tid, service)
                                 if src in service:
                                     srcInfo = service[src]
 
@@ -61974,7 +62003,7 @@ class DbusMgr(object):
                                 desInfo = service[des]
                             else:
                                 service[des] = des
-                                ret = _updateServiceProc(bus, tid, service)
+                                _updateServiceProc(bus, tid, service)
                                 if des in service:
                                     desInfo = service[des]
 
@@ -67763,14 +67792,18 @@ typedef struct {
                     reason,
                 )
 
-                # print solution for docker #
-                if tracer == 0:
+                # get alive status #
+                isAlive = self.isAlive()
+
+                # add solution for docker to error message #
+                if tracer == 0 and isAlive:
                     warnMsg += (
                         "\n\tif you use docker then attach "
                         "'--cap-add=SYS_PTRACE --security-opt "
                         "seccomp=unconfined' option to the run command"
                     )
 
+                # print error message #
                 SysMgr.printWarn(warnMsg, verb)
 
                 # check return #
@@ -67778,7 +67811,7 @@ typedef struct {
                     sys.exit(-1)
                 elif not cont:
                     return -1
-                elif self.isAlive():
+                elif isAlive:
                     time.sleep(SysMgr.waitDelay)
                     continue
                 else:
@@ -69000,7 +69033,7 @@ typedef struct {
             header = cast(ret, self.mmsghdr_ptr)
 
             # get msg info #
-            msglen = header.contents.msg_len
+            # msglen = header.contents.msg_len
             msgaddr = addressof(header.contents.msg_hdr)
             ret = self.readMsgHdr(obj=msgaddr)
             if not ret:
@@ -71130,9 +71163,9 @@ typedef struct {
     def setRet(self, val, temp=False, update=False):
         try:
             if temp:
-                ret = setattr(self.tempRegs, self.retreg, val)
+                setattr(self.tempRegs, self.retreg, val)
             else:
-                ret = setattr(self.regs, self.retreg, val)
+                setattr(self.regs, self.retreg, val)
 
             if update:
                 self.setRegs()
@@ -72081,7 +72114,7 @@ typedef struct {
 
                 # get FP #
                 if readaheadStack:
-                    nextFP = self.getWordFromStack(targetAddr)
+                    nextFp = self.getWordFromStack(targetAddr)
                 else:
                     nextFp = self.readWord(nextFp)
 
@@ -72384,7 +72417,7 @@ typedef struct {
         # convert args #
         if Debugger.envFlags["PRINTARG"]:
             args = []
-            raddr = self.getRetAddr(addr, args, onlyArg=True, cur=True)
+            self.getRetAddr(addr, args, onlyArg=True, cur=True)
             if args:
                 args = args[0]
             argstr = "(%s)" % ", ".join(
@@ -73839,7 +73872,7 @@ typedef struct {
         frameList = self.readPyState(pyThreadStateP)
 
         # TODO: get GIL usage by comparing thread_id with pthread_self() #
-        nrThread = len(frameList)
+        # nrThread = len(frameList)
 
         # get top-level frame for target task #
         if self.pthreadid == -1:
@@ -73938,7 +73971,7 @@ typedef struct {
             sym, fname, offset, fstart, fend, size = ret
         else:
             sym = ret
-            fname = offset = fstart = fend = size = "??"
+            fname = offset = "??"
 
         # get backtrace #
         if self.isRealtime and SysMgr.funcDepth > 0:
@@ -73963,7 +73996,7 @@ typedef struct {
         # convert args #
         if Debugger.envFlags["PRINTARG"]:
             args = []
-            raddr = self.getRetAddr(self.pc, args, onlyArg=True)
+            self.getRetAddr(self.pc, args, onlyArg=True)
             if args:
                 args = args[0]
             sym += "(%s)" % ", ".join(
@@ -75118,7 +75151,13 @@ typedef struct {
 
         # check memory map #
         if not self.pmap:
-            self.loadSymbols()
+            # load symbols #
+            if SysMgr.funcDepth > 0 or not self.mode in (
+                "syscall",
+                "signal",
+                "kernel",
+            ):
+                self.loadSymbols()
 
         # check lock #
         if self.isBreakMode and not self.lockObj:
@@ -75175,9 +75214,16 @@ typedef struct {
                 )
         # child tracee #
         elif pid == 0:
+            # disable alarm #
+            signal.alarm(0)
+
             # update the child PID #
             origPid = self.pid
             self.pid = tid
+
+            # initialize variables #
+            self.initValues(fork)
+            self.forked = True
 
             # attach to the child task #
             while 1:
@@ -75193,11 +75239,6 @@ typedef struct {
                         "%s(%s) is terminated" % (self.comm, self.pid)
                     )
                     sys.exit(0)
-
-            # initialize variables #
-            self.initValues(fork)
-            self.forked = True
-            signal.alarm(SysMgr.intervalEnable)
 
             # increase the number of children #
             self.childNum += 1
@@ -75222,6 +75263,10 @@ typedef struct {
                     % (self.comm, origPid),
                     reason=True,
                 )
+
+            # restart alarm #
+            signal.alarm(SysMgr.intervalEnable)
+
         # fork fail #
         else:
             return self.pid
@@ -75516,7 +75561,7 @@ typedef struct {
 
             # remove breakpoint #
             if not origSym in self.entryTime:
-                ret = self.removeBp(addr, lock=True)
+                self.removeBp(addr, lock=True)
 
             return "=%s(%s)" % (hex(retval).rstrip("L"), retval)
         except SystemExit:
@@ -75746,6 +75791,7 @@ typedef struct {
                         # initialize variables #
                         self.initValues()
 
+                        # set events #
                         self.ptraceEvent(self.traceEventList)
 
                         SysMgr.printInfo(
@@ -76058,7 +76104,8 @@ typedef struct {
                 if self.attach(verb=True) < 0:
                     sys.exit(-1)
 
-            ret = self.ptraceEvent(self.traceEventList)
+            # set events #
+            self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
             if self.mode in ("inst", "sample") and not SysMgr.isTopMode():
@@ -76741,7 +76788,6 @@ typedef struct {
             instance.stop(check=True)
 
         try:
-            outFile = SysMgr.printFd.name
             SysMgr.printInfo(
                 "saved the results into '%s' successfully"
                 % SysMgr.printFd.name
@@ -76934,33 +76980,29 @@ typedef struct {
         data = c_long(0)
         addr = addressof(data)
 
-        ret = self.ptrace(PTRACE_GETEVENTMSG, data=addr)
+        self.ptrace(PTRACE_GETEVENTMSG, data=addr)
+
         return data.value
 
     def getStatus(self, status):
         ret = None
 
+        # Process exited #
         if os.WIFEXITED(status):
-            code = os.WEXITSTATUS(status)
+            # code = os.WEXITSTATUS(status)
             ret = -1
-
         # Process killed by a signal #
         elif os.WIFSIGNALED(status):
-            signum = os.WTERMSIG(status)
-            ret = signum
-
+            ret = os.WTERMSIG(status)
         # Invalid process status #
         elif not os.WIFSTOPPED(status):
             pass
-
         # Ptrace Event #
         elif status >> 8 == 0:
             ret = status >> 16
-
         # Process stopped by a signal #
         else:
-            signum = os.WSTOPSIG(status)
-            ret = signum
+            ret = os.WSTOPSIG(status)
 
         return ret
 
@@ -76991,17 +77033,14 @@ typedef struct {
             self.regs.r14 = val
 
     def setRegs(self, temp=False, newObj=None):
-        pid = self.pid
-        wordSize = ConfigMgr.wordSize
-
         # read registers #
         try:
             if not self.supportSetRegset:
                 raise Exception("not support setregset")
 
-            cmd = PTRACE_SETREGSET = 0x4205
+            cmd = 0x4205  # PTRACE_SETREGSET
             NT_PRSTATUS = 1
-            nrWords = sizeof(self.regs) * wordSize
+            # nrWords = sizeof(self.regs) * ConfigMgr.wordSize
 
             if newObj:
                 addr = addressof(self.getIovec(newObj))
@@ -77063,9 +77102,6 @@ typedef struct {
         memmove(addressof(target), addressof(self.regs), sizeof(self.regs))
 
     def getFpRegs(self, temp=False):
-        pid = self.pid
-        wordSize = ConfigMgr.wordSize
-
         if temp:
             addr = addressof(self.tempFpRegs)
         else:
@@ -77087,9 +77123,6 @@ typedef struct {
         return ret
 
     def getRegs(self, temp=False, new=False):
-        pid = self.pid
-        wordSize = ConfigMgr.wordSize
-
         if new:
             newObj = self.getRegStruct()
 
@@ -77233,7 +77266,6 @@ typedef struct {
             # get page-aligned size #
             pageSize = SysMgr.PAGESIZE
             tsize = long((size + pageSize - 1) / pageSize)
-            rsize = tsize * pageSize
 
             # init bitmap #
             table = [0] * tsize
@@ -79855,7 +79887,6 @@ class ElfAnalyzer(object):
                 SysMgr.printInfo(
                     "load %s... " % path, prefix=False, suffix=False
                 )
-                prefix = False
 
             # return a exceptional file object #
             if fobj:
@@ -79959,7 +79990,7 @@ class ElfAnalyzer(object):
         quickly filter out most C++ symbols unrelated to Rust.
         """
 
-        hash_prefix = "::h"
+        # hash_prefix = "::h"
         hash_prefix_len = 3
         hash_len = 16
         hashTotal = hash_prefix_len + hash_len
@@ -81352,7 +81383,6 @@ class ElfAnalyzer(object):
             ei_version,
             ei_pad,
         ) = ei_ident[:8]
-        ei_nident = ei_ident[8:]
 
         # check magic number #
         if (
@@ -81371,11 +81401,11 @@ class ElfAnalyzer(object):
         if ei_class == 1:
             self.is32Bit = True
             e_class = "32-bit objects"
-            wordSize = 4
+            # wordSize = 4
         elif ei_class == 2:
             self.is32Bit = False
             e_class = "64-bit objects"
-            wordSize = 8
+            # wordSize = 8
         else:
             SysMgr.printWarn(errStr % (path, "it is invalid class"), debug)
             self.ret = None
@@ -81727,8 +81757,8 @@ Section header string table index: %d
                     p_align,
                 ) = struct.unpack("IIQQQQQQ", fd.read(56))
 
-            fd.seek(p_offset)
-            interp = fd.read(p_filesz)
+            # move pos #
+            fd.seek(p_offset + p_filesz)
 
         # initialize indexes #
         e_shsymndx = -1
@@ -81957,9 +81987,6 @@ Section header string table index: %d
                 sh_addralign,
                 sh_entsize,
             ) = self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynstr)
-
-            # backup .dynstr offset #
-            dynstr_offset = sh_offset
 
             # read .dynstr data #
             fd.seek(sh_offset)
@@ -82268,9 +82295,6 @@ Section header string table index: %d
                 sh_addralign,
                 sh_entsize,
             ) = self.getSectionInfo(fd, e_shoff + e_shentsize * e_shstrndx)
-
-            # backup .strtab offset #
-            strtab_offset = sh_offset
 
             # read .strtab data #
             fd.seek(sh_offset)
@@ -82849,11 +82873,10 @@ Section header string table index: %d
                     if regnum not in regOrder:
                         regOrder.append(regnum)
 
-                CFARule = ElfAnalyzer.CFARule
                 RegisterRule = ElfAnalyzer.RegisterRule
                 regIdx = ElfAnalyzer.CFARule.REG
                 offsetIdx = ElfAnalyzer.CFARule.OFFSET
-                exprIdx = ElfAnalyzer.CFARule.EXPR
+                #exprIdx = ElfAnalyzer.CFARule.EXPR
                 getRule = ElfAnalyzer.getCFARule
 
                 copy = SysMgr.getPkg("copy", False)
@@ -83263,7 +83286,7 @@ Section header string table index: %d
                 dwarfFormat = 64 if size == 0xFFFFFFFF else 32
 
                 # initial length #
-                initLenField = 4 if dwarfFormat == 32 else 12
+                # initLenField = 4 if dwarfFormat == 32 else 12
 
                 # start position #
                 startPos = fd.tell()
@@ -84439,7 +84462,6 @@ Section header string table index: %d
             pos = 0
             idx = -1
             error = False
-            pack = struct.pack
             unpack = struct.unpack
             decULEB = UtilMgr.decodeULEB128
             decSLEB = UtilMgr.decodeSLEB128
@@ -84920,8 +84942,7 @@ Section header string table index: %d
             sh_entsize,
         ) = self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynamic)
 
-        fd.seek(sh_offset)
-        dynamic_section = fd.read(sh_size)
+        fd.seek(sh_offset + sh_size)
 
         if debug:
             printer(
@@ -87211,7 +87232,6 @@ class TaskAnalyzer(object):
     def getStatsFile(
         logFile, handle=None, applyOpt=True, onlyStart=False, verb=False
     ):
-        logBuf = None
         infoBuf = None
 
         chartStats = {}
@@ -87282,7 +87302,6 @@ class TaskAnalyzer(object):
             SysMgr.printStat(r"start processing '%s'%s..." % (logFile, fsize))
 
         # context variable #
-        finalLine = 0
         context = None
         totalRam = None
         startTime = 0
@@ -87320,10 +87339,8 @@ class TaskAnalyzer(object):
             # get context #
             if line.startswith("[Top "):
                 pid = 0
-                average = 0
                 maxVss = 0
                 maxRss = 0
-                maxUsage = 0
                 pname = None
                 gname = None
                 intervalList = None
@@ -87471,7 +87488,6 @@ class TaskAnalyzer(object):
 
                 try:
                     time = long(float(sline[0]))
-                    rtime = float(sline[1])
                     dtime = float(sline[2])
                     event = sline[3].strip()
 
@@ -87492,7 +87508,6 @@ class TaskAnalyzer(object):
                     task = sline[0].strip()
                     start = sline[1].strip()
                     end = sline[2].strip()
-                    parent = sline[4].strip()
 
                     try:
                         startSec = UtilMgr.convTime2Sec(start)
@@ -88723,7 +88738,7 @@ class TaskAnalyzer(object):
                 # convert pull path to file name #
                 fnameList = [os.path.basename(fname) for fname in flist]
                 if len(fnameList) < 2:
-                    raise Exception("of input for multiple files")
+                    raise Exception("of a single input file")
                 graphStats = self.getAvgStats(fnameList, graphStats)
                 graphStats["fileList"] = fnameList
                 self.drawAvgGraph(graphStats, logFile, outFile=outFile)
@@ -89318,7 +89333,7 @@ class TaskAnalyzer(object):
                     prefix = ""
 
                 # get event table #
-                eventList = graphStats["%seventList" % fname]
+                eventList = graphStats["%seventList" % fname][:lent]
 
                 for tm, evts in enumerate(eventList):
                     if not evts:
@@ -91688,11 +91703,13 @@ class TaskAnalyzer(object):
                 margin = self.getMargin()
 
                 maxCpuPer = str(cpuUsage[maxIdx])
+
+                """
                 if idx in blkProcUsage and not SysMgr.blockEnable:
                     maxBlkPer = str(blkUsage[maxIdx])
                 else:
                     maxBlkPer = "0"
-                maxPer = "(%s%%+%s%%)" % (maxCpuPer, maxBlkPer)
+                """
 
                 for pidx, usage in enumerate(cpuUsage):
                     if usage == 0:
@@ -91989,9 +92006,6 @@ class TaskAnalyzer(object):
             grid(which="both", linestyle=":", linewidth=0.2)
             tick_params(axis="x", direction="in")
             tick_params(axis="y", direction="in")
-
-            # adjust yticks #
-            ylist = ax.get_yticks().tolist()
 
             # update yticks #
             TaskAnalyzer.drawYticks(ax, ymax)
@@ -92329,7 +92343,7 @@ class TaskAnalyzer(object):
 
             # merge by name #
             wqData = {}
-            for struct, item in self.wqData.items():
+            for _, item in self.wqData.items():
                 name = item["name"]
 
                 # change default stat value -1 to 0 #
@@ -92363,7 +92377,7 @@ class TaskAnalyzer(object):
                     target["minPeriod"] = item["minPeriod"]
 
             # print summary #
-            for struct, item in sorted(
+            for _, item in sorted(
                 wqData.items(), key=lambda e: e[1]["usage"], reverse=True
             ):
                 totalCnt += item["scount"]
@@ -95472,7 +95486,6 @@ class TaskAnalyzer(object):
                     # search candidate files for incorrect device ID #
                     else:
                         path = " "
-                        mdid = "%s:" % did.split(":")[0]
                         pathList = []
                         for devid in sorted(list(inodeInfo)):
                             if not inode in inodeInfo[devid]:
@@ -96049,6 +96062,7 @@ class TaskAnalyzer(object):
             elif not key.startswith("0["):
                 continue
 
+            coreId = key[2:-1]
             cpuCnt += 1
 
             timeLine = ""
@@ -96058,8 +96072,8 @@ class TaskAnalyzer(object):
                     # revise core usage in DVFS system #
                     if self.threadData[key]["coreSchedCnt"] == 0 and (
                         self.threadData[key]["offCnt"] > 0
-                        or not core in self.lastTidPerCore
-                        or self.lastTidPerCore[core] == 0
+                        or not coreId in self.lastTidPerCore
+                        or self.lastTidPerCore[coreId] == 0
                     ):
                         raise Exception("core off")
                     else:
@@ -97888,7 +97902,6 @@ class TaskAnalyzer(object):
             )
         )
 
-        procIntData = TaskAnalyzer.procIntData
         procEventData = TaskAnalyzer.procEventData
         for idx, event in enumerate(procEventData):
             name = event[1]
@@ -98808,8 +98821,6 @@ class TaskAnalyzer(object):
 
         TA = TaskAnalyzer
 
-        convSize2Unit = UtilMgr.convSize2Unit
-
         SysMgr.printPipe("\n[Top Cgroup.CPU Info] (Unit: %%)\n%s\n" % twoLine)
 
         # Print menu #
@@ -99328,9 +99339,6 @@ class TaskAnalyzer(object):
             if UtilMgr.isNumber(pids):
                 pids = [pids]
 
-            # get minimum pid #
-            minPid = min(list(map(long, pids)))
-
             # convert items to integer #
             pids = list(map(str, pids))
         except SystemExit:
@@ -99402,7 +99410,6 @@ class TaskAnalyzer(object):
             return
 
         # define index variables #
-        commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
         utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
@@ -100070,7 +100077,7 @@ class TaskAnalyzer(object):
             blkOffset = addr + 1
 
         blkSize = _getBlkOptSize(size)
-        origid = did = "%s:%s" % (major, minor)
+        did = "%s:%s" % (major, minor)
 
         # revise real minor number by address #
         mntTree = SysMgr.savedMountTree
@@ -101176,7 +101183,6 @@ class TaskAnalyzer(object):
                     )
 
             # add timeline stats #
-            isValidStr = UtilMgr.isValidStr
             if not prev_id.startswith("0["):
                 # add runtime to list for histogram #
                 self.statData.setdefault("runtime", [])
@@ -103507,9 +103513,6 @@ class TaskAnalyzer(object):
             d = m.groupdict()
             struct = d["struct"]
             function = d["function"]
-            wq = d["wq"]
-            rcpu = d["rcpu"]
-            ecpu = d["ecpu"]
 
             # register workqueue #
             try:
@@ -104032,7 +104035,7 @@ class TaskAnalyzer(object):
             # get available memory for system #
             sysMemStr = SysMgr.getAvailMemInfo()
         else:
-            cpuStr = mcpuStr = sysCpuStr = sysMemStr = "?"
+            mcpuStr = sysCpuStr = sysMemStr = "?"
 
         # get system fd handle stats #
         sysFds = SysMgr.getNrSysFdHandle()
@@ -104973,8 +104976,8 @@ class TaskAnalyzer(object):
 
         # temperature #
         try:
-            raise Exception()
-            temp = psutil.sensors_temperatures(fahrenheit=False)
+            pass
+            # temp = psutil.sensors_temperatures(fahrenheit=False)
         except SystemExit:
             sys.exit(0)
         except:
@@ -104982,8 +104985,8 @@ class TaskAnalyzer(object):
 
         # fan #
         try:
-            raise Exception()
-            fan = psutil.sensors_fans()
+            pass
+            # fan = psutil.sensors_fans()
         except SystemExit:
             sys.exit(0)
         except:
@@ -105001,8 +105004,8 @@ class TaskAnalyzer(object):
 
         # users #
         try:
-            raise Exception()
-            user = psutil.users()
+            pass
+            # user = psutil.users()
         except SystemExit:
             sys.exit(0)
         except:
@@ -105137,7 +105140,6 @@ class TaskAnalyzer(object):
                 stime = now[pid]["stime"] = procInfo["cpu_times"][1]
                 if not stime:
                     stime = 0
-                ttime = now[pid]["ttime"] = utime + stime
 
                 if pid in prev:
                     now[pid]["utimeDiff"] = utime - prev[pid]["utime"]
@@ -105361,8 +105363,7 @@ class TaskAnalyzer(object):
             try:
                 batteryPath = "/sys/class/power_supply/?/capacity"
                 SysMgr.batteryFd = open(batteryPath, "r")
-                battery = SysMgr.batteryFd.readlines()[0]
-                SysMgr.battery = {}
+                SysMgr.battery = SysMgr.batteryFd.readlines()[0]
             except SystemExit:
                 sys.exit(0)
             except:
@@ -105594,7 +105595,6 @@ class TaskAnalyzer(object):
             return
 
         for line in buf:
-            d = {}
             tmplist = line.split()
 
             # memory map info #
@@ -106393,14 +106393,14 @@ class TaskAnalyzer(object):
             freeMem = memData["MemFree"] >> 10
             freeMemDiff = freeMem - (prevMemData["MemFree"] >> 10)
             freeMemPer = long(freeMem / float(totalMem) * 100)
-
-            # add free memory interval #
-            self.addSysInterval("mem", "free", freeMem)
         except SystemExit:
             sys.exit(0)
         except:
             freeMem = freeMemDiff = freeMemPer = 0
             failedStat.append("MemFree")
+
+        # add free memory interval #
+        self.addSysInterval("mem", "free", freeMem)
 
         # available memory #
         try:
@@ -106422,48 +106422,50 @@ class TaskAnalyzer(object):
                 availMemDiff = 0
 
             availMemPer = long(availMem / float(totalMem) * 100)
-
-            # add available memory interval #
-            self.addSysInterval("mem", "available", availMem)
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.freeMemEnable = True
             availMem = availMemDiff = availMemPer = 0
 
+        # add available memory interval #
+        self.addSysInterval("mem", "available", availMem)
+
         # anonymous memory #
         try:
-            actAnonMem = vmData["nr_active_anon"] >> 8
-            inactAnonMem = vmData["nr_inactive_anon"] >> 8
+            # actAnonMem = vmData["nr_active_anon"] >> 8
+            # inactAnonMem = vmData["nr_inactive_anon"] >> 8
             totalAnonMem = vmData["nr_anon_pages"] >> 8
             anonMemDiff = (
                 vmData["nr_anon_pages"] - self.prevVmData["nr_anon_pages"]
             ) >> 8
-
-            # add anon memory interval #
-            self.addSysInterval("mem", "anon", totalAnonMem)
         except SystemExit:
             sys.exit(0)
         except:
-            actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = 0
+            # actAnonMem = inactAnonMem = 0
+            totalAnonMem = anonMemDiff = 0
             failedStat.append("MemAnon")
+
+        # add anon memory interval #
+        self.addSysInterval("mem", "anon", totalAnonMem)
 
         # file memory #
         try:
-            actFileMem = vmData["nr_active_file"] >> 8
-            inactFileMem = vmData["nr_inactive_file"] >> 8
+            # actFileMem = vmData["nr_active_file"] >> 8
+            # inactFileMem = vmData["nr_inactive_file"] >> 8
             totalFileMem = vmData["nr_file_pages"] >> 8
             fileMemDiff = (
                 vmData["nr_file_pages"] - self.prevVmData["nr_file_pages"]
             ) >> 8
-
-            # add file cache interval #
-            self.addSysInterval("mem", "file", totalFileMem)
         except SystemExit:
             sys.exit(0)
         except:
-            actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
+            # actFileMem = inactFileMem = 0
+            totalFileMem = fileMemDiff = 0
             failedStat.append("MemFile")
+
+        # add file cache interval #
+        self.addSysInterval("mem", "file", totalFileMem)
 
         # dirty memory #
         try:
@@ -106485,33 +106487,31 @@ class TaskAnalyzer(object):
 
         # slab memory #
         try:
-            slabReclm = vmData["nr_slab_reclaimable"] >> 8
-            slabUnReclm = vmData["nr_slab_unreclaimable"] >> 8
             slabReclmDiff = (
                 vmData["nr_slab_reclaimable"]
                 - self.prevVmData["nr_slab_reclaimable"]
             )
+
             slabUnReclmDiff = (
                 vmData["nr_slab_unreclaimable"]
                 - self.prevVmData["nr_slab_unreclaimable"]
             )
+
             totalSlabMem = (
                 vmData["nr_slab_reclaimable"] + vmData["nr_slab_unreclaimable"]
             ) >> 8
-            slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
 
-            # add slab cache interval #
-            self.addSysInterval("mem", "slab", totalSlabMem)
+            slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
         except SystemExit:
             sys.exit(0)
         except:
-            slabReclm = (
-                slabUnReclm
-            ) = (
-                slabReclmDiff
-            ) = slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
+            totalSlabMem = slabMemDiff = 0
             failedStat.append("MemSlab")
 
+        # add slab cache interval #
+        self.addSysInterval("mem", "slab", totalSlabMem)
+
+        # sum cached mems #
         totalCacheMem = totalFileMem + totalSlabMem
 
         # kernel memory #
@@ -106556,7 +106556,6 @@ class TaskAnalyzer(object):
         try:
             swapTotal = vmData["swapTotal"] >> 10
             swapUsage = vmData["swapUsed"] >> 10
-            swapFree = swapTotal - swapUsage
             prevVmData = self.prevVmData
             if swapTotal:
                 swapUsagePer = long(swapUsage / float(swapTotal) * 100)
@@ -106568,10 +106567,12 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            swapTotal = (
-                swapUsage
-            ) = swapUsageDiff = swapUsagePer = swapInMem = swapOutMem = 0
+            swapTotal = swapUsage = 0
+            swapUsageDiff = swapUsagePer = swapInMem = swapOutMem = 0
             failedStat.append("MemSwap")
+
+        # add swap device interval #
+        self.addSysInterval("swap", "swap", swapUsagePer)
 
         # background reclaim #
         try:
@@ -106596,6 +106597,7 @@ class TaskAnalyzer(object):
                     ConfigMgr.BGRECLAIMSTAT.remove(name)
 
             # calculate the count #
+            """
             try:
                 nrBgReclaim = (
                     vmData["pageoutrun"] - self.prevVmData["pageoutrun"]
@@ -106604,10 +106606,12 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 nrBgReclaim = 0
+            """
         except SystemExit:
             sys.exit(0)
         except:
-            pgRclmBg = nrBgReclaim = 0
+            pgRclmBg = 0
+            # nrBgReclaim = 0
             failedStat.append("MemBgReclaim")
 
         # add background reclaim interval #
@@ -106635,6 +106639,7 @@ class TaskAnalyzer(object):
                     ConfigMgr.FGRECLAIMSTAT.remove(name)
 
             # calculate the count #
+            """
             try:
                 nrDrReclaim = (
                     vmData["allocstall"] - self.prevVmData["allocstall"]
@@ -106643,10 +106648,12 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 nrDrReclaim = 0
+            """
         except SystemExit:
             sys.exit(0)
         except:
-            pgRclmFg = nrDrReclaim = 0
+            pgRclmFg = 0
+            #nrDrReclaim = 0
             failedStat.append("MemFgReclaim")
 
         # add foreground reclaim interval #
@@ -106969,9 +106976,6 @@ class TaskAnalyzer(object):
         if swapUsagePer == 0:
             pass
         else:
-            # add swap device interval #
-            self.addSysInterval("swap", "swap", swapUsagePer)
-
             if swapUsagePer >= SysMgr.swapPerThreshold:
                 swapUsageStr = convColor(swapUsageStr, "RED")
             else:
@@ -109145,6 +109149,7 @@ class TaskAnalyzer(object):
                     continue
 
             # get readtime #
+            """
             try:
                 if SysMgr.totalEnable:
                     readtime = value["readtime"]
@@ -109157,8 +109162,10 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 readtime = 0
+            """
 
             # get writetime #
+            """
             try:
                 if SysMgr.totalEnable:
                     writetime = value["writetime"]
@@ -109171,6 +109178,7 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 writetime = 0
+            """
 
             # get busytime #
             try:
@@ -109774,8 +109782,9 @@ class TaskAnalyzer(object):
             write = 0
             nrpgflt = value["nrpgfltDiff"]
 
+            # sched #
             nryield = value["yieldDiff"]
-            nrpreempted = value["preemptedDiff"]
+            # nrpreempted = value["preemptedDiff"]
 
             # memory #
             rss = value["rss"]
@@ -113900,7 +113909,6 @@ class TaskAnalyzer(object):
         # generate process status data #
         metricsetFields["metricset"]["name"] = "process"
 
-        strProcessData = ""
         systemProcessFields = {
             "system": {
                 "process": {
@@ -114299,7 +114307,6 @@ def main(args=None):
             }
 
             # get task usage #
-            tasks = tobj.timelineData["names"]
             for key, value in tobj.threadData.items():
                 if not key in tobj.timelineIdx:
                     continue
@@ -114318,7 +114325,7 @@ def main(args=None):
                     continue
 
                 try:
-                    coreId = str(key[key.find("[") + 1 : -1])
+                    coreId = key[2:-1]
                 except:
                     continue
 
