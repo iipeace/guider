@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220722"
+__revision__ = "220723"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6922,36 +6922,25 @@ class UtilMgr(object):
             if sec == long(sec):
                 return "%ssec" % conv(sec)
 
-            msSec = sec * 1000
+            msSec = round(sec * 1000, 3)
             msSecInt = long(msSec)
-            if msSec == msSecInt:
+            if msSec and msSec == msSecInt:
                 return "%sms" % msSecInt
 
-            usSec = msSec * 1000
+            usSec = round(sec * 1000000, 6)
             usSecInt = long(usSec)
-            if usSec == usSecInt:
+            if usSec and usSec == usSecInt:
                 return "%sus" % usSecInt
 
-            nsSec = usSec * 1000
+            nsSec = round(sec * 1000000000, 9)
             nsSecInt = long(nsSec)
-            if nsSec == nsSecInt:
+            if nsSec and nsSec == nsSecInt:
                 return "%sns" % nsSecInt
-
-            psSec = nsSec * 1000
-            psSecInt = long(psSec)
-            if psSec == psSecInt:
-                return "%sps" % psSecInt
-
-            fsSec = psSec * 1000
-            fsSecInt = long(fsSec)
-            if fsSec == fsSecInt:
-                return "%sfs" % fsSecInt
 
             return sec
         except SystemExit:
             sys.exit(0)
         except:
-            print(SysMgr.getErrMsg())
             return "?"
 
     @staticmethod
@@ -7088,6 +7077,24 @@ class UtilMgr(object):
             ret = long(data[:-1]) * 60 * 60 * 24
         elif data.upper().endswith("W"):
             ret = long(data[:-1]) * 60 * 60 * 24 * 7
+        else:
+            ret = 0
+            SysMgr.printErr("failed to convert '%s' to seconds" % data)
+
+        return ret
+
+    @staticmethod
+    def convUnit2Sec(data):
+        if str(data).isdigit():
+            ret = long(data)
+        elif data.upper().endswith("MS"):
+            ret = long(data[:-2]) / 1000.0
+        elif data.upper().endswith("US"):
+            ret = long(data[:-2]) / 1000000.0
+        elif data.upper().endswith("NS"):
+            ret = long(data[:-2]) / 1000000000.0
+        elif data.upper().endswith("PS"):
+            ret = long(data[:-2]) / 1000000000000.0
         else:
             ret = 0
             SysMgr.printErr("failed to convert '%s' to seconds" % data)
@@ -31230,8 +31237,8 @@ Examples:
     - {2:1} with backtrace including native symbols {3:1} (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g iotop -H -q INCNATIVE
 
-    - {2:1} {3:1} every 2 second for 1 minute with 1 ms sampling
-        # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
+    - {2:1} {3:1} every 2 second for 1 minute with 1ms sampling
+        # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
 
     - {2:1} from a specific binary and print standard output for child tasks
         # {0:1} {1:1} iotop -q NOMUTE
@@ -31292,7 +31299,14 @@ Examples:
                         "for specific threads",
                     )
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += (
+                        topSubStr
+                        + topCommonStr.replace(
+                            "-T  <PROC>                  set process number",
+                            "-T  <TIME>                  set sample rate",
+                        )
+                        + examStr
+                    )
 
                 # kernel top #
                 elif SysMgr.checkMode("ktop"):
@@ -31390,8 +31404,8 @@ Examples:
     - {2:1} {3:1} until 100 seconds of uptime
         # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
 
-    - {2:1} {3:1} every 2 second for 1 minute with 1 ms sampling
-        # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
+    - {2:1} {3:1} every 2 second for 1 minute with 1ms sampling
+        # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
 
     - Monitor CPU usage on whole system of native function calls {3:1}
         # {0:1} {1:1} -g a.out -e c
@@ -31405,7 +31419,14 @@ Examples:
                         "from a specific binary",
                     )
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += (
+                        topSubStr
+                        + topCommonStr.replace(
+                            "-T  <PROC>                  set process number",
+                            "-T  <TIME>                  set sample rate",
+                        )
+                        + examStr
+                    )
 
                 # usercall top #
                 elif SysMgr.checkMode("utop"):
@@ -31572,8 +31593,8 @@ Examples:
     - {3:1} with backtrace including arguments using DWARF {4:1}
         # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
 
-    - {3:1} {4:1} every 2 second for 1 minute with 1 ms sampling
-        # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
+    - {3:1} {4:1} every 2 second for 1 minute with 1ms sampling
+        # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
 
     - Monitor CPU usage on whole system of native function calls {4:1}
         # {0:1} {1:1} -g a.out -e c
@@ -31592,7 +31613,14 @@ Examples:
                         "from a specific binary",
                     )
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += (
+                        topSubStr
+                        + topCommonStr.replace(
+                            "-T  <PROC>                  set process number",
+                            "-T  <TIME>                  set sample rate",
+                        )
+                        + examStr
+                    )
 
                 # break top #
                 elif SysMgr.checkMode("btop"):
@@ -60635,7 +60663,7 @@ class DbusMgr(object):
             return
 
         # get item count #
-        #cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+        # cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
         # stats #
@@ -76011,13 +76039,14 @@ typedef struct {
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
 
             if self.mode in ("sample", "pycall", "kernel"):
-                # set sampling rate to 100 us #
                 sampleTime = SysMgr.getOption("T")
                 if sampleTime:
                     try:
-                        self.sampleTime = long(sampleTime) / float(1000000)
+                        self.sampleTime = UtilMgr.convUnit2Sec(sampleTime)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
-                        SysMgr.printErr("failed to set sampling time", True)
+                        SysMgr.printErr("failed to set sampling rate", True)
                         sys.exit(-1)
                 else:
                     self.sampleTime = 0.001
@@ -76027,8 +76056,8 @@ typedef struct {
 
                 if not self.multi:
                     SysMgr.printInfo(
-                        "do sampling every %s second"
-                        % UtilMgr.convFloat2Str(self.sampleTime)
+                        "do sampling every %s"
+                        % UtilMgr.convTime2Unit(self.sampleTime)
                     )
 
             # set default interval #
@@ -82876,7 +82905,7 @@ Section header string table index: %d
                 RegisterRule = ElfAnalyzer.RegisterRule
                 regIdx = ElfAnalyzer.CFARule.REG
                 offsetIdx = ElfAnalyzer.CFARule.OFFSET
-                #exprIdx = ElfAnalyzer.CFARule.EXPR
+                # exprIdx = ElfAnalyzer.CFARule.EXPR
                 getRule = ElfAnalyzer.getCFARule
 
                 copy = SysMgr.getPkg("copy", False)
@@ -106653,7 +106682,7 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgRclmFg = 0
-            #nrDrReclaim = 0
+            # nrDrReclaim = 0
             failedStat.append("MemFgReclaim")
 
         # add foreground reclaim interval #
