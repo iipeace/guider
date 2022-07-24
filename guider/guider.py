@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220723"
+__revision__ = "220724"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25787,7 +25787,7 @@ Commands:
 
         name = str(time.time()).replace(".", "")
 
-        # set commands for memory size #
+        # set commands for block #
         cmds = ["CREATE:blkio:guider_{0:1}:{1:1}".format(name, pids[0])]
 
         # set commands #
@@ -25810,7 +25810,7 @@ Commands:
                     ),
                 )
 
-        # execute commands to limit memory #
+        # execute commands to limit block usage #
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
@@ -25825,18 +25825,20 @@ Commands:
 
         # set commands for CPU usage #
         cmds = ["CREATE:cpu:guider_{0:1}:{1:1}".format(name, pids[0])]
-        # add default period (us) for cfs #
-        cmds.append(
-            "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
-                name, "cfs_period_us", 1000000
+
+        # get node list #
+        nodes = [item[0] for item in attrs]
+
+        # add default values #
+        for node in ("cfs_period_us", "rt_period_us"):
+            if node in nodes:
+                continue
+
+            cmds.append(
+                "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
+                    name, node, 1000000
+                )
             )
-        )
-        # add default period (us) for rt #
-        cmds.append(
-            "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
-                name, "rt_period_us", 1000000
-            )
-        )
 
         # set commands #
         if len(pids) > 1:
@@ -25851,7 +25853,7 @@ Commands:
                 ),
             )
 
-        # execute commands to limit memory #
+        # execute commands to limit CPU usage #
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
@@ -25864,18 +25866,21 @@ Commands:
 
         name = str(time.time()).replace(".", "")
 
-        # set commands for CPU usage #
+        # set commands for CPU set #
         cmds = ["CREATE:cpuset:guider_{0:1}:{1:1}".format(name, pids[0])]
-        cmds.append(
-            "WRITE:cpuset:guider_{0:1}:{2:1}@cpuset.{1:1}".format(
-                name, "mems", 0
+
+        # get node list #
+        nodes = [item[0] for item in attrs]
+
+        for vals in (["mems", 0], ["cpu_exclusive", 1]):
+            if vals[0] in nodes:
+                continue
+
+            cmds.append(
+                "WRITE:cpuset:guider_{0:1}:{2:1}@cpuset.{1:1}".format(
+                    name, vals[0], vals[1]
+                )
             )
-        )
-        cmds.append(
-            "WRITE:cpuset:guider_{0:1}:{2:1}@cpuset.{1:1}".format(
-                name, "cpu_exclusive", 1
-            )
-        )
 
         # set commands #
         for item in attrs:
@@ -25889,7 +25894,7 @@ Commands:
         for pid in pids:
             cmds.append("ADD:cpuset:guider_{0:1}:{1:1}".format(name, pid))
 
-        # execute commands to limit memory #
+        # execute commands to limit CPU set #
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
@@ -26038,10 +26043,12 @@ Commands:
                 targetFile = os.path.join(targetDir, name)
 
                 # write value #
-                SysMgr.writeFile(targetFile, value)
-
-                # print message #
-                SysMgr.printInfo("wrote '%s' to '%s'" % (value, targetFile))
+                ret = SysMgr.writeFile(targetFile, value)
+                if ret:
+                    # print message #
+                    SysMgr.printInfo(
+                        "wrote '%s' to '%s'" % (value, targetFile)
+                    )
 
                 continue
             # handle move command #
@@ -34702,7 +34709,7 @@ Examples:
     - {2:1} for specific threads
         # {0:1} {1:1} yes:20
         # {0:1} {1:1} "yes:cfs_quota_us:20000+cfs_period_us:100000"
-        # {0:1} {1:1} "yes:rt_quota_us:20000+rt_period_us:100000"
+        # {0:1} {1:1} "yes:rt_runtime_us:20000+rt_period_us:100000"
 
     - {2:1} for specific threads using signal not cgroup
         # {0:1} {1:1} yes:20 -q NOCG
@@ -40752,23 +40759,23 @@ Copyright:
                 # set values #
                 if item == "LIMITCPU":
                     res = "cpu"
-                    name = "cfs_quota_us"
+                    default = ["cfs_quota_us", "rt_runtime_us"]
                     func = SysMgr.limitCpu
                 elif item == "LIMITCPUSET":
                     res = "cpuset"
-                    name = "cpus"
+                    default = "cpus"
                     func = SysMgr.limitCpuset
                 elif item == "LIMITMEM":
                     res = "memory"
-                    name = "limit_in_bytes"
+                    default = "limit_in_bytes"
                     func = SysMgr.limitMemory
                 elif item == "LIMITREAD":
                     res = "I/O read"
-                    name = "read_bps_device"
+                    default = "read_bps_device"
                     func = SysMgr.limitBlock
                 elif item == "LIMITWRITE":
                     res = "I/O write"
-                    name = "write_bps_device"
+                    default = "write_bps_device"
                     func = SysMgr.limitBlock
                 else:
                     continue
@@ -40792,6 +40799,7 @@ Copyright:
                         # get limit info #
                         values = limit.split(":")
                         if len(values) == 1:
+                            name = default
                             val = values[0]
                             if item != "LIMITCPUSET":
                                 val = UtilMgr.convUnit2Size(val)
@@ -40820,7 +40828,11 @@ Copyright:
                             unitSize = UtilMgr.convSize2Unit(val)
 
                         # set attributes #
-                        attrs.append([name, val])
+                        if type(name) is list:
+                            for subname in name:
+                                attrs.append([subname, val])
+                        else:
+                            attrs.append([name, val])
 
                         # print info #
                         SysMgr.printInfo(
