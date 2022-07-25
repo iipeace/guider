@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220724"
+__revision__ = "220725"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7326,9 +7326,9 @@ class UtilMgr(object):
     def writeFlamegraph(path, samples, title, depth=20):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
         # fixed font size: 12, bar height: 15 #
-        barHeight = 15
+        barHeight = 17
         titleHeight = (title.count("<tspan ") + 1) * barHeight
-        height = barHeight * depth + 100 + titleHeight
+        height = barHeight * depth + 50 + titleHeight
         width = "1"
         flameCode = (
             (
@@ -29883,6 +29883,7 @@ Examples:
     - Draw items within specific interval range in second unit
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
+        # {0:1} {1:1} guider.out -q TRIM:11:
         # {0:1} {1:1} guider.out -q TRIM:11.9:13.5, ABSTIME
 
     - Draw items on absolute timeline
@@ -62130,7 +62131,7 @@ class DbusMgr(object):
                         if effectiveReply:
                             pass
                         elif SysMgr.customCmd and not UtilMgr.isValidStr(
-                            msgStr, SysMgr.customCmd, ignCap=True
+                            msgStr, SysMgr.customCmd, inc=True, ignCap=True
                         ):
                             continue
 
@@ -69297,7 +69298,7 @@ typedef struct {
         """
 
         # handle syscalls #
-        if syscall == "sendmsg" or syscall == "recvmsg":
+        if syscall in ("sendmsg", "recvmsg"):
             if ref and argname == "msg":
                 try:
                     return self.readMsgHdr(value)
@@ -69310,7 +69311,7 @@ typedef struct {
                         reason=True,
                     )
                     return value
-        elif syscall == "sendmmsg" or syscall == "recvmmsg":
+        elif syscall in ("sendmmsg", "recvmmsg"):
             if ref and argname == "vlen":
                 try:
                     if "msg" in argset:
@@ -69327,7 +69328,7 @@ typedef struct {
                         reason=True,
                     )
                     return value
-        elif syscall == "open" or syscall == "accept4":
+        elif syscall in ("open", "accept4"):
             if argname == "flags":
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.OPEN_TYPE, num="oct"
@@ -69381,11 +69382,7 @@ typedef struct {
         elif syscall == "clone":
             if argname == "flags":
                 return UtilMgr.getFlagString(value, ConfigMgr.CLONE_TYPE)
-        elif (
-            syscall == "epoll_ctl"
-            or syscall == "epoll_wait"
-            or syscall == "epoll_pwait"
-        ):
+        elif syscall in ("epoll_ctl", "epoll_wait", "epoll_pwait"):
             if argname == "op":
                 try:
                     return ConfigMgr.EPOLL_CMD_TYPE[value]
@@ -69448,7 +69445,7 @@ typedef struct {
                 )
 
         # convert fd to name #
-        if ref and (argname == "fd" or argname == "sockfd"):
+        if ref and argname in ("fd", "sockfd"):
             try:
                 path = os.readlink(
                     "%s/%s/fd/%s" % (SysMgr.procPath, self.pid, value)
@@ -69551,7 +69548,7 @@ typedef struct {
                 return UtilMgr.getFlagString(value, ConfigMgr.MSG_TYPE)
 
         # convert signal #
-        if argname == "signum" or argname == "sig":
+        if argname in ("signum", "sig"):
             return ConfigMgr.SIG_LIST[c_int(value).value]
 
         # remove const prefix #
@@ -69638,6 +69635,8 @@ typedef struct {
         elif type(inputFile) is list:
             if SysMgr.outPath:
                 fileName = SysMgr.outPath
+            elif len(inputFile) == 1:
+                fileName = inputFile[0]
             else:
                 fileName = "merged"
             inputName = ", ".join(inputFile)
@@ -88408,8 +88407,15 @@ class TaskAnalyzer(object):
         xticks = ax.get_xticks().tolist()
         yticks = ax.get_yticks().tolist()
 
-        x = xticks[long(len(xticks) * 1 / 2)] - fontsize / len(name)
-        y = yticks[long(len(yticks) * 1 / 2)]
+        if xticks:
+            x = xticks[long(len(xticks) * 1 / 2)] - fontsize / len(name)
+        else:
+            x = 0
+
+        if yticks:
+            y = yticks[long(len(yticks) * 1 / 2)]
+        else:
+            y = 0
 
         annotate(
             name,
@@ -89801,8 +89807,6 @@ class TaskAnalyzer(object):
                         )
                         break
 
-                cpuProcUsage.pop("[ TOTAL ]", None)
-
                 # define top variable #
                 tcnt = 0
 
@@ -89811,6 +89815,8 @@ class TaskAnalyzer(object):
                     targetList = cpuProcDelay
                 else:
                     targetList = cpuProcUsage
+
+                targetList.pop("[ TOTAL ]", None)
 
                 # get max cpu condition #
                 maxCpuCond = UtilMgr.getEnvironNum(
@@ -110418,6 +110424,7 @@ class TaskAnalyzer(object):
         convCpuColor = UtilMgr.convCpuColor
 
         totalStats = {"read": 0, "write": 0, "yld": 0, "prtd": 0, "task": 0}
+        totalStatPids = {}
 
         # clear ID list #
         if idIndex:
@@ -110938,9 +110945,12 @@ class TaskAnalyzer(object):
                 totalStats["ttime"] += value["ttime"]
                 totalStats["utime"] += value["utime"]
                 totalStats["stime"] += value["stime"]
-                totalStats["mem"] += mems
-                if swapSize != "-":
-                    totalStats["swap"] += swapSize
+
+                if not value["mainID"] in totalStatPids:
+                    totalStats["mem"] += mems
+                    if swapSize != "-":
+                        totalStats["swap"] += swapSize
+
                 totalStats["btime"] += value["btime"]
                 totalStats["majflt"] += value["majflt"]
                 totalStats["task"] += 1
@@ -110986,6 +110996,9 @@ class TaskAnalyzer(object):
             else:
                 totalStats["read"] = "-"
                 totalStats["write"] = "-"
+
+            # add PID to total stat list to prevent redundant size #
+            totalStatPids[value["mainID"]] = 0
 
             # print PMU stats #
             if SysMgr.perfGroupEnable:
