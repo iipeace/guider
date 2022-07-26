@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220725"
+__revision__ = "220726"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8656,7 +8656,7 @@ class NetworkMgr(object):
             SysMgr.printErr("received wrong reply '%s'" % req)
 
     def send(self, message, write=False):
-        if self.ip is None or self.port is None:
+        if None in (self.ip, self.port):
             SysMgr.printWarn(
                 "failed to use IP address for client because it is not set"
             )
@@ -8737,7 +8737,7 @@ class NetworkMgr(object):
             return False
 
     def recv(self, size=0):
-        if self.ip is None or self.port is None:
+        if None in (self.ip, self.port):
             SysMgr.printWarn(
                 "failed to use IP address for server because it is not set"
             )
@@ -8824,7 +8824,7 @@ class NetworkMgr(object):
         self.socket.setsockopt(SOL_TCP, TCP_NODELAY, 1)
 
     def recvfrom(self, size=0, noTimeout=False, verb=True):
-        if self.ip is None or self.port is None:
+        if None in (self.ip, self.port):
             SysMgr.printWarn(
                 "failed to use IP address for server because it is not set"
             )
@@ -9470,11 +9470,7 @@ class NetworkMgr(object):
         for item in ips:
             try:
                 ip = item[1]
-                if (
-                    ip == "0.0.0.0"
-                    or ip == "127.0.0.1"
-                    or not ip.endswith(".1")
-                ):
+                if ip in ("0.0.0.0", "127.0.0.1") or not ip.endswith(".1"):
                     continue
 
                 gw = "%s.1" % ip[: ip.rfind(".")]
@@ -10394,7 +10390,7 @@ class Timeline(object):
         duration = "~%s" % convNum(durationstr)
 
         # I/O #
-        if segment.state == "RD" or segment.state == "WR":
+        if segment.state in ("RD", "WR"):
             # initialize group data #
             self.last_iogroup_segment.setdefault(group_idx, None)
             self.last_iogroup_time.setdefault(group_idx, x0)
@@ -12101,7 +12097,7 @@ class Ext4Analyzer(object):
 
             # traverse all items #
             for fname, inode, ftype in dirnode:
-                if fname == "." or fname == "..":
+                if fname in (".", ".."):
                     continue
                 elif inode in self.inodeList:
                     continue
@@ -15552,7 +15548,7 @@ class FunctionAnalyzer(object):
             # Handle address #
             if value["binary"] == "":
                 # user pos without offset #
-                if value["symbol"] == "" or value["symbol"] == "??":
+                if value["symbol"] in ("", "??"):
                     # TODO: find binary path and symbol of pos #
                     value["binary"] = "??"
                     value["origBin"] = "??"
@@ -15624,8 +15620,7 @@ class FunctionAnalyzer(object):
                 """
                 if (
                     not savedSymbol
-                    or savedSymbol == ""
-                    or savedSymbol == addr
+                    or savedSymbol in ("", addr)
                     or savedSymbol[0] == "$"
                 ):
                     self.posData[addr]["symbol"] = symbol
@@ -15653,8 +15648,7 @@ class FunctionAnalyzer(object):
 
                         if (
                             not savedSymbol
-                            or savedSymbol == ""
-                            or savedSymbol == addr
+                            or savedSymbol in ("", addr)
                             or savedSymbol[0] == "$"
                         ):
                             self.posData[idx]["symbol"] = symbol
@@ -15876,9 +15870,7 @@ class FunctionAnalyzer(object):
             )
 
         # Save lock event stacks #
-        if SysMgr.showAll and (
-            targetEvent == "LOCK_TRY" or targetEvent == "UNLOCK"
-        ):
+        if SysMgr.showAll and targetEvent in ("LOCK_TRY", "UNLOCK"):
             self.lockCallData.append(
                 [
                     targetArg[0],
@@ -16596,8 +16588,9 @@ class FunctionAnalyzer(object):
             return False
 
         # memory free event #
-        elif isFixedEvent and (
-            func == "mm_page_free:" or func == "mm_page_free_direct:"
+        elif isFixedEvent and func in (
+            "mm_page_free:",
+            "mm_page_free_direct:",
         ):
             m = re.match(
                 (
@@ -18424,12 +18417,12 @@ class FunctionAnalyzer(object):
         # Make exception list to remove a redundant part of stack #
         exceptList = {}
         for pos, value in self.posData.items():
-            if (
-                value["symbol"] == "__irq_usr"
-                or value["symbol"] == "__irq_svc"
-                or value["symbol"] == "el1_irq"
-                or value["symbol"] == "gic_handle_irq"
-                or value["symbol"] == "apic_timer_interrupt"
+            if value["symbol"] in (
+                "__irq_usr",
+                "__irq_svc",
+                "el1_irq",
+                "gic_handle_irq",
+                "apic_timer_interrupt",
             ):
                 exceptList.setdefault(pos, {})
 
@@ -22730,7 +22723,7 @@ class LogMgr(object):
                             break
                         else:
                             continue
-                    elif ret == 1 or ret == 2:
+                    elif ret in (1, 2):
                         continue
                     elif ret < 0:
                         break
@@ -24846,7 +24839,7 @@ Commands:
                 pass
             elif len(key) <= len(lib):
                 continue
-            elif key[len(lib)] == "." or key[len(lib)] == "-":
+            elif key[len(lib)] in (".", "-"):
                 pass
             else:
                 continue
@@ -28442,8 +28435,7 @@ Commands:
         # check a thread #
         for item in tlist:
             if (
-                item == tid
-                or item == ""
+                item in (tid, "")
                 or SysMgr.isValidTid(tid, item)
                 or UtilMgr.isValidStr(item, [comm])
             ):
@@ -40507,7 +40499,7 @@ Copyright:
                 SysMgr.intervalEnable = 1
             SysMgr.repeatCount = 1
             repeatParams = None
-        elif len(repeatParams) == 2 or len(repeatParams) == 3:
+        elif len(repeatParams) in (2, 3):
             try:
                 # get interval #
                 interval = SysMgr.getOption("i")
@@ -44626,10 +44618,10 @@ Copyright:
             return
 
         # help #
-        if ucmd == "HELP" or ucmd == "H":
+        if ucmd in ("HELP", "H"):
             _printHelp()
         # kill #
-        elif ucmd == "KILL" or ucmd == "K":
+        elif ucmd in ("KILL", "K"):
             if len(ulist) > 1:
                 SysMgr.sendSignalArgs(ulist[1:])
             else:
@@ -44696,7 +44688,7 @@ Copyright:
             else:
                 _printHelp()
         # quit #
-        elif ucmd == "QUIT" or ucmd == "Q":
+        elif ucmd in ("QUIT", "Q"):
             sys.exit(0)
 
         """
@@ -50013,7 +50005,7 @@ Copyright:
             return
 
         # enable DWARF by default for ARM #
-        if SysMgr.arch == "aarch64" or SysMgr.arch == "arm":
+        if SysMgr.arch in ("aarch64", "arm"):
             SysMgr.dwarfEnable = False
         else:
             SysMgr.dwarfEnable = True
@@ -50568,7 +50560,7 @@ Copyright:
             path = "%s/%s" % (SysMgr.procPath, pid)
 
             # check destination value #
-            if cond == sys.maxsize or cond == SysMgr.maxSize:
+            if cond in (sys.maxsize, SysMgr.maxSize):
                 conds = ""
             else:
                 conds = "/%s" % conv(cond, unit="M")
@@ -52627,7 +52619,7 @@ Copyright:
                 acpu = "?"
 
             # make repeat string #
-            if repeat == sys.maxsize or repeat == SysMgr.maxSize:
+            if repeat in (sys.maxsize, SysMgr.maxSize):
                 repeatStr = "INFINITE"
             else:
                 repeatStr = convNum(len(reqs) * repeat)
@@ -52928,7 +52920,7 @@ Copyright:
             procStr = ""
 
         # make repeat string #
-        if repeat == sys.maxsize or repeat == SysMgr.maxSize:
+        if repeat in (sys.maxsize, SysMgr.maxSize):
             repeatStr = "INFINITE"
         else:
             repeatStr = UtilMgr.convNum(repeat)
@@ -55152,7 +55144,7 @@ Copyright:
                 raise Exception(emsg)
 
             # set nice value #
-            if upolicy == "C" or upolicy == "B":
+            if upolicy in ("C", "B"):
                 # check setpriority function #
                 if not hasattr(funcObj, "setpriority"):
                     raise Exception("no setpriority")
@@ -57127,7 +57119,7 @@ Copyright:
             line = line.strip()
             if line:
                 SysMgr.infoBufferPrint(line)
-            elif idx == 0 or idx == len(data) - 1:
+            elif idx in (0, len(data) - 1):
                 pass
             else:
                 SysMgr.infoBufferPrint(oneLine)
@@ -58779,7 +58771,7 @@ Copyright:
                 try:
                     path = "%s/%s" % (dirpath, target)
                     with open(path, "r") as fd:
-                        if target == "tasks" or target == "cgroup.procs":
+                        if target in ("tasks", "cgroup.procs"):
                             taskList = fd.read().splitlines()
                             item[target] = UtilMgr.convNum(len(taskList))
                             if (
@@ -60223,7 +60215,7 @@ class DbusMgr(object):
 
             # save EUID #
             euidOrig = os.geteuid()
-        elif bus == "session" or bus == "user":
+        elif bus in ("session", "user"):
             bustype = DbusMgr.DBusBusType["DBUS_BUS_SESSION"]
 
             # set EUID #
@@ -61835,14 +61827,22 @@ class DbusMgr(object):
 
             # check args #
             try:
-                if ctype == "sendmsg" or ctype == "recvmsg":
+                if ctype in ("sendmsg", "recvmsg"):
                     if type(jsonData["args"]["msg"]) is dict:
                         msgList = jsonData["args"]["msg"]["msg_iov"]
                         _handleMsg(ctype, msgList, jsonData, data)
-                elif ctype == "sendmmsg" or ctype == "recvmmsg":
+                elif ctype in ("sendmmsg", "recvmmsg"):
                     for idx, value in jsonData["args"]["msg"].items():
                         msgList = value["msg_iov"]
                         _handleMsg(ctype, msgList, jsonData, data)
+                elif ctype == "read":
+                    msgList = {
+                        "0": {
+                            "len": 0,
+                            "data": jsonData["args"]["buf"],
+                        }
+                    }
+                    _handleMsg(ctype, msgList, jsonData, data)
                 else:
                     return
             except SystemExit:
@@ -61879,13 +61879,17 @@ class DbusMgr(object):
                     length = msg["len"]
                     ecall = msg["data"]
 
-                    # free gdbus message object #
-                    if gdmsg != 0:
-                        libgObj.g_object_unref(gdmsg)
-                        gdmsg = 0
+                    if ctype == "read":
+                        ecall = ecall.strip('"')
+                        ecall = UtilMgr.decodeBase64(ecall)
+                        if ecall[:7] == b"BEGIN\r\n":
+                            call = ecall[7:]
+                        else:
+                            continue
+                    else:
+                        call = UtilMgr.decodeBase64(ecall)
 
                     # decode from base64 #
-                    call = UtilMgr.decodeBase64(ecall)
                     if type(call) is bytes:
                         call = call.decode("latin-1")
 
@@ -61913,9 +61917,11 @@ class DbusMgr(object):
 
                     # check previous data #
                     if not tid in DbusMgr.prevData:
-                        DbusMgr.prevData[tid] = {}
-                        DbusMgr.prevData[tid]["recvmsg"] = ""
-                        DbusMgr.prevData[tid]["sendmsg"] = ""
+                        DbusMgr.prevData[tid] = {
+                            "recvmsg": "",
+                            "sendmsg": "",
+                            "read": "",
+                        }
 
                     # check direction #
                     if ctype.startswith("sendm"):
@@ -61986,6 +61992,11 @@ class DbusMgr(object):
                             continue
                         else:
                             DbusMgr.prevData[tid][ctype] = ""
+
+                    # free gdbus message object #
+                    if gdmsg != 0:
+                        libgObj.g_object_unref(gdmsg)
+                        gdmsg = 0
 
                     # create GDBusMessage from bytes #
                     gdmsg = gioObj.g_dbus_message_new_from_blob(
@@ -62183,7 +62194,7 @@ class DbusMgr(object):
                     serial = gioObj.g_dbus_message_get_serial(addr)
 
                     # handle error message #
-                    if mtype == "ERROR" or mtype == "INVALID":
+                    if mtype in ("ERROR", "INVALID"):
                         ename = gioObj.g_dbus_message_get_error_name(addr)
                         if not ename:
                             continue
@@ -62458,7 +62469,9 @@ class DbusMgr(object):
         SysMgr.cmdlineEnable = True
 
         # set target syscalls #
-        if not onlyDaemon:
+        if onlyDaemon:
+            SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_read"))
+        else:
             SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmsg"))
             SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmmsg"))
         SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_sendmsg"))
@@ -63725,7 +63738,7 @@ class DltAnalyzer(object):
 
         # set colors for each message types #
         for item in DltAnalyzer.LOGINFO:
-            if item == "fatal" or item == "error":
+            if item in ("fatal", "error"):
                 color = "RED"
             elif item == "info":
                 color = "CYAN"
@@ -64466,7 +64479,7 @@ class Debugger(object):
                     for field, _ in struct._fields_
                 )
 
-            if self.arch == "aarch64" or self.arch == "x64":
+            if self.arch in ("aarch64", "x64"):
                 _fields_ = (
                     ("cwd", c_uint16),
                     ("swd", c_uint16),
@@ -64496,7 +64509,7 @@ class Debugger(object):
 
     def updateBreakMode(self):
         # set break mode #
-        if self.mode == "break" or self.mode == "pybreak":
+        if self.mode in ("break", "pybreak"):
             self.isBreakMode = True
         else:
             self.isBreakMode = False
@@ -64696,7 +64709,7 @@ class Debugger(object):
             self.readPyState = self.readPyState64
 
         # set breakpoint variables #
-        if self.arch == "arm" or self.arch == "aarch64":
+        if self.arch in ("aarch64", "arm"):
             self.brkInst = b"\xFE\xDE\xFF\xE7"
             self.prevInstOffset = 0
         else:
@@ -66007,7 +66020,7 @@ typedef struct {
 
                 # get memory value #
                 ret = self.readMem(addr, size)
-                if ret is None or ret == -1:
+                if ret in (None, -1):
                     SysMgr.printErr(
                         "failed to read from %s" % hex(addr).rstrip("L")
                     )
@@ -66099,7 +66112,7 @@ typedef struct {
 
                 # set register values #
                 ret = self.writeMem(addr, val, size)
-                if ret is None or ret == -1:
+                if ret in (None, -1):
                     SysMgr.printErr(
                         "failed to write '%s' to %s"
                         % (val.decode(), hex(addr).rstrip("L"))
@@ -66639,7 +66652,7 @@ typedef struct {
                         dtype = cmdlist[2]
                         if dtype == "arg":
                             data = args[long(data)]
-                        elif dtype == "float" or dtype == "double":
+                        elif dtype in ("float", "double"):
                             data = float(data)
                         elif dtype == "string":
                             data = str(data)
@@ -67424,7 +67437,7 @@ typedef struct {
                 continue
 
             # handle return filter #
-            if memset[0] == "RETTIME" or memset[0] == "RETVAL":
+            if memset[0] in ("RETTIME", "RETVAL"):
                 if cmdset[0] != "filter":
                     SysMgr.printErr(
                         "wrong command '%s' with '%s'" % (cmdset[0], memset[0])
@@ -67510,7 +67523,7 @@ typedef struct {
             # get value from memory #
             if ref:
                 ret = self.readMem(addr, size)
-                if ret is None or ret == -1:
+                if ret in (None, -1):
                     SysMgr.printErr("failed to read from %s" % addr)
                     result = False
                     continue
@@ -67556,7 +67569,7 @@ typedef struct {
                         continue
 
             # <= or >= #
-            elif op.upper() == "BT" or op.upper() == "LT":
+            elif op.upper() in ("BT", "LT"):
                 if not UtilMgr.isNumber(val):
                     _printErr(cmd)
                     result = False
@@ -68292,7 +68305,7 @@ typedef struct {
         self.writeArgs(args)
 
         # set trap for return #
-        if self.arch == "arm" or self.arch == "aarch64":
+        if self.arch in ("arm", "aarch64"):
             self.setLR(0)
 
             # set CPSR for ARM #
@@ -69515,6 +69528,8 @@ typedef struct {
             if syscall in ConfigMgr.SYSCALL_DEFFERABLE:
                 if retval == 0:
                     return ""
+                elif Debugger.dbusEnable:
+                    pass
                 elif retval:
                     size = retval
 
@@ -69536,7 +69551,10 @@ typedef struct {
                 value = ret
 
             try:
-                return repr(value)[1:-1][:cutLen]
+                if Debugger.dbusEnable:
+                    return UtilMgr.encodeBase64(value)
+                else:
+                    return repr(value)[1:-1][:cutLen]
             except SystemExit:
                 sys.exit(0)
             except:
@@ -69896,7 +69914,7 @@ typedef struct {
             return False
 
         ret = Debugger.globalEvent[0]  # pylint: disable=unsubscriptable-object
-        if ret == b"1" or ret == 1:
+        if ret in (b"1", 1):
             return True
         else:
             return False
@@ -69925,7 +69943,7 @@ typedef struct {
             return False
 
         ret = Debugger.globalEvent[1]  # pylint: disable=unsubscriptable-object
-        if ret == b"1" or ret == 1:
+        if ret in (b"1", 1):
             return True
         else:
             return False
@@ -72088,7 +72106,7 @@ typedef struct {
             # calculate address for return address #
             raddr = cfa + roffset
         # just use LR #
-        elif self.arch == "aarch64" or self.arch == "arm":
+        elif self.arch in ("aarch64", "arm"):
             return self.lr
         # no more frame #
         else:
@@ -73048,7 +73066,7 @@ typedef struct {
         self.status = self.mode
 
         # usercall #
-        if self.mode == "sample" or self.mode == "inst":
+        if self.mode in ("sample", "inst"):
             self.handleUsercall()
         # breakcall #
         elif self.isBreakMode:
@@ -74910,7 +74928,7 @@ typedef struct {
             return None
 
         # check status #
-        if stat == "R" or stat == "t":
+        if stat in ("R", "t"):
             return True
         else:
             return False
@@ -75612,7 +75630,7 @@ typedef struct {
     def setRetBp(self, sym, fname, cmd=None):
         # get return address #
         try:
-            if self.arch == "aarch64" or self.arch == "arm":
+            if self.arch in ("aarch64", "arm"):
                 pos = self.lr
             else:
                 pos = self.getBacktrace(limit=1, cur=False)[0][0]
@@ -76020,7 +76038,7 @@ typedef struct {
         # set maximum string size #
         if Debugger.strSize > -1:
             self.pbufsize = Debugger.strSize
-        elif SysMgr.outPath:
+        elif SysMgr.outPath or Debugger.dbusEnable:
             self.pbufsize = sys.maxsize
         else:
             self.pbufsize = SysMgr.ttyCols >> 1
@@ -76993,18 +77011,14 @@ typedef struct {
 
     def checkCloned(self, status):
         stat = status >> 8
-        if (
-            stat == self.sigCloneFlag
-            or stat == self.sigForkFlag
-            or stat == self.sigVforkFlag
-        ):
+        if stat in (self.sigCloneFlag, self.sigForkFlag, self.sigVforkFlag):
             return True
         else:
             return False
 
     def isForked(self, status):
         stat = status >> 8
-        return stat == self.sigForkFlag or stat == self.sigVforkFlag
+        return stat in (self.sigForkFlag, self.sigVforkFlag)
 
     def isExited(self, status):
         return status >> 8 == self.sigExitFlag
@@ -80416,7 +80430,7 @@ class ElfAnalyzer(object):
                 raise Exception("no binary")
 
             etype = cachedObject.attr["elfHeader"]["type"]
-            if etype == "Relocatable" or etype == "Shared-object":
+            if etype in ("Relocatable", "Shared-object"):
                 ElfAnalyzer.relocTypes[path] = True
                 return True
             else:
@@ -80676,7 +80690,7 @@ class ElfAnalyzer(object):
                     or (inc and symbol in target)
                 ):
                     clist.append([val[0], offset])
-                elif symbol == val[0] or symbol == target:
+                elif symbol in (val[0], target):
                     return offset
         except SystemExit:
             sys.exit(0)
@@ -81938,7 +81952,7 @@ Section header string table index: %d
                 e_shdynamic = i
             elif symbol == ".eh_frame":
                 e_shehframe = i
-            elif symbol == ".debug_frame" or symbol == ".zdebug_frame":
+            elif symbol in (".debug_frame", ".zdebug_frame"):
                 e_shdbgframe = i
             elif symbol == ".debug_str":
                 e_shdbgstr = i
@@ -81946,9 +81960,9 @@ Section header string table index: %d
                 e_shdbglinestr = i
             elif symbol == ".debug_line":
                 e_shdbgline = i
-            elif symbol == ".debug_info" or symbol == ".zdebug_info":
+            elif symbol in (".debug_info", ".zdebug_info"):
                 e_shdbginfo = i
-            elif symbol == ".debug_abbrev" or symbol == ".zdebug_abbrev":
+            elif symbol in (".debug_abbrev", ".zdebug_abbrev"):
                 e_shdbgabbrev = i
             elif symbol == ".eh_frame_hdr":
                 e_shehframehdr = i
@@ -82765,10 +82779,7 @@ Section header string table index: %d
                     val = struct.unpack("q", fd.read(8))[0]
                 elif encFormat == "DW_EH_PE_sdata2":
                     val = struct.unpack("h", fd.read(2))[0]
-                elif (
-                    encFormat == "DW_EH_PE_uleb128"
-                    or encFormat == "DW_EH_PE_sleb128"
-                ):
+                elif encFormat in ("DW_EH_PE_uleb128", "DW_EH_PE_sleb128"):
                     data = UtilMgr.readLEB128(fd)
                     data = data.decode("latin-1")
                     if encFormat == "DW_EH_PE_uleb128":
@@ -82851,9 +82862,9 @@ Section header string table index: %d
                             data = augdata[augpos : augpos + 2]
                             func = struct.unpack("h", data)[0]
                             augpos += 2
-                        elif (
-                            encFormat == "DW_EH_PE_uleb128"
-                            or encFormat == "DW_EH_PE_sleb128"
+                        elif encFormat in (
+                            "DW_EH_PE_uleb128",
+                            "DW_EH_PE_sleb128",
                         ):
                             data = augdata[augpos:].decode("latin-1")
                             if encFormat == "DW_EH_PE_uleb128":
@@ -83961,7 +83972,7 @@ Section header string table index: %d
                         _decodeEntry(
                             self, idx, foffset, per_index, opcode, debug=debug
                         )
-                    elif per_index == 1 or per_index == 2:
+                    elif per_index in (1, 2):
                         # arm compact model 1/2 #
                         more_word = (word0 >> 16) & 0xFF
                         opcode = [(word0 >> 8) & 0xFF, (word0 >> 0) & 0xFF]
@@ -85010,11 +85021,7 @@ Section header string table index: %d
                 continue
 
             if d_tag in ElfAnalyzer.DT_TYPE:
-                if (
-                    ElfAnalyzer.DT_TYPE[d_tag] == "NEEDED"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "SONAME"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "RPATH"
-                ):
+                if ElfAnalyzer.DT_TYPE[d_tag] in ("NEEDED", "SONAME", "RPATH"):
                     printer(
                         "%016x %20s %1s"
                         % (
@@ -85023,15 +85030,14 @@ Section header string table index: %d
                             dynsymTable[d_un],
                         )
                     )
-                elif (
-                    ElfAnalyzer.DT_TYPE[d_tag] == "STRSZ"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "SYMENT"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "RELSZ"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "RELENT"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "PLTRELSZ"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "VERDEFNUM"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "VERNEEDNUM"
-                    or ElfAnalyzer.DT_TYPE[d_tag] == "RELCOUNT"
+                elif ElfAnalyzer.DT_TYPE[d_tag] in (
+                    "STRSZ",
+                    "RELSZ",
+                    "RELENT",
+                    "PLTRELSZ",
+                    "VERDEFNUM",
+                    "VERNEEDNUM",
+                    "RELCOUNT",
                 ):
                     printer(
                         "%016x %20s %1s"
@@ -87863,7 +87869,7 @@ class TaskAnalyzer(object):
             # RSS / PSS / USS #
             elif (
                 SysMgr.rssEnable or SysMgr.pssEnable or SysMgr.ussEnable
-            ) and (context == "RSS" or context == "PSS" or context == "USS"):
+            ) and context in ("RSS", "PSS", "USS"):
                 if slen == 3:
                     m = re.match(r"\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)", line)
                     if not m:
@@ -97382,7 +97388,7 @@ class TaskAnalyzer(object):
         # network #
         elif len(tokens) == 13 and not tokens[0].startswith("Total"):
             # check condition #
-            if tokens[0].strip() == "ID" or tokens[0].strip() == "Dev":
+            if tokens[0].strip() in ("ID", "Dev"):
                 return
 
             procIndexData["total"].setdefault("netdev", {})
@@ -99350,7 +99356,7 @@ class TaskAnalyzer(object):
             key=lambda e: e[1][0] + e[1][1],
             reverse=True,
         ):
-            if comm == "^START" or comm == "^FINISH":
+            if comm in ("^START", "^FINISH"):
                 continue
 
             # convert 0 to '-' #
@@ -101748,7 +101754,7 @@ class TaskAnalyzer(object):
                 self.pageTable[pfnv]["type"] = pageType
                 self.pageTable[pfnv]["time"] = time
 
-        elif func == "mm_page_free" or func == "mm_page_free_direct":
+        elif func in ("mm_page_free", "mm_page_free_direct"):
             m = re.match(
                 (
                     r"^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)"
@@ -101912,7 +101918,7 @@ class TaskAnalyzer(object):
                 """
                 return time
 
-        elif func == "sched_wakeup" or func == "sched_wakeup_new":
+        elif func in ("sched_wakeup", "sched_wakeup_new"):
             m = re.match(
                 (
                     r"^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+"
@@ -102062,10 +102068,10 @@ class TaskAnalyzer(object):
                         except:
                             pass
                     # wait #
-                    elif (
-                        maskedOp == flist.index("FUTEX_WAIT")
-                        or maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI")
-                        or maskedOp == flist.index("FUTEX_WAIT_BITSET")
+                    elif maskedOp in (
+                        flist.index("FUTEX_WAIT"),
+                        flist.index("FUTEX_WAIT_REQUEUE_PI"),
+                        flist.index("FUTEX_WAIT_BITSET"),
                     ):
                         td["ftxStat"] = "W"
                         td["ftxWaitCnt"] += 1
@@ -102189,7 +102195,7 @@ class TaskAnalyzer(object):
                         td["ftxProcess"] += ctime
 
                     # handle lock object #
-                    if (lockStat == "L" or lockStat == "U") and ret[0] == "0":
+                    if lockStat in ("L", "U") and ret[0] == "0":
                         # target object #
                         try:
                             candObj = td["futexCandObj"]
@@ -102256,16 +102262,16 @@ class TaskAnalyzer(object):
                     and self.wakeupData["valid"] > 0
                 ):
                     self.wakeupData["valid"] -= 1
-                elif SysMgr.arch != "aarch64" and (
-                    nr == SysMgr.getNrSyscall("sys_poll")
-                    or nr == SysMgr.getNrSyscall("sys_select")
-                    or nr == SysMgr.getNrSyscall("sys_epoll_wait")
+                elif SysMgr.arch != "aarch64" and nr in (
+                    SysMgr.getNrSyscall("sys_poll"),
+                    SysMgr.getNrSyscall("sys_select"),
+                    SysMgr.getNrSyscall("sys_epoll_wait"),
                 ):
                     if (
-                        self.lastJob[core]["job"] == "sched_switch"
-                        or self.lastJob[core]["job"] == "sched_wakeup"
-                        or self.lastJob[core]["job"] == "sched_wakeup_new"
-                    ) and self.lastJob[core]["prevWakeupTid"] != thread:
+                        self.lastJob[core]["job"]
+                        in ("sched_switch", "sched_wakeup", "sched_wakeup_new")
+                        and self.lastJob[core]["prevWakeupTid"] != thread
+                    ):
                         ttime = allTime
                         itime = ttime - float(self.wakeupData["time"])
                         self.depData.append(
@@ -102284,13 +102290,12 @@ class TaskAnalyzer(object):
                         self.wakeupData["time"] = allTime
                         self.lastJob[core]["prevWakeupTid"] = thread
                 elif (
-                    (
-                        SysMgr.arch == "arm"
-                        and nr == SysMgr.getNrSyscall("sys_recv")
-                    )
-                    or nr == SysMgr.getNrSyscall("sys_recvfrom")
-                    or nr == SysMgr.getNrSyscall("sys_recvmsg")
-                    or nr == SysMgr.getNrSyscall("sys_recvmmsg")
+                    SysMgr.arch == "arm"
+                    and nr == SysMgr.getNrSyscall("sys_recv")
+                ) or nr in (
+                    SysMgr.getNrSyscall("sys_recvfrom"),
+                    SysMgr.getNrSyscall("sys_recvmsg"),
+                    SysMgr.getNrSyscall("sys_recvmmsg"),
                 ):
                     if self.lastJob[core]["prevWakeupTid"] != thread:
                         ttime = allTime
@@ -102482,7 +102487,7 @@ class TaskAnalyzer(object):
 
             self.wakeupData["time"] = ttime
 
-        elif func == "block_bio_queue" or func == "block_bio_remap":
+        elif func in ("block_bio_queue", "block_bio_remap"):
             m = re.match(
                 (
                     r"^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*"
@@ -103679,7 +103684,7 @@ class TaskAnalyzer(object):
             # save console log #
             self.consoleData.append([d["thread"], core, time, etc])
 
-        elif func == "tracing_mark_write" or func == "0":
+        elif func in ("tracing_mark_write", "0"):
             m = re.match(r"^.+EVENT_(?P<event>\S+)", etc)
             if not m:
                 _printEventWarning(func)
@@ -107041,7 +107046,7 @@ class TaskAnalyzer(object):
             pgIOMemDiffStr = convColor(pgIOMemDiffStr, "RED")
 
         # convert color for network stats #
-        if not (netIO == "-/-" or netIO == "0/0"):
+        if not netIO in ("-/-", "0/0"):
             netIO = r"{0:^12}".format(netIO)
             netIO = convColor(netIO, "YELLOW")
 
@@ -109594,7 +109599,7 @@ class TaskAnalyzer(object):
                 for name, value in values.items():
                     stats.setdefault(group, {})
 
-                    if name == "tasks" or name == "cgroup.procs":
+                    if name in ("tasks", "cgroup.procs"):
                         stat = value.count("\n")
                     elif name == "cpu.stat":
                         if value.startswith(cpuStatStr):
@@ -112157,7 +112162,7 @@ class TaskAnalyzer(object):
                         "duplicated %s:%d as remote address" % (ip, port)
                     )
 
-            elif message == "REPORT" or message == "THRESHOLD":
+            elif message in ("REPORT", "THRESHOLD"):
                 if not SysMgr.reportEnable:
                     SysMgr.printWarn(
                         "ignored %s request from %s:%d because no service"
@@ -112676,7 +112681,7 @@ class TaskAnalyzer(object):
             # each devices #
             dinfo = {}
             for dev, vals in self.reportData["net"].items():
-                if dev == "inbound" or dev == "outbound":
+                if dev in ("inbound", "outbound"):
                     continue
                 elif type(vals) is not dict:
                     continue
