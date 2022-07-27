@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220726"
+__revision__ = "220727"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29743,182 +29743,182 @@ Examples:
 
                 drawExamStr = """
 Examples:
-    - Draw items for specific files
-        # {0:1} {1:1} guider.out
-        # {0:1} {1:1} guider.out guider2.out "guider data.out"
+    - {2:1} for specific files
+        # {0:1} {1:1} {4:1}
+        # {0:1} {1:1} {4:1} guider2.out "guider data.out"
         # {0:1} {1:1} "data/*"
-        # {0:1} {1:1} guider.dat
+        # {0:1} {1:1} {3:1}
 
-    - Draw items for specific files from current directory to all sub-directories
+    - {2:1} for specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*"
 
-    - Draw items that haven't been summarized yet for specific files
-        # {0:1} {1:1} guider.out -q TOPSUM
+    - {2:1} that haven't been summarized yet for specific files
+        # {0:1} {1:1} {4:1} -q TOPSUM
 
-    - Draw items for each file
-        # {0:1} {1:1} guider.out -q NOMERGE
+    - {2:1} for each file
+        # {0:1} {1:1} {4:1} -q NOMERGE
 
-    - Draw items except for call samples in wait status
-        # {0:1} {1:1} guider.out -q EXCEPTWAIT
+    - {2:1} except for call samples in wait status
+        # {0:1} {1:1} {4:1} -q EXCEPTWAIT
 
-    - Draw items for specific tasks
-        # {0:1} {1:1} guider.dat -g task3
-        # {0:1} {1:1} guider.dat -g "*"
-        # {0:1} {1:1} guider.dat -g "*java*" -a
-        # {0:1} {1:1} guider.dat -g "*java*" -q NOTOTAL
+    - {2:1} for specific tasks
+        # {0:1} {1:1} {3:1} -g task3
+        # {0:1} {1:1} {3:1} -g "*"
+        # {0:1} {1:1} {3:1} -g "*java*" -a
+        # {0:1} {1:1} {3:1} -g "*java*" -q NOTOTAL
 
-    - Draw items for specific tasks and their siblings
-        # {0:1} {1:1} guider.dat -g task3 -P
+    - {2:1} for specific tasks and their siblings
+        # {0:1} {1:1} {3:1} -g task3 -P
 
-    - Draw items after concatenating specific files
-        # {0:1} {1:1} guider.out -q CONCATENATE
-        # {0:1} {1:1} guider.out -q CONCATENATE, ONLYTOTAL
+    - {2:1} after concatenating specific files
+        # {0:1} {1:1} {4:1} -q CONCATENATE
+        # {0:1} {1:1} {4:1} -q CONCATENATE, ONLYTOTAL
 
-    - Draw items after concatenating specific files and converting unique physical memory (RSS - Text - Shm)
-        # {0:1} {1:1} guider.out -q CONCATENATE, EXCEPTSHM
+    - {2:1} after concatenating specific files and converting unique physical memory (RSS - Text - Shm)
+        # {0:1} {1:1} {4:1} -q CONCATENATE, EXCEPTSHM
 
-    - Draw items except for specific resources after concatenating specific files
-        # {0:1} {1:1} guider.out -q CONCATENATE, NOCPUSUMMARY, NOGPUSUMMARY
-        # {0:1} {1:1} guider.out -q CONCATENATE, NODELAYSUMMARY
-        # {0:1} {1:1} guider.out -q CONCATENATE, NOVSSSUMMARY, NORSSSUMMARY
-        # {0:1} {1:1} guider.out -q CONCATENATE, NOBLOCKSUMMARY
-        # {0:1} {1:1} guider.out -q CONCATENATE, NOSTORAGESUMMARY, NONETSUMMARY
+    - {2:1} except for specific resources after concatenating specific files
+        # {0:1} {1:1} {4:1} -q CONCATENATE, NOCPUSUMMARY, NOGPUSUMMARY
+        # {0:1} {1:1} {4:1} -q CONCATENATE, NODELAYSUMMARY
+        # {0:1} {1:1} {4:1} -q CONCATENATE, NOVSSSUMMARY, NORSSSUMMARY
+        # {0:1} {1:1} {4:1} -q CONCATENATE, NOBLOCKSUMMARY
+        # {0:1} {1:1} {4:1} -q CONCATENATE, NOSTORAGESUMMARY, NONETSUMMARY
 
     - Draw specific items including the specific word
         # {0:1} {1:1} timeline.json -q FILTER:"test*"
         # {0:1} {1:1} timeline.json -q FILTER:"*test"
         # {0:1} {1:1} timeline.json -q FILTER:"*test*"
 
-    - Draw items for all events and tasks
-        # {0:1} {1:1} guider.dat -a
+    - {2:1} for all events and tasks
+        # {0:1} {1:1} {3:1} -a
 
-    - Draw items except for load plots including CPU and I/O usage
-        # {0:1} {1:1} guider.dat -q NOLOADPLOT
+    - {2:1} except for load plots including CPU and I/O usage
+        # {0:1} {1:1} {3:1} -q NOLOADPLOT
 
-    - Draw items except for specific cpu plots
-        # {0:1} {1:1} guider.dat -q MAXCPUCOND:10
-        # {0:1} {1:1} guider.dat -q AVGCPUCOND:10
-        # {0:1} {1:1} guider.dat -q MINCPUCOND:10
+    - {2:1} except for specific cpu plots
+        # {0:1} {1:1} {3:1} -q MAXCPUCOND:10
+        # {0:1} {1:1} {3:1} -q AVGCPUCOND:10
+        # {0:1} {1:1} {3:1} -q MINCPUCOND:10
 
-    - Draw items including system memory plots
-        # {0:1} {1:1} guider.dat -q MEMSYSPLOT
+    - {2:1} including system memory plots
+        # {0:1} {1:1} {3:1} -q MEMSYSPLOT
 
-    - Draw items except for specific memory plots
-        # {0:1} {1:1} guider.dat -q NOMEMFREEPLOT
-        # {0:1} {1:1} guider.dat -q NOMEMANONPLOT
-        # {0:1} {1:1} guider.dat -q NOMEMCACHEPLOT
-        # {0:1} {1:1} guider.dat -q NOMEMPROCPLOT
-        # {0:1} {1:1} guider.dat -q NOMEMSWAPPLOT
-        # {0:1} {1:1} guider.dat -q MAXVSSCOND:1024
-        # {0:1} {1:1} guider.dat -q MAXRSSCOND:1024
+    - {2:1} except for specific memory plots
+        # {0:1} {1:1} {3:1} -q NOMEMFREEPLOT
+        # {0:1} {1:1} {3:1} -q NOMEMANONPLOT
+        # {0:1} {1:1} {3:1} -q NOMEMCACHEPLOT
+        # {0:1} {1:1} {3:1} -q NOMEMPROCPLOT
+        # {0:1} {1:1} {3:1} -q NOMEMSWAPPLOT
+        # {0:1} {1:1} {3:1} -q MAXVSSCOND:1024
+        # {0:1} {1:1} {3:1} -q MAXRSSCOND:1024
 
-    - Draw items except for syscalls for timeline segments
-        # {0:1} {1:1} guider.dat -q NOSYSCALL
+    - {2:1} except for syscalls for timeline segments
+        # {0:1} {1:1} {3:1} -q NOSYSCALL
 
-    - Draw items forcefully
-        # {0:1} {1:1} guider.dat -f
+    - {2:1} forcefully
+        # {0:1} {1:1} {3:1} -f
 
-    - Draw items using uptime for perf graph
-        # {0:1} {1:1} guider.dat -q NOTIMEFORMAT
+    - {2:1} using uptime for perf graph
+        # {0:1} {1:1} {3:1} -q NOTIMEFORMAT
 
-    - Draw items with task life events for perf graph
-        # {0:1} {1:1} guider.dat -q DRAWLIFE, LFONTSIZE:2
+    - {2:1} with task life events for perf graph
+        # {0:1} {1:1} {3:1} -q DRAWLIFE, LFONTSIZE:2
 
-    - Draw items with specific task life events for perf graph
-        # {0:1} {1:1} guider.dat -q DRAWLIFE, INEVENT:"*system*", INEVENT:"*cat*"
+    - {2:1} with specific task life events for perf graph
+        # {0:1} {1:1} {3:1} -q DRAWLIFE, INEVENT:"*system*", INEVENT:"*cat*"
 
-    - Draw items with task life events except for specific ones for perf graph
-        # {0:1} {1:1} guider.dat -q DRAWLIFE, EXEVENT:"*arp*", EXEVENT:"*pkill*"
+    - {2:1} with task life events except for specific ones for perf graph
+        # {0:1} {1:1} {3:1} -q DRAWLIFE, EXEVENT:"*arp*", EXEVENT:"*pkill*"
 
-    - Draw items in us time-unit for timeline segments
-        # {0:1} {1:1} guider.dat -q TIMEUNIT:us
+    - {2:1} in us time-unit for timeline segments
+        # {0:1} {1:1} {3:1} -q TIMEUNIT:us
 
-    - Draw items except for labels of timeline segments lesser than 100ms
-        # {0:1} {1:1} guider.dat -q LABELMIN:100
+    - {2:1} except for labels of timeline segments lesser than 100ms
+        # {0:1} {1:1} {3:1} -q LABELMIN:100
 
-    - Draw items with label setting
-        # {0:1} {1:1} guider.dat -q LABEL
-        # {0:1} {1:1} guider.dat -q NOLABEL
+    - {2:1} with label setting
+        # {0:1} {1:1} {3:1} -q LABEL
+        # {0:1} {1:1} {3:1} -q NOLABEL
 
-    - Draw items with stroke only for specific tasks
-        # {0:1} {1:1} guider.dat -q STROKE:"*"
-        # {0:1} {1:1} guider.dat -q STROKE:"screen*", STROKE:"a.out(1234)"
+    - {2:1} with stroke only for specific tasks
+        # {0:1} {1:1} {3:1} -q STROKE:"*"
+        # {0:1} {1:1} {3:1} -q STROKE:"screen*", STROKE:"a.out(1234)"
 
-    - Draw items and event markers on specific points
-        # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:CPU
-        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_2:MEM
-        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_3:CIRCLE
-        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_4:LARROW
-        # {0:1} {1:1} guider.dat -q EVENT:30:100:EVENT_5:RARROW
+    - {2:1} and event markers on specific points
+        # {0:1} {1:1} {3:1} -q EVENT:14:90:EVENT_1:CPU
+        # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_2:MEM
+        # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_3:CIRCLE
+        # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_4:LARROW
+        # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_5:RARROW
 
-    - Draw items only for specific groups or cores
-        # {0:1} {1:1} guider.dat -O 1, 4, 10
-        # {0:1} {1:1} guider.dat -O 1:10, 14
+    - {2:1} only for specific groups or cores
+        # {0:1} {1:1} {3:1} -O 1, 4, 10
+        # {0:1} {1:1} {3:1} -O 1:10, 14
 
-    - Draw items with changed groups or cores for timeline segments
-        # {0:1} {1:1} guider.dat -q CONVGROUP:0:1, CONVGROUP:1:0
+    - {2:1} with changed groups or cores for timeline segments
+        # {0:1} {1:1} {3:1} -q CONVGROUP:0:1, CONVGROUP:1:0
 
-    - Draw items to specific image format
-        # {0:1} {1:1} guider.out -F png
-        # {0:1} {1:1} guider.out -F pdf
-        # {0:1} {1:1} guider.out -F svg
+    - {2:1} to specific image format
+        # {0:1} {1:1} {4:1} -F png
+        # {0:1} {1:1} {4:1} -F pdf
+        # {0:1} {1:1} {4:1} -F svg
 
-    - Draw items with config file
-        # {0:1} {1:1} guider.dat -C config.json
+    - {2:1} with config file
+        # {0:1} {1:1} {3:1} -C config.json
 
-    - Draw items excluding chrome process
-        # {0:1} {1:1} guider.out -g ^chrome
+    - {2:1} excluding chrome process
+        # {0:1} {1:1} {4:1} -g ^chrome
 
-    - Draw items with some boundary lines
-        # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
+    - {2:1} with some boundary lines
+        # {0:1} {1:1} {4:1} worstcase.out -l 80, 100, 120
 
-    - Draw items within specific interval range in second unit
-        # {0:1} {1:1} guider.out -q TRIM:9:15
-        # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
-        # {0:1} {1:1} guider.out -q TRIM:11:
-        # {0:1} {1:1} guider.out -q TRIM:11.9:13.5, ABSTIME
+    - {2:1} within specific interval range in second unit
+        # {0:1} {1:1} {4:1} -q TRIM:9:15
+        # {0:1} {1:1} {4:1} -q TRIM:0.9:1.5
+        # {0:1} {1:1} {4:1} -q TRIM:11:
+        # {0:1} {1:1} {4:1} -q TRIM:11.9:13.5, ABSTIME
 
-    - Draw items on absolute timeline
-        # {0:1} {1:1} guider.out -q ABSTIME
+    - {2:1} on absolute timeline
+        # {0:1} {1:1} {4:1} -q ABSTIME
 
-    - Draw items on relative timeline
-        # {0:1} {1:1} guider.out -q RELTIME
+    - {2:1} on relative timeline
+        # {0:1} {1:1} {4:1} -q RELTIME
 
-    - Draw items only having backtrace for flamegraph
-        # {0:1} {1:1} guider.out -q ONLYBTSTACK
+    - {2:1} only having backtrace for flamegraph
+        # {0:1} {1:1} {4:1} -q ONLYBTSTACK
 
-    - Draw items within specific interval range in index unit
-        # {0:1} {1:1} guider.out -q TRIMIDX:0:3
+    - {2:1} within specific interval range in index unit
+        # {0:1} {1:1} {4:1} -q TRIMIDX:0:3
 
-    - Draw items with y range 1-100
-        # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
-        # {0:1} {1:1} guider.out worstcase.out -q YRANGE:10:
-        # {0:1} {1:1} guider.out worstcase.out -q YRANGE::100
+    - {2:1} with y range 1-100
+        # {0:1} {1:1} {4:1} worstcase.out -q YRANGE:1:100
+        # {0:1} {1:1} {4:1} worstcase.out -q YRANGE:10:
+        # {0:1} {1:1} {4:1} worstcase.out -q YRANGE::100
 
-    - Draw items with specific font size
-        # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
-        # {0:1} {1:1} guider.out worstcase.out -q XFONTSIZE:2
-        # {0:1} {1:1} guider.out worstcase.out -q LFONTSIZE:5
-        # {0:1} {1:1} guider.out worstcase.out -q GROUPFONTSIZE:30
+    - {2:1} with specific font size
+        # {0:1} {1:1} {4:1} worstcase.out -q FONTSIZE:15
+        # {0:1} {1:1} {4:1} worstcase.out -q XFONTSIZE:2
+        # {0:1} {1:1} {4:1} worstcase.out -q LFONTSIZE:5
+        # {0:1} {1:1} {4:1} worstcase.out -q GROUPFONTSIZE:30
 
-    - Draw items of top 5 processes
-        # {0:1} {1:1} guider.out worstcase.out -T 5
+    - {2:1} of top 5 processes
+        # {0:1} {1:1} {4:1} worstcase.out -T 5
 
-    - Draw items of total CPU usage by applying the multiplication of the number of CPUs
-        # {0:1} {1:1} guider.out worstcase.out -d A
+    - {2:1} of total CPU usage by applying the multiplication of the number of CPUs
+        # {0:1} {1:1} {4:1} worstcase.out -d A
 
-    - Draw items on customized layout
-        # {0:1} {1:1} guider.out -L c:3, d:3
-        # {0:1} {1:1} guider.out -L c:2, m:2, i:2
-        # {0:1} {1:1} guider.out -L c:4, r:1, v:1
+    - {2:1} on customized layout
+        # {0:1} {1:1} {4:1} -L c:3, d:3
+        # {0:1} {1:1} {4:1} -L c:2, m:2, i:2
+        # {0:1} {1:1} {4:1} -L c:4, r:1, v:1
 
-    - Draw items for block and network resources
-        # {0:1} {1:1} guider.out -e d n
+    - {2:1} for block and network resources
+        # {0:1} {1:1} {4:1} -e d n
 
-    - Draw items with multiple files for comparison
+    - {2:1} with multiple files for comparison
         # {0:1} {1:1} "guider*.out" worstcase.out
 
-    - Draw items of total resource usage with multiple files for comparison
+    - {2:1} of total resource usage with multiple files for comparison
         # {0:1} {1:1} "guider*.out" worstcase.out -a -g TOTAL
 
     - Draw fixed-size items for timeline segments
@@ -29927,16 +29927,16 @@ Examples:
     - Draw per-task items for timeline segments
         # {0:1} {1:1} timeline.json -q PERTASK
 
-    - Draw items with minimum fixed-size for timeline segments
+    - {2:1} with minimum fixed-size for timeline segments
         # {0:1} {1:1} timeline.json -q DURATIONMIN:500
 
-    - Draw items with stroke only for specific interval bigger than 3000 for timeline segments
-        # {0:1} {1:1} guider.dat -q STROKEINTERVAL:3000
+    - {2:1} with stroke only for specific interval bigger than 3000 for timeline segments
+        # {0:1} {1:1} {3:1} -q STROKEINTERVAL:3000
 
-    - Draw items with stroke only for specific duration bigger than 5000 for timeline segments
-        # {0:1} {1:1} guider.dat -q STROKEDURATION:5000
+    - {2:1} with stroke only for specific duration bigger than 5000 for timeline segments
+        # {0:1} {1:1} {3:1} -q STROKEDURATION:5000
                 """.format(
-                    cmd, mode
+                    cmd, mode, "Draw items", "guider.dat", "guider.out"
                 )
 
                 cmdListStr = """
@@ -87327,11 +87327,11 @@ class TaskAnalyzer(object):
             # backup print fd #
             origFd = SysMgr.printFd
 
-            # create a on-memory file #
+            # create an on-memory file for temporary output #
             SysMgr.printFd = MemoryFile(name="buf")
 
             # summarize file data #
-            TaskAnalyzer.printIntervalUsage(onlyTotal=True)
+            TaskAnalyzer.printIntervalUsage()
 
             # convert data to list #
             fd = SysMgr.printFd
