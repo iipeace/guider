@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220727"
+__revision__ = "220728"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30427,28 +30427,35 @@ Options:
     -q  <NAME{{:VALUE}}>          set environment variables
 
 Examples:
-    - Print logs in real-time
+    - {2:1} in real-time
         # {0:1} {1:1}
+        # {0:1} {1:1} -I test.log
 
-    - Print logs to the specific file
+    - {2:1} to the specific file
         # {0:1} {1:1} -o log.out
+        # {0:1} {1:1} -I test.log -o log.out
 
-    - Print logs in real-time for 3 seconds
+    - {2:1} in real-time for 3 seconds
         # {0:1} {1:1} -R 3s
+        # {0:1} {1:1} -I test.log -R 3s
 
-    - Print logs in real-time until no log
+    - {2:1} in real-time until no log
         # {0:1} {1:1} -Q
 
-    - Print logs generated since now in real-time
+    - {2:1} generated since now in real-time
         # {0:1} {1:1} -q TAIL
 
-    - Print logs in real-time until a log containing a specific word is detected
+    - {2:1} in JSON format
+        # {0:1} {1:1} -J
+        # {0:1} {1:1} -I test.log -J
+
+    - {2:1} in real-time until a log containing a specific word is detected
         # {0:1} {1:1} -q WATCHLOG:"*oops*"
 
-    - Print logs in real-time until a log containing a specific word is detected and execute specific commands when terminated
+    - {2:1} in real-time until a log containing a specific word is detected and execute specific commands when terminated
         # {0:1} {1:1} -q WATCHLOG:"*oops*", WATCHLOGCMD:"ls -lha"
                     """.format(
-                    cmd, mode
+                    cmd, mode, "Print logs"
                 )
 
                 # function record #
@@ -63044,13 +63051,35 @@ class DltAnalyzer(object):
             # get date time #
             ntime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timeSec))
 
-            output = (
-                "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}"
-            ).format(ntime, timeUs, uptime, ecuId, apId, ctxId, level, string)
+            # build full string #
+            if SysMgr.jsonEnable:
+                # build string in JSON format #
+                output = {
+                    "localtime": "{0:1}.{1:06d}".format(ntime, timeUs),
+                    "uptime": uptime,
+                    "ecuId": ecuId,
+                    "apId": apId,
+                    "ctxId": ctxId,
+                    "level": level,
+                    "message": string,
+                    "file": fname,
+                }
 
-            if fname:
-                fname = UtilMgr.convColor("[%s] " % fname, "YELLOW")
-                output = fname + output
+                output = UtilMgr.convDict2Str(
+                    output, pretty=not SysMgr.streamEnable
+                )
+            else:
+                # build default string #
+                output = (
+                    "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}"
+                ).format(
+                    ntime, timeUs, uptime, ecuId, apId, ctxId, level, string
+                )
+
+                # append file name #
+                if fname:
+                    fname = UtilMgr.convColor("[%s] " % fname, "YELLOW")
+                    output = fname + output
 
             # print log #
             if buffered:
