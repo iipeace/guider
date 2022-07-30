@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    from ctypes import *
+    # from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -22757,6 +22757,8 @@ class LogMgr(object):
                     SysMgr.printPipe(flush=True)
                     continue
 
+                # TODO: Support JSON format output #
+
                 # traverse all fields #
                 jrlStr = b""
                 for field in fieldList:
@@ -23092,7 +23094,7 @@ class LogMgr(object):
                 # set message #
                 if SysMgr.jsonEnable:
                     jsonResult = dict(
-                        time=ltime, level=level, name=name, log=log
+                        uptime=ltime, level=level, name=name, message=log
                     )
                 else:
                     if not SysMgr.outPath:
@@ -29850,6 +29852,12 @@ Examples:
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_3:CIRCLE
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_4:LARROW
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_5:RARROW
+
+    - {2:1} with specific events from log files
+        # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
+        # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
+        # {0:1} {1:1} {3:1} -q "JOURNALEVENT:TIMEOUT|timeout"
+        # {0:1} {1:1} {3:1} -q "SYSLOGEVENT:TIMEOUT|timeout"
 
     - {2:1} only for specific groups or cores
         # {0:1} {1:1} {3:1} -O 1, 4, 10
@@ -88245,6 +88253,83 @@ class TaskAnalyzer(object):
             # set range index #
             imin = 0
             imax = len(timeline)
+
+        # get more events from logs #
+        otherLogs = []
+        for logtype, logcmd in (
+            ("DLTEVENT", "printdlt"),
+            ("KERNELEVENT", "printkmsg"),
+            ("JOURNALEVENT", "printjrl"),
+            ("SYSLOGEVENT", "printsys"),
+        ):
+            if not logtype in SysMgr.environList:
+                continue
+
+            logname = UtilMgr.rstrip(logtype, "EVENT")
+
+            SysMgr.printStat("start reading %s..." % logname)
+
+            for item in SysMgr.environList[logtype]:
+                # get parameters #
+                values = item.split("|", 2)
+                if len(values) == 1:
+                    SysMgr.printErr("wrong input value for %s" % logtype)
+                    sys.exit(-1)
+                elif len(values) == 2:
+                    path = None
+                    name, keyword = values
+                else:
+                    path, name, keyword = values
+
+                # get input path #
+                if path:
+                    inputpath = "-I%s" % path
+                else:
+                    inputpath = ""
+
+                # execute filter process #
+                ret = SysMgr.launchGuider(
+                    [logcmd, inputpath, "-g%s" % keyword, "-J", "-Q"],
+                    pipe=True,
+                    stderr=True,
+                    logo=False,
+                    copyOpt=False,
+                )
+
+                # read logs from filter process #
+                try:
+                    pipe = ret[1]
+
+                    while 1:
+                        # read a line #
+                        line = pipe.readline()
+                        if not line:
+                            break
+
+                        # remove useless characters #
+                        line = line.strip()
+                        if not line or not line.startswith("{"):
+                            continue
+
+                        # print progress #
+                        UtilMgr.printProgress()
+
+                        # convert string to dict #
+                        obj = UtilMgr.convStr2Dict(line)
+                        if obj:
+                            otherLogs.append(obj)
+
+                    # delete progress #
+                    UtilMgr.deleteProgress()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("stopped to read %s logs" % logname, True)
+
+        # add logs to event list #
+        if otherLogs:
+            # TODO: register log events to proper intervals #
+            pass
 
         # set graph argument list #
         graphStats = {
