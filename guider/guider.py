@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220728"
+__revision__ = "220730"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    # from ctypes import *
+    from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -29763,8 +29763,8 @@ Examples:
 
     - {2:1} for specific tasks
         # {0:1} {1:1} {3:1} -g task3
-        # {0:1} {1:1} {3:1} -g "*"
         # {0:1} {1:1} {3:1} -g "*java*" -a
+        # {0:1} {1:1} {3:1} -g "*" -q NOTOTAL
         # {0:1} {1:1} {3:1} -g "*java*" -q NOTOTAL
 
     - {2:1} for specific tasks and their siblings
@@ -33606,8 +33606,11 @@ Examples:
     - {2:1} including specific words
         # {0:1} {1:1} -g test
 
-    - Change default log level to be printed
+    - {2:1} after changing default log level to be printed
         # {0:1} {1:1} -c INFO
+
+    - {2:1} after applying log level filter
+        # {0:1} {1:1} -c INFO -q FIXLEVEL
 
     - {2:1} using libdlt.so from specific path
         # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
@@ -33671,16 +33674,18 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print D-Bus signal subscription info
+    - {2:1}
         # {0:1} {1:1}
 
-    - Print D-Bus signal subscription info with specific values
+    - {2:1} with specific values
         # {0:1} {1:1} -a
 
-    - Print D-Bus signal subscription info to a specific file
+    - {2:1} to a specific file
         # {0:1} {1:1} -o sig.out
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Print D-Bus signal subscription info",
                     )
 
                 # watch #
@@ -33823,7 +33828,7 @@ Spec:
             - /data/test:4096:100M
             - /data/test:4096:4096
 
-    - Caution
+    - CAUTION
         - The valid size for a readahead syscall is maximum about 1MB
         - Readahead chunks larger than 1MB are split into multiple chunks in Guider automatically
                         """.format(
@@ -33868,32 +33873,33 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print specific symbols from a file
+    - {2:1} from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
     - Print specific merged symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
-    - Print specific symbols from specific files
+    - {2:1} from specific files
         # {0:1} {1:1} -I "/usr/bin/*" -g testFunc
 
     - Print all symbols from a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*"
 
-    - Print specific symbols including specific word from a file
+    - {2:1} including specific word from a file
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc"
         # {0:1} {1:1} -I /usr/bin/yes -g "testFunc*"
         # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc*"
 
-    - Print specific symbols including specific word from a file
+    - {2:1} including specific word from a file
         # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Print specific symbols from specific processes
+    - {2:1} from specific processes
         # {0:1} {1:1} -I "yes" -g testFunc
         # {0:1} {1:1} -I "yes|systemd" -g testFunc
                     """.format(
                         cmd,
                         mode,
+                        "Print specific symbols",
                     )
 
                 # printdbusstat #
@@ -33915,13 +33921,15 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print D-Bus stats
+    - {2:1}
         # {0:1} {1:1}
 
-    - Print D-Bus stats into the specific file
+    - {2:1} into the specific file
         # {0:1} {1:1} -o stats.out
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Print D-Bus stats",
                     )
 
                 # printdbusintro #
@@ -33943,13 +33951,15 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print D-Bus introspection
+    - {2:1}
         # {0:1} {1:1}
 
-    - Print D-Bus introspection into the specific file
+    - {2:1} into the specific file
         # {0:1} {1:1} -o intro.out
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Print D-Bus introspection",
                     )
 
                 # printcgroup #
@@ -34363,17 +34373,19 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print environment variables for a specific process
+    - {2:1} for a specific process
         # {0:1} {1:1} a.out
         # {0:1} {1:1} -g 1234
 
-    - Print environment variables for all processes
+    - {2:1} for all processes
         # {0:1} {1:1} "*"
 
-    - Print environment variables including PWD for all processes
+    - {2:1} including PWD for all processes
         # {0:1} {1:1} "*" -I PWD
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Print environment variables",
                     )
 
                 # printns #
@@ -34487,23 +34499,25 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print the tree of all processes
+    - {2:1} all processes
         # {0:1} {1:1}
 
-    - Print the tree of specific processes
+    - {2:1} specific processes
         # {0:1} {1:1} a.out
         # {0:1} {1:1} "a.out, yes"
 
-    - Print the tree of all threads
+    - {2:1} all threads
         # {0:1} {1:1} -e t
 
     - Print the highlighted processes having specific name
         # {0:1} {1:1} -g kworker
 
-    - Print the tree of all processes with depth 3
+    - {2:1} all processes with depth 3
         # {0:1} {1:1} -H 3
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Print the tree of",
                     )
 
                 # comp #
@@ -34856,14 +34870,16 @@ Options:
 
                     helpStr += """
 Examples:
-    - Draw graphs for response time from specific files
+    - {2:1} from specific files
         # {0:1} {1:1} guider.out
         # {0:1} {1:1} "guider*.out"
 
-    - Draw graphs for response time of specific requests
+    - {2:1} of specific requests
         # {0:1} {1:1} guider.out -g www.google.com
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Draw graphs for response time",
                     )
 
                 # rlimit #
@@ -50035,8 +50051,6 @@ Copyright:
 
     @staticmethod
     def doPrintFile():
-        SysMgr.printLogo(big=True, onlyFile=True)
-
         # check input #
         if SysMgr.hasMainArg():
             inputArg = SysMgr.getMainArgs()
@@ -63803,6 +63817,12 @@ class DltAnalyzer(object):
             SysMgr.printErr("failed to recognize log level", True)
             sys.exit(-1)
 
+        # get level filtering option #
+        if "FIXLEVEL" in SysMgr.environList:
+            fixLevel = True
+        else:
+            fixLevel = False
+
         # get DLT version #
         try:
             vbuf = (c_char * 256)()
@@ -63952,8 +63972,12 @@ class DltAnalyzer(object):
                     # check log filter #
                     if level:
                         mlevel = DltAnalyzer.getMsgLogLevel(dltFile.msg)
-                        if mlevel > level:
-                            continue
+                        if fixLevel:
+                            if mlevel != level:
+                                continue
+                        else:
+                            if mlevel > level:
+                                continue
 
                     # print message #
                     DltAnalyzer.handleMessage(
@@ -87308,9 +87332,7 @@ class TaskAnalyzer(object):
         logFile, handle=None, applyOpt=True, onlyStart=False, verb=False
     ):
         infoBuf = None
-
         chartStats = {}
-
         timeline = []
         eventList = []
 
