@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220730"
+__revision__ = "220731"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22757,10 +22757,9 @@ class LogMgr(object):
                     SysMgr.printPipe(flush=True)
                     continue
 
-                # TODO: Support JSON format output #
-
                 # traverse all fields #
                 jrlStr = b""
+                jrlDict = {}
                 for field in fieldList:
                     if field == b"_TIME":
                         # get time #
@@ -22782,6 +22781,9 @@ class LogMgr(object):
                         """
 
                         # set time #
+                        if SysMgr.jsonEnable:
+                            jrlDict[field.decode().lstrip("_")] = wtime.strip()
+
                         jrlStr += wtime.encode()
 
                         continue
@@ -22793,11 +22795,13 @@ class LogMgr(object):
                         continue
 
                     val = cast(data, c_char_p).value[len(field) + 1 :]
-                    if field == b"_COMM":
+                    if SysMgr.jsonEnable:
+                        pass
+                    elif field == b"_COMM":
                         if SysMgr.outPath:
-                            comm = val.decode("latin-1").rstrip("\x01")
-                            table.setdefault(comm, 0)
-                            table[comm] += 1
+                            val = val.decode("latin-1").rstrip("\x01")
+                            table.setdefault(val, 0)
+                            table[val] += 1
                     elif field == b"_PID":
                         val = b"[%s]: " % val
                     elif field == b"_TRANSPORT" and val == b"kernel":
@@ -22805,6 +22809,13 @@ class LogMgr(object):
                     else:
                         val += b" "
 
+                    if SysMgr.jsonEnable:
+                        jrlDict[
+                            field.decode().lstrip("_")
+                        ] = val.decode().strip()
+
+                    if type(val) is str:
+                        val = val.encode()
                     jrlStr += val
 
                 # print journal #
@@ -22816,17 +22827,27 @@ class LogMgr(object):
                         if not UtilMgr.isValidStr(decstr):
                             continue
 
-                        if SysMgr.outPath and console:
-                            print(decstr)
+                        if SysMgr.jsonEnable:
+                            output = UtilMgr.convDict2Str(jrlDict)
+                        else:
+                            output = decstr
 
-                        SysMgr.printPipe(decstr, flush=True)
+                        if SysMgr.outPath and console:
+                            print(output)
+
+                        SysMgr.printPipe(output, flush=True)
 
                         # check log command #
                         SysMgr.checkLogCond(decstr, watchcond)
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printPipe(jrlStr, flush=True)
+                        if SysMgr.jsonEnable:
+                            output = jrlDict
+                        else:
+                            output = jrlStr
+
+                        SysMgr.printPipe(output, flush=True)
 
             # close journal #
             systemdObj.sd_journal_close(jrl)
@@ -88281,15 +88302,14 @@ class TaskAnalyzer(object):
                 else:
                     path, name, keyword = values
 
+                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q"]
+
                 # get input path #
-                if path:
-                    inputpath = "-I%s" % path
-                else:
-                    inputpath = ""
+                inputParam.insert(1, "-I" + (path if path else ""))
 
                 # execute filter process #
                 ret = SysMgr.launchGuider(
-                    [logcmd, inputpath, "-g%s" % keyword, "-J", "-Q"],
+                    inputParam,
                     pipe=True,
                     stderr=True,
                     logo=False,
