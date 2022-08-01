@@ -23420,6 +23420,7 @@ class SysMgr(object):
     netAddrCache = {}
     pciList = []
     limitDirList = {}
+    fixedTaskList = []
 
     # threshold #
     thresholdData = {}
@@ -29472,84 +29473,84 @@ Segments:
 
                 topExamStr = """
 Examples:
-    - {3:1} {2:2} used CPU resource more than 1% every interval
+    - {3:1} {2:1} used CPU resource more than 1% every interval
         # {0:1} {1:1}
 
-    - {3:1} {2:2} having TID 1234 or COMM 1234
+    - {3:1} {2:1} having TID 1234 or COMM 1234
         # {0:1} {1:1} -g 1234
 
-    - {3:1} {2:2} newly executed
+    - {3:1} {2:1} newly executed
         # {0:1} {1:1} -I ./a.out
 
-    - {3:1} {2:2} having COMM starting with kworker
+    - {3:1} {2:1} having COMM starting with kworker
         # {0:1} {1:1} -g "kworker*"
         # {0:1} {1:1} -g "*kworker"
 
-    - {3:1} {2:2} with cmdline
+    - {3:1} {2:1} with cmdline
         # {0:1} {1:1} -e L
         # {0:1} {1:1} -e L -g apps
 
-    - {3:1} {2:2} except the one having COMM test
+    - {3:1} {2:1} except the one having COMM test
         # {0:1} {1:1} -g ^test
 
-    - {3:1} {2:2} using CPU more than 1%
+    - {3:1} {2:1} using CPU more than 1%
         # {0:1} {1:1} -g -S c:1
 
-    - {3:1} {2:2} used system resource totally
+    - {3:1} {2:1} used system resource totally
         # {0:1} {1:1} -e T
 
-    - {3:1} all {2:2} on linux, not android
+    - {3:1} all {2:1} on linux, not android
         # NO_ANDROID=1 {0:1} {1:1} -a
 
-    - {3:1} maximum 20 {2:2}
+    - {3:1} maximum 20 {2:1}
         # {0:1} {1:1} -a -q NRTOPRANK:20
 
-    - {3:1} all {2:2} with specific cores
+    - {3:1} all {2:1} with specific cores
         # {0:1} {1:1} -e c -O 0:4, 10, 12
 
-    - {3:1} all {2:2} with bar graphs for all cores
+    - {3:1} all {2:1} with bar graphs for all cores
         # {0:1} {1:1} -a -e B
 
-    - {3:1} all {2:2} without bar graphs for all cores
+    - {3:1} all {2:1} without bar graphs for all cores
         # {0:1} {1:1} -a -d B
 
-    - {3:1} all {2:2} with minimal stats
+    - {3:1} all {2:1} with minimal stats
         # {0:1} {1:1} -a -e M
 
-    - {3:1} all {2:2} after user input
+    - {3:1} all {2:1} after user input
         # {0:1} {1:1} -a -W
 
-    - {3:1} all {2:2} and execute specific commands when terminated
+    - {3:1} all {2:1} and execute specific commands when terminated
         # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
 
-    - {3:1} all {2:2} and quit when specific {2:2} are terminated
+    - {3:1} all {2:1} and quit when specific {2:1} are terminated
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
 
-    - {3:1} all {2:2} and quit when specific {2:2} are executed
+    - {3:1} all {2:1} and quit when specific {2:1} are executed
         # {0:1} {1:1} -a -q EXITCONDNEW:"a.out"
 
-    - {3:1} all {2:2} and quit when specific files are found
+    - {3:1} all {2:1} and quit when specific files are found
         # {0:1} {1:1} -a -q EXITCONDFILE:"/tmp/term"
 
-    - {3:1} all {2:2} and quit when specific files are not found
+    - {3:1} all {2:1} and quit when specific files are not found
         # {0:1} {1:1} -a -q EXITCONDNOFILE:"/tmp/term"
 
-    - {3:1} all {2:2} and quit when specific functions return true
+    - {3:1} all {2:1} and quit when specific functions return true
         # {0:1} {1:1} -a -q EXITCONDFUNC:"/tmp/check.py":"checkFunc":"123"
 
-    - {3:1} all {2:2} after 5 seconds
+    - {3:1} all {2:1} after 5 seconds
         # {0:1} {1:1} -a -W 5s
 
-    - {3:1} {2:2} that use CPU more than 1% except for system in a stream
+    - {3:1} {2:1} that use CPU more than 1% except for system in a stream
         # {0:1} {1:1} -a -q TASKSTREAM -S c:1
 
-    - {3:1} all {2:2} from 100 seconds of uptime
+    - {3:1} all {2:1} from 100 seconds of uptime
         # {0:1} {1:1} -a -q STARTCONDTIME:100 -W
 
-    - {3:1} all {2:2} until 100 seconds of uptime
+    - {3:1} all {2:1} until 100 seconds of uptime
         # {0:1} {1:1} -a -q EXITCONDTIME:100 -R
 
-    - {3:1} all {2:2} with specific condition
+    - {3:1} all {2:1} with specific condition
         # {0:1} {1:1} -a -q STARTCONDCPUMORE:10 -R
         # {0:1} {1:1} -a -q STARTCONDCPULESS:90 -R
         # {0:1} {1:1} -a -q STARTCONDMEMMORE:1000 -R
@@ -29559,202 +29560,205 @@ Examples:
         # {0:1} {1:1} -a -q EXITCONDMEMMORE:1000 -R
         # {0:1} {1:1} -a -q EXITCONDMEMLESS:90 -R
 
-    - {3:1} all {2:2} with the number of actual file descriptors
+    - {3:1} all {2:1} with the number of actual file descriptors
         # {0:1} {1:1} -a -q ACTUALFD
 
-    - {3:1} all {2:2} with GPU memory
+    - {3:1} all {2:1} with GPU memory
         # {0:1} {1:1} -a -q GPUMEM
         # {0:1} {1:1} -a -q GPUMEMSUM
 
-    - {3:1} all {2:2} with GPU temperature
+    - {3:1} all {2:1} with GPU temperature
         # {0:1} {1:1} -a -q GPUTEMP
 
-    - {3:1} all {2:2} sorted by memory(RSS)
+    - {3:1} all {2:1} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
         # {0:1} {1:1} -S "m:<10" -q ORDERASC
 
-    - {3:1} all {2:2} sorted by execution time
+    - {3:1} all {2:1} sorted by execution time
         # {0:1} {1:1} -S e
         # {0:1} {1:1} -S e:2h
         # {0:1} {1:1} -S "e:<2h" -q ORDERASC
 
-    - {3:1} {2:2} with fastest initialization
+    - {3:1} {2:1} with fastest initialization
         # {0:1} {1:1} -q FASTINIT
 
-    - {3:1} {2:2} without size-unit converting
+    - {3:1} {2:1} without size-unit converting
         # {0:1} {1:1} -q NOSIZEUNIT
 
     - {3:1} threads context-switched more than 5000 after sorting by context switch
         # {0:1} {1:1} -S C:5000
         # {0:1} {1:1} -S C:5000 -q ORDERDESC
 
-    - {3:1} all {2:2} with changing the CPU scheduling priority every second
+    - {3:1} all {2:1} with changing the CPU scheduling priority every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - {3:1} {2:2} and change the CPU scheduling priority for specific threads having COMM a.out every second
+    - {3:1} {2:1} and change the CPU scheduling priority for specific threads having COMM a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
-    - {3:1} the fixed list for {2:2} to save CPU resource for monitoring
+    - {3:1} {2:1} with the fixed specific targets in the top place
         # {0:1} {1:1} -g a.out -e x
 
-    - {3:1} {2:2} and report the result to ./guider.out when SIGINT arrives
+    - {3:1} the fixed target {2:1} only to save CPU resource for monitoring
+        # {0:1} {1:1} -g a.out -e x
+
+    - {3:1} {2:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
-    - {3:1} all {2:2} once and report the result including cgroup info to ./guider.out
+    - {3:1} all {2:1} once and report the result including cgroup info to ./guider.out
         # {0:1} {1:1} -e G -a -o . -R 1
 
-    - {3:1} {2:2} and print standard or special logs to specific logging systems
+    - {3:1} {2:1} and print standard or special logs to specific logging systems
         * d:DLT / k:KMSG / j:JOURNAL / s:SYSLOG
         # {0:1} {1:1} -l dkjs
         # {0:1} {1:1} -q STDLOG:dkjs
         # {0:1} {1:1} -q OPSLOG:dkjs
 
-    - {3:1} {2:2} with the cpu limitation in % unit using cgroup
+    - {3:1} {2:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -q LIMITCPU:20
         # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
-    - {3:1} {2:2} with the cpu set limitation using cgroup
+    - {3:1} {2:1} with the cpu set limitation using cgroup
         # {0:1} {1:1} -q LIMITCPUSET:1
         # {0:1} {1:1} -q LIMITCPUSET:"1-2"@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITCPUSET:"1-2&4"@"*yes*|a.out"
 
-    - {3:1} {2:2} with the memory limitation using cgroup
+    - {3:1} {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
         # {0:1} {1:1} -q LIMITMEM:50M@"*yes*|a.out"
 
-    - {3:1} {2:2} with the block I/O limitation using cgroup
+    - {3:1} {2:1} with the block I/O limitation using cgroup
         # {0:1} {1:1} -q LIMITREAD:50M
         # {0:1} {1:1} -q LIMITWRITE:50M
         # {0:1} {1:1} -q LIMITREAD:50M@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
-    - {3:1} {2:2} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
+    - {3:1} {2:1} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
         # {0:1} {1:1} -o . -q NRKLOG:100
 
-    - {3:1} {2:2} and report the result to ./guider.out with memo when SIGINT arrives
+    - {3:1} {2:1} and report the result to ./guider.out with memo when SIGINT arrives
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
-    - {3:1} {2:2} and report the result to ./guider.out with unlimited memory buffer
+    - {3:1} {2:1} and report the result to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
 
-    - {3:1} {2:2} and report the result to ./guider.out with limited memory buffer 50MB
+    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB
         # {0:1} {1:1} -o . -b 50m
 
-    - {3:1} {2:2} and report the result to ./guider.out with limited memory buffer 50MB loss possible
+    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB loss possible
         # {0:1} {1:1} -o . -b 50m -d b
 
-    - {3:1} {2:2} and report the result to ./guider.out without event handling
+    - {3:1} {2:1} and report the result to ./guider.out without event handling
         # {0:1} {1:1} -o . -d x
 
-    - {3:1} {2:2} and report the result to ./guider.out in real-time until SIGINT arrives
+    - {3:1} {2:1} and report the result to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p
 
-    - {3:1} {2:2} and save the result composed only of raw data to ./guider.out in real-time until SIGINT arrives
+    - {3:1} {2:1} and save the result composed only of raw data to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p -q NOSUMMARY
 
-    - {3:1} {2:2} and save the result except for the interval summary to ./guider.out in real-time until SIGINT arrives
+    - {3:1} {2:1} and save the result except for the interval summary to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -q NOINTSUMMARY
 
-    - {3:1} {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
+    - {3:1} {2:1} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
 
-    - {3:1} {2:2} and report the result collected every 3 seconds for 5 times to ./guider.out
+    - {3:1} {2:1} and report the result collected every 3 seconds for 5 times to ./guider.out
         # {0:1} {1:1} -R 3s:5 -o .
 
-    - {3:1} {2:2} and report the result collected every 10 seconds for 60 minutes to ./guider.out
+    - {3:1} {2:1} and report the result collected every 10 seconds for 60 minutes to ./guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
 
-    - {3:1} {2:2} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
+    - {3:1} {2:1} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
-    - {3:1} {2:2} with memory(PSS)
+    - {3:1} {2:1} with memory(PSS)
         # {0:1} {1:1} -e S
 
-    - {3:1} {2:2} with memory(USS)
+    - {3:1} {2:1} with memory(USS)
         # {0:1} {1:1} -e u
 
-    - {3:1} newly executed {2:2} with memory(USS)
+    - {3:1} newly executed {2:1} with memory(USS)
         # {0:1} {1:1} -I ./a.out -e u
 
-    - {3:1} {2:2} with unique physical memory (RSS - Text - Shm)
+    - {3:1} {2:1} with unique physical memory (RSS - Text - Shm)
         # {0:1} {1:1} -q EXCEPTSHM
 
-    - {3:1} all {2:2} including block usage every 2 seconds
+    - {3:1} all {2:1} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - {3:1} {2:2} with the name including system and their siblings
+    - {3:1} {2:1} with the name including system and their siblings
         # {0:1} {1:1} -g "*system*" -P
 
-    - {3:1} {2:2} named gdbus among {2:2} with the name including system and their siblings
+    - {3:1} {2:1} named gdbus among {2:1} with the name including system and their siblings
         # {0:1} {1:1} -g "*system*" -P -q FILTER:"gdbus"
 
-    - {3:1} {2:2} and print stats if only system resource usage exceeds specific threshold
+    - {3:1} {2:1} and print stats if only system resource usage exceeds specific threshold
         # {0:1} {1:1} -q CPUCOND:10
         # {0:1} {1:1} -q MEMFREECOND:100
         # {0:1} {1:1} -q MEMAVLCOND:100
         # {0:1} {1:1} -q BLKRDCOND:1
         # {0:1} {1:1} -q BLKWRCOND:1
 
-    - {3:1} {2:2} with the specific length for thread name
+    - {3:1} {2:1} with the specific length for thread name
         # {0:1} {1:1} -q COMMLEN:16
 
-    - {3:1} {2:2} on the minimum terminal
+    - {3:1} {2:1} on the minimum terminal
         # {0:1} {1:1} -m
 
-    - {3:1} {2:2} on the optimized terminal
+    - {3:1} {2:1} on the optimized terminal
         # {0:1} {1:1} -m :
 
-    - {3:1} {2:2} after optimizing system terminal
+    - {3:1} {2:1} after optimizing system terminal
         # {0:1} {1:1} -m ::system
 
-    - {3:1} {2:2} and report to elastic search
+    - {3:1} {2:1} and report to elastic search
         # {0:1} {1:1} -e I
 
-    - {3:1} {2:2} with elapsed times for each step
+    - {3:1} {2:1} with elapsed times for each step
         # {0:1} {1:1} -q PRINTDELAY
 
-    - {3:1} {2:2} and report the results to both ./guider.out and console
+    - {3:1} {2:1} and report the results to both ./guider.out and console
         # {0:1} {1:1} -o . -Q
 
-    - {3:1} {2:2} and report the results to ./guider.out after freeing up space in the target directories
+    - {3:1} {2:1} and report the results to ./guider.out after freeing up space in the target directories
         # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G
 
-    - {3:1} {2:2} and execute special commands
+    - {3:1} {2:1} and execute special commands
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
 
-    - {3:1} {2:2} through the local server having 5555 port
+    - {3:1} {2:1} through the local server having 5555 port
         # {0:1} {1:1} -X 5555
 
-    - {3:1} {2:2} and report to 192.168.0.5:5555 in real-time
+    - {3:1} {2:1} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT@192.168.0.5:5555
 
-    - {3:1} {2:2} with sending signals to specific {2:2}
+    - {3:1} {2:1} with sending signals to specific {2:1}
         # {0:1} {1:1} -k a.out:SIGKILL
         # {0:1} {1:1} -k a.out:SIGKILL:CONT
 
-    - {3:1} {2:2} with changing CPU affinity for specific {2:2}
+    - {3:1} {2:1} with changing CPU affinity for specific {2:1}
         # {0:1} {1:1} -z a.out:3
         # {0:1} {1:1} -z a.out:3:CONT
 
-    - {3:1} {2:2} with the number in front of the name
+    - {3:1} {2:1} with the number in front of the name
         # {0:1} {1:1} -c index
 
-    - {3:1} {2:2} after setting hot commands in advance
+    - {3:1} {2:1} after setting hot commands in advance
         # {0:1} {1:1} -c "GUIDER utop -g PID"
         # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret"
 
-    - {3:1} {2:2} and execute specific commands for all or a few tasks shown automatically
+    - {3:1} {2:1} and execute specific commands for all or a few tasks shown automatically
         # {0:1} {1:1} -c "GUIDER utop -g PID" -e E
         # {0:1} {1:1} -c "GUIDER utop -g PID" -e E -q NRTOPRANK:1
         # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
-    - {3:1} {2:2} after setting config from guider.conf
+    - {3:1} {2:1} after setting config from guider.conf
         # {0:1} {1:1} -C guider.conf
 
-    - {3:1} {2:2} with no encoding for output
+    - {3:1} {2:1} with no encoding for output
         # {0:1} {1:1} -d e
         # NO_ENCODE=1 {0:1} {1:1} -d e
 
@@ -35569,7 +35573,7 @@ Usage:
 
 Description:
     Request remote commands to the server
-{2:2}
+{2:1}
 Options:
     -x  <IP:PORT>               set local address
     -X  <IP:PORT>               set request address
@@ -40933,6 +40937,11 @@ Copyright:
         # set kernel log size #
         if "NRKLOG" in SysMgr.environList:
             SysMgr.kmsgLine = UtilMgr.getEnvironNum("NRKLOG", isInt=True)
+
+        # set fixed tasks #
+        if "FIXTASK" in SysMgr.environList:
+            for item in SysMgr.environList["FIXTASK"]:
+                SysMgr.fixedTaskList += item.split("|")
 
         def _setLogger(options):
             SysMgr.dltEnable = "d" in options
@@ -86405,6 +86414,7 @@ class TaskAnalyzer(object):
             self.procData = {}
             self.procFdData = {}
             self.prevProcData = {}
+            self.fixedProcData = {}
             self.cgroupData = {}
             self.prevCgroupData = {}
             self.nsData = {}
@@ -87329,6 +87339,7 @@ class TaskAnalyzer(object):
 
         self.prevProcData = self.procData
         self.procData = {}
+        self.fixedProcData = {}
         SysMgr.topInstance = self
         SysMgr.procInstance = self.procData
 
@@ -106472,6 +106483,13 @@ class TaskAnalyzer(object):
         if SysMgr.nsEnable:
             self.updateNamespace(path, tid)
 
+        # register to fixed task list #
+        if SysMgr.fixedTaskList:
+            if tid in SysMgr.fixedTaskList or UtilMgr.isValidStr(
+                comm, SysMgr.fixedTaskList
+            ):
+                self.fixedProcData[tid] = self.procData[tid]
+
         return True
 
     def updateNamespace(self, path, tid):
@@ -109905,6 +109923,17 @@ class TaskAnalyzer(object):
 
         SysMgr.addPrint("%s\n" % oneLine)
 
+    def getReorderedList(self, sortedProcData):
+        newProcData = []
+        fixedProcData = []
+        for idx, val in sortedProcData:
+            if idx in self.fixedProcData:
+                fixedProcData.append([idx, val])
+            else:
+                newProcData.append([idx, val])
+        sortedProcData = fixedProcData + newProcData
+        return sortedProcData
+
     def printTaskUsageGen(self, idIndex=False):
         # check return condition #
         if SysMgr.uptimeDiff == 0 or SysMgr.checkCutCond():
@@ -110626,6 +110655,10 @@ class TaskAnalyzer(object):
         else:
             nrTopRank = sys.maxsize
 
+        # reorder fixed tasks #
+        if self.fixedProcData:
+            sortedProcData = self.getReorderedList(sortedProcData)
+
         # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
@@ -110639,15 +110672,6 @@ class TaskAnalyzer(object):
             # add task to fixed target list #
             if SysMgr.fixTargetEnable:
                 SysMgr.fixedProcList.setdefault(idx, None)
-
-            # add task into JSON data #
-            if SysMgr.jsonEnable:
-                jsonData.setdefault(
-                    idx,
-                    UtilMgr.convStr2Dict(
-                        UtilMgr.convDict2Str(value, ignore=True)
-                    ),
-                )
 
             # add task into stack trace list #
             if SysMgr.stackEnable:
@@ -110665,8 +110689,11 @@ class TaskAnalyzer(object):
                         SysMgr.printOpenWarn(spath)
                         self.stackTable.pop(idx, None)
 
+            # check fixed task #
+            if self.fixedProcData and idx in self.fixedProcData:
+                pass
             # check break condition #
-            if _isBreakCond(idx, value):
+            elif _isBreakCond(idx, value):
                 break
             # check the number of task #
             elif procCnt >= nrTopRank:
@@ -110674,6 +110701,15 @@ class TaskAnalyzer(object):
             # check terminal rows #
             elif SysMgr.checkCutCond():
                 return
+
+            # add task into JSON data #
+            if SysMgr.jsonEnable:
+                jsonData.setdefault(
+                    idx,
+                    UtilMgr.convStr2Dict(
+                        UtilMgr.convDict2Str(value, ignore=True)
+                    ),
+                )
 
             # init WSS #
             if initWss:
@@ -113675,17 +113711,24 @@ class TaskAnalyzer(object):
                         key=lambda e: e[1]["ttime"],
                         reverse=True,
                     )
+
+                    # reorder fixed tasks #
+                    if self.fixedProcData:
+                        sortedProcData = self.getReorderedList(sortedProcData)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     # to handle corrupted data #
-                    sortedProcData = {}
+                    sortedProcData = []
 
                 for pid, data in sortedProcData:
                     comm = data["comm"]
 
+                    # check fixed task #
+                    if self.fixedProcData and pid in self.fixedProcData:
+                        pass
                     # check the number of items #
-                    if SysMgr.filterGroup:
+                    elif SysMgr.filterGroup:
                         # check comm #
                         if not UtilMgr.isValidStr(comm):
                             continue
@@ -113734,17 +113777,24 @@ class TaskAnalyzer(object):
                         key=lambda e: long(e[1]["rss"]),
                         reverse=True,
                     )
+
+                    # reorder fixed tasks #
+                    if self.fixedProcData:
+                        sortedProcData = self.getReorderedList(sortedProcData)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     # to handle corrupted data #
-                    sortedProcData = {}
+                    sortedProcData = []
 
                 for pid, data in sortedProcData:
                     comm = data["comm"]
 
+                    # check fixed task #
+                    if self.fixedProcData and pid in self.fixedProcData:
+                        pass
                     # check the number of items #
-                    if SysMgr.filterGroup:
+                    elif SysMgr.filterGroup:
                         # check comm #
                         if not UtilMgr.isValidStr(comm):
                             continue
@@ -113818,17 +113868,24 @@ class TaskAnalyzer(object):
                         key=lambda e: e[1]["rw"],
                         reverse=True,
                     )
+
+                    # reorder fixed tasks #
+                    if self.fixedProcData:
+                        sortedProcData = self.getReorderedList(sortedProcData)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     # to handle corrupted data #
-                    sortedProcData = {}
+                    sortedProcData = []
 
                 for pid, data in sortedProcData:
                     comm = data["comm"]
 
+                    # check fixed task #
+                    if self.fixedProcData and pid in self.fixedProcData:
+                        pass
                     # check the number of items #
-                    if SysMgr.filterGroup:
+                    elif SysMgr.filterGroup:
                         # check comm #
                         if not UtilMgr.isValidStr(comm):
                             continue
@@ -113859,11 +113916,15 @@ class TaskAnalyzer(object):
                         key=lambda e: e[1]["size"],
                         reverse=True,
                     )
+
+                    # reorder fixed tasks #
+                    if self.fixedProcData:
+                        sortedProcData = self.getReorderedList(sortedProcData)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     # to handle corrupted data #
-                    sortedProcData = {}
+                    sortedProcData = []
 
                 total = 0
                 for pid, data in sortedProcData:
@@ -113873,8 +113934,11 @@ class TaskAnalyzer(object):
 
                     comm = data["comm"]
 
+                    # check fixed task #
+                    if self.fixedProcData and pid in self.fixedProcData:
+                        pass
                     # check the number of items #
-                    if SysMgr.filterGroup:
+                    elif SysMgr.filterGroup:
                         # check comm #
                         if not UtilMgr.isValidStr(comm):
                             continue
