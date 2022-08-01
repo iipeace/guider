@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220731"
+__revision__ = "220801"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -64605,7 +64605,7 @@ class Debugger(object):
         self.mode = mode
         self.status = "enter"
         self.traceStatus = False
-        self.runStatus = False
+        self.runStatus = True
         self.attached = attach
         self.execCmd = execCmd
         self.arch = SysMgr.getArch()
@@ -86717,6 +86717,10 @@ class TaskAnalyzer(object):
             if val["comm"] == "<...>":
                 val["comm"] = "?"
 
+        stime = float(SysMgr.startTime)
+        if hasattr(self, "trimStart"):
+            stime += self.trimStart
+
         # add consumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             # apply core off time #
@@ -86728,7 +86732,6 @@ class TaskAnalyzer(object):
             ):
                 # define time delta #
                 start_delta = 0
-                stime = float(SysMgr.startTime)
                 stop_delta = long((float(self.finishTime) - stime) * 1000000)
 
                 # add timeline data #
@@ -86750,7 +86753,6 @@ class TaskAnalyzer(object):
 
                 # define time delta #
                 startTime = self.threadData[coreId]["lastOff"]
-                stime = float(SysMgr.startTime)
                 start_delta = long((float(startTime) - stime) * 1000000)
                 stop_delta = long((float(self.finishTime) - stime) * 1000000)
 
@@ -86859,9 +86861,7 @@ class TaskAnalyzer(object):
             SysMgr.printErr("no recognized data in %s" % SysMgr.inputFile)
             sys.exit(-1)
 
-        self.totalTime = round(
-            float(self.finishTime) - float(SysMgr.startTime), 7
-        )
+        self.totalTime = round(float(self.finishTime) - stime, 7)
 
         # apply filter #
         if SysMgr.filterGroup:
@@ -88187,7 +88187,7 @@ class TaskAnalyzer(object):
             sys.exit(-1)
 
         # get indexes for trim #
-        if "TRIM" in SysMgr.environList or "TRIMIDX" in SysMgr.environList:
+        if set(["TRIM", "TRIMIDX"]) & set(SysMgr.environList):
             if "TRIM" in SysMgr.environList:
                 trim = SysMgr.environList["TRIM"][0].split(":")
             elif "TRIMIDX" in SysMgr.environList:
@@ -96212,6 +96212,8 @@ class TaskAnalyzer(object):
         maxLineLen = SysMgr.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SysMgr.startTime)
+        if hasattr(self, "trimStart"):
+            startTime += self.trimStart
         lval = long(float(self.totalTime) / intervalEnable) + 2
         for icount in xrange(1, lval):
             checkEvent = " "
@@ -100349,14 +100351,18 @@ class TaskAnalyzer(object):
         # apply thread block info #
         _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset, did)
 
-    def handleIntData(self, time):
+    def handleIntData(self, itime):
         if SysMgr.intervalEnable == 0:
             return
 
         intervalEnable = SysMgr.intervalEnable
 
+        itime = float(itime)
         intervalCnt = float(SysMgr.intervalNow + intervalEnable)
-        elapsed = float(time) - float(SysMgr.startTime)
+        startTime = float(SysMgr.startTime)
+        if hasattr(self, "trimStart"):
+            startTime += self.trimStart
+        elapsed = itime - startTime
 
         if not elapsed > intervalCnt and self.finishTime == "0":
             return
@@ -100420,7 +100426,7 @@ class TaskAnalyzer(object):
             curIntval = self.intData[index][key]
 
             # save start time in this interval #
-            curIntval["firstLogTime"] = float(time)
+            curIntval["firstLogTime"] = itime
 
             # make interval list #
             try:
@@ -100453,13 +100459,13 @@ class TaskAnalyzer(object):
                     # apply core off time #
                     coreId = "0[%s]" % idx
                     if self.threadData[coreId]["lastOff"] > 0:
-                        diff = float(time) - self.threadData[coreId]["start"]
+                        diff = itime - self.threadData[coreId]["start"]
                         self.threadData[coreId]["usage"] += diff
                         self.intData[index][coreId]["totalUsage"] += diff
-                        self.threadData[coreId]["start"] = float(time)
+                        self.threadData[coreId]["start"] = itime
                     continue
 
-                curIntval["totalUsage"] += float(time) - float(
+                curIntval["totalUsage"] += itime - float(
                     self.threadData[val]["start"]
                 )
 
@@ -100672,20 +100678,18 @@ class TaskAnalyzer(object):
 
                 # first interval #
                 if index == 0:
-                    self.thisInterval = float(time) - float(SysMgr.startTime)
+                    self.thisInterval = itime - startTime
                 # normal intervals #
                 elif ftime > 0:
-                    self.thisInterval = float(time) - ftime
+                    self.thisInterval = itime - ftime
                 # long time running intervals #
                 else:
                     for idx in xrange(index - 1, -1, -1):
                         if ftime > 0:
-                            self.thisInterval = float(time) - ftime
+                            self.thisInterval = itime - ftime
                             break
                     if self.thisInterval != intervalEnable:
-                        self.thisInterval = float(time) - float(
-                            SysMgr.startTime
-                        )
+                        self.thisInterval = itime - startTime
 
                 # recalculate previous intervals if no context switching since profile start #
                 remainTime = curIntval["cpuUsage"]
@@ -100937,7 +100941,8 @@ class TaskAnalyzer(object):
 
                 self.backupData[item] = obj
 
-            self.totalTimeOld = round(float(time) - float(SysMgr.startTime), 7)
+            startTime = float(SysMgr.startTime)
+            self.totalTimeOld = round(float(time) - startTime, 7)
 
             self.initThreadData()
 
@@ -101373,7 +101378,11 @@ class TaskAnalyzer(object):
                 """calculate runtime of previous thread started
                 before starting to profile"""
                 if self.threadData[coreId]["coreSchedCnt"] == 0:
-                    diff = allTime
+                    if hasattr(self, "trimStart"):
+                        prev_start = stime + self.trimStart
+                        diff = prev_stop - prev_start
+                    else:
+                        diff = allTime
                     self.threadData[prev_id]["usage"] = diff
                 # it is possible that log was loss #
                 else:
