@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220801"
+__revision__ = "220802"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23567,6 +23567,7 @@ class SysMgr(object):
     cloneEnable = True
     cmdEnable = False
     cmdlineEnable = False
+    ioschedEnable = False
     colorEnable = True
     compressEnable = False
     countEnable = False
@@ -28532,7 +28533,7 @@ Commands:
         if not options:
             return False
 
-        optionList = "BCDEFGHILMNPRSTWYabcdefghijklmnopqrrstuvwxy"
+        optionList = "BCDEFGHILMNOPRSTWYabcdefghijklmnopqrrstuvwxy"
         for opt in options:
             if not opt in optionList:
                 return False
@@ -29407,7 +29408,7 @@ Options:
             E:exec | f:float | F:wfc | G:cgroup
             h:sigHandler | H:sched | i:irq | I:elastic
             l:threshold | L:cmdline | m:mem | M:min
-            n:net | N:namespace | o:oomScore
+            n:net | N:namespace | o:oomScore | O:iosched
             p:pipe | P:perf | q:quit | r:report
             R:reportFile | s:stack | S:pss| t:thread
             T:total | u:uss | w:wss | W:wchan
@@ -29476,13 +29477,13 @@ Examples:
     - {3:1} {2:1} used CPU resource more than 1% every interval
         # {0:1} {1:1}
 
-    - {3:1} {2:1} having TID 1234 or COMM 1234
+    - {3:1} specific {2:1} having TID 1234 or COMM 1234
         # {0:1} {1:1} -g 1234
 
     - {3:1} {2:1} newly executed
         # {0:1} {1:1} -I ./a.out
 
-    - {3:1} {2:1} having COMM starting with kworker
+    - {3:1} specific {2:1} having COMM starting with kworker
         # {0:1} {1:1} -g "kworker*"
         # {0:1} {1:1} -g "*kworker"
 
@@ -29493,8 +29494,8 @@ Examples:
     - {3:1} {2:1} except the one having COMM test
         # {0:1} {1:1} -g ^test
 
-    - {3:1} {2:1} using CPU more than 1%
-        # {0:1} {1:1} -g -S c:1
+    - {3:1} specific {2:1} using CPU more than 1%
+        # {0:1} {1:1} -S c:1
 
     - {3:1} {2:1} used system resource totally
         # {0:1} {1:1} -e T
@@ -29593,11 +29594,15 @@ Examples:
     - {3:1} all {2:1} with changing the CPU scheduling priority every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - {3:1} {2:1} and change the CPU scheduling priority for specific threads having COMM a.out every second
+    - {3:1} specific {2:1} and change the CPU scheduling priority for specific threads having COMM a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
-    - {3:1} {2:1} with the fixed specific targets in the top place
-        # {0:1} {1:1} -g a.out -e x
+    - {3:1} {2:1} with I/O priority
+        # {0:1} {1:1} -e O
+
+    - {3:1} specific {2:1} with the fixed specific targets in the top place
+        # {0:1} {1:1} -g a.out -q FIXTASK:"a.out"
+        # {0:1} {1:1} -g a.out -q FIXTASK:"a.out|yes|systemd"
 
     - {3:1} the fixed target {2:1} only to save CPU resource for monitoring
         # {0:1} {1:1} -g a.out -e x
@@ -29689,10 +29694,10 @@ Examples:
     - {3:1} all {2:1} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - {3:1} {2:1} with the name including system and their siblings
+    - {3:1} specific {2:1} with the name including system and their siblings
         # {0:1} {1:1} -g "*system*" -P
 
-    - {3:1} {2:1} named gdbus among {2:1} with the name including system and their siblings
+    - {3:1} specific {2:1} named gdbus among {2:1} with the name including system and their siblings
         # {0:1} {1:1} -g "*system*" -P -q FILTER:"gdbus"
 
     - {3:1} {2:1} and print stats if only system resource usage exceeds specific threshold
@@ -31722,22 +31727,26 @@ Description:
 
                     examStr = """
 Examples:
-    - {2:1} with threshold condition
+    - {2:1} {3:1}
         # {0:1} {1:1}
         # {0:1} {1:1} -C /tmp/guider.conf
 
-    - {2:1} with threshold condition and report also in JSON format
+    - {2:1} {3:1} and report also in JSON format
         # {0:1} {1:1} -j -Q -q TEXTREPORT
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - {2:1} with threshold condition and report the compressed monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove old report files first.
+    - {2:1} {3:1} and report the compressed monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove old report files first.
         # {0:1} {1:1} -o /tmp -e C -b 1M -q TEXTREPORT, LIMITREPDIR:10M
 
-    - {2:1} with threshold condition and report the monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove existing files.
+    - {2:1} {3:1} and report the monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove existing files.
         # {0:1} {1:1} -o /tmp -b 1M -q TEXTREPORT, LIMITREPDIR:10M, REMOVEOTHERS
 
-    - {2:1} including normal tasks with threshold condition
+    - {2:1} {3:1} and the fixed specific targets
+        # {0:1} {1:1} -g a.out -q FIXTASK:"a.out"
+        # {0:1} {1:1} -g a.out -q FIXTASK:"a.out|yes|systemd"
+
+    - {2:1} including normal tasks {3:1}
         # {0:1} {1:1} -j -q SAVEJSONSTAT
 
     - {2:1} without threshold condition until CMD_RELOAD event is received
@@ -31746,23 +31755,23 @@ Examples:
     - {2:1} after updating original threshold data from the specific file
         # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
 
-    - {2:1} with threshold condition with the cpu limitation in % unit using cgroup
+    - {2:1} {3:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -q LIMITCPU:20
         # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
-    - {2:1} with threshold condition with the memory limitation using cgroup
+    - {2:1} {3:1} with the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
         # {0:1} {1:1} -q LIMITMEM:50M@"*yes*|a.out"
 
-    - {2:1} with threshold condition with the block I/O limitation using cgroup
+    - {2:1} {3:1} with the block I/O limitation using cgroup
         # {0:1} {1:1} -q LIMITREAD:50M
         # {0:1} {1:1} -q LIMITWRITE:50M
         # {0:1} {1:1} -q LIMITREAD:50M@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
-    - {2:1} with threshold condition and print the output of child tasks
+    - {2:1} {3:1} and print the output of child tasks
         # {0:1} {1:1} -q NOMUTE
 
     - {2:1} without socket profiling
@@ -31770,7 +31779,10 @@ Examples:
 
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd, mode, "Monitor resources"
+                        cmd,
+                        mode,
+                        "Monitor resources",
+                        "with threshold condition",
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -31837,21 +31849,21 @@ Description:
 
                     examStr = """
 Examples:
-    - Monitor memory details for specific processes
+    - {2:1} for specific processes
         # {0:1} {1:1} -g chrome
 
-    - Monitor memory details without smaps info for specific processes
+    - {2:1} without smaps info for specific processes
         # {0:1} {1:1} -g chrome -q NOSMAPS
 
-    - Monitor memory details including 30 lines of active slabs for specific processes
+    - {2:1} including 30 lines of active slabs for specific processes
         # {0:1} {1:1} -g chrome -q NRSLAB:30
 
-    - Monitor memory details including total slabs for specific processes
+    - {2:1} including total slabs for specific processes
         # {0:1} {1:1} -g chrome -q TOTALSLAB
 
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd, mode
+                        cmd, mode, "Monitor memory details"
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -31870,15 +31882,17 @@ Description:
 
                     examStr = """
 Examples:
-    - Monitor WSS(Working Set Size) of specific processes and reset WSS when SIGQUIT(Ctrl+\) arrives
+    - {2:1} and reset WSS when SIGQUIT(Ctrl+\) arrives
         # {0:1} {1:1} chrome
 
-    - Monitor WSS(Working Set Size) of specific processes with all footprints
+    - {2:1} with all footprints
         # {0:1} {1:1} chrome -a
 
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "Monitor WSS(Working Set Size) of specific processes",
                     )
 
                     helpStr += topSubStr + topCommonStr + examStr
@@ -41421,7 +41435,9 @@ Copyright:
                     SysMgr.cmdlineEnable = True
 
                 # check last field #
-                if "a" in options:
+                if "O" in options:
+                    TaskAnalyzer.setLastField("iosched")
+                elif "a" in options:
                     TaskAnalyzer.setLastField("affinity")
                 elif "o" in options:
                     TaskAnalyzer.setLastField("oom")
@@ -55089,6 +55105,51 @@ Copyright:
             return dlist
         else:
             return elist
+
+    @staticmethod
+    def getIoPriority(pid=0, who=1, verb=True):
+        if not SysMgr.isLinux:
+            return
+
+        # get ctypes object #
+        SysMgr.importPkgItems("ctypes")
+
+        # define attributes #
+        IOPRIO_CLASS_SHIFT = 13
+
+        try:
+            # set pid #
+            pid = long(pid)
+            if pid == 0:
+                pid = os.getpid()
+
+            # set group (default: IOPRIO_WHO_PROCESS) #
+            if not UtilMgr.isNumber(who):
+                who = ConfigMgr.IOSCHED_TARGET.index(who)
+
+            # call syscall #
+            ret = SysMgr.syscall("ioprio_get", c_int(who), c_int(pid))
+            if ret < 0:
+                SysMgr.printErr(
+                    "failed to get I/O priority of %s(%s)"
+                    % (pid, SysMgr.getComm(pid)),
+                    True,
+                )
+                return None
+
+            # convert data #
+            nmClass = ret >> IOPRIO_CLASS_SHIFT
+            pri = ret & 0xFF
+
+            return nmClass, pri
+        except SystemExit:
+            sys.exit(0)
+        else:
+            SysMgr.printErr(
+                "failed to get I/O priority of %s(%s)"
+                % (pid, SysMgr.getComm(pid))
+            )
+            return None
 
     @staticmethod
     def setIoPriority(pid=0, ioclass=2, pri=0, who=1, verb=True):
@@ -97282,8 +97343,11 @@ class TaskAnalyzer(object):
         SysMgr.wchanEnable = False
         SysMgr.sigHandlerEnable = False
         SysMgr.oomEnable = False
+        SysMgr.ioschedEnable = False
 
-        if option == "affinity":
+        if option == "iosched":
+            SysMgr.ioschedEnable = True
+        elif option == "affinity":
             SysMgr.affinityEnable = True
         elif option == "wchan":
             SysMgr.wchanEnable = True
@@ -110318,7 +110382,9 @@ class TaskAnalyzer(object):
                 dprop = "Dly"
 
             # check last field #
-            if SysMgr.wchanEnable:
+            if SysMgr.ioschedEnable:
+                etc = "IOSched"
+            elif SysMgr.wchanEnable:
                 etc = "WaitChannel"
             elif SysMgr.affinityEnable:
                 etc = "Affinity"
@@ -110930,7 +110996,16 @@ class TaskAnalyzer(object):
 
             # last field info #
             try:
-                if SysMgr.wchanEnable:
+                # print iosched #
+                if SysMgr.ioschedEnable:
+                    # get I/O sched info #
+                    ret = SysMgr.getIoPriority(pid=idx)
+                    if not ret:
+                        raise Exception("no iosched info")
+
+                    # build I/O sched string #
+                    etc = "%d[%s]" % (ret[1], ConfigMgr.IOSCHED_CLASS[ret[0]])
+                elif SysMgr.wchanEnable:
                     etc = value["wchan"]
                 elif SysMgr.affinityEnable:
                     etc = SysMgr.getAffinity(long(idx))
