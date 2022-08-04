@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220802"
+__revision__ = "220804"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6262,10 +6262,14 @@ class UtilMgr(object):
         return flist
 
     @staticmethod
-    def getUTCTime():
+    def getTime(utc=False):
         datetime = SysMgr.getPkg("datetime", False)
         if datetime:
-            return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            if utc:
+                timeobj = datetime.datetime.utcnow()
+            else:
+                timeobj = datetime.datetime.now()
+            return timeobj.strftime("%Y-%m-%dT%H:%M:%SZ")
         else:
             return None
 
@@ -29607,7 +29611,7 @@ Examples:
     - {3:1} the fixed target {2:1} only to save CPU resource for monitoring
         # {0:1} {1:1} -g a.out -e x
 
-    - {3:1} {2:1} and report the result to ./guider.out when SIGINT arrives
+    - {3:1} {2:1} and report the result to ./guider.out {4:1}
         # {0:1} {1:1} -o .
 
     - {3:1} all {2:1} once and report the result including cgroup info to ./guider.out
@@ -29640,22 +29644,22 @@ Examples:
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
-    - {3:1} {2:1} and report the result to ./guider.out with 100 line of kernel messages when SIGINT arrives
+    - {3:1} {2:1} and report the result to ./guider.out using UTC time {4:1}
+        # {0:1} {1:1} -o . -q UTCTIME
+
+    - {3:1} {2:1} and report the result to ./guider.out with 100 line of kernel messages {4:1}
         # {0:1} {1:1} -o . -q NRKLOG:100
 
-    - {3:1} {2:1} and report the result to ./guider.out with memo when SIGINT arrives
+    - {3:1} {2:1} and report the result to ./guider.out with memo {4:1}
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
-    - {3:1} {2:1} and report the result to ./guider.out with unlimited memory buffer
-        # {0:1} {1:1} -o . -b 0
-
-    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB
+    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB {4:1}
         # {0:1} {1:1} -o . -b 50m
 
-    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB loss possible
+    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB loss possible {4:1}
         # {0:1} {1:1} -o . -b 50m -d b
 
-    - {3:1} {2:1} and report the result to ./guider.out without event handling
+    - {3:1} {2:1} and report the result to ./guider.out without event handling {4:1}
         # {0:1} {1:1} -o . -d x
 
     - {3:1} {2:1} and report the result to ./guider.out in real-time until SIGINT arrives
@@ -29664,7 +29668,7 @@ Examples:
     - {3:1} {2:1} and save the result composed only of raw data to ./guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p -q NOSUMMARY
 
-    - {3:1} {2:1} and save the result except for the interval summary to ./guider.out in real-time until SIGINT arrives
+    - {3:1} {2:1} and save the result except for the interval summary to ./guider.out {4:1}
         # {0:1} {1:1} -o . -q NOINTSUMMARY
 
     - {3:1} {2:1} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
@@ -29725,10 +29729,10 @@ Examples:
     - {3:1} {2:1} with elapsed times for each step
         # {0:1} {1:1} -q PRINTDELAY
 
-    - {3:1} {2:1} and report the results to both ./guider.out and console
+    - {3:1} {2:1} and report the results to both ./guider.out and console {4:1}
         # {0:1} {1:1} -o . -Q
 
-    - {3:1} {2:1} and report the results to ./guider.out after freeing up space in the target directories
+    - {3:1} {2:1} and report the results to ./guider.out after freeing up space in the target directories {4:1}
         # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G
 
     - {3:1} {2:1} and execute special commands
@@ -29770,7 +29774,11 @@ Examples:
     - {3:1} system only
         # {0:1} {1:1} -d T
                 """.format(
-                    cmd, mode, target, "Monitor the status of"
+                    cmd,
+                    mode,
+                    target,
+                    "Monitor the status of",
+                    "when SIGINT arrives",
                 )
 
                 drawExamStr = """
@@ -31741,6 +31749,9 @@ Examples:
 
     - {2:1} {3:1} and report the monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove existing files.
         # {0:1} {1:1} -o /tmp -b 1M -q TEXTREPORT, LIMITREPDIR:10M, REMOVEOTHERS
+
+    - {2:1} {3:1} using UTC time
+        # {0:1} {1:1} -g a.out -q UTCTIME
 
     - {2:1} {3:1} and the fixed specific targets
         # {0:1} {1:1} -g a.out -q FIXTASK:"a.out"
@@ -39764,10 +39775,8 @@ Copyright:
                 # save output to file as child #
                 if pid == 0:
                     # append time to the output file #
-                    utcTime = UtilMgr.getUTCTime()
-                    if utcTime:
-                        now = utcTime
-                    else:
+                    dtime = UtilMgr.getTime("UTCTIME" in SysMgr.environList)
+                    if not dtime:
                         now = long(SysMgr.getUptime())
 
                     # append PID to the output file #
@@ -50258,7 +50267,10 @@ Copyright:
                         SysMgr.printPipe("\n")
 
                 if tail:
-                    SysMgr.printPipe("--- END [%s] ---" % UtilMgr.getUTCTime())
+                    SysMgr.printPipe(
+                        "--- END [%s] ---"
+                        % UtilMgr.getTime("UTCTIME" in SysMgr.environList)
+                    )
                 else:
                     break
 
@@ -57510,17 +57522,29 @@ Copyright:
         except:
             pass
 
-        # datetime #
+        # RTC #
         try:
             timeInfo = "%s %s" % (
                 self.systemInfo["date"],
                 self.systemInfo["time"],
             )
-            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("Date", timeInfo))
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("RTC", timeInfo))
 
             if SysMgr.jsonEnable:
-                jsonData["date"] = self.systemInfo["date"]
-                jsonData["time"] = self.systemInfo["time"]
+                jsonData["rtc"] = timeInfo
+        except:
+            pass
+
+        # date #
+        try:
+            dtime, ntime = UtilMgr.getTime().rstrip("Z").split("T")
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format("Date", "%s %s" % (dtime, ntime))
+            )
+
+            if SysMgr.jsonEnable:
+                jsonData["date"] = dtime
+                jsonData["time"] = ntime
         except:
             pass
 
@@ -107970,9 +107994,10 @@ class TaskAnalyzer(object):
         """
         self.reportData = {}
 
-        # utctime #
+        # times #
         self.reportData["timestamp"] = SysMgr.uptime
-        self.reportData["utctime"] = UtilMgr.getUTCTime()
+        self.reportData["datetime"] = UtilMgr.getTime()
+        self.reportData["utctime"] = UtilMgr.getTime(utc=True)
 
         # system info #
         if not SysMgr.sysInstance.uname:
@@ -112539,7 +112564,7 @@ class TaskAnalyzer(object):
             SysMgr.closePrintFd()
 
         # get time #
-        timeinfo = UtilMgr.getUTCTime()
+        timeinfo = UtilMgr.getTime("UTCTIME" in SysMgr.environList)
         if not timeinfo:
             timeinfo = long(SysMgr.uptime)
 
@@ -112674,7 +112699,8 @@ class TaskAnalyzer(object):
                 # convert variables #
                 cmd = cmd.replace("SELFPID", str(SysMgr.pid))
                 cmd = cmd.replace("EVTNAME", event)
-                cmd = cmd.replace("EVTTIME", str(UtilMgr.getUTCTime()))
+                cmd = cmd.replace("EVTTIME", str(UtilMgr.getTime()))
+                cmd = cmd.replace("EVTUTCTIME", str(UtilMgr.getTime(utc=True)))
                 cmd = cmd.replace("EVTUPTIME", str(long(SysMgr.uptime)))
                 cmd = cmd.replace("NUMRUN", str(SysMgr.nrRun))
                 cmd = cmd.replace("NUMREP", str(SysMgr.nrReport))
@@ -112697,7 +112723,10 @@ class TaskAnalyzer(object):
         # print events #
         prevList = list(SysMgr.thresholdEventList)
         nowList = list(self.reportData["event"])
-        timestr = "at %s (%s)" % (SysMgr.uptime, UtilMgr.getUTCTime())
+        timestr = "at %s (%s)" % (
+            SysMgr.uptime,
+            UtilMgr.getTime("UTCTIME" in SysMgr.environList),
+        )
 
         # print finished events #
         endList = set(prevList) - set(nowList)
