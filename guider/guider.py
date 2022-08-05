@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220804"
+__revision__ = "220805"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6262,16 +6262,55 @@ class UtilMgr(object):
         return flist
 
     @staticmethod
+    def convStr2Time(timestr, timefmt=None, isSec=True):
+        datetime = SysMgr.getPkg("datetime", False)
+        if not datetime:
+            return None
+
+        if not timefmt:
+            timefmt = "%Y-%m-%dT%H:%M:%SZ"
+
+        try:
+            timeObj = datetime.datetime.strptime(timestr, timefmt)
+            if isSec:
+                # seconds from UTC 1970-01-01 00:00:00 #
+                return (
+                    timeObj - datetime.datetime.fromtimestamp(0)
+                ).total_seconds()
+            else:
+                return timeObj
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to convert '%s' to time" % timestr, True, True
+            )
+            return None
+
+    @staticmethod
+    def getTimeDiff(utc=False):
+        datetime = SysMgr.getPkg("datetime", False)
+        if not datetime:
+            return None
+
+        if utc:
+            epoch = datetime.datetime.utcnow().timestamp()
+        else:
+            epoch = datetime.datetime.now().timestamp()
+
+        return epoch - SysMgr.getUptime()
+
+    @staticmethod
     def getTime(utc=False):
         datetime = SysMgr.getPkg("datetime", False)
-        if datetime:
-            if utc:
-                timeobj = datetime.datetime.utcnow()
-            else:
-                timeobj = datetime.datetime.now()
-            return timeobj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        else:
+        if not datetime:
             return None
+
+        if utc:
+            timeobj = datetime.datetime.utcnow()
+        else:
+            timeobj = datetime.datetime.now()
+        return timeobj.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @staticmethod
     def getFileList(flist, sort=False, exceptDir=False):
@@ -20662,6 +20701,12 @@ class FileAnalyzer(object):
                 except:
                     SysMgr.printErr("failed to open '%s'" % fname, reason=True)
                     sys.exit(-1)
+
+        # add file filters #
+        if "FILTER" in SysMgr.environList:
+            targetFiles += SysMgr.environList["FILTER"]
+
+        # remove redundant filters #
         targetFiles = set(targetFiles)
 
         # handle no target case #
@@ -30685,6 +30730,8 @@ Examples:
     - {2:1} of specific on-memory files
         # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
         # {0:1} {1:1} -c "/home/test/*"
+        # {0:1} {1:1} -q FILTER:"*libc*"
+        # {0:1} {1:1} -c "/home/test/*", -q FILTER:"*libc*"
 
     - {2:1} of specific on-memory files from specific directories recursively
         # {0:1} {1:1} -c "/usr/share" -r
@@ -33409,6 +33456,9 @@ Examples:
 
     - {2:1} without detailed info
         # {0:1} {1:1} "report*.out" -q ONLYSUMMARY
+
+    - {2:1} without header info
+        # {0:1} {1:1} "report*.out" -q NOHEADER
 
     - {2:1} after converting unique physical memory (RSS - Text - Shm)
         # {0:1} {1:1} "report*.out" -q EXCEPTSHM
@@ -57548,6 +57598,17 @@ Copyright:
         except:
             pass
 
+        # uptime2epoch #
+        try:
+            u2e = UtilMgr.getTimeDiff()
+
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("Uptime2Epoch", u2e))
+
+            if SysMgr.jsonEnable:
+                jsonData["uptime2epoch"] = u2e
+        except:
+            pass
+
         # starttime #
         try:
             startTimeNum = long(str(SysMgr.startTime).split(".")[0])
@@ -57555,7 +57616,7 @@ Copyright:
             startTimeSec = UtilMgr.convNum(startTimeNum)
             startTimeStr = "%s (%s sec)" % (startTime, startTimeSec)
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<1}".format("StartTime", startTimeStr)
+                "{0:20} {1:<1}".format("Start", startTimeStr)
             )
 
             if SysMgr.jsonEnable:
@@ -57568,12 +57629,10 @@ Copyright:
             endTime = UtilMgr.convTime(SysMgr.uptime)
             endTimeSec = UtilMgr.convNum(SysMgr.uptime)
             endTimeStr = "%s (%s sec)" % (endTime, endTimeSec)
-            SysMgr.infoBufferPrint(
-                "{0:20} {1:<1}".format("EndTime", endTimeStr)
-            )
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("End", endTimeStr))
 
             if SysMgr.jsonEnable:
-                jsonData["endTime"] = endTime
+                jsonData["endtime"] = endTime
                 jsonData["uptime"] = endTime
         except:
             pass
@@ -63190,9 +63249,18 @@ class DltAnalyzer(object):
 
             # build full string #
             if SysMgr.jsonEnable:
+                # get local date and time #
+                ldate, ltime = ntime.split()
+
                 # build string in JSON format #
                 output = {
-                    "localtime": "{0:1}.{1:06d}".format(ntime, timeUs),
+                    "localdate": ldate,
+                    "localtime": ltime,
+                    "seconds": UtilMgr.convStr2Time(
+                        "%s.%s" % (ntime, timeUs),
+                        timefmt="%Y-%m-%d %H:%M:%S.%f",
+                        isSec=True,
+                    ),
                     "uptime": uptime,
                     "ecuId": ecuId,
                     "apId": apId,
@@ -85310,15 +85378,18 @@ class TaskAnalyzer(object):
         return found
 
     @staticmethod
-    def getSummaryData(fname):
+    def getSummaryData(fname, incHeader=False):
         # load file #
         SysMgr.reloadFileBuffer(fname)
 
         # recognize data #
+        header = None
         start = end = -1
         reverse = True
         for idx, item in enumerate(SysMgr.procBuffer):
             if "Top Summary Info" in item:
+                if reverse:
+                    header = SysMgr.procBuffer[:idx]
                 reverse = False
             if start == -1 and "[Top Info] " in item:
                 start = idx
@@ -85331,22 +85402,33 @@ class TaskAnalyzer(object):
             SysMgr.printErr("failed to recognize %s" % fname)
             sys.exit(-1)
 
-        # check data #
+        # split header #
+        if not header:
+            header = SysMgr.procBuffer[: start - 1]
+
+        # split interval data #
         SysMgr.procBuffer = SysMgr.procBuffer[start:end]
 
         # reverse sequence #
         if reverse:
             SysMgr.procBuffer = list(reversed(SysMgr.procBuffer))
 
-        return SysMgr.procBuffer
+        if incHeader:
+            return header, SysMgr.procBuffer
+        else:
+            return SysMgr.procBuffer
 
     @staticmethod
     def doSumReport(flist):
-        def _printSummary(fdata, onlyTotal, onlySummary):
+        def _printSummary(fdata, onlyTotal, onlySummary, header):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # update proc buffer #
             SysMgr.procBuffer = fdata
+
+            # print header first #
+            if header:
+                SysMgr.printPipe(header)
 
             # print summary #
             try:
@@ -85386,6 +85468,12 @@ class TaskAnalyzer(object):
         else:
             merge = True
 
+        # get NOHEADER flag "
+        if "NOHEADER" in SysMgr.environList:
+            incHeader = False
+        else:
+            incHeader = True
+
         # merge files #
         fdata = []
         if "REVERSEFILE" in SysMgr.environList:
@@ -85403,13 +85491,21 @@ class TaskAnalyzer(object):
             SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
 
             # summarize data #
-            data = TaskAnalyzer.getSummaryData(fname)
+            ret = TaskAnalyzer.getSummaryData(fname, incHeader)
+
+            # get header and data #
+            if incHeader:
+                header, data = ret
+            else:
+                header = None
+                data = ret
+
             if not "REVERSESAMPLE" in SysMgr.environList:
                 data.reverse()
 
             # no merge #
             if not merge:
-                _printSummary(data, onlyTotal, onlySummary)
+                _printSummary(data, onlyTotal, onlySummary, header)
                 continue
 
             # remove redundant data #
@@ -85423,7 +85519,12 @@ class TaskAnalyzer(object):
             fdata = newData + fdata
 
         if merge:
-            _printSummary(fdata, onlyTotal, onlySummary)
+            _printSummary(
+                fdata,
+                onlyTotal,
+                onlySummary,
+                header if len(flist) == 1 else None,
+            )
 
     @staticmethod
     def doDiffReports(flist):
@@ -114669,7 +114770,7 @@ def main(args=None):
         origInterval = SysMgr.intervalEnable
 
         # check svgwrite object #
-        svgwrite = SysMgr.getPkg("svgwrite")
+        SysMgr.getPkg("svgwrite")
 
         # prepare for timeline segment #
         SysMgr.graphEnable = False
