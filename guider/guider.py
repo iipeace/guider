@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220805"
+__revision__ = "220806"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6293,6 +6293,7 @@ class UtilMgr(object):
         if not datetime:
             return None
 
+        # get epoch time #
         if utc:
             epoch = datetime.datetime.utcnow().timestamp()
         else:
@@ -23556,7 +23557,7 @@ class SysMgr(object):
     bufferString = ""
     bufferList = []
     bufferRows = 0
-    systemInfoBuffer = ""
+    sysinfoBuffer = ""
     kerSymTable = {}
     jsonData = {}
     nrTopRank = 10
@@ -24201,7 +24202,7 @@ Commands:
                 sys.exit(-1)
             elif (
                 SysMgr.isThreadMode()
-                or not SysMgr.systemInfoBuffer
+                or not SysMgr.sysinfoBuffer
                 or SysMgr.forceEnable
             ):
                 pass
@@ -26502,6 +26503,89 @@ Commands:
             return os.environ["HOME"]
         except:
             return None
+
+    @staticmethod
+    def getLogEvents():
+        otherLogs = []
+
+        for logtype, logcmd in (
+            ("DLTEVENT", "printdlt"),
+            ("KERNELEVENT", "printkmsg"),
+            ("JOURNALEVENT", "printjrl"),
+            ("SYSLOGEVENT", "printsys"),
+        ):
+            if not logtype in SysMgr.environList:
+                continue
+
+            logname = UtilMgr.rstrip(logtype, "EVENT")
+
+            SysMgr.printStat("start reading %s..." % logname)
+
+            for item in SysMgr.environList[logtype]:
+                # get parameters #
+                values = item.split("|", 2)
+                if len(values) == 1:
+                    SysMgr.printErr("wrong input value for %s" % logtype)
+                    sys.exit(-1)
+                elif len(values) == 2:
+                    path = None
+                    name, keyword = values
+                else:
+                    path, name, keyword = values
+
+                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q"]
+
+                # get input path #
+                inputParam.insert(1, "-I" + (path if path else ""))
+
+                # execute filter process #
+                ret = SysMgr.launchGuider(
+                    inputParam,
+                    pipe=True,
+                    stderr=True,
+                    logo=False,
+                    copyOpt=False,
+                )
+
+                # read logs from filter process #
+                try:
+                    pipe = ret[1]
+
+                    while 1:
+                        # read a line #
+                        line = pipe.readline()
+                        if not line:
+                            break
+
+                        # remove useless characters #
+                        line = line.strip()
+                        if not line or not line.startswith("{"):
+                            continue
+
+                        # print progress #
+                        UtilMgr.printProgress()
+
+                        # convert string to dict #
+                        obj = UtilMgr.convStr2Dict(line)
+                        if obj:
+                            otherLogs.append(obj)
+
+                    # delete progress #
+                    UtilMgr.deleteProgress()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("stopped to read %s logs" % logname, True)
+
+        # sort by seconds #
+        try:
+            otherLogs.sort(key=lambda val: val["seconds"])
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        return otherLogs
 
     @staticmethod
     def initLogWatcher(data):
@@ -34799,7 +34883,7 @@ Examples:
         # {0:1} {1:1} GET#COOKIES:sessionKey:sessionValue#https://127.0.0.1:5000
 
     - {2:1} with headers
-        # {0:1} {1:1} GET#HEADERS:Content-Type:application/json;charset=utf-8#https://127.0.0.1:5000
+        # {0:1} {1:1} GET#HEADERS:"Content-Type:application/json;charset=utf-8"#https://127.0.0.1:5000
                     """.format(
                         cmd,
                         mode,
@@ -38373,7 +38457,7 @@ Copyright:
                 traceData = traceData[magicPos:]
 
             # encoding data #
-            encodedInfoData = SysMgr.systemInfoBuffer.encode("latin-1")
+            encodedInfoData = SysMgr.sysinfoBuffer.encode("latin-1")
             encodedTraceData = traceData.encode("latin-1")
             del traceData
             totalSize = len(encodedInfoData) + len(encodedTraceData)
@@ -38389,7 +38473,7 @@ Copyright:
                 f = compressor.GzipFile(fileobj=f)
 
             # write system info #
-            if SysMgr.systemInfoBuffer:
+            if SysMgr.sysinfoBuffer:
                 magicStr = "%s\n" % SysMgr.magicStr
                 magicStr = magicStr.encode("latin-1")
 
@@ -38918,7 +39002,7 @@ Copyright:
 
     @staticmethod
     def printInfoBuffer():
-        SysMgr.printPipe(SysMgr.systemInfoBuffer + "\n")
+        SysMgr.printPipe(SysMgr.sysinfoBuffer + "\n")
         SysMgr.clearInfoBuffer()
 
     @staticmethod
@@ -39029,7 +39113,7 @@ Copyright:
     @staticmethod
     def getMountInfo():
         # check whether there is mount info in saved buffer #
-        infoBuf = SysMgr.systemInfoBuffer
+        infoBuf = SysMgr.sysinfoBuffer
 
         if infoBuf == "":
             return
@@ -39101,7 +39185,7 @@ Copyright:
     @staticmethod
     def getProcTreeInfo():
         # check whether there is procTreeInfo in saved buffer #
-        infoBuf = SysMgr.systemInfoBuffer
+        infoBuf = SysMgr.sysinfoBuffer
 
         if infoBuf == "":
             return
@@ -39146,17 +39230,17 @@ Copyright:
 
         # remove task tree info #
         if commPos < 0:
-            SysMgr.systemInfoBuffer = infoBuf[:treePos]
+            SysMgr.sysinfoBuffer = infoBuf[:treePos]
         else:
             commData = infoBuf[newPos + commPos + len(magic) :]
             commData = commData[: commData.find("\n")]
             SysMgr.commCache = UtilMgr.convStr2Dict(commData)
-            SysMgr.systemInfoBuffer = infoBuf[: newPos - len(magic)]
+            SysMgr.sysinfoBuffer = infoBuf[: newPos - len(magic)]
 
     @staticmethod
     def applyLaunchOption():
         # check whether there is launch option in saved buffer #
-        infoBuf = SysMgr.systemInfoBuffer
+        infoBuf = SysMgr.sysinfoBuffer
 
         # get position of launch option #
         if infoBuf == "":
@@ -39205,7 +39289,7 @@ Copyright:
             analOption = "{0:20} {1:<100}".format(
                 "Analysis", "# %s" % (" ".join(sys.argv))
             )
-            SysMgr.systemInfoBuffer = "%s\n%s\n%s" % (
+            SysMgr.sysinfoBuffer = "%s\n%s\n%s" % (
                 infoBuf[:archPosEnd],
                 analOption,
                 infoBuf[archPosEnd + 1 :],
@@ -39446,11 +39530,11 @@ Copyright:
 
     @staticmethod
     def infoBufferPrint(line):
-        SysMgr.systemInfoBuffer = "%s%s\n" % (SysMgr.systemInfoBuffer, line)
+        SysMgr.sysinfoBuffer = "%s%s\n" % (SysMgr.sysinfoBuffer, line)
 
     @staticmethod
     def clearInfoBuffer():
-        SysMgr.systemInfoBuffer = ""
+        SysMgr.sysinfoBuffer = ""
 
     @staticmethod
     def printPipWarn(name, pkg):
@@ -46009,7 +46093,7 @@ Copyright:
                 SysMgr.doPstree(
                     [str(SysMgr.pid)], False, SysMgr.infoBufferPrint
                 )
-                pstree = SysMgr.systemInfoBuffer
+                pstree = SysMgr.sysinfoBuffer
                 SysMgr.clearInfoBuffer()
 
                 """
@@ -46034,7 +46118,7 @@ Copyright:
                 SysMgr.doPstree(
                     [str(SysMgr.pid)], False, SysMgr.infoBufferPrint
                 )
-                pstree = SysMgr.systemInfoBuffer.rstrip()
+                pstree = SysMgr.sysinfoBuffer.rstrip()
                 SysMgr.clearInfoBuffer()
 
                 """
@@ -52331,7 +52415,7 @@ Copyright:
                     auth,
                     verify,
                     cookies,
-                    headers,
+                    hdrs,
                     reqstr,
                     files,
                     json,
@@ -52342,7 +52426,7 @@ Copyright:
                 auth = None
                 verify = False
                 cookies = None
-                headers = None
+                hdrs = None
 
                 # alias #
                 if req.startswith("ALIAS:"):
@@ -52497,15 +52581,13 @@ Copyright:
                                 data[0].strip(), data[1].strip()
                             )
                     elif remain.startswith("HEADERS:"):
-                        headerstr, remain = remain.split("#", 1)
-                        headerstr = headerstr.split(":", 1)[1].strip()
-                        headerlist = headerstr.split(",")
-                        headers = {}
-                        for item in headerlist:
+                        hdrstr, remain = remain.split("#", 1)
+                        hdrstr = hdrstr.split(":", 1)[1].strip()
+                        hdrlist = hdrstr.split(",")
+                        hdrs = {}
+                        for item in hdrlist:
                             data = item.split(":", 1)
-                            headers.setdefault(
-                                data[0].strip(), data[1].strip()
-                            )
+                            hdrs.setdefault(data[0].strip(), data[1].strip())
                     else:
                         break
 
@@ -52532,8 +52614,8 @@ Copyright:
                     reqstr += " VERIFY:%s" % verify
                 if cookies:
                     reqstr += " COOKIES:%s" % repr(cookies)
-                if headers:
-                    reqstr += " HEADERS:%s" % repr(headers)
+                if hdrs:
+                    reqstr += " HEADERS:%s" % repr(hdrs)
                 reqstr = UtilMgr.convColor(reqstr, "UNDERLINE")
 
                 # convert path to data #
@@ -52552,7 +52634,7 @@ Copyright:
                     auth,
                     verify,
                     cookies,
-                    headers,
+                    hdrs,
                     reqstr,
                     files,
                     json,
@@ -52580,7 +52662,7 @@ Copyright:
                     auth=auth,
                     verify=verify,
                     cookies=cookies,
-                    headers=headers,
+                    headers=hdrs,
                     files=files,
                 )
             elif arg:
@@ -52591,7 +52673,7 @@ Copyright:
                     auth=auth,
                     verify=verify,
                     cookies=cookies,
-                    headers=headers,
+                    headers=hdrs,
                     files=files,
                 )
             else:
@@ -52601,7 +52683,7 @@ Copyright:
                     auth=auth,
                     verify=verify,
                     cookies=cookies,
-                    headers=headers,
+                    headers=hdrs,
                     files=files,
                 )
 
@@ -52611,7 +52693,7 @@ Copyright:
 
             # print request #
             if verb:
-                data = res.request.headers
+                data = res.request.hdrs
                 data["Body"] = res.request.body
                 data = str(data).replace("\\n", "\n")
                 data = str(data).replace("\\r", "")
@@ -56081,9 +56163,9 @@ Copyright:
                     rbuf = fd.read()
 
                 with open(path, "w") as fd:
-                    if SysMgr.systemInfoBuffer != "":
+                    if SysMgr.sysinfoBuffer != "":
                         fd.writelines(SysMgr.magicStr + "\n")
-                        fd.writelines(SysMgr.systemInfoBuffer)
+                        fd.writelines(SysMgr.sysinfoBuffer)
                         fd.writelines(SysMgr.magicStr + "\n")
                         fd.writelines(rbuf)
                     os.chmod(path, 0o777)
@@ -57143,7 +57225,7 @@ Copyright:
                 SysMgr.sysInstance.printResourceInfo(tree=False)
                 infoStr = 'echo "%s\n%s\n%s\n" >> %s\n' % (
                     SysMgr.magicStr,
-                    SysMgr.systemInfoBuffer,
+                    SysMgr.sysinfoBuffer,
                     SysMgr.magicStr,
                     outputPath,
                 )
@@ -59200,7 +59282,7 @@ Copyright:
         _printDirTree(cgroupTree, 0)
 
         # check result #
-        if not SysMgr.systemInfoBuffer.strip():
+        if not SysMgr.sysinfoBuffer.strip():
             SysMgr.printErr("no cgroup info")
             sys.exit(-1)
 
@@ -79921,7 +80003,7 @@ class ElfAnalyzer(object):
             return (reg, offset, expr)
 
     cachedFiles = {}
-    cachedHeaderFiles = {}
+    cachedHdrFiles = {}
     preloadedFiles = {}
     cachedCFAs = {}
     cachedTypes = {}
@@ -79986,15 +80068,15 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getHeader(path):
-        if path not in ElfAnalyzer.cachedHeaderFiles:
+        if path not in ElfAnalyzer.cachedHdrFiles:
             try:
-                ElfAnalyzer.cachedHeaderFiles[path] = ElfAnalyzer(
-                    path, onlyHeader=True
+                ElfAnalyzer.cachedHdrFiles[path] = ElfAnalyzer(
+                    path, onlyHdr=True
                 )
             except:
                 return None
 
-        return ElfAnalyzer.cachedHeaderFiles[path]
+        return ElfAnalyzer.cachedHdrFiles[path]
 
     @staticmethod
     def iteratePhdr():
@@ -81176,7 +81258,7 @@ class ElfAnalyzer(object):
         self,
         path=None,
         debug=False,
-        onlyHeader=False,
+        onlyHdr=False,
         fd=None,
         size=sys.maxsize,
         incArg=False,
@@ -81844,8 +81926,8 @@ class ElfAnalyzer(object):
         self.attr["elfHeader"]["shnum"] = e_shnum
         self.attr["elfHeader"]["shstrndx"] = e_shstrndx
 
-        # check onlyHeader flag #
-        if onlyHeader:
+        # check onlyHdr flag #
+        if onlyHdr:
             return None
 
         # print header info #
@@ -85378,7 +85460,7 @@ class TaskAnalyzer(object):
         return found
 
     @staticmethod
-    def getSummaryData(fname, incHeader=False):
+    def getSummaryData(fname, incHdr=False):
         # load file #
         SysMgr.reloadFileBuffer(fname)
 
@@ -85413,7 +85495,7 @@ class TaskAnalyzer(object):
         if reverse:
             SysMgr.procBuffer = list(reversed(SysMgr.procBuffer))
 
-        if incHeader:
+        if incHdr:
             return header, SysMgr.procBuffer
         else:
             return SysMgr.procBuffer
@@ -85470,9 +85552,9 @@ class TaskAnalyzer(object):
 
         # get NOHEADER flag "
         if "NOHEADER" in SysMgr.environList:
-            incHeader = False
+            incHdr = False
         else:
-            incHeader = True
+            incHdr = True
 
         # merge files #
         fdata = []
@@ -85491,10 +85573,10 @@ class TaskAnalyzer(object):
             SysMgr.printStat("start loading '%s'%s" % (fname, fsize))
 
             # summarize data #
-            ret = TaskAnalyzer.getSummaryData(fname, incHeader)
+            ret = TaskAnalyzer.getSummaryData(fname, incHdr)
 
             # get header and data #
-            if incHeader:
+            if incHdr:
                 header, data = ret
             else:
                 header = None
@@ -87637,14 +87719,14 @@ class TaskAnalyzer(object):
             UtilMgr.printProgress(curSize, totalSize)
 
             # get system info #
-            if not SysMgr.systemInfoBuffer and line.startswith(
+            if not SysMgr.sysinfoBuffer and line.startswith(
                 "[System General Info]"
             ):
                 infoBuf = ""
             elif infoBuf is not None:
                 if line.startswith("["):
                     # apply launch option #
-                    SysMgr.systemInfoBuffer = infoBuf
+                    SysMgr.sysinfoBuffer = infoBuf
                     if applyOpt:
                         SysMgr.applyLaunchOption()
                     infoBuf = None
@@ -87652,6 +87734,8 @@ class TaskAnalyzer(object):
                 elif line.startswith("=") or line.startswith(" "):
                     continue
                 else:
+                    if not line.endswith("\n"):
+                        line += "\n"
                     infoBuf += line
                     continue
 
@@ -87811,11 +87895,14 @@ class TaskAnalyzer(object):
 
                 try:
                     time = long(float(sline[0]))
+                    utime = float(sline[1])
                     dtime = float(sline[2])
                     event = sline[3].strip()
 
                     idx = timeline.index(time)
-                    eventList[idx].append("%s [%.2fs]" % (event, dtime))
+                    eventList[idx].append(
+                        "%s [%.3f / +%.2fs]" % (event, utime, dtime)
+                    )
                 except:
                     pass
 
@@ -88375,13 +88462,26 @@ class TaskAnalyzer(object):
         if curSize:
             UtilMgr.deleteProgress()
 
-        # check output data #
+        # verify mandatory stat #
         if not totalRam:
             SysMgr.printErr("failed to find statistics data in '%s'" % logFile)
             sys.exit(-1)
         elif not timeline:
             SysMgr.printErr("failed to find interval data in '%s'" % logFile)
             sys.exit(-1)
+
+        # parse sysinfo #
+        try:
+            sysinfo = {}
+            for item in SysMgr.sysinfoBuffer.split("\n"):
+                item = item.split(maxsplit=1)
+                if len(item) != 2:
+                    continue
+                sysinfo[item[0]] = item[1].rstrip()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to parse sysinfo", True, True)
 
         # get indexes for trim #
         if set(["TRIM", "TRIMIDX"]) & set(SysMgr.environList):
@@ -88472,82 +88572,6 @@ class TaskAnalyzer(object):
             imin = 0
             imax = len(timeline)
 
-        # get more events from logs #
-        otherLogs = []
-        for logtype, logcmd in (
-            ("DLTEVENT", "printdlt"),
-            ("KERNELEVENT", "printkmsg"),
-            ("JOURNALEVENT", "printjrl"),
-            ("SYSLOGEVENT", "printsys"),
-        ):
-            if not logtype in SysMgr.environList:
-                continue
-
-            logname = UtilMgr.rstrip(logtype, "EVENT")
-
-            SysMgr.printStat("start reading %s..." % logname)
-
-            for item in SysMgr.environList[logtype]:
-                # get parameters #
-                values = item.split("|", 2)
-                if len(values) == 1:
-                    SysMgr.printErr("wrong input value for %s" % logtype)
-                    sys.exit(-1)
-                elif len(values) == 2:
-                    path = None
-                    name, keyword = values
-                else:
-                    path, name, keyword = values
-
-                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q"]
-
-                # get input path #
-                inputParam.insert(1, "-I" + (path if path else ""))
-
-                # execute filter process #
-                ret = SysMgr.launchGuider(
-                    inputParam,
-                    pipe=True,
-                    stderr=True,
-                    logo=False,
-                    copyOpt=False,
-                )
-
-                # read logs from filter process #
-                try:
-                    pipe = ret[1]
-
-                    while 1:
-                        # read a line #
-                        line = pipe.readline()
-                        if not line:
-                            break
-
-                        # remove useless characters #
-                        line = line.strip()
-                        if not line or not line.startswith("{"):
-                            continue
-
-                        # print progress #
-                        UtilMgr.printProgress()
-
-                        # convert string to dict #
-                        obj = UtilMgr.convStr2Dict(line)
-                        if obj:
-                            otherLogs.append(obj)
-
-                    # delete progress #
-                    UtilMgr.deleteProgress()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr("stopped to read %s logs" % logname, True)
-
-        # add logs to event list #
-        if otherLogs:
-            # TODO: register log events to proper intervals #
-            pass
-
         # set graph argument list #
         graphStats = {
             "timeline": timeline[imin:imax],
@@ -88577,6 +88601,7 @@ class TaskAnalyzer(object):
             "nrTask": nrTask[imin:imax],
             "graphTitle": "Guider Perf Graph",
             "start": startTime,
+            "sysinfo": sysinfo,
         }
 
         return graphStats, chartStats
@@ -89155,10 +89180,15 @@ class TaskAnalyzer(object):
             finally:
                 return
 
+        # get log events #
+        logEvents = SysMgr.getLogEvents()
+
         # draw graphs #
         try:
             if not onlyChart:
-                self.drawGraph(graphStats, logFile, outFile=outFile)
+                self.drawGraph(
+                    graphStats, logFile, outFile=outFile, logEvents=logEvents
+                )
         except SystemExit:
             sys.exit(0)
         except:
@@ -89412,7 +89442,9 @@ class TaskAnalyzer(object):
         # save to file #
         TaskAnalyzer.saveImage(logFile, "chart", outFile=outFile)
 
-    def drawLayout(self, graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent):
+    def drawLayout(
+        self, graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent, logEvents
+    ):
         pos = 0
         total = 0
         layoutDict = {}
@@ -89491,7 +89523,7 @@ class TaskAnalyzer(object):
 
                 if _drawEvent and idx == 0:
                     # draw events on graphs #
-                    _drawEvent(graphStats)
+                    _drawEvent(graphStats, logEvents)
 
                 pos += size
             except SystemExit:
@@ -89689,7 +89721,7 @@ class TaskAnalyzer(object):
             except:
                 continue
 
-    def drawGraph(self, graphStats, logFile, outFile=None):
+    def drawGraph(self, graphStats, logFile, outFile=None, logEvents=[]):
         # pylint: disable=undefined-variable
 
         # ==================== DEFINE PART ====================#
@@ -89701,7 +89733,7 @@ class TaskAnalyzer(object):
             else:
                 return "center"
 
-        def _drawEvent(graphStats):
+        def _drawEvent(graphStats, logEvents):
             # get minimum timeline #
             timeline = None
             for key, val in graphStats.items():
@@ -89712,6 +89744,13 @@ class TaskAnalyzer(object):
                 elif len(timeline) > len(val):
                     timeline = val
             lent = len(timeline)
+
+            # get first and last uptime #
+            try:
+                firstSec = logEvents[0]["seconds"]
+                lastSec = logEvents[-1]["seconds"]
+            except:
+                firstSec = lastSec = -1
 
             # get exclude event list #
             if "EXEVENT" in SysMgr.environList:
@@ -89730,6 +89769,7 @@ class TaskAnalyzer(object):
                 if not key.endswith("timeline"):
                     continue
 
+                # get filename #
                 res = key.split(":")
                 if len(res) > 1:
                     fname = "%s:" % res[0]
@@ -89740,6 +89780,14 @@ class TaskAnalyzer(object):
 
                 # get event table #
                 eventList = graphStats["%seventList" % fname][:lent]
+
+                # get epochDelta info #
+                try:
+                    epochDelta = float(
+                        graphStats["%ssysinfo" % fname]["Uptime2Epoch"]
+                    )
+                except:
+                    epochDelta = 0
 
                 for tm, evts in enumerate(eventList):
                     if not evts:
@@ -89763,34 +89811,72 @@ class TaskAnalyzer(object):
                             newEvts.append(evt)
                         evts = newEvts
 
-                    evtbox = prefix + "\n".join(evts)
+                    accHeight = 0
+                    axHeight = (
+                        gca()
+                        .get_window_extent()
+                        .transformed(self.figure.dpi_scale_trans.inverted())
+                        .height
+                    )
+                    maxHeight = ylim()[-1]
 
-                    try:
-                        text(
-                            timeline[tm],
-                            ylim()[-1],
-                            evtbox,
-                            fontsize=self.lfsize,
-                            verticalalignment="top",
-                            style="italic",
-                            bbox={
-                                "facecolor": "green",
-                                "alpha": 0.5,
-                                "pad": 1,
-                            },
-                            ha="left",
-                        )
+                    for seq, evt in enumerate(evts):
+                        evtbox = prefix + evt
 
-                        axvline(
-                            x=timeline[tm],
-                            linewidth=1,
-                            linestyle="--",
-                            color="green",
-                        )
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
+                        # get x position #
+                        try:
+                            evtname, remains = evtbox.rsplit("[", 1)
+                            uptime, remains = remains.split("/", 1)
+                            xpos = float(uptime.strip())
+                            evtbox = "%s [%s" % (
+                                evtname.rstrip(),
+                                remains.strip(),
+                            )
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            xpos = timeline[tm]
+
+                        try:
+                            ypos = maxHeight - (
+                                maxHeight * accHeight / axHeight
+                            )
+                            ret = text(
+                                xpos,
+                                ypos,
+                                evtbox,
+                                fontsize=self.lfsize,
+                                verticalalignment="top",
+                                style="italic",
+                                bbox={
+                                    "facecolor": "green",
+                                    "alpha": 0.5,
+                                    "pad": 1,
+                                },
+                                ha="left",
+                            )
+
+                            accHeight += (
+                                ret.get_window_extent(
+                                    self.figure.canvas.get_renderer()
+                                )
+                                .transformed(
+                                    self.figure.dpi_scale_trans.inverted()
+                                )
+                                .height
+                                * 2
+                            )
+
+                            axvline(
+                                x=xpos,
+                                linewidth=1,
+                                linestyle="--",
+                                color="green",
+                            )
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
 
         def _getPathEffect(lw=2):
             try:
@@ -90348,6 +90434,19 @@ class TaskAnalyzer(object):
             xticks(fontsize=self.xfsize)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
+
+            # adjust yticks #
+            ylist = ax.get_yticks().tolist()
+
+            # set ymin #
+            ymin = long(min(ylist))
+            if ymin < 0:
+                ymin = 0
+            elif ymin == 0:
+                try:
+                    ax.set_ylim(bottom=0)
+                except:
+                    pass
 
             # update yticks #
             TaskAnalyzer.drawYticks(ax, ymax)
@@ -91737,17 +91836,17 @@ class TaskAnalyzer(object):
         # draw plots #
         if not SysMgr.layout:
             _drawCpu(graphStats, 3, 0, 4)
-            _drawEvent(graphStats)
+            _drawEvent(graphStats, logEvents)
             _drawIo(graphStats, 2, 4, 1)
             _drawMem(graphStats, 1, 5, 1)
         else:
             self.drawLayout(
-                graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent
+                graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent, logEvents
             )
 
         # draw system info #
         try:
-            if SysMgr.systemInfoBuffer and len(SysMgr.systemInfoBuffer) > 0:
+            if SysMgr.sysinfoBuffer and len(SysMgr.sysinfoBuffer) > 0:
                 if not SysMgr.origArgs:
                     SysMgr.origArgs = ["None"]
 
@@ -91755,12 +91854,10 @@ class TaskAnalyzer(object):
                 drawCmdStr = "{0:20} # {1:<100}".format(
                     "DrawCmd", " ".join(SysMgr.origArgs)
                 )
-                SysMgr.systemInfoBuffer = (
-                    SysMgr.systemInfoBuffer[:-1] + drawCmdStr
-                )
+                SysMgr.sysinfoBuffer = SysMgr.sysinfoBuffer[:-1] + drawCmdStr
 
                 self.figure.text(
-                    0, 1, SysMgr.systemInfoBuffer, va="top", ha="left", size=2
+                    0, 1, SysMgr.sysinfoBuffer, va="top", ha="left", size=2
                 )
         except SystemExit:
             sys.exit(0)
@@ -92463,7 +92560,7 @@ class TaskAnalyzer(object):
                 _drawAvgMem(graphStats, 1, 4, 2)
             else:
                 self.drawLayout(
-                    graphStats, _drawAvgCpu, _drawAvgMem, None, None
+                    graphStats, _drawAvgCpu, _drawAvgMem, None, None, None
                 )
 
         # draw CPU #
@@ -100376,7 +100473,7 @@ class TaskAnalyzer(object):
                             start = idx
                         elif end == -1:
                             end = idx
-                            SysMgr.systemInfoBuffer = "".join(
+                            SysMgr.sysinfoBuffer = "".join(
                                 buf[start + 1 : end]
                             )
                         continue
@@ -112420,8 +112517,8 @@ class TaskAnalyzer(object):
             # print message #
             SysMgr.printInfo(
                 (
-                    "cleared the monitoring results and paused all activities "
-                    "by '%s' command for %s event"
+                    "cleared the monitoring results and paused all "
+                    "activities by '%s' command for %s event"
                 )
                 % (cmd, name)
             )
@@ -114785,8 +114882,8 @@ def main(args=None):
             start = 0
 
         # minimize system info for annotation #
-        if SysMgr.systemInfoBuffer:
-            annotation = SysMgr.systemInfoBuffer
+        if SysMgr.sysinfoBuffer:
+            annotation = SysMgr.sysinfoBuffer
             annotation = annotation.replace("%s\n" % twoLine, "")
         else:
             annotation = None
