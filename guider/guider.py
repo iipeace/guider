@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220806"
+__revision__ = "220807"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26568,6 +26568,7 @@ Commands:
                         # convert string to dict #
                         obj = UtilMgr.convStr2Dict(line)
                         if obj:
+                            obj["name"] = name
                             otherLogs.append(obj)
 
                     # delete progress #
@@ -89747,10 +89748,10 @@ class TaskAnalyzer(object):
 
             # get first and last uptime #
             try:
-                firstSec = logEvents[0]["seconds"]
-                lastSec = logEvents[-1]["seconds"]
+                firstEvt = logEvents[0]["seconds"]
+                lastEvt = logEvents[-1]["seconds"]
             except:
-                firstSec = lastSec = -1
+                firstEvt = lastEvt = -1
 
             # get exclude event list #
             if "EXEVENT" in SysMgr.environList:
@@ -89763,6 +89764,45 @@ class TaskAnalyzer(object):
                 inEventList = SysMgr.environList["INEVENT"]
             else:
                 inEventList = None
+
+            # define a function for merging log events #
+            def _addLogEvents(
+                epochTimes, eventList, logEvents, epochDelta, logEventInfo
+            ):
+                for item in logEvents:
+                    name = item["name"]
+                    eventTime = item["seconds"]
+
+                    # get index #
+                    idx = UtilMgr.bisect_left(epochTimes, eventTime) - 1
+                    if idx < 0 or eventTime > epochTimes[-1]:
+                        return
+
+                    # get interval and upate last #
+                    if "LAST" in logEventInfo:
+                        fromPrevEvt = eventTime - logEventInfo["LAST"]
+                        if name in logEventInfo:
+                            fromSameEvt = eventTime - logEventInfo[name]
+                        else:
+                            fromSameEvt = 0
+                    else:
+                        fromPrevEvt = eventTime - epochTimes[0]
+                        fromSameEvt = 0
+
+                    # update last info #
+                    logEventInfo[name] = eventTime
+                    logEventInfo["LAST"] = eventTime
+
+                    # add to event list #
+                    eventList[idx].append(
+                        "%s [%f / +%.2fs|+%.2fs]"
+                        % (
+                            name,
+                            eventTime - epochDelta,
+                            fromSameEvt,
+                            fromPrevEvt,
+                        )
+                    )
 
             # start loop #
             for key, val in graphStats.items():
@@ -89781,6 +89821,9 @@ class TaskAnalyzer(object):
                 # get event table #
                 eventList = graphStats["%seventList" % fname][:lent]
 
+                # define log event info table #
+                logEventInfo = {}
+
                 # get epochDelta info #
                 try:
                     epochDelta = float(
@@ -89789,6 +89832,21 @@ class TaskAnalyzer(object):
                 except:
                     epochDelta = 0
 
+                # add log events to event list #
+                if firstEvt != -1:
+                    epochTimes = [epochDelta + i for i in val]
+                    if epochTimes[-1] < firstEvt or lastEvt < epochTimes[0]:
+                        pass
+                    else:
+                        _addLogEvents(
+                            epochTimes,
+                            eventList,
+                            logEvents,
+                            epochDelta,
+                            logEventInfo,
+                        )
+
+                # draw user events #
                 for tm, evts in enumerate(eventList):
                     if not evts:
                         continue
@@ -89811,6 +89869,7 @@ class TaskAnalyzer(object):
                             newEvts.append(evt)
                         evts = newEvts
 
+                    # accumuate heights in an interval #
                     accHeight = 0
                     axHeight = (
                         gca()
