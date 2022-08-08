@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220807"
+__revision__ = "220808"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25845,9 +25845,7 @@ Commands:
 
             for line in SysMgr.diskStats:
                 try:
-                    devices.append(
-                        ":".join(line.split(sep=None, maxsplit=3)[:2])
-                    )
+                    devices.append(":".join(line.split(None, 3)[:2]))
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -26506,7 +26504,13 @@ Commands:
 
     @staticmethod
     def getLogEvents():
-        otherLogs = []
+        logEvents = []
+
+        # get print flag #
+        if "PRINTEVENT" in SysMgr.environList:
+            printFlag = True
+        else:
+            printFlag = False
 
         for logtype, logcmd in (
             ("DLTEVENT", "printdlt"),
@@ -26519,7 +26523,7 @@ Commands:
 
             logname = UtilMgr.rstrip(logtype, "EVENT")
 
-            SysMgr.printStat("start reading %s..." % logname)
+            SysMgr.printStat("start reading %s events..." % logname)
 
             for item in SysMgr.environList[logtype]:
                 # get parameters #
@@ -26569,7 +26573,12 @@ Commands:
                         obj = UtilMgr.convStr2Dict(line)
                         if obj:
                             obj["name"] = name
-                            otherLogs.append(obj)
+                            logEvents.append(obj)
+
+                        if printFlag:
+                            SysMgr.printWarn(
+                                "<%s> (%s) %s" % (logtype, name, line), True
+                            )
 
                     # delete progress #
                     UtilMgr.deleteProgress()
@@ -26580,13 +26589,13 @@ Commands:
 
         # sort by seconds #
         try:
-            otherLogs.sort(key=lambda val: val["seconds"])
+            logEvents.sort(key=lambda val: val["seconds"])
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        return otherLogs
+        return logEvents
 
     @staticmethod
     def initLogWatcher(data):
@@ -30026,6 +30035,12 @@ Examples:
         # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "JOURNALEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "SYSLOGEVENT:TIMEOUT|timeout"
+
+    - {2:1} and event markers without time info on specific points
+        # {0:1} {1:1} {3:1} -q NOEVTTIME
+
+    - {2:1} and event markers with printing event info
+        # {0:1} {1:1} {3:1} -q PRINTEVENT
 
     - {2:1} only for specific groups or cores
         # {0:1} {1:1} {3:1} -O 1, 4, 10
@@ -88475,10 +88490,10 @@ class TaskAnalyzer(object):
         try:
             sysinfo = {}
             for item in SysMgr.sysinfoBuffer.split("\n"):
-                item = item.split(maxsplit=1)
+                item = item.split(" ", 1)
                 if len(item) != 2:
                     continue
-                sysinfo[item[0]] = item[1].rstrip()
+                sysinfo[item[0]] = item[1].strip()
         except SystemExit:
             sys.exit(0)
         except:
@@ -89765,44 +89780,62 @@ class TaskAnalyzer(object):
             else:
                 inEventList = None
 
+            # get print event time flag #
+            if "NOEVTTIME" in SysMgr.environList:
+                incTime = False
+            else:
+                incTime = True
+
             # define a function for merging log events #
             def _addLogEvents(
                 epochTimes, eventList, logEvents, epochDelta, logEventInfo
             ):
                 for item in logEvents:
-                    name = item["name"]
-                    eventTime = item["seconds"]
+                    try:
+                        name = item["name"]
+                        eventTime = item["seconds"]
 
-                    # get index #
-                    idx = UtilMgr.bisect_left(epochTimes, eventTime) - 1
-                    if idx < 0 or eventTime > epochTimes[-1]:
-                        return
+                        # get index #
+                        idx = UtilMgr.bisect_left(epochTimes, eventTime) - 1
+                        if idx < 0 or eventTime > epochTimes[-1]:
+                            continue
 
-                    # get interval and upate last #
-                    if "LAST" in logEventInfo:
-                        fromPrevEvt = eventTime - logEventInfo["LAST"]
-                        if name in logEventInfo:
-                            fromSameEvt = eventTime - logEventInfo[name]
+                        # get interval and upate last #
+                        if "LAST" in logEventInfo:
+                            fromPrevEvt = eventTime - logEventInfo["LAST"]
+                            if name in logEventInfo:
+                                fromSameEvt = eventTime - logEventInfo[name]
+                            else:
+                                fromSameEvt = 0
                         else:
+                            fromPrevEvt = eventTime - epochTimes[0]
                             fromSameEvt = 0
-                    else:
-                        fromPrevEvt = eventTime - epochTimes[0]
-                        fromSameEvt = 0
 
-                    # update last info #
-                    logEventInfo[name] = eventTime
-                    logEventInfo["LAST"] = eventTime
+                        # update last info #
+                        logEventInfo[name] = eventTime
+                        logEventInfo["LAST"] = eventTime
 
-                    # add to event list #
-                    eventList[idx].append(
-                        "%s [%f / +%.2fs|+%.2fs]"
-                        % (
-                            name,
-                            eventTime - epochDelta,
-                            fromSameEvt,
-                            fromPrevEvt,
+                        # add to event list #
+                        eventList[idx].append(
+                            "%s [%f / +%.2fs|+%.2fs]"
+                            % (
+                                name,
+                                eventTime - epochDelta,
+                                fromSameEvt,
+                                fromPrevEvt,
+                            )
                         )
-                    )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr("failed to merge log events", True)
+
+            # get xticks interval #
+            try:
+                xtickLabel = gca().get_xticks().tolist()
+                xint = xtickLabel[1] - xtickLabel[0]
+            except:
+                xint = 1
 
             # start loop #
             for key, val in graphStats.items():
@@ -89846,6 +89879,9 @@ class TaskAnalyzer(object):
                             logEventInfo,
                         )
 
+                accHeight = 0
+                lastEventTime = 0
+
                 # draw user events #
                 for tm, evts in enumerate(eventList):
                     if not evts:
@@ -89870,7 +89906,6 @@ class TaskAnalyzer(object):
                         evts = newEvts
 
                     # accumuate heights in an interval #
-                    accHeight = 0
                     axHeight = (
                         gca()
                         .get_window_extent()
@@ -89887,19 +89922,29 @@ class TaskAnalyzer(object):
                             evtname, remains = evtbox.rsplit("[", 1)
                             uptime, remains = remains.split("/", 1)
                             xpos = float(uptime.strip())
-                            evtbox = "%s [%s" % (
-                                evtname.rstrip(),
-                                remains.strip(),
-                            )
+                            if incTime:
+                                evtbox = "%s [%s" % (
+                                    evtname.rstrip(),
+                                    remains.strip(),
+                                )
+                            else:
+                                evtbox = evtname.strip()
                         except SystemExit:
                             sys.exit(0)
                         except:
                             xpos = timeline[tm]
 
+                        # update height for new interval #
+                        if not lastEventTime or xpos - lastEventTime >= xint:
+                            accHeight = 0
+                            lastEventTime = xpos
+
+                        # draw a event box #
                         try:
                             ypos = maxHeight - (
                                 maxHeight * accHeight / axHeight
                             )
+
                             ret = text(
                                 xpos,
                                 ypos,
