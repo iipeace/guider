@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220808"
+__revision__ = "220809"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29718,6 +29718,7 @@ Examples:
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
         # {0:1} {1:1} -S "m:<10" -q ORDERASC
+        # {0:1} {1:1} -S m -q INCSWAP
 
     - {3:1} all {2:1} sorted by execution time
         # {0:1} {1:1} -S e
@@ -51036,6 +51037,17 @@ Copyright:
 
                     # add PRELOAD path #
                     SysMgr.environList["ENV"].append("LD_PRELOAD=%s" % libPath)
+
+                # check ld.so.preload #
+                ldPreloadPath = "/etc/ld.so.preload"
+                if os.path.exists(ldPreloadPath):
+                    ldPreloadList = SysMgr.readFile(ldPreloadPath).split("\n")
+                    if ldPreloadList:
+                        SysMgr.printWarn(
+                            "preloading [ %s ] is enabled from '%s'"
+                            % (", ".join(ldPreloadList), ldPreloadPath),
+                            True,
+                        )
             else:
                 SysMgr.printErr("no path for libleaktracer.so")
                 sys.exit(-1)
@@ -109978,11 +109990,24 @@ class TaskAnalyzer(object):
                 reverse=True if reverse is None else reverse,
             )
         elif SysMgr.sort == "m":
-            sortedProcData = sorted(
-                self.procData.items(),
-                key=lambda e: long(e[1]["stat"][self.rssIdx]),
-                reverse=True if reverse is None else reverse,
-            )
+            if "INCSWAP" in SysMgr.environList:
+                for idx, value in self.procData.items():
+                    self.saveProcStatusData(value["taskPath"], idx)
+
+                sortedProcData = sorted(
+                    self.procData.items(),
+                    key=lambda e: long(e[1]["stat"][self.rssIdx])
+                    << 2 + long(e[1]["status"]["VmSwap"].split()[0])
+                    if e[1]["status"]
+                    else 0,
+                    reverse=True if reverse is None else reverse,
+                )
+            else:
+                sortedProcData = sorted(
+                    self.procData.items(),
+                    key=lambda e: long(e[1]["stat"][self.rssIdx]),
+                    reverse=True if reverse is None else reverse,
+                )
         # block #
         elif SysMgr.sort == "b":
             sortedProcData = sorted(
@@ -110505,6 +110530,15 @@ class TaskAnalyzer(object):
                 target = value["ttime"]
             elif SysMgr.sort == "m":
                 target = long(stat[self.rssIdx]) >> 8
+                if "INCSWAP" in SysMgr.environList:
+                    try:
+                        target += (
+                            long(value["status"]["VmSwap"].split()[0]) << 10
+                        )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
             elif SysMgr.sort == "b":
                 target = value["rw"]
             elif SysMgr.sort == "w":
