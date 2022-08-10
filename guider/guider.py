@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220809"
+__revision__ = "220810"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29646,11 +29646,14 @@ Examples:
     - {3:1} all {2:1} on linux, not android
         # NO_ANDROID=1 {0:1} {1:1} -a
 
-    - {3:1} maximum 20 {2:1}
+    - {3:1} maximum top 20 {2:1}
         # {0:1} {1:1} -a -q NRTOPRANK:20
 
     - {3:1} all {2:1} with specific cores
         # {0:1} {1:1} -e c -O 0:4, 10, 12
+
+    - {3:1} {2:1} using total CPU usage by applying the multiplication of the number of CPUs
+        # {0:1} {1:1} -d A
 
     - {3:1} all {2:1} with bar graphs for all cores
         # {0:1} {1:1} -a -e B
@@ -34226,6 +34229,7 @@ Options:
     -c  <VARIABLE>              set variables
     -C  <PATH>                  set config path
     -q  <NAME{{:VALUE}}>          set environment variables
+    -R  <COUNT>                 set repeatation count
     -u                          run in the background
                         """.format(
                         cmd, mode
@@ -34239,13 +34243,19 @@ Examples:
     - {2:1} in background
         # {0:1} {1:1} -I "ls -lha" -u
 
-    - Execute commands with range variables
+    - {2:1} 5 times
+        # {0:1} {1:1} -I "ls -lha" -R 5
+
+    - {2:1} 5 times in parallel
+        # {0:1} {1:1} -I "ls -lha" -R 5 -q PARALLEL
+
+    - {3:1} with range variables
         # {0:1} {1:1} -I "touch FILE" -c FILE:1:100:0.1
 
-    - Execute commands with file variables
+    - {3:1} with file variables
         # {0:1} {1:1} -I "ls -lha FILE" -c FILE:"/data/*"
 
-    - Execute commands including specific environment variables
+    - {3:1} including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
 
@@ -34277,7 +34287,7 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
                     """.format(
-                        cmd, mode, "Execute a command"
+                        cmd, mode, "Execute a command", "Execute commands"
                     )
 
                 # printext #
@@ -35011,6 +35021,7 @@ Description:
 
 Options:
     -g  <CORE:CLOCK:GOVERNOR>   set filter
+    -l                          print core info
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -35019,19 +35030,22 @@ Options:
                     helpStr += """
 Examples:
     - {2:1} 2,000,000HZ and the governor to userspace for CPU1
-        # {0:1} {1:1} 1:10000000:userspace
+        # {0:1} {1:1} 1:20000000:userspace
 
     - {2:1} 2,000,000HZ and the governor to userspace for All CPUs
-        # {0:1} {1:1} :10000000:userspace
+        # {0:1} {1:1} :20000000:userspace
 
     - {2:1} 2,000,000HZ for CPU0
-        # {0:1} {1:1} 0:10000000
+        # {0:1} {1:1} 0:20000000
 
     - Set the governor to performance for CPU2
         # {0:1} {1:1} 2::performance
 
     - Set the governor to performance for all CPUs
         # {0:1} {1:1} ::performance
+
+    - Print core info
+        # {0:1} {1:1} -l
                     """.format(
                         cmd, mode, "Set the clock speed to"
                     )
@@ -43091,6 +43105,8 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
+            SysMgr.setStream()
+
             SysMgr.doSetCpu()
 
         # SETSCHED MODE #
@@ -47812,11 +47828,16 @@ Copyright:
             SysMgr.printErr("failed to find CPU node for governor")
             sys.exit(-1)
 
+        # get list option #
+        printList = SysMgr.findOption("l")
+
         # get argument #
         if SysMgr.hasMainArg():
             filterGroup = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
+        elif printList:
+            filterGroup = []
         else:
             SysMgr.printErr("no input for core info")
             sys.exit(-1)
@@ -47842,6 +47863,60 @@ Copyright:
 
             targetlist.append(vals)
 
+        def _printCpuInfo(cpulist, core):
+            conv = UtilMgr.convNum
+
+            try:
+                curfreq = conv(cpulist[core]["cur"].strip())
+            except:
+                curfreq = "?"
+
+            try:
+                avail = list(map(conv, cpulist[core]["avail"]))
+                idx = avail.index(curfreq)
+                if idx >= 0:
+                    avail[idx] = UtilMgr.convColor("*%s" % avail[idx], "GREEN")
+                avail = " ".join(avail)
+            except:
+                avail = "?"
+
+            try:
+                minfreq = conv(cpulist[core]["min"].strip())
+            except:
+                minfreq = "?"
+
+            try:
+                maxfreq = conv(cpulist[core]["max"].strip())
+            except:
+                maxfreq = "?"
+
+            try:
+                curgov = cpulist[core]["governor"].strip()
+            except:
+                curgov = "?"
+
+            try:
+                governors = cpulist[core]["governors"]
+                idx = governors.index(curgov)
+                if idx >= 0:
+                    governors[idx] = UtilMgr.convColor(
+                        "*%s" % governors[idx], "GREEN"
+                    )
+                governors = " ".join(governors)
+            except:
+                governors = "?"
+
+            SysMgr.printPipe(
+                (
+                    "[ CPU(%s) ]\n"
+                    "- frequency: [ %s ]\n"
+                    "- min_frequency: [ %s ]\n"
+                    "- max_frequency: [ %s ]\n"
+                    "- governor: [ %s ]\n\n"
+                )
+                % (core, avail, minfreq, maxfreq, governors)
+            )
+
         # get available CPU list #
         cpulist = {}
         for f in sorted(os.listdir(freqPath)):
@@ -47858,7 +47933,7 @@ Copyright:
             govpath = "%s/scaling_available_governors" % commonpath
             curgovpath = "%s/scaling_governor" % commonpath
             availfreqpath = "%s/scaling_available_frequencies" % commonpath
-            # curfreqpath = "%s/scaling_cur_freq" % commonpath
+            curfreqpath = "%s/scaling_cur_freq" % commonpath
             minfreqpath = "%s/scaling_min_freq" % commonpath
             maxfreqpath = "%s/scaling_max_freq" % commonpath
 
@@ -47882,6 +47957,15 @@ Copyright:
             except:
                 pass
 
+            # cur_governors #
+            try:
+                with open(curgovpath, "r") as fd:
+                    cpulist[cpu]["governor"] = fd.readlines()[0].strip()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             # available_freq #
             try:
                 with open(availfreqpath, "r") as fd:
@@ -47897,16 +47981,33 @@ Copyright:
             except:
                 pass
 
-            # freq #
+            # cur_freq #
+            try:
+                with open(curfreqpath, "r") as fd:
+                    cpulist[cpu]["cur"] = fd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                cpulist[cpu]["cur"] = 0
+
+            # min_max_freq #
             try:
                 with open(minfreqpath, "r") as fd:
                     cpulist[cpu]["min"] = fd.readlines()[0]
+
                 with open(maxfreqpath, "r") as fd:
                     cpulist[cpu]["max"] = fd.readlines()[0]
             except SystemExit:
                 sys.exit(0)
             except:
                 cpulist.pop(cpu, None)
+
+            # print cpu info #
+            if printList:
+                _printCpuInfo(cpulist, cpu)
+
+        if not targetlist:
+            return
 
         # set CPU clock #
         for vals in targetlist:
@@ -47962,6 +48063,11 @@ Copyright:
                 )
                 sys.exit(-1)
 
+            def _printErr(res, core):
+                SysMgr.printErr(
+                    "failed to set %s of CPU(%s)" % (res, core), True
+                )
+
             for core in cpuRange:
                 # set path #
                 commonpath = "%s/cpu%s/cpufreq" % (freqPath, core)
@@ -47972,29 +48078,25 @@ Copyright:
                 minres = maxres = govres = False
 
                 # set clock range #
-                try:
-                    if clock and long(clock) > 0:
+                if clock and long(clock) > 0:
+                    try:
                         with open(minfreqpath, "w") as fd:
                             fd.write(clock)
+                    except:
+                        _printErr("min clock", core)
+
+                    try:
                         with open(maxfreqpath, "w") as fd:
                             fd.write(clock)
-                    if gov:
+                    except:
+                        _printErr("max clock", core)
+
+                if gov:
+                    try:
                         with open(curgovpath, "w") as fd:
                             fd.write(gov)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    if not minres:
-                        res = "min clock"
-                    elif not maxres:
-                        res = "max clock"
-                    elif not govres:
-                        res = "governor"
-
-                    SysMgr.printErr(
-                        "failed to set %s of CPU(%s)" % (res, core), True
-                    )
-                    sys.exit(-1)
+                    except:
+                        _printErr("governor", core)
 
                 # cur_governor #
                 try:
@@ -48010,20 +48112,34 @@ Copyright:
                     "affect" in cpulist[core]
                     and len(cpulist[core]["affect"]) > 1
                 ):
-                    affectstring = "and it also affects CPU(%s)" % "-".join(
+                    affectstring = " (it may affect CPU %s)" % ",".join(
                         cpulist[core]["affect"]
                     )
                 else:
                     affectstring = ""
 
-                if clock:
-                    clockstr = "%shz " % UtilMgr.convNum(clock)
+                if "cur" in cpulist[core]:
+                    prevclockstr = "%sHz" % UtilMgr.convNum(
+                        cpulist[core]["cur"]
+                    )
                 else:
-                    clockstr = ""
+                    prevclockstr = "?"
+
+                if clock:
+                    curclockstr = "%sHz" % UtilMgr.convNum(clock)
+                else:
+                    curclockstr = "?"
 
                 SysMgr.printInfo(
-                    "set CPU(%s) to %s[%s] successfully %s"
-                    % (core, clockstr, curgovernor, affectstring)
+                    "changed CPU(%s) %s[%s] -> %s[%s]%s"
+                    % (
+                        core,
+                        prevclockstr,
+                        cpulist[core]["governor"],
+                        curclockstr,
+                        curgovernor,
+                        affectstring,
+                    )
                 )
 
     @staticmethod
@@ -53220,7 +53336,7 @@ Copyright:
             # get subprocess object #
             subprocess = SysMgr.getPkg("subprocess")
 
-            SysMgr.printInfo("executed '%s'\n" % cmd)
+            SysMgr.printInfo("executed '%s'" % cmd)
 
             # get environment variables #
             env = SysMgr.getEnvList()
@@ -53359,11 +53475,37 @@ Copyright:
             cmd = UtilMgr.lstrip(cmd, "GUIDER ")
             cmd = "%s %s" % (exe, cmd)
 
-        # convert variables #
-        if SysMgr.customCmd:
-            _iterVarCmd(cmd, SysMgr.customCmd)
+        # get repeat count #
+        if SysMgr.intervalEnable:
+            repeat = SysMgr.intervalEnable
         else:
-            _exeCmd(cmd)
+            repeat = 1
+
+        # get parallel flag #
+        if "PARALLEL" in SysMgr.environList:
+            parallel = True
+        else:
+            parallel = False
+
+        for _ in range(repeat):
+            if parallel:
+                ret = SysMgr.createProcess()
+                if ret:
+                    continue
+
+            # convert variables #
+            if SysMgr.customCmd:
+                _iterVarCmd(cmd, SysMgr.customCmd)
+            else:
+                _exeCmd(cmd)
+
+            # terminate child #
+            if parallel and not ret:
+                sys.exit(0)
+
+        # wait for childs #
+        if parallel:
+            SysMgr.waitChild()
 
     @staticmethod
     def doGpuTest():
@@ -62282,10 +62424,11 @@ class DbusMgr(object):
                     if direction == "OUT" and errp:
                         SysMgr.printWarn(
                             (
-                                "failed to handle D-Bus message %s for %s(%s) "
-                                "because %s(%s)"
+                                "failed to get the length of %s D-Bus message"
+                                " %s for %s(%s) because %s(%s)"
                             )
                             % (
+                                direction,
                                 [call],
                                 jsonData["comm"],
                                 jsonData["tid"],
@@ -62320,10 +62463,11 @@ class DbusMgr(object):
                     if not gdmsg and errp:
                         SysMgr.printWarn(
                             (
-                                "failed to handle D-Bus message %s for %s(%s) "
-                                "because %s(%s)"
+                                "failed to deserialize %s D-Bus"
+                                " message %s for %s(%s) because %s(%s)"
                             )
                             % (
+                                direction,
                                 [call],
                                 jsonData["comm"],
                                 jsonData["tid"],
@@ -69512,9 +69656,10 @@ typedef struct {
         if Debugger.dbusEnable or namelen == 0 or not header.contents.msg_name:
             msginfo["msg_name"] = "NULL"
         else:
-            msginfo["msg_name"] = self.readMem(
-                header.contents.msg_name, namelen
-            ).decode("latin-1")
+            ret = self.readMem(header.contents.msg_name, namelen)
+            if ret:
+                ret = ret.decode("latin-1")
+            msginfo["msg_name"] = ret
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
@@ -69560,7 +69705,9 @@ typedef struct {
                     continue
 
                 # encode to base64 #
-                if Debugger.dbusEnable:
+                if not iovobjdata:
+                    pass
+                elif Debugger.dbusEnable:
                     iovobjdata = UtilMgr.encodeBase64(iovobjdata)
                     if sys.version_info >= (3, 0):
                         iovobjdata = iovobjdata.decode("latin-1")
@@ -77759,6 +77906,8 @@ typedef struct {
                 option |= 1 << plist.index("PTRACE_EVENT_EXIT")
             elif req == "PTRACE_O_TRACESECCOMP":
                 option |= 1 << plist.index("PTRACE_EVENT_SECCOMP")
+            elif Debugger.dbusEnable:
+                pass
             elif SysMgr.cloneEnable or self.isBreakMode:
                 if req == "PTRACE_O_TRACEFORK":
                     option |= 1 << plist.index("PTRACE_EVENT_FORK")
@@ -90066,6 +90215,7 @@ class TaskAnalyzer(object):
                 gpuUsage = graphStats["%sgpuUsage" % fname]
                 nrCore = graphStats["%snrCore" % fname]
                 maxCore = max(nrCore)
+                coreStr = "< CPU Core > - %s\n" % conv(maxCore)
 
                 # convert total CPU usage by core number #
                 if not SysMgr.cpuAvgEnable:
@@ -90125,8 +90275,10 @@ class TaskAnalyzer(object):
                         maxIdx = stat.index(maxUsage)
 
                         labelList.append(
-                            "%s[ %s ] - %s%%" % (prefix, gpu, avgUsage)
+                            "%s%s[ %s ] - %s%%"
+                            % (coreStr, prefix, gpu, avgUsage)
                         )
+                        coreStr = ""
 
                         for idx in [
                             idx
@@ -90197,9 +90349,10 @@ class TaskAnalyzer(object):
                             avgUsage = 0
 
                         labelList.append(
-                            "%s[ CPU+IO Average ] - %.1f%%"
-                            % (prefix, avgUsage)
+                            "%s%s[ CPU+IO Average ] - %.1f%%"
+                            % (coreStr, prefix, avgUsage)
                         )
+                        coreStr = ""
 
                         maxUsage = max(blkWait)
                         maxIdx = blkWait.index(maxUsage)
@@ -90264,8 +90417,10 @@ class TaskAnalyzer(object):
                     maxIdx = cpuUsage.index(maxUsage)
 
                     labelList.append(
-                        "%s[ CPU Average ] - %s%%" % (prefix, avgUsage)
+                        "%s%s[ CPU Average ] - %s%%"
+                        % (coreStr, prefix, avgUsage)
                     )
+                    coreStr = ""
 
                     # update the maximum ytick #
                     if ymax < maxUsage:
@@ -91424,7 +91579,7 @@ class TaskAnalyzer(object):
                     if lastsize is not None:
                         if totalRam:
                             label = (
-                                "%s[ RAM Total ] - %s\nRAM Available - %s"
+                                "%s< RAM Total > - %s\nRAM Available - %s"
                                 % (prefix, convSize(totalRam), lastsize)
                             )
                             labelList.append(label)
@@ -91458,7 +91613,7 @@ class TaskAnalyzer(object):
                     if lastsize is not None:
                         if totalSwap:
                             label = (
-                                "%s[ Swap Total ] - %s\nSwap Usage - %s"
+                                "%s< Swap Total > - %s\nSwap Usage - %s"
                                 % (prefix, convSize(totalSwap), lastsize)
                             )
                             labelList.append(label)
@@ -92584,7 +92739,7 @@ class TaskAnalyzer(object):
                 lastsize, ymax = __drawSystemMem(memFree, "blue", ymax)
                 if lastsize is not None:
                     if totalRam:
-                        label = "[ RAM Total ] - %s\nRAM Available - %s" % (
+                        label = "< RAM Total > - %s\nRAM Available - %s" % (
                             convSize2Unit(totalRam),
                             lastsize,
                         )
@@ -92606,7 +92761,7 @@ class TaskAnalyzer(object):
                 lastsize, ymax = __drawSystemMem(swapUsage, "orange", ymax)
                 if lastsize is not None:
                     if totalSwap:
-                        label = "[ Swap Total ] - %s\nSwap Usage - %s" % (
+                        label = "< Swap Total > - %s\nSwap Usage - %s" % (
                             convSize2Unit(totalSwap),
                             lastsize,
                         )
