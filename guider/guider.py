@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220810"
+__revision__ = "220812"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24158,6 +24158,44 @@ Commands:
         SysMgr.fdCache.pop(fname, None)
 
     @staticmethod
+    def setPipeSize(fd, size=0):
+        def _printErr(msg):
+            SysMgr.printWarn(
+                "failed to change pipe size because " + msg)
+
+        fcntl = SysMgr.getPkg("fcntl", False)
+        if not fcntl:
+            _printErr("no fcntl package")
+            return
+
+        # set size to max #
+        if not size:
+            size = SysMgr.getMaxPipeSize()
+
+        # define constant value #
+        F_SETPIPE_SZ = 1024 + 7
+        F_GETPIPE_SZ = 1024 + 8
+
+        # change pipe size #
+        try:
+            ret = fcntl.fcntl(fd, F_SETPIPE_SZ, size)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            _printErr(SysMgr.getErrMsg())
+
+    @staticmethod
+    def getMaxPipeSize():
+        if not SysMgr.isLinux:
+            return
+
+        # return max pipe size #
+        try:
+            return long(SysMgr.readFile("/proc/sys/fs/pipe-max-size"))
+        except:
+            return None
+
+    @staticmethod
     def getFd(fname, perm="rb", verb=True):
         if fname in SysMgr.fdCache and SysMgr.fdCache[fname]["perm"] == perm:
             return SysMgr.fdCache[fname]["fd"]
@@ -32212,6 +32250,9 @@ Examples:
     - {2:1}
         # {0:1} {1:1}
 
+    - {2:1} including BEGIN messages such like org.freedesktop.DBus.Hello
+        # {0:1} {1:1} -a
+
     - {2:1} including DBus interfaces
         # {0:1} {1:1} -g dbus-daemon
 
@@ -37518,8 +37559,15 @@ Copyright:
                             "[DEBUG] %s() at %s in %s" % (fb[3], fb[2], fb[1])
                         )
                     lines += "%s<" % fb[2]
-            return lines.rstrip("<")
+
+            if lines:
+                return lines.rstrip("<")
+            else:
+                return "??"
+        except SystemExit:
+            sys.exit(0)
         except:
+            SysMgr.printWarn("failed to get line info", True, True)
             return None
 
     @staticmethod
@@ -60530,6 +60578,7 @@ class DbusMgr(object):
 
     errObj = None
     dbusErrObj = None
+    msgData = []
     sentData = {}
     recvData = {}
     prevData = {}
@@ -60540,6 +60589,7 @@ class DbusMgr(object):
     dbgObj = None
     isTopMode = False
     watchList = []
+    totalTime = 0
 
     G_IO_ERROR_TYPE = [
         "G_IO_ERROR_FAILED",
@@ -61423,20 +61473,18 @@ class DbusMgr(object):
             byref(pid),
             DBUS_TYPE_INVALID,
         )
-        if not res:
-            dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_message_unref(reply)
-            # dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn(
-                "failed to parse D-Bus message args because %s"
-                % DbusMgr.getErrInfo()
-            )
-            return
 
         # clean up #
         dbusObj.dbus_message_unref(msg)
         dbusObj.dbus_message_unref(reply)
         # dbusObj.dbus_connection_unref(conn)
+
+        if not res:
+            SysMgr.printWarn(
+                "failed to parse D-Bus message args because %s"
+                % DbusMgr.getErrInfo()
+            )
+            return
 
         # get comm #
         comm = SysMgr.getComm(pid.value)
@@ -61469,7 +61517,7 @@ class DbusMgr(object):
 
         # send a message for method call #
         msg, reply = DbusMgr.callMethod(
-            conn, des, path, iface, method, c_int(3)
+            conn, des, path, iface, method, c_int(1000)
         )
         if not msg or not reply:
             return
@@ -61978,6 +62026,69 @@ class DbusMgr(object):
             SysMgr.printPipe("\tNone\n%s" % oneLine)
 
     @staticmethod
+    def printSummary():
+        # define summary data #
+        total = err = 0
+        msgs = {}
+
+        # summarize messages #
+        for intval in DbusMgr.msgData:
+            total += intval.pop("totalCnt", None)
+            err += intval.pop("totalErr", None)
+
+            for pid, data in intval.items():
+                # set default PID dict #
+                msgs.setdefault(pid, {})
+
+                # accumulate message count #
+                for name, val in data.items():
+                    # save total message count of a process #
+                    if name == "totalCnt":
+                        msgs[pid]["totalCnt"] = val
+                        continue
+
+                    # save count of a message #
+                    msgs[pid].setdefault(name, 0)
+                    msgs[pid][name] += val["cnt"]
+
+        # print menu #
+        SysMgr.printPipe(
+            "[D-Bus Summary Info] [Run: %.1f] [Total: %s] [Error: %s]\n%s" % (
+                DbusMgr.totalTime, total, err, twoLine
+            )
+        )
+        SysMgr.printPipe(
+            "{0:>16}({1:>7}) {2:>10}({3:>6}) {4:1}\n{5:1}".format(
+                "Name", "PID", "Count", "%", "Message", twoLine
+            )
+        )
+
+        # print message stats #
+        for pid, value in sorted(
+            msgs.items(), key=lambda e: e[1]["totalCnt"], reverse=True):
+
+            # print process info #
+            comm = SysMgr.getComm(pid)
+            cmdline = SysMgr.getCmdline(pid)
+            procTotal = float(value["totalCnt"])
+            SysMgr.printPipe(
+                "{0:>16}({1:>7}) {2:>10}(100.0%) {3:1}\n{4:1}".format(
+                    comm, pid, UtilMgr.convNum(procTotal), cmdline, oneLine
+                )
+            )
+
+            value.pop("totalCnt", None)
+
+            for msg, cnt in sorted(value.items(), key=lambda e: e[1], reverse=True):
+                per = cnt / procTotal * 100
+                SysMgr.printPipe("{0:>36}({1:5.1f}%) {2:1}".format(cnt, per, msg))
+
+            SysMgr.printPipe(twoLine)
+
+        if not total:
+            SysMgr.printPipe("\tNone\n" + twoLine)
+
+    @staticmethod
     def runDbusSnooper(mode="top"):
         def _updateTaskInfo(dbusData, sentData, recvData):
             try:
@@ -62087,6 +62198,10 @@ class DbusMgr(object):
                     SysMgr.printWarn(
                         "failed to update task info", True, reason=True
                     )
+
+            # save D-Bus data #
+            DbusMgr.totalTime += SysMgr.uptimeDiff
+            DbusMgr.msgData.append(UtilMgr.deepcopy(dbusData))
 
         def _printSummary(signum, frame):
             def _checkRepeatCnt():
@@ -62805,24 +62920,31 @@ class DbusMgr(object):
 
         def _updateServiceProc(bus, tid, serviceList, addr=None):
             """
-            some case, hang up for remote call with below error message.
-            so disable this feature.
+            some case, hang up for the remote call with below error message.
+            it is because the remote call is blocked by dbus-daemon that is also
+            blocked by the tracer that is also blocked by the pipe for write
+            that is full.
 
             "the remote application did not send a reply,
             the message bus security policy blocked the reply,
             the reply timeout expired, or the network connection was broken"
             """
-            return False
 
             if not bus:
                 return False
 
+            # get all service list #
             services = DbusMgr.getBusService(bus, tid=tid, addr=None)
             if not services:
                 return False
 
             # register process #
-            for idx, svc in enumerate(services):
+            for svc in services:
+                # check skip condition #
+                if svc in serviceList and svc != serviceList[svc]:
+                    continue
+
+                # get PID and update service info #
                 pinfo = DbusMgr.getServiceProc(bus, svc)
                 if pinfo:
                     serviceList[svc] = pinfo
@@ -62927,7 +63049,8 @@ class DbusMgr(object):
 
         # set target syscalls #
         if onlyDaemon:
-            SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_read"))
+            if SysMgr.showAll:
+                SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_read"))
         else:
             SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmsg"))
             SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmmsg"))
@@ -63061,6 +63184,7 @@ class DbusMgr(object):
             if pid > 0:
                 os.close(wr)
                 rdPipe = os.fdopen(rd, "r")
+                SysMgr.setPipeSize(rdPipe)
                 pipeList.append(rdPipe)
 
                 # create a new worker thread #
@@ -63074,6 +63198,8 @@ class DbusMgr(object):
             elif pid == 0:
                 # redirect stdout to pipe #
                 os.close(rd)
+                wrPipe = os.fdopen(wr, "r")
+                SysMgr.setPipeSize(wrPipe)
                 os.dup2(wr, 1)
 
                 # set SIGPIPE handler for termination of parent #
@@ -69683,11 +69809,13 @@ typedef struct {
                 if iovobjlen == 0:
                     continue
 
-                msginfo["msg_iov"][idx] = {}
-
                 # get iov data #
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
+                if not iovobjdata:
+                    continue
+
+                msginfo["msg_iov"][idx] = {}
 
                 # erase message #
                 skip = False
@@ -99845,8 +99973,10 @@ class TaskAnalyzer(object):
         if SysMgr.fileTopEnable:
             TaskAnalyzer.printFileTable()
         # check skip condition #
-        elif SysMgr.jsonEnable or SysMgr.dltTopEnable or SysMgr.dbusTopEnable:
+        elif SysMgr.jsonEnable or SysMgr.dltTopEnable:
             pass
+        elif SysMgr.dbusTopEnable:
+            DbusMgr.printSummary()
         # top mode #
         else:
             # build summary interval table #
