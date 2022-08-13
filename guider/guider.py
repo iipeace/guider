@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220812"
+__revision__ = "220813"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22726,11 +22726,17 @@ class LogMgr(object):
         else:
             watchcond = None
 
-        # get tail value #
+        # get time for tail option #
         if "TAIL" in SysMgr.environList:
             since = time.time()
         else:
             since = 0
+
+        # get time for until now option #
+        if "UNTILNOW" in SysMgr.environList:
+            until = time.time()
+        else:
+            until = 0
 
         # initialize variables #
         data = c_void_p(0)
@@ -22780,8 +22786,8 @@ class LogMgr(object):
                 elif res < 1:
                     break
 
-                # check skip condition for time #
-                if since:
+                # check time condition #
+                if since or until:
                     ret = systemdObj.sd_journal_get_realtime_usec(
                         jrl, byref(usec)
                     )
@@ -22789,6 +22795,11 @@ class LogMgr(object):
                         realtime = usec.value / 1000000
                         if realtime < since:
                             continue
+                        elif realtime >= until:
+                            SysMgr.printWarn(
+                                "all previous journal logs are printed", True
+                            )
+                            sys.exit(0)
 
                 # traverse specific fields #
                 if SysMgr.inputParam:
@@ -22999,12 +23010,17 @@ class LogMgr(object):
         else:
             watchcond = None
 
-        # get tail value #
+        # get time for tail option #
         if "TAIL" in SysMgr.environList:
-            tail = True
-            SysMgr.getUptime()
+            tail = SysMgr.updateUptime()
         else:
-            tail = False
+            tail = 0
+
+        # get time for until now option #
+        if "UNTILNOW" in SysMgr.environList:
+            until = SysMgr.updateUptime()
+        else:
+            until = 0
 
         # check device node #
         try:
@@ -23055,17 +23071,24 @@ class LogMgr(object):
                         except:
                             pass
 
-                    # skip old logs #
-                    if tail:
+                    # check time condition #
+                    if tail or until:
                         try:
                             if not line.startswith("["):
                                 raise Exception("no time")
 
                             item = line.split("]", 1)[0]
-                            ltime = item[1:]
+                            ltime = float(item[1:])
 
-                            if float(ltime) < SysMgr.uptime:
+                            if ltime < tail:
                                 continue
+                            elif ltime >= until:
+                                SysMgr.printWarn(
+                                    "all previous kernel logs are printed",
+                                    True,
+                                )
+                                sys.exit(0)
+
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -23137,10 +23160,22 @@ class LogMgr(object):
                 else:
                     ltime = "%s.%s" % (ltime[:-6], ltime[-6:])
 
-                # skip old logs #
-                if tail:
-                    if float(ltime) < SysMgr.uptime:
-                        continue
+                # check time condition #
+                if tail or until:
+                    try:
+                        ltime = float(ltime)
+                        if ltime < tail:
+                            continue
+                        elif ltime >= until:
+                            SysMgr.printWarn(
+                                "all previous kernel logs are printed", True
+                            )
+                            sys.exit(0)
+
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
                 # update pos #
                 log = log[pos + 1 :]
@@ -24160,8 +24195,7 @@ Commands:
     @staticmethod
     def setPipeSize(fd, size=0):
         def _printErr(msg):
-            SysMgr.printWarn(
-                "failed to change pipe size because " + msg)
+            SysMgr.printWarn("failed to change pipe size because " + msg)
 
         fcntl = SysMgr.getPkg("fcntl", False)
         if not fcntl:
@@ -30678,6 +30712,9 @@ Examples:
     - {2:1} generated since now in real-time
         # {0:1} {1:1} -q TAIL
 
+    - {2:1} generated until now in real-time
+        # {0:1} {1:1} -q UNTILNOW
+
     - {2:1} in JSON format
         # {0:1} {1:1} -J
         # {0:1} {1:1} -I test.log -J
@@ -32225,6 +32262,9 @@ Examples:
 
     - {2:1} generated since now
         # {0:1} {1:1} -q TAIL
+
+    - {2:1} generated until now
+        # {0:1} {1:1} -q UNTILNOW
 
     See the top COMMAND help for more examples.
                     """.format(
@@ -62053,9 +62093,8 @@ class DbusMgr(object):
 
         # print menu #
         SysMgr.printPipe(
-            "[D-Bus Summary Info] [Run: %.1f] [Total: %s] [Error: %s]\n%s" % (
-                DbusMgr.totalTime, total, err, twoLine
-            )
+            "[D-Bus Summary Info] [Run: %.1f] [Total: %s] [Error: %s]\n%s"
+            % (DbusMgr.totalTime, total, err, twoLine)
         )
         SysMgr.printPipe(
             "{0:>16}({1:>7}) {2:>10}({3:>6}) {4:1}\n{5:1}".format(
@@ -62065,7 +62104,8 @@ class DbusMgr(object):
 
         # print message stats #
         for pid, value in sorted(
-            msgs.items(), key=lambda e: e[1]["totalCnt"], reverse=True):
+            msgs.items(), key=lambda e: e[1]["totalCnt"], reverse=True
+        ):
 
             # print process info #
             comm = SysMgr.getComm(pid)
@@ -62079,9 +62119,13 @@ class DbusMgr(object):
 
             value.pop("totalCnt", None)
 
-            for msg, cnt in sorted(value.items(), key=lambda e: e[1], reverse=True):
+            for msg, cnt in sorted(
+                value.items(), key=lambda e: e[1], reverse=True
+            ):
                 per = cnt / procTotal * 100
-                SysMgr.printPipe("{0:>36}({1:5.1f}%) {2:1}".format(cnt, per, msg))
+                SysMgr.printPipe(
+                    "{0:>36}({1:5.1f}%) {2:1}".format(cnt, per, msg)
+                )
 
             SysMgr.printPipe(twoLine)
 
@@ -63538,6 +63582,7 @@ class DltAnalyzer(object):
         buffered=False,
         cond=None,
         since=0,
+        until=0,
         fname=None,
     ):
         # save and reset global filter #
@@ -63546,15 +63591,18 @@ class DltAnalyzer(object):
         # check headers #
         if not msg.storageheader or not msg.extendedheader:
             return
+        # check since condition #
+        elif since and msg.storageheader.contents.seconds < since:
+            return
+        # check until condition #
+        elif until and msg.storageheader.contents.seconds >= until:
+            SysMgr.printWarn("all previous DLT logs are printed", True)
+            sys.exit(0)
 
         # pick header info #
         ecuId = msg.storageheader.contents.ecu.decode()
         apId = msg.extendedheader.contents.apid.decode()
         ctxId = msg.extendedheader.contents.ctid.decode()
-
-        # check time condition #
-        if since and msg.storageheader.contents.seconds < since:
-            return
 
         # summarizing #
         if mode == "top":
@@ -64773,11 +64821,17 @@ class DltAnalyzer(object):
         else:
             watchcond = None
 
-        # get tail value #
+        # get time for tail option #
         if "TAIL" in SysMgr.environList:
             since = time.time()
         else:
             since = 0
+
+        # get time for until now option #
+        if "UNTILNOW" in SysMgr.environList:
+            until = time.time()
+        else:
+            until = 0
 
         while 1:
             try:
@@ -64871,6 +64925,7 @@ class DltAnalyzer(object):
                         verb,
                         cond=watchcond,
                         since=since,
+                        until=until,
                     )
             except SystemExit:
                 sys.exit(0)
