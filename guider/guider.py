@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220813"
+__revision__ = "220815"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5915,13 +5915,18 @@ class UtilMgr(object):
         return sigList
 
     @staticmethod
-    def getEnvironNum(name, exit=True, default=None, verb=True, isInt=False):
+    def getEnvironNum(
+        name, isExit=True, default=None, verb=True, isInt=False, isFloat=False
+    ):
         try:
+            # get first value #
             value = SysMgr.environList[name][0]
 
-            # return by type #
+            # return by type for compatibility #
             if isInt:
                 return int(value)
+            elif isFloat:
+                return float(value)
             else:
                 return long(value)
         except SystemExit:
@@ -5931,8 +5936,10 @@ class UtilMgr(object):
                 SysMgr.printErr(
                     "failed to get the number of %s variable" % name, True
                 )
-            if exit:
+
+            if isExit:
                 sys.exit(-1)
+
             return default
 
     @staticmethod
@@ -22726,17 +22733,8 @@ class LogMgr(object):
         else:
             watchcond = None
 
-        # get time for tail option #
-        if "TAIL" in SysMgr.environList:
-            since = time.time()
-        else:
-            since = 0
-
-        # get time for until now option #
-        if "UNTILNOW" in SysMgr.environList:
-            until = time.time()
-        else:
-            until = 0
+        # get times for tail and until option #
+        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], time.time())
 
         # initialize variables #
         data = c_void_p(0)
@@ -23010,17 +23008,10 @@ class LogMgr(object):
         else:
             watchcond = None
 
-        # get time for tail option #
-        if "TAIL" in SysMgr.environList:
-            tail = SysMgr.updateUptime()
-        else:
-            tail = 0
-
-        # get time for until now option #
-        if "UNTILNOW" in SysMgr.environList:
-            until = SysMgr.updateUptime()
-        else:
-            until = 0
+        # get times for tail and until option #
+        tail, until = SysMgr.getTimeValues(
+            ["TAIL", "UNTIL"], SysMgr.getUptime()
+        )
 
         # check device node #
         try:
@@ -23973,6 +23964,33 @@ Commands:
 
         # int malloc_trim (size_t pad) #
         SysMgr.libcObj.malloc_trim(0)
+
+    @staticmethod
+    def getTimeValues(times, default):
+        retList = []
+        for item in times:
+            if not item in SysMgr.environList:
+                retList.append(0)
+                continue
+
+            if SysMgr.environList[item][0] == "SET":
+                retList.append(default)
+                continue
+
+            try:
+                val = SysMgr.environList[item][0]
+                retList.append(float(val))
+            except:
+                SysMgr.printErr(
+                    "failed to convert %s to float for %s" % (val, item), True
+                )
+                sys.exit(-1)
+
+        # return value #
+        if len(retList) == 1:
+            return retList[0]
+        else:
+            return retList
 
     @staticmethod
     def doLogMode(mode):
@@ -30709,11 +30727,13 @@ Examples:
     - {2:1} in real-time until no log
         # {0:1} {1:1} -Q
 
-    - {2:1} generated since now in real-time
+    - {2:1} generated since specific time in real-time
         # {0:1} {1:1} -q TAIL
+        # {0:1} {1:1} -q TAIL:1235.123
 
-    - {2:1} generated until now in real-time
-        # {0:1} {1:1} -q UNTILNOW
+    - {2:1} generated until specific time in real-time
+        # {0:1} {1:1} -q UNTIL
+        # {0:1} {1:1} -q UNTIL:1235.123
 
     - {2:1} in JSON format
         # {0:1} {1:1} -J
@@ -32260,11 +32280,12 @@ Examples:
     - {2:1} with connection retry to dlt-daemon every 1,000 ms
         # {0:1} {1:1} -q RETRYCONN:1000
 
-    - {2:1} generated since now
+    - {2:1} generated since specific time
         # {0:1} {1:1} -q TAIL
+        # {0:1} {1:1} -q TAIL:1235.123
 
-    - {2:1} generated until now
-        # {0:1} {1:1} -q UNTILNOW
+    - {2:1} generated until specific time
+        # {0:1} {1:1} -q UNTIL
 
     See the top COMMAND help for more examples.
                     """.format(
@@ -50482,15 +50503,13 @@ Copyright:
         # convert input files #
         inputArg = UtilMgr.getFileList(inputArg, sort=True, exceptDir=True)
 
-        # check tail flag #
-        if "TAIL" in SysMgr.environList:
-            tail = True
-            nrLast = UtilMgr.getEnvironNum("TAIL", False, 100, False)
-            SysMgr.streamEnable = True
-        else:
-            tail = False
-            nrLast = 0
+        # get time for tail option #
+        tail = long(SysMgr.getTimeValues(["TAIL"], 100))
 
+        if tail:
+            SysMgr.streamEnable = True
+
+        # get chunk size #
         if "SIZE" in SysMgr.environList:
             try:
                 reqSize = UtilMgr.convUnit2Size(SysMgr.environList["SIZE"][0])
@@ -50556,7 +50575,7 @@ Copyright:
 
                         # check file size #
                         if pos == 0 or size > newSize:
-                            pos = newSize - nrLast
+                            pos = newSize - tail
                             if pos < 0:
                                 pos = 0
 
@@ -64821,17 +64840,8 @@ class DltAnalyzer(object):
         else:
             watchcond = None
 
-        # get time for tail option #
-        if "TAIL" in SysMgr.environList:
-            since = time.time()
-        else:
-            since = 0
-
-        # get time for until now option #
-        if "UNTILNOW" in SysMgr.environList:
-            until = time.time()
-        else:
-            until = 0
+        # get times for tail and until option #
+        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], time.time())
 
         while 1:
             try:
