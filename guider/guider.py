@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220815"
+__revision__ = "220816"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26593,7 +26593,7 @@ Commands:
             return None
 
     @staticmethod
-    def getLogEvents():
+    def getLogEvents(tail=0, until=0):
         logEvents = []
 
         # get print flag #
@@ -26629,16 +26629,31 @@ Commands:
 
                 inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q"]
 
-                # get input path #
+                # set input path #
                 inputParam.insert(1, "-I" + (path if path else ""))
 
+                # set time condition #
+                if tail or until:
+                    inputParam.append(
+                        (
+                            "-q"
+                            + ("TAIL:%s," % tail if tail else "")
+                            + ("UNTIL:%s," % until if until else "")
+                        ).rstrip(",")
+                    )
+
                 # execute filter process #
+                """
+                use initPkg flag to clear all global packages
+                because cast functions are in both ctypes and pylab.
+                """
                 ret = SysMgr.launchGuider(
                     inputParam,
                     pipe=True,
                     stderr=True,
                     logo=False,
                     copyOpt=False,
+                    initPkg=True,
                 )
 
                 # read logs from filter process #
@@ -30124,7 +30139,7 @@ Examples:
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_4:LARROW
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_5:RARROW
 
-    - {2:1} with specific events from log files
+    - {2:1} with specific log events
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "JOURNALEVENT:TIMEOUT|timeout"
@@ -45356,6 +45371,7 @@ Copyright:
         stream=True,
         logo=True,
         copyOpt=True,
+        initPkg=False,
     ):
         """
         - desc: launch a new Guider process as a child
@@ -45494,6 +45510,10 @@ Copyright:
             SysMgr.exitFuncList = []
             SysMgr.customCmd = []
             SysMgr.rcmdList = {}
+
+            # clear global packages #
+            if initPkg:
+                SysMgr.impGlbPkg = {}
 
             # clear print buffer #
             SysMgr.clearPrint()
