@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220816"
+__revision__ = "220817"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26447,7 +26447,7 @@ Commands:
             return False
 
     @staticmethod
-    def doFreeze():
+    def doFreeze(targetList=[]):
         # check root permissino #
         SysMgr.checkRootPerm()
 
@@ -26472,13 +26472,16 @@ Commands:
 
         # get target tasks #
         targetTasks = []
-        for item in value:
-            targetTasks += SysMgr.getTids(
-                item, isThread=isThread, sibling=SysMgr.groupProcEnable
-            )
-        if not targetTasks:
-            SysMgr.printErr("no target %s" % taskType)
-            sys.exit(-1)
+        if targetList:
+            targetTasks = list(map(str, targetList))
+        else:
+            for item in value:
+                targetTasks += SysMgr.getTids(
+                    item, isThread=isThread, sibling=SysMgr.groupProcEnable
+                )
+            if not targetTasks:
+                SysMgr.printErr("no target %s" % taskType)
+                sys.exit(-1)
 
         # get cgroup #
         targetDir = SysMgr.getCgroup("freezer", make=True, remove=True)
@@ -26491,6 +26494,9 @@ Commands:
 
         # freeze tasks #
         SysMgr.writeFile(os.path.join(targetDir, "freezer.state"), "FROZEN")
+
+        if targetList:
+            return
 
         # print target tasks #
         tasks = SysMgr.readFile(taskPushFile).split("\n")
@@ -49406,7 +49412,7 @@ Copyright:
         if tid:
             inputParam = None
         elif SysMgr.hasMainArg():
-            inputParam = SysMgr.getMainArg()
+            inputParam = SysMgr.inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
         else:
@@ -70789,7 +70795,9 @@ typedef struct {
         self.last = current
 
         # check comm filter for child #
-        if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNums:
+        if (
+            SysMgr.inputParam and self.execCmd and SysMgr.filterGroup
+        ) or Debugger.targetNums:
             # check filter #
             if SysMgr.filterGroup and UtilMgr.isValidStr(self.comm):
                 pass
@@ -75914,7 +75922,7 @@ typedef struct {
             # detach the new tracee #
             self.detach(only=True, pid=tid, check=True)
 
-            return self.pid
+            return -1
 
         # stop tracees #
         self.stop()
@@ -76040,7 +76048,7 @@ typedef struct {
 
         # fork fail #
         else:
-            return self.pid
+            return -1
 
         # set trace event #
         self.ptraceEvent(self.traceEventList)
@@ -76064,12 +76072,14 @@ typedef struct {
             '%s(%s) executed "%s"' % (self.comm, self.pid, cmdline)
         )
 
-        # reset environment #
+        # print previous context #
         Debugger.printSummary(self)
-        SysMgr.exitFuncList = []
 
-        # close fd for output #
+        # reset environment #
+        SysMgr.exitFuncList = []
         SysMgr.closePrintFd()
+        SysMgr.clearPrint()
+        SysMgr.clearProcBuffer()
 
         # create a new controller #
         dobj = Debugger(pid=self.pid, attach=False, mode=self.mode)
@@ -76523,7 +76533,7 @@ typedef struct {
                     # handle clone event #
                     ret = self.handoverNewTarget(fork=forked)
                     # failure for handling clone #
-                    if ret == self.pid:
+                    if ret == -1:
                         self.cont()
                     # mute non-target tasks cloned in break mode #
                     elif not SysMgr.cloneEnable:
@@ -78343,27 +78353,33 @@ class MemoryFile(object):
         self.addr = addr
         self.size = size
         self.name = name
+        self.mem = bytearray(size)
 
-        if addr == 0:
-            self.mem = bytearray(size)
-        else:
+        if addr:
             self.resize(size)
 
     def resize(self, size):
         SysMgr.importPkgItems("ctypes")
 
-        # orig #
-        orig = self.mem
-        optr = (c_char * len(orig)).from_buffer(orig)
+        # copy more data #
+        if self.addr:
+            optr = self.addr
+        # just increase anonymous buffer #
+        else:
+            orig = self.mem
+            optr = (c_char * len(orig)).from_buffer(orig)
 
         # new #
         self.mem = bytearray(size)
         nptr = (c_char * size).from_buffer(self.mem)
 
         # memcpy #
-        ret = memmove(nptr, optr, len(orig))
+        ret = memmove(nptr, optr, size)
         if ret < 0:
-            SysMgr.printErr("failed to copy memory from %s" % self.addr)
+            if self.addr:
+                SysMgr.printErr("failed to copy memory from %s" % self.addr)
+            else:
+                SysMgr.printErr("failed to increase memory to %s" % size)
         else:
             self.size = size
 
@@ -85826,28 +85842,20 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def checkFilter(comm, pid):
-        found = False
-
-        if UtilMgr.isValidStr(comm.strip("*")):
+        # check no filter #
+        if not SysMgr.filterGroup:
             return True
 
+        # check exclusion condition #
         for idx in list(SysMgr.filterGroup):
-            # check exclusion condition #
             if idx.startswith("^"):
                 cond = idx[1:]
                 if pid == cond or UtilMgr.isValidStr(comm, [cond]):
-                    found = False
-                    break
-                else:
-                    found = True
-                    continue
+                    return False
 
-            # check inclusion condition #
-            if pid == idx:
-                found = True
-                break
-
-        return found
+        # check filter #
+        if UtilMgr.isValidStr(comm.strip("*")) or pid in SysMgr.filterGroup:
+            return True
 
     @staticmethod
     def getSummaryData(fname, incHdr=False):
