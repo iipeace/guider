@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220817"
+__revision__ = "220818"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29101,6 +29101,30 @@ Commands:
         return True
 
     @staticmethod
+    def readBuddyInfo():
+        try:
+            res = {}
+            lines = SysMgr.procReadlines("buddyinfo")
+
+            for item in lines:
+                # parse items #
+                node, items = item.split(",", 1)
+                node = node.split()[1]
+                items = UtilMgr.lstrip(items.strip(), "zone").strip().split()
+                name = items.pop(0)
+                orders = list(map(long, items))
+
+                # add orders #
+                res.setdefault(node, {})
+                res[node][name] = orders
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to read buddy info", reason=True)
+
+        return res
+
+    @staticmethod
     def readMemoryMap():
         try:
             res = {}
@@ -32286,6 +32310,9 @@ Examples:
     - {2:1}
         # {0:1} {1:1}
 
+    - {2:1} including all in the past
+        # {0:1} {1:1} -a
+
     - {2:1} using libdlt.so from specific path
         # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
 
@@ -33937,6 +33964,9 @@ Examples:
 
     - {2:1} with the file name
         # {0:1} {1:1} "./*.dlt" -q PRINTFILENAME
+
+    - {2:1} including all in the past
+        # {0:1} {1:1} -a
 
     - {2:1} including specific words
         # {0:1} {1:1} -g test
@@ -57589,6 +57619,8 @@ Copyright:
 
         self.printSchedInfo()
 
+        self.printBuddyInfo()
+
         self.printMmapInfo()
 
         self.printUSBInfo()
@@ -57692,6 +57724,45 @@ Copyright:
                 SysMgr.infoBufferPrint(oneLine)
 
         SysMgr.infoBufferPrint(twoLine)
+
+    def printBuddyInfo(self):
+        PAGE = SysMgr.PAGESIZE
+        convSize = UtilMgr.convSize2Unit
+
+        SysMgr.infoBufferPrint("\n[Buddy Info]\n%s" % twoLine)
+        orders = [
+            "%9s"
+            % (str(order) + "(%s)" % convSize((2**order) * PAGE, isInt=True))
+            for order in range(0, 11)
+        ]
+        orders.append("%9s" % "TOTAL")
+        SysMgr.infoBufferPrint(
+            "{0:>5} | {1:<8} | {2:<1}\n{3:1}".format(
+                "NODE", "ZONE", " ".join(orders), twoLine
+            )
+        )
+
+        # get buddy info #
+        buddy = SysMgr.readBuddyInfo()
+        if not buddy:
+            SysMgr.infoBufferPrint("\tNone")
+            SysMgr.infoBufferPrint(twoLine)
+            return
+
+        # print buddy info #
+        for node, data in buddy.items():
+            for zone, orders in data.items():
+                orderSize = [
+                    (2**order) * PAGE * val
+                    for order, val in enumerate(orders)
+                ]
+                orders = ["%9s" % UtilMgr.convNum(order) for order in orders]
+                orders.append("%9s" % convSize(sum(orderSize)))
+                SysMgr.infoBufferPrint(
+                    "{0:>5} | {1:<8} | {2:<1}\n{3:1}".format(
+                        node, zone, " ".join(orders), twoLine
+                    )
+                )
 
     def printMmapInfo(self):
         SysMgr.infoBufferPrint("\n[Memory Map Info]\n%s" % twoLine)
@@ -62115,6 +62186,7 @@ class DbusMgr(object):
         # define summary data #
         total = err = 0
         msgs = {}
+        convNum = UtilMgr.convNum
 
         # summarize messages #
         for intval in DbusMgr.msgData:
@@ -62139,7 +62211,7 @@ class DbusMgr(object):
         # print menu #
         SysMgr.printPipe(
             "[D-Bus Summary Info] [Run: %.1f] [Total: %s] [Error: %s]\n%s"
-            % (DbusMgr.totalTime, total, err, twoLine)
+            % (DbusMgr.totalTime, convNum(total), convNum(err), twoLine)
         )
         SysMgr.printPipe(
             "{0:>16}({1:>7}) {2:>10}({3:>6}) {4:1}\n{5:1}".format(
@@ -62158,7 +62230,7 @@ class DbusMgr(object):
             procTotal = float(value["totalCnt"])
             SysMgr.printPipe(
                 "{0:>16}({1:>7}) {2:>10}(100.0%) {3:1}\n{4:1}".format(
-                    comm, pid, UtilMgr.convNum(procTotal), cmdline, oneLine
+                    comm, pid, convNum(procTotal), cmdline, oneLine
                 )
             )
 
@@ -63427,13 +63499,109 @@ class DltAnalyzer(object):
     pids = []
     procInfo = None
     dltData = {"cnt": 0}
+    msgData = []
     dbgObj = None
     version = None
+    totalTime = 0
 
     @staticmethod
-    def printSummary(force=False):
+    def printSummary():
+        # define summary data #
+        total = 0
+        msgs = {}
+        convNum = UtilMgr.convNum
+
+        # summarize messages #
+        for intval in DltAnalyzer.msgData:
+            total += intval.pop("cnt", None)
+
+            for ecuid, ecudata in intval.items():
+                # set default ecuid dict #
+                msgs.setdefault(ecuid, {"cnt": 0})
+                msgs[ecuid]["cnt"] += ecudata.pop("cnt", None)
+
+                for appid, appdata in ecudata.items():
+                    # set default appid dict #
+                    msgs[ecuid].setdefault(appid, {"cnt": 0})
+                    msgs[ecuid][appid]["cnt"] += appdata.pop("cnt", None)
+
+                    for ctxid, ctxdata in appdata.items():
+                        # set default ctxid dict #
+                        msgs[ecuid][appid].setdefault(ctxid, {"cnt": 0})
+                        msgs[ecuid][appid][ctxid]["cnt"] += ctxdata.pop(
+                            "cnt", None
+                        )
+
+        # print menu #
+        SysMgr.printPipe(
+            "[DLT Summary Info] [Run: %.1f] [Total: %s]\n%s"
+            % (DltAnalyzer.totalTime, convNum(total), twoLine)
+        )
+        SysMgr.printPipe(
+            "{0:^20} | {1:^19} | {2:^19} |\n{3:1}".format(
+                "ECU", "AP", "CONTEXT", twoLine
+            ),
+        )
+
+        # traverse DLT table #
+        dltCnt = 0
+        for ecuId, ecuItem in sorted(
+            msgs.items(),
+            key=lambda x: x[1]["cnt"] if x[0] != "cnt" else 0,
+            reverse=True,
+        ):
+            if ecuId == "cnt":
+                continue
+
+            ecuCnt = ecuItem["cnt"]
+            ecuPer = ecuCnt / float(total) * 100
+            ecuStr = "{0:4} {1:>8}({2:5.1f}%)".format(
+                ecuId, convNum(ecuCnt), ecuPer
+            )
+            SysMgr.printPipe(ecuStr)
+            dltCnt += 1
+
+            for apId, apItem in sorted(
+                ecuItem.items(),
+                key=lambda x: x[1]["cnt"] if x[0] != "cnt" else 0,
+                reverse=True,
+            ):
+                if apId == "cnt":
+                    continue
+
+                depth = len(ecuStr) * " "
+                apCnt = apItem["cnt"]
+                apPer = apCnt / float(ecuCnt) * 100
+                apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)".format(
+                    depth, apId, convNum(apCnt), apPer
+                )
+                SysMgr.printPipe(apStr)
+
+                for ctxId, ctxItem in sorted(
+                    apItem.items(),
+                    key=lambda x: x[1]["cnt"] if x[0] != "cnt" else 0,
+                    reverse=True,
+                ):
+                    if ctxId == "cnt":
+                        continue
+
+                    depth = len(apStr) * " "
+                    ctxCnt = ctxItem["cnt"]
+                    ctxPer = ctxCnt / float(apCnt) * 100
+                    ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)".format(
+                        depth, ctxId, convNum(ctxCnt), ctxPer
+                    )
+                    SysMgr.printPipe(ctxStr)
+
+        if dltCnt == 0:
+            SysMgr.printPipe("\tNone")
+
+        SysMgr.printPipe(oneLine)
+
+    @staticmethod
+    def printIntervalSummary(force=False):
         quitLoop = False
-        convSize = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         # update CPU usage #
         if DltAnalyzer.dbgObj:
@@ -63476,7 +63644,7 @@ class DltAnalyzer(object):
                 "DLT Info",
                 SysMgr.uptime,
                 SysMgr.uptimeDiff,
-                convSize(DltAnalyzer.dltData["cnt"]),
+                convNum(DltAnalyzer.dltData["cnt"]),
                 sysCpuStr,
                 sysMemStr,
                 procInfo,
@@ -63525,7 +63693,7 @@ class DltAnalyzer(object):
             ecuCnt = ecuItem["cnt"]
             ecuPer = ecuCnt / float(DltAnalyzer.dltData["cnt"]) * 100
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(
-                ecuId, convSize(ecuCnt), ecuPer
+                ecuId, convNum(ecuCnt), ecuPer
             )
             SysMgr.addPrint(ecuStr, force=force)
             dltCnt += 1
@@ -63546,7 +63714,7 @@ class DltAnalyzer(object):
                 apCnt = apItem["cnt"]
                 apPer = apCnt / float(ecuCnt) * 100
                 apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(
-                    depth, apId, convSize(apCnt), apPer
+                    depth, apId, convNum(apCnt), apPer
                 )
                 SysMgr.addPrint(apStr, force=force)
 
@@ -63566,7 +63734,7 @@ class DltAnalyzer(object):
                     ctxCnt = ctxItem["cnt"]
                     ctxPer = ctxCnt / float(apCnt) * 100
                     ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(
-                        depth, ctxId, convSize(ctxCnt), ctxPer
+                        depth, ctxId, convNum(ctxCnt), ctxPer
                     )
                     SysMgr.addPrint(ctxStr, force=force)
 
@@ -63578,7 +63746,11 @@ class DltAnalyzer(object):
 
         SysMgr.printTopStats()
 
-        # initialize data #
+        # save DLT data #
+        DltAnalyzer.totalTime += SysMgr.uptimeDiff
+        DltAnalyzer.msgData.append(UtilMgr.deepcopy(DltAnalyzer.dltData))
+
+        # initialize DLT data #
         DltAnalyzer.dltData = {"cnt": 0}
 
     @staticmethod
@@ -63590,7 +63762,7 @@ class DltAnalyzer(object):
         SysMgr.updateUptime()
 
         if DltAnalyzer.dltData["cnt"] or SysMgr.inWaitStatus:
-            DltAnalyzer.printSummary()
+            DltAnalyzer.printIntervalSummary()
         elif not SysMgr.condExit:
             SysMgr.printWarn("no DLT message received", True)
 
@@ -64662,7 +64834,7 @@ class DltAnalyzer(object):
             # print summary #
             if printMode == "top":
                 SysMgr.printPipe()
-                DltAnalyzer.printSummary(force=True)
+                DltAnalyzer.printIntervalSummary(force=True)
 
             # handle buffered logs #
             if buffered:
@@ -64834,6 +65006,7 @@ class DltAnalyzer(object):
         SysMgr.updateUptime()
 
         # initialize dlt-daemon info #
+        origShowAll = SysMgr.showAll
         SysMgr.showAll = True
         SysMgr.cmdlineEnable = True
         procInfo = DltAnalyzer.procInfo = TaskAnalyzer(onlyInstance=True)
@@ -64868,6 +65041,10 @@ class DltAnalyzer(object):
 
         # get times for tail and until option #
         since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], time.time())
+
+        # print from now in default #
+        if not since and not origShowAll:
+            since = time.time()
 
         while 1:
             try:
@@ -100066,10 +100243,14 @@ class TaskAnalyzer(object):
         if SysMgr.fileTopEnable:
             TaskAnalyzer.printFileTable()
         # check skip condition #
-        elif SysMgr.jsonEnable or SysMgr.dltTopEnable:
+        elif SysMgr.jsonEnable:
             pass
+        # dbustop mode #
         elif SysMgr.dbusTopEnable:
             DbusMgr.printSummary()
+        # dlttop mode #
+        elif SysMgr.dltTopEnable:
+            DltAnalyzer.printSummary()
         # top mode #
         else:
             # build summary interval table #
