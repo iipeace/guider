@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220818"
+__revision__ = "220819"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20428,10 +20428,12 @@ class LeakAnalyzer(object):
 
             try:
                 posid = val["stack"][0]
+                self.posData[posid].setdefault("callList", {})
                 self.posData[posid]["callList"][pos] = None
+            except SystemExit:
+                sys.exit(0)
             except:
-                self.posData[posid]["callList"] = {}
-                self.posData[posid]["callList"][pos] = None
+                SysMgr.printWarn("failed to get stack from %s" % val, True)
 
         if cnt:
             UtilMgr.deleteProgress()
@@ -20479,6 +20481,9 @@ class LeakAnalyzer(object):
                     else:
                         return False
 
+        # define stack cache #
+        stackCache = {}
+
         while 1:
             try:
                 line = fd.readline()
@@ -20518,8 +20523,12 @@ class LeakAnalyzer(object):
                 elif name == "stack":
                     # split callstack #
                     try:
-                        item[name] = body.split()
-                        item[name] = item[name][1:]
+                        if body in stackCache:
+                            item[name] = stackCache[body]
+                        else:
+                            item[name] = body.split()
+                            item[name] = item[name][1:]
+                            stackCache[body] = item[name]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -34644,6 +34653,15 @@ Examples:
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100k"
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100m"
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:"=4096"
+
+    - {3:1} with auto start and stop target
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q STOPTARGET
+
+    - {3:1} with auto start but no stop
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q CONTTARGET
+
+    - {3:1} with auto start but no clean up
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q NOCLEANUP
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -51822,6 +51840,29 @@ Copyright:
                 sys.exit(0)
 
         try:
+            # stop target process #
+            if (
+                inputCmd and not "CONTTARGET" in SysMgr.environList
+            ) or "STOPTARGET" in SysMgr.environList:
+                SysMgr.sendSignalProcs(signal.SIGSTOP, [pid])
+            # clean up target process #
+            elif not "NOCLEANUP" in SysMgr.environList:
+                SysMgr.printInfo("clean up %s(%s)" % (comm, pid))
+
+                rcmd = [
+                    "remote",
+                    "-g%s" % pid,
+                    "-cusercall:leaktracer_stopAllMonitoring",
+                ]
+
+                SysMgr.launchGuider(
+                    rcmd,
+                    log=False,
+                    mute=True,
+                    pipe=False,
+                    stderr=True,
+                )
+
             # analyze leakage #
             lt = LeakAnalyzer(fname, pid)
 
@@ -110540,7 +110581,7 @@ class TaskAnalyzer(object):
         else:
             reverse = None
 
-        # memory #
+        # CPU #
         if not SysMgr.sort:
             # set CPU usage as default #
             sortedProcData = sorted(
@@ -110548,6 +110589,7 @@ class TaskAnalyzer(object):
                 key=lambda e: e[1]["ttime"],
                 reverse=True if reverse is None else reverse,
             )
+        # memory #
         elif SysMgr.sort == "m":
             if "INCSWAP" in SysMgr.environList:
                 for idx, value in self.procData.items():
@@ -110626,64 +110668,49 @@ class TaskAnalyzer(object):
             elif SysMgr.sort == "d":
                 statName = "waitTime"
 
-            try:
-                for idx, value in self.procData.items():
-                    self.saveProcSchedData(value["taskPath"], idx)
+            for idx, value in self.procData.items():
+                self.saveProcSchedData(value["taskPath"], idx)
 
-                sortedProcData = sorted(
-                    self.procData.items(),
-                    key=lambda e: e[1][statName],
-                    reverse=True if reverse is None else reverse,
-                )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                sortedProcData = self.procData.items()
+            sortedProcData = sorted(
+                self.procData.items(),
+                key=lambda e: e[1][statName],
+                reverse=True if reverse is None else reverse,
+            )
         # swap #
         elif SysMgr.sort == "s":
-            try:
-                for idx, value in self.procData.items():
-                    self.saveProcStatusData(value["taskPath"], idx)
+            for idx, value in self.procData.items():
+                self.saveProcStatusData(value["taskPath"], idx)
 
-                sortedProcData = sorted(
-                    self.procData.items(),
-                    key=lambda e: long(e[1]["status"]["VmSwap"].split()[0])
-                    if e[1]["status"]
-                    else 0,
-                    reverse=True if reverse is None else reverse,
-                )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                sortedProcData = self.procData.items()
+            sortedProcData = sorted(
+                self.procData.items(),
+                key=lambda e: long(e[1]["status"]["VmSwap"].split()[0])
+                if e[1]["status"]
+                else 0,
+                reverse=True if reverse is None else reverse,
+            )
         # contextswitch #
         elif SysMgr.sort == "C":
-            try:
-                for idx, value in self.procData.items():
-                    self.saveProcStatusData(value["taskPath"], idx)
+            for idx, value in self.procData.items():
+                self.saveProcStatusData(value["taskPath"], idx)
 
-                now = self.procData
-                prev = self.prevProcData
-                yld = "voluntary_ctxt_switches"
-                prmpt = "nonvoluntary_ctxt_switches"
-                sortedProcData = sorted(
-                    now.items(),
-                    key=lambda k: (
-                        long(now[k[0]]["status"][yld])
-                        - long(prev[k[0]]["status"][yld])
-                    )
-                    + (
-                        long(now[k[0]]["status"][prmpt])
-                        - long(prev[k[0]]["status"][prmpt])
-                    )
-                    if k[0] in prev
-                    else 0,
-                    reverse=True if reverse is None else reverse,
+            now = self.procData
+            prev = self.prevProcData
+            yld = "voluntary_ctxt_switches"
+            prmpt = "nonvoluntary_ctxt_switches"
+            sortedProcData = sorted(
+                now.items(),
+                key=lambda k: (
+                    long(now[k[0]]["status"][yld])
+                    - long(prev[k[0]]["status"][yld])
                 )
-            except SystemExit:
-                sys.exit(0)
-            except:
-                sortedProcData = self.procData.items()
+                + (
+                    long(now[k[0]]["status"][prmpt])
+                    - long(prev[k[0]]["status"][prmpt])
+                )
+                if k[0] in prev
+                else 0,
+                reverse=True if reverse is None else reverse,
+            )
         # dbus #
         elif SysMgr.sort == "d":
             sortedProcData = sorted(
@@ -111596,7 +111623,13 @@ class TaskAnalyzer(object):
                 return
 
         # set sort value #
-        sortedProcData = self.getSortedProcData()
+        try:
+            sortedProcData = self.getSortedProcData()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to sort tasks", True, True)
+            sortedProcData = list(self.procData)
 
         # make parent list #
         plist = _getParentList()
