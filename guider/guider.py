@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220819"
+__revision__ = "220820"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27455,6 +27455,23 @@ Commands:
             return None
 
     @staticmethod
+    def getOOMAdj(pid="self"):
+        if not SysMgr.isLinux:
+            return
+
+        # check root permission #
+        if not SysMgr.isRoot():
+            return
+
+        # set path #
+        oomPath = "%s/%s/oom_score_adj" % (SysMgr.procPath, pid)
+        if not os.path.isfile(oomPath):
+            # use deprecated path #
+            oomPath = "%s/%s/oom_adj" % (SysMgr.procPath, pid)
+
+        return SysMgr.readFile(oomPath)
+
+    @staticmethod
     def setOOMAdj(pid="self", pri="-17"):
         if not SysMgr.isLinux:
             return
@@ -51796,6 +51813,13 @@ Copyright:
             )
             sys.exit(-1)
 
+        """
+        set OOM adjust value of the target process to maximum
+        to prevent becoming victim by OOM killer during analysis
+        """
+        oomAdj = SysMgr.getOOMAdj(pid)
+        SysMgr.setOOMAdj(pid, -17)
+
         # calculate runtime and profile time #
         try:
             SysMgr.updateTaskMon(tobj, pid)
@@ -51884,6 +51908,8 @@ Copyright:
                 "failed to analyze memory leakage for %s(%s)" % (comm, pid),
                 True,
             )
+        finally:
+            SysMgr.setOOMAdj(pid, oomAdj)
 
     @staticmethod
     def doNetTest():
