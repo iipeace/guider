@@ -1284,6 +1284,7 @@ then build and install it on your system as below.
     # cd guider && make && make install
 ```
 
+Prebuilt versions can be found via https://repology.org/project/guider/versions
 
 Kernel Configuration
 =======
