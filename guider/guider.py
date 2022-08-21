@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220820"
+__revision__ = "220821"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20410,6 +20410,8 @@ class LeakAnalyzer(object):
                 val["path"] = ret[1]
                 val["offset"] = ret[2]
 
+        posCache = {}
+
         # resolve symbols in stacks #
         for pos, val in self.callData.items():
             UtilMgr.printProgress(cnt, total)
@@ -20422,7 +20424,14 @@ class LeakAnalyzer(object):
 
             for idx, offset in enumerate(val["stack"]):
                 data = self.posData[offset]
-                symstack[idx] = [data["offset"], data["sym"], data["path"]]
+                # save stack item info in cache list #
+                if not offset in posCache:
+                    posCache[offset] = [
+                        data["offset"],
+                        data["sym"],
+                        data["path"],
+                    ]
+                symstack[idx] = posCache[offset]
 
             val["symstack"] = symstack
 
