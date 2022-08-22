@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220821"
+__revision__ = "220822"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20023,6 +20023,7 @@ class LeakAnalyzer(object):
     idlePageList = []
     filterCode = None
     filterValue = 0
+    lastStats = []
 
     def __init__(self, file=None, pid=None):
 
@@ -20101,22 +20102,18 @@ class LeakAnalyzer(object):
         # Merge symbols #
         self.mergeSymbols()
 
-    def printLeakage(self, runtime, profileTime, startTime):
+    def printLeakage(self, runtime, profileTime, startTime, tobj=None):
         # define shortcut #
         convSize = UtilMgr.convSize2Unit
 
-        try:
-            mlist = SysMgr.getMemStat(self.pid)
-            mstat = SysMgr.convMemStat(mlist)
-            vss = convSize(mstat["vss"])
-            rss = convSize(mstat["rss"])
-        except SystemExit:
-            sys.exit(0)
-        except:
-            vss = rss = "?"
-
         # task info #
         proc = "%s(%s)" % (SysMgr.getComm(self.pid), self.pid)
+
+        # get memory usage #
+        try:
+            vss, rss, pss, uss = LeakAnalyzer.lastStats
+        except:
+            vss = rss = pss = uss = "?"
 
         # set name #
         name = "Leakage"
@@ -20130,7 +20127,7 @@ class LeakAnalyzer(object):
         title = "Function %s Info" % name
         titleStr = (
             "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-            "[VSS: %s] [RSS: %s] [%s: %s] [NrCall: %s]"
+            "[Mem: VSS(%s)/RSS(%s)/PSS(%s)/USS(%s)] [%s: %s] [NrCall: %s]"
         ) % (
             title,
             proc,
@@ -20139,6 +20136,8 @@ class LeakAnalyzer(object):
             profileTime,
             vss,
             rss,
+            pss,
+            uss,
             name,
             convSize(self.totalLeakSize),
             convSize(len(self.callData)),
@@ -20208,7 +20207,7 @@ class LeakAnalyzer(object):
         SysMgr.printPipe(
             (
                 "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-                "[VSS: %s] [RSS: %s] [%s: %s] [NrCall: %s]\n%s"
+                "[Mem: VSS(%s)/RSS(%s)/PSS(%s)/USS(%s)] [%s: %s] [NrCall: %s]\n%s"
             )
             % (
                 title,
@@ -20218,6 +20217,8 @@ class LeakAnalyzer(object):
                 profileTime,
                 vss,
                 rss,
+                pss,
+                uss,
                 name,
                 convSize(self.totalLeakSize),
                 convSize(len(self.callData)),
@@ -20399,16 +20400,15 @@ class LeakAnalyzer(object):
 
             try:
                 ret = proc.getSymbolInfo(long(pos, 16))
+                if ret and len(ret) > 3:
+                    val["sym"] = ret[0]
+                    val["path"] = ret[1]
+                    val["offset"] = ret[2]
             except:
                 SysMgr.printWarn(
                     "failed to get symbol for %s" % pos, reason=True
                 )
                 continue
-
-            if ret and len(ret) > 3:
-                val["sym"] = ret[0]
-                val["path"] = ret[1]
-                val["offset"] = ret[2]
 
         posCache = {}
 
@@ -34682,6 +34682,9 @@ Examples:
 
     - {3:1} with auto start and stop target
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q STOPTARGET
+
+    - {3:1} with auto start and coredump
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q USECOREDUMP
 
     - {3:1} with auto start but no stop
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q CONTTARGET
@@ -51163,18 +51166,21 @@ Copyright:
                 # get memory usage #
                 procData = tobj.procData[pid]["stat"]
                 vss = conv(long(procData[vssIdx]), unit="M")
-                rss = long(procData[rssIdx]) << 12
-                rssUnit = conv(rss, unit="M")
                 tobj.saveProcSmapsData(
                     tobj.procData[pid]["taskPath"], pid, mini=True
                 )
-                memBuf, nrss, pss, uss = tobj.getMemDetails(
+                memBuf, rss, pss, uss = tobj.getMemDetails(
                     pid, tobj.procData[pid]["maps"]
                 )
+                rss = long(rss) << 10
+                rssUnit = conv(rss, unit="M")
                 pss = long(pss) << 10
                 pssUnit = conv(pss, unit="M")
                 uss = long(uss) << 10
                 ussUnit = conv(uss, unit="M")
+
+                # save last stats #
+                LeakAnalyzer.lastStats = [vss, rssUnit, pssUnit, ussUnit]
 
                 # reset and save proc instance #
                 tobj.saveProcInstance()
@@ -51398,6 +51404,10 @@ Copyright:
                     "LEAKTRACER_ONEXIT_REPORTFILENAME=%s" % fname,
                 ]
             )
+
+            # disable core dump for child #
+            if not "USECOREDUMP" in SysMgr.environList:
+                SysMgr.chRlimit(long(SysMgr.pid), "RLIMIT_CORE", 0, 0)
 
             # create the target process #
             pid = SysMgr.createProcess(inputCmd, mute=mute, chPgid=True)
@@ -51909,7 +51919,7 @@ Copyright:
             SysMgr.printInfoBuffer()
 
             # print leakage #
-            lt.printLeakage(runtime, profileTime, startTime)
+            lt.printLeakage(runtime, profileTime, startTime, tobj)
         except SystemExit:
             sys.exit(0)
         except:
