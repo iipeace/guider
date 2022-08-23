@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220822"
+__revision__ = "220823"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20018,12 +20018,11 @@ class LeakAnalyzer(object):
     """Analyzer for leaktracing"""
 
     startSig = 35  # SIGRT1
-    stopSig = 36  # SIGRT2
+    stopSig = 12  # SIGUSR2
     markedIdlePages = False
     idlePageList = []
     filterCode = None
     filterValue = 0
-    lastStats = []
 
     def __init__(self, file=None, pid=None):
 
@@ -20062,10 +20061,10 @@ class LeakAnalyzer(object):
             "lastPosSize": 0,
         }
 
-        # Get file size #
+        # get file size #
         fsize = UtilMgr.getFileSizeStr(file)
 
-        # Open log file #
+        # open log file #
         try:
             SysMgr.printInfo("start loading '%s'%s" % (file, fsize))
 
@@ -20076,11 +20075,11 @@ class LeakAnalyzer(object):
             SysMgr.printOpenErr(file)
             sys.exit(-1)
 
+        # parse logs #
         SysMgr.printInfo("start processing data...")
-
         self.callData = self.parseLines(fd)
 
-        # Get process object #
+        # get process object #
         try:
             proc = Debugger(pid=int(pid), attach=False)
         except SystemExit:
@@ -20092,14 +20091,12 @@ class LeakAnalyzer(object):
             )
             sys.exit(-1)
 
+        # resolve symbols #
         SysMgr.printInfo("start resolving symbols...")
-
-        # Resolve symbols #
         self.resolveSymbols(proc)
 
+        # merge symbols #
         SysMgr.printInfo("start merging symbols...")
-
-        # Merge symbols #
         self.mergeSymbols()
 
     def printLeakage(self, runtime, profileTime, startTime, tobj=None):
@@ -20111,7 +20108,11 @@ class LeakAnalyzer(object):
 
         # get memory usage #
         try:
-            vss, rss, pss, uss = LeakAnalyzer.lastStats
+            ret = TaskAnalyzer.getMemStats(tobj, self.pid)
+            vss = convSize(ret["vss"], unit="M")
+            rss = convSize(ret["rss"], unit="M")
+            pss = convSize(ret["pss"], unit="M")
+            uss = convSize(ret["uss"], unit="M")
         except:
             vss = rss = pss = uss = "?"
 
@@ -20392,6 +20393,9 @@ class LeakAnalyzer(object):
     def resolveSymbols(self, proc):
         cnt = 0
         total = len(self.posData) + len(self.callData)
+
+        # disable load messages #
+        SysMgr.addEnvironVar("NOLOADMSG")
 
         # resolve all symbols #
         for pos, val in self.posData.items():
@@ -27497,7 +27501,7 @@ Commands:
 
         try:
             with open(oomPath, "w") as fd:
-                fd.write(pri)
+                fd.write(str(pri))
         except SystemExit:
             sys.exit(0)
         except:
@@ -34051,6 +34055,10 @@ Examples:
     - Print signal status info for specific processes
         # {0:1} {1:1} a.out, java
         # {0:1} {1:1} -g a.out, java
+
+    - Print signal status info for specific threads
+        # {0:1} {1:1} a.out, java -e t
+        # {0:1} {1:1} -g a.out, java -e t
                     """.format(
                         cmd, mode
                     )
@@ -34590,12 +34598,12 @@ Description:
            $ LD_PRELOAD=./libleaktracer.so \\
              LEAKTRACER_AUTO_REPORTFILENAME=/tmp/leaks.out \\
              LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
-             LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+             LEAKTRACER_ONSIG_REPORT=12 EXEC_PATH
        - Manual start by signal(SIGRT1)
            $ LD_PRELOAD=./libleaktracer.so \\
              LEAKTRACER_ONSIG_REPORTFILENAME=/tmp/leaks.out \\
              LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
-             LEAKTRACER_ONSIG_REPORT=36 EXEC_PATH
+             LEAKTRACER_ONSIG_REPORT=12 EXEC_PATH
     3) Check below specification.
        - If the target process is on secure-execution mode,
          libleaktracer.so should be in standard search directories
@@ -34691,6 +34699,9 @@ Examples:
 
     - {3:1} with auto start but no clean up
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q NOCLEANUP
+
+    - {3:1} with auto start and debug info
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q DEBUG
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -51164,23 +51175,14 @@ Copyright:
                     continue
 
                 # get memory usage #
-                procData = tobj.procData[pid]["stat"]
-                vss = conv(long(procData[vssIdx]), unit="M")
-                tobj.saveProcSmapsData(
-                    tobj.procData[pid]["taskPath"], pid, mini=True
-                )
-                memBuf, rss, pss, uss = tobj.getMemDetails(
-                    pid, tobj.procData[pid]["maps"]
-                )
-                rss = long(rss) << 10
+                ret = TaskAnalyzer.getMemStats(tobj, pid)
+                vss = conv(ret["vss"], unit="M")
+                rss = ret["rss"]
                 rssUnit = conv(rss, unit="M")
-                pss = long(pss) << 10
+                pss = ret["pss"]
                 pssUnit = conv(pss, unit="M")
-                uss = long(uss) << 10
+                uss = ret["uss"]
                 ussUnit = conv(uss, unit="M")
-
-                # save last stats #
-                LeakAnalyzer.lastStats = [vss, rssUnit, pssUnit, ussUnit]
 
                 # reset and save proc instance #
                 tobj.saveProcInstance()
@@ -51216,9 +51218,10 @@ Copyright:
 
             # set hook #
             if hookCmd:
-                hcmd = ["hook", "-g%s" % pid, "-c%s" % ",".join(hookCmd), "-I"]
+                SysMgr.printInfo(r"start applying hook commands... ")
+
                 SysMgr.launchGuider(
-                    hcmd, pipe=False, stderr=True, log=True, wait=True
+                    hookCmd, pipe=False, stderr=True, log=True, wait=True
                 )
 
             # check signal #
@@ -51264,6 +51267,27 @@ Copyright:
                     fname = "%s/leaks.out" % dirname
 
             return fname
+
+        def _checkSignals(tobj, path, pid, startSig, stopSig):
+            # update signal list #
+            tobj.saveProcStatusData(path, pid)
+            sigList = tobj.procData[pid]["status"]["SigCgt"]
+
+            # check start signal #
+            if startSig and UtilMgr.isBitEnabled(startSig, sigList):
+                SysMgr.printWarn(
+                    "found %s(%s) handler for start"
+                    % (ConfigMgr.SIG_LIST[startSig], startSig),
+                    True,
+                )
+
+            # check stop signal #
+            if stopSig and UtilMgr.isBitEnabled(stopSig, sigList):
+                SysMgr.printWarn(
+                    "found %s(%s) handler for stop"
+                    % (ConfigMgr.SIG_LIST[stopSig], stopSig),
+                    True,
+                )
 
         # check package #
         SysMgr.getPkg("ctypes")
@@ -51373,7 +51397,7 @@ Copyright:
                     ldPreloadList = SysMgr.readFile(ldPreloadPath).split("\n")
                     if ldPreloadList:
                         SysMgr.printWarn(
-                            "preloading [ %s ] is enabled from '%s'"
+                            "preloading [ %s ] is already applied from '%s'"
                             % (", ".join(ldPreloadList), ldPreloadPath),
                             True,
                         )
@@ -51500,7 +51524,7 @@ Copyright:
         if ret:
             preloaded = True
             SysMgr.printStat(
-                "%s is already preloaded to %s(%s)" % (ret, comm, pid)
+                "'%s' is already preloaded to %s(%s)" % (ret, comm, pid)
             )
         else:
             preloaded = False
@@ -51606,15 +51630,13 @@ Copyright:
         try:
             signal.signal(LeakAnalyzer.startSig, signal.SIG_IGN)
         except:
+            # SIGUSR1 #
             LeakAnalyzer.startSig = 10
         try:
             signal.signal(LeakAnalyzer.stopSig, signal.SIG_IGN)
         except:
+            # SIGUSR2 #
             LeakAnalyzer.stopSig = 12
-
-        # set stop signal #
-        if "LEAKTRACER_ONSIG_REPORT" in envList:
-            stopSig = long(envList["LEAKTRACER_ONSIG_REPORT"])
 
         # set start signal and add an environment variable #
         if not autostart:
@@ -51624,7 +51646,9 @@ Copyright:
                     0, 'setenv:LEAKTRACER_ONSIG_STARTALLTHREAD#"%s"' % startSig
                 )
 
-        # add an environment variable for stop signal #
+        # set stop signal and add an environment variable #
+        if "LEAKTRACER_ONSIG_REPORT" in envList:
+            stopSig = long(envList["LEAKTRACER_ONSIG_REPORT"])
         if not stopSig:
             stopSig = LeakAnalyzer.stopSig
             if not preloaded:
@@ -51648,17 +51672,30 @@ Copyright:
                 "usercall:leaktracer::MemoryTrace::init_full_from_once()"
             )
 
+        # init process status #
+        if "status" in tobj.procData[pid]:
+            tobj.procData[pid]["status"] = {}
+
+        # check signals for preloaded target #
+        if not preloaded:
+            _checkSignals(tobj, path, pid, startSig, stopSig)
+
         # check signal handler #
         failCnt = 0
         while 1:
-            # set environment command #
+            # apply environment command #
             if remoteCmd:
                 rcmd = [
                     "remote",
                     "-g%s" % pid,
                     "-c%s" % ",".join(remoteCmd),
                     "-I",
+                    "-qNOCONTEXT",
+                    "-dL" if not "debug" in SysMgr.environList else "",
                 ]
+
+                SysMgr.printInfo(r"start applying environment commands... ")
+
                 SysMgr.launchGuider(
                     rcmd, pipe=False, stderr=True, log=True, wait=True
                 )
@@ -51676,13 +51713,15 @@ Copyright:
                         failCnt += 1
                         continue
 
-                # get signal handler info #
+                # init process status #
                 if "status" in tobj.procData[pid]:
                     tobj.procData[pid]["status"] = {}
+
+                # update signal list #
                 tobj.saveProcStatusData(path, pid)
+                sigList = tobj.procData[pid]["status"]["SigCgt"]
 
                 # check start signal #
-                sigList = tobj.procData[pid]["status"]["SigCgt"]
                 if startSig and not UtilMgr.isBitEnabled(startSig, sigList):
                     SysMgr.printWarn(
                         "failed to find %s(%s) handler for start"
@@ -51706,7 +51745,14 @@ Copyright:
 
         # set hook command #
         if hookCmd:
-            hcmd = ["hook", "-g%s" % pid, "-c%s" % ",".join(hookCmd), "-I"]
+            hcmd = [
+                "hook",
+                "-g%s" % pid,
+                "-c%s" % ",".join(hookCmd),
+                "-I",
+                "-qNOCONTEXT",
+                "-dL" if not "debug" in SysMgr.environList else "",
+            ]
 
         # wait for START signal #
         if not autostart and startSig and waitSignal:
@@ -51766,14 +51812,18 @@ Copyright:
             # hook #
             if not startSize and hookCmd:
                 startSize = 1
+
+                SysMgr.printInfo(r"start applying hook commands... ")
+
                 SysMgr.launchGuider(
                     hcmd, pipe=False, stderr=True, log=True, wait=True
                 )
+                hcmd = []
 
             # wait for start threshold #
             if startSize > 0:
                 ret = _waitAndKill(
-                    tobj, pid, comm, startSize, startSig, "start", hookCmd
+                    tobj, pid, comm, startSize, startSig, "start", hcmd
                 )
                 if ret < 0:
                     sys.exit(-1)
@@ -51783,9 +51833,12 @@ Copyright:
         elif startSig:
             # hook #
             if hookCmd:
+                SysMgr.printInfo(r"start applying hook commands... ")
+
                 SysMgr.launchGuider(
                     hcmd, pipe=False, stderr=True, log=True, wait=True
                 )
+                hcmd = []
 
             # send signal for start #
             _sendSignal(startSig, comm, pid, "start")
@@ -54220,30 +54273,24 @@ Copyright:
             except:
                 SysMgr.printWarn("failed to get LMK stat", reason=True)
 
-            # get process stat #
-            pid = str(pid)
-            procPath = "%s/%s" % (SysMgr.procPath, pid)
+            # update process info #
             obj.saveProcStat()
             procs = obj.procData
             prevProcs = obj.prevProcData
-            if SysMgr.isRoot():
-                obj.saveProcSmapsData(procPath, pid, mini=True)
-                ret = obj.getMemDetails(pid, procs[pid]["maps"])
-                statstr = "RSS: %s, PSS: %s, USS: %s" % (
-                    conv(ret[1] << 10),
-                    conv(ret[2] << 10),
-                    conv(ret[3] << 10),
-                )
-            else:
-                # save RSS stat #
-                mlist = SysMgr.getMemStat(pid)
-                if not mlist:
-                    SysMgr.printErr("failed to get memory size of Guider")
-                    sys.exit(-1)
 
-                # get memory size #
-                rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-                statstr = "RSS: %s" % conv(long(mlist[rssIdx]) << 12)
+            # get memory usage #
+            pid = str(pid)
+            ret = TaskAnalyzer.getMemStats(obj, pid)
+            statstr = ""
+            if ret:
+                for item in ("rss", "pss", "uss"):
+                    if not item in ret:
+                        continue
+                    statstr += "%s: %s, " % (
+                        item.upper(),
+                        conv(ret[item], unit="M"),
+                    )
+            statstr = statstr.rstrip(", ")
 
             # get new task #
             newTasks = set(procs) - set(prevProcs)
@@ -54633,15 +54680,16 @@ Copyright:
 
         # get pid list #
         pids = []
+        isThread = not SysMgr.processEnable
         if target:
-            pids += SysMgr.getTids(target)
+            pids += SysMgr.getTids(target, isThread=isThread)
         elif SysMgr.hasMainArg():
             items = SysMgr.getMainArgs()
             for item in items:
-                pids += SysMgr.getTids(item)
+                pids += SysMgr.getTids(item, isThread=isThread)
         else:
             for item in SysMgr.filterGroup:
-                pids += SysMgr.getTids(item)
+                pids += SysMgr.getTids(item, isThread=isThread)
 
         # check pid #
         if not pids:
@@ -54652,12 +54700,16 @@ Copyright:
         tobj = TaskAnalyzer(onlyInstance=True)
 
         for pid in sorted(pids):
-            proc = "%s(%s)" % (SysMgr.getComm(pid), pid)
-
             # get process info #
+            proc = "%s(%s)" % (SysMgr.getComm(pid), pid)
             path = "%s/%s" % (SysMgr.procPath, pid)
             tobj.saveProcData(path, pid)
             tobj.saveProcStatusData(path, pid)
+            if not tobj.procData[pid]["status"]:
+                SysMgr.printWarn(
+                    "failed to get signal info for %s" % proc, True
+                )
+                continue
 
             # print process name #
             if not SysMgr.jsonEnable:
@@ -66652,8 +66704,7 @@ typedef struct {
                 cpu = "+%d" % cpu
 
             prevMem = SysMgr.convMemStat(prevMem)
-            afterMem = SysMgr.getMemStat(self.pid)
-            afterMem = SysMgr.convMemStat(afterMem)
+            afterMem = SysMgr.convMemStat(SysMgr.getMemStat(self.pid))
 
             # VSS diff #
             vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
@@ -73442,7 +73493,10 @@ typedef struct {
             sys.exit(-1)
 
         # print context #
-        if not "print" in SysMgr.customCmd:
+        if (
+            not "print" in SysMgr.customCmd
+            and not "NOCONTEXT" in SysMgr.environList
+        ):
             self.printContext(regs=SysMgr.showAll, newline=True)
 
         # read args #
@@ -114333,6 +114387,47 @@ class TaskAnalyzer(object):
         SysMgr.thresholdEventHistory.setdefault(ename, None)
 
         return ename
+
+    @staticmethod
+    def getMemStats(tobj, pid):
+        pid = str(pid)
+        comm = SysMgr.getComm(pid)
+        procPath = "%s/%s" % (SysMgr.procPath, pid)
+
+        # save proc data #
+        ret = tobj.saveProcData(procPath, pid)
+        if not ret:
+            if not SysMgr.isAlive(pid):
+                SysMgr.printErr("%s(%s) is terminated" % (comm, pid))
+            else:
+                SysMgr.printErr(
+                    "failed to get memory usage of %s(%s)" % (comm, pid)
+                )
+            return None
+
+        procData = tobj.procData[pid]
+
+        # save memory usage #
+        if SysMgr.isRoot():
+            tobj.saveProcSmapsData(procPath, pid, mini=True)
+            try:
+                maps = procData["maps"]
+            except:
+                return None
+            memBuf, rss, pss, uss = tobj.getMemDetails(pid, maps)
+            return {
+                "vss": long(procData["stat"][tobj.vssIdx]),
+                "rss": long(rss) << 10,
+                "pss": long(pss) << 10,
+                "uss": long(uss) << 10,
+            }
+        else:
+            return {
+                "vss": long(procData["stat"][tobj.vssIdx]),
+                "rss": long(procData["stat"][tobj.rssIdx]) << 12,
+                "pss": 0,
+                "uss": 0,
+            }
 
     @staticmethod
     def getThresholdAttr(items):
