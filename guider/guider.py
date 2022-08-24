@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220823"
+__revision__ = "220824"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29840,6 +29840,9 @@ Examples:
 
     - {3:1} all {2:1} after user input
         # {0:1} {1:1} -a -W
+
+    - {3:1} all {2:1} with KB unit
+        # {0:1} {1:1} -a -q KBUNIT
 
     - {3:1} all {2:1} and execute specific commands when terminated
         # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
@@ -60792,6 +60795,9 @@ Copyright:
 
         SysMgr.infoBufferPrint(oneLine)
 
+        def _diffItem(a, b, item):
+            return (long(a[item]) - long(b[item])) << 10
+
         SysMgr.infoBufferPrint(
             (
                 "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s "
@@ -60800,41 +60806,17 @@ Copyright:
             % (
                 convSize((memAfterUsage - memBeforeUsage) << 10),
                 convSize((swapAfterUsage - swapBeforeUsage) << 10),
-                convSize(
-                    (long(after["Buffers"]) - long(before["Buffers"])) << 10
-                ),
-                convSize(
-                    (long(after["Cached"]) - long(before["Cached"])) << 10
-                ),
-                convSize((long(after["Shmem"]) - long(before["Shmem"])) << 10),
-                convSize(
-                    (long(after["Mapped"]) - long(before["Mapped"])) << 10
-                ),
-                convSize(
-                    (long(after["Active"]) - long(before["Active"])) << 10
-                ),
-                convSize(
-                    (long(after["Inactive"]) - long(before["Inactive"])) << 10
-                ),
-                convSize(
-                    (long(after["PageTables"]) - long(before["PageTables"]))
-                    << 10
-                ),
-                convSize((long(after["Slab"]) - long(before["Slab"])) << 10),
-                convSize(
-                    (
-                        long(after["SReclaimable"])
-                        - long(before["SReclaimable"])
-                    )
-                    << 10
-                ),
-                convSize(
-                    (long(after["SUnreclaim"]) - long(before["SUnreclaim"]))
-                    << 10
-                ),
-                convSize(
-                    (long(after["Mlocked"]) - long(before["Mlocked"])) << 10
-                ),
+                convSize(_diffItem(after, before, "Buffers")),
+                convSize(_diffItem(after, before, "Cached")),
+                convSize(_diffItem(after, before, "Shmem")),
+                convSize(_diffItem(after, before, "Mapped")),
+                convSize(_diffItem(after, before, "Active")),
+                convSize(_diffItem(after, before, "Inactive")),
+                convSize(_diffItem(after, before, "PageTables")),
+                convSize(_diffItem(after, before, "Slab")),
+                convSize(_diffItem(after, before, "SReclaimable")),
+                convSize(_diffItem(after, before, "SUnreclaim")),
+                convSize(_diffItem(after, before, "Mlocked")),
             )
         )
 
@@ -62339,7 +62321,8 @@ class DbusMgr(object):
                 for name, val in data.items():
                     # save total message count of a process #
                     if name == "totalCnt":
-                        msgs[pid]["totalCnt"] = val
+                        msgs[pid].setdefault("totalCnt", 0)
+                        msgs[pid]["totalCnt"] += val
                         continue
 
                     # save count of a message #
@@ -62379,7 +62362,7 @@ class DbusMgr(object):
             ):
                 per = cnt / procTotal * 100
                 SysMgr.printPipe(
-                    "{0:>36}({1:5.1f}%) {2:1}".format(cnt, per, msg)
+                    "{0:>36}({1:5.1f}%) {2:1}".format(convNum(cnt), per, msg)
                 )
 
             SysMgr.printPipe(twoLine)
@@ -87410,6 +87393,7 @@ class TaskAnalyzer(object):
             self.zoneData = {}
             self.prevZoneData = {}
             self.slabData = {}
+            self.buddyData = {}
             self.vmallocData = {}
             self.memData = {}
             self.prevMemData = {}
@@ -105852,6 +105836,9 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printWarn("failed to parse vmalloc info", reason=True)
 
+    def saveBuddyInfo(self):
+        self.buddyData = SysMgr.readBuddyInfo()
+
     def saveSlabInfo(self):
         self.slabData = {}
 
@@ -106601,6 +106588,7 @@ class TaskAnalyzer(object):
         # save memory info #
         if SysMgr.memEnable:
             self.saveSlabInfo()
+            self.saveBuddyInfo()
             self.saveZoneInfo()
             self.saveVmInfo()
 
@@ -109357,10 +109345,21 @@ class TaskAnalyzer(object):
         if interval == 0:
             interval = 0.1
 
+        # set memory size shift factor #
+        if "KBUNIT" in SysMgr.environList:
+
+            def _memFactorPG(stat):
+                return stat << 2
+
+        else:
+
+            def _memFactorPG(stat):
+                return stat >> 8
+
         for pid, value in self.procData.items():
             try:
                 # rss #
-                value["rss"] = long(value["stat"][self.rssIdx]) >> 8
+                value["rss"] = _memFactorPG(long(value["stat"][self.rssIdx]))
 
                 # add RSS interval #
                 self.addProcInterval("mem", pid, value, "rssInt", value["rss"])
@@ -109950,6 +109949,36 @@ class TaskAnalyzer(object):
                 )
 
             curline += "%s, " % item
+
+        # check last line #
+        if curline != data:
+            databuf += "%s]" % curline.rstrip(", \n")
+        databuf = databuf.rstrip(", \n")
+
+        SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
+
+    def printBuddyUsage(self, nrIndent):
+        if not self.buddyData:
+            return
+
+        databuf = ""
+        edata = "%s %-9s" % (" " * nrIndent, " ")
+        data = "%s [%-5s > " % (" " * nrIndent, "BUDDY")
+        curline = str(data)
+        nrLine = 1
+
+        for node, items in sorted(self.buddyData.items()):
+            for zone, orders in sorted(items.items()):
+                # add stats in a line #
+                item = "%s: %s" % (zone, tuple(orders))
+                if (
+                    SysMgr.ttyCols
+                    and len(item) + len(curline) >= SysMgr.ttyCols
+                ):
+                    databuf += "%s]\n" % curline.rstrip(", ")
+                    curline = str(edata)
+                    nrLine += 1
+                curline += "%s, " % item
 
         # check last line #
         if curline != data:
@@ -111777,6 +111806,21 @@ class TaskAnalyzer(object):
         if self.fixedProcData:
             sortedProcData = self.getReorderedList(sortedProcData)
 
+        # set memory size shift factor #
+        if "KBUNIT" in SysMgr.environList:
+            memFactorKB = 0
+            memFactorMB = 10
+
+            def _memFactorPG(stat):
+                return stat << 2
+
+        else:
+            memFactorKB = 10
+            memFactorMB = 20
+
+            def _memFactorPG(stat):
+                return stat >> 8
+
         # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
@@ -111890,7 +111934,7 @@ class TaskAnalyzer(object):
 
             # swap #
             try:
-                swapSize = long(status["VmSwap"].split()[0]) >> 10
+                swapSize = long(status["VmSwap"].split()[0]) >> memFactorKB
                 value["swap"] = swapSize
 
                 # add swap interval #
@@ -112000,7 +112044,7 @@ class TaskAnalyzer(object):
             if isGpuMem or isGpuMemSum:
                 if idx in self.gpuMemData:
                     yld = convColor(
-                        self.gpuMemData[idx]["size"] >> 20, "CYAN", 5
+                        self.gpuMemData[idx]["size"] >> memFactorMB, "CYAN", 5
                     )
                 else:
                     yld = "-"
@@ -112033,11 +112077,11 @@ class TaskAnalyzer(object):
 
             # I/O size #
             try:
-                readSize = value["read"] >> 20
+                readSize = value["read"] >> memFactorMB
                 if readSize > 0:
                     readSize = convColor("%4s" % readSize, "RED")
 
-                writeSize = value["write"] >> 20
+                writeSize = value["write"] >> memFactorMB
                 if writeSize > 0:
                     writeSize = convColor("%4s" % writeSize, "RED")
             except SystemExit:
@@ -112132,7 +112176,7 @@ class TaskAnalyzer(object):
 
             # vss #
             try:
-                vss = long(stat[self.vssIdx]) >> 20
+                vss = long(stat[self.vssIdx]) >> memFactorMB
             except SystemExit:
                 sys.exit(0)
             except:
@@ -112144,18 +112188,18 @@ class TaskAnalyzer(object):
                 memBuf, nrss, pss, uss = self.getMemDetails(
                     idx, value["maps"], vss=vss << 10
                 )
-                value["pss"] = pss >> 10
-                value["uss"] = uss >> 10
+                value["pss"] = pss >> memFactorKB
+                value["uss"] = uss >> memFactorKB
             elif SysMgr.pssEnable:
                 pss = TaskAnalyzer.readProcMemStats(
                     value["taskPath"], idx, retPss=True, retShr=False
                 )[0]
-                value["pss"] = pss >> 10
+                value["pss"] = pss >> memFactorKB
             elif SysMgr.ussEnable:
                 shared = TaskAnalyzer.readProcMemStats(
                     value["taskPath"], idx, retPss=False, retShr=True
                 )[1]
-                value["uss"] = value["rss"] - (shared >> 10)
+                value["uss"] = value["rss"] - (shared >> memFactorKB)
 
             # get main memory usage #
             if SysMgr.pssEnable:
@@ -112167,13 +112211,13 @@ class TaskAnalyzer(object):
 
             # add GPU memory usage to physical memory usage #
             if isGpuMemSum and idx in self.gpuMemData:
-                mems += self.gpuMemData[idx]["size"] >> 20
+                mems += self.gpuMemData[idx]["size"] >> memFactorMB
 
             # code size #
             try:
                 codeSize = (
                     long(stat[self.ecodeIdx]) - long(stat[self.scodeIdx])
-                ) >> 20
+                ) >> memFactorMB
 
                 # except for shred text in RSS #
                 if exceptShm:
@@ -112187,7 +112231,7 @@ class TaskAnalyzer(object):
 
             # shared #
             try:
-                shr = long(value["statm"][self.shrIdx]) >> 8
+                shr = _memFactorPG(long(value["statm"][self.shrIdx]))
 
                 # except for shred memory in RSS #
                 if exceptShm:
@@ -112555,14 +112599,14 @@ class TaskAnalyzer(object):
             # total READ #
             readsize = totalStats["read"]
             if readsize != "-":
-                readsize = readsize >> 20
+                readsize = readsize >> memFactorMB
                 if readsize > 0:
                     readsize = convColor(readsize, "RED", 4)
 
             # total WRITE #
             writesize = totalStats["write"]
             if writesize != "-":
-                writesize = writesize >> 20
+                writesize = writesize >> memFactorMB
                 if writesize > 0:
                     writesize = convColor(writesize, "RED", 4)
 
@@ -112658,6 +112702,21 @@ class TaskAnalyzer(object):
         else:
             exceptShm = False
 
+        # set memory size shift factor #
+        if "KBUNIT" in SysMgr.environList:
+            memFactorKB = 0
+            memFactorMB = 10
+
+            def _memFactorPG(stat):
+                return stat << 2
+
+        else:
+            memFactorKB = 10
+            memFactorMB = 20
+
+            def _memFactorPG(stat):
+                return stat >> 8
+
         procCnt = 0
         for tid in sorted(list(map(long, taskList))):
             if SysMgr.checkCutCond():
@@ -112724,14 +112783,16 @@ class TaskAnalyzer(object):
                 lifeTime = "?"
 
             try:
-                swapSize = long(value["status"]["VmSwap"].split()[0]) >> 10
+                swapSize = (
+                    long(value["status"]["VmSwap"].split()[0]) >> memFactorKB
+                )
             except:
                 swapSize = "-"
 
             if SysMgr.blockEnable:
                 try:
-                    readSize = value["read"] >> 20
-                    writeSize = value["write"] >> 20
+                    readSize = value["read"] >> memFactorMB
+                    writeSize = value["write"] >> memFactorMB
                 except:
                     readSize = writeSize = 0
             else:
@@ -112769,17 +112830,17 @@ class TaskAnalyzer(object):
                 btime = value["btime"]
 
             try:
-                vss = long(stat[self.vssIdx]) >> 20
+                vss = long(stat[self.vssIdx]) >> memFactorMB
             except:
                 vss = 0
 
             try:
-                rss = long(stat[self.rssIdx]) >> 8
+                rss = _memFactorPG(long(stat[self.rssIdx]))
             except:
                 rss = 0
 
             try:
-                shr = long(value["statm"][self.shrIdx]) >> 8
+                shr = _memFactorPG(long(value["statm"][self.shrIdx]))
 
                 # except for shred text in RSS #
                 if exceptShm:
@@ -112792,7 +112853,7 @@ class TaskAnalyzer(object):
             try:
                 codeSize = (
                     long(stat[self.ecodeIdx]) - long(stat[self.scodeIdx])
-                ) >> 20
+                ) >> memFactorMB
 
                 # except for shred text in RSS #
                 if exceptShm:
@@ -115581,6 +115642,9 @@ class TaskAnalyzer(object):
 
             # print slab stats #
             self.printSlabUsage(nrIndent)
+
+            # print buddy stats #
+            self.printBuddyUsage(nrIndent)
 
             # print vm stats #
             self.printVmInfo(nrIndent)
