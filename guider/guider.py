@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220824"
+__revision__ = "220825"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20023,6 +20023,7 @@ class LeakAnalyzer(object):
     idlePageList = []
     filterCode = None
     filterValue = 0
+    repeatCnt = 0
 
     def __init__(self, file=None, pid=None):
 
@@ -28228,16 +28229,22 @@ Commands:
         return mem
 
     @staticmethod
-    def getCommList(pidList):
-        try:
-            commList = [
-                "%s(%s)" % (SysMgr.getComm(pid), pid) for pid in pidList
-            ]
-            return ", ".join(commList)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            return ", ".join(pidList)
+    def getCommList(pidList, isList=False):
+        while 1:
+            try:
+                if isList:
+                    return [SysMgr.getComm(pid) for pid in pidList]
+                else:
+                    return ", ".join(
+                        [
+                            "%s(%s)" % (SysMgr.getComm(pid), pid)
+                            for pid in pidList
+                        ]
+                    )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("failed to convert PIDs to COMMs", True, True)
 
     @staticmethod
     def getFdName(pid, fd):
@@ -34430,6 +34437,14 @@ Options:
     -q  <NAME{{:VALUE}}>          set environment variables
     -R  <COUNT>                 set repeatation count
     -u                          run in the background
+
+Variables:
+    RANGE     number
+    FILE      file path
+    PID       process ID
+    PCOMM     process name
+    TID       thread ID
+    TCOMM     thread name
                         """.format(
                         cmd, mode
                     )
@@ -34449,10 +34464,25 @@ Examples:
         # {0:1} {1:1} -I "ls -lha" -R 5 -q PARALLEL
 
     - {3:1} with range variables
-        # {0:1} {1:1} -I "touch FILE" -c FILE:1:100:0.1
+        # {0:1} {1:1} -I "touch RANGE" -c RANGE:1:100:0.1
 
     - {3:1} with file variables
         # {0:1} {1:1} -I "ls -lha FILE" -c FILE:"/data/*"
+
+    - {3:1} with id variables
+        # {0:1} {1:1} -I "kill -9 PID" -c PID:"*task"
+        # {0:1} {1:1} -I "kill -9 TID" -c TID:"*task"
+
+    - {3:1} with name variables
+        # {0:1} {1:1} -I "kill -9 PCOMM" -c PCOMM:"*task"
+        # {0:1} {1:1} -I "kill -9 TCOMM" -c TCOMM:"*task"
+
+    - {3:1} with range and file variables
+        # {0:1} {1:1} -I "echo PCOMM_RANGE" -c PCOMM:"*task", RANGE:1:10:1
+        # {0:1} {1:1} -I "{0:1} {1:1} -I \"echo PCOMM=PID\" -c PID:PCOMM" -c PCOMM:"*task"
+
+    - {3:1} with range and file variables without logo and log
+        # VERB=0 {0:1} {1:1} -I "{0:1} {1:1} -I \"echo PCOMM=PID\" -c PID:PCOMM" -c PCOMM:"*task"
 
     - {3:1} including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
@@ -34705,6 +34735,9 @@ Examples:
 
     - {3:1} with auto start and debug info
         # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q DEBUG
+
+    - {3:1} with auto start repeatedly
+        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPEAT:3
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -45361,6 +45394,32 @@ Copyright:
             SysMgr()
 
     @staticmethod
+    def initEnvironVars():
+        def _checkVal(item, val):
+            if item in os.environ and os.environ[item] == val:
+                return True
+            else:
+                return False
+
+        try:
+            # verb #
+            if _checkVal("VERB", "0"):
+                SysMgr.logoEnable = False
+                SysMgr.logEnable = False
+
+            # logo #
+            if _checkVal("LOGO", "0"):
+                SysMgr.logoEnable = False
+
+            # log #
+            if _checkVal("LOG", "0"):
+                SysMgr.logEnable = False
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+    @staticmethod
     def initEnvironment():
         # init times #
         SysMgr.initTimes()
@@ -45370,6 +45429,9 @@ Copyright:
 
         # register exit handler #
         atexit.register(SysMgr.doExit)
+
+        # init environ variables #
+        SysMgr.initEnvironVars()
 
         # print logo #
         SysMgr.printLogo(big=True, pager=False)
@@ -51096,7 +51158,7 @@ Copyright:
         tobj.setProcUsage()
 
     @staticmethod
-    def doLeaktrace():
+    def doLeaktrace(restart=False):
         def _sendSignal(sig, comm, pid, purpose):
             # save idle page status #
             if LeakAnalyzer.markedIdlePages:
@@ -51300,7 +51362,7 @@ Copyright:
             SysMgr.outPath = "/tmp/guider.out"
 
         # check target info #
-        if SysMgr.hasMainArg():
+        if not SysMgr.filterGroup and SysMgr.hasMainArg():
             inputCmd = SysMgr.getMainArg().split()
             targetList = []
         else:
@@ -51985,6 +52047,38 @@ Copyright:
             )
         finally:
             SysMgr.setOOMAdj(pid, oomAdj)
+
+        # init repeat count #
+        if not LeakAnalyzer.repeatCnt and "REPEAT" in SysMgr.environList:
+            LeakAnalyzer.repeatCnt = UtilMgr.getEnvironNum(
+                "REPEAT", False, 0, False, True
+            )
+
+        # check repeat count #
+        LeakAnalyzer.repeatCnt -= 1
+        if LeakAnalyzer.repeatCnt <= 0:
+            return
+
+        # -------------------- REPEATATION --------------------#
+
+        # prepare for repeatation #
+        if not SysMgr.filterGroup:
+            SysMgr.filterGroup.append(pid)
+
+        # reset default signal handlers #
+        SysMgr.setSimpleSignal()
+
+        # close all files #
+        SysMgr.closeAllForPrint()
+
+        # set output file suffix #
+        SysMgr.fileSuffix = LeakAnalyzer.repeatCnt
+
+        # continue target process #
+        SysMgr.sendSignalProcs(signal.SIGCONT, [pid])
+
+        # restart tracing #
+        SysMgr.doLeaktrace()
 
     @staticmethod
     def doNetTest():
@@ -53710,11 +53804,28 @@ Copyright:
                 return
 
             # pop a variable #
-            conv = var.pop(0)
-            item = conv.split(":")
-            if len(item) == 4:
+            cmdset = var.pop(0)
+
+            # process iteration #
+            item = cmdset.split(":", 1)
+            if len(item) != 2:
+                # error #
+                SysMgr.printErr("wrong variable '%s'" % cmdset)
+                sys.exit(-1)
+
+            # get key and value #
+            key, val = item
+
+            # range #
+            if key == "RANGE":
+                val = val.split(":")
+                if len(val) != 3:
+                    # error #
+                    SysMgr.printErr("wrong variable '%s'" % cmdset)
+                    sys.exit(-1)
+
                 # split variables #
-                key, start, end, step = item
+                start, end, step = val
 
                 # convert type #
                 if "." in step:
@@ -53727,34 +53838,57 @@ Copyright:
                     end = long(end)
 
                 # loop in range #
-                for num in _customxrange(start, end, step):
-                    if type(num) is float:
-                        num = round(num, 6)
-
-                    tcmd = cmd.replace(key, str(num))
-
-                    try:
-                        _iterVarCmd(tcmd, list(var))
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr("failed to execute '%s'" % tcmd, True)
-                        sys.exit(-1)
-            elif len(item) == 2:
-                key = item[0]
-                flist = UtilMgr.getFileList([item[1]], exceptDir=True)
-                for item in flist:
-                    try:
-                        tcmd = cmd.replace(key, item)
-                        _iterVarCmd(tcmd, list(var))
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr("failed to execute '%s'" % tcmd, True)
-                        sys.exit(-1)
+                ilist = [
+                    round(num, 6) if type(num) is float else num
+                    for num in _customxrange(start, end, step)
+                ]
+                ilist = list(map(str, ilist))
+            # file #
+            elif key == "FILE":
+                ilist = UtilMgr.getFileList([val], exceptDir=True)
+            # process PID #
+            elif key == "PID":
+                ilist = SysMgr.getTids(
+                    val, isThread=False, sibling=SysMgr.groupProcEnable
+                )
+            # process COMM #
+            elif key == "PCOMM":
+                ilist = SysMgr.getTids(
+                    val, isThread=False, sibling=SysMgr.groupProcEnable
+                )
+                ilist = SysMgr.getCommList(ilist, isList=True)
+            # thread PID #
+            elif key == "TID":
+                ilist = SysMgr.getTids(
+                    val, isThread=True, sibling=SysMgr.groupProcEnable
+                )
+            # thread COMM #
+            elif key == "TCOMM":
+                ilist = SysMgr.getTids(
+                    val, isThread=True, sibling=SysMgr.groupProcEnable
+                )
+                ilist = SysMgr.getCommList(ilist, isList=True)
+            # error #
             else:
-                SysMgr.printErr("wrong variable '%s'" % conv)
+                SysMgr.printErr("wrong variable '%s'" % key)
                 sys.exit(-1)
+
+            # no item #
+            if not ilist:
+                SysMgr.printWarn(
+                    "failed to get value of '%s' for %s" % (val, key), True
+                )
+
+            # run loop #
+            for item in ilist:
+                try:
+                    tcmd = cmd.replace(key, item)
+                    _iterVarCmd(tcmd, list(var))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to execute '%s'" % tcmd, True)
+                    sys.exit(-1)
 
         # get command #
         if SysMgr.hasMainArg():
@@ -53793,18 +53927,31 @@ Copyright:
             parallel = False
 
         for _ in range(repeat):
+            # create a worker process #
             if parallel:
                 ret = SysMgr.createProcess()
                 if ret:
                     continue
 
             # convert variables #
-            if SysMgr.customCmd:
-                _iterVarCmd(cmd, SysMgr.customCmd)
-            else:
-                _exeCmd(cmd)
+            try:
+                if SysMgr.customCmd:
+                    _iterVarCmd(cmd, UtilMgr.deepcopy(SysMgr.customCmd))
+                else:
+                    _exeCmd(cmd)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                if SysMgr.customCmd:
+                    errstr = " with %s" % SysMgr.customCmd
+                else:
+                    errstr = ""
+                SysMgr.printErr(
+                    "failed to execute '%s'%s" % (cmd, errstr), True
+                )
+                sys.exit(-1)
 
-            # terminate child #
+            # terminate a worker process #
             if parallel and not ret:
                 sys.exit(0)
 
