@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220825"
+__revision__ = "220826"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34667,30 +34667,34 @@ Options:
 
                     helpStr += """
 Examples:
-    - {3:1} {2:1} {6:1} with auto start
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so
-        # {0:1} {1:1} ./a.out -o ./guider.out -T ./libleaktracer.so
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q MUTE
+    - {3:1} {2:1} {6:1} {9:1}
+        # {0:1} {1:1} ./a.out {7:1}
+        # {0:1} {1:1} ./a.out -o ./guider.out {7:1}
+        # {0:1} {1:1} ./a.out {7:1} -q MUTE
 
     - {3:1} {2:1} {6:1} and waiting for SIGINT to start profiling
-        # {0:1} {1:1} ./a.out -o ./guider.out -T ./libleaktracer.so -q WAITSIGNAL
+        # {0:1} {1:1} ./a.out -o ./guider.out {7:1} -q WAITSIGNAL
 
-    - {3:1} {2:1} after setting environment variables
-        # {0:1} {1:1} -g a.out
-        # {0:1} {1:1} -g a.out -o ./guider.out
+    - {3:1} {2:1} {6:1} after setting environment variables
+        # {0:1} {1:1} ./a.out {7:1} -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} ./a.out {7:1} -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} ./a.out {7:1} -q ENVPROC:systemd
 
-    - {3:1} {2:1} after setting environment variables for 5 seconds
+    - {3:1} {2:1} {6:1} {9:1} using uptime
+        # {0:1} {1:1} ./a.out {7:1} -q USEUPTIME
+
+    - {3:1} {2:1} for 5 seconds
         # {0:1} {1:1} -g a.out -R 5
 
     - {3:1} {2:1} {4:1}
-        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
+        # {0:1} {1:1} -g a.out {7:1}
 
     - {3:1} including memory tracking {2:1} {4:1}
-        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q MEMPROF
-        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q MEMPROF:3
+        # {0:1} {1:1} -g a.out {7:1} -q MEMPROF
+        # {0:1} {1:1} -g a.out {7:1} -q MEMPROF:3
 
     - {3:1} {2:1} {4:1} and a temporary writable path
-        # {0:1} {1:1} -g a.out -I /var/log/guider -T /home/root/libleaktracer.so
+        # {0:1} {1:1} -g a.out -I /var/log/guider {7:1}
 
     - {3:1} after sending SIGRT2(36) to stop profiling
         # {0:1} {1:1} -g a.out -k 36
@@ -34699,11 +34703,11 @@ Examples:
     - {3:1} {2:1} after starting profiling {5:1}
         # {0:1} {1:1} -g a.out -c 20m,0
 
-    - Report idle memory hints of the target process {2:1} {6:1} with auto start and receiving SIGQUIT for marking all anonymous pages as idle
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTIDLE
+    - Report idle memory hints of the target process {2:1} {8:1} {6:1}
+        # {0:1} {1:1} ./a.out {7:1} -q REPORTIDLE
 
-    - Report active memory hints of the target process {2:1} {6:1} with auto start and receiving SIGQUIT for marking all anonymous pages as idle
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPORTACTIVE
+    - Report active memory hints of the target process {2:1} {8:1} {6:1}
+        # {0:1} {1:1} ./a.out {7:1} -q REPORTACTIVE
 
     - {3:1} {5:1}
         # {0:1} {1:1} -g a.out -c 20m
@@ -34712,32 +34716,35 @@ Examples:
         # {0:1} {1:1} -g a.out -c +15m,+20m
 
     - {3:1} {2:1} {4:1} (wait for new process if no process)
-        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
-        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK, NOPIDCACHE
+        # {0:1} {1:1} -g a.out {7:1} -q WAITTASK
+        # {0:1} {1:1} -g a.out {7:1} -q WAITTASK:1
+        # {0:1} {1:1} -g a.out {7:1} -q WAITTASK, NOPIDCACHE
 
-    - {3:1} using allocation size filter {2:1} {6:1} with auto start
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100k"
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:">100m"
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q SIZEFILTER:"=4096"
+    - {3:1} using allocation size filter {2:1} {6:1} {9:1}
+        # {0:1} {1:1} ./a.out {7:1} -q SIZEFILTER:">100k"
+        # {0:1} {1:1} ./a.out {7:1} -q SIZEFILTER:">100m"
+        # {0:1} {1:1} ./a.out {7:1} -q SIZEFILTER:"=4096"
 
-    - {3:1} with auto start and stop target
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q STOPTARGET
+    - {3:1} {9:1} and stop target
+        # {0:1} {1:1} ./a.out {7:1} -q STOPTARGET
 
-    - {3:1} with auto start and coredump
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q USECOREDUMP
+    - {3:1} {9:1} and coredump
+        # {0:1} {1:1} ./a.out {7:1} -q USECOREDUMP
 
-    - {3:1} with auto start but no stop
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q CONTTARGET
+    - {3:1} {9:1} but no stop
+        # {0:1} {1:1} ./a.out {7:1} -q CONTTARGET
 
-    - {3:1} with auto start but no clean up
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q NOCLEANUP
+    - {3:1} {9:1} but no clean up
+        # {0:1} {1:1} ./a.out {7:1} -q NOCLEANUP
 
-    - {3:1} with auto start and debug info
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q DEBUG
+    - {3:1} {9:1} and debug info
+        # {0:1} {1:1} ./a.out {7:1} -q DEBUG
 
-    - {3:1} with auto start repeatedly
-        # {0:1} {1:1} ./a.out -T ./libleaktracer.so -q REPEAT:3
+    - {3:1} {9:1} repeatedly
+        # {0:1} {1:1} ./a.out {7:1} -q REPEAT:3
+
+    - {3:1} {9:1} and specific stat interval
+        # {0:1} {1:1} ./a.out {7:1} -q STATINTERVAL:2
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -34749,7 +34756,10 @@ Examples:
                         "Report memory leakage hints of the target process",
                         "after hooking binary injection",
                         "when it's RSS reached the specific size",
-                        "after executing the target program",
+                        "from executing the target program",
+                        "-T ./libleaktracer.so",
+                        "after marking all anonymous pages as idle when SIGQUIT is received",
+                        "with auto start",
                     )
 
                 # printslab #
@@ -41852,12 +41862,14 @@ Copyright:
                 if "S" in options:
                     SysMgr.checkRootPerm()
                     SysMgr.pssEnable = True
-                    SysMgr.sort = "m"
+                    if not SysMgr.findOption("S"):
+                        SysMgr.sort = "m"
 
                 if "u" in options:
                     SysMgr.checkRootPerm()
                     SysMgr.ussEnable = True
-                    SysMgr.sort = "m"
+                    if not SysMgr.findOption("S"):
+                        SysMgr.sort = "m"
 
                 if "L" in options:
                     SysMgr.cmdlineEnable = True
@@ -41906,7 +41918,8 @@ Copyright:
                     if SysMgr.checkWssTopCond():
                         SysMgr.memEnable = True
                         SysMgr.wssEnable = True
-                        SysMgr.sort = "m"
+                        if not SysMgr.findOption("S"):
+                            SysMgr.sort = "m"
                     else:
                         sys.exit(-1)
 
@@ -48363,8 +48376,6 @@ Copyright:
                 minfreqpath = "%s/scaling_min_freq" % commonpath
                 maxfreqpath = "%s/scaling_max_freq" % commonpath
 
-                minres = maxres = govres = False
-
                 # set clock range #
                 if clock and long(clock) > 0:
                     try:
@@ -49572,7 +49583,7 @@ Copyright:
             inputParam = None
 
         # check input #
-        if not SysMgr.filterGroup and not inputParam:
+        if not tid and not SysMgr.filterGroup and not inputParam:
             SysMgr.printErr("no input value for target")
             sys.exit(-1)
 
@@ -49630,7 +49641,9 @@ Copyright:
 
         # get pids #
         if tid:
-            allpids = pids = [tid]
+            if type(tid) is not list:
+                tid = [tid]
+            allpids = pids = tid
         elif not inputParam:
             if mode in ("hook", "bind"):
                 isThread = False
@@ -49681,7 +49694,7 @@ Copyright:
             SysMgr.outPath = SysMgr.printFd = None
 
             sys.exit(-1)
-        # check targets #
+        # check targets for tracing based on breakpoint #
         elif len(allpids) > 1 or mode in ("breakcall", "pytrace"):
             parent = SysMgr.pid
 
@@ -49696,6 +49709,14 @@ Copyright:
                     % SysMgr.getCommList(pids),
                     True,
                 )
+
+                # check support for multiple targets #
+                if (
+                    mode in ("remote", "hook", "bind")
+                    and not SysMgr.forceEnable
+                ):
+                    SysMgr.printWarn("use -f option to continue tracing", True)
+                    sys.exit(0)
 
             # load symbol caches in advance #
             if needSymbol:
@@ -51195,8 +51216,6 @@ Copyright:
             # define indexes #
             utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
             stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
-            rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
-            vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
             path = "%s/%s" % (SysMgr.procPath, pid)
 
             # check destination value #
@@ -51207,6 +51226,17 @@ Copyright:
 
             # reset and save proc instance #
             tobj.saveProcInstance()
+
+            # set start time #
+            if "USEUPTIME" in SysMgr.environList:
+                startTime = 0
+            else:
+                startTime = SysMgr.startTime
+
+            # set interval #
+            statInterval = UtilMgr.getEnvironNum(
+                "STATINTERVAL", False, 1, False
+            )
 
             # wait for RSS #
             prevCpu = None
@@ -51224,7 +51254,7 @@ Copyright:
 
                 # get time #
                 SysMgr.updateUptime()
-                diff = "[%s]" % UtilMgr.convTime(SysMgr.uptime)
+                diff = "[%s]" % UtilMgr.convTime(SysMgr.uptime - startTime)
 
                 # get CPU usage #
                 procData = tobj.procData[pid]["stat"]
@@ -51236,7 +51266,7 @@ Copyright:
                     cpustr = "%.1f" % (cpu / SysMgr.uptimeDiff)
                 else:
                     prevCpu = ttime
-                    time.sleep(1)
+                    time.sleep(statInterval)
                     continue
 
                 # get memory usage #
@@ -51279,7 +51309,7 @@ Copyright:
                 if cond <= rss:
                     break
                 else:
-                    time.sleep(1)
+                    time.sleep(statInterval)
 
             # set hook #
             if hookCmd:
