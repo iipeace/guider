@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220826"
+__revision__ = "220827"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -520,6 +520,18 @@ class ConfigMgr(object):
         (1 << 29): "EPOLLWAKEUP",
         (1 << 30): "EPOLLONESHOT",
         (1 << 31): "EPOLLET",
+    }
+
+    # clock type #
+    CLOCK_TYPE = {
+        "CLOCK_REALTIME": 0,  # Identifier for system-wide realtime clock
+        "CLOCK_MONOTONIC": 1,  # Monotonic system-wide clock
+        "CLOCK_PROCESS_CPUTIME_ID": 2,  # High-resolution timer from the CPU
+        "CLOCK_THREAD_CPUTIME_ID": 3,  # Thread-specific CPU-time clock
+        "CLOCK_BOOTTIME": 7,  # Monotonic system-wide clock that includes time spent in suspension
+        "CLOCK_REALTIME_ALARM": 8,  # Like CLOCK_REALTIME but also wakes suspended system
+        "CLOCK_BOOTTIME_ALARM": 9,  # CLOCK_BOOTTIME but also wakes suspended system
+        "CLOCK_TAI": 11,  # Like CLOCK_REALTIME but in International Atomic Time
     }
 
     # madvise type #
@@ -6295,7 +6307,7 @@ class UtilMgr(object):
             return None
 
     @staticmethod
-    def getTimeDiff(utc=False):
+    def getEpoch2Start(utc=False):
         datetime = SysMgr.getPkg("datetime", False)
         if not datetime:
             return None
@@ -6307,6 +6319,40 @@ class UtilMgr(object):
             epoch = datetime.datetime.now().timestamp()
 
         return epoch - SysMgr.getUptime()
+
+    @staticmethod
+    def getClockTime(ctype="CLOCK_MONOTONIC", dlt=False):
+        # get ctypes object #
+        SysMgr.importPkgItems("ctypes")
+
+        class timespec(Structure):
+            _fields_ = [("tv_sec", c_long), ("tv_nsec", c_long)]
+
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
+
+        # define arg types for free() #
+        SysMgr.libcObj.clock_gettime.argtypes = [c_int, POINTER(timespec)]
+
+        # create an object #
+        t = timespec()
+
+        # get time #
+        ret = SysMgr.libcObj.clock_gettime(
+            ConfigMgr.CLOCK_TYPE[ctype], pointer(t)
+        )
+        if ret != 0:
+            SysMgr.printErr("failed to get clock %s time" % ctype, True)
+            return -1
+
+        # return time #
+        if dlt:
+            return (
+                c_uint32(t.tv_sec * 10000).value / 10000
+                + c_uint32(t.tv_nsec).value / 1000000000
+            )
+        else:
+            return t.tv_sec + t.tv_nsec * 1e-9
 
     @staticmethod
     def getTime(utc=False):
@@ -23996,7 +24042,10 @@ Commands:
                 retList.append(0)
                 continue
 
-            if SysMgr.environList[item][0] == "SET":
+            if (
+                SysMgr.environList[item][0] == "SET"
+                or not SysMgr.environList[item][0]
+            ):
                 retList.append(default)
                 continue
 
@@ -26622,7 +26671,7 @@ Commands:
             return None
 
     @staticmethod
-    def getLogEvents(tail=0, until=0):
+    def getLogEvents(tail=0, until=0, sort="seconds"):
         logEvents = []
 
         # get print flag #
@@ -26648,15 +26697,16 @@ Commands:
                 # get parameters #
                 values = item.split("|", 2)
                 if len(values) == 1:
-                    SysMgr.printErr("wrong input value for %s" % logtype)
-                    sys.exit(-1)
+                    path = None
+                    name = values[0]
+                    keyword = ""
                 elif len(values) == 2:
                     path = None
                     name, keyword = values
                 else:
                     path, name, keyword = values
 
-                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q"]
+                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q", "-a"]
 
                 # set input path #
                 inputParam.insert(1, "-I" + (path if path else ""))
@@ -26707,6 +26757,7 @@ Commands:
                         obj = UtilMgr.convStr2Dict(line)
                         if obj:
                             obj["name"] = name
+                            obj["type"] = logtype
                             logEvents.append(obj)
 
                         if printFlag:
@@ -26723,7 +26774,7 @@ Commands:
 
         # sort by seconds #
         try:
-            logEvents.sort(key=lambda val: val["seconds"])
+            logEvents.sort(key=lambda val: val[sort])
         except SystemExit:
             sys.exit(0)
         except:
@@ -29938,7 +29989,7 @@ Examples:
     - {3:1} the fixed target {2:1} only to save CPU resource for monitoring
         # {0:1} {1:1} -g a.out -e x
 
-    - {3:1} {2:1} and report the result to ./guider.out {4:1}
+    - {3:1} {2:1} and {5:1} {4:1}
         # {0:1} {1:1} -o .
 
     - {3:1} all {2:1} once and report the result including cgroup info to ./guider.out
@@ -29971,25 +30022,33 @@ Examples:
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
-    - {3:1} {2:1} and report the result to ./guider.out using UTC time {4:1}
+    - {3:1} {2:1} and {5:1} using UTC time {4:1}
         # {0:1} {1:1} -o . -q UTCTIME
 
-    - {3:1} {2:1} and report the result to ./guider.out with 100 line of kernel messages {4:1}
+    - {3:1} {2:1} and {5:1} with 100 line of kernel messages {4:1}
         # {0:1} {1:1} -o . -q NRKLOG:100
 
-    - {3:1} {2:1} and report the result to ./guider.out with memo {4:1}
+    - {3:1} {2:1} and {5:1} with memo {4:1}
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
-    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB {4:1}
+    - {3:1} {2:1} and {5:1} with limited memory buffer 50MB {4:1}
         # {0:1} {1:1} -o . -b 50m
 
-    - {3:1} {2:1} and report the result to ./guider.out with limited memory buffer 50MB loss possible {4:1}
+    - {3:1} {2:1} and {5:1} with limited memory buffer 50MB loss possible {4:1}
         # {0:1} {1:1} -o . -b 50m -d b
 
-    - {3:1} {2:1} and report the result to ./guider.out without event handling {4:1}
+    - {3:1} {2:1} and {5:1} with specific log events
+        # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|DLT"
+        # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
+        # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", MSGALL
+        # {0:1} {1:1} -o . -q "KERNELEVENT:TIMEOUT|timeout"
+        # {0:1} {1:1} -o . -q "JOURNALEVENT:TIMEOUT|timeout"
+        # {0:1} {1:1} -o . -q "SYSLOGEVENT:TIMEOUT|timeout"
+
+    - {3:1} {2:1} and {5:1} without event handling {4:1}
         # {0:1} {1:1} -o . -d x
 
-    - {3:1} {2:1} and report the result to ./guider.out in real-time until SIGINT arrives
+    - {3:1} {2:1} and {5:1} in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p
 
     - {3:1} {2:1} and save the result composed only of raw data to ./guider.out in real-time until SIGINT arrives
@@ -30106,6 +30165,7 @@ Examples:
                     target,
                     "Monitor the status of",
                     "when SIGINT arrives",
+                    "report the result to ./guider.out",
                 )
 
                 drawExamStr = """
@@ -30219,6 +30279,7 @@ Examples:
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_5:RARROW
 
     - {2:1} with specific log events
+        # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|DLT"
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "JOURNALEVENT:TIMEOUT|timeout"
@@ -38443,6 +38504,76 @@ Copyright:
 
                 SysMgr.printStat("start reporting... [ STOP(Ctrl+\) ]")
 
+                # report log events #
+                if any(
+                    [
+                        item in SysMgr.environList
+                        for item in (
+                            "DLTEVENT",
+                            "KERNELEVENT",
+                            "JOURNALEVENT",
+                            "SYSLOGEVENT",
+                        )
+                    ]
+                ):
+                    # set break signal #
+                    if signum:
+                        signal.signal(signum, SysMgr.exitHandler)
+
+                    # get message all field #
+                    if "MSGALL" in SysMgr.environList:
+                        msgall = True
+                    else:
+                        msgall = False
+
+                    # get current #
+                    current = SysMgr.getUptime()
+
+                    # get log item #
+                    logInfo = {
+                        "DLTEVENT": {
+                            "time": "mtime",
+                            "diff": UtilMgr.getClockTime(dlt=True) - current,
+                            "field": ["ecuId", "apId", "ctxId", "message"]
+                            if msgall
+                            else [],
+                        },
+                    }
+
+                    SysMgr.printStat(
+                        "start gathering log events... [ STOP(Ctrl+c) ]"
+                    )
+
+                    for log in SysMgr.getLogEvents(tail=SysMgr.startTime):
+                        try:
+                            # get log time #
+                            info = logInfo[log["type"]]
+                            ltime = float(log[info["time"]])
+                            uptime = ltime - info["diff"]
+
+                            # get message name #
+                            name = log["name"]
+                            for f in info["field"]:
+                                name += ">%s" % log[f]
+
+                            # append event to list #
+                            TaskAnalyzer.procEventData.append(
+                                [uptime, name, uptime]
+                            )
+                        except SystemExit:
+                            break
+                        except:
+                            SysMgr.printWarn(
+                                "failed to recognize a below log\n%s"
+                                % UtilMgr.convDict2Str(log, pretty=True),
+                                True,
+                                True,
+                            )
+
+                    # mask signal again #
+                    if signum:
+                        signal.signal(signum, signal.SIG_IGN)
+
                 # reload data written to file #
                 if SysMgr.pipeEnable:
                     SysMgr.reloadFileBuffer()
@@ -44062,22 +44193,37 @@ Copyright:
         return pidList
 
     @staticmethod
-    def getRuntime(sec=False):
+    def getStartTime(pid=None):
+        try:
+            if not pid:
+                pid = "self"
+
+            statPath = "%s/%s/stat" % (SysMgr.procPath, pid)
+            with open(statPath, "r") as fd:
+                stat = fd.read().split()
+                runtimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+                return float(stat[runtimeIdx]) / 100
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to get start time of %s(%s)"
+                % (SysMgr.getComm(pid), pid),
+                True,
+                True,
+            )
+
+    @staticmethod
+    def getRuntime(pid=None, sec=False):
+        # get start time #
+        start = SysMgr.getStartTime(pid)
+
         # init start time #
-        if SysMgr.startRunTime == 0:
-            try:
-                statPath = "%s/self/stat" % (SysMgr.procPath)
-                with open(statPath, "r") as fd:
-                    stat = fd.read().split()
-                    runtimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
-                    SysMgr.startRunTime = float(stat[runtimeIdx]) / 100
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printWarn("failed to get runtime", True, True)
+        if not pid and SysMgr.startRunTime == 0:
+            SysMgr.startRunTime = start
 
         # calculate runtime #
-        runtime = SysMgr.getUptime() - SysMgr.startRunTime
+        runtime = SysMgr.getUptime() - start
 
         # return runtime #
         if sec:
@@ -58372,14 +58518,14 @@ Copyright:
         except:
             pass
 
-        # uptime2epoch #
+        # epoch2Start #
         try:
-            u2e = UtilMgr.getTimeDiff()
+            e2s = UtilMgr.getEpoch2Start()
 
-            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("Uptime2Epoch", u2e))
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".format("Epoch2Start", e2s))
 
             if SysMgr.jsonEnable:
-                jsonData["uptime2epoch"] = u2e
+                jsonData["epoch2Start"] = e2s
         except:
             pass
 
@@ -64103,14 +64249,17 @@ class DltAnalyzer(object):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
 
+        # get timestamp for the message creation #
+        timestamp = msg.headerextra.tmsp / float(10000)
+
         # check headers #
         if not msg.storageheader or not msg.extendedheader:
             return
         # check since condition #
-        elif since and msg.storageheader.contents.seconds < since:
+        elif since and timestamp < since:
             return
         # check until condition #
-        elif until and msg.storageheader.contents.seconds >= until:
+        elif until and timestamp >= until:
             SysMgr.printWarn("all previous DLT logs are printed", True)
             sys.exit(0)
 
@@ -64176,7 +64325,7 @@ class DltAnalyzer(object):
             # get message info #
             timeSec = msg.storageheader.contents.seconds
             timeUs = msg.storageheader.contents.microseconds
-            uptime = "%.6f" % (msg.headerextra.tmsp / float(10000))
+            mtime = "%.6f" % timestamp
 
             # get log level #
             try:
@@ -64204,7 +64353,7 @@ class DltAnalyzer(object):
                         timefmt="%Y-%m-%d %H:%M:%S.%f",
                         isSec=True,
                     ),
-                    "uptime": uptime,
+                    "mtime": mtime,
                     "ecuId": ecuId,
                     "apId": apId,
                     "ctxId": ctxId,
@@ -64221,7 +64370,7 @@ class DltAnalyzer(object):
                 output = (
                     "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}"
                 ).format(
-                    ntime, timeUs, uptime, ecuId, apId, ctxId, level, string
+                    ntime, timeUs, mtime, ecuId, apId, ctxId, level, string
                 )
 
                 # append file name #
@@ -65338,11 +65487,19 @@ class DltAnalyzer(object):
             watchcond = None
 
         # get times for tail and until option #
-        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], time.time())
+        current = UtilMgr.getClockTime(dlt=True)
+        currentDiff = current - SysMgr.getUptime()
+        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], current)
 
         # print from now in default #
         if not since and not origShowAll:
-            since = time.time()
+            since = current
+
+        # convert times to DLT timestamp unit #
+        if since and since != current:
+            since += currentDiff
+        if until and until != current:
+            until += currentDiff
 
         while 1:
             try:
@@ -90720,7 +90877,7 @@ class TaskAnalyzer(object):
                 # get epochDelta info #
                 try:
                     epochDelta = float(
-                        graphStats["%ssysinfo" % fname]["Uptime2Epoch"]
+                        graphStats["%ssysinfo" % fname]["StartTimeEpoch"]
                     )
                 except:
                     epochDelta = 0
@@ -99381,7 +99538,7 @@ class TaskAnalyzer(object):
         )
 
         procEventData = TaskAnalyzer.procEventData
-        for idx, event in enumerate(procEventData):
+        for idx, event in enumerate(sorted(procEventData, key=lambda e: e[2])):
             name = event[1]
             time = "%.2f" % float(event[0])
             rtime = float(event[2])
