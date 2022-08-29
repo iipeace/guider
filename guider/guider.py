@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220827"
+__revision__ = "220829"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38544,7 +38544,9 @@ Copyright:
                         "start gathering log events... [ STOP(Ctrl+c) ]"
                     )
 
-                    for log in SysMgr.getLogEvents(tail=SysMgr.startTime):
+                    for log in SysMgr.getLogEvents(
+                        tail=SysMgr.startTime, until=SysMgr.getUptime()
+                    ):
                         try:
                             # get log time #
                             info = logInfo[log["type"]]
@@ -65344,6 +65346,7 @@ class DltAnalyzer(object):
 
                 # set blocking #
                 connSock.setblocking(1)  # pylint: disable=no-member
+                connSock.settimeout(1)  # pylint: disable=no-member
 
                 break
             except SystemExit:
@@ -65498,8 +65501,15 @@ class DltAnalyzer(object):
         # convert times to DLT timestamp unit #
         if since and since != current:
             since += currentDiff
-        if until and until != current:
-            until += currentDiff
+        if until:
+            if until != current:
+                until += currentDiff
+        elif quitFlag:
+            until = current
+
+        # define status variables #
+        tryCnt = 0
+        read1stMsg = False
 
         while 1:
             try:
@@ -65513,7 +65523,15 @@ class DltAnalyzer(object):
                 try:
                     ret = dlt_receiver_receive(byref(dltReceiver), verbVal)
                     if ret <= 0:
+                        if quitFlag:
+                            tryCnt += 1
+                            if tryCnt > 5:
+                                sys.exit(0)
+
+                        time.sleep(0.1)
                         continue
+                    else:
+                        tryCnt = 0
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -65529,8 +65547,12 @@ class DltAnalyzer(object):
                         c_int(verb),
                     )
                     if ret != 0:
-                        if quitFlag:
-                            sys.exit(0)
+                        """
+                        handle error return
+                        DLT_MESSAGE_ERROR_UNKNOWN (-1)
+                        DLT_MESSAGE_ERROR_SIZE    (-2)
+                        DLT_MESSAGE_ERROR_CONTENT (-3)
+                        """
 
                         # move receiver buffer pointer to start of the buffer #
                         ret = dltObj.dlt_receiver_move_to_begin(
@@ -65538,15 +65560,11 @@ class DltAnalyzer(object):
                         )
                         if ret < 0:
                             SysMgr.printErr(
-                                "failed to move pointer to receiver buffer"
+                                "failed to move the pointer of receiver buffer"
                             )
                             sys.exit(-1)
 
                         break
-
-                    # check log filter #
-                    if level and DltAnalyzer.getMsgLogLevel(msg) > level:
-                        continue
 
                     # get data size to be removed #
                     size = (
@@ -65564,6 +65582,13 @@ class DltAnalyzer(object):
                     ):
                         SysMgr.printErr("failed to remove data from buffer")
                         sys.exit(-1)
+
+                    # check log filter #
+                    if not read1stMsg:
+                        read1stMsg = True
+                        continue
+                    elif level and DltAnalyzer.getMsgLogLevel(msg) > level:
+                        continue
 
                     # print DLT message #
                     if verb:
