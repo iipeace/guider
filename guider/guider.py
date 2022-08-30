@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220829"
+__revision__ = "220830"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24090,18 +24090,22 @@ Commands:
             SysMgr.printErr("no input message for %s" % mtype)
             sys.exit(-1)
 
-        # set alarm #
-        if SysMgr.intervalEnable:
-            cnt = SysMgr.intervalEnable
-        else:
-            cnt = 1
+        # get repeat count #
+        repeatCnt = UtilMgr.getEnvironNum("REPEAT", False, 1, False, True)
 
-        for idx in xrange(cnt):
+        # get interval #
+        if SysMgr.intervalEnable:
+            interval = SysMgr.intervalEnable / 1000.0
+        else:
+            interval = 0
+
+        for idx in xrange(repeatCnt):
             ret = func(msg=msg)
             if ret == 0:
                 SysMgr.printInfo(
                     "logged a %s message '%s' successfully" % (mtype, msg)
                 )
+                time.sleep(interval)
             else:
                 SysMgr.printErr("failed to log a %s message" % mtype)
                 break
@@ -30041,6 +30045,7 @@ Examples:
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|DLT"
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", MSGALL
+        # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", PRINTEVENT
         # {0:1} {1:1} -o . -q "KERNELEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} -o . -q "JOURNALEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} -o . -q "SYSLOGEVENT:TIMEOUT|timeout"
@@ -30281,15 +30286,13 @@ Examples:
     - {2:1} with specific log events
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|DLT"
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
+        # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout", PRINTEVENT
         # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "JOURNALEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "SYSLOGEVENT:TIMEOUT|timeout"
 
     - {2:1} and event markers without time info on specific points
         # {0:1} {1:1} {3:1} -q NOEVTTIME
-
-    - {2:1} and event markers with printing event info
-        # {0:1} {1:1} {3:1} -q PRINTEVENT
 
     - {2:1} only for specific groups or cores
         # {0:1} {1:1} {3:1} -O 1, 4, 10
@@ -30561,6 +30564,8 @@ Examples:
     - {3:1} {8:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} a.out -q ENVCLEAR
+        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
         # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {3:1} with backtrace {7:1}
@@ -30833,7 +30838,7 @@ Description:
 
 Options:
     -v                          verbose
-    -R  <INTERVAL:TIME>         set repeat count
+    -i  <INTERVAL(ms)>          set logging interval
     -I  <LOG>                   set log message
 
 Examples:
@@ -30842,7 +30847,10 @@ Examples:
         # {0:1} {1:1} -I "Hello World!"
 
     - Log a message 5 times
-        # {0:1} {1:1} "Hello World!" -R 5
+        # {0:1} {1:1} "Hello World!" -q REPEAT:5
+
+    - Log a message 5 times with 1.5 sec interval
+        # {0:1} {1:1} "Hello World!" -q REPEAT:5 -i 1500
                     """.format(
                     cmd, mode
                 )
@@ -31649,6 +31657,9 @@ Examples:
     - {2:1} {4:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} a.out -q ENVCLEAR
+        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {2:1} with breakpoint for read syscalls {3:1}
         # {0:1} {1:1} -g 1234 -c read
@@ -31733,6 +31744,9 @@ Examples:
     - {2:1} for a specific binary execution with environment variables
         # {0:1} {1:1} iotop -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} iotop -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} iotop -q ENVCLEAR
+        # {0:1} {1:1} iotop -q ENVCLEAR:HOME
+        # {0:1} {1:1} iotop -q ENVPROC:systemd
 
     - Monitor CPU usage on whole system of python calls {3:1}
         # {0:1} {1:1} -g iotop -e c
@@ -31845,6 +31859,9 @@ Examples:
     - {2:1} {4:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} a.out -q ENVCLEAR
+        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {2:1} {3:1} after user input
         # {0:1} {1:1} -g a.out -W
@@ -32016,6 +32033,9 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG=reloc, ENV:LD_DEBUG=symbols
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG_OUTPUT=./ld.out
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} a.out -q ENVCLEAR
+        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {3:1} {4:1} with DWARF info
         # {0:1} {1:1} -g a.out -eD
@@ -34548,6 +34568,9 @@ Examples:
     - {3:1} including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} -I "ls -lha FILE" -q ENVCLEAR
+        # {0:1} {1:1} -I "ls -lha FILE" -q ENVCLEAR:HOME
+        # {0:1} {1:1} -I "ls -lha FILE" -q ENVPROC:systemd
 
     - {2:1} and redirect standard I/O of child tasks to specific files
         # {0:1} {1:1} -I "ls" -q STDIN:"./stdin"
@@ -34739,6 +34762,8 @@ Examples:
     - {3:1} {2:1} {6:1} after setting environment variables
         # {0:1} {1:1} ./a.out {7:1} -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} ./a.out {7:1} -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} ./a.out {7:1} -q ENVCLEAR
+        # {0:1} {1:1} ./a.out {7:1} -q ENVCLEAR:HOME
         # {0:1} {1:1} ./a.out {7:1} -q ENVPROC:systemd
 
     - {3:1} {2:1} {6:1} {9:1} using uptime
@@ -45453,6 +45478,19 @@ Copyright:
         try:
             # copy original variables #
             myEnv = deepcopy(os.environ)
+
+            # clear variables #
+            if "CLEARENV" in SysMgr.environList:
+                # clear all #
+                if "SET" in SysMgr.environList["CLEARENV"]:
+                    envlist = myEnv
+                # clear specific variables #
+                else:
+                    envlist = SysMgr.environList["CLEARENV"]
+
+                for name in myEnv:
+                    if name in envlist:
+                        myEnv.pop(name, None)
 
             # parse new variables #
             if "ENV" in SysMgr.environList:
@@ -65513,10 +65551,12 @@ class DltAnalyzer(object):
 
         while 1:
             try:
-                # initialize message #
+                # initialize the message buffer #
                 ret = dltObj.dlt_message_init(byref(msg), verb)
                 if ret < 0:
-                    SysMgr.printErr("failed to initialize DLT message")
+                    SysMgr.printErr(
+                        "failed to initialize the DLT message buffer"
+                    )
                     sys.exit(-1)
 
                 # check DLT data to be read #
@@ -108869,6 +108909,9 @@ class TaskAnalyzer(object):
                 except:
                     freqList = []
 
+            # get max core digit #
+            cd = len(str(SysMgr.maxCore))
+
             # traverse core files #
             for idx in sorted(
                 list(self.cpuData),
@@ -108919,15 +108962,14 @@ class TaskAnalyzer(object):
                     # apply color #
                     totalCoreUsageStr = convCpuColor(totalCoreUsage, size=3)
 
-                    coreStat = (
-                        "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".format(
-                            "Core/%s" % idx,
-                            "%s %%" % totalCoreUsageStr,
-                            userCoreUsage,
-                            kerCoreUsage,
-                            ioCoreUsage,
-                            irqCoreUsage,
-                        )
+                    coreStat = "Core/{0:<{cd}}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".format(
+                        idx,
+                        "%s %%" % totalCoreUsageStr,
+                        userCoreUsage,
+                        kerCoreUsage,
+                        ioCoreUsage,
+                        irqCoreUsage,
+                        cd=cd,
                     )
                 except SystemExit:
                     sys.exit(0)
