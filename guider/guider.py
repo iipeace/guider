@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220830"
+__revision__ = "220831"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30564,8 +30564,8 @@ Examples:
     - {3:1} {8:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q ENVCLEAR
-        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q CLEARENV
+        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {3:1} with backtrace {7:1}
@@ -31657,8 +31657,8 @@ Examples:
     - {2:1} {4:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q ENVCLEAR
-        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q CLEARENV
+        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {2:1} with breakpoint for read syscalls {3:1}
@@ -31744,8 +31744,8 @@ Examples:
     - {2:1} for a specific binary execution with environment variables
         # {0:1} {1:1} iotop -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} iotop -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} iotop -q ENVCLEAR
-        # {0:1} {1:1} iotop -q ENVCLEAR:HOME
+        # {0:1} {1:1} iotop -q CLEARENV
+        # {0:1} {1:1} iotop -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} iotop -q ENVPROC:systemd
 
     - Monitor CPU usage on whole system of python calls {3:1}
@@ -31859,8 +31859,8 @@ Examples:
     - {2:1} {4:1} including specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q ENVCLEAR
-        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q CLEARENV
+        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {2:1} {3:1} after user input
@@ -32033,8 +32033,8 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG=reloc, ENV:LD_DEBUG=symbols
         # {0:1} {1:1} a.out -q ENV:LD_DEBUG_OUTPUT=./ld.out
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q ENVCLEAR
-        # {0:1} {1:1} a.out -q ENVCLEAR:HOME
+        # {0:1} {1:1} a.out -q CLEARENV
+        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {3:1} {4:1} with DWARF info
@@ -34568,8 +34568,8 @@ Examples:
     - {3:1} including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} -I "ls -lha FILE" -q ENVCLEAR
-        # {0:1} {1:1} -I "ls -lha FILE" -q ENVCLEAR:HOME
+        # {0:1} {1:1} -I "ls -lha FILE" -q CLEARENV
+        # {0:1} {1:1} -I "ls -lha FILE" -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVPROC:systemd
 
     - {2:1} and redirect standard I/O of child tasks to specific files
@@ -34762,8 +34762,8 @@ Examples:
     - {3:1} {2:1} {6:1} after setting environment variables
         # {0:1} {1:1} ./a.out {7:1} -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} ./a.out {7:1} -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} ./a.out {7:1} -q ENVCLEAR
-        # {0:1} {1:1} ./a.out {7:1} -q ENVCLEAR:HOME
+        # {0:1} {1:1} ./a.out {7:1} -q CLEARENV
+        # {0:1} {1:1} ./a.out {7:1} -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} ./a.out {7:1} -q ENVPROC:systemd
 
     - {3:1} {2:1} {6:1} {9:1} using uptime
@@ -38295,6 +38295,21 @@ Copyright:
             ElfAnalyzer.cachedFiles["vdso"] = obj
 
         return obj
+
+    @staticmethod
+    def getAuxList():
+        if not SysMgr.isLinux:
+            return {}
+
+        auxList = {}
+        for attr, idx in sorted(ConfigMgr.AT_TYPE.items(), key=lambda e: e[1]):
+            # skip AT_IGNORE #
+            if idx == 1:
+                continue
+
+            val = hex(SysMgr.getauxval(attr))
+
+        return auxList
 
     @staticmethod
     def getauxval(attype):
@@ -45481,6 +45496,8 @@ Copyright:
 
             # clear variables #
             if "CLEARENV" in SysMgr.environList:
+                exceptList = {}
+
                 # clear all #
                 if "SET" in SysMgr.environList["CLEARENV"]:
                     envlist = myEnv
@@ -45488,8 +45505,21 @@ Copyright:
                 else:
                     envlist = SysMgr.environList["CLEARENV"]
 
+                    # check exception list #
+                    for env in envlist:
+                        if not env.startswith("^"):
+                            continue
+                        exceptList.setdefault(env.lstrip("^"), None)
+                        envlist.remove(env)
+
+                    # check empty list #
+                    if not envlist:
+                        envlist = myEnv
+
                 for name in myEnv:
-                    if name in envlist:
+                    if name in exceptList:
+                        continue
+                    elif name in envlist:
                         myEnv.pop(name, None)
 
             # parse new variables #
@@ -74559,8 +74589,11 @@ typedef struct {
         if not SysMgr.printEnable:
             return
 
+        # get mode #
+        isSigMode = self.mode == "signal"
+
         # check signal filter #
-        if self.mode == "signal" and SysMgr.customCmd:
+        if isSigMode and SysMgr.customCmd:
             if not ConfigMgr.SIG_LIST[sig] in list(
                 map(str.upper, SysMgr.customCmd)
             ):
@@ -74594,6 +74627,7 @@ typedef struct {
             callString = "%s[%s]" % (tinfo, "{0:<7}".format(signame))
 
         # get signal info #
+        isAlive = True
         ret = self.getSigInfo()
         if ret == 0:
             if self.sigObj.si_errno > 0:
@@ -74687,8 +74721,11 @@ typedef struct {
                 callString = "%s}" % callString
         else:
             # check alive #
-            if not self.isAlive():
-                sys.exit(-1)
+            isAlive = self.isAlive()
+
+        # check alive status #
+        if not isAlive and not isSigMode:
+            sys.exit(-1)
 
         # print context #
         if warn:
@@ -74713,6 +74750,10 @@ typedef struct {
             SysMgr.checkLogCond(
                 name, SysMgr.environList["WATCHLOG"][0].split("+")
             )
+
+        # check alive status #
+        if not isAlive:
+            sys.exit(-1)
 
     def initPyEnv(self):
         # check python version for target #
