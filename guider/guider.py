@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220831"
+__revision__ = "220901"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -905,8 +905,8 @@ class ConfigMgr(object):
         "clone": (
             "long",
             (
-                ("unsigned long", "child_stack"),
                 ("unsigned long", "flags"),
+                ("unsigned long", "child_stack"),
                 ("int *", "ptid"),
                 ("int *", "ctid"),
                 ("unsigned long", "regs"),
@@ -8312,7 +8312,7 @@ class NetworkMgr(object):
             return False
 
         for target in targetList:
-            target = os.path.realpath(os.path.expanduser(target))
+            target = SysMgr.convFullPath(target)
 
             SysMgr.printInfo(
                 "start uploading %s[%s] to %s:%s... "
@@ -8417,7 +8417,7 @@ class NetworkMgr(object):
                 os.makedirs(target[:dirPos])
 
             # convert path #
-            target = os.path.realpath(os.path.expanduser(target))
+            target = SysMgr.convFullPath(target)
             if os.path.isdir(target):
                 target = os.path.join(target, fname)
 
@@ -28992,6 +28992,10 @@ Commands:
             return None
 
     @staticmethod
+    def convFullPath(path):
+        return os.path.realpath(os.path.expanduser(path))
+
+    @staticmethod
     def convRealPath(flist):
         if UtilMgr.isString(flist):
             flist = [flist]
@@ -33396,19 +33400,25 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} for a specific thread
+    - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
 
     - {2:1} for a specific command
         # {0:1} {1:1} -I "ls"
 
-    - {2:1} with detailed info for a specific thread
+    - {2:1} with detailed info {3:1}
         # {0:1} {1:1} -g a.out -a
 
-    - Trace SIGINT for a specific thread
+    - {2:1} with detailed info {3:1} and report the results to the specific file
+        # {0:1} {1:1} -g a.out -a -o signal.out
+
+    - Trace SIGINT {3:1}
         # {0:1} {1:1} -g 1234 -c SIGINT
 
-    - Trace SIGINT for a specific thread (print standard output)
+    - {2:1} except for specific signals {3:1}
+        # {0:1} {1:1} -g 1234 -c ^SIGINT
+
+    - Trace SIGINT {3:1} (print standard output)
         # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
 
     - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
@@ -33416,19 +33426,19 @@ Examples:
         # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
         # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
 
-    - {2:1} for specific threads (wait for new target if no task)
+    - {2:1} {3:1} (wait for new target if no task)
         # {0:1} {1:1} -g a.out -q WAITTASK
         # {0:1} {1:1} -g a.out -q WAITTASK:1
         # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
 
-    - {2:1} for a specific thread even if the master tracer is terminated
+    - {2:1} {3:1} even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
     - {2:1} and draw timeline segments
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
         # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H
                     """.format(
-                        cmd, mode, "Trace all signals"
+                        cmd, mode, "Trace all signals", "for specific threads"
                     )
 
                 # mem #
@@ -34664,7 +34674,7 @@ Examples:
         # {0:1} {1:1} /
         # {0:1} {1:1} -I /
 
-    - {2:1} from current working directory after sorting
+    - {2:1} from current working directory after sorting per-directory
         # {0:1} {1:1} -q SORT:SIZE
         # {0:1} {1:1} -q SORT:TYPE
 
@@ -36422,7 +36432,7 @@ Copyright:
                 # check result #
                 if os.path.exists(item):
                     current = SysMgr.updateUptime()
-                    fpath = os.path.realpath(os.path.expanduser(item))
+                    fpath = SysMgr.convFullPath(item)
                     SysMgr.printPipe("[%.6f] IN_CREATE@%s" % (current, fpath))
                 else:
                     SysMgr.printWarn(
@@ -49513,7 +49523,7 @@ Copyright:
             args = item.split(":")
 
             # convert path #
-            path = os.path.realpath(os.path.expanduser(args[0]))
+            path = SysMgr.convFullPath(args[0])
             targetList.append(path)
 
             if len(args) > 1:
@@ -49817,6 +49827,9 @@ Copyright:
             elif inputParam:
                 SysMgr.printErr("executing a program is not supported")
                 sys.exit(-1)
+        elif mode == "signal":
+            if not SysMgr.sysInstance:
+                SysMgr()
 
         # set priority #
         if SysMgr.prio is None:
@@ -50425,8 +50438,9 @@ Copyright:
 
             # sort #
             if "SORT" in SysMgr.environList:
+                sortList = list(map(str.upper, SysMgr.environList["SORT"]))
                 # sort by size #
-                if "SIZE" in SysMgr.environList["SORT"]:
+                if "SIZE" in sortList:
                     fileList.sort(
                         key=lambda name: os.path.getsize(
                             "%s/%s" % (parentPath, name)
@@ -50435,8 +50449,8 @@ Copyright:
                         else 0,
                         reverse=True,
                     )
-                # sort by type #
-                elif "TYPE" in SysMgr.environList["SORT"]:
+                # sort by type (file or directory) #
+                elif "TYPE" in sortList:
                     fileList.sort(
                         key=lambda f: os.path.isfile(
                             os.path.join(parentPath, f)
@@ -51697,7 +51711,9 @@ Copyright:
 
                     # override LD_PRELOAD value #
                     if "LD_PRELOAD" in os.environ:
-                        libPath += ":%s" % os.environ["LD_PRELOAD"]
+                        libPath += ":%s" % SysMgr.convFullPath(
+                            os.environ["LD_PRELOAD"]
+                        )
 
                     # add PRELOAD path #
                     SysMgr.environList["ENV"].append("LD_PRELOAD=%s" % libPath)
@@ -66511,7 +66527,7 @@ typedef struct {
 
             # get symbols from string #
             oldSym = symbols[0]
-            fpath = os.path.realpath(os.path.expanduser(symbols[1].strip()))
+            fpath = SysMgr.convFullPath(symbols[1].strip())
             if len(symbols) == 2:
                 if fpath:
                     newSym = oldSym
@@ -74594,9 +74610,18 @@ typedef struct {
 
         # check signal filter #
         if isSigMode and SysMgr.customCmd:
-            if not ConfigMgr.SIG_LIST[sig] in list(
-                map(str.upper, SysMgr.customCmd)
-            ):
+            sigName = ConfigMgr.SIG_LIST[sig]
+            sigList = list(map(str.upper, SysMgr.customCmd))
+
+            # check exception condition #
+            for item in sigList:
+                if item.startswith("^"):
+                    if sigName == item.lstrip("^"):
+                        return
+                    sigList.remove(item)
+
+            # check target condition #
+            if sigList and not sigName in sigList:
                 return
 
         # get task info #
@@ -74628,14 +74653,17 @@ typedef struct {
 
         # get signal info #
         isAlive = True
+        callItems = []
         ret = self.getSigInfo()
         if ret == 0:
+            # save signal #
+            self.lastRxSig = sig
+
             if self.sigObj.si_errno > 0:
-                errinfo = "si_errno=%s, " % UtilMgr.convColor(
+                errinfo = "errno=%s, " % UtilMgr.convColor(
                     self.sigObj.si_errno, "RED"
                 )
-            else:
-                errinfo = ""
+                callItems.append(errinfo)
 
             # code #
             try:
@@ -74654,72 +74682,65 @@ typedef struct {
                     code = ConfigMgr.SIGFPE_CODE[code]
                 else:
                     raise Exception("no signal code")
+                callItems.append("code=%s" % code)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
-            callString = "%s {%ssi_code=%s" % (callString, errinfo, code)
-
             if self.sigObj._sifields:
                 fields = self.sigObj._sifields._sigchld
-                if name == "SIGSEGV":
-                    callString = ("%s si_addr=%s}") % (
-                        callString,
-                        hex(fields.pid),
-                    )
-                else:
-                    # pid #
-                    try:
-                        pid = fields.pid
-                        if SysMgr.showAll and pid > 0:
-                            comm = SysMgr.getComm(pid, cache=True, save=True)
-                            if comm:
-                                pid = "%s(%s)" % (comm, pid)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
 
-                    # uid #
-                    try:
-                        uid = fields.uid
-                        if SysMgr.showAll:
-                            userData = SysMgr.sysInstance.userData
-                            uid = "%s(%s)" % (userData[str(uid)]["name"], uid)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
+                # pid #
+                try:
+                    pid = fields.pid
+                    pidstr = str(pid)
+                    if pid:
+                        comm = SysMgr.getComm(pid, cache=True, save=True)
+                        if comm:
+                            pidstr = "%s(%s)" % (comm, pid)
+                    callItems.append("pid=%s|addr=%s" % (pidstr, hex(pid)))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
-                    if name == "SIGCHLD":
-                        # status #
-                        try:
-                            if code == "CLD_EXITED":
-                                status = fields.status
-                            else:
-                                status = ConfigMgr.SIG_LIST[fields.status]
-                        except:
-                            status = fields.status
+                # uid #
+                try:
+                    uid = str(fields.uid)
+                    if SysMgr.sysInstance:
+                        userData = SysMgr.sysInstance.userData
+                        if uid in userData:
+                            uid = "%s(%s)" % (userData[uid]["name"], uid)
+                    callItems.append("uid=%s" % uid)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
-                        callString = (
-                            "%s si_pid=%s, si_uid=%s, si_status=%s "
-                            "si_utime=%s, si_stime=%s}"
-                        ) % (
-                            callString,
-                            pid,
-                            uid,
-                            status,
-                            fields.utime,
-                            fields.stime,
-                        )
+                # status #
+                try:
+                    if code == "CLD_EXITED":
+                        status = fields.status
                     else:
-                        callString = "%s si_pid=%s, si_uid=%s}" % (
-                            callString,
-                            pid,
-                            uid,
-                        )
-            else:
-                callString = "%s}" % callString
+                        status = ConfigMgr.SIG_LIST[fields.status]
+                except:
+                    status = fields.status
+                callItems.append("status=%s" % status)
+
+                # time #
+                if fields.utime:
+                    callItems.append("utime=%s" % fields.utime)
+                if fields.stime:
+                    callItems.append("stime=%s" % fields.stime)
+
+            if callItems:
+                callString += " {%s}" % ", ".join(callItems)
         else:
+            # check delivered signal #
+            if sig == self.lastRxSig:
+                return
+
             # check alive #
             isAlive = self.isAlive()
 
@@ -74728,10 +74749,15 @@ typedef struct {
             sys.exit(-1)
 
         # print context #
-        if warn:
-            SysMgr.printWarn(callString)
+        if isSigMode and SysMgr.outPath:
+            self.callList.append([name, self.current, str(sig)])
+            if SysMgr.streamEnable:
+                print(callString)
         else:
-            SysMgr.printPipe(callString)
+            if warn:
+                SysMgr.printWarn(callString)
+            else:
+                SysMgr.printPipe(callString)
 
         # add timeline segment #
         self.addTimelineInt(name, callString)
@@ -76698,7 +76724,12 @@ typedef struct {
         if Debugger.envFlags["SYNCTASK"]:
             rd, wr = os.pipe()
 
-        # create a new tracer to trace the child task #
+        """
+        create a new tracer to trace the child task.
+        Guider trace a new tracee using a new tracer,
+        this can't trace the child tracer of the parent tracer,
+        because the child tracer is already attached to the parent tracer.
+        """
         pid = SysMgr.createProcess(isDaemon=True, chMid=chMid, chPgid=True)
         # parent tracee #
         if pid > 0:
@@ -76942,6 +76973,7 @@ typedef struct {
         self.prevReturn = -1
         self.startAddr = None
         self.errCnt = 0
+        self.lastRxSig = 0
 
         # timestamp variables #
         self.updateCurrent()
@@ -77252,14 +77284,14 @@ typedef struct {
                     delay = 0 if delay < 0 else delay
                     self.vdiff = self.current - delay
 
-                # check clone event #
+                # handle clone event #
                 if (
                     not Debugger.dbusEnable
                     and (SysMgr.cloneEnable or self.isBreakMode)
                     and self.checkCloned(ostat)
                 ):
 
-                    # check clone/fork event #
+                    # check fork event #
                     if self.isForked(ostat):
                         # skip handling fork in break mode #
                         if not SysMgr.cloneEnable:
@@ -77282,9 +77314,8 @@ typedef struct {
                     # continue to exit event for clone syscall #
                     if not syscallMode:
                         continue
-
                 # handle exec event #
-                if self.isExeced(ostat):
+                elif self.isExeced(ostat):
                     if self.execEnable:
                         self.restartTrace()
                     else:
@@ -77933,6 +77964,8 @@ typedef struct {
         needStop = False
 
         # check mode and define type variables #
+        fattr = "File"
+        attr = "Function"
         if instance.mode == "syscall":
             ctype = "Syscall"
             if Debugger.envFlags["INTERCALL"]:
@@ -77941,10 +77974,13 @@ typedef struct {
                 addInfo = "<Elapsed>"
         elif instance.mode == "break":
             ctype = "Breakcall"
-            addInfo = "[PATH] <Elapsed>"
+            addInfo = "[Path] <Elapsed>"
         elif instance.mode == "pybreak":
             ctype = "Pycall"
-            addInfo = "[PATH] <Elapsed>"
+            addInfo = "[Path] <Elapsed>"
+        elif instance.mode == "signal":
+            fattr = attr = ctype = "Signal"
+            addInfo = "[Number] <Elapsed>"
         else:
             addInfo = "[Path]"
             if instance.mode == "pycall":
@@ -78139,7 +78175,7 @@ typedef struct {
         )
         SysMgr.printPipe(
             "{3:1}{0:^7} | {1:<144}{2:1}{3:1}".format(
-                "Usage", "Function %s" % addInfo, suffix, twoLine + suffix
+                "Usage", "%s %s" % (attr, addInfo), suffix, twoLine + suffix
             )
         )
 
@@ -78258,11 +78294,12 @@ typedef struct {
         if fileTable:
             SysMgr.printPipe(
                 (
-                    "\n[%s File Summary] [Elapsed: %.3f]%s%s%s%s "
+                    "\n[%s %s Summary] [Elapsed: %.3f]%s%s%s%s "
                     "[NrSamples: %s(%s%%)] [NrFiles: %s] %s"
                 )
                 % (
                     mtype,
+                    fattr,
                     elapsed,
                     samplingStr,
                     sysStr,
@@ -78274,6 +78311,13 @@ typedef struct {
                     suffix,
                 )
             )
+
+            # set attribute name #
+            if instance.mode == "signal":
+                attrname = "Number"
+            else:
+                attrname = "Path"
+
             SysMgr.printPipe(
                 "{3:1}{0:^7} | {1:<144}{2:1}{3:1}".format(
                     "Usage", "Path", suffix, twoLine + suffix
@@ -113818,7 +113862,7 @@ class TaskAnalyzer(object):
                 return None
 
             # convert path #
-            path = os.path.realpath(path)
+            path = SysMgr.convFullPath(path)
 
             # terminate event handling tasks #
             if SysMgr.eventCommandList:
@@ -116033,15 +116077,17 @@ class TaskAnalyzer(object):
         # new files #
         if "EXITCONDFILE" in SysMgr.environList:
             for fpath in SysMgr.environList["EXITCONDFILE"]:
+                fpath = SysMgr.convFullPath(fpath)
                 if os.path.isfile(fpath):
-                    SysMgr.printInfo("'%s' is found" % os.path.realpath(fpath))
+                    SysMgr.printInfo("'%s' is found" % fpath)
                     sys.exit(0)
 
         # removed files #
         if "EXITCONDNOFILE" in SysMgr.environList:
             for fpath in SysMgr.environList["EXITCONDNOFILE"]:
+                fpath = SysMgr.convFullPath(fpath)
                 if not os.path.isfile(fpath):
-                    SysMgr.printInfo("no '%s'" % os.path.realpath(fpath))
+                    SysMgr.printInfo("no '%s'" % fpath)
                     sys.exit(0)
 
         # check functions #
