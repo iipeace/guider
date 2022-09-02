@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220901"
+__revision__ = "220902"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30773,6 +30773,7 @@ Examples:
 
     - {5:1} and call specific functions every time {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
+        # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3", NOBT
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE\\n"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345\\n"
         # {0:1} {1:1} -g a.out -c "write|usercall:getenv#PATH, usercall:write#1#@getenv#1024"
@@ -33266,6 +33267,9 @@ Options:
     - {2:1} be terminated
         # {0:1} {1:1} -g a.out -c "exit"
 
+    - {3:1} call the specific function with task info but logs and backtraces
+        # {0:1} {1:1} -g a.out -c "usercall:sleep#3" -d L -q ONLYPROC, INCTASK, NOBT -f
+
     - {2:1} call the specific function
         # {0:1} {1:1} -g a.out -c "usercall:sleep#3"
         # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE\\n"
@@ -33273,6 +33277,9 @@ Options:
         # {0:1} {1:1} -g a.out -c "usercall:getenv#PATH"
         # {0:1} {1:1} -g a.out -c "usercall:malloc_stats"
         # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0" -q PRINTDIFF
+        # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0", TARGETFILE:"/usr/lib/libc.so"
+        # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0", EXCEPTFILE:"/usr/lib32/*""
+        # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0", NOBT
         # {0:1} {1:1} -g a.out -c "usercall:malloc#1024, usercall:memset#@malloc#0#1024" -q PRINTDIFF
 
     - {2:1} call the specific syscall
@@ -33296,7 +33303,10 @@ Options:
         # {0:1} {1:1} -g a.out -c "exec:ls -lha;sleep 1"
         # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
                     """.format(
-                        cmd, mode, "Control specific threads to"
+                        cmd,
+                        mode,
+                        "Control specific threads to",
+                        "Control specific processes to",
                     )
 
                     helpStr += remoteExamStr
@@ -67022,15 +67032,13 @@ typedef struct {
                 if SysMgr.streamEnable:
                     sys.stdout.write(SysMgr.bufferString)
             else:
+                if self.bufferedStr:
+                    SysMgr.bufferString += self.bufferedStr
+                    self.bufferedStr = ""
+
                 SysMgr.printPipe(
                     SysMgr.bufferString, flush=True, newline=newline
                 )
-
-                if self.bufferedStr:
-                    SysMgr.printPipe(
-                        self.bufferedStr, flush=True, newline=newline
-                    )
-                    self.bufferedStr = ""
 
             SysMgr.clearPrint()
 
@@ -67182,10 +67190,18 @@ typedef struct {
 
             self.bufferedStr += UtilMgr.convColor(
                 (
-                    "\n%s<stat> TIME: %.6f Sec, CPU: %s%%, VSS: %s, "
+                    "%s<stat> TIME: %.6f Sec, CPU: %s%%, VSS: %s, "
                     "RSS: %s, READ: %s, WRITE: %s"
                 )
-                % (" " * 11, diff, cpu, vss, rss, readIo, writeIo),
+                % (
+                    " " if self.multi else "\n" + " " * 11,
+                    diff,
+                    cpu,
+                    vss,
+                    rss,
+                    readIo,
+                    writeIo,
+                ),
                 "YELLOW",
             )
 
@@ -67203,7 +67219,13 @@ typedef struct {
             convColor = UtilMgr.convColor
 
             # pick a command #
-            cmdstr = convColor(cmd, "PINK", 8)
+            cmdstr = convColor(
+                "%s(%s):%s" % (self.comm, self.pid, cmd)
+                if "INCTASK" in SysMgr.environList
+                else cmd,
+                "PINK",
+                8,
+            )
 
             if cmd == "print":
                 if SysMgr.showAll and not force:
@@ -72653,7 +72675,7 @@ typedef struct {
                 pass
 
         # print backtrace #
-        if bt:
+        if bt and not "NOBT" in SysMgr.environList:
             backtrace = self.getBacktrace(cur=True, force=True)
             if backtrace:
                 if not isPrinted:
