@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220902"
+__revision__ = "220903"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32749,22 +32749,24 @@ Options:
 Examples:
     - Print target files including gziped files
         # {0:1} {1:1} -I a.out
-        # {0:1} {1:1} "a.out, test*.txt"
+        # {0:1} {1:1} {2:1}
 
     - Print specific lines including specific words for target files
-        # {0:1} {1:1} "a.out, test*.txt" -g "peace, best"
+        # {0:1} {1:1} {2:1} -g "peace, best"
 
     - Print target files to the output file
-        # {0:1} {1:1} "a.out, test*.txt" -o output.txt
+        # {0:1} {1:1} {2:1} -o output.txt
 
     - Print the contents of target files as much as a specified size
-        # {0:1} {1:1} "a.out, test*.txt" -q SIZE:1K
+        # {0:1} {1:1} {2:1} -q SIZE:1K
 
     - Print the last file of target files
-        # {0:1} {1:1} "a.out, test*.txt" -q TAIL
-        # {0:1} {1:1} "a.out, test*.txt" -q TAIL:100
+        # {0:1} {1:1} {2:1} -q TAIL
+        # {0:1} {1:1} {2:1} -q TAIL:100
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        '"a.out, test*.txt"',
                     )
 
                 # dump #
@@ -33270,10 +33272,12 @@ Options:
     - {3:1} call the specific function with task info but logs and backtraces
         # {0:1} {1:1} -g a.out -c "usercall:sleep#3" -d L -q ONLYPROC, INCTASK, NOBT -f
 
+    - {3:1} call the specific function with task info but logs sequentially
+        # {0:1} {1:1} -g a.out -c "usercall:sleep#3" -d L -q ONLYPROC, INCTASK, SEQUENTIAL -f
+
     - {2:1} call the specific function
         # {0:1} {1:1} -g a.out -c "usercall:sleep#3"
         # {0:1} {1:1} -g a.out -c "usercall:printf#PEACE\\n"
-        # {0:1} {1:1} -g a.out -c "usercall:printf#12345\\n"
         # {0:1} {1:1} -g a.out -c "usercall:getenv#PATH"
         # {0:1} {1:1} -g a.out -c "usercall:malloc_stats"
         # {0:1} {1:1} -g a.out -c "usercall:malloc_trim#0" -q PRINTDIFF
@@ -33335,14 +33339,16 @@ Options:
 
 Examples:
     - Replace malloc() with mallocHook() in libhook.so for specific processes
-        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#mallocHook
+        # {0:1} {1:1} {2:1}
 
     - Replace malloc() with mallocHook() in libhook.so for specific processes (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK
-        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK, NOPIDCACHE
+        # {0:1} {1:1} {2:1} -q WAITTASK
+        # {0:1} {1:1} {2:1} -q WAITTASK:1
+        # {0:1} {1:1} {2:1} -q WAITTASK, NOPIDCACHE
                     """.format(
-                        cmd, mode
+                        cmd,
+                        mode,
+                        "-g a.out -c malloc#./libhook.so#malloc2",
                     )
 
                 # printbind #
@@ -34851,6 +34857,10 @@ Examples:
 
     - {3:1} {9:1} and specific stat interval
         # {0:1} {1:1} ./a.out {7:1} -q STATINTERVAL:2
+
+    - {3:1} {2:1} with the specific command execution in background
+        # {0:1} {1:1} "ls" -w BEFORE:"GUIDER top -Q &"
+        # {0:1} {1:1} "ls" -w AFTER:"GUIDER sigtrace -g PID -c SIGSEGV &"
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -38993,7 +39003,7 @@ Copyright:
             )
 
     @staticmethod
-    def runProfCmd(time):
+    def runProfCmd(time, convList={}):
         if not SysMgr.isLinux:
             return
         elif SysMgr.rcmdList == {}:
@@ -39007,6 +39017,10 @@ Copyright:
                 else:
                     command = cmd[0]
                     wait = True
+
+                # convert items #
+                for name, value in convList.items():
+                    command = command.replace(name, value)
 
                 # execute a command using a new process #
                 SysMgr.execBgCmd(command, mute=False, wait=wait)
@@ -44461,6 +44475,8 @@ Copyright:
 
         procList = SysMgr.bgProcList
         procs = SysMgr.getBgProcCount(update=False)
+        if not procs:
+            return ""
 
         bgStr = "\n[Running Process] [TOTAL: %s]\n" % procs
         bgStr = "%s%s\n%7s %7s %7s %8s %5s %12s %s\n%s\n" % (
@@ -46057,9 +46073,10 @@ Copyright:
         # create a new process #
         ret = SysMgr.createCmdProcess(cmd, mute)
 
-        # check task #
+        # check result #
         if ret is False or ret < 0:
             return -1
+        # check wait option for parent #
         elif ret > 0:
             if wait:
                 os.waitpid(ret, 0)
@@ -49964,9 +49981,13 @@ Copyright:
             # create new worker processes #
             try:
                 isFinished = True
+                isParallel = not "SEQUENTIAL" in SysMgr.environList
                 for tid in allpids:
                     ret = SysMgr.createProcess(chPgid=True, chMid=True)
                     if ret != 0:
+                        # wait for a child tracer to run sequentially #
+                        if not isParallel and ret > 0:
+                            SysMgr.waitEvent(ignChldSig=False, block=False)
                         continue
 
                     if not tid in pids:
@@ -49979,6 +50000,7 @@ Copyright:
                         ):
                             SysMgr.logEnable = False
 
+                    # update target PID #
                     pid = long(tid)
                     break
             except:
@@ -51433,6 +51455,23 @@ Copyright:
                     progress=True,
                 )
 
+            # kill background tasks for user command #
+            try:
+                runList = UtilMgr.deepcopy(SysMgr.getChildList())
+                runList.pop(long(pid), None)
+                if runList:
+                    SysMgr.killChildren(
+                        sig=signal.SIGINT,
+                        children=runList,
+                        wait=True,
+                        group=True,
+                        clear=False,
+                    )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             # send signal #
             try:
                 os.kill(long(pid), sig)
@@ -51687,6 +51726,9 @@ Copyright:
                 SysMgr.printErr("failed to apply filter '%s'" % filters, True)
                 sys.exit(-1)
 
+        # execute before commands #
+        SysMgr.runProfCmd("BEFORE")
+
         # get PID #
         pid = None
         comm = None
@@ -51818,6 +51860,9 @@ Copyright:
         if not comm and not SysMgr.isAlive(pid):
             SysMgr.printErr("the task with PID %s is terminated" % pid)
             sys.exit(0)
+
+        # execute after commands #
+        SysMgr.runProfCmd("AFTER", {"PID": pid})
 
         # get environment variables of the target #
         envList = SysMgr.getEnv(pid, retdict=True)
@@ -79062,7 +79107,7 @@ class EventAnalyzer(object):
         if len(event.split(":")) == 1:
             name = event
             ID = None
-        # sequantial event #
+        # sequential event #
         else:
             name = event.split(":")[0]
             ID = event.split(":")[1]
