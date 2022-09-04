@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220903"
+__revision__ = "220904"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25194,7 +25194,7 @@ Commands:
             try:
                 value = origVal.split(":")
 
-                if len(value) < 2 or len(value) > 3:
+                if not len(value) in (2, 3):
                     raise Exception("wrong input")
 
                 # set task #
@@ -34860,7 +34860,8 @@ Examples:
 
     - {3:1} {2:1} with the specific command execution in background
         # {0:1} {1:1} "ls" -w BEFORE:"GUIDER top -Q &"
-        # {0:1} {1:1} "ls" -w AFTER:"GUIDER sigtrace -g PID -c SIGSEGV &"
+        # {0:1} {1:1} "ls" -w START:"GUIDER sigtrace -g PID -c SIGSEGV &"
+        # {0:1} {1:1} "ls" -w AFTER:/tmp/touched:1, AFTER:ls
 
     - Print functions caused memory leakage of a specific process
         # {0:1} {1:1} -g a.out
@@ -39006,7 +39007,7 @@ Copyright:
     def runProfCmd(time, convList={}):
         if not SysMgr.isLinux:
             return
-        elif SysMgr.rcmdList == {}:
+        elif not SysMgr.rcmdList:
             return
 
         for cmd in SysMgr.rcmdList[time.upper()]:
@@ -39509,7 +39510,7 @@ Copyright:
 
     @staticmethod
     def parseCustomRecordCmd(cmdList):
-        tempList = {"BEFORE": [], "AFTER": [], "STOP": []}
+        tempList = {"BEFORE": [], "START": [], "AFTER": [], "STOP": []}
 
         if not cmdList:
             return {}
@@ -39518,15 +39519,16 @@ Copyright:
 
         for item in cmdList:
             sitem = item.split(":")
-            ltime = sitem[0].upper()
+            ltime = sitem[0].strip().upper()
 
-            if (
-                len(sitem) < 2
-                or len(sitem) > 3
-                or (ltime != "BEFORE" and ltime != "AFTER" and ltime != "STOP")
+            if not len(sitem) in (2, 3) or not ltime in (
+                "BEFORE",
+                "START",
+                "AFTER",
+                "STOP",
             ):
                 SysMgr.printErr(
-                    "wrong format used, BEFORE|AFTER|STOP:file:value"
+                    "wrong format used, BEFORE|START|AFTER|STOP:file:value"
                 )
                 sys.exit(-1)
             elif len(sitem) == 2:
@@ -48403,7 +48405,7 @@ Copyright:
 
             # check error #
             if (
-                (len(vals) < 2 or len(vals) > 3)
+                not len(vals) in (2, 3)
                 or (vals[0] and not vals[0].isdigit())
                 or (vals[1] and not vals[1].isdigit())
             ):
@@ -51861,8 +51863,8 @@ Copyright:
             SysMgr.printErr("the task with PID %s is terminated" % pid)
             sys.exit(0)
 
-        # execute after commands #
-        SysMgr.runProfCmd("AFTER", {"PID": pid})
+        # execute start commands #
+        SysMgr.runProfCmd("START", {"PID": pid})
 
         # get environment variables of the target #
         envList = SysMgr.getEnv(pid, retdict=True)
@@ -52370,6 +52372,9 @@ Copyright:
             LeakAnalyzer.repeatCnt = UtilMgr.getEnvironNum(
                 "REPEAT", False, 0, False, True
             )
+
+        # execute after commands #
+        SysMgr.runProfCmd("AFTER", {"PID": pid})
 
         # check repeat count #
         LeakAnalyzer.repeatCnt -= 1
@@ -80702,6 +80707,12 @@ class ElfAnalyzer(object):
         "DW_CFA_val_offset_sf": 0x15,
         "DW_CFA_val_expression": 0x16,
         "DW_CFA_GNU_args_size": 0x2E,
+        "DW_CFA_low_user": 0x1C,
+        "DW_CFA_MIPS_advance_loc8": 0x1D,
+        "DW_CFA_GNU_window_save": 0x2D,
+        "DW_CFA_GNU_args_size": 0x2E,
+        "DW_CFA_GNU_negative_offset_extended": 0x2F,
+        "DW_CFA_high_user": 0x3F,
         "DW_PRIMARY_MASK": 0b11000000,
         "DW_PRIMARY_ARG_MASK": 0b00111111,
     }
@@ -82341,6 +82352,7 @@ class ElfAnalyzer(object):
                 DW["DW_CFA_nop"],
                 DW["DW_CFA_remember_state"],
                 DW["DW_CFA_restore_state"],
+                DW["DW_CFA_GNU_window_save"],
             ):
                 inst = DWM[opcode]
                 args = []
@@ -82393,6 +82405,7 @@ class ElfAnalyzer(object):
                 DW["DW_CFA_same_value"],
                 DW["DW_CFA_def_cfa_register"],
                 DW["DW_CFA_def_cfa_offset"],
+                DW["DW_CFA_GNU_args_size"],
             ):
                 inst = DWM[opcode]
                 data = table[pos : pos + 1024].decode("latin-1")
