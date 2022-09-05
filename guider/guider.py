@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220904"
+__revision__ = "220905"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30579,10 +30579,10 @@ Examples:
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
     - {3:1} with arguments using DWARF {7:1}
-        # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
+        # {0:1} {1:1} -g a.out -e D -q DEBUGINFO, PRINTARG
 
     - {3:1} with backtrace including arguments using DWARF {7:1}
-        # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
+        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTBTARG
 
     - {5:1} {7:1}
         # {0:1} {1:1} -g 1234 -c printPeace
@@ -32067,10 +32067,10 @@ Examples:
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
     - {3:1} with arguments using DWARF {4:1}
-        # {0:1} {1:1} -g a.out -q DEBUGINFO, PRINTARG
+        # {0:1} {1:1} -g a.out -e D -q DEBUGINFO, PRINTARG
 
     - {3:1} with backtrace including arguments using DWARF {4:1}
-        # {0:1} {1:1} -g a.out -H -q DEBUGINFO, PRINTBTARG
+        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTBTARG
 
     - {3:1} {4:1} every 2 second for 1 minute with 1ms sampling
         # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
@@ -33806,6 +33806,9 @@ Description:
 Options:
     -d  <CHARACTER>             disable options
           [ A:Average | e:encode ]
+    -g  <COMM|TID>              set task filter
+    -o  <DIR|FILE>              set output path
+    -q  <NAME{:VALUE}>          set environment variables
                     """
 
                     helpStr += """
@@ -33815,6 +33818,11 @@ Examples:
 
     - {2:1} in current directory
         # {0:1} {1:1} "tc*.out"
+
+    - {2:1} for specific tasks
+        # {0:1} {1:1} "tc1.out, tc2.out" -g a.out
+        # {0:1} {1:1} "tc1.out, tc2.out" -g "*task"
+        # {0:1} {1:1} "tc1.out, tc2.out" -g "^task*"
 
     - {2:1} from current directory to all sub-directories
         # {0:1} {1:1} "**/tc*.out"
@@ -42301,10 +42309,12 @@ Copyright:
                             exceptFlag = False
 
                         # convert syscall name #
-                        if not val.startswith("sys_") and not val.startswith(
-                            "*"
-                        ):
-                            val = "sys_%s" % val
+                        if not val.lstrip("*").startswith("sys_"):
+                            if val.startswith("*"):
+                                prefix = "*"
+                            else:
+                                prefix = ""
+                            val = prefix + "sys_" + val.lstrip("*")
 
                         # get syscall index #
                         nrList = []
@@ -54053,11 +54063,20 @@ Copyright:
                 yield r
                 r += step
 
-        def _exeCmd(cmd):
+        def _exeCmd(cmd, seq=1, repeat=1):
             # get subprocess object #
             subprocess = SysMgr.getPkg("subprocess")
 
-            SysMgr.printInfo("executed '%s'" % cmd)
+            # get repeatation progress #
+            if repeat > 1:
+                repeatStr = " (%s/%s)" % (
+                    UtilMgr.convNum(seq + 1),
+                    UtilMgr.convNum(repeat),
+                )
+            else:
+                repeatStr = ""
+
+            SysMgr.printInfo("executed '%s'%s" % (cmd, repeatStr))
 
             # get environment variables #
             env = SysMgr.getEnvList()
@@ -54117,12 +54136,13 @@ Copyright:
             duration = time.time() - startTime
 
             SysMgr.printInfo(
-                "terminated '%s' and elapsed %s sec" % (cmd, duration)
+                "terminated '%s' and elapsed %.6f sec"
+                % (cmd, round(duration, 6))
             )
 
-        def _iterVarCmd(cmd, var):
+        def _iterVarCmd(cmd, var, seq=1, repeat=1):
             if not var:
-                _exeCmd(cmd)
+                _exeCmd(cmd, seq, repeat)
                 return
 
             # pop a variable #
@@ -54205,7 +54225,7 @@ Copyright:
             for item in ilist:
                 try:
                     tcmd = cmd.replace(key, item)
-                    _iterVarCmd(tcmd, list(var))
+                    _iterVarCmd(tcmd, list(var), seq, repeat)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -54248,7 +54268,7 @@ Copyright:
         else:
             parallel = False
 
-        for _ in range(repeat):
+        for seq in range(repeat):
             # create a worker process #
             if parallel:
                 ret = SysMgr.createProcess()
@@ -54258,9 +54278,11 @@ Copyright:
             # convert variables #
             try:
                 if SysMgr.customCmd:
-                    _iterVarCmd(cmd, UtilMgr.deepcopy(SysMgr.customCmd))
+                    _iterVarCmd(
+                        cmd, UtilMgr.deepcopy(SysMgr.customCmd), seq, repeat
+                    )
                 else:
-                    _exeCmd(cmd)
+                    _exeCmd(cmd, seq, repeat)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -67194,12 +67216,16 @@ typedef struct {
 
             # VSS diff #
             vss = UtilMgr.convSize2Unit(afterMem["vss"] - prevMem["vss"])
-            if vss != "0" and not vss.startswith("-"):
+            if vss == "0":
+                vss = 0
+            elif not vss.startswith("-"):
                 vss = "+" + vss
 
             # RSS diff #
             rss = UtilMgr.convSize2Unit(afterMem["rss"] - prevMem["rss"])
-            if rss != "0" and not rss.startswith("-"):
+            if rss == "0":
+                rss = 0
+            elif not rss.startswith("-"):
                 rss = "+" + rss
 
             # I/O diff #
@@ -67238,22 +67264,22 @@ typedef struct {
                     readIo = _getIoDiff("read_bytes")
                     writeIo = _getIoDiff("write_bytes")
 
-            self.bufferedStr += UtilMgr.convColor(
-                (
-                    "%s<stat> TIME: %.6f Sec, CPU: %s%%, VSS: %s, "
-                    "RSS: %s, READ: %s, WRITE: %s"
-                )
-                % (
-                    " " if self.multi else "\n" + " " * 11,
-                    diff,
-                    cpu,
-                    vss,
-                    rss,
-                    readIo,
-                    writeIo,
-                ),
-                "YELLOW",
+            # print stat diff #
+            statStr = "%s<stat> TIME: %.6f Sec" % (
+                " " if self.multi else "\n" + " " * 11,
+                diff,
             )
+            if cpu:
+                statStr += ", CPU: %s%%" % cpu
+            if vss:
+                statStr += ", VSS: %s" % vss
+            if rss:
+                statStr += ", RSS: %s" % rss
+            if readIo:
+                statStr += ", READ: %s" % readIo
+            if writeIo:
+                statStr += ", WRITE: %s" % writeIo
+            self.bufferedStr += UtilMgr.convColor(statStr, "YELLOW")
 
         def _handleCmd(cmdset, cmd):
             repeat = True
@@ -68293,16 +68319,31 @@ typedef struct {
                     argList = []
                     argStr = "()"
 
-                # get address #
+                # get address and file path #
                 addr = UtilMgr.convStr2Num(val, verb=False)
                 if addr is None:
+                    # address #
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
                         SysMgr.printErr("no found %s" % val)
                         return repeat
                     addr = ret
 
-                output = "\n[%s] %s[0x%x]%s" % (cmdstr, val, addr, argStr)
+                    # file path #
+                    if addr:
+                        ret = self.getSymbolInfo(addr)
+                        if ret and ret[1]:
+                            path = "/%s" % os.path.basename(ret[1])
+                        else:
+                            path = ""
+
+                output = "\n[%s] %s[0x%x%s]%s" % (
+                    cmdstr,
+                    val,
+                    addr,
+                    path,
+                    argStr,
+                )
 
                 if sym == val or self.pc == addr:
                     skip = True
@@ -73610,6 +73651,18 @@ typedef struct {
         if onlyArg:
             return None
 
+        # check CFA #
+        if cfa == self.prevCfa:
+            return None
+        else:
+            self.prevCfa = cfa
+
+        """
+        # check stack pointer #
+        if cfa < self.sp:
+            return None
+        """
+
         # recover registers #
         argIdx = ElfAnalyzer.RegisterRule.ARG
         for num, value in rule.items():
@@ -77013,6 +77066,7 @@ typedef struct {
         self.prevCallInfo = None
         self.prevSp = None
         self.prevDepth = 0
+        self.prevCfa = 0
 
         # call variables #
         self.prevCallString = ""
@@ -86710,15 +86764,26 @@ class TaskAnalyzer(object):
         if not SysMgr.filterGroup:
             return True
 
+        # remove * for new tasks #
+        comm = comm.lstrip("*")
+
+        filterGroup = SysMgr.filterGroup
+
         # check exclusion condition #
-        for idx in list(SysMgr.filterGroup):
+        exCondCnt = 0
+        for idx in filterGroup:
             if idx.startswith("^"):
+                exCondCnt += 1
                 cond = idx[1:]
                 if pid == cond or UtilMgr.isValidStr(comm, [cond]):
                     return False
 
+        # check all excusion condition #
+        if exCondCnt == len(filterGroup):
+            return True
+
         # check filter #
-        if UtilMgr.isValidStr(comm.strip("*")) or pid in SysMgr.filterGroup:
+        if UtilMgr.isValidStr(comm) or pid in filterGroup:
             return True
 
     @staticmethod
@@ -89462,7 +89527,7 @@ class TaskAnalyzer(object):
                         continue
 
                     d = m.groupdict()
-                    comm = d["comm"].strip().replace("^", "")
+                    comm = d["comm"].strip("^ ")
 
                     if not SysMgr.filterGroup:
                         pid = d["pid"]
@@ -89503,7 +89568,7 @@ class TaskAnalyzer(object):
                         continue
 
                     d = m.groupdict()
-                    comm = d["comm"].strip().replace("^", "")
+                    comm = d["comm"].strip("^ ")
 
                     if not SysMgr.filterGroup:
                         pid = d["pid"]
@@ -111906,9 +111971,7 @@ class TaskAnalyzer(object):
             exceptFlag = False
 
             # check comm and ID #
-            if not TaskAnalyzer.checkFilter(
-                procData[idx]["comm"].lstrip("*"), idx
-            ):
+            if not TaskAnalyzer.checkFilter(procData[idx]["comm"], idx):
                 exceptFlag = True
             else:
                 exceptFlag = __check2ndFilter(exceptFlag)
