@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220905"
+__revision__ = "220906"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7209,44 +7209,54 @@ class UtilMgr(object):
         # sizeZB = 1180591620717411303424
         # sizeYB = 120892581961462917470617
 
+        value = str(value)
+
+        # check type #
+        origValue = value
+        if value.startswith("-"):
+            value = value.lstrip("-")
+            factor = -1
+        else:
+            factor = 1
+
         if str(value).isdigit():
-            return long(value)
+            return long(value) * factor
 
         # convert unit character to capital #
         value = value.upper()
 
         try:
             if value.endswith("K"):
-                return long(float(value[:-1]) * sizeKB)
+                return long(float(value[:-1]) * sizeKB) * factor
             if value.endswith("KB"):
-                return long(float(value[:-2]) * sizeKB)
+                return long(float(value[:-2]) * sizeKB) * factor
 
             if value.endswith("M"):
-                return long(float(value[:-1]) * sizeMB)
+                return long(float(value[:-1]) * sizeMB) * factor
             if value.endswith("MB"):
-                return long(float(value[:-2]) * sizeMB)
+                return long(float(value[:-2]) * sizeMB) * factor
 
             if value.endswith("G"):
-                return long(float(value[:-1]) * sizeGB)
+                return long(float(value[:-1]) * sizeGB) * factor
             if value.endswith("GB"):
-                return long(float(value[:-2]) * sizeGB)
+                return long(float(value[:-2]) * sizeGB) * factor
 
             if value.endswith("T"):
-                return long(float(value[:-1]) * sizeTB)
+                return long(float(value[:-1]) * sizeTB) * factor
             if value.endswith("TB"):
-                return long(float(value[:-2]) * sizeTB)
+                return long(float(value[:-2]) * sizeTB) * factor
 
             if value.endswith("P"):
-                return long(float(value[:-1]) * sizePB)
+                return long(float(value[:-1]) * sizePB) * factor
             if value.endswith("PB"):
-                return long(float(value[:-2]) * sizePB)
+                return long(float(value[:-2]) * sizePB) * factor
 
             if value.endswith("E"):
-                return long(float(value[:-1]) * sizeEB)
+                return long(float(value[:-1]) * sizeEB) * factor
             if value.endswith("EB"):
-                return long(float(value[:-2]) * sizeEB)
+                return long(float(value[:-2]) * sizeEB) * factor
 
-            SysMgr.printErr("failed to convert '%s' to bytes" % value)
+            SysMgr.printErr("failed to convert '%s' to bytes" % origValue)
 
             assert False
         except SystemExit:
@@ -7254,7 +7264,7 @@ class UtilMgr(object):
         except AssertionError:
             raise Exception("wrong number unit")
         except:
-            return value
+            return origValue
 
     @staticmethod
     def saveStr2File(string, path):
@@ -27358,7 +27368,7 @@ Commands:
     @staticmethod
     def setStream(cut=True):
         if "NOCUT" in SysMgr.environList or not cut:
-            SysMgr.ttyCols = 0
+            SysMgr.ttyCols = sys.maxsize
 
         SysMgr.streamEnable = True
         SysMgr.encodeEnable = False
@@ -41554,7 +41564,14 @@ Copyright:
 
                         # print info #
                         SysMgr.printInfo(
-                            "limit %s(%s) to '%s'" % (res, name, unitSize)
+                            "limit %s(%s) to '%s'"
+                            % (
+                                res,
+                                ", ".join(name)
+                                if type(name) is list
+                                else name,
+                                unitSize,
+                            )
                         )
 
                         # get limit pids #
@@ -55242,10 +55259,7 @@ Copyright:
 
                 # set variables for print #
                 printed = True
-                if SysMgr.ttyCols:
-                    maxItemLine = long(SysMgr.ttyCols / (maxSigLen + 2)) - 1
-                else:
-                    maxItemLine = sys.maxsize
+                maxItemLine = long(SysMgr.ttyCols / (maxSigLen + 2)) - 1
                 nameStr = "%s: " % name
                 string = nameStr
 
@@ -58251,6 +58265,8 @@ Copyright:
 
         self.printSchedInfo()
 
+        self.printSchedFeatInfo()
+
         self.printBuddyInfo()
 
         self.printMmapInfo()
@@ -58423,10 +58439,37 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
     def printSchedInfo(self):
+        SysMgr.infoBufferPrint("\n[Sched Factor Info]")
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint("{0:^30} | {1:^15}".format("Factor", "Value"))
+        SysMgr.infoBufferPrint(twoLine)
+
+        try:
+            dirpath = "/proc/sys/kernel"
+            for item in os.listdir(dirpath):
+                if not item.startswith("sched_"):
+                    continue
+
+                # check type #
+                fpath = os.path.join(dirpath, item)
+                if os.path.isdir(fpath):
+                    continue
+
+                value = UtilMgr.convNum(SysMgr.readFile(fpath))
+                SysMgr.infoBufferPrint("{0:<30} | {1:>15}".format(item, value))
+
+            SysMgr.infoBufferPrint(twoLine)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get sched factors", True)
+
+    def printSchedFeatInfo(self):
         def _printItems(status, items):
             indentStr = " " * 11
             enableStr = "{0:^10} ".format(status)
 
+            # set max length #
             if SysMgr.ttyCols < len(oneLine):
                 maxLen = SysMgr.ttyCols
             else:
@@ -110568,7 +110611,7 @@ class TaskAnalyzer(object):
 
             # add stats in a line #
             item = "%-15s %7s" % ("%s:" % name, size)
-            if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
+            if len(item) + len(curline) >= SysMgr.ttyCols:
                 databuf += "%s]\n" % curline.rstrip(", ")
                 curline = str(edata)
 
@@ -110646,7 +110689,7 @@ class TaskAnalyzer(object):
 
             # add stats in a line #
             item = "%s: %s" % (name, UtilMgr.convSize2Unit(items[target]))
-            if SysMgr.ttyCols and len(item) + len(curline) >= SysMgr.ttyCols:
+            if len(item) + len(curline) >= SysMgr.ttyCols:
                 if nrLine >= cutLine:
                     break
 
@@ -110887,7 +110930,7 @@ class TaskAnalyzer(object):
             newIrq = "%s: %s / " % (irq, UtilMgr.convNum(irqDiff))
             lenNewIrq = len(newIrq)
 
-            if SysMgr.ttyCols and lenIrq + lenNewIrq >= SysMgr.ttyCols:
+            if lenIrq + lenNewIrq >= SysMgr.ttyCols:
                 irqData = "%s\n%s %s" % (irqData, " " * 7, " " * nrIndent)
                 lenIrq = nrIndent
 
