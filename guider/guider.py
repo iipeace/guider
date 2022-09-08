@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220906"
+__revision__ = "220908"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -746,6 +746,8 @@ class ConfigMgr(object):
         "S2": "h",
         "S4": "i",
         "S8": "q",
+        "float": "f",
+        "double": "d",
     }
 
     # syscall prototypes #
@@ -30137,6 +30139,9 @@ Examples:
     - {3:1} {2:1} and report the results to both ./guider.out and console {4:1}
         # {0:1} {1:1} -o . -Q
 
+    - {3:1} {2:1} and print environment variables
+        # {0:1} {1:1} -q PRINTENV
+
     - {3:1} {2:1} and report the results to ./guider.out after freeing up space in the target directories {4:1}
         # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G
 
@@ -34611,6 +34616,7 @@ Examples:
 
     - {3:1} including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} -I "ls -lha FILE" -q ENV:MALLOC_MMAP_THRESHOLD_=131072, ENV:MALLOC_ARENA_MAX=5
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
         # {0:1} {1:1} -I "ls -lha FILE" -q CLEARENV
         # {0:1} {1:1} -I "ls -lha FILE" -q CLEARENV:HOME, CLEARENV:^LANGUAGE
@@ -34643,6 +34649,9 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M@"*yes*|a.out"
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
+
+    - {2:1} and print environment variables
+        # {0:1} {1:1} -I "a.out" -q PRINTENV
                     """.format(
                         cmd, mode, "Execute a command", "Execute commands"
                     )
@@ -34805,6 +34814,7 @@ Examples:
 
     - {3:1} {2:1} {6:1} after setting environment variables
         # {0:1} {1:1} ./a.out {7:1} -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} ./a.out {7:1} -q ENV:MALLOC_MMAP_THRESHOLD_=131072, ENV:MALLOC_ARENA_MAX=5
         # {0:1} {1:1} ./a.out {7:1} -q ENVFILE:/data/env.sh
         # {0:1} {1:1} ./a.out {7:1} -q CLEARENV
         # {0:1} {1:1} ./a.out {7:1} -q CLEARENV:HOME, CLEARENV:^LANGUAGE
@@ -41792,6 +41802,14 @@ Copyright:
                 memRes=SysMgr.startCondMemLess, memCond="LESS"
             )
 
+        # print environment variables #
+        if "PRINTENV" in SysMgr.environList:
+            SysMgr.printWarn(
+                "The following environment variables will be used\n%s"
+                % UtilMgr.convDict2Str(dict(os.environ), pretty=True),
+                True,
+            )
+
     @staticmethod
     def checkOptVal(option, value):
         if not value:
@@ -45625,20 +45643,21 @@ Copyright:
             if not envList and not envFileList:
                 return myEnv
 
-            _applyList(myEnv, envList)
-
             # read variables from files #
             for fname in envFileList:
                 try:
                     with open(fname, "r") as fd:
-                        envList = fd.readlines()
-                        _applyList(myEnv, envList)
+                        fileEnvList = fd.readlines()
+                        _applyList(myEnv, fileEnvList)
                 except:
                     SysMgr.printErr(
                         "failed to parse environment variable from %s" % fname,
                         True,
                     )
                     sys.exit(-1)
+
+            # apply each variables #
+            _applyList(myEnv, envList)
 
             return myEnv
         except SystemExit:
@@ -45653,6 +45672,17 @@ Copyright:
     def executeProcess(cmd=None, mute=False, closeFd=True, resetPri=False):
         # get new environ variables #
         env = SysMgr.getEnvList()
+
+        # print environment variables #
+        if "PRINTENV" in SysMgr.environList:
+            SysMgr.printWarn(
+                "The following environment variables will be used to execute '%s'\n%s"
+                % (
+                    " ".join(cmd) if cmd else "Guider",
+                    UtilMgr.convDict2Str(dict(env), pretty=True),
+                ),
+                True,
+            )
 
         # reset priority #
         if resetPri:
@@ -51790,13 +51820,12 @@ Copyright:
                     # convert to absolute path #
                     libPath = os.path.realpath(newPath[0])
 
-                    # override LD_PRELOAD value #
-                    if "LD_PRELOAD" in os.environ:
-                        libPath += ":%s" % SysMgr.convFullPath(
-                            os.environ["LD_PRELOAD"]
-                        )
-
                     # add PRELOAD path #
+                    env = SysMgr.getEnvList()
+                    if "LD_PRELOAD" in env:
+                        libPath += ":%s" % SysMgr.convFullPath(
+                            env["LD_PRELOAD"]
+                        )
                     SysMgr.environList["ENV"].append("LD_PRELOAD=%s" % libPath)
 
                 # check ld.so.preload #
@@ -64014,7 +64043,7 @@ class DbusMgr(object):
             elif pid == 0:
                 # redirect stdout to pipe #
                 os.close(rd)
-                wrPipe = os.fdopen(wr, "r")
+                wrPipe = os.fdopen(wr, "w")
                 SysMgr.setPipeSize(wrPipe)
                 os.dup2(wr, 1)
 
@@ -73485,6 +73514,143 @@ typedef struct {
         else:
             return False
 
+    def convParamVal(self, typestr, val):
+        if typestr == "char":
+            return repr(c_char(val).value.decode())
+        elif typestr == "short":
+            return c_short(val).value
+        elif typestr == "float":
+            return c_float(val).value
+        elif typestr == "double":
+            return c_double(val).value
+        else:
+            return val
+
+    def getParamsInfo(self, dwarf, vaddr, faddr, cfa, cur):
+        paramList = []
+        if not "info" in dwarf or not faddr in dwarf["info"]:
+            return paramList
+
+        # frame base #
+        if "frame" in dwarf["info"][faddr]:
+            base = dwarf["info"][faddr]["frame"]
+        else:
+            base = 0
+
+        # params #
+        if "param" in dwarf["info"][faddr]:
+            abbrevIdx = dwarf["info"][faddr]["abbrev"]
+            abbrev = dwarf["abbrev"][abbrevIdx]
+
+            for item in dwarf["info"][faddr]["param"]:
+                # name #
+                if "name" in abbrev[item]:
+                    name = abbrev[item]["name"]
+                else:
+                    name = "??"
+
+                # size #
+                if "size" in abbrev[item]:
+                    size = abbrev[item]["size"]
+                else:
+                    size = 0
+
+                # type element #
+                typeName = ""
+                if "type" in abbrev[item]:
+                    typeNum = abbrev[item]["type"]
+                else:
+                    typeNum = -1
+
+                # get full type #
+                if typeNum in ElfAnalyzer.cachedTypes:
+                    (
+                        typeName,
+                        size,
+                        decChar,
+                        isAddr,
+                    ) = ElfAnalyzer.cachedTypes[typeNum]
+                else:
+                    typeName = ""
+                    typeNumOrig = typeNum
+
+                    # build type name #
+                    while 1:
+                        if not typeNum in abbrev:
+                            break
+
+                        # add a type attribute #
+                        if "name" in abbrev[typeNum]:
+                            typeName = "%s %s" % (
+                                typeName,
+                                abbrev[typeNum]["name"],
+                            )
+
+                        # size #
+                        if "size" in abbrev[typeNum]:
+                            size = abbrev[typeNum]["size"]
+
+                        if not "type" in abbrev[typeNum]:
+                            break
+
+                        typeNum = abbrev[typeNum]["type"]
+
+                    # remove heading space #
+                    typeName = typeName.lstrip()
+
+                    # decide size and decoding type #
+                    isAddr = False
+                    if size == 0:
+                        decChar = None
+                    elif typeName.startswith("*"):
+                        size = ConfigMgr.wordSize
+                        decChar = self.decChar
+                        isAddr = True
+                    elif typeName in ConfigMgr.UNPACK_TYPE:
+                        decChar = ConfigMgr.UNPACK_TYPE[typeName]
+                    elif "unsigned" in typeName:
+                        decChar = ConfigMgr.UNPACK_TYPE["U%s" % size]
+                    else:
+                        decChar = ConfigMgr.UNPACK_TYPE["S%s" % size]
+
+                    # save type info #
+                    ElfAnalyzer.cachedTypes[typeNumOrig] = [
+                        typeName,
+                        size,
+                        decChar,
+                        isAddr,
+                    ]
+
+                # location #
+                paramVal = "??"
+                if size == 0:
+                    pass
+                elif cur and len(paramList) < 6:
+                    paramVal = self.readArgs()[len(paramList)]
+                    if isAddr:
+                        paramVal = hex(paramVal)
+                elif "loc" in abbrev[item]:
+                    # sec_offset #
+                    # TODO: handle this attribute #
+                    if type(abbrev[item]["loc"]) is long:
+                        paramVal = "??"
+                    # exprloc(reg) #
+                    # TODO: handle this attribute #
+                    elif len(abbrev[item]["loc"]) == 1:
+                        paramVal = "??"
+                    # exprloc(offset) #
+                    elif len(abbrev[item]["loc"]) == 2:
+                        paramAddr = abbrev[item]["loc"][1]
+                        paramVal = self.readMem(cfa + paramAddr, size)
+                        paramVal = struct.unpack(decChar, paramVal)[0]
+                        if isAddr:
+                            paramVal = hex(paramVal)
+
+                # add a parameter info #
+                paramList.append([vaddr, typeName, name, size, paramVal])
+
+        return paramList
+
     def getRetAddr(self, vaddr, argList=[], onlyArg=False, cur=False):
         # get file name #
         fname = self.getFileFastFromMap(vaddr)
@@ -73570,125 +73736,9 @@ typedef struct {
         cfa = regval + offset
 
         # get parameter #
-        if "info" in dwarf and faddr in dwarf["info"]:
-            # frame base #
-            if "frame" in dwarf["info"][faddr]:
-                base = dwarf["info"][faddr]["frame"]
-            else:
-                base = 0
-
-            # params #
-            paramList = []
-            if "param" in dwarf["info"][faddr]:
-                abbrevIdx = dwarf["info"][faddr]["abbrev"]
-                abbrev = dwarf["abbrev"][abbrevIdx]
-
-                for item in dwarf["info"][faddr]["param"]:
-                    # name #
-                    if "name" in abbrev[item]:
-                        name = abbrev[item]["name"]
-                    else:
-                        name = "??"
-
-                    # size #
-                    if "size" in abbrev[item]:
-                        size = abbrev[item]["size"]
-                    else:
-                        size = 0
-
-                    # type element #
-                    typeName = ""
-                    if "type" in abbrev[item]:
-                        typeNum = abbrev[item]["type"]
-                    else:
-                        typeNum = -1
-
-                    # get full type #
-                    if typeNum in ElfAnalyzer.cachedTypes:
-                        (
-                            typeName,
-                            size,
-                            decChar,
-                            isAddr,
-                        ) = ElfAnalyzer.cachedTypes[typeNum]
-                    else:
-                        typeName = ""
-                        typeNumOrig = typeNum
-
-                        # build type name #
-                        while 1:
-                            if not typeNum in abbrev:
-                                break
-
-                            # add a type attribute #
-                            if "name" in abbrev[typeNum]:
-                                typeName = "%s %s" % (
-                                    typeName,
-                                    abbrev[typeNum]["name"],
-                                )
-
-                            # size #
-                            if "size" in abbrev[typeNum]:
-                                size = abbrev[typeNum]["size"]
-
-                            if not "type" in abbrev[typeNum]:
-                                break
-
-                            typeNum = abbrev[typeNum]["type"]
-
-                        # remove heading space #
-                        typeName = typeName.lstrip()
-
-                        # decide size and decoding type #
-                        isAddr = False
-                        if size == 0:
-                            decChar = None
-                        elif typeName.startswith("*"):
-                            size = ConfigMgr.wordSize
-                            decChar = self.decChar
-                            isAddr = True
-                        elif "unsigned" in typeName:
-                            decChar = ConfigMgr.UNPACK_TYPE["U%s" % size]
-                        else:
-                            decChar = ConfigMgr.UNPACK_TYPE["S%s" % size]
-
-                        # save type info #
-                        ElfAnalyzer.cachedTypes[typeNumOrig] = [
-                            typeName,
-                            size,
-                            decChar,
-                            isAddr,
-                        ]
-
-                    # location #
-                    paramVal = "??"
-                    if size == 0:
-                        pass
-                    elif cur and len(paramList) < 6:
-                        paramVal = self.readArgs()[len(paramList)]
-                        if isAddr:
-                            paramVal = hex(paramVal)
-                    elif "loc" in abbrev[item]:
-                        # sec_offset #
-                        # TODO: handle this attribute #
-                        if type(abbrev[item]["loc"]) is long:
-                            paramVal = "??"
-                        # exprloc(reg) #
-                        # TODO: handle this attribute #
-                        elif len(abbrev[item]["loc"]) == 1:
-                            paramVal = "??"
-                        # exprloc(offset) #
-                        elif len(abbrev[item]["loc"]) == 2:
-                            paramAddr = abbrev[item]["loc"][1]
-                            paramVal = self.readMem(cfa + paramAddr, size)
-                            paramVal = struct.unpack(decChar, paramVal)[0]
-                            if isAddr:
-                                paramVal = hex(paramVal)
-
-                    # add a parameter info #
-                    paramList.append([vaddr, typeName, name, size, paramVal])
-
-                argList.append(paramList)
+        if Debugger.envFlags["PRINTARG"]:
+            paramList = self.getParamsInfo(dwarf, vaddr, faddr, cfa, cur)
+            argList.append(paramList)
 
         # check only argument requirement #
         if onlyArg:
@@ -74038,21 +74088,26 @@ typedef struct {
         self.prevStack = backtrace
 
         # get arg list #
-        if self.btArgList and "PRINTBTARG" in SysMgr.environList:
-            argList = list(self.btArgList)
+        if self.btArgList and "PRINTARG" in SysMgr.environList:
+            argList = list(self.btArgList[1:])
+            argList.append([])
         else:
             argList = []
 
         btStr = ""
         for sidx, item in enumerate(reversed(stack)):
             # get arg list #
-            if argList and argList[-1][0][0] == item[0]:
-                args = "(%s)" % ", ".join(
-                    ["%s=%s" % (arg[2], arg[4]) for arg in argList[-1]]
-                )
-                argList.pop()
-            else:
-                args = ""
+            args = ""
+            if argList:
+                params = argList.pop()
+                if params:
+                    args = "(%s)" % ", ".join(
+                        [
+                            "%s=%s"
+                            % (arg[2], self.convParamVal(arg[1], arg[4]))
+                            for arg in params
+                        ]
+                    )
 
             # add context to string #
             if python:
@@ -74108,12 +74163,15 @@ typedef struct {
 
         # convert args #
         if Debugger.envFlags["PRINTARG"]:
-            args = []
-            self.getRetAddr(addr, args, onlyArg=True, cur=True)
-            if args:
-                args = args[0]
+            dargs = []
+            self.getRetAddr(addr, dargs, onlyArg=True, cur=True)
+            if dargs:
+                dargs = dargs[0]
             argstr = "(%s)" % ", ".join(
-                ["%s=%s" % (arg[2], arg[4]) for arg in args]
+                [
+                    "%s=%s" % (arg[2], self.convParamVal(arg[1], arg[4]))
+                    for arg in dargs
+                ]
             )
         # convert args #
         elif (
@@ -74414,14 +74472,14 @@ typedef struct {
                 else:
                     fnameStr = " [%s]" % fname
 
-                callString = "\n%s %s%s%s%s/%s%s%s" % (
+                callString = "\n%s %s%s%s%s%s/%s%s" % (
                     diffstr,
                     tinfo,
                     indent,
                     convColor(sym, symColor),
                     elapsed,
-                    hex(addr).rstrip("L"),
                     argstr,
+                    hex(addr).rstrip("L"),
                     convColor(fnameStr, "YELLOW"),
                 )
 
