@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220908"
+__revision__ = "220910"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30593,11 +30593,8 @@ Examples:
     - {3:1} with python backtrace {7:1}
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - {3:1} with arguments using DWARF {7:1}
-        # {0:1} {1:1} -g a.out -e D -q DEBUGINFO, PRINTARG
-
     - {3:1} with backtrace including arguments using DWARF {7:1}
-        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTBTARG
+        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
 
     - {5:1} {7:1}
         # {0:1} {1:1} -g 1234 -c printPeace
@@ -32081,11 +32078,8 @@ Examples:
     - {3:1} with python backtrace {4:1}
         # {0:1} {1:1} -g a.out -H -q PYSTACK
 
-    - {3:1} with arguments using DWARF {4:1}
-        # {0:1} {1:1} -g a.out -e D -q DEBUGINFO, PRINTARG
-
     - {3:1} with backtrace including arguments using DWARF {4:1}
-        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTBTARG
+        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
 
     - {3:1} {4:1} every 2 second for 1 minute with 1ms sampling
         # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
@@ -72724,6 +72718,22 @@ typedef struct {
 
         return None
 
+    def getParamVal(self, argList, reverse=False):
+        if not argList:
+            return ""
+
+        # get a arg set #
+        params = argList.pop(0 if reverse else -1)
+        if not params:
+            return "()"
+
+        return "(%s)" % ", ".join(
+            [
+                "%s=%s" % (arg[2], self.convParamVal(arg[1], arg[4]))
+                for arg in params
+            ]
+        )
+
     def getFileFastFromMap(self, vaddr):
         try:
             idx = UtilMgr.bisect_left(self.addrList, vaddr)
@@ -72849,13 +72859,31 @@ typedef struct {
                     "\tBacktrace Info [%s]\n%s\n" % (taskInfo, oneLine)
                 )
 
+                # get args #
+                if self.btArgList:
+                    argList = list(self.btArgList[1:])
+                    argList.insert(0, [])
+                else:
+                    argList = []
+
                 for item in backtrace:
                     if item[0]:
                         addr = hex(item[0]).rstrip("L")
                     else:
                         addr = item[0]
 
-                    SysMgr.addPrint("%s(%s)[%s]\n" % (addr, item[1], item[2]))
+                    # add arg info #
+                    args = self.getParamVal(argList, reverse=True)
+
+                    # set address info #
+                    if item[1] == addr:
+                        addr = ""
+                    else:
+                        addr = "/%s" % addr
+
+                    SysMgr.addPrint(
+                        "%s%s%s[%s]\n" % (item[1], args, addr, item[2])
+                    )
 
                 SysMgr.addPrint("%s\n" % twoLine)
 
@@ -73137,11 +73165,12 @@ typedef struct {
                 maximum = SysMgr.ttyCols
 
         # get arg list #
-        if self.btArgList and "PRINTBTARG" in SysMgr.environList:
-            argList = list(self.btArgList)
+        if self.btArgList:
+            argList = list(self.btArgList[1:])
         else:
             argList = []
 
+        # get mode #
         if type(bt[0]) is list:
             isUser = True
         else:
@@ -73183,10 +73212,8 @@ typedef struct {
                 cntStr = ""
 
             # add arg list #
-            if argList and argList[0][0][0] == item[0]:
-                args = ["%s=%s" % (arg[2], arg[4]) for arg in argList[0]]
-                sym = "%s(%s)" % (sym, ", ".join(args))
-                argList.pop(0)
+            if argList:
+                sym += self.getParamVal(argList, reverse=True)
 
             # build a new string #
             newStr = " <- %s[%s]%s" % (sym, fname, cntStr)
@@ -74088,7 +74115,7 @@ typedef struct {
         self.prevStack = backtrace
 
         # get arg list #
-        if self.btArgList and "PRINTARG" in SysMgr.environList:
+        if self.btArgList:
             argList = list(self.btArgList[1:])
             argList.append([])
         else:
@@ -74096,18 +74123,8 @@ typedef struct {
 
         btStr = ""
         for sidx, item in enumerate(reversed(stack)):
-            # get arg list #
-            args = ""
-            if argList:
-                params = argList.pop()
-                if params:
-                    args = "(%s)" % ", ".join(
-                        [
-                            "%s=%s"
-                            % (arg[2], self.convParamVal(arg[1], arg[4]))
-                            for arg in params
-                        ]
-                    )
+            # get args #
+            args = self.getParamVal(argList)
 
             # add context to string #
             if python:
@@ -74163,16 +74180,13 @@ typedef struct {
 
         # convert args #
         if Debugger.envFlags["PRINTARG"]:
-            dargs = []
-            self.getRetAddr(addr, dargs, onlyArg=True, cur=True)
-            if dargs:
-                dargs = dargs[0]
-            argstr = "(%s)" % ", ".join(
-                [
-                    "%s=%s" % (arg[2], self.convParamVal(arg[1], arg[4]))
-                    for arg in dargs
-                ]
-            )
+            argList = []
+            self.getRetAddr(addr, argList, onlyArg=True, cur=True)
+            if argList:
+                # get a last args info #
+                argstr = self.getParamVal(argList, reverse=True)
+            else:
+                argstr = ""
         # convert args #
         elif (
             Debugger.envFlags["CONVARG"]
