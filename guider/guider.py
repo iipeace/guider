@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220910"
+__revision__ = "220911"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -735,6 +735,23 @@ class ConfigMgr(object):
         "BPF_SK_SKB_STREAM_VERDICT",
         "__MAX_BPF_ATTACH_TYPE",
     ]
+
+    # regset types #
+    NT_TYPE = {
+        "NT_PRSTATUS": 1,
+        "NT_PRFPREG": 2,
+        "NT_PRPSINFO": 3,
+        "NT_TASKSTRUCT": 4,
+        "NT_AUXV": 6,
+        "NT_SIGINFO": 0x53494749,
+        "NT_FILE": 0x46494C45,
+        "NT_PRXFPREG": 0x46E62B7F,
+        "NT_ARM_VFP": 0x400,
+        "NT_ARM_TLS": 0x401,
+        "NT_ARM_HW_BREAK": 0x402,
+        "NT_ARM_HW_WATCH": 0x403,
+        "NT_ARM_SYSTEM_CALL": 0x404,
+    }
 
     # unpack types #
     UNPACK_TYPE = {
@@ -36393,22 +36410,22 @@ Copyright:
         arch = UtilMgr.cleanItem(arch)
 
         # set syscall table #
-        if arch == "arm":
-            ConfigMgr.sysList = ConfigMgr.SYSCALL_ARM
-            ConfigMgr.regList = ConfigMgr.REGS_ARM
-            ConfigMgr.wordSize = 4
-        elif arch == "aarch64":
+        if arch == "aarch64":
             ConfigMgr.sysList = ConfigMgr.SYSCALL_AARCH64
             ConfigMgr.regList = ConfigMgr.REGS_AARCH64
             ConfigMgr.wordSize = 8
-        elif arch == "x86":
-            ConfigMgr.sysList = ConfigMgr.SYSCALL_X86
-            ConfigMgr.regList = ConfigMgr.REGS_X86
-            ConfigMgr.wordSize = 4
         elif arch == "x64":
             ConfigMgr.sysList = ConfigMgr.SYSCALL_X64
             ConfigMgr.regList = ConfigMgr.REGS_X64
             ConfigMgr.wordSize = 8
+        elif arch == "arm":
+            ConfigMgr.sysList = ConfigMgr.SYSCALL_ARM
+            ConfigMgr.regList = ConfigMgr.REGS_ARM
+            ConfigMgr.wordSize = 4
+        elif arch == "x86":
+            ConfigMgr.sysList = ConfigMgr.SYSCALL_X86
+            ConfigMgr.regList = ConfigMgr.REGS_X86
+            ConfigMgr.wordSize = 4
         else:
             support = " / ".join(ConfigMgr.supportArch)
             SysMgr.printErr(
@@ -58083,7 +58100,9 @@ Copyright:
                 ecmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
                 rcmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
 
-            if SysMgr.arch == "arm":
+            if SysMgr.arch == "aarch64":
+                syscallList = ("sys_recvfrom", "sys_recvmmsg", "sys_recvmsg")
+            elif SysMgr.arch == "arm":
                 syscallList = (
                     "sys_recv",
                     "sys_epoll_wait",
@@ -58093,8 +58112,6 @@ Copyright:
                     "sys_recvmmsg",
                     "sys_recvmsg",
                 )
-            elif SysMgr.arch == "aarch64":
-                syscallList = ("sys_recvfrom", "sys_recvmmsg", "sys_recvmsg")
             else:
                 syscallList = (
                     "sys_epoll_wait",
@@ -65968,7 +65985,6 @@ class Debugger(object):
                     ("ELP_mode", c_ulong),
                     ("RA_SIGN_STATE", c_ulong),
                 )
-
             elif self.arch == "x64":
                 _fields_ = (
                     ("r15", c_ulong),
@@ -66498,18 +66514,24 @@ typedef struct {
         else:
             self.pid = None
 
-        # set variables for register #
+        # set variables for general register set #
         self.regs = self.getRegStruct()
         self.iovecObj = self.getIovec(self.regs)
-        self.fpregs = self.getFpRegStruct()
-        self.tempFpRegs = self.getFpRegStruct()
         self.tempRegs = self.getRegStruct()
         self.tempIovecObj = self.getIovec(self.tempRegs)
+        self.regsDict = None
+
+        # set variables for general register set #
+        self.fpregs = self.getFpRegStruct()
+        self.iovecFpObj = self.getIovec(self.fpregs)
+        self.tempFpRegs = self.getFpRegStruct()
+        self.tempIovecFpObj = self.getIovec(self.tempFpRegs)
+        self.fpRegsDict = None
+
+        # set variables for special purpose #
         self.btRegs = self.getRegStruct()
         self.btIovecObj = self.getIovec(self.btRegs)
         self.sigObj = self.getSigStruct()
-        self.regsDict = None
-        self.fpRegsDict = None
 
         # save singleton instance #
         if self.pid != SysMgr.pid:
@@ -67001,6 +67023,8 @@ typedef struct {
                 regs.x6,
                 regs.x7,
             )
+        elif arch == "x64":
+            ret = (regs.rdi, regs.rsi, regs.rdx, regs.rcx, regs.r8, regs.r9)
         elif arch == "arm":
             ret = (
                 regs.r0,
@@ -67011,8 +67035,6 @@ typedef struct {
                 regs.r5,
                 regs.r6,
             )
-        elif arch == "x64":
-            ret = (regs.rdi, regs.rsi, regs.rdx, regs.rcx, regs.r8, regs.r9)
         elif arch == "x86":
             ret = (regs.ebx, regs.ecx, regs.edx, regs.esi, regs.edi, regs.ebp)
         elif arch == "powerpc":
@@ -73654,6 +73676,7 @@ typedef struct {
                     pass
                 elif cur and len(paramList) < 6:
                     paramVal = self.readArgs()[len(paramList)]
+                    # TODO: add known float params #
                     if isAddr:
                         paramVal = hex(paramVal)
                 elif "loc" in abbrev[item]:
@@ -78904,26 +78927,66 @@ typedef struct {
 
         memmove(addressof(target), addressof(self.regs), sizeof(self.regs))
 
-    def getFpRegs(self, temp=False):
-        if temp:
-            addr = addressof(self.tempFpRegs)
-        else:
-            addr = addressof(self.fpregs)
+    def getFpRegs(self, temp=False, new=False):
+        if new:
+            newObj = self.getFpRegStruct()
 
-        cmd = self.getfpregsCmd
+        # read registers #
+        try:
+            if not self.supportGetRegset:
+                raise Exception("not support getregset")
 
-        ret = self.ptrace(cmd, 0, addr)
+            if new:
+                addr = addressof(self.getIovec(newObj))
+            elif temp:
+                addr = addressof(self.tempIovecFpObj)
+            else:
+                addr = addressof(self.iovecFpObj)
+
+            # PTRACE_GETREGSET #
+            cmd = 0x4204
+            NT_PRFPREG = 2
+
+            ret = self.ptrace(cmd, NT_PRFPREG, addr)
+            if ret != 0:
+                raise Exception("getregset failure")
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.supportGetRegset = False
+
+            if new:
+                addr = addressof(newObj)
+            elif temp:
+                addr = addressof(self.tempFpRegs)
+            else:
+                addr = addressof(self.fpregs)
+
+            cmd = self.getfpregsCmd
+            ret = self.ptrace(cmd, 0, addr)
+
+        # handle error #
         if ret != 0:
             if not self.isAlive():
                 SysMgr.printErr("terminated %s(%s)" % (self.comm, self.pid))
                 sys.exit(0)
 
-            SysMgr.printErr(
-                "failed to get fp register set of %s(%s) because %s"
-                % (self.comm, self.pid, self.errmsg)
+            errMsg = "failed to read float registers for %s(%s)" % (
+                self.comm,
+                self.pid,
             )
 
-        return ret
+            # check state #
+            if self.isStopped():
+                SysMgr.printWarn("%s because %s" % (errMsg, self.errmsg))
+            else:
+                SysMgr.printWarn("%s because it is not stopped" % errMsg)
+
+        # return result #
+        if new:
+            return newObj
+        else:
+            return ret
 
     def getRegs(self, temp=False, new=False):
         if new:
@@ -78987,25 +79050,25 @@ typedef struct {
             return ret
 
     def updateNamedRegs(self):
-        if self.arch == "arm":
-            self.fp = self.regs.r11
-            self.sp = self.regs.r13
-            self.lr = self.regs.r14
-            self.pc = self.regs.r15
-        elif self.arch == "aarch64":
+        if self.arch == "aarch64":
             self.fp = self.regs.x29
             self.lr = self.regs.x30
             self.sp = self.regs.sp
             self.pc = self.regs.pc
-        elif self.arch == "x86":
-            self.fp = self.regs.ebp
-            self.sp = self.regs.esp
-            self.pc = self.regs.eip
         elif self.arch == "x64":
             # no use rbp as frame pointer #
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
             self.pc = self.regs.rip
+        elif self.arch == "arm":
+            self.fp = self.regs.r11
+            self.sp = self.regs.r13
+            self.lr = self.regs.r14
+            self.pc = self.regs.r15
+        elif self.arch == "x86":
+            self.fp = self.regs.ebp
+            self.sp = self.regs.esp
+            self.pc = self.regs.eip
 
     def updateRegs(self):
         if self.getRegs() != 0:
