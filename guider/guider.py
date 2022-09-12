@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220911"
+__revision__ = "220912"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -66093,6 +66093,29 @@ class Debugger(object):
 
         return user_regs_struct()
 
+    def getFpItemRegs(self, ftype, num):
+        try:
+            ftype = {
+                "float": c_float,
+                "double": c_double,
+                "longdouble": c_longdouble,
+            }[ftype]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+        alignSize = sizeof(c_longdouble)
+
+        # cast buffer to 16-byte long-double array #
+        length = long(sizeof(self.fpregs) / alignSize)
+        buf = cast(byref(self.fpregs), POINTER(c_longdouble * length)).contents
+
+        # return target value #
+        offset = addressof(buf) + (num * alignSize)
+        count = long(alignSize / sizeof(ftype))
+        return cast(offset, POINTER(ftype * count)).contents[0]
+
     def getFpRegStruct(self):
         class user_fpregs_struct(Structure):
             def _getdict(struct):  # pylint: disable=no-self-argument
@@ -72884,7 +72907,8 @@ typedef struct {
                 # get args #
                 if self.btArgList:
                     argList = list(self.btArgList[1:])
-                    argList.insert(0, [])
+                    self.getRetAddr(self.pc, argList, onlyArg=True, cur=True)
+                    argList.insert(0, argList.pop())
                 else:
                     argList = []
 
@@ -73565,7 +73589,12 @@ typedef struct {
 
     def convParamVal(self, typestr, val):
         if typestr == "char":
-            return repr(c_char(val).value.decode())
+            try:
+                return repr(c_char(val).value.decode())
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return val
         elif typestr == "short":
             return c_short(val).value
         elif typestr == "float":
@@ -73590,6 +73619,9 @@ typedef struct {
         if "param" in dwarf["info"][faddr]:
             abbrevIdx = dwarf["info"][faddr]["abbrev"]
             abbrev = dwarf["abbrev"][abbrevIdx]
+            updateFpRegs = False
+            genRegNum = 0
+            fpRegNum = 0
 
             for item in dwarf["info"][faddr]["param"]:
                 # name #
@@ -73674,11 +73706,23 @@ typedef struct {
                 paramVal = "??"
                 if size == 0:
                     pass
-                elif cur and len(paramList) < 6:
-                    paramVal = self.readArgs()[len(paramList)]
-                    # TODO: add known float params #
-                    if isAddr:
-                        paramVal = hex(paramVal)
+                elif cur:
+                    # handle float types #
+                    if typeName in ("float", "double", "longdouble"):
+                        # read float registers #
+                        if not updateFpRegs:
+                            if self.getFpRegs() == 0:
+                                updateFpRegs = True
+                            else:
+                                sys.exit(-1)
+                        paramVal = self.getFpItemRegs(typeName, fpRegNum)
+                        fpRegNum += 1
+                    # handle general types #
+                    else:
+                        paramVal = self.readArgs()[genRegNum]
+                        genRegNum += 1
+                        if isAddr:
+                            paramVal = hex(paramVal)
                 elif "loc" in abbrev[item]:
                     # sec_offset #
                     # TODO: handle this attribute #
@@ -78864,10 +78908,6 @@ typedef struct {
             if not self.supportSetRegset:
                 raise Exception("not support setregset")
 
-            cmd = 0x4205  # PTRACE_SETREGSET
-            NT_PRSTATUS = 1
-            # nrWords = sizeof(self.regs) * ConfigMgr.wordSize
-
             if newObj:
                 addr = addressof(self.getIovec(newObj))
             elif temp:
@@ -78875,7 +78915,8 @@ typedef struct {
             else:
                 addr = addressof(self.iovecObj)
 
-            ret = self.ptrace(cmd, NT_PRSTATUS, addr)
+            # PTRACE_SETREGSET #
+            ret = self.ptrace(0x4205, ConfigMgr.NT_TYPE["NT_PRSTATUS"], addr)
             if ret != 0:
                 raise Exception("setregset failure")
         except SystemExit:
@@ -78944,10 +78985,7 @@ typedef struct {
                 addr = addressof(self.iovecFpObj)
 
             # PTRACE_GETREGSET #
-            cmd = 0x4204
-            NT_PRFPREG = 2
-
-            ret = self.ptrace(cmd, NT_PRFPREG, addr)
+            ret = self.ptrace(0x4204, ConfigMgr.NT_TYPE["NT_PRFPREG"], addr)
             if ret != 0:
                 raise Exception("getregset failure")
         except SystemExit:
@@ -79005,10 +79043,7 @@ typedef struct {
                 addr = addressof(self.iovecObj)
 
             # PTRACE_GETREGSET #
-            cmd = 0x4204
-            NT_PRSTATUS = 1
-
-            ret = self.ptrace(cmd, NT_PRSTATUS, addr)
+            ret = self.ptrace(0x4204, ConfigMgr.NT_TYPE["NT_PRSTATUS"], addr)
             if ret != 0:
                 raise Exception("getregset failure")
         except SystemExit:
