@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220912"
+__revision__ = "220913"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -66098,7 +66098,7 @@ class Debugger(object):
             ftype = {
                 "float": c_float,
                 "double": c_double,
-                "longdouble": c_longdouble,
+                "long double": c_longdouble,
             }[ftype]
         except SystemExit:
             sys.exit(0)
@@ -72907,7 +72907,9 @@ typedef struct {
                 # get args #
                 if self.btArgList:
                     argList = list(self.btArgList[1:])
-                    self.getRetAddr(self.pc, argList, onlyArg=True, cur=True)
+                    self.getRetAddr(
+                        self.pc, argList, onlyArg=True, cur=self.isBreakMode
+                    )
                     argList.insert(0, argList.pop())
                 else:
                     argList = []
@@ -73667,6 +73669,13 @@ typedef struct {
                                 abbrev[typeNum]["name"],
                             )
 
+                        # handle struct and union types #
+                        """
+                        if "member" in abbrev[typeNum]:
+                            for member in abbrev[typeNum]["member"]:
+                                abbrev[member]
+                        """
+
                         # size #
                         if "size" in abbrev[typeNum]:
                             size = abbrev[typeNum]["size"]
@@ -73689,10 +73698,15 @@ typedef struct {
                         isAddr = True
                     elif typeName in ConfigMgr.UNPACK_TYPE:
                         decChar = ConfigMgr.UNPACK_TYPE[typeName]
-                    elif "unsigned" in typeName:
-                        decChar = ConfigMgr.UNPACK_TYPE["U%s" % size]
+                    elif (
+                        "unsigned" in typeName
+                        and "U" + str(size) in ConfigMgr.UNPACK_TYPE
+                    ):
+                        decChar = ConfigMgr.UNPACK_TYPE["U" + str(size)]
+                    elif "S" + str(size) in ConfigMgr.UNPACK_TYPE:
+                        decChar = ConfigMgr.UNPACK_TYPE["S" + str(size)]
                     else:
-                        decChar = ConfigMgr.UNPACK_TYPE["S%s" % size]
+                        decChar = None
 
                     # save type info #
                     ElfAnalyzer.cachedTypes[typeNumOrig] = [
@@ -73708,13 +73722,13 @@ typedef struct {
                     pass
                 elif cur:
                     # handle float types #
-                    if typeName in ("float", "double", "longdouble"):
+                    if typeName in ("float", "double", "long double"):
                         # read float registers #
                         if not updateFpRegs:
-                            if self.getFpRegs() == 0:
-                                updateFpRegs = True
-                            else:
+                            if self.getFpRegs() != 0:
                                 sys.exit(-1)
+                            updateFpRegs = True
+                        # TODO: handle long double (16 bytes) #
                         paramVal = self.getFpItemRegs(typeName, fpRegNum)
                         fpRegNum += 1
                     # handle general types #
@@ -73736,7 +73750,16 @@ typedef struct {
                     elif len(abbrev[item]["loc"]) == 2:
                         paramAddr = abbrev[item]["loc"][1]
                         paramVal = self.readMem(cfa + paramAddr, size)
-                        paramVal = struct.unpack(decChar, paramVal)[0]
+                        try:
+                            paramVal = struct.unpack(decChar, paramVal)[0]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                "failed to unpack '%s' using '%s'"
+                                % (paramVal, decChar),
+                                reason=True,
+                            )
                         if isAddr:
                             paramVal = hex(paramVal)
 
