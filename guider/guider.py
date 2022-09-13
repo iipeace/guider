@@ -30544,8 +30544,9 @@ Examples:
     - {3:1} except for wait status {7:1}
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - {3:1} except for register info {7:1}
+    - {3:1} except for context info {7:1}
         # {0:1} {1:1} -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
 
     - {3:1} {7:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
@@ -31666,8 +31667,9 @@ Examples:
     - {2:1} except for wait status {3:1}
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - {2:1} except for register info {3:1}
+    - {2:1} except for context info {3:1}
         # {0:1} {1:1} -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
 
     - {2:1} {3:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
@@ -31759,8 +31761,9 @@ Examples:
     - {2:1} except for wait status {3:1}
         # {0:1} {1:1} iotop -g iotop -q EXCEPTWAIT
 
-    - {2:1} except for register info {3:1}
+    - {2:1} except for context info {3:1}
         # {0:1} {1:1} iotop -g iotop -q NOCONTEXT
+        # {0:1} {1:1} iotop -g iotop -q NOREG, NOSIG, NOBT
 
     - {2:1} {3:1} consumed CPU more than 10%
         # {0:1} {1:1} -g iotop -q CPUCOND:10
@@ -32044,8 +32047,9 @@ Examples:
     - {3:1} {4:1} after the target task awakened
         # {0:1} {1:1} -g a.out -q WAITWAKEUP
 
-    - {3:1} except for register info {4:1}
+    - {3:1} except for context info {4:1}
         # {0:1} {1:1} -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
 
     - {3:1} {4:1} consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
@@ -72824,15 +72828,17 @@ typedef struct {
             self.updateRegs()
 
         # print register #
-        if regs:
+        if regs and not "NOREG" in SysMgr.environList:
             # set regsdict #
             self.regsDict = self.regs._getdict()
 
             if not isPrinted:
-                SysMgr.addPrint("%s%s\n" % (prefix, twoLine))
+                SysMgr.addPrint(prefix)
                 isPrinted = True
 
-            SysMgr.addPrint("\tRegister Info [%s]\n%s\n" % (taskInfo, oneLine))
+            SysMgr.addPrint(
+                "%s\n\tRegister Info [%s]\n%s\n" % (twoLine, taskInfo, oneLine)
+            )
 
             regstr = ""
             regstrline = ""
@@ -72875,18 +72881,20 @@ typedef struct {
 
             if brief:
                 SysMgr.addPrint("%s\n%s\n" % (regstr, regstrline))
-            SysMgr.addPrint("%s\n" % twoLine)
 
         # print signal #
-        if sig:
+        if sig and not "NOSIG" in SysMgr.environList:
             try:
+                if not isPrinted:
+                    SysMgr.addPrint(prefix)
+                    isPrinted = True
+
                 signame = ConfigMgr.SIG_LIST[long(self.lastSig)]
                 SysMgr.addPrint(
-                    "\tSignal Info [%s]\n%s\n" % (taskInfo, oneLine)
+                    "%s\n\tSignal Info [%s]\n%s\n"
+                    % (twoLine, taskInfo, oneLine)
                 )
-                SysMgr.addPrint(
-                    "%s: %s\n%s\n" % (self.lastSig, signame, twoLine)
-                )
+                SysMgr.addPrint("%s: %s\n" % (self.lastSig, signame))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -72897,11 +72905,12 @@ typedef struct {
             backtrace = self.getBacktrace(cur=True, force=True)
             if backtrace:
                 if not isPrinted:
-                    SysMgr.addPrint("%s%s\n" % (prefix, twoLine))
+                    SysMgr.addPrint(prefix)
                     isPrinted = True
 
                 SysMgr.addPrint(
-                    "\tBacktrace Info [%s]\n%s\n" % (taskInfo, oneLine)
+                    "%s\n\tBacktrace Info [%s]\n%s\n"
+                    % (twoLine, taskInfo, oneLine)
                 )
 
                 # get args #
@@ -72933,7 +72942,9 @@ typedef struct {
                         "%s%s%s[%s]\n" % (item[1], args, addr, item[2])
                     )
 
-                SysMgr.addPrint("%s\n" % twoLine)
+        # print last line #
+        if isPrinted:
+            SysMgr.addPrint("%s\n" % oneLine)
 
         if SysMgr.outPath:
             self.callPrint.append(SysMgr.bufferString)
