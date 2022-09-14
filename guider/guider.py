@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220913"
+__revision__ = "220914"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28926,10 +28926,15 @@ Commands:
 
     @staticmethod
     def isValidOption(option):
+        if not option:
+            return False
+
+        # check number option such like signal number #
+        if option.isdigit():
+            return True
+
         optionList = "ABCDEFGHIJKLMNOPQRSTUWXYZabcdefgijklmnopqrstuvwxy"
         if option in optionList:
-            return True
-        elif option.isdigit():
             return True
         else:
             return False
@@ -28939,19 +28944,22 @@ Commands:
         try:
             tid = long(tid)
 
-            ldir = cond.find(">")
-            if ldir == 0 and tid >= long(cond[1:]):
-                return True
-            elif ldir == len(cond) - 1 and tid <= long(cond[:-1]):
+            # check same condition #
+            if cond in (tid, str(tid)):
                 return True
 
-            rdir = cond.find("<")
-            if rdir == 0 and tid <= long(cond[1:]):
+            # lvalue checker #
+            lval = cond.find(">")
+            if lval == 0 and tid >= long(cond[1:]):
                 return True
-            elif rdir == len(cond) - 1 and tid >= long(cond[:-1]):
+            elif lval == len(cond) - 1 and tid <= long(cond[:-1]):
                 return True
 
-            if tid == cond or tid == long(cond):
+            # rvalue checker #
+            rval = cond.find("<")
+            if rval == 0 and tid <= long(cond[1:]):
+                return True
+            elif rval == len(cond) - 1 and tid >= long(cond[:-1]):
                 return True
 
             return False
@@ -35335,62 +35343,35 @@ Examples:
                         "Request POST/URL to specific server",
                     )
 
-                # limitcpu #
-                elif SysMgr.checkMode("limitcpu"):
-                    helpStr = """
-Usage:
-    # {0:1} {1:1} -g <COMM|TID|PID:PER> [OPTIONS] [--help]
-
-Description:
-    Limit CPU usage of specific tasks
-
-Options:
-    -g  <TID|COMM>              set task filter
-    -R  <TIME>                  set timer
-    -P                          group threads in a same process
-    -q  <NAME{{:VALUE}}>          set environment variables
-    -v                          verbose
-                        """.format(
-                        cmd, mode
-                    )
-
-                    helpStr += """
-Examples:
-    - {2:1} for specific threads
-        # {0:1} {1:1} yes:20
+                # limitcpu / limitcpuset / limitmem / limitread / limitwrite #
+                elif SysMgr.isLimitMode():
+                    if SysMgr.checkMode("limitcpu"):
+                        res = "CPU usage"
+                        value = '"10"'
+                        addinfo = """
         # {0:1} {1:1} "yes:cfs_quota_us:20000+cfs_period_us:100000"
         # {0:1} {1:1} "yes:rt_runtime_us:20000+rt_period_us:100000"
 
     - {2:1} for specific threads using signal not cgroup
         # {0:1} {1:1} yes:20 -q NOCG
         # {0:1} {1:1} "yes|a.out":20 -q NOCG
-        # {0:1} {1:1} "yes:10, a.out:10" -q NOCG
-
-    - {2:1} for specific threads (wait for new target if no task)
-        # {0:1} {1:1} yes:20 -q WAITTASK
-        # {0:1} {1:1} yes:20 -q WAITTASK:1
-        # {0:1} {1:1} yes:20 -q WAITTASK, NOPIDCACHE
-
-    - {2:1} of specific threads for 3 seconds
-        # {0:1} {1:1} -g 1234:10, yes:20 -R 3
-                    """.format(
-                        cmd, mode, "Limit CPU usage"
-                    )
-
-                # limitcpuset / limitmem / limitread / limitwrite #
-                elif SysMgr.isLimitMode():
-                    if SysMgr.checkMode("limitcpuset"):
+        # {0:1} {1:1} "yes:10, a.out:10" -q NOCG"""
+                    elif SysMgr.checkMode("limitcpuset"):
                         res = "CPU set"
                         value = '"1-2&4"'
+                        addinfo = ""
                     elif SysMgr.checkMode("limitmem"):
                         res = "memory usage"
                         value = "20M"
+                        addinfo = ""
                     elif SysMgr.checkMode("limitread"):
                         res = "I/O read throughput"
                         value = "20M"
+                        addinfo = ""
                     else:
                         res = "I/O write throughput"
                         value = "20M"
+                        addinfo = ""
 
                     helpStr = """
 Usage:
@@ -35409,12 +35390,18 @@ Options:
                         cmd, mode, res
                     )
 
-                    helpStr += """
+                    helpStr += (
+                        """
 Examples:
     - {2:1} for specific threads
         # {0:1} {1:1} yes:{3:1}
         # {0:1} {1:1} "yes|a.out":{3:1}
-        # {0:1} {1:1} -g yes:{3:1}, a.out:{3:1}
+        # {0:1} {1:1} -g yes:{3:1}, a.out:{3:1}%s
+
+    - {2:1} for specific threads with monitoring
+        # {0:1} {1:1} yes:{3:1} -q TASKMON
+        # {0:1} {1:1} yes:{3:1} -q TASKMON:3
+        # {0:1} {1:1} yes:{3:1} -q TASKMON -a
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:{3:1} -q WAITTASK
@@ -35423,9 +35410,9 @@ Examples:
 
     - {2:1} of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:{3:1},yes:{3:1} -R 3
-                    """.format(
-                        cmd, mode, "Limit %s" % res, value
-                    )
+                    """
+                        % addinfo
+                    ).format(cmd, mode, "Limit %s" % res, value)
 
                 # setcpu #
                 elif SysMgr.checkMode("setcpu"):
@@ -41499,6 +41486,8 @@ Copyright:
             if not varList:
                 varList = SysMgr.environList
 
+            allPids = []
+
             for item in (
                 "LIMITCPU",
                 "LIMITCPUSET",
@@ -41612,12 +41601,16 @@ Copyright:
                     # remove redundant tasks #
                     pids = list(set(pids))
 
+                    allPids += pids
+
                     # set resource of specific tasks #
                     if "EACHTASK" in varList:
                         for pid in pids:
                             func([pid], attrs)
                     else:
                         func(pids, attrs)
+
+            return list(set(allPids))
         except SystemExit:
             sys.exit(0)
         except:
@@ -43545,7 +43538,29 @@ Copyright:
                 sys.exit(-1)
 
             # limit resources #
-            SysMgr.applyLimitVars(limitList)
+            pids = SysMgr.applyLimitVars(limitList)
+
+            # start monitoring #
+            if pids and "TASKMON" in SysMgr.environList:
+                # get interval #
+                interval = UtilMgr.getEnvironNum(
+                    "TASKMON", False, 1, False, True
+                )
+
+                SysMgr.launchGuider(
+                    [
+                        "top",
+                        "-g%s" % ",".join(pids),
+                        "-i%s" % interval,
+                        "-qFASTINIT,NOSPECIALTASK",
+                        "-a" if SysMgr.showAll else "",
+                        "-eb",
+                        "-f",
+                        "-Q",
+                    ],
+                    pipe=False,
+                    stderr=True,
+                )
 
             # wait for events #
             SysMgr.waitEvent()
@@ -52039,14 +52054,18 @@ Copyright:
             output = os.path.join(
                 os.path.dirname(SysMgr.outPath), "guider_mem_%s.out" % comm
             )
-            mcmd = [
-                "mtop",
-                "-g%s" % pid,
-                "-i%s" % interval,
-                "-o%s" % output,
-                "-qfastinit",
-            ]
-            ret = SysMgr.launchGuider(mcmd, mute=mute, pipe=False, stderr=True)
+            ret = SysMgr.launchGuider(
+                [
+                    "mtop",
+                    "-g%s" % pid,
+                    "-i%s" % interval,
+                    "-o%s" % output,
+                    "-qFASTINIT",
+                ],
+                mute=mute,
+                pipe=False,
+                stderr=True,
+            )
             if ret > 0:
                 monTasks.append(ret)
                 output = "%s_%s.out" % (UtilMgr.rstrip(output, ".out"), ret)
@@ -52140,19 +52159,21 @@ Copyright:
         while 1:
             # apply environment command #
             if remoteCmd:
-                rcmd = [
-                    "remote",
-                    "-g%s" % pid,
-                    "-c%s" % ",".join(remoteCmd),
-                    "-I",
-                    "-qNOCONTEXT",
-                    "-dL" if not "debug" in SysMgr.environList else "",
-                ]
-
                 SysMgr.printInfo(r"start applying environment commands... ")
 
                 SysMgr.launchGuider(
-                    rcmd, pipe=False, stderr=True, log=True, wait=True
+                    [
+                        "remote",
+                        "-g%s" % pid,
+                        "-c%s" % ",".join(remoteCmd),
+                        "-I",
+                        "-qNOCONTEXT",
+                        "-dL" if not "debug" in SysMgr.environList else "",
+                    ],
+                    pipe=False,
+                    stderr=True,
+                    log=True,
+                    wait=True,
                 )
 
             try:
@@ -52400,14 +52421,12 @@ Copyright:
             elif not "NOCLEANUP" in SysMgr.environList:
                 SysMgr.printInfo("clean up %s(%s)" % (comm, pid))
 
-                rcmd = [
-                    "remote",
-                    "-g%s" % pid,
-                    "-cusercall:leaktracer_stopAllMonitoring",
-                ]
-
                 SysMgr.launchGuider(
-                    rcmd,
+                    [
+                        "remote",
+                        "-g%s" % pid,
+                        "-cusercall:leaktracer_stopAllMonitoring",
+                    ],
                     log=False,
                     mute=True,
                     pipe=False,
@@ -67638,7 +67657,7 @@ typedef struct {
                 _addPrint("\n[%s] %s" % (cmdstr, target))
                 _flushPrint()
 
-                rcmd = ["GUIDER", gcmd, "-eTb", "-dL", "-R1", "-qfastinit"]
+                rcmd = ["GUIDER", gcmd, "-eTb", "-dL", "-R1", "-qFASTINIT"]
                 if filterOpt:
                     rcmd += [filterOpt]
                 if cmd.endswith("g"):
@@ -95208,7 +95227,8 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(
             (
                 "%16s(%6s/%6s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|\n%s"
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                "%4s(%3s/%3s/%3s)|%s|\n%s"
             )
             % (
                 "Name",
@@ -113534,6 +113554,10 @@ class TaskAnalyzer(object):
             text = "{0:^16}".format("None")
             frame = "%s%s|" % (text, " " * (SysMgr.lineLength - len(text) - 1))
             SysMgr.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
+
+        # check skip special task option #
+        if "NOSPECIALTASK" in SysMgr.environList:
+            return
 
         # print special tasks #
         if not self.printSpecialTask("abnormal", saveJsonStat):
