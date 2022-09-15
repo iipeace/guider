@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220914"
+__revision__ = "220915"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26049,12 +26049,7 @@ Commands:
         name = str(time.time()).replace(".", "")
 
         # set commands for block #
-        cmds = ["CREATE:blkio:guider_{0:1}:{1:1}".format(name, pids[0])]
-
-        # set commands #
-        if len(pids) > 1:
-            for pid in pids[1:]:
-                cmds.append("ADD:blkio:guider_{0:1}:{1:1}".format(name, pid))
+        cmds = ["CREATE:blkio:guider_{0:1}:".format(name)]
 
         # set commands #
         for item in attrs:
@@ -26071,6 +26066,10 @@ Commands:
                     ),
                 )
 
+        # set commands #
+        for pid in pids:
+            cmds.append("ADD:blkio:guider_{0:1}:{1:1}".format(name, pid))
+
         # execute commands to limit block usage #
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
@@ -26085,7 +26084,7 @@ Commands:
         name = str(time.time()).replace(".", "")
 
         # set commands for CPU usage #
-        cmds = ["CREATE:cpu:guider_{0:1}:{1:1}".format(name, pids[0])]
+        cmds = ["CREATE:cpu:guider_{0:1}:".format(name)]
 
         # get node list #
         nodes = [item[0] for item in attrs]
@@ -26102,17 +26101,16 @@ Commands:
             )
 
         # set commands #
-        if len(pids) > 1:
-            for pid in pids[1:]:
-                cmds.append("ADD:cpu:guider_{0:1}:{1:1}".format(name, pid))
-
-        # set commands #
         for item in attrs:
             cmds.append(
                 "WRITE:cpu:guider_{0:1}:{2:1}@cpu.{1:1}".format(
                     name, item[0], item[1]
                 ),
             )
+
+        # set commands #
+        for pid in pids:
+            cmds.append("ADD:cpu:guider_{0:1}:{1:1}".format(name, pid))
 
         # execute commands to limit CPU usage #
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
@@ -26128,7 +26126,7 @@ Commands:
         name = str(time.time()).replace(".", "")
 
         # set commands for CPU set #
-        cmds = ["CREATE:cpuset:guider_{0:1}:{1:1}".format(name, pids[0])]
+        cmds = ["CREATE:cpuset:guider_{0:1}:".format(name)]
 
         # get node list #
         nodes = [item[0] for item in attrs]
@@ -26169,12 +26167,11 @@ Commands:
         name = str(time.time()).replace(".", "")
 
         # set commands for memory size #
-        cmds = ["CREATE:memory:guider_{0:1}:{1:1}".format(name, pids[0])]
+        cmds = ["CREATE:memory:guider_{0:1}:".format(name)]
 
         # set commands #
-        if len(pids) > 1:
-            for pid in pids[1:]:
-                cmds.append("ADD:memory:guider_{0:1}:{1:1}".format(name, pid))
+        for pid in pids:
+            cmds.append("ADD:memory:guider_{0:1}:{1:1}".format(name, pid))
 
         # set commands #
         for item in attrs:
@@ -39086,16 +39083,15 @@ Copyright:
     @staticmethod
     def writeFile(path, val):
         try:
-            fd = open(path, "w")
-
-            if type(val) is list:
-                for item in val:
-                    if not item:
-                        continue
-                    fd.seek(0)
-                    fd.write(item)
-            else:
-                fd.write(val)
+            with open(path, "w") as fd:
+                if type(val) is list:
+                    for item in val:
+                        if not item:
+                            continue
+                        fd.seek(0)
+                        fd.write(item)
+                else:
+                    fd.write(val)
 
             return True
         except SystemExit:
