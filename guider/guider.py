@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220915"
+__revision__ = "220916"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    # from ctypes import *
+    from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -26204,6 +26204,13 @@ Commands:
 
             return tasks
 
+        def _checkFile(targetFile):
+            if os.path.exists(targetFile):
+                return True
+            else:
+                SysMgr.printWarn("failed to find '%s'" % targetFile, True)
+                return False
+
         # get argument #
         if cmds:
             value = cmds
@@ -26299,6 +26306,8 @@ Commands:
 
                 # get target path #
                 targetFile = os.path.join(targetDir, name)
+                if not _checkFile(targetFile):
+                    continue
 
                 # write value #
                 ret = SysMgr.writeFile(targetFile, value)
@@ -26314,8 +26323,7 @@ Commands:
                 # get target path #
                 targetDir = SysMgr.getCgroup(sub, name, make, remove)
                 targetFile = os.path.join(targetDir, taskNode)
-                if not os.path.exists(targetFile):
-                    SysMgr.printErr("wrong cgroup '%s' for list" % targetFile)
+                if not _checkFile(targetFile):
                     continue
 
                 # print target tasks #
@@ -26426,6 +26434,8 @@ Commands:
 
             # register tasks to cgroup node #
             targetFile = os.path.join(targetDir, taskNode)
+            if not _checkFile(targetFile):
+                continue
 
             # ADD #
             if cmd in ("CREATE", "ADD"):
@@ -26447,10 +26457,7 @@ Commands:
                 desFile = os.path.join(
                     os.path.dirname(targetFile), "..", taskNode
                 )
-                if not os.path.exists(desFile):
-                    SysMgr.printErr(
-                        "wrong destination cgroup '%s' for removal" % desFile
-                    )
+                if not _checkFile(desFile):
                     continue
 
                 # move tasks #
@@ -42335,79 +42342,7 @@ Copyright:
                         pass
 
             elif option == "t" and not SysMgr.isRecordMode():
-                syscallList = UtilMgr.cleanItem(value.split(","))
-                enabledSyscall = []
-                disabledSyscall = []
-
-                for val in syscallList:
-                    try:
-                        if val.startswith("^"):
-                            exceptFlag = True
-                            val = val[1:]
-                        else:
-                            exceptFlag = False
-
-                        # convert syscall name #
-                        if not val.lstrip("*").startswith("sys_"):
-                            if val.startswith("*"):
-                                prefix = "*"
-                            else:
-                                prefix = ""
-                            val = prefix + "sys_" + val.lstrip("*")
-
-                        # get syscall index #
-                        nrList = []
-                        if "*" in val:
-                            for idx, syscall in enumerate(ConfigMgr.sysList):
-                                if UtilMgr.isValidStr(syscall, [val]):
-                                    nrList.append(idx)
-                        else:
-                            nrList = [SysMgr.getNrSyscall(val)]
-
-                        # classify syscall #
-                        for nrSyscall in nrList:
-                            if exceptFlag:
-                                disabledSyscall.append(
-                                    ConfigMgr.sysList[nrSyscall]
-                                )
-                            else:
-                                enabledSyscall.append(
-                                    ConfigMgr.sysList[nrSyscall]
-                                )
-
-                            if exceptFlag:
-                                SysMgr.syscallExceptList.append(nrSyscall)
-                            else:
-                                SysMgr.syscallList.append(nrSyscall)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "no %s syscall in %s ABI" % (val, SysMgr.arch)
-                        )
-                        sys.exit(-1)
-
-                    # no syscall #
-                    if syscallList and not SysMgr.syscallList:
-                        SysMgr.printErr(
-                            "no %s syscall in %s ABI" % (val, SysMgr.arch)
-                        )
-                        sys.exit(-1)
-
-                # print logs #
-                if not enabledSyscall:
-                    SysMgr.printInfo("enabled syscall list [ ALL ]")
-                else:
-                    SysMgr.printInfo(
-                        "enabled syscall list [ %s ]"
-                        % ", ".join(enabledSyscall)
-                    )
-
-                if disabledSyscall:
-                    SysMgr.printInfo(
-                        "disabled syscall list [ %s ]"
-                        % ", ".join(disabledSyscall)
-                    )
+                SysMgr.parseSyscallOption(value)
 
             elif option == "m":
                 try:
@@ -42680,6 +42615,76 @@ Copyright:
             return False
 
     @staticmethod
+    def parseSyscallOption(value):
+        syscallList = UtilMgr.cleanItem(value.split(","))
+        enabledSyscall = []
+        disabledSyscall = []
+
+        for val in syscallList:
+            try:
+                if val.startswith("^"):
+                    exceptFlag = True
+                    val = val[1:]
+                else:
+                    exceptFlag = False
+
+                # convert syscall name #
+                if not val.lstrip("*").startswith("sys_"):
+                    if val.startswith("*"):
+                        prefix = "*"
+                    else:
+                        prefix = ""
+                    val = prefix + "sys_" + val.lstrip("*")
+
+                # get syscall index #
+                nrList = []
+                if "*" in val:
+                    for idx, syscall in enumerate(ConfigMgr.sysList):
+                        if UtilMgr.isValidStr(syscall, [val]):
+                            nrList.append(idx)
+                else:
+                    nrList = [SysMgr.getNrSyscall(val)]
+
+                # classify syscall #
+                for nrSyscall in nrList:
+                    if exceptFlag:
+                        disabledSyscall.append(ConfigMgr.sysList[nrSyscall])
+                    else:
+                        enabledSyscall.append(ConfigMgr.sysList[nrSyscall])
+
+                    if exceptFlag:
+                        SysMgr.syscallExceptList.append(nrSyscall)
+                    else:
+                        SysMgr.syscallList.append(nrSyscall)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("no %s syscall in %s ABI" % (val, SysMgr.arch))
+                sys.exit(-1)
+
+            # no syscall #
+            if (
+                syscallList
+                and not SysMgr.syscallList
+                and not SysMgr.syscallExceptList
+            ):
+                SysMgr.printErr("no %s syscall in %s ABI" % (val, SysMgr.arch))
+                sys.exit(-1)
+
+        # print logs #
+        if not enabledSyscall:
+            SysMgr.printInfo("enabled syscall list [ ALL ]")
+        else:
+            SysMgr.printInfo(
+                "enabled syscall list [ %s ]" % ", ".join(enabledSyscall)
+            )
+
+        if disabledSyscall:
+            SysMgr.printInfo(
+                "disabled syscall list [ %s ]" % ", ".join(disabledSyscall)
+            )
+
+    @staticmethod
     def parseRecordOption():
         if not "ISMAIN" in os.environ:
             return
@@ -42858,53 +42863,7 @@ Copyright:
 
             elif option == "t":
                 SysMgr.sysEnable = True
-                syscallList = UtilMgr.cleanItem(value.split(","))
-                enabledSyscall = []
-
-                for val in syscallList:
-                    try:
-                        # convert syscall name #
-                        if not val.startswith("sys_") and not val.startswith(
-                            "*"
-                        ):
-                            val = "sys_%s" % val
-
-                        # get syscall index #
-                        nrList = []
-                        if "*" in val:
-                            for idx, syscall in enumerate(ConfigMgr.sysList):
-                                if UtilMgr.isValidStr(syscall, [val]):
-                                    nrList.append(idx)
-                        else:
-                            nrList = [SysMgr.getNrSyscall(val)]
-
-                        # classify syscall #
-                        for nrSyscall in nrList:
-                            enabledSyscall.append(ConfigMgr.sysList[nrSyscall])
-                            SysMgr.syscallList.append(nrSyscall)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "no %s syscall in %s ABI" % (val, SysMgr.arch)
-                        )
-                        sys.exit(-1)
-
-                # no syscall #
-                if syscallList and not SysMgr.syscallList:
-                    SysMgr.printErr(
-                        "no %s syscall in %s ABI" % (val, SysMgr.arch)
-                    )
-                    sys.exit(-1)
-
-                # print logs #
-                if not enabledSyscall:
-                    SysMgr.printInfo("enabled syscall list [ ALL ]")
-                else:
-                    SysMgr.printInfo(
-                        "enabled syscall list [ %s ]"
-                        % ", ".join(enabledSyscall)
-                    )
+                SysMgr.parseSyscallOption(value)
 
             elif SysMgr.isCommonOption(option):
                 SysMgr.parseCommonOption(option, value)
@@ -70951,6 +70910,10 @@ typedef struct {
             # read cmsghdr #
             control = self.readMem(header.contents.msg_control, controllen)
             controlobj = cast(control, self.cmsghdr_ptr)
+
+            # check object #
+            if not controlobj:
+                return msginfo
 
             # cmsg_len #
             cmsglen = long(controlobj.contents.cmsg_len)
