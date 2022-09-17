@@ -692,7 +692,7 @@ Output
 
 >>>
            
-    # python3 guider/guider.py limitcpu -g 22371:50 -v
+    # python3 guider/guider.py limitcpu -g yes:50 -v
 
     [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
 
@@ -741,9 +741,9 @@ Output
 
 >>>
            
-    # python3 guider/guider.py setsched r:90:22371
+    # python3 guider/guider.py setsched r:90:yes
 
-    [Info] changed the priority of guider(22371) to 90[R]
+    [Info] changed the priority of yes(22371) to 90[R]
 
 >>>
            

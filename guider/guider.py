@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220916"
+__revision__ = "220917"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    from ctypes import *
+    # from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -20268,7 +20268,12 @@ class LeakAnalyzer(object):
 
                 # register fullstack to the list for flamegraph #
                 fullStack = " ".join(
-                    [item.strip() for item in (sym + substack).split("\n")]
+                    [
+                        item.strip()
+                        for item in (
+                            "%s[%s]%s" % (sym, val["path"], substack)
+                        ).split("\n")
+                    ]
                 )
                 stackList[fullStack] = size
 
@@ -20284,7 +20289,8 @@ class LeakAnalyzer(object):
         SysMgr.printPipe(
             (
                 "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-                "[Mem: VSS(%s)/RSS(%s)/PSS(%s)/USS(%s)] [%s: %s] [NrCall: %s]\n%s"
+                "[Mem: VSS(%s)/RSS(%s)/PSS(%s)/USS(%s)] "
+                "[%s: %s] [NrCall: %s]\n%s"
             )
             % (
                 title,
@@ -71503,9 +71509,8 @@ typedef struct {
 
             # split line #
             sline = line.split("|")
-            slen = len(sline)
 
-            if slen == 2:
+            if len(sline) == 2:
                 per = sline[0].strip()
                 if not per[0].isdigit():
                     continue
@@ -72245,13 +72250,13 @@ typedef struct {
         if not ret:
             return [0, 0]
 
-        # check executable type #
-        if not ElfAnalyzer.isRelocFile(fname):
-            start = ret[0]
-            end = ret[1]
-        else:
+        # get start and end addresses #
+        if ElfAnalyzer.isRelocFile(fname):
             start = vstart + ret[0]
             end = vstart + ret[1]
+        else:
+            start = ret[0]
+            end = ret[1]
 
         return [start, end]
 
@@ -72270,13 +72275,13 @@ typedef struct {
         if not ret:
             return [0, 0]
 
-        # check executable type #
-        if not ElfAnalyzer.isRelocFile(fname):
-            start = ret[0]
-            end = ret[1]
-        else:
+        # get start and end addresses #
+        if ElfAnalyzer.isRelocFile(fname):
             start = vstart + ret[0]
             end = vstart + ret[1]
+        else:
+            start = ret[0]
+            end = ret[1]
 
         return [start, end]
 
@@ -72902,22 +72907,44 @@ typedef struct {
                     argList = []
 
                 for item in backtrace:
-                    if item[0]:
-                        addr = hex(item[0]).rstrip("L")
+                    addr, sym, path = item
+
+                    if addr:
+                        # get offset #
+                        try:
+                            if ElfAnalyzer.isRelocFile(path):
+                                start = self.getSymbolInfo(addr)[3]
+                            else:
+                                start = ElfAnalyzer.getSymOffset(sym, path)[0][
+                                    0
+                                ]
+                            offset = addr - start
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            offset = 0
+
+                        addr = hex(addr).rstrip("L")
                     else:
-                        addr = item[0]
+                        offset = 0
 
                     # add arg info #
                     args = self.getParamVal(argList, reverse=True)
 
+                    # set offset info #
+                    if offset:
+                        offset = "+%s" % hex(offset).rstrip("L")
+                    else:
+                        offset = ""
+
                     # set address info #
-                    if item[1] == addr:
+                    if sym == addr:
                         addr = ""
                     else:
                         addr = "/%s" % addr
 
                     SysMgr.addPrint(
-                        "%s%s%s[%s]\n" % (item[1], args, addr, item[2])
+                        "%s%s%s%s[%s]\n" % (sym, args, offset, addr, path)
                     )
 
         # print last line #
