@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220917"
+__revision__ = "220919"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -135,6 +135,10 @@ class ConfigMgr(object):
         "tasks",
         "cgroup.procs",
         "cpu.shares",
+        "cpu.cfs_period_us",
+        "cpu.cfs_quota_us",
+        "cpu.rt_period_us",
+        "cpu.rt_runtime_us",
         "cpuset.cpus",
         "memory.limit_in_bytes",
         "memory.memsw.limit_in_bytes",
@@ -26001,7 +26005,12 @@ Commands:
             while 1:
                 tids = []
                 for f in targetList:
-                    tids += SysMgr.readFile(f).split("\n")
+                    try:
+                        tids += SysMgr.readFile(f).split("\n")
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
                 # check items #
                 if not UtilMgr.cleanItem(tids):
@@ -26193,6 +26202,10 @@ Commands:
     @staticmethod
     def doCgroup(cmds=[], make=False, remove=False, verb=True):
         def _moveTasks(srcFile, desFile, targetTasks):
+            # check files #
+            if not os.path.exists(srcFile) or not os.path.exists(desFile):
+                return
+
             # read target tasks #
             tasks = SysMgr.readFile(srcFile)
             if tasks:
@@ -26235,6 +26248,8 @@ Commands:
                 # CMD:SUB:NAME:TARGET #
                 cmdset = item.split(":", 3)
                 cmd, sub, name, target = cmdset
+                if target == "PID":
+                    target = str(SysMgr.pid)
                 cmds.append([cmd.upper(), sub, name, target.strip()])
             except SystemExit:
                 sys.exit(0)
@@ -26356,7 +26371,8 @@ Commands:
 
                     SysMgr.printPipe(
                         "[%s] %s(%s)"
-                        % (convNum(idx), SysMgr.getComm(tid), tid)
+                        % (convNum(idx), SysMgr.getComm(tid), tid),
+                        pager=False,
                     )
 
                 continue
@@ -26414,7 +26430,8 @@ Commands:
 
                     SysMgr.printPipe(
                         "[%s] %s(%s)"
-                        % (convNum(idx), SysMgr.getComm(tid), tid)
+                        % (convNum(idx), SysMgr.getComm(tid), tid),
+                        pager=False,
                     )
 
                 continue
@@ -26491,7 +26508,8 @@ Commands:
                     continue
 
                 SysMgr.printPipe(
-                    "[%s] %s(%s)" % (convNum(idx), SysMgr.getComm(tid), tid)
+                    "[%s] %s(%s)" % (convNum(idx), SysMgr.getComm(tid), tid),
+                    pager=False,
                 )
 
     @staticmethod
@@ -30596,6 +30614,10 @@ Examples:
     - {3:1} except for ld {7:1}
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
+    - {3:1} and ignore specific signals
+        # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGABRT
+        # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGSEGV, SKIPSIGNAL:8
+
     - {3:1} {7:1} except for DWARF table of specific files
         # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
 
@@ -34666,6 +34688,11 @@ Examples:
     - {2:1} after converting it using the config file
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
+    - {2:1} with monitoring
+        # {0:1} {1:1} -I "a.out" -q TASKMON
+        # {0:1} {1:1} -I "a.out" -q TASKMON:3
+        # {0:1} {1:1} -I "a.out" -q TASKMON -a
+
     - {2:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20@"*yes*|a.out"
@@ -34682,6 +34709,12 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q LIMITREAD:50M@"*yes*|a.out"
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out"
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
+
+    - {2:1} applying cgroup
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:CREATE:cpu:test:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:system.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:REMOVE:cpu/system.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:WRITE:memory:test.slice:100000@memory.limit_in_bytes
 
     - {2:1} and print environment variables
         # {0:1} {1:1} -I "a.out" -q PRINTENV
@@ -34857,7 +34890,7 @@ Examples:
         # {0:1} {1:1} ./a.out {7:1} -q USEUPTIME
 
     - {3:1} {2:1} for 5 seconds
-        # {0:1} {1:1} -g a.out -R 5
+        # {0:1} {1:1} -g a.out {7:1} -R 5
 
     - {3:1} {2:1} {4:1}
         # {0:1} {1:1} -g a.out {7:1}
@@ -34867,14 +34900,14 @@ Examples:
         # {0:1} {1:1} -g a.out {7:1} -q MEMPROF:3
 
     - {3:1} {2:1} {4:1} and a temporary writable path
-        # {0:1} {1:1} -g a.out -I /var/log/guider {7:1}
+        # {0:1} {1:1} -g a.out {7:1} -I /var/log/guider {7:1}
 
     - {3:1} after sending SIGRT2(36) to stop profiling
-        # {0:1} {1:1} -g a.out -k 36
-        # {0:1} {1:1} -g a.out -k SIGRT2
+        # {0:1} {1:1} -g a.out {7:1} -k 36
+        # {0:1} {1:1} -g a.out {7:1} -k SIGRT2
 
     - {3:1} {2:1} after starting profiling {5:1}
-        # {0:1} {1:1} -g a.out -c 20m,0
+        # {0:1} {1:1} -g a.out {7:1} -c 20m,0
 
     - Report idle memory hints of the target process {2:1} {8:1} {6:1}
         # {0:1} {1:1} ./a.out {7:1} -q REPORTIDLE
@@ -34883,10 +34916,10 @@ Examples:
         # {0:1} {1:1} ./a.out {7:1} -q REPORTACTIVE
 
     - {3:1} {5:1}
-        # {0:1} {1:1} -g a.out -c 20m
-        # {0:1} {1:1} -g a.out -c +20m
-        # {0:1} {1:1} -g a.out -c 15m,20m
-        # {0:1} {1:1} -g a.out -c +15m,+20m
+        # {0:1} {1:1} -g a.out {7:1} -c 20m
+        # {0:1} {1:1} -g a.out {7:1} -c +20m
+        # {0:1} {1:1} -g a.out {7:1} -c 15m,20m
+        # {0:1} {1:1} -g a.out {7:1} -c +15m,+20m
 
     - {3:1} {2:1} {4:1} (wait for new process if no process)
         # {0:1} {1:1} -g a.out {7:1} -q WAITTASK
@@ -34904,6 +34937,10 @@ Examples:
     - {3:1} {9:1} and coredump
         # {0:1} {1:1} ./a.out {7:1} -q USECOREDUMP
 
+    - {3:1} {9:1} and ignoring specific signals
+        # {0:1} {1:1} ./a.out {7:1} -q IGNORESIGNAL:SIGABRT
+        # {0:1} {1:1} ./a.out {7:1} -w START:"GUIDER sigtrace -g PID &" -q IGNORESIGNAL:SIGSEGV, SKIPSIGNAL:8, STOPTARGET
+
     - {3:1} {9:1} but no stop
         # {0:1} {1:1} ./a.out {7:1} -q CONTTARGET
 
@@ -34920,13 +34957,9 @@ Examples:
         # {0:1} {1:1} ./a.out {7:1} -q STATINTERVAL:2
 
     - {3:1} {2:1} with the specific command execution in background
-        # {0:1} {1:1} "ls" -w BEFORE:"GUIDER top -Q &"
-        # {0:1} {1:1} "ls" -w START:"GUIDER sigtrace -g PID -c SIGSEGV &"
-        # {0:1} {1:1} "ls" -w AFTER:/tmp/touched:1, AFTER:ls
-
-    - Print functions caused memory leakage of a specific process
-        # {0:1} {1:1} -g a.out
-        # {0:1} {1:1} -I ./leaks.out -g a.out
+        # {0:1} {1:1} "ls" {7:1} -w BEFORE:"GUIDER top -Q &"
+        # {0:1} {1:1} "ls" {7:1} -w START:"GUIDER sigtrace -g PID -c SIGSEGV &"
+        # {0:1} {1:1} "ls" {7:1} -w AFTER:/tmp/touched:1, AFTER:ls
                     """.format(
                         cmd,
                         mode,
@@ -34980,7 +35013,7 @@ Examples:
                         cmd, mode
                     )
 
-                # printvma#
+                # printvma #
                 elif SysMgr.checkMode("printvma"):
                     helpStr = """
 Usage:
@@ -41490,6 +41523,39 @@ Copyright:
             pass
 
     @staticmethod
+    def applyCgroupVars(varList=[]):
+        try:
+            if not varList:
+                varList = SysMgr.environList
+
+            if not "APPLYCG" in varList:
+                return
+
+            cmds = []
+            for cmd in varList["APPLYCG"]:
+                for item in (
+                    "CREATE",
+                    "ADD",
+                    "MOVE",
+                    "REMOVE",
+                    "DELETE",
+                    "WRITE",
+                    "LIST",
+                ):
+                    if not cmd.upper().startswith(item + ":"):
+                        continue
+
+                    cmds.append(cmd)
+
+            if cmds:
+                SysMgr.doCgroup(cmds)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to apply cgroup commands", True)
+            sys.exit(-1)
+
+    @staticmethod
     def applyLimitVars(varList=[]):
         try:
             if not varList:
@@ -41625,6 +41691,31 @@ Copyright:
         except:
             SysMgr.printErr("failed to apply %s limit values" % res, True)
             sys.exit(-1)
+
+    @staticmethod
+    def runTaskMonitor(pids=[]):
+        if not "TASKMON" in SysMgr.environList:
+            return
+        elif not pids:
+            return
+
+        # get interval #
+        interval = UtilMgr.getEnvironNum("TASKMON", False, 1, False, True)
+
+        SysMgr.launchGuider(
+            [
+                "top",
+                "-g%s" % ",".join(pids),
+                "-i%s" % interval,
+                "-qFASTINIT,NOSPECIALTASK",
+                "-a" if SysMgr.showAll else "",
+                "-eb",
+                "-f",
+                "-Q",
+            ],
+            pipe=False,
+            stderr=True,
+        )
 
     @staticmethod
     def applyEnvironVars():
@@ -41765,7 +41856,11 @@ Copyright:
                     else:
                         raise Exception("no signal")
 
+                    # ignore signal #
                     signal.signal(signum, signal.SIG_IGN)
+
+                    # regisetr ignore list #
+                    Debugger.ignoreSignals[signum] = 0
 
                     SysMgr.printInfo("blocked %s" % ConfigMgr.SIG_LIST[signum])
                 except SystemExit:
@@ -41776,6 +41871,9 @@ Copyright:
 
         # limit resources #
         SysMgr.applyLimitVars()
+
+        # apply cgroup #
+        SysMgr.applyCgroupVars()
 
         # define threshold list #
         varList = [
@@ -43502,26 +43600,7 @@ Copyright:
             pids = SysMgr.applyLimitVars(limitList)
 
             # start monitoring #
-            if pids and "TASKMON" in SysMgr.environList:
-                # get interval #
-                interval = UtilMgr.getEnvironNum(
-                    "TASKMON", False, 1, False, True
-                )
-
-                SysMgr.launchGuider(
-                    [
-                        "top",
-                        "-g%s" % ",".join(pids),
-                        "-i%s" % interval,
-                        "-qFASTINIT,NOSPECIALTASK",
-                        "-a" if SysMgr.showAll else "",
-                        "-eb",
-                        "-f",
-                        "-Q",
-                    ],
-                    pipe=False,
-                    stderr=True,
-                )
+            SysMgr.runTaskMonitor(pids)
 
             # wait for events #
             SysMgr.waitEvent()
@@ -51870,6 +51949,10 @@ Copyright:
 
             pids = [str(pid)]
 
+            # stop target process #
+            if "STOPTARGET" in SysMgr.environList:
+                SysMgr.sendSignalProcs(signal.SIGSTOP, pids)
+
             # wait for initialization of the target #
             # TODO: sync with the child to get memory map before termination #
             time.sleep(1)
@@ -51889,13 +51972,14 @@ Copyright:
 
             isMulti = True
 
+            # create multiple tracers #
             for item in pids:
                 ret = SysMgr.createProcess()
                 if not ret:
                     pid = item
                     break
 
-            # parent process #
+            # wait for child tracers as a parent process #
             if not pid:
                 SysMgr.setIgnoreSignal()
                 SysMgr.waitChild()
@@ -54342,6 +54426,9 @@ Copyright:
 
         # wait for childs #
         if parallel:
+            # start monitoring #
+            SysMgr.runTaskMonitor([""])
+
             SysMgr.waitChild()
 
     @staticmethod
@@ -60233,7 +60320,7 @@ Copyright:
                     continue
 
                 tempSubdir = UtilMgr.deepcopy(subdir)
-                for val in list(subdir):
+                for val in sorted(list(subdir), reverse=True):
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
                     elif val == "tasks":
@@ -60250,6 +60337,11 @@ Copyright:
                         if num > 0:
                             per = UtilMgr.convColor(per, "RED")
                         value = "%s/%s%%" % (subdir[val], per)
+                    elif (
+                        val in ("cpu.cfs_quota_us", "cpu.rt_runtime_us")
+                        and subdir[val] != "-1"
+                    ):
+                        value = UtilMgr.convColor(subdir[val], "RED")
                     elif val.endswith("limit_in_bytes"):
                         num = long(subdir[val].replace(",", ""))
                         value = UtilMgr.convSize2Unit(num)
@@ -65879,6 +65971,7 @@ class Debugger(object):
     RETSTR = None
 
     targetNums = {}
+    ignoreSignals = {}
     cpuCond = -1
     pyElapsed = -1
     strSize = -1
@@ -70225,6 +70318,19 @@ typedef struct {
                 )
                 SysMgr.printWarn(errMsg)
                 return -1
+
+        # check ignoring signal #
+        if sig and sig in Debugger.ignoreSignals:
+            sig = 0
+
+            # skip instructions caused the signal #
+            if "SKIPSIGNAL" in SysMgr.environList:
+                size = UtilMgr.getEnvironNum(
+                    "SKIPSIGNAL", False, ConfigMgr.wordSize, False
+                )
+                self.updateRegs()
+                self.setPC(self.pc + size)
+                self.setRegs()
 
         # check target status #
         if check:
