@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220919"
+__revision__ = "220920"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30506,7 +30506,188 @@ Commands:
     wrmem    change specific memory or register [VAR|ADDR|REG:VAL:SIZE]
                 """
 
-                brkExamStr = """{2:1}
+                dbgExamStr = """\n
+Common Examples:
+    - Print in JSON format
+        # {0:1} {1:1} -g a.out -J
+        # {0:1} {1:1} -g a.out -J -Q
+        # {0:1} {1:1} -g a.out -J -q COMPLETECALL
+
+    - Disable standard output mute
+        # {0:1} {1:1} a.out -q NOMUTE
+
+    - Remove specific environment variable
+        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
+
+    - Use merged symbols
+        # {0:1} {1:1} a.out -q ALLSYM
+
+    - Preload ELF files from the specific file list
+        # {0:1} {1:1} a.out -q ELFFILE:./mem.out
+
+    - Execute target process monitoring in parallel
+        # {0:1} {1:1} a.out -w BEFORE:"GUIDER top -g ls -Q &"
+
+    - Disable file loading messages
+        # {0:1} {1:1} -g a.out -q NOLOADMSG
+
+    - Print tracing overhead
+        # {0:1} {1:1} -g a.out -q PRINTDELAY
+
+    - Inlcude profiling overhead time
+        # {0:1} {1:1} -g a.out -q INCOVERHEAD
+
+    - Redirect standard I/O of new tasks to specific files
+        # {0:1} {1:1} a.out -q STDIN:"./stdin"
+        # {0:1} {1:1} a.out -q STDOUT:"./stdout"
+        # {0:1} {1:1} a.out -q STDERR:"/dev/null"
+
+    - Use compressed ELF caches
+        # {0:1} {1:1} -g a.out -q COMPCACHE
+
+    - Don't use previous sampled caches
+        # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
+
+    - Use debug info
+        # {0:1} {1:1} -g a.out -q DEBUGINFO
+        # {0:1} {1:1} -g a.out -q DEBUGINFO -H
+        # {0:1} {1:1} -g a.out -q DEBUGINFO:/usr/lib/libc.so
+
+    - Except for DWARF table of specific files
+        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
+
+    - Apply lazy cache loading
+        # {0:1} {1:1} -g a.out -q LAZYCACHE
+
+    - Convert syscall args
+        # {0:1} {1:1} -g a.out -q CONVARG
+
+    - Apply filter only for specific IDs
+        # {0:1} {1:1} -g 1234 -q ONLYPID
+
+    - Apply filter only for specific COMM
+        # {0:1} {1:1} -g 1234 -q ONLYCOMM
+
+    - Set IDs of target tasks to only process ID
+        # {0:1} {1:1} -g a.out -q ONLYPROC
+
+    - Wait for user input or specific time for starting
+        # {0:1} {1:1} -g a.out -W
+        # {0:1} {1:1} -g a.out -W 5s
+
+    - Wait for new target task if no task
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
+        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
+
+    - Wait for specific uptime for starting
+        # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
+
+    - Wait for specific uptime for termination
+        # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
+
+    - Wait for child tasks created by specific threads
+        # {0:1} {1:1} -g a.out -q WAITCLONE
+
+    - Apply new sched priority for executed process
+        # {0:1} {1:1} -g a.out -q EXECSCHED:c:0
+
+    - Apply new sched priority for new tracees
+        # {0:1} {1:1} -g a.out -q TRACEESCHED:c:0
+
+    - Except for wait status of target tasks
+        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
+
+    - Except for specific context info
+        # {0:1} {1:1} -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
+
+    - Print only specific tasks consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
+    - Keep going even if the master tracer is terminated
+        # {0:1} {1:1} -g a.out -q CONTALONE
+
+    - Print call interval info including stdev, histogram
+        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV, PRINTHIST
+
+    - Load all symbols in stop status
+        # {0:1} {1:1} -g a.out -q STOPTARGET
+
+    - Sync tasks after clone event
+        # {0:1} {1:1} -g a.out -q SYNCTASK
+
+    - Except for no symbol samples
+        # {0:1} {1:1} -g a.out -q ONLYSYM
+
+    - Print thread group info
+        # {0:1} {1:1} -g a.out -q INCTGINFO
+
+    - Except for arguments
+        # {0:1} {1:1} -g a.out -q NOARG
+
+    - Except for file info
+        # {0:1} {1:1} -g a.out -q NOFILE
+
+    - Except for ld(loader) info
+        # {0:1} {1:1} -g a.out -q EXCEPTLD
+
+    - Ignore specific signals
+        # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGABRT
+        # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGSEGV, SKIPSIGNAL:8
+
+    - Except for DWARF table of specific files
+        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
+
+    - Print injection info
+        # {0:1} {1:1} -g a.out -q TRACEBP
+
+    - Dont' use file caches
+        # {0:1} {1:1} -g a.out -q NOFILECACHE
+
+    - Target new 4th and 5th threads in each new processes
+        # {0:1} {1:1} a.out -q TARGETNUM:4, TARGETNUM:5
+
+    - Use DWARF info
+        # {0:1} {1:1} "ls" -eD
+
+    - Manage specific environment variables
+        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+        # {0:1} {1:1} a.out -q CLEARENV
+        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
+        # {0:1} {1:1} a.out -q ENVPROC:systemd
+
+    - Print backtrace info
+        # {0:1} {1:1} -g a.out -H
+
+    - Print python backtrace info
+        # {0:1} {1:1} -g a.out -H -q PYSTACK
+
+    - Print backtrace info including arguments using DWARF
+        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
+
+    - Run only for 2 seconds
+        # {0:1} {1:1} -g a.out -R 2s
+
+    - Disable line truncation
+        # {0:1} {1:1} -g a.out -q NOCUT
+
+    - Monitor CPU usage on whole system
+        # {0:1} {1:1} -g a.out -e c
+
+    - draw timeline segments for function calls
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
+        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
+        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:ms, COMPLETECALL
+        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL, GROUPFONTSIZE:30
+                """.format(
+                    cmd,
+                    mode,
+                ).rstrip()
+
+                brkExamStr = (
+                    """{2:1}
 Examples:
     - {3:1} {7:1}
         # {0:1} {1:1} -g 1234
@@ -30517,167 +30698,15 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I "ls"
 
-    - {3:1} and JIT-compiled function calls {7:1}
-{6:1}
-        # {0:1} {1:1} -g node -q JITSYM
-
-    - {3:1} and standard output {8:1}
-        # {0:1} {1:1} "ls" -q NOMUTE
-
-    - {3:1} {7:1} with call interval info
-        # {0:1} {1:1} -g a.out -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QSGThreadedRenderLoop::polishAndSync*" -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QCoreApplication::notifyInterval2*" -q INTERCALL -H
-        # {0:1} {1:1} -g a.out -c "QOpenGLContext::swapBuffers*" -q INTERCALL
-
-    - {3:1} {7:1} with call interval info including stdev
-        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV
-
-    - {3:1} {7:1} with call interval info including stdev, histogram
-        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV, PRINTHIST
-
-    - {3:1} {8:1} excluding specific environment variable
-        # {0:1} {1:1} "ls" -q REMOVEENV:MAIL
-
-    - {3:1} using merged symbols {8:1}
-        # {0:1} {1:1} "ls" -q ALLSYM
-
-    - {3:1} {8:1} after preloading ELF files from the specific file list
-        # {0:1} {1:1} "ls" -q ELFFILE:./mem.out
-
-    - {3:1} {8:1} with target process monitoring
-        # {0:1} {1:1} "ls" -w BEFORE:"GUIDER top -g ls -Q &"
-
-    - {3:1} {7:1} without file loading messages
-        # {0:1} {1:1} -g a.out
-
-    - {3:1} {7:1} with printing tracing overhead
-        # {0:1} {1:1} -g a.out -q PRINTDELAY
-
-    - {3:1} {7:1} including profiling overhead time
-        # {0:1} {1:1} -g a.out -q INCOVERHEAD
-
-    - {3:1} {8:1} and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {3:1} and convert syscall args {7:1}
-        # {0:1} {1:1} -g a.out -q CONVARG
-
-    - {3:1} for specific processes
-        # {0:1} {1:1} -g a.out -q ONLYPROC
-
-    - {3:1} {7:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
-
-    - {3:1} only for child tasks created by specific threads
-        # {0:1} {1:1} -g a.out -q WAITCLONE
-
-    - {3:1} except for wait status {7:1}
-        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
-
-    - {3:1} except for context info {7:1}
-        # {0:1} {1:1} -g a.out -q NOCONTEXT
-        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
-
-    - {3:1} {7:1} consumed CPU more than 10%
-        # {0:1} {1:1} -g a.out -q CPUCOND:10
-
-    - {3:1} {7:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g a.out -q CONTALONE
-
-    - {3:1} {7:1} after loading all symbols in stop status
-        # {0:1} {1:1} -g a.out -q STOPTARGET
-
-    - {3:1} {7:1} without file loading messages
-        # {0:1} {1:1} -g a.out -q NOLOADMSG
-
-    - {3:1} {7:1} with task sync for clone event
-        # {0:1} {1:1} -g a.out -q SYNCTASK
-
-    - {3:1} except for no symbol functions {7:1}
-        # {0:1} {1:1} -g a.out -q ONLYSYM
-
-    - {3:1} including thread group info {7:1}
-        # {0:1} {1:1} -g a.out -q INCTGINFO
-
-    - {3:1} except for arguments {7:1}
-        # {0:1} {1:1} -g a.out -q NOARG
-
-    - {3:1} except for file info {7:1}
-        # {0:1} {1:1} -g a.out -q NOFILE
-
-    - {3:1} except for ld {7:1}
-        # {0:1} {1:1} -g a.out -q EXCEPTLD
-
-    - {3:1} and ignore specific signals
-        # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGABRT
-        # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGSEGV, SKIPSIGNAL:8
-
-    - {3:1} {7:1} except for DWARF table of specific files
-        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
-
-    - {3:1} and their injection info {7:1}
-        # {0:1} {1:1} -g a.out -q TRACEBP
-
-    - {3:1} without using file cache {7:1}
-        # {0:1} {1:1} -g a.out -q NOFILECACHE
-
-    - {3:1} and print context combined both entry and exit
-        # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
-
-    - {3:1} for 4th and 5th new threads in each new processes {8:1}
-        # {0:1} {1:1} a.out -q TARGETNUM:4, TARGETNUM:5
-        # {0:1} {1:1} -I a.out -q TARGETNUM:4, TARGETNUM:5
-
-    - {3:1} from a specific binary with DWARF info
-        # {0:1} {1:1} "ls" -eD
-        # {0:1} {1:1} -I "ls" -eD
-
-    - {3:1} {8:1} including specific environment variables
-        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
-        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q CLEARENV
-        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
-        # {0:1} {1:1} a.out -q ENVPROC:systemd
-
-    - {3:1} with backtrace {7:1}
-        # {0:1} {1:1} -g a.out -H
-
-    - {3:1} with python backtrace {7:1}
-        # {0:1} {1:1} -g a.out -H -q PYSTACK
-
-    - {3:1} with backtrace including arguments using DWARF {7:1}
-        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
-
     - {5:1} {7:1}
-        # {0:1} {1:1} -g 1234 -c printPeace
-
-    - {3:1} except for printPeace {7:1}
-        # {0:1} {1:1} -g 1234 -c "^printPeace"
-        # {0:1} {1:1} -g 1234 -c "^g_mutex_*, ^pthread_mutex_*"
-
-    - {5:1} from a specific binary
-        # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
-
-    - {5:1} {7:1} only for 2 seconds
-        # {0:1} {1:1} -g a.out -c printPeace -R 2s
+        # {0:1} {1:1} -g a.out -c printPeace
+        # {0:1} {1:1} -g 1234 -c "*printPeace"
+        # {0:1} {1:1} -g 1234 -c "printPeace*"
+        # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
     - {5:1} {7:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o .
         # {0:1} {1:1} -g a.out -c printPeace -o . -q FORCESUMMARY
-
-    - {5:1} {7:1} with monitoring threads and report the result to ./guider.out
-        # {0:1} {1:1} -g a.out -c printPeace -o . -w "BEFORE:{0:1} ttop -Q &"
-
-    - {5:1} including specific word {7:1}
-        # {0:1} {1:1} -g 1234 -c "*printPeace"
-        # {0:1} {1:1} -g 1234 -c "printPeace*"
-        # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
     - {3:1} related to specific files {7:1}
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
@@ -30688,6 +30717,27 @@ Examples:
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
         # {0:1} {1:1} -g a.out -c -T "^/usr/lib/*"
         # {0:1} {1:1} -g a.out -c -q EXCEPTFILE:"/usr/lib/*"
+
+    - {3:1} and JIT-compiled function calls {7:1}
+{6:1}
+        # {0:1} {1:1} -g node -q JITSYM
+
+    - {3:1} {7:1} with call interval info
+        # {0:1} {1:1} -g a.out -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QSGThreadedRenderLoop::polishAndSync*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QCoreApplication::notifyInterval2*" -q INTERCALL -H
+        # {0:1} {1:1} -g a.out -c "QOpenGLContext::swapBuffers*" -q INTERCALL
+
+    - {3:1} and print context combined both entry and exit
+        # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
+
+    - {3:1} except for specific functions {7:1}
+        # {0:1} {1:1} -g a.out -c "^printPeace"
+        # {0:1} {1:1} -g a.out -c "^g_mutex_*, ^pthread_mutex_*"
+
+    - {5:1} from a specific binary
+        # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
     - {5:1} including specific word in a hidden state
         # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
@@ -30761,9 +30811,6 @@ Examples:
 
     - {5:1} {7:1} from when specific function calls return
         # {0:1} {1:1} -g a.out -c "write|getret:start, *"
-
-    - {5:1} {7:1} without truncation
-        # {0:1} {1:1} -g a.out -q NOCUT
 
     - {5:1} with colorful elapsed time exceeds 0.1 second {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
@@ -30886,22 +30933,18 @@ Examples:
     - {3:1} and execute specific commands {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha;sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
-
-    - {3:1} {7:1} and draw timeline segments for all function calls
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
-        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:ms, COMPLETECALL
-        # {0:1} {1:1} -g a.out -c "*|getret" -q TIMELINE, TIMEUNIT:us, COMPLETECALL, GROUPFONTSIZE:30
                 """.format(
-                    cmd,
-                    mode,
-                    cmdListStr,
-                    "Trace all native calls",
-                    "when specific calls detected",
-                    "Trace specific native calls",
-                    jitProfStr,
-                    "for specific threads",
-                    "from a specific binary",
+                        cmd,
+                        mode,
+                        cmdListStr,
+                        "Trace all native calls",
+                        "when specific calls detected",
+                        "Trace specific native calls",
+                        jitProfStr,
+                        "for specific threads",
+                        "from a specific binary",
+                    ).rstrip()
+                    + dbgExamStr
                 )
 
                 logCommonStr = """
@@ -31643,30 +31686,8 @@ Examples:
     - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
 
-    - {2:1} with stdev for elapsed time {3:1}
-        # {0:1} {1:1} -g a.out -q STDEV
-
     - {2:1} with stdev and histogram for elapsed time {3:1}
         # {0:1} {1:1} -g a.out -q STDEV, PRINTHIST
-
-    - {2:1} with backtrace {3:1}
-        # {0:1} {1:1} -g a.out -H
-
-    - {2:1} with python backtrace {3:1}
-        # {0:1} {1:1} -g a.out -H -q PYSTACK
-
-    - {2:1} for child tasks created by specific threads
-        # {0:1} {1:1} -g a.out -W
-
-    - {2:1} {3:1} and report the result in JSON format
-        # {0:1} {1:1} -g a.out -J
-        # {0:1} {1:1} -g a.out -J -Q
-
-    - {2:1} {3:1} every 2 second
-        # {0:1} {1:1} -g 1234 -R 2:
-
-    - Monitor CPU usage on whole system of syscalls for a specific thread
-        # {0:1} {1:1} -g a.out -e c
 
     - {2:1} {3:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -q ELAPSED:0.1
@@ -31680,62 +31701,8 @@ Examples:
     - Monitor only failed syscalls {3:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - {2:1} {4:1} and print standard output for child tasks
-        # {0:1} {1:1} a.out -q NOMUTE
-
-    - {2:1} {4:1} excluding specific environment variable
-        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
-
-    - {2:1} {4:1} using merged symbols
-        # {0:1} {1:1} a.out -q ALLSYM
-
-    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
     - {2:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
-
-    - {2:1} {3:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
-
-    - {2:1} {3:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g a.out -q CONTALONE
-
-    - {2:1} except for wait status {3:1}
-        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
-
-    - {2:1} except for context info {3:1}
-        # {0:1} {1:1} -g a.out -q NOCONTEXT
-        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
-
-    - {2:1} {3:1} consumed CPU more than 10%
-        # {0:1} {1:1} -g a.out -q CPUCOND:10
-
-    - {2:1} except for no symbol backtraces {3:1}
-        # {0:1} {1:1} -g a.out -H -q ONLYSYM
-
-    - {2:1} {3:1} with call interval info
-        # {0:1} {1:1} -g a.out -q INTERCALL
-
-    - {2:1} {3:1} with call interval info including stdev
-        # {0:1} {1:1} -g a.out -q INTERCALL, STDEV
-
-    - {2:1} {3:1} after loading all symbols in stop status
-        # {0:1} {1:1} -g a.out -q STOPTARGET
-
-    - {2:1} for 4th and 5th new threads in each new processes {4:1}
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-
-    - {2:1} {4:1} including specific environment variables
-        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
-        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q CLEARENV
-        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
-        # {0:1} {1:1} a.out -q ENVPROC:systemd
 
     - {2:1} with breakpoint for read syscalls {3:1}
         # {0:1} {1:1} -g 1234 -c read
@@ -31747,10 +31714,14 @@ Examples:
                         mode,
                         "Monitor syscalls",
                         "for specific threads",
-                        "from a specific binary",
                     )
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += (
+                        topSubStr
+                        + topCommonStr
+                        + examStr.rstrip()
+                        + dbgExamStr
+                    )
 
                 # python top #
                 elif SysMgr.checkMode("pytop"):
@@ -31764,13 +31735,11 @@ Description:
                         cmd, mode
                     )
 
-                    examStr = """
+                    examStr = (
+                        """
 Examples:
     - {2:1} {3:1} using 100 us sampling
         # {0:1} {1:1} -g iotop
-
-    - {2:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g iotop -W
 
     - {2:1} with backtrace {3:1} (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g iotop -H
@@ -31785,63 +31754,18 @@ Examples:
         # {0:1} {1:1} iotop -q NOMUTE
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
 
-    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {2:1} {3:1} (wait for new target if no task)
-        # {0:1} {1:1} iotop -g iotop -q WAITTASK
-        # {0:1} {1:1} iotop -g iotop -q WAITTASK:1
-        # {0:1} {1:1} iotop -g iotop -q WAITTASK, NOPIDCACHE
-
-    - {2:1} {3:1} even if the master tracer is terminated
-        # {0:1} {1:1} iotop -g iotop -q CONTALONE
-
-    - {2:1} except for wait status {3:1}
-        # {0:1} {1:1} iotop -g iotop -q EXCEPTWAIT
-
-    - {2:1} except for context info {3:1}
-        # {0:1} {1:1} iotop -g iotop -q NOCONTEXT
-        # {0:1} {1:1} iotop -g iotop -q NOREG, NOSIG, NOBT
-
-    - {2:1} {3:1} consumed CPU more than 10%
-        # {0:1} {1:1} -g iotop -q CPUCOND:10
-
-    - {2:1} except for no symbol functions {3:1}
-        # {0:1} {1:1} iotop -g iotop -q ONLYSYM
-
-    - {2:1} {3:1} after loading all symbols in stop status
-        # {0:1} {1:1} iotop -g iotop -q STOPTARGET
-
-    - {2:1} for 4th and 5th new threads in each new processes from a specific binary
-        # {0:1} {1:1} iotop -g iotop -q TARGETNUM:4, TARGETNUM:5
-        # {0:1} {1:1} -I iotop -g iotop -q TARGETNUM:4, TARGETNUM:5
-
-    - {2:1} for a specific binary execution with environment variables
-        # {0:1} {1:1} iotop -q ENV:TEST=1, ENV:PATH=/data
-        # {0:1} {1:1} iotop -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} iotop -q CLEARENV
-        # {0:1} {1:1} iotop -q CLEARENV:HOME, CLEARENV:^LANGUAGE
-        # {0:1} {1:1} iotop -q ENVPROC:systemd
-
-    - Monitor CPU usage on whole system of python calls {3:1}
-        # {0:1} {1:1} -g iotop -e c
-
-    - {2:1} with breakpoint for peace {3:1}
+    - {2:1} with breakpoint for specific functions {3:1}
         # {0:1} {1:1} -g 1234 -c peace
         # {0:1} {1:1} -g 1234 -c peace -a
 
-    - {2:1} {3:1} and draw timeline segments for all python call samples
-        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10 -a
-        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
-
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd,
-                        mode,
-                        "Monitor python calls",
-                        "for specific threads",
+                            cmd,
+                            mode,
+                            "Monitor python calls",
+                            "for specific threads",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                     helpStr += (
@@ -31878,85 +31802,12 @@ Examples:
     - {2:1} and report the result to ./guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
-    - {2:1} and report the result in JSON format
-        # {0:1} {1:1} -J
-        # {0:1} {1:1} -J -Q
-
-    - {2:1} {3:1} having specific TID
-        # {0:1} {1:1} -g 1234 -q ONLYPID
-
-    - {2:1} {3:1} having specific task name
-        # {0:1} {1:1} -g 1234 -q ONLYCOMM
-
-    - {2:1} for specific processes having specific task name
-        # {0:1} {1:1} -g 1234 -q ONLYPROC
-
-    - {2:1} using compressed cache {3:1}
-        # {0:1} {1:1} -g a.out -q COMPCACHE
-
-    - {2:1} without using previous sample cache {3:1}
-        # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
-
-    - {2:1} and standard output {4:1}
-        # {0:1} {1:1} a.out -q NOMUTE
-
-    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {2:1} {4:1} excluding specific environment variable
-        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
-
     - {2:1} {3:1} {4:1}
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
-    - {2:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g a.out -q WAITCLONE
-
-    - {2:1} {3:1} (wait for new target if no task) {4:1}
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
-        # {0:1} {1:1} a.out -g a.out -q WAITTASK, NOPIDCACHE
-
-    - {2:1} {3:1} {4:1} even if the master tracer is terminated
-        # {0:1} {1:1} a.out -g a.out -q CONTALONE
-
-    - {2:1} {4:1} except for wait status {3:1}
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
-
-    - {2:1} {3:1} consumed CPU more than 10%
-        # {0:1} {1:1} -g a.out -q CPUCOND:10
-
-    - {2:1} for 4th and 5th new threads in each new processes {4:1}
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-
-    - {2:1} {4:1} including specific environment variables
-        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
-        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q CLEARENV
-        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
-        # {0:1} {1:1} a.out -q ENVPROC:systemd
-
-    - {2:1} {3:1} after user input
-        # {0:1} {1:1} -g a.out -W
-
-    - {2:1} {3:1} after 5 seconds
-        # {0:1} {1:1} -g a.out -W 5s
-
-    - {2:1} {3:1} from 100 seconds of uptime
-        # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
-
-    - {2:1} {3:1} until 100 seconds of uptime
-        # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
-
     - {2:1} {3:1} every 2 second for 1 minute with 1ms sampling
         # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
-
-    - Monitor CPU usage on whole system of native function calls {3:1}
-        # {0:1} {1:1} -g a.out -e c
 
     See the top COMMAND help for more examples.
                     """.format(
@@ -31973,7 +31824,8 @@ Examples:
                             "-T  <PROC>                  set process number",
                             "-T  <TIME>                  set sample rate",
                         )
-                        + examStr
+                        + examStr.rstrip()
+                        + dbgExamStr
                     )
 
                 # usercall top #
@@ -31988,7 +31840,8 @@ Description:
                         cmd, mode
                     )
 
-                    examStr = """
+                    examStr = (
+                        """
 Examples:
     - {3:1} {4:1}
         # {0:1} {1:1} -g a.out
@@ -32007,159 +31860,39 @@ Examples:
         # {0:1} {1:1} -o .
         # {0:1} {1:1} -o . -q FORCESUMMARY
 
-    - {3:1} with monitoring processes and report the result to ./guider.out when SIGINT arrives
-        # {0:1} {1:1} -o . -w "BEFORE:{0:1} top -Q &"
-
-    - {3:1} and report the result in JSON format
-        # {0:1} {1:1} -J
-        # {0:1} {1:1} -J -Q
-
-    - {3:1} {4:1} having specific TID
-        # {0:1} {1:1} -g 1234 -q ONLYPID
-
-    - {3:1} {4:1} having specific task name
-        # {0:1} {1:1} -g 1234 -q ONLYCOMM
-
-    - {3:1} for specific processes having specific task name
-        # {0:1} {1:1} -g 1234 -q ONLYPROC
-
-    - {3:1} using merged symbols {4:1}
-        # {0:1} {1:1} -g a.out -q ALLSYM
-
     - {3:1} without using incremental sampling rate {4:1}
         # {0:1} {1:1} -g a.out -q FIXSAMPLING
-
-    - {3:1} using compressed cache {4:1}
-        # {0:1} {1:1} -g a.out -q COMPCACHE
-
-    - {3:1} without using previous sample cache {4:1}
-        # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
-
-    - {3:1} {4:1} without file loading messages
-        # {0:1} {1:1} -g a.out -q NOLOADMSG
-
-    - {3:1} {4:1} with task sync for clone event
-        # {0:1} {1:1} -g a.out -q SYNCTASK
-
-    - {3:1} without using file cache {4:1}
-        # {0:1} {1:1} -g a.out -q NOFILECACHE
-
-    - {3:1} with debug info {4:1}
-        # {0:1} {1:1} -g a.out -q DEBUGINFO
-        # {0:1} {1:1} -g a.out -q DEBUGINFO -H
-        # {0:1} {1:1} -g a.out -q DEBUGINFO:/usr/lib/libc.so
-
-    - {3:1} and standard output {5:1}
-        # {0:1} {1:1} a.out -q NOMUTE
-
-    - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {3:1} {5:1} excluding specific environment variable
-        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
-
-    - {3:1} {4:1} with lazy cache loading
-        # {0:1} {1:1} -g a.out -q LAZYCACHE
-
-    - {3:1} {4:1} except for DWARF table of specific files
-        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
 
     - {3:1} {4:1} {5:1}
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
-    - {3:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g a.out -q WAITCLONE
-
-    - {3:1} {4:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
-
     - {3:1} {4:1} even if the master tracer is terminated {5:1}
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
-
-    - {3:1} except for samples for wait status {4:1}
-        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
     - {3:1} {4:1} after the target task awakened
         # {0:1} {1:1} -g a.out -q WAITWAKEUP
 
-    - {3:1} except for context info {4:1}
-        # {0:1} {1:1} -g a.out -q NOCONTEXT
-        # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
-
-    - {3:1} {4:1} consumed CPU more than 10%
-        # {0:1} {1:1} -g a.out -q CPUCOND:10
-
-    - {3:1} except for no symbol functions {4:1}
-        # {0:1} {1:1} -g a.out -q ONLYSYM
-
-    - {3:1} {4:1} after loading all symbols in stop status
-        # {0:1} {1:1} -g a.out -q STOPTARGET
-
-    - {3:1} for 4th and 5th new threads in each new processes {5:1}
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4, TARGETNUM:5
-
-    - {3:1} {5:1} including specific environment variables
-        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
-        # {0:1} {1:1} a.out -q ENV:LD_DEBUG=libs, ENV:LD_DEBUG=bindings
-        # {0:1} {1:1} a.out -q ENV:LD_DEBUG=detail, ENV:LD_DEBUG=files
-        # {0:1} {1:1} a.out -q ENV:LD_DEBUG=reloc, ENV:LD_DEBUG=symbols
-        # {0:1} {1:1} a.out -q ENV:LD_DEBUG_OUTPUT=./ld.out
-        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
-        # {0:1} {1:1} a.out -q CLEARENV
-        # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
-        # {0:1} {1:1} a.out -q ENVPROC:systemd
-
-    - {3:1} {4:1} with DWARF info
-        # {0:1} {1:1} -g a.out -eD
-
-    - {3:1} {4:1} after user input
-        # {0:1} {1:1} -g a.out -W
-
-    - {3:1} {4:1} after 5 seconds
-        # {0:1} {1:1} -g a.out -W 5s
-
-    - {3:1} {4:1} from 100 seconds of uptime
-        # {0:1} {1:1} -g a.out -q STARTCONDTIME:100 -W
-
-    - {3:1} {4:1} until 100 seconds of uptime
-        # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
-
-    - {3:1} with backtrace {4:1}
-        # {0:1} {1:1} -g a.out -H
-
     - {3:1} with backtrace (no-use-libcorkscrew) {4:1}
         # {0:1} {1:1} -g a.out -H -q NOLIBCORK
-
-    - {3:1} with python backtrace {4:1}
-        # {0:1} {1:1} -g a.out -H -q PYSTACK
-
-    - {3:1} with backtrace including arguments using DWARF {4:1}
-        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
 
     - {3:1} {4:1} every 2 second for 1 minute with 1ms sampling
         # {0:1} {1:1} -g 1234 -T 1ms -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of native function calls {4:1}
-        # {0:1} {1:1} -g a.out -e c
-
-    - {3:1} with breakpoint for peace {4:1}
-        # {0:1} {1:1} -g 1234 -c peace
-        # {0:1} {1:1} -g 1234 -c peace -a
+    - {3:1} with breakpoint for specific functions {4:1}
+        # {0:1} {1:1} -g a.out -c peace
+        # {0:1} {1:1} -g a.out -c peace -a
 
     See the top COMMAND help for more examples.
                     """.format(
-                        cmd,
-                        mode,
-                        jitProfStr,
-                        "Monitor native function calls",
-                        "for specific threads",
-                        "from a specific binary",
+                            cmd,
+                            mode,
+                            jitProfStr,
+                            "Monitor native function calls",
+                            "for specific threads",
+                            "from a specific binary",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                     helpStr += (
@@ -32917,7 +32650,8 @@ Options:
     -v                          verbose
                     """
 
-                    helpStr += """{2:1}
+                    helpStr += (
+                        """{2:1}
 Examples:
     - {4:1} {5:1}
         # {0:1} {1:1} -g a.out -t read
@@ -32926,26 +32660,9 @@ Examples:
     - {3:1} except for read {5:1}
         # {0:1} {1:1} -g a.out -t ^read
 
-    - {3:1} {5:1} and print contexts in JSON format
-        # {0:1} {1:1} -g a.out -J
-        # {0:1} {1:1} -g a.out -J -Q
-        # {0:1} {1:1} -g a.out -J -q COMPLETECALL
-
-    - {4:1} for child tasks created by specific threads
-        # {0:1} {1:1} -g 1234 -t read -q WAITCLONE
-
     - {4:1} from a specific binary
         # {0:1} {1:1} "ls -al" -t write
         # {0:1} {1:1} -I "ls -al" -t write
-
-    - {4:1} from a specific binary excluding specific environment variable
-        # {0:1} {1:1} "ls -al" -t write -q REMOVEENV:MAIL
-
-    - {4:1} with backtrace {5:1}
-        # {0:1} {1:1} -g a.out -t read -H
-
-    - {4:1} with backtrace using merged symbol {5:1}
-        # {0:1} {1:1} -g a.out -t read -H -q ALLSYM
 
     - Trace only successful syscalls {5:1}
         # {0:1} {1:1} -g a.out -q ONLYOK
@@ -32953,51 +32670,11 @@ Examples:
     - Trace only failed syscalls {5:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - {4:1} with python backtrace {5:1}
-        # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
-
-    - {4:1} from a specific binary (print standard output)
-        # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
-
-    - {4:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {3:1} {5:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
-
     - {4:1} from a specific binary with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
-    - {3:1} except for no symbol backtraces {5:1}
-        # {0:1} {1:1} -g a.out -H -q ONLYSYM
-
-    - {3:1} {5:1} with printing tracing overhead
-        # {0:1} {1:1} -g a.out -q PRINTDELAY
-
-    - {3:1} {5:1} including profiling overhead time
-        # {0:1} {1:1} -g a.out -q INCOVERHEAD
-
-    - {3:1} including thread group info {5:1}
-        # {0:1} {1:1} -g a.out -q INCTGINFO
-
-    - {3:1} except for arguments {5:1}
-        # {0:1} {1:1} -g a.out -q NOARG
-
-    - {3:1} {5:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g a.out -q CONTALONE
-
     - {4:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
-
-    - {3:1} {5:1} without truncation
-        # {0:1} {1:1} -g a.out -q NOCUT
-
-    - {3:1} {5:1} with call interval info
-        # {0:1} {1:1} -g a.out -q INTERCALL
 
     - {3:1} {5:1} and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
@@ -33008,9 +32685,6 @@ Examples:
     - {3:1} with breakpoint for read {5:1}
         # {0:1} {1:1} -g a.out -c read
         # {0:1} {1:1} -g a.out -c read -a
-
-    - {3:1} {5:1} only for 1 minute
-        # {0:1} {1:1} -g a.out -R 1m
 
     - {3:1} and pause when catching open syscall
         # {0:1} {1:1} -I "ls -al" -c open
@@ -33023,18 +32697,15 @@ Examples:
 
     - {3:1} and print memory that 2nd argument point to
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
-
-    - {3:1} {5:1} and draw timeline segments for all syscalls
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, GROUPFONTSIZE:30
                     """.format(
-                        cmd,
-                        mode,
-                        cmdListStr,
-                        "Trace all syscalls",
-                        "Trace specific syscalls",
-                        "for specific threads",
+                            cmd,
+                            mode,
+                            cmdListStr,
+                            "Trace all syscalls",
+                            "Trace specific syscalls",
+                            "for specific threads",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                 # utrace #
@@ -33068,13 +32739,11 @@ Options:
     -v                          verbose
                     """
 
-                    helpStr += """
+                    helpStr += (
+                        """
 Examples:
     - {2:1} {3:1} in 100us cycles
         # {0:1} {1:1} -g a.out
-
-    - {2:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g a.out -W
 
     - {2:1} from a specific binary
         # {0:1} {1:1} "ls -al"
@@ -33087,40 +32756,26 @@ Examples:
     - {2:1} {3:1} in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - {2:1} {3:1} (print standard output)
-        # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
-
-    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {2:1} {3:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
-
-    - {2:1} {3:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g a.out -q CONTALONE
-
     - {2:1} with 1/10 instructions {3:1}
         # {0:1} {1:1} -g a.out -H 10
 
     - {2:1} {3:1} and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
-    - {2:1} with breakpoint for peace {3:1}
+    - {2:1} with breakpoint for specific functions {3:1}
         # {0:1} {1:1} -g a.out -c peace
         # {0:1} {1:1} -g a.out -c peace -a
-
-    - {2:1} {3:1} only for 2 seconds
-        # {0:1} {1:1} -g a.out -R 2s
 
     - {2:1} from a specific binary and pause when catching PLT function call
         # {0:1} {1:1} "ls -al" -c PLT
         # {0:1} {1:1} -I "ls -al" -c PLT
                     """.format(
-                        cmd, mode, "Trace usercalls", "for specific threads"
+                            cmd,
+                            mode,
+                            "Trace usercalls",
+                            "for specific threads",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                 # pytrace #
@@ -33157,13 +32812,11 @@ Options:
     -v                          verbose
                     """
 
-                    examStr = """{2:1}
+                    examStr = (
+                        """{2:1}
 Examples:
     - {3:1} {4:1}
         # {0:1} {1:1} -g iotop
-
-    - {3:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g iotop -W
 
     - {3:1} from a specific binary
         # {0:1} {1:1} "ls -al"
@@ -33177,36 +32830,8 @@ Examples:
     - {3:1} {4:1} in 10ms cycles
         # {0:1} {1:1} -g iotop -i 10000
 
-    - {3:1} {4:1} (print standard output)
-        # {0:1} {1:1} -g iotop -q NOMUTE
-
-    - {3:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {3:1} {4:1} (wait for new target if no task)
-        # {0:1} {1:1} -g iotop -q WAITTASK
-        # {0:1} {1:1} -g iotop -q WAITTASK:1
-        # {0:1} {1:1} -g iotop -q WAITTASK, NOPIDCACHE
-
-    - {3:1} for child tasks created by a specific thread
-        # {0:1} {1:1} -g iotop -q WAITCLONE
-
     - {3:1} with colorful elapsed time exceeds 0 second
         # {0:1} {1:1} -g iotop -c write -q PYELAPSED:0
-
-    - {3:1} {4:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g iotop -q CONTALONE
-
-    - {3:1} {4:1} with printing tracing overhead
-        # {0:1} {1:1} -g iotop -q PRINTDELAY
-
-    - {3:1} {4:1} including profiling overhead time
-        # {0:1} {1:1} -g iotop -q INCOVERHEAD
-
-    - {3:1} {4:1} without truncation
-        # {0:1} {1:1} -g iotop -q NOCUT
 
     - {3:1} with 1/10 instructions {4:1}
         # {0:1} {1:1} -g iotop -H 10
@@ -33214,24 +32839,17 @@ Examples:
     - {3:1} {4:1} and report the result to ./guider.out
         # {0:1} {1:1} -g iotop -o . -a
 
-    - {3:1} with breakpoint for peace {4:1}
+    - {3:1} with breakpoint for specific functions {4:1}
         # {0:1} {1:1} -g iotop -c peace
         # {0:1} {1:1} -g iotop -c peace -a
-
-    - {3:1} {4:1} only for 2 seconds
-        # {0:1} {1:1} -g iotop -R 2s
-
-    - {3:1} {4:1} and draw timeline segments for all python calls
-        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10 -a
-        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H -a
-        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, PYELAPSED:0 -a
-        # {0:1} {1:1} -g iotop -q TIMELINE, TIMEUNIT:us, PYELAPSED:0 -H -a
                     """.format(
-                        cmd,
-                        mode,
-                        cmdListStr,
-                        "Trace python calls",
-                        "for specific threads",
+                            cmd,
+                            mode,
+                            cmdListStr,
+                            "Trace python calls",
+                            "for specific threads",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                     helpStr += examStr
@@ -33300,7 +32918,9 @@ Options:
     -v                          verbose
                     """
 
-                    remoteExamStr = """
+                    remoteExamStr = (
+                        """
+Examples:
     - Print the context for the target repeatedly 5 times
         # {0:1} {1:1} -g a.out -c print -i 5
         # {0:1} {1:1} -g a.out -c print -i 5 -q onlyproc
@@ -33377,10 +32997,12 @@ Options:
         # {0:1} {1:1} -g a.out -c "exec:ls -lha;sleep 1"
         # {0:1} {1:1} -g a.out -c "exec:ls -lha &"
                     """.format(
-                        cmd,
-                        mode,
-                        "Control specific threads to",
-                        "Control specific processes to",
+                            cmd,
+                            mode,
+                            "Control specific threads to",
+                            "Control specific processes to",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                     helpStr += remoteExamStr
@@ -33484,7 +33106,8 @@ Options:
     -v                          verbose
                     """
 
-                    helpStr += """
+                    helpStr += (
+                        """
 Examples:
     - {2:1} {3:1}
         # {0:1} {1:1} -g a.out
@@ -33503,28 +33126,13 @@ Examples:
 
     - {2:1} except for specific signals {3:1}
         # {0:1} {1:1} -g 1234 -c ^SIGINT
-
-    - Trace SIGINT {3:1} (print standard output)
-        # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
-
-    - {2:1} from a specific binary and redirect standard I/O of child tasks to specific files
-        # {0:1} {1:1} "ls" -q STDIN:"./stdin"
-        # {0:1} {1:1} "ls" -q STDOUT:"./stdout"
-        # {0:1} {1:1} "ls" -q STDERR:"/dev/null"
-
-    - {2:1} {3:1} (wait for new target if no task)
-        # {0:1} {1:1} -g a.out -q WAITTASK
-        # {0:1} {1:1} -g a.out -q WAITTASK:1
-        # {0:1} {1:1} -g a.out -q WAITTASK, NOPIDCACHE
-
-    - {2:1} {3:1} even if the master tracer is terminated
-        # {0:1} {1:1} -g a.out -q CONTALONE
-
-    - {2:1} and draw timeline segments
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:ms, INTERCALL, DURATION:10
-        # {0:1} {1:1} -g a.out -q TIMELINE, TIMEUNIT:us, INTERCALL, DURATION:100 -H
                     """.format(
-                        cmd, mode, "Trace all signals", "for specific threads"
+                            cmd,
+                            mode,
+                            "Trace all signals",
+                            "for specific threads",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                 # mem #
@@ -34692,6 +34300,8 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q TASKMON
         # {0:1} {1:1} -I "a.out" -q TASKMON:3
         # {0:1} {1:1} -I "a.out" -q TASKMON -a
+        # {0:1} {1:1} -I "a.out" -q TASKMON, CHILDSCHED:c:0 -Y r:1
+        # {0:1} {1:1} -I "a.out" -q TASKMON, EXECSCHED:c:0 -Y r:1
 
     - {2:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20
@@ -34868,7 +34478,8 @@ Options:
                         cmd, mode
                     )
 
-                    helpStr += """
+                    helpStr += (
+                        """
 Examples:
     - {3:1} {2:1} {6:1} {9:1}
         # {0:1} {1:1} ./a.out {7:1}
@@ -34961,16 +34572,18 @@ Examples:
         # {0:1} {1:1} "ls" {7:1} -w START:"GUIDER sigtrace -g PID -c SIGSEGV &"
         # {0:1} {1:1} "ls" {7:1} -w AFTER:/tmp/touched:1, AFTER:ls
                     """.format(
-                        cmd,
-                        mode,
-                        "when SIGINT is received",
-                        "Report memory leakage hints of the target process",
-                        "after hooking binary injection",
-                        "when it's RSS reached the specific size",
-                        "from executing the target program",
-                        "-T ./libleaktracer.so",
-                        "after marking all anonymous pages as idle when SIGQUIT is received",
-                        "with auto start",
+                            cmd,
+                            mode,
+                            "when SIGINT is received",
+                            "Report memory leakage hints of the target process",
+                            "after hooking binary injection",
+                            "when it's RSS reached the specific size",
+                            "from executing the target program",
+                            "-T ./libleaktracer.so",
+                            "after marking all anonymous pages as idle when SIGQUIT is received",
+                            "with auto start",
+                        ).rstrip()
+                        + dbgExamStr
                     )
 
                 # printslab #
@@ -35445,6 +35058,8 @@ Examples:
         # {0:1} {1:1} yes:{3:1} -q TASKMON
         # {0:1} {1:1} yes:{3:1} -q TASKMON:3
         # {0:1} {1:1} yes:{3:1} -q TASKMON -a
+        # {0:1} {1:1} yes:{3:1} -q TASKMON, CHILDSCHED:c:0 -Y r:1
+        # {0:1} {1:1} yes:{3:1} -q TASKMON, EXECSCHED:c:0 -Y r:1
 
     - {2:1} for specific threads (wait for new target if no task)
         # {0:1} {1:1} yes:{3:1} -q WAITTASK
@@ -45739,7 +45354,7 @@ Copyright:
             return None
 
     @staticmethod
-    def executeProcess(cmd=None, mute=False, closeFd=True, resetPri=False):
+    def executeProcess(cmd=None, mute=False, closeFd=True):
         # get new environ variables #
         env = SysMgr.getEnvList()
 
@@ -45754,9 +45369,10 @@ Copyright:
                 True,
             )
 
-        # reset priority #
-        if resetPri:
-            SysMgr.setPriority(SysMgr.pid, "C", 0)
+        # set priority #
+        if "EXECSCHED" in SysMgr.environList:
+            for cmd in SysMgr.environList["EXECSCHED"]:
+                SysMgr.applyPriority(cmd)
 
         # exec #
         try:
@@ -46288,6 +45904,11 @@ Copyright:
         if pid > 0:
             if not isDaemon:
                 SysMgr.childList[pid] = True
+
+            # set child priority #
+            if "CHILDSCHED" in SysMgr.environList:
+                for cmd in SysMgr.environList["CHILDSCHED"]:
+                    SysMgr.applyPriority("%s:%s" % (cmd, pid))
 
             return pid
         # child #
@@ -54239,6 +53860,11 @@ Copyright:
                 stdout=stdout,
                 stderr=stderr,
             )
+
+            # set priority #
+            if "EXECSCHED" in SysMgr.environList:
+                for cmd in SysMgr.environList["EXECSCHED"]:
+                    SysMgr.applyPriority("%s:%s" % (cmd, procObj.pid))
 
             # run mainloop #
             try:
@@ -77214,6 +76840,12 @@ typedef struct {
                     "failed to wait for tracer of %s(%s)" % (self.comm, tid),
                     reason=True,
                 )
+
+            # set new priority #
+            if "TRACEESCHED" in SysMgr.environList:
+                for cmd in SysMgr.environList["TRACEESCHED"]:
+                    SysMgr.applyPriority("%s:%s" % (cmd, tid))
+
         # child tracee #
         elif pid == 0:
             # disable alarm #
