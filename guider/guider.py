@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220920"
+__revision__ = "220921"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6097,10 +6097,9 @@ class UtilMgr(object):
     @staticmethod
     def isValidStr(string, key=None, inc=False, ignCap=False):
         if not key:
+            if not SysMgr.filterGroup:
+                return True
             key = SysMgr.filterGroup
-
-        if not key:
-            return True
 
         if ignCap:
             string = string.lower()
@@ -30508,6 +30507,15 @@ Commands:
 
                 dbgExamStr = """\n
 Common Examples:
+    - Print backtrace info
+        # {0:1} {1:1} -g a.out -H
+
+    - Print python backtrace info
+        # {0:1} {1:1} -g a.out -H -q PYSTACK
+
+    - Run only for 2 seconds
+        # {0:1} {1:1} -g a.out -R 2s
+
     - Print in JSON format
         # {0:1} {1:1} -g a.out -J
         # {0:1} {1:1} -g a.out -J -Q
@@ -30516,20 +30524,8 @@ Common Examples:
     - Disable standard output mute
         # {0:1} {1:1} a.out -q NOMUTE
 
-    - Remove specific environment variable
-        # {0:1} {1:1} a.out -q REMOVEENV:MAIL
-
-    - Use merged symbols
-        # {0:1} {1:1} a.out -q ALLSYM
-
-    - Preload ELF files from the specific file list
-        # {0:1} {1:1} a.out -q ELFFILE:./mem.out
-
     - Execute target process monitoring in parallel
         # {0:1} {1:1} a.out -w BEFORE:"GUIDER top -g ls -Q &"
-
-    - Disable file loading messages
-        # {0:1} {1:1} -g a.out -q NOLOADMSG
 
     - Print tracing overhead
         # {0:1} {1:1} -g a.out -q PRINTDELAY
@@ -30542,11 +30538,26 @@ Common Examples:
         # {0:1} {1:1} a.out -q STDOUT:"./stdout"
         # {0:1} {1:1} a.out -q STDERR:"/dev/null"
 
-    - Use compressed ELF caches
-        # {0:1} {1:1} -g a.out -q COMPCACHE
+    - Use merged symbols
+        # {0:1} {1:1} a.out -q ALLSYM
 
     - Don't use previous sampled caches
         # {0:1} {1:1} -g a.out -q NOSAMPLECACHE
+
+    - Print injection info
+        # {0:1} {1:1} -g a.out -q TRACEBP
+
+    - Disable file loading messages
+        # {0:1} {1:1} -g a.out -q NOLOADMSG
+
+    - Preload ELF files from the specific file list
+        # {0:1} {1:1} a.out -q ELFFILE:./mem.out
+
+    - Use compressed ELF caches
+        # {0:1} {1:1} -g a.out -q COMPCACHE
+
+    - Apply lazy cache loading
+        # {0:1} {1:1} -g a.out -q LAZYCACHE
 
     - Use debug info
         # {0:1} {1:1} -g a.out -q DEBUGINFO
@@ -30556,11 +30567,20 @@ Common Examples:
     - Except for DWARF table of specific files
         # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
 
-    - Apply lazy cache loading
-        # {0:1} {1:1} -g a.out -q LAZYCACHE
+    - Use DWARF info
+        # {0:1} {1:1} "ls" -eD
+
+    - Print backtrace info including arguments using DWARF
+        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
+
+    - Dont' use file caches
+        # {0:1} {1:1} -g a.out -q NOFILECACHE
 
     - Convert syscall args
         # {0:1} {1:1} -g a.out -q CONVARG
+
+    - Use only PID not TID
+        # {0:1} {1:1} -g a.out -q ONLYPROC
 
     - Apply filter only for specific IDs
         # {0:1} {1:1} -g 1234 -q ONLYPID
@@ -30568,8 +30588,8 @@ Common Examples:
     - Apply filter only for specific COMM
         # {0:1} {1:1} -g 1234 -q ONLYCOMM
 
-    - Set IDs of target tasks to only process ID
-        # {0:1} {1:1} -g a.out -q ONLYPROC
+    - Apply filter except for specific COMM
+        # {0:1} {1:1} -g a.out -q EXCEPTCOMM:"thread*"
 
     - Wait for user input or specific time for starting
         # {0:1} {1:1} -g a.out -W
@@ -30586,6 +30606,9 @@ Common Examples:
     - Wait for specific uptime for termination
         # {0:1} {1:1} -g a.out -q EXITCONDTIME:100 -R
 
+    - Print only specific tasks consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
     - Wait for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
@@ -30601,9 +30624,6 @@ Common Examples:
     - Except for specific context info
         # {0:1} {1:1} -g a.out -q NOCONTEXT
         # {0:1} {1:1} -g a.out -q NOREG, NOSIG, NOBT
-
-    - Print only specific tasks consumed CPU more than 10%
-        # {0:1} {1:1} -g a.out -q CPUCOND:10
 
     - Keep going even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -30636,20 +30656,8 @@ Common Examples:
         # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGABRT
         # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGSEGV, SKIPSIGNAL:8
 
-    - Except for DWARF table of specific files
-        # {0:1} {1:1} -g a.out -q EXCEPTDWARF:"*deno"
-
-    - Print injection info
-        # {0:1} {1:1} -g a.out -q TRACEBP
-
-    - Dont' use file caches
-        # {0:1} {1:1} -g a.out -q NOFILECACHE
-
     - Target new 4th and 5th threads in each new processes
         # {0:1} {1:1} a.out -q TARGETNUM:4, TARGETNUM:5
-
-    - Use DWARF info
-        # {0:1} {1:1} "ls" -eD
 
     - Manage specific environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
@@ -30657,18 +30665,6 @@ Common Examples:
         # {0:1} {1:1} a.out -q CLEARENV
         # {0:1} {1:1} a.out -q CLEARENV:HOME, CLEARENV:^LANGUAGE
         # {0:1} {1:1} a.out -q ENVPROC:systemd
-
-    - Print backtrace info
-        # {0:1} {1:1} -g a.out -H
-
-    - Print python backtrace info
-        # {0:1} {1:1} -g a.out -H -q PYSTACK
-
-    - Print backtrace info including arguments using DWARF
-        # {0:1} {1:1} -g a.out -e D -H -q DEBUGINFO, PRINTARG
-
-    - Run only for 2 seconds
-        # {0:1} {1:1} -g a.out -R 2s
 
     - Disable line truncation
         # {0:1} {1:1} -g a.out -q NOCUT
@@ -34201,7 +34197,7 @@ Examples:
         # {0:1} {1:1} "cpu*"
         # {0:1} {1:1} blkio
 
-    - {2:1} with processes
+    - {2:1} with tasks
         # {0:1} {1:1} -a
 
     - {2:1} with processes having specific name
@@ -44341,11 +44337,17 @@ Copyright:
         if not nameList or "ONLYPID" in SysMgr.environList:
             return pidList
 
-        # define ONLYPROC variable #
+        # set ONLYPROC variable #
         onlyProc = True if "ONLYPROC" in SysMgr.environList else False
 
-        # define PIDCACHE variable #
+        # set PIDCACHE variable #
         pidcache = False if "NOPIDCACHE" in SysMgr.environList else True
+
+        # set EXCEPTCOMM variable #
+        if "EXCEPTCOMM" in SysMgr.environList:
+            exceptList = SysMgr.environList["EXCEPTCOMM"]
+        else:
+            exceptList = []
 
         while 1:
             # set check list #
@@ -44362,7 +44364,11 @@ Copyright:
                 if not isThread:
                     # get comm #
                     comm = SysMgr.getComm(pid, cache)
-                    if UtilMgr.isValidStr(comm, nameList, inc=inc):
+                    if exceptList and UtilMgr.isValidStr(
+                        comm, exceptList, inc=inc
+                    ):
+                        continue
+                    elif UtilMgr.isValidStr(comm, nameList, inc=inc):
                         pidList.append(pid)
                     continue
 
@@ -44381,7 +44387,11 @@ Copyright:
 
                     # get comm #
                     comm = SysMgr.getComm(tid, cache=cache)
-                    if not UtilMgr.isValidStr(comm, nameList, inc=inc):
+                    if exceptList and UtilMgr.isValidStr(
+                        comm, exceptList, inc=inc
+                    ):
+                        continue
+                    elif not UtilMgr.isValidStr(comm, nameList, inc=inc):
                         continue
 
                     # include all siblings #
@@ -45493,18 +45503,16 @@ Copyright:
             itemList = UtilMgr.splitString(value)
             SysMgr.environList = UtilMgr.convList2Dict(itemList, cap=True)
 
-        # set comm #
-        if "COMM" in SysMgr.environList:
-            name = SysMgr.environList["COMM"][0]
-        else:
-            name = __module__
-        SysMgr.setComm(name)
-        SysMgr.comm = SysMgr.getComm(SysMgr.pid)
+            # update environment variable list #
+            os.environ = SysMgr.getEnvList()
 
-        # remove environment variables #
-        if "REMOVEENV" in SysMgr.environList:
-            for var in SysMgr.environList["REMOVEENV"]:
-                os.environ.pop(var, None)
+        # set comm #
+        SysMgr.setComm(
+            SysMgr.environList["COMM"][0]
+            if "COMM" in SysMgr.environList
+            else __module__
+        )
+        SysMgr.comm = SysMgr.getComm(SysMgr.pid)
 
     @staticmethod
     def getOutput(fd, retLine=False, progress=False):
@@ -51914,6 +51922,7 @@ Copyright:
                 sys.exit(-1)
             else:
                 SysMgr.setSimpleSignal()
+                signal.signal(signal.SIGQUIT, _markIdlePages)
 
         # init condition variables #
         convUnit = UtilMgr.convUnit2Size
@@ -52145,6 +52154,7 @@ Copyright:
 
         # reset default signal handlers #
         SysMgr.setSimpleSignal()
+        signal.signal(signal.SIGQUIT, _markIdlePages)
 
         # close all files #
         SysMgr.closeAllForPrint()
@@ -59848,9 +59858,13 @@ Copyright:
                             if (
                                 SysMgr.showAll
                                 and len(taskList) > 0
-                                and target == "cgroup.procs"
+                                and target in ("cgroup.procs", "tasks")
                             ):
-                                item["PROCS"] = dict.fromkeys(taskList, {})
+                                if target == "cgroup.procs":
+                                    name = "PROCS"
+                                else:
+                                    name = "TASKS"
+                                item[name] = dict.fromkeys(taskList, {})
                         else:
                             cval = fd.readline()[:-1]
                             if cval.isdigit():
@@ -59908,7 +59922,7 @@ Copyright:
     def printCgroupInfo(self, printTitle=True):
         commList = {}
 
-        def _printDirTree(root, depth, total=0):
+        def _printDirTree(root, depth, total=0, parent=""):
             # check depth #
             if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
                 return
@@ -60009,26 +60023,58 @@ Copyright:
                 if tempSubdir:
                     nrChild = "[sub:%s]" % len(tempSubdir)
 
-                    if curdir == "PROCS":
+                    if curdir in ("PROCS", "TASKS"):
                         nrWorker = ""
 
                     SysMgr.infoBufferPrint(
                         "%s- %s%s%s%s"
                         % (indent, curdir, nrChild, nrWorker, cstr)
                     )
-                # process node #
+                # task node #
                 elif depth > 0 and nrProcs == nrTasks == 0:
-                    if curdir in commList:
-                        comm = commList[curdir]
-                    else:
-                        comm = commList[curdir] = SysMgr.getComm(
-                            curdir, save=True
-                        )
+
+                    def _getComm(curdir):
+                        # get comm #
+                        if curdir in commList:
+                            comm = commList[curdir]
+                        else:
+                            comm = commList[curdir] = SysMgr.getComm(
+                                curdir, save=True
+                            )
+                        return comm
+
+                    # get comm #
+                    comm = _getComm(curdir)
 
                     # filter process #
+                    pstr = ""
+                    try:
+                        if parent == "PROCS":
+                            pid = SysMgr.getPpid(curdir)
+                        elif parent == "TASKS":
+                            pid = SysMgr.getTgid(curdir)
+                        else:
+                            assert False
+
+                        if pid in ("0", 0):
+                            assert False
+
+                        pcomm = _getComm(pid)
+                        pstr = " <- %s(%s)" % (pcomm, pid)
+                    except AssertionError:
+                        pass
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printWarn(
+                            "failed to get parent info of %s(%s)"
+                            % (comm, curdir),
+                            reason=True,
+                        )
+
                     if UtilMgr.isValidStr(comm, ignCap=True):
                         SysMgr.infoBufferPrint(
-                            "%s- %s(%s)" % (indent, comm, curdir)
+                            "%s- %s(%s)%s" % (indent, comm, curdir, pstr)
                         )
                 # leap node #
                 else:
@@ -60036,7 +60082,7 @@ Copyright:
                         "%s- %s%s%s" % (indent, curdir, nrWorker, cstr)
                     )
 
-                _printDirTree(tempSubdir, depth + 1, newTotal)
+                _printDirTree(tempSubdir, depth + 1, newTotal, curdir)
 
             if depth == 0:
                 SysMgr.infoBufferPrint(" ")
@@ -86802,7 +86848,7 @@ class TaskAnalyzer(object):
             sys.exit(-1)
 
         # split header #
-        if not header:
+        if not header and start:
             header = SysMgr.procBuffer[: start - 1]
 
         # split interval data #
@@ -86833,7 +86879,9 @@ class TaskAnalyzer(object):
             try:
                 SysMgr.printStat("start summarizing...")
 
-                TaskAnalyzer.printIntervalUsage(onlyTotal, onlySummary)
+                TaskAnalyzer.printIntervalUsage(
+                    onlyTotal, onlySummary, current=False
+                )
             except SystemExit:
                 sys.exit(0)
             except:
@@ -86867,7 +86915,7 @@ class TaskAnalyzer(object):
         else:
             merge = True
 
-        # get NOHEADER flag "
+        # get NOHEADER flag #
         if "NOHEADER" in SysMgr.environList:
             incHdr = False
         else:
@@ -89008,7 +89056,7 @@ class TaskAnalyzer(object):
             SysMgr.printFd = MemoryFile(name="buf")
 
             # summarize file data #
-            TaskAnalyzer.printIntervalUsage()
+            TaskAnalyzer.printIntervalUsage(current=False)
 
             # convert data to list #
             fd = SysMgr.printFd
@@ -90452,7 +90500,7 @@ class TaskAnalyzer(object):
 
                     # print interval info for drawing #
                     TaskAnalyzer.printIntervalUsage(
-                        onlyTotal=onlyTotal, onlySummary=True
+                        onlyTotal=onlyTotal, onlySummary=True, current=False
                     )
                 except SystemExit:
                     sys.exit(0)
@@ -100965,7 +101013,7 @@ class TaskAnalyzer(object):
             )
 
     @staticmethod
-    def printIntervalUsage(onlyTotal=False, onlySummary=False):
+    def printIntervalUsage(onlyTotal=False, onlySummary=False, current=True):
         def _printMenu(title):
             stars = "*" * long((long(SysMgr.lineLength) - len(title)) / 2)
             SysMgr.printPipe("\n\n\n\n%s%s%s\n\n" % (stars, title, stars))
@@ -101064,10 +101112,11 @@ class TaskAnalyzer(object):
         _printMenu(" Leak Hint ")
         TaskAnalyzer.printLeakHint()
 
-        # print kernel messages #
+        # print kernel messages for current system #
         try:
-            _printMenu(" Kernel Message ")
-            SysMgr.printPipe(LogMgr.getKmsg(SysMgr.kmsgLine))
+            if current:
+                _printMenu(" Kernel Message ")
+                SysMgr.printPipe(LogMgr.getKmsg(SysMgr.kmsgLine))
         except SystemExit:
             sys.exit(0)
         except:
