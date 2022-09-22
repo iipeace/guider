@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220921"
+__revision__ = "220922"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34194,16 +34194,26 @@ Examples:
         # {0:1} {1:1}
 
     - {2:1} for specific subsystem
+        # {0:1} {1:1} cpu
+        # {0:1} {1:1} cpu,cpuacct
         # {0:1} {1:1} "cpu*"
-        # {0:1} {1:1} blkio
+        # {0:1} {1:1} "cpu memory blkio"
 
     - {2:1} with tasks
         # {0:1} {1:1} -a
 
+    - {2:1} with tasks only for effective groups
+        # {0:1} {1:1} -q ONLYEFFECT
+        # {0:1} {1:1} -a -q ONLYEFFECT
+
+    - {2:1} with tasks only for specific type
+        # {0:1} {1:1} -a -q ONLYPROC
+        # {0:1} {1:1} -a -q ONLYTASK
+
     - {2:1} with processes having specific name
         # {0:1} {1:1} -a -g kworker
 
-    - {2:1} with depth 3
+    - {2:1} with depth limitation
         # {0:1} {1:1} -H 3
                     """.format(
                         cmd, mode, "Print system cgroup tree"
@@ -34808,7 +34818,7 @@ Examples:
     - Print the highlighted processes having specific name
         # {0:1} {1:1} -g kworker
 
-    - {2:1} all processes with depth 3
+    - {2:1} all processes with depth limitation
         # {0:1} {1:1} -H 3
                     """.format(
                         cmd,
@@ -60004,15 +60014,23 @@ Copyright:
                 if cstr:
                     cstr = " <%s>" % cstr[:-2]
 
-                # define worker info #
+                # define proces info #
                 if not nrProcs in ("0", 0):
                     procstr = UtilMgr.convColor(nrProcs, "YELLOW")
                 else:
                     procstr = nrProcs
+
+                # define tasks info #
                 if not nrTasks in ("0", 0):
                     taskstr = UtilMgr.convColor(nrTasks, "CYAN")
                 else:
+                    # check skip condition #
+                    if "ONLYEFFECT" in SysMgr.environList:
+                        if cstr and not tempSubdir:
+                            continue
+
                     taskstr = nrTasks
+
                 nrWorker = " (proc:%s/task:%s)" % (procstr, taskstr)
 
                 # highlight subsystem name #
@@ -60021,10 +60039,22 @@ Copyright:
 
                 # parent node #
                 if tempSubdir:
-                    nrChild = "[sub:%s]" % len(tempSubdir)
-
+                    # check skip condition #
                     if curdir in ("PROCS", "TASKS"):
-                        nrWorker = ""
+                        if (
+                            "ONLYPROC" in SysMgr.environList
+                            and curdir == "TASKS"
+                        ):
+                            continue
+                        elif (
+                            "ONLYTASK" in SysMgr.environList
+                            and curdir == "PROCS"
+                        ):
+                            continue
+                        else:
+                            nrWorker = ""
+
+                    nrChild = "[sub:%s]" % len(tempSubdir)
 
                     SysMgr.infoBufferPrint(
                         "%s- %s%s%s%s"
@@ -60033,6 +60063,7 @@ Copyright:
                 # task node #
                 elif depth > 0 and nrProcs == nrTasks == 0:
 
+                    # define function to get comm #
                     def _getComm(curdir):
                         # get comm #
                         if curdir in commList:
@@ -60049,18 +60080,34 @@ Copyright:
                     # filter process #
                     pstr = ""
                     try:
+                        missMark = False
+
+                        # get parent ID #
                         if parent == "PROCS":
                             pid = SysMgr.getPpid(curdir)
                         elif parent == "TASKS":
                             pid = SysMgr.getTgid(curdir)
+
+                            # check missing tasks #
+                            thrList = SysMgr.getThreadList(curdir)
+                            missList = set(map(str, thrList)) - set(tempRoot)
+                            if missList:
+                                missMark = True
                         else:
                             assert False
 
+                        # get parent comm #
                         if pid in ("0", 0):
-                            assert False
+                            pcomm = "swapper"
+                        else:
+                            pcomm = _getComm(pid)
 
-                        pcomm = _getComm(pid)
                         pstr = " <- %s(%s)" % (pcomm, pid)
+
+                        if missMark:
+                            pstr += " [%s]" % UtilMgr.convColor(
+                                "PARTIAL", "RED"
+                            )
                     except AssertionError:
                         pass
                     except SystemExit:
@@ -60108,7 +60155,7 @@ Copyright:
         # filter cgroup subsystem #
         if SysMgr.hasMainArg():
             # get filter for subsystems #
-            items = SysMgr.getMainArgs()
+            items = SysMgr.getMainArgs(token=" ")
 
             # remove subsystems from tree #
             for subsystem in list(cgroupTree):
