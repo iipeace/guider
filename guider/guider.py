@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220922"
+__revision__ = "220923"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30064,8 +30064,9 @@ Examples:
     - {3:1} {2:1} and {5:1} {4:1}
         # {0:1} {1:1} -o .
 
-    - {3:1} all {2:1} once and report the result including cgroup info to ./guider.out
-        # {0:1} {1:1} -e G -a -o . -R 1
+    - {3:1} {2:1} including cgroup info
+        # {0:1} {1:1} -e G
+        # {0:1} {1:1} -e G -q CGFILTER:"cpu*"
 
     - {3:1} {2:1} and print standard or special logs to specific logging systems
         * d:DLT / k:KMSG / j:JOURNAL / s:SYSLOG
@@ -30129,6 +30130,9 @@ Examples:
 
     - {3:1} {2:1} and save the result except for the interval summary to ./guider.out {4:1}
         # {0:1} {1:1} -o . -q NOINTSUMMARY
+
+    - {3:1} {2:1} only for 5 items
+        # {0:1} {1:1} -R 5
 
     - {3:1} {2:1} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
@@ -34904,8 +34908,11 @@ Options:
 
                     helpStr += """
 Examples:
-    - Print system status
+    - Print system total status
         # {0:1} {1:1}
+
+    - Print system interval status
+        # {0:1} {1:1} -i 3
                     """.format(
                         cmd, mode
                     )
@@ -55075,6 +55082,7 @@ Copyright:
         if SysMgr.intervalEnable:
             time.sleep(SysMgr.intervalEnable)
         else:
+            SysMgr.totalEnable = True
             time.sleep(1)
 
         # save system stat #
@@ -59932,7 +59940,26 @@ Copyright:
     def printCgroupInfo(self, printTitle=True):
         commList = {}
 
-        def _printDirTree(root, depth, total=0, parent=""):
+        # define stat indexes #
+        utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
+        stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+
+        # save process stats #
+        if SysMgr.showAll and not "ONLYTASK" in SysMgr.environList:
+            procMgr = TaskAnalyzer(onlyInstance=True)
+            procMgr.saveSystemStat()
+        else:
+            procMgr = {}
+
+        # save thread stats #
+        if SysMgr.showAll and not "ONLYPROC" in SysMgr.environList:
+            SysMgr.processEnable = False
+            taskMgr = TaskAnalyzer(onlyInstance=True)
+            taskMgr.saveSystemStat()
+        else:
+            taskMgr = {}
+
+        def _printDirTree(root, depth, total=0, parent="", res=""):
             # check depth #
             if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
                 return
@@ -59968,6 +59995,10 @@ Copyright:
                 # check subdir type #
                 if type(subdir) is not dict:
                     continue
+
+                # update res #
+                if depth == 0:
+                    res = curdir
 
                 tempSubdir = UtilMgr.deepcopy(subdir)
                 for val in sorted(list(subdir), reverse=True):
@@ -60074,11 +60105,81 @@ Copyright:
                             )
                         return comm
 
+                    # define function to get stats #
+                    def _getCpuStat(pid, task):
+                        statstr = ""
+                        ttimestr = ""
+                        dtimestr = ""
+
+                        # get stats #
+                        try:
+                            # define target instance #
+                            if task == "PROCS":
+                                instance = procMgr.procData[pid]
+                            else:
+                                instance = taskMgr.procData[pid]
+                                if not instance["status"]:
+                                    taskMgr.saveProcSchedData(
+                                        instance["taskPath"], pid
+                                    )
+
+                            # get usage #
+                            utime = long(instance["stat"][utimeIdx])
+                            stime = long(instance["stat"][stimeIdx])
+                            ttime = (utime + stime) / 100
+
+                            # build usage string #
+                            if long(ttime):
+                                ttimestr = UtilMgr.convNum(ttime)
+                                ttimestr = "+%s%%" % ttimestr
+                                ttimestr = UtilMgr.convColor(
+                                    ttimestr, "YELLOW"
+                                )
+
+                            # get delay #
+                            if task == "TASKS":
+                                try:
+                                    execTime = instance["execTime"]
+                                    waitTime = instance["waitTime"]
+                                    execPer = (
+                                        execTime / (execTime + waitTime)
+                                    ) * 100
+                                    totalTime = ttime * (100 / execPer)
+                                    dtime = long(totalTime - ttime)
+                                    if dtime:
+                                        dtimestr = UtilMgr.convNum(dtime)
+                                        dtimestr = "-%s%%" % dtimestr
+                                        dtimestr = UtilMgr.convColor(
+                                            dtimestr, "WARNING"
+                                        )
+                                except SystemExit:
+                                    sys.exit(0)
+                                except:
+                                    pass
+
+                            # build final string #
+                            if task == "PROCS" and ttimestr:
+                                statstr = "[%s]" % ttimestr
+                            elif task == "TASKS" and (ttimestr or dtimestr):
+                                statstr = " [%s%s]" % (
+                                    ttimestr + "," if ttimestr else ttimestr,
+                                    dtimestr,
+                                )
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                "failed to get cpu stats", reason=True
+                            )
+                        finally:
+                            return statstr
+
                     # get comm #
                     comm = _getComm(curdir)
 
                     # filter process #
                     pstr = ""
+                    statstr = ""
                     try:
                         missMark = False
 
@@ -60096,13 +60197,18 @@ Copyright:
                         else:
                             assert False
 
+                        # get stats #
+                        # TODO: add memory, blkio stats #
+                        if res == "cpu" or res.startswith("cpu,"):
+                            statstr = _getCpuStat(curdir, parent)
+
                         # get parent comm #
                         if pid in ("0", 0):
                             pcomm = "swapper"
                         else:
                             pcomm = _getComm(pid)
 
-                        pstr = " <- %s(%s)" % (pcomm, pid)
+                        pstr = "%s <- %s(%s)" % (statstr, pcomm, pid)
 
                         if missMark:
                             pstr += " [%s]" % UtilMgr.convColor(
@@ -60129,7 +60235,7 @@ Copyright:
                         "%s- %s%s%s" % (indent, curdir, nrWorker, cstr)
                     )
 
-                _printDirTree(tempSubdir, depth + 1, newTotal, curdir)
+                _printDirTree(tempSubdir, depth + 1, newTotal, curdir, res)
 
             if depth == 0:
                 SysMgr.infoBufferPrint(" ")
@@ -107986,14 +108092,23 @@ class TaskAnalyzer(object):
         if not SysMgr.cgroupEnable:
             return
 
-        cgroupBuf = self.saveTaskData(path, tid, "cgroup")
+        # save cgroup data #
+        cgBuf = self.saveTaskData(path, tid, "cgroup")
+
+        # get cgroup filter #
+        if "CGFILTER" in SysMgr.environList:
+            cgFilter = SysMgr.environList["CGFILTER"]
+        else:
+            cgFilter = []
 
         cstr = ""
         indentlen = 39
         linelen = indentlen + 3
-        for item in cgroupBuf:
+        for item in cgBuf:
             clist = item[:-1].split(":")
             if len(clist) != 3 or clist[-1] == "/":
+                continue
+            elif cgFilter and not UtilMgr.isValidStr(clist[1], cgFilter):
                 continue
 
             new = "%s:%s, " % (clist[1], clist[2])
