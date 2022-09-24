@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220923"
+__revision__ = "220924"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -139,6 +139,7 @@ class ConfigMgr(object):
         "cpu.cfs_quota_us",
         "cpu.rt_period_us",
         "cpu.rt_runtime_us",
+        "cpuacct.usage",
         "cpuset.cpus",
         "memory.limit_in_bytes",
         "memory.memsw.limit_in_bytes",
@@ -30066,6 +30067,7 @@ Examples:
 
     - {3:1} {2:1} including cgroup info
         # {0:1} {1:1} -e G
+        # {0:1} {1:1} -e G -o
         # {0:1} {1:1} -e G -q CGFILTER:"cpu*"
 
     - {3:1} {2:1} and print standard or special logs to specific logging systems
@@ -51325,13 +51327,16 @@ Copyright:
 
                 # get memory usage #
                 ret = TaskAnalyzer.getMemStats(tobj, pid)
-                vss = conv(ret["vss"], unit="M")
-                rss = ret["rss"]
-                rssUnit = conv(rss, unit="M")
-                pss = ret["pss"]
-                pssUnit = conv(pss, unit="M")
-                uss = ret["uss"]
-                ussUnit = conv(uss, unit="M")
+                if ret:
+                    vss = conv(ret["vss"], unit="M")
+                    rss = ret["rss"]
+                    rssUnit = conv(rss, unit="M")
+                    pss = ret["pss"]
+                    pssUnit = conv(pss, unit="M")
+                    uss = ret["uss"]
+                    ussUnit = conv(uss, unit="M")
+                else:
+                    vss = rss = rssUnit = pssUnit = ussUnit = 0
 
                 # reset and save proc instance #
                 tobj.saveProcInstance()
@@ -59938,6 +59943,10 @@ Copyright:
         return dirDict
 
     def printCgroupInfo(self, printTitle=True):
+        # check cgroup mode #
+        if not SysMgr.cgroupEnable:
+            return
+
         commList = {}
 
         # define stat indexes #
@@ -59950,6 +59959,9 @@ Copyright:
             procMgr.saveSystemStat()
         else:
             procMgr = {}
+
+        # enable stat flags #
+        SysMgr.memEnable = True
 
         # save thread stats #
         if SysMgr.showAll and not "ONLYPROC" in SysMgr.environList:
@@ -59983,11 +59995,16 @@ Copyright:
                         value = children["cpu.shares"].replace(",", "")
                         newTotal += long(value)
 
+            if depth == 0:
+                sortedList = sorted(tempRoot.items())
+            else:
+                sortedList = sorted(
+                    tempRoot.items(),
+                    key=lambda e: long(e[0]) if e[0].isdigit() else 0,
+                )
+
             # traverse subdir #
-            for curdir, subdir in sorted(
-                tempRoot.items(),
-                key=lambda e: long(e[0]) if e[0].isdigit() else 0,
-            ):
+            for curdir, subdir in sortedList:
                 cstr = ""
                 nrProcs = 0
                 nrTasks = 0
@@ -60018,11 +60035,26 @@ Copyright:
                         if num > 0:
                             per = UtilMgr.convColor(per, "RED")
                         value = "%s/%s%%" % (subdir[val], per)
-                    elif (
-                        val in ("cpu.cfs_quota_us", "cpu.rt_runtime_us")
-                        and subdir[val] != "-1"
+                    elif val in (
+                        "cpu.cfs_quota_us",
+                        "cpu.rt_runtime_us",
+                    ) and not subdir[val] in ("-1", "0"):
+                        num = long(subdir[val].replace(",", ""))
+                        sec = num / 1000000.0
+                        unit = UtilMgr.convTime2Unit(sec)
+                        value = UtilMgr.convColor(unit, "RED")
+                    elif val.endswith("_us") and not subdir[val] in (
+                        "-1",
+                        "0",
                     ):
-                        value = UtilMgr.convColor(subdir[val], "RED")
+                        num = long(subdir[val].replace(",", ""))
+                        sec = num / 1000000.0
+                        value = UtilMgr.convTime2Unit(sec)
+                    elif val == "cpuacct.usage":
+                        num = long(subdir[val].replace(",", ""))
+                        per = long(long(num) / 10000000)
+                        value = UtilMgr.convNum(per) + "%"
+                        value = UtilMgr.convColor(value, "YELLOW")
                     elif val.endswith("limit_in_bytes"):
                         num = long(subdir[val].replace(",", ""))
                         value = UtilMgr.convSize2Unit(num)
@@ -60174,6 +60206,64 @@ Copyright:
                         finally:
                             return statstr
 
+                    def _getMemStat(pid, task):
+                        statstr = ""
+
+                        # get stats #
+                        try:
+                            # define target instance #
+                            if task == "PROCS":
+                                tgid = pid
+                            else:
+                                tgid = SysMgr.getTgid(pid)
+
+                            # get memory usage #
+                            conv = UtilMgr.convSize2Unit
+                            ret = TaskAnalyzer.getMemStats(taskMgr, tgid)
+                            if not ret or not ret["vss"]:
+                                statstr = ""
+                                return
+
+                            vss = conv(ret["vss"], unit="M")
+                            vss = UtilMgr.convColor(vss, "YELLOW")
+
+                            rss = ret["rss"]
+                            if rss:
+                                rssUnit = conv(rss, unit="M")
+                                rssUnit = UtilMgr.convColor(rssUnit, "YELLOW")
+                            else:
+                                rssUnit = rss
+
+                            pss = ret["pss"]
+                            if pss:
+                                pssUnit = conv(pss, unit="M")
+                                pssUnit = UtilMgr.convColor(pssUnit, "YELLOW")
+                            else:
+                                pssUnit = 0
+
+                            uss = ret["uss"]
+                            if uss:
+                                ussUnit = conv(uss, unit="M")
+                                ussUnit = UtilMgr.convColor(ussUnit, "YELLOW")
+                            else:
+                                ussUnit = 0
+
+                            # build final string #
+                            statstr = "[VSS:%s, RSS:%s, PSS:%s, USS:%s]" % (
+                                vss,
+                                rssUnit,
+                                pssUnit,
+                                ussUnit,
+                            )
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                "failed to get cpu stats", reason=True
+                            )
+                        finally:
+                            return statstr
+
                     # get comm #
                     comm = _getComm(curdir)
 
@@ -60198,9 +60288,11 @@ Copyright:
                             assert False
 
                         # get stats #
-                        # TODO: add memory, blkio stats #
+                        # TODO: add blkio stats #
                         if res == "cpu" or res.startswith("cpu,"):
                             statstr = _getCpuStat(curdir, parent)
+                        elif res == "memory":
+                            statstr = _getMemStat(curdir, parent)
 
                         # get parent comm #
                         if pid in ("0", 0):
@@ -60210,6 +60302,7 @@ Copyright:
 
                         pstr = "%s <- %s(%s)" % (statstr, pcomm, pid)
 
+                        # check partial task #
                         if missMark:
                             pstr += " [%s]" % UtilMgr.convColor(
                                 "PARTIAL", "RED"
@@ -60239,10 +60332,6 @@ Copyright:
 
             if depth == 0:
                 SysMgr.infoBufferPrint(" ")
-
-        # check cgroup option #
-        if not SysMgr.cgroupEnable:
-            return
 
         try:
             cgroupTree = self.getCgroupTree()
