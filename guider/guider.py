@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220924"
+__revision__ = "220925"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -145,6 +145,7 @@ class ConfigMgr(object):
         "memory.memsw.limit_in_bytes",
         "blkio.weight",
         "blkio.weight_device",
+        "blkio.throttle.io_service_bytes",
     ]
 
     # cgroup stat #
@@ -59889,7 +59890,7 @@ Copyright:
                                     name = "TASKS"
                                 item[name] = dict.fromkeys(taskList, {})
                         else:
-                            cval = fd.readline()[:-1]
+                            cval = fd.read().strip()
                             if cval.isdigit():
                                 cval = UtilMgr.convNum(long(cval))
                             elif cval == "":
@@ -59962,6 +59963,7 @@ Copyright:
 
         # enable stat flags #
         SysMgr.memEnable = True
+        SysMgr.blockEnable = True
 
         # save thread stats #
         if SysMgr.showAll and not "ONLYPROC" in SysMgr.environList:
@@ -59980,7 +59982,10 @@ Copyright:
             if type(root) is not dict:
                 return
 
+            # copy sub-tree #
             tempRoot = UtilMgr.deepcopy(root)
+
+            convColor = UtilMgr.convColor
 
             # calculate sum for subdirs #
             newTotal = 0
@@ -60033,7 +60038,7 @@ Copyright:
                         num = long(subdir[val].replace(",", ""))
                         per = "%.1f" % (num / float(total) * 100)
                         if num > 0:
-                            per = UtilMgr.convColor(per, "RED")
+                            per = convColor(per, "RED")
                         value = "%s/%s%%" % (subdir[val], per)
                     elif val in (
                         "cpu.cfs_quota_us",
@@ -60042,7 +60047,7 @@ Copyright:
                         num = long(subdir[val].replace(",", ""))
                         sec = num / 1000000.0
                         unit = UtilMgr.convTime2Unit(sec)
-                        value = UtilMgr.convColor(unit, "RED")
+                        value = convColor(unit, "RED")
                     elif val.endswith("_us") and not subdir[val] in (
                         "-1",
                         "0",
@@ -60054,12 +60059,41 @@ Copyright:
                         num = long(subdir[val].replace(",", ""))
                         per = long(long(num) / 10000000)
                         value = UtilMgr.convNum(per) + "%"
-                        value = UtilMgr.convColor(value, "YELLOW")
+                        value = convColor(value, "YELLOW")
                     elif val.endswith("limit_in_bytes"):
                         num = long(subdir[val].replace(",", ""))
                         value = UtilMgr.convSize2Unit(num)
                         if num < 9223372036854771712:
-                            value = UtilMgr.convColor(value, "RED")
+                            value = convColor(value, "RED")
+                    elif val == "blkio.throttle.io_service_bytes":
+                        try:
+                            value = ""
+                            prevDev = ""
+                            for item in subdir[val].split("\n"):
+                                if item.startswith("Total"):
+                                    continue
+
+                                dev, op, stat = item.split()
+                                if stat == "0" or op == "Total":
+                                    continue
+
+                                # new device #
+                                if prevDev != dev:
+                                    prevDev = dev
+                                    if value:
+                                        value = "%s" % value.strip(" |")
+                                    value += convColor("[%s]" % dev, "CYAN")
+
+                                # add stats #
+                                stat = UtilMgr.convSize2Unit(long(stat))
+                                stat = convColor(stat, "YELLOW")
+                                value += "%s=%s|" % (op, stat)
+                            if value:
+                                value = value.strip(" |")
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            continue
                     else:
                         value = subdir[val]
 
@@ -60079,13 +60113,13 @@ Copyright:
 
                 # define proces info #
                 if not nrProcs in ("0", 0):
-                    procstr = UtilMgr.convColor(nrProcs, "YELLOW")
+                    procstr = convColor(nrProcs, "YELLOW")
                 else:
                     procstr = nrProcs
 
                 # define tasks info #
                 if not nrTasks in ("0", 0):
-                    taskstr = UtilMgr.convColor(nrTasks, "CYAN")
+                    taskstr = convColor(nrTasks, "CYAN")
                 else:
                     # check skip condition #
                     if "ONLYEFFECT" in SysMgr.environList:
@@ -60098,7 +60132,7 @@ Copyright:
 
                 # highlight subsystem name #
                 if depth == 0:
-                    curdir = UtilMgr.convColor(curdir, "GREEN")
+                    curdir = convColor(curdir, "GREEN")
 
                 # parent node #
                 if tempSubdir:
@@ -60164,9 +60198,7 @@ Copyright:
                             if long(ttime):
                                 ttimestr = UtilMgr.convNum(ttime)
                                 ttimestr = "+%s%%" % ttimestr
-                                ttimestr = UtilMgr.convColor(
-                                    ttimestr, "YELLOW"
-                                )
+                                ttimestr = convColor(ttimestr, "YELLOW")
 
                             # get delay #
                             if task == "TASKS":
@@ -60181,7 +60213,7 @@ Copyright:
                                     if dtime:
                                         dtimestr = UtilMgr.convNum(dtime)
                                         dtimestr = "-%s%%" % dtimestr
-                                        dtimestr = UtilMgr.convColor(
+                                        dtimestr = convColor(
                                             dtimestr, "WARNING"
                                         )
                                 except SystemExit:
@@ -60221,30 +60253,29 @@ Copyright:
                             conv = UtilMgr.convSize2Unit
                             ret = TaskAnalyzer.getMemStats(taskMgr, tgid)
                             if not ret or not ret["vss"]:
-                                statstr = ""
                                 return
 
                             vss = conv(ret["vss"], unit="M")
-                            vss = UtilMgr.convColor(vss, "YELLOW")
+                            vss = convColor(vss, "YELLOW")
 
                             rss = ret["rss"]
                             if rss:
                                 rssUnit = conv(rss, unit="M")
-                                rssUnit = UtilMgr.convColor(rssUnit, "YELLOW")
+                                rssUnit = convColor(rssUnit, "YELLOW")
                             else:
                                 rssUnit = rss
 
                             pss = ret["pss"]
                             if pss:
                                 pssUnit = conv(pss, unit="M")
-                                pssUnit = UtilMgr.convColor(pssUnit, "YELLOW")
+                                pssUnit = convColor(pssUnit, "YELLOW")
                             else:
                                 pssUnit = 0
 
                             uss = ret["uss"]
                             if uss:
                                 ussUnit = conv(uss, unit="M")
-                                ussUnit = UtilMgr.convColor(ussUnit, "YELLOW")
+                                ussUnit = convColor(ussUnit, "YELLOW")
                             else:
                                 ussUnit = 0
 
@@ -60259,7 +60290,79 @@ Copyright:
                             sys.exit(0)
                         except:
                             SysMgr.printWarn(
-                                "failed to get cpu stats", reason=True
+                                "failed to get memory stats", reason=True
+                            )
+                        finally:
+                            return statstr
+
+                    def _getIoStat(pid, task):
+                        statstr = ""
+
+                        # get stats #
+                        try:
+                            # define target instance #
+                            if task == "PROCS":
+                                instance = procMgr.procData
+                            else:
+                                instance = taskMgr.procData
+                                if not instance[pid]["status"]:
+                                    taskMgr.saveProcSchedData(
+                                        instance[pid]["taskPath"], pid
+                                    )
+
+                            # get I/O usage #
+                            conv = UtilMgr.convSize2Unit
+                            if not instance[pid]["io"]:
+                                path = "%s/%s" % (SysMgr.procPath, pid)
+                                ioBuf = procMgr.saveTaskData(path, pid, "io")
+                                if not ioBuf:
+                                    return
+
+                                instance[pid]["io"] = {}
+
+                                for line in ioBuf:
+                                    # get stats #
+                                    ios = line.split()
+                                    if len(ios) != 2:
+                                        continue
+
+                                    # check stats #
+                                    name, val = ios
+                                    if val == "0":
+                                        continue
+                                    elif not name in (
+                                        "read_bytes:",
+                                        "write_bytes:",
+                                    ):
+                                        continue
+
+                                    # save stats #
+                                    instance[pid]["io"][name[:-1]] = long(val)
+
+                            # build final string #
+                            procData = instance[pid]["io"]
+                            for item in ("read_bytes", "write_bytes"):
+                                if not item in procData:
+                                    continue
+                                elif procData[item] in ("0", 0):
+                                    continue
+
+                                val = UtilMgr.convSize2Unit(procData[item])
+                                val = convColor(val, "YELLOW")
+                                if statstr:
+                                    statstr += ", "
+                                statstr += "%s:%s" % (
+                                    item.split("_")[0].upper(),
+                                    val,
+                                )
+
+                            if statstr:
+                                statstr = "[%s]" % statstr
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                "failed to get block stats", reason=True
                             )
                         finally:
                             return statstr
@@ -60281,18 +60384,22 @@ Copyright:
 
                             # check missing tasks #
                             thrList = SysMgr.getThreadList(curdir)
-                            missList = set(map(str, thrList)) - set(tempRoot)
-                            if missList:
-                                missMark = True
+                            if thrList:
+                                missList = set(map(str, thrList)) - set(
+                                    tempRoot
+                                )
+                                if missList:
+                                    missMark = True
                         else:
                             assert False
 
                         # get stats #
-                        # TODO: add blkio stats #
                         if res == "cpu" or res.startswith("cpu,"):
                             statstr = _getCpuStat(curdir, parent)
                         elif res == "memory":
                             statstr = _getMemStat(curdir, parent)
+                        elif res == "blkio":
+                            statstr = _getIoStat(curdir, parent)
 
                         # get parent comm #
                         if pid in ("0", 0):
@@ -60304,9 +60411,7 @@ Copyright:
 
                         # check partial task #
                         if missMark:
-                            pstr += " [%s]" % UtilMgr.convColor(
-                                "PARTIAL", "RED"
-                            )
+                            pstr += " [%s]" % convColor("PARTIAL", "RED")
                     except AssertionError:
                         pass
                     except SystemExit:
