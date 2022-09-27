@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220925"
+__revision__ = "220927"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -145,6 +145,7 @@ class ConfigMgr(object):
         "memory.memsw.limit_in_bytes",
         "blkio.weight",
         "blkio.weight_device",
+        "blkio.io_wait_time",
         "blkio.throttle.io_service_bytes",
     ]
 
@@ -6887,7 +6888,7 @@ class UtilMgr(object):
     def convNum(number, isFloat=False, floatDigit=1):
         try:
             if isFloat:
-                return format(round(float(number), 1), ",")
+                return format(round(float(number), floatDigit), ",")
             else:
                 return format(long(number), ",")
         except SystemExit:
@@ -25985,7 +25986,7 @@ Commands:
             # get cgroup path #
             cgroupPath = SysMgr.sysInstance.getCgroupPath()
             if not cgroupPath:
-                raise Exception("access fail to cgroup filesystem")
+                raise Exception("access to cgroup filesystem failed")
 
             # check and get root path #
             if path.startswith(cgroupPath):
@@ -26049,18 +26050,39 @@ Commands:
         # check root permission #
         SysMgr.checkRootPerm(msg="limit block usage using cgroup")
 
+        # check subsystem #
+        blkPath = SysMgr.getCgroupSubPath("blkio", False)
+        if not blkPath:
+            return
+
         # set device list for all #
         if not devices:
-            # save diskstats #
-            SysMgr.updateDiskStats()
+            blkPath = os.path.join(blkPath, "blkio.throttle.io_service_bytes")
+            blkPathList = SysMgr.readFile(blkPath)
+            if blkPathList:
+                devices = {}
+                for line in blkPathList.split("\n"):
+                    if line.startswith("Total"):
+                        continue
+                    try:
+                        devices[line.split()[0]] = 0
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
-            for line in SysMgr.diskStats:
-                try:
-                    devices.append(":".join(line.split(None, 3)[:2]))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+                devices = list(devices)
+            else:
+                # save diskstats #
+                SysMgr.updateDiskStats()
+
+                for line in SysMgr.diskStats:
+                    try:
+                        devices.append(":".join(line.split(None, 3)[:2]))
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
         name = str(time.time()).replace(".", "")
 
@@ -26096,6 +26118,12 @@ Commands:
 
         # check root permission #
         SysMgr.checkRootPerm(msg="limit cpu usage using cgroup")
+
+        # check subsystem #
+        if not SysMgr.getCgroupSubPath(
+            "cpu", False
+        ) and not SysMgr.getCgroupSubPath("cpu,cpuacct", False):
+            return
 
         name = str(time.time()).replace(".", "")
 
@@ -26139,6 +26167,10 @@ Commands:
         # check root permission #
         SysMgr.checkRootPerm(msg="limit cpuset using cgroup")
 
+        # check subsystem #
+        if not SysMgr.getCgroupSubPath("cpuset", False):
+            return
+
         name = str(time.time()).replace(".", "")
 
         # set commands for CPU set #
@@ -26179,6 +26211,10 @@ Commands:
 
         # check root permission #
         SysMgr.checkRootPerm(msg="limit memory usage using cgroup")
+
+        # check subsystem #
+        if not SysMgr.getCgroupSubPath("memory", False):
+            return
 
         name = str(time.time()).replace(".", "")
 
@@ -26316,6 +26352,9 @@ Commands:
             if cmd == "WRITE":
                 # get target info #
                 targetDir = SysMgr.getCgroup(sub, name, make, remove)
+                if not targetDir:
+                    continue
+
                 try:
                     value, name = target.split("@")
                 except SystemExit:
@@ -26344,6 +26383,9 @@ Commands:
             elif cmd == "LIST":
                 # get target path #
                 targetDir = SysMgr.getCgroup(sub, name, make, remove)
+                if not targetDir:
+                    continue
+
                 targetFile = os.path.join(targetDir, taskNode)
                 if not _checkFile(targetFile):
                     continue
@@ -26445,8 +26487,14 @@ Commands:
 
             # get directory #
             targetDir = SysMgr.getCgroup(sub, name, make, remove)
-            if not os.path.exists(targetDir):
-                SysMgr.printErr("no target group %s" % targetDir)
+            if not targetDir:
+                cgroupPath = SysMgr.sysInstance.getCgroupPath()
+                if not os.path.exists(os.path.join(cgroupPath, sub)):
+                    SysMgr.printErr("no %s cgroup subsystem" % sub)
+                else:
+                    SysMgr.printErr(
+                        "failed to get target cgroup '%s/%s'" % (sub, name)
+                    )
                 continue
             elif cmd == "DELETE":
                 SysMgr.removeCgroup(targetDir)
@@ -26514,25 +26562,44 @@ Commands:
                 )
 
     @staticmethod
+    def getCgroupSubPath(sub, exception=True):
+        # init system context #
+        if not SysMgr.sysInstance:
+            SysMgr.initSystemContext()
+
+        # get cgroup path #
+        cgroupPath = SysMgr.sysInstance.getCgroupPath()
+        if not cgroupPath:
+            if exception:
+                raise Exception("access to cgroup filesystem failed")
+            else:
+                SysMgr.printErr("failed to access to cgroup filesystem")
+                return None
+
+        # check subsystem #
+        cgroupPath = os.path.join(cgroupPath, sub)
+        if not os.path.exists(cgroupPath):
+            if exception:
+                raise Exception("access to %s cgroup subsystem failed" % sub)
+            else:
+                SysMgr.printErr(
+                    "failed to access to %s cgroup subsystem" % sub
+                )
+                return None
+
+        return cgroupPath
+
+    @staticmethod
     def getCgroup(sub, name=None, make=False, remove=False):
         try:
-            # init system context #
-            if not SysMgr.sysInstance:
-                SysMgr.initSystemContext()
-
-            # get cgroup path #
-            cgroupPath = SysMgr.sysInstance.getCgroupPath()
-            if not cgroupPath:
-                raise Exception("access fail to cgroup filesystem")
-
-            # check subsystem #
-            cgroupPath = os.path.join(cgroupPath, sub)
-            if not os.path.exists(cgroupPath):
-                raise Exception("access fail to %s cgroup subsystem" % sub)
+            # get subsystem path #
+            cgroupPath = SysMgr.getCgroupSubPath(sub)
 
             # set dir name #
             if not name:
                 name = "guider_%s" % SysMgr.pid
+            elif name == "/":
+                name = ""
 
             # make target dir #
             targetDir = os.path.join(cgroupPath, name)
@@ -34202,7 +34269,6 @@ Examples:
 
     - {2:1} for specific subsystem
         # {0:1} {1:1} cpu
-        # {0:1} {1:1} cpu,cpuacct
         # {0:1} {1:1} "cpu*"
         # {0:1} {1:1} "cpu memory blkio"
 
@@ -34216,6 +34282,9 @@ Examples:
     - {2:1} with tasks only for specific type
         # {0:1} {1:1} -a -q ONLYPROC
         # {0:1} {1:1} -a -q ONLYTASK
+
+    - {2:1} with specific tasks used resources
+        # {0:1} {1:1} -a -q SKIPIDLE
 
     - {2:1} with processes having specific name
         # {0:1} {1:1} -a -g kworker
@@ -34334,10 +34403,11 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q LIMITWRITE:50M@"*yes*|a.out", EACHTASK
 
     - {2:1} applying cgroup
-        # {0:1} {1:1} -I "a.out" -q APPLYCG:CREATE:cpu:test:PID
-        # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:system.slice:PID
-        # {0:1} {1:1} -I "a.out" -q APPLYCG:REMOVE:cpu/system.slice:PID
-        # {0:1} {1:1} -I "a.out" -q APPLYCG:WRITE:memory:test.slice:100000@memory.limit_in_bytes
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:CREATE:cpu:user.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:/:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:user.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:REMOVE:cpu/user.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:WRITE:memory:user.slice:100000@memory.limit_in_bytes
 
     - {2:1} and print environment variables
         # {0:1} {1:1} -I "a.out" -q PRINTENV
@@ -38248,9 +38318,62 @@ Copyright:
         SysMgr.getTty(update=True)
 
     @staticmethod
+    def printDelayTime(pid=None, force=False):
+        if not SysMgr.warnEnable and not force:
+            return
+
+        if not pid:
+            pid = os.getpid()
+
+        try:
+            # get sched stats #
+            schedData = SysMgr.readFile(
+                "%s/%s/schedstat" % (SysMgr.procPath, pid)
+            )
+            execTime, waitTime, nrSlice = list(
+                map(long, schedData.split()[:3])
+            )
+            execPer = (execTime / (execTime + waitTime)) * 100
+
+            # get runtime #
+            statData = SysMgr.readFile("%s/%s/stat" % (SysMgr.procPath, pid))
+            statList = statData.split(") ", 1)[1].split()
+            utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
+            stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+            utime = long(statList[utimeIdx - 2])
+            stime = long(statList[stimeIdx - 2])
+            ttime = utime + stime
+
+            # get delay time #
+            totalTime = ttime * (100 / execPer)
+            dtime = long(totalTime - ttime)
+            if not dtime:
+                return
+
+            # print delay time #
+            dtime = UtilMgr.convNum(dtime / 100.0, True, 2)
+            SysMgr.printWarn(
+                "%s(%s) is delayed for %s sec totally"
+                % (SysMgr.getComm(pid), pid, dtime),
+                True,
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to get delay time for %s(%s)"
+                % (SysMgr.getComm(pid), pid),
+                reason=True,
+            )
+
+    @staticmethod
     def stopHandler(signum=None, frame=None):
+        # check exit condition #
         if SysMgr.exitFlag:
             os._exit(0)
+
+        # print delay #
+        SysMgr.printDelayTime()
 
         # mask signal #
         if signum:
@@ -43074,7 +43197,7 @@ Copyright:
         # PRINTCGROUP MODE #
         elif SysMgr.checkMode("printcg"):
             SysMgr.cgroupEnable = True
-            SysMgr().printCgroupInfo(printTitle=False)
+            SysMgr().printCgroupInfo(printTitle=False, progress=True)
             SysMgr.printInfoBuffer()
 
         # LOGJRL MODE #
@@ -59943,69 +60066,129 @@ Copyright:
 
         return dirDict
 
-    def printCgroupInfo(self, printTitle=True):
+    def printCgroupInfo(self, printTitle=True, progress=False):
         # check cgroup mode #
         if not SysMgr.cgroupEnable:
             return
 
+        # get cgroup list #
+        try:
+            cgroupTree = self.getCgroupTree()
+            if not cgroupTree:
+                return
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
+
+        # filter cgroup subsystem #
+        if SysMgr.hasMainArg():
+            # get filter for subsystems #
+            items = SysMgr.getMainArgs(token=" ")
+
+            # remove subsystems from tree #
+            for subsystem in list(cgroupTree):
+                if UtilMgr.isValidStr(subsystem, key=items, ignCap=True):
+                    continue
+
+                found = False
+                for item in subsystem.split(","):
+                    if UtilMgr.isValidStr(item, key=items, ignCap=True):
+                        found = True
+                        break
+
+                if not found:
+                    cgroupTree.pop(subsystem, None)
+
+            # check result #
+            if not cgroupTree:
+                SysMgr.printErr(
+                    "no cgroup info related to '%s'" % ",".join(items)
+                )
+                sys.exit(-1)
+
+        # define lists #
         commList = {}
+        memCaches = {}
 
         # define stat indexes #
         utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
 
-        # save process stats #
-        if SysMgr.showAll and not "ONLYTASK" in SysMgr.environList:
-            procMgr = TaskAnalyzer(onlyInstance=True)
-            procMgr.saveSystemStat()
-        else:
-            procMgr = {}
-
         # enable stat flags #
-        SysMgr.memEnable = True
-        SysMgr.blockEnable = True
+        if "memory" in list(cgroupTree):
+            SysMgr.memEnable = True
+        if "blkio" in list(cgroupTree):
+            SysMgr.blockEnable = True
+
+        # save process stats #
+        procMgr = TaskAnalyzer(onlyInstance=True)
+        if SysMgr.showAll and not "ONLYTASK" in SysMgr.environList:
+            procMgr.saveSystemStat()
 
         # save thread stats #
+        SysMgr.processEnable = False
+        taskMgr = TaskAnalyzer(onlyInstance=True)
         if SysMgr.showAll and not "ONLYPROC" in SysMgr.environList:
-            SysMgr.processEnable = False
-            taskMgr = TaskAnalyzer(onlyInstance=True)
             taskMgr.saveSystemStat()
-        else:
-            taskMgr = {}
 
-        def _printDirTree(root, depth, total=0, parent="", res=""):
+        def _printDirTree(root, depth, totals={}, parent="", res=""):
             # check depth #
-            if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
+            if 0 < SysMgr.funcDepth <= depth:
                 return
 
             # check type #
             if type(root) is not dict:
                 return
 
+            # print progress #
+            if progress:
+                UtilMgr.printProgress()
+
             # copy sub-tree #
             tempRoot = UtilMgr.deepcopy(root)
 
             convColor = UtilMgr.convColor
 
-            # calculate sum for subdirs #
-            newTotal = 0
+            # init shared values #
+            variables = set(["cpu.shares", "blkio.weight"])
+            for item in variables:
+                totals.setdefault(item, 0)
+
+            # sum values for subdirs #
+            newTotals = {}
             for curdir, subdir in tempRoot.items():
-                if not "cpu.shares" in subdir:
+                if not (variables - set(subdir)):
                     continue
 
                 for parent, children in subdir.items():
                     if type(children) is not dict:
                         continue
-                    if "cpu.shares" in children:
-                        value = children["cpu.shares"].replace(",", "")
-                        newTotal += long(value)
 
+                    for item in variables:
+                        if not item in children:
+                            continue
+                        value = children[item].replace(",", "")
+                        newTotals.setdefault(item, 0)
+                        newTotals[item] += long(value)
+
+                if depth == 0:
+                    for item in variables:
+                        if not item in subdir:
+                            continue
+                        value = long(subdir[item].replace(",", ""))
+                        newTotals.setdefault(item, 0)
+                        newTotals[item] += value
+
+                        totals[item] += newTotals[item]
+
+            # sort subsystem #
             if depth == 0:
                 sortedList = sorted(tempRoot.items())
             else:
                 sortedList = sorted(
                     tempRoot.items(),
-                    key=lambda e: long(e[0]) if e[0].isdigit() else 0,
+                    key=lambda e: long(e[0]) if e[0].isdigit() else e[0],
                 )
 
             # traverse subdir #
@@ -60026,20 +60209,24 @@ Copyright:
                 for val in sorted(list(subdir), reverse=True):
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
+                    # thread #
                     elif val == "tasks":
                         nrTasks = subdir[val]
                         tempSubdir.pop(val, None)
                         continue
+                    # process #
                     elif val == "cgroup.procs":
                         nrProcs = subdir[val]
                         tempSubdir.pop(val, None)
                         continue
-                    elif val == "cpu.shares" and total > 0:
+                    # shares, weight #
+                    elif val in variables and totals[val] > 0:
                         num = long(subdir[val].replace(",", ""))
-                        per = "%.1f" % (num / float(total) * 100)
+                        per = "%.1f" % (num / float(totals[val]) * 100)
                         if num > 0:
                             per = convColor(per, "RED")
                         value = "%s/%s%%" % (subdir[val], per)
+                    # runtime #
                     elif val in (
                         "cpu.cfs_quota_us",
                         "cpu.rt_runtime_us",
@@ -60048,6 +60235,7 @@ Copyright:
                         sec = num / 1000000.0
                         unit = UtilMgr.convTime2Unit(sec)
                         value = convColor(unit, "RED")
+                    # period #
                     elif val.endswith("_us") and not subdir[val] in (
                         "-1",
                         "0",
@@ -60055,16 +60243,34 @@ Copyright:
                         num = long(subdir[val].replace(",", ""))
                         sec = num / 1000000.0
                         value = UtilMgr.convTime2Unit(sec)
+                    # CPU usage #
                     elif val == "cpuacct.usage":
                         num = long(subdir[val].replace(",", ""))
                         per = long(long(num) / 10000000)
                         value = UtilMgr.convNum(per) + "%"
                         value = convColor(value, "YELLOW")
+                    # memory limit #
                     elif val.endswith("limit_in_bytes"):
                         num = long(subdir[val].replace(",", ""))
                         value = UtilMgr.convSize2Unit(num)
                         if num < 9223372036854771712:
                             value = convColor(value, "RED")
+                    # block wait #
+                    elif val == "blkio.io_wait_time":
+                        try:
+                            for item in reversed(subdir[val].split("\n")):
+                                if not item.startswith("Total"):
+                                    continue
+                                num = long(item.split()[1]) / 1000000.0
+                                value = UtilMgr.convNum(num, True, 3)
+                                value += "sec"
+                                value = convColor(value, "RED")
+                                break
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            value = ""
+                    # block usage #
                     elif val == "blkio.throttle.io_service_bytes":
                         try:
                             value = ""
@@ -60093,12 +60299,18 @@ Copyright:
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            continue
+                            value = ""
+                    elif (
+                        val == "blkio.weight_device" and subdir[val] == "none"
+                    ):
+                        value = ""
+                    # data #
                     else:
                         value = subdir[val]
 
                     cname = ".".join(val.split(".")[1:])
-                    cstr = "%s%s:%s, " % (cstr, cname, value)
+                    if value:
+                        cstr = "%s%s:%s, " % (cstr, cname, value)
                     tempSubdir.pop(val, None)
 
                 indent = ""
@@ -60192,7 +60404,7 @@ Copyright:
                             # get usage #
                             utime = long(instance["stat"][utimeIdx])
                             stime = long(instance["stat"][stimeIdx])
-                            ttime = (utime + stime) / 100
+                            ttime = utime + stime
 
                             # build usage string #
                             if long(ttime):
@@ -60249,9 +60461,16 @@ Copyright:
                             else:
                                 tgid = SysMgr.getTgid(pid)
 
+                            # check cache #
+                            if tgid in memCaches:
+                                statstr = memCaches[tgid]
+                                return
+
                             # get memory usage #
                             conv = UtilMgr.convSize2Unit
-                            ret = TaskAnalyzer.getMemStats(taskMgr, tgid)
+                            ret = TaskAnalyzer.getMemStats(
+                                taskMgr, tgid, False
+                            )
                             if not ret or not ret["vss"]:
                                 return
 
@@ -60286,6 +60505,9 @@ Copyright:
                                 pssUnit,
                                 ussUnit,
                             )
+
+                            # save cache #
+                            memCaches[tgid] = statstr
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -60401,6 +60623,10 @@ Copyright:
                         elif res == "blkio":
                             statstr = _getIoStat(curdir, parent)
 
+                        # check skip condition #
+                        if "SKIPIDLE" in SysMgr.environList and not statstr:
+                            continue
+
                         # get parent comm #
                         if pid in ("0", 0):
                             pcomm = "swapper"
@@ -60433,37 +60659,25 @@ Copyright:
                         "%s- %s%s%s" % (indent, curdir, nrWorker, cstr)
                     )
 
-                _printDirTree(tempSubdir, depth + 1, newTotal, curdir, res)
+                _printDirTree(tempSubdir, depth + 1, newTotals, curdir, res)
 
             if depth == 0:
                 SysMgr.infoBufferPrint(" ")
-
-        try:
-            cgroupTree = self.getCgroupTree()
-            if not cgroupTree:
-                return
-        except SystemExit:
-            sys.exit(0)
-        except:
-            return
 
         # print cgroup info #
         if printTitle:
             SysMgr.infoBufferPrint("\n[System Cgroup Info]")
             SysMgr.infoBufferPrint(twoLine)
 
-        # filter cgroup subsystem #
-        if SysMgr.hasMainArg():
-            # get filter for subsystems #
-            items = SysMgr.getMainArgs(token=" ")
-
-            # remove subsystems from tree #
-            for subsystem in list(cgroupTree):
-                if not UtilMgr.isValidStr(subsystem, key=items, ignCap=True):
-                    cgroupTree.pop(subsystem, None)
+        if progress:
+            SysMgr.printInfo("start traversing cgroups...")
 
         # print cgroup tree #
         _printDirTree(cgroupTree, 0)
+
+        # delete progress #
+        if progress:
+            UtilMgr.deleteProgress()
 
         # check result #
         if not SysMgr.sysinfoBuffer.strip():
@@ -61151,7 +61365,7 @@ Copyright:
                 pass
 
             # update device number #
-            if major == "?" and minor == "?":
+            if major == minor == "?":
                 if "major" in val:
                     major = long(val["major"])
                 if "minor" in val:
@@ -108192,7 +108406,7 @@ class TaskAnalyzer(object):
         try:
             schedBuf = self.saveTaskData(path, tid, "schedstat")
             if not schedBuf:
-                if not os.path.exists("%s/1/schedstat" % SysMgr.procPath):
+                if not os.path.exists("%s/self/schedstat" % SysMgr.procPath):
                     SysMgr.schedstatEnable = False
                 return
 
@@ -110604,12 +110818,7 @@ class TaskAnalyzer(object):
 
         convSize = UtilMgr.convSize2Unit
 
-        for key, item in sorted(
-            maps.items(),
-            key=lambda e: e[1]["Size:"] if "Size:" in e[1] else 0,
-            reverse=True,
-        ):
-
+        for key, item in sorted(maps.items()):
             tmpstr = ""
 
             if not item or item["count"] == 0:
@@ -115479,7 +115688,7 @@ class TaskAnalyzer(object):
         return ename
 
     @staticmethod
-    def getMemStats(tobj, pid):
+    def getMemStats(tobj, pid, verb=True):
         pid = str(pid)
         comm = SysMgr.getComm(pid)
         procPath = "%s/%s" % (SysMgr.procPath, pid)
@@ -115487,7 +115696,9 @@ class TaskAnalyzer(object):
         # save proc data #
         ret = tobj.saveProcData(procPath, pid)
         if not ret:
-            if not SysMgr.isAlive(pid):
+            if not verb:
+                pass
+            elif not SysMgr.isAlive(pid):
                 SysMgr.printErr("%s(%s) is terminated" % (comm, pid))
             else:
                 SysMgr.printErr(
