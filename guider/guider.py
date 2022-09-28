@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220927"
+__revision__ = "220928"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -139,6 +139,7 @@ class ConfigMgr(object):
         "cpu.cfs_quota_us",
         "cpu.rt_period_us",
         "cpu.rt_runtime_us",
+        "cpu.stat",
         "cpuacct.usage",
         "cpuset.cpus",
         "memory.limit_in_bytes",
@@ -60207,6 +60208,8 @@ Copyright:
 
                 tempSubdir = UtilMgr.deepcopy(subdir)
                 for val in sorted(list(subdir), reverse=True):
+                    cname = ""
+
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
                     # thread #
@@ -60255,15 +60258,23 @@ Copyright:
                         value = UtilMgr.convSize2Unit(num)
                         if num < 9223372036854771712:
                             value = convColor(value, "RED")
-                    # block wait #
-                    elif val == "blkio.io_wait_time":
+                    # CPU throttled_time, block wait #
+                    elif val in ("cpu.stat", "blkio.io_wait_time"):
                         try:
                             for item in reversed(subdir[val].split("\n")):
-                                if not item.startswith("Total"):
+                                if item.startswith("Total"):
+                                    pass
+                                elif item.startswith("throttled_time"):
+                                    cname = "throttled_time"
+                                else:
                                     continue
-                                num = long(item.split()[1]) / 1000000.0
-                                value = UtilMgr.convNum(num, True, 3)
-                                value += "sec"
+
+                                # get time in sec from ns #
+                                num = long(item.split()[1]) / 1000000000.0
+                                if num == 0:
+                                    raise Exception("zero")
+
+                                value = UtilMgr.convNum(num, True, 3) + "sec"
                                 value = convColor(value, "RED")
                                 break
                         except SystemExit:
@@ -60308,9 +60319,15 @@ Copyright:
                     else:
                         value = subdir[val]
 
-                    cname = ".".join(val.split(".")[1:])
+                    # set item name #
+                    if not cname:
+                        cname = ".".join(val.split(".")[1:])
+
+                    # append item #
                     if value:
                         cstr = "%s%s:%s, " % (cstr, cname, value)
+
+                    # remove item from tree #
                     tempSubdir.pop(val, None)
 
                 indent = ""
