@@ -24710,42 +24710,44 @@ Commands:
 
     @staticmethod
     def getNvGpuMem():
-        # read NVIDIA GPU memory info #
-        try:
-            path = "/sys/kernel/debug/nvmap/iovmm/clients"
-            if not os.path.exists(path):
-                return
-
-            with open(path, "rb") as fd:
-                gpuInfo = fd.readlines()[1:]
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenWarn(path)
-            return
-
         gpuStat = {}
 
-        # parse per-process memory info #
-        for item in gpuInfo:
+        # find all clients files #
+        # targetList = UtilMgr.getFiles("/sys/kernel/debug/nvmap", ["clients"])
+        targetList = ["/sys/kernel/debug/nvmap/iovmm/clients"]
+
+        for path in targetList:
+            # read NVIDIA GPU memory info #
             try:
-                line = item.decode().split()
-                if line[0] == "total":
-                    pid = "0"
-                    comm = "TOTAL"
-                    size = line[1]
-                else:
-                    comm, pid, size = line[1:]
+                with open(path, "rb") as fd:
+                    gpuInfo = fd.readlines()[1:]
             except SystemExit:
                 sys.exit(0)
             except:
+                SysMgr.printOpenWarn(path)
                 continue
 
-            # convert size to number #
-            size = UtilMgr.convUnit2Size(size)
+            # parse per-process memory info #
+            for item in gpuInfo:
+                try:
+                    line = item.decode().split()
+                    if line[0] == "total":
+                        pid = "0"
+                        comm = "TOTAL"
+                        size = line[1]
+                    else:
+                        comm, pid, size = line[1:]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
 
-            # save stat #
-            gpuStat.setdefault(pid, {"comm": comm, "size": size})
+                # convert size to number #
+                size = UtilMgr.convUnit2Size(size)
+
+                # save stat #
+                gpuStat.setdefault(pid, {"comm": comm, "size": 0})
+                gpuStat[pid]["size"] += size
 
         return gpuStat
 
@@ -29066,6 +29068,28 @@ Commands:
             return False
 
     @staticmethod
+    def printList(itemList, skipList=[], stripPrefix=""):
+        SysMgr.setStream()
+
+        lineLen = 0
+        for idx, item in enumerate(itemList):
+            if item in skipList:
+                continue
+            elif lineLen + len(item) > SysMgr.ttyCols / 2:
+                newline = True
+                lineLen = 0
+            else:
+                newline = False
+                lineLen += len(item) + 5
+
+            SysMgr.printPipe(
+                "%3s) %s  " % (idx, UtilMgr.lstrip(item, stripPrefix)),
+                newline=newline,
+            )
+
+        SysMgr.printPipe()
+
+    @staticmethod
     def printBacktrace():
         traceback = SysMgr.getPkg("traceback")
         traceback.print_stack(file=SysMgr.stderr)
@@ -32637,6 +32661,7 @@ Examples:
     - Print the last file of target files
         # {0:1} {1:1} {2:1} -q TAIL
         # {0:1} {1:1} {2:1} -q TAIL:100
+        # {0:1} {1:1} {2:1} -q TAIL:100, CONT
                     """.format(
                         cmd,
                         mode,
@@ -33981,6 +34006,7 @@ Description:
 
 Options:
     -g  <PATH:EVENT:FILE:CMD>   set condition
+    -l                          print event list
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -33994,17 +34020,29 @@ Examples:
     - Watch specific files to be created and terminate after all them created
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
 
+    - Watch specific files to be created and monitor them continually
+        # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2" -q CONT
+
     - Watch multiple directories
         # {0:1} {1:1} "/home/iipeace/test, /home/iipeace/test/sub"
 
-    - Watch specific events for a.out in the current directory
+    - Print event list
+        # {0:1} {1:1} -l
+
+    - Watch specific events for specific files in the current directory
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out"
+
+    - Watch specific events for specific files in the current directory and print the contents of the files
+        # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE
+        # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE, TAIL:3
 
     - Watch specific events in the current directory and terminate if the events occur
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:exit"
 
     - Watch specific events in the current directory and execute specific commands if the events occur
-        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:ls -lha"
+        # {0:1} {1:1} ".:::ls -lha"
+        # {0:1} {1:1} ".::a.out:ls -lha a.out"
+        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:GUIDER event"
                     """.format(
                         cmd, mode
                     )
@@ -36216,7 +36254,8 @@ Copyright:
                 dirname, filename = UtilMgr.getPath(item)
 
                 # set exit flag #
-                exitFlag = True
+                if not "CONT" in SysMgr.environList:
+                    exitFlag = True
 
                 SysMgr.printWarn(
                     "failed to access to '%s', wait for it..." % item, verb
@@ -43013,18 +43052,7 @@ Copyright:
 
             # print signal list #
             if SysMgr.findOption("l"):
-                for idx, sig in enumerate(ConfigMgr.SIG_LIST):
-                    if idx == 0:
-                        continue
-                    elif idx % 5 == 0:
-                        newline = True
-                    else:
-                        newline = False
-
-                    SysMgr.printPipe(
-                        "{0:>2}) {1:<12}".format(idx, sig), newline=newline
-                    )
-
+                SysMgr.printList(ConfigMgr.SIG_LIST, ["0"])
                 sys.exit(0)
 
             while 1:
@@ -43497,25 +43525,11 @@ Copyright:
         elif SysMgr.checkMode("strace"):
             # just print syscall list #
             if SysMgr.findOption("l"):
-                SysMgr.setStream()
-
-                lineLen = 0
-                for idx, item in enumerate(ConfigMgr.sysList):
-                    if item == "sys_null":
-                        continue
-                    elif lineLen + len(item) > SysMgr.ttyCols / 2:
-                        newline = True
-                        lineLen = 0
-                    else:
-                        newline = False
-                        lineLen += len(item) + 5
-
-                    SysMgr.printPipe(
-                        "%3s) %s  " % (idx, UtilMgr.lstrip(item, "sys_")),
-                        newline=newline,
-                    )
-
-                SysMgr.printPipe()
+                SysMgr.printList(
+                    ConfigMgr.sysList,
+                    skipList=["sys_null"],
+                    stripPrefix="sys_",
+                )
                 sys.exit(0)
 
             SysMgr.doTrace("syscall")
@@ -43546,6 +43560,11 @@ Copyright:
 
         # WATCH MODE #
         elif SysMgr.checkMode("watch"):
+            # just print event list #
+            if SysMgr.findOption("l"):
+                SysMgr.printList(ConfigMgr.INOTIFY_TYPE)
+                sys.exit(0)
+
             SysMgr.doWatch()
 
         # SIGTRACE MODE #
@@ -49481,6 +49500,7 @@ Copyright:
         # start watching #
         while 1:
             try:
+                # wait for events #
                 ret = SysMgr.inotify(targetList, wait=True, verb=True)
                 if not ret:
                     break
@@ -49514,20 +49534,31 @@ Copyright:
                         "[%.6f] %s@%s" % (current, "|".join(events), fpath)
                     )
 
+                    # print file #
+                    if "PRINTFILE" in SysMgr.environList:
+                        try:
+                            SysMgr.doPrintFile(fpath)
+                        except:
+                            pass
+
                     # execute command #
                     for cmd in targetInfo[path]["cmd"]:
                         if cmd.upper() == "EXIT":
                             sys.exit(0)
+                        elif cmd.endswith("&"):
+                            cmd = cmd[:-1]
+                            wait = False
                         else:
-                            if cmd.endswith("&"):
-                                cmd = cmd[:-1]
-                                wait = False
-                            else:
-                                wait = True
+                            wait = True
 
-                            SysMgr.createProcess(cmd)
-                            if wait:
-                                os.wait()
+                        # convert path #
+                        if fpath:
+                            cmd = cmd.replace("PATH", fpath)
+
+                        # create a new process #
+                        SysMgr.createCmdProcess(cmd)
+                        if wait:
+                            os.wait()
 
             except SystemExit:
                 sys.exit(0)
@@ -50853,16 +50884,19 @@ Copyright:
         _printDwarfStatus(SysMgr.dwarfEnable)
 
     @staticmethod
-    def doPrintFile():
+    def doPrintFile(inputArg=None):
         # check input #
-        if SysMgr.hasMainArg():
+        if inputArg:
+            if type(inputArg) is not list:
+                inputArg = [inputArg]
+        elif SysMgr.hasMainArg():
             inputArg = SysMgr.getMainArgs()
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam).split(",")
             inputArg = UtilMgr.cleanItem(inputArg, True)
         else:
             SysMgr.printErr("no input for PATH")
-            sys.exit(-1)
+            return -1
 
         # convert input files #
         inputArg = UtilMgr.getFileList(inputArg, sort=True, exceptDir=True)
@@ -50878,7 +50912,7 @@ Copyright:
             try:
                 reqSize = UtilMgr.convUnit2Size(SysMgr.environList["SIZE"][0])
             except:
-                sys.exit(0)
+                return -1
         else:
             reqSize = None
 
@@ -50905,6 +50939,19 @@ Copyright:
 
             # set pos to EOF #
             if tail:
+                # print last lines first #
+                buf = ""
+                SysMgr.printPipe()
+                for idx, item in enumerate(reversed(fd.readlines())):
+                    buf = item + buf
+                    if idx >= tail:
+                        break
+                SysMgr.printPipe(buf)
+
+                # check exit condition #
+                if not "CONT" in SysMgr.environList:
+                    return 0
+
                 try:
                     size = os.stat(path).st_size
                     fd.seek(0, 2)
@@ -60621,8 +60668,14 @@ Copyright:
                         elif parent == "TASKS":
                             pid = SysMgr.getTgid(curdir)
 
+                            # get thread List #
+                            if not taskMgr.procData[pid]["tids"]:
+                                taskMgr.procData[pid][
+                                    "tids"
+                                ] = SysMgr.getThreadList(curdir)
+                            thrList = taskMgr.procData[pid]["tids"]
+
                             # check missing tasks #
-                            thrList = SysMgr.getThreadList(curdir)
                             if thrList:
                                 missList = set(map(str, thrList)) - set(
                                     tempRoot
