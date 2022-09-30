@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220928"
+__revision__ = "220930"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30158,6 +30158,9 @@ Examples:
     - {3:1} {2:1} and {5:1} {4:1}
         # {0:1} {1:1} -o .
 
+    - {3:1} {2:1} with specific file contents every interval and {5:1} {4:1}
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2 -o guider.out
+
     - {3:1} {2:1} including cgroup info
         # {0:1} {1:1} -e G
         # {0:1} {1:1} -e G -o
@@ -34034,6 +34037,8 @@ Examples:
 
     - Watch specific events for specific files in the current directory and print the contents of the files
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE
+        # {0:1} {1:1} ".:IN_MODIFY:a.*" -q PRINTFILE
+        # {0:1} {1:1} ".:IN_MODIFY:a.out|b.out" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE, TAIL:3
 
     - Watch specific events in the current directory and terminate if the events occur
@@ -36313,7 +36318,10 @@ Copyright:
 
         # create an object #
         ie = inotify_event()
+        fmt = "iIII"
+        revents = []
         EVENT_SIZE = sizeof(ie)
+        size = struct.calcsize(fmt)
         BUF_LEN = 1024 * (EVENT_SIZE + 16)
         buf = (c_char * BUF_LEN)()
 
@@ -36351,33 +36359,49 @@ Copyright:
             SysMgr.printWarn("failed to read inotify event", verb)
             return False
 
+        # get select object #
+        selectObj = SysMgr.getPkg("select", False)
+
         # check events #
-        i = 0
-        fmt = "iIII"
-        revents = []
-        size = struct.calcsize(fmt)
-        while i < length:
-            wd, mask, cookie, flen = struct.unpack(fmt, buf[i : i + size])
+        while 1:
+            i = 0
+            while i < length:
+                wd, mask, cookie, flen = struct.unpack(fmt, buf[i : i + size])
 
-            # get file name #
-            if flen > 0:
-                (fname,) = struct.unpack(
-                    "%ds" % flen, buf[i + size : i + size + flen]
-                )
-                fname = fname.decode().rstrip("\0")
-            else:
-                fname = None
+                # get file name #
+                if flen > 0:
+                    (fname,) = struct.unpack(
+                        "%ds" % flen, buf[i + size : i + size + flen]
+                    )
+                    fname = fname.decode().rstrip("\0")
+                else:
+                    fname = None
 
-            # get events #
+                # get events #
+                try:
+                    rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
+                    revents.append([wlist[wd], rtypes, fname])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                i += size + flen
+
+            # check and read remain data #
             try:
-                rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
-                revents.append([wlist[wd], rtypes, fname])
+                res = selectObj.select([fd], [], [], 0)
+                if not res[0]:
+                    break
+
+                # read events #
+                length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
+                if length < 0:
+                    break
             except SystemExit:
                 sys.exit(0)
             except:
-                pass
-
-            i += size + flen
+                break
 
         # clean up #
         for wd in list(wlist):
@@ -49482,7 +49506,7 @@ Copyright:
                 events = []
 
             if len(args) > 2:
-                fname = args[2].strip()
+                fname = UtilMgr.cleanItem(args[2].split("|"), False)
             else:
                 fname = None
 
@@ -49518,9 +49542,8 @@ Copyright:
                             continue
 
                     # check file condition #
-                    if (
-                        targetInfo[path]["fname"]
-                        and targetInfo[path]["fname"] != fname
+                    if targetInfo[path]["fname"] and not UtilMgr.isValidStr(
+                        fname, targetInfo[path]["fname"]
                     ):
                         continue
 
@@ -49538,6 +49561,8 @@ Copyright:
                     if "PRINTFILE" in SysMgr.environList:
                         try:
                             SysMgr.doPrintFile(fpath)
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             pass
 
@@ -87376,6 +87401,7 @@ class TaskAnalyzer(object):
     """Analyzer for thread profiling"""
 
     reportData = {}
+    fileIntData = {}
     lifeIntData = {}
     lifeProcData = {}
     lifecycleData = {}
@@ -88702,6 +88728,7 @@ class TaskAnalyzer(object):
             self.prevSwaps = None
             self.abnormalTasks = {}
             self.intervalData = {}
+            self.intervalFileData = {}
 
             # set index of attributes #
             self.majfltIdx = ConfigMgr.STAT_ATTR.index("MAJFLT")
@@ -101477,6 +101504,36 @@ class TaskAnalyzer(object):
             )
 
     @staticmethod
+    def printFileInterval():
+        # check skip flag #
+        if "NOFILESUMMARY" in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.fileIntData:
+            return
+
+        TA = TaskAnalyzer
+
+        for path, data in sorted(TaskAnalyzer.fileIntData.items()):
+            SysMgr.printPipe(
+                "\n[Top File Info] (Path: %s)\n%s\n"
+                % (os.path.realpath(path), twoLine)
+            )
+
+            # Print menu #
+            SysMgr.printPipe(
+                "{0:^16} | {1:1}\n{2:1}".format("Time", "Data", oneLine)
+            )
+
+            for ltime, content in sorted(
+                data.items(), key=lambda x: float(x[0])
+            ):
+                SysMgr.printPipe(
+                    "{0:>16.1f} | {1:1}".format(float(ltime), content)
+                )
+
+            SysMgr.printPipe("%s\n" % oneLine)
+
+    @staticmethod
     def printLifeHistory():
         # check skip flag #
         if "NOLIFESUMMARY" in SysMgr.environList:
@@ -101695,6 +101752,7 @@ class TaskAnalyzer(object):
                 TaskAnalyzer.printCgCpuInterval()
                 TaskAnalyzer.printCgMemInterval()
                 TaskAnalyzer.printLifeHistory()
+                TaskAnalyzer.printFileInterval()
 
         # print only summary #
         if onlySummary:
@@ -107366,6 +107424,17 @@ class TaskAnalyzer(object):
             # gather stats #
             _getStats(self.cgroupData, os.walk(path), sub)
 
+    def saveFileData(self):
+        if not "RECFILE" in SysMgr.environList:
+            return
+
+        # save file data #
+        for path in SysMgr.environList["RECFILE"]:
+            TaskAnalyzer.fileIntData.setdefault(path, {})
+            TaskAnalyzer.fileIntData[path][SysMgr.uptime] = SysMgr.readFile(
+                path
+            )
+
     def saveProcStat(self):
         if SysMgr.fixedProcList:
             pids = list(SysMgr.fixedProcList)
@@ -108005,6 +108074,9 @@ class TaskAnalyzer(object):
         else:
             SysMgr.printErr("wrong monitor target for '%s'" % target)
             sys.exit(-1)
+
+        # save file data #
+        self.saveFileData()
 
     @staticmethod
     def getProcTreeFromList(procInstance, kernel=True):
