@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "220930"
+__revision__ = "221001"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30142,7 +30142,7 @@ Examples:
     - {3:1} all {2:1} with changing the CPU scheduling priority every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - {3:1} specific {2:1} and change the CPU scheduling priority for specific threads having COMM a.out every second
+    - {3:1} specific {2:1} and change the CPU scheduling priority for specific threads having specific COMM every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
     - {3:1} {2:1} with I/O priority
@@ -32071,10 +32071,15 @@ Examples:
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - {2:1} {3:1} and report the compressed monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove old report files first.
+    - {2:1} {3:1} and report also in JSON format with specific file contents
+        # {0:1} {1:1} -j -Q -q TEXTREPORT, RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
+
+    - {2:1} {3:1} and report the compressed monitoring results to a specific file in the specific directory,
+      and if the directory size exceeds the limit then remove old report files first.
         # {0:1} {1:1} -o /tmp -e C -b 1M -q TEXTREPORT, LIMITREPDIR:10M
 
-    - {2:1} {3:1} and report the monitoring results to a specific file in the specific directory, and if the directory size exceeds the limit then remove existing files.
+    - {2:1} {3:1} and report the monitoring results to a specific file in the specific directory,
+      and if the directory size exceeds the limit then remove existing files.
         # {0:1} {1:1} -o /tmp -b 1M -q TEXTREPORT, LIMITREPDIR:10M, REMOVEOTHERS
 
     - {2:1} {3:1} using UTC time
@@ -32257,6 +32262,9 @@ Examples:
 
     - {2:1} /tmp/guider.report with maximum 20 task items
         # {0:1} {1:1} -q NRTOPRANK:20
+
+    - {2:1} /tmp/guider.report with specific file contents
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
 
     - Report system status including threshold events in JSON format to /tmp/guider.report
         # {0:1} {1:1} -C ./guider.conf
@@ -33852,13 +33860,16 @@ Examples:
     - {2:1} except for specific messages
         # {0:1} {1:1} -G sendData
 
-    - {2:1} with detailed information in real-time until a log containing a specific word is detected
+    - {2:1} {3:1}
         # {0:1} {1:1} -q WATCHLOG:"*oops*"
 
-    - {2:1} with detailed information in real-time until a log containing a specific word is detected and execute specific commands when terminated
+    - {2:1} {3:1} and execute specific commands when terminated
         # {0:1} {1:1} -q WATCHLOG:"*oops*", WATCHLOGCMD:"ls -lha"
                     """.format(
-                            cmd, mode, "Print D-Bus messages"
+                            cmd,
+                            mode,
+                            "Print D-Bus messages",
+                            "with detailed information in real-time until a log containing a specific word is detected",
                         )
 
                     # printkmsg / printsys #
@@ -107428,8 +107439,11 @@ class TaskAnalyzer(object):
         if not "RECFILE" in SysMgr.environList:
             return
 
+        self.reportData.setdefault("file", {})
+
         # save file data #
         for path in SysMgr.environList["RECFILE"]:
+            # save to interval data #
             TaskAnalyzer.fileIntData.setdefault(path, {})
             TaskAnalyzer.fileIntData[path][SysMgr.uptime] = SysMgr.readFile(
                 path
@@ -116609,6 +116623,17 @@ class TaskAnalyzer(object):
                         evtdata[rank]["status"] = status
 
                         rank += 1
+
+        # add file data #
+        for path, data in TaskAnalyzer.fileIntData.items():
+            if not SysMgr.uptime in data:
+                continue
+
+            self.reportData.setdefault("file", {})
+            self.reportData["file"][path] = {
+                "data": data[SysMgr.uptime],
+                "size": len(data[SysMgr.uptime]),
+            }
 
         # check resource threshold #
         self.checkResourceThreshold()
