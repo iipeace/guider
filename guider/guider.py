@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221001"
+__revision__ = "221002"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30159,7 +30159,9 @@ Examples:
         # {0:1} {1:1} -o .
 
     - {3:1} {2:1} with specific file contents every interval and {5:1} {4:1}
-        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2 -o guider.out
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2 -o
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILESIZE:1024 -o
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILETAIL:1024 -o
 
     - {3:1} {2:1} including cgroup info
         # {0:1} {1:1} -e G
@@ -32073,6 +32075,8 @@ Examples:
 
     - {2:1} {3:1} and report also in JSON format with specific file contents
         # {0:1} {1:1} -j -Q -q TEXTREPORT, RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
+        # {0:1} {1:1} -j -Q -q RECFILE:/tmp/setting1, RECFILESIZE:1024
+        # {0:1} {1:1} -j -Q -q RECFILE:/tmp/setting1, RECFILETAIL:1024
 
     - {2:1} {3:1} and report the compressed monitoring results to a specific file in the specific directory,
       and if the directory size exceeds the limit then remove old report files first.
@@ -32265,6 +32269,8 @@ Examples:
 
     - {2:1} /tmp/guider.report with specific file contents
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILESIZE:1024
+        # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILETAIL:1024
 
     - Report system status including threshold events in JSON format to /tmp/guider.report
         # {0:1} {1:1} -C ./guider.conf
@@ -38945,10 +38951,17 @@ Copyright:
                 )
 
     @staticmethod
-    def readFile(path):
+    def readFile(path, size=-1, tail=False):
         try:
             with open(path, "r") as fd:
-                return fd.read().strip()
+                if tail:
+                    pos = os.path.getsize(path) - size
+                    if pos < 0:
+                        pos = 0
+                    fd.seek(pos)
+                    return fd.read().strip()[-size:]
+                else:
+                    return fd.read(size).strip()
         except SystemExit:
             sys.exit(0)
         except:
@@ -40295,7 +40308,7 @@ Copyright:
         bufferSize = SysMgr.bufferSize
         convSize = UtilMgr.convSize2Unit
 
-        while SysMgr.procBufferSize > bufferSize > 0:
+        while 0 < bufferSize < SysMgr.procBufferSize:
             # flush all data in buffer to the file #
             if not SysMgr.bufferLossEnable:
                 SysMgr.printInfo(
@@ -40316,10 +40329,10 @@ Copyright:
                     # append time to the output file #
                     dtime = UtilMgr.getTime("UTCTIME" in SysMgr.environList)
                     if not dtime:
-                        now = long(SysMgr.getUptime())
+                        dtime = long(SysMgr.getUptime())
 
                     # append PID to the output file #
-                    SysMgr.fileSuffix = "%s_%s" % (now, SysMgr.pid)
+                    SysMgr.fileSuffix = "%s_%s" % (dtime, SysMgr.pid)
 
                     # change priority #
                     SysMgr.setLowPriority(True)
@@ -40351,8 +40364,14 @@ Copyright:
             if not SysMgr.procBuffer:
                 break
 
+            # remove proc data #
             SysMgr.procBufferSize -= len(SysMgr.procBuffer[-1])
             SysMgr.procBuffer.pop(-1)
+
+            # remove file data #
+            for path, data in TaskAnalyzer.fileIntData.items():
+                if data:
+                    data.pop(sorted(data, key=lambda e: float(e))[0], None)
 
     @staticmethod
     def updateSession():
@@ -107441,12 +107460,21 @@ class TaskAnalyzer(object):
 
         self.reportData.setdefault("file", {})
 
-        # save file data #
+        # get tail size #
+        tail = UtilMgr.getEnvironNum("RECFILETAIL", False, -1, False, True)
+        if tail < 0:
+            # get max chunk size #
+            size = UtilMgr.getEnvironNum("RECFILESIZE", False, -1, False, True)
+            tail = False
+        else:
+            size = tail
+            tail = True
+
+        # save file data for this interval #
         for path in SysMgr.environList["RECFILE"]:
-            # save to interval data #
             TaskAnalyzer.fileIntData.setdefault(path, {})
-            TaskAnalyzer.fileIntData[path][SysMgr.uptime] = SysMgr.readFile(
-                path
+            TaskAnalyzer.fileIntData[path][SysMgr.uptime] = repr(
+                SysMgr.readFile(path, size, tail)
             )
 
     def saveProcStat(self):
