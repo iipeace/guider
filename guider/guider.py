@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221002"
+__revision__ = "221003"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30472,6 +30472,9 @@ Examples:
     - {2:1} only for specific groups or cores
         # {0:1} {1:1} {3:1} -O 1, 4, 10
         # {0:1} {1:1} {3:1} -O 1:10, 14
+
+    - {2:1} without file data
+        # {0:1} {1:1} {3:1} -q NORECFILE
 
     - {2:1} with changed groups or cores for timeline segments
         # {0:1} {1:1} {3:1} -q CONVGROUP:0:1, CONVGROUP:1:0
@@ -87432,6 +87435,7 @@ class TaskAnalyzer(object):
 
     reportData = {}
     fileIntData = {}
+    fileNameTable = {}
     lifeIntData = {}
     lifeProcData = {}
     lifecycleData = {}
@@ -89693,6 +89697,7 @@ class TaskAnalyzer(object):
     def getStatsFile(
         logFile, handle=None, applyOpt=True, onlyStart=False, verb=False
     ):
+        path = None
         infoBuf = None
         chartStats = {}
         timeline = []
@@ -89941,61 +89946,6 @@ class TaskAnalyzer(object):
                 except:
                     netRead.append(0)
                     netWrite.append(0)
-
-            # Event #
-            elif context == "Event":
-                if slen != 4:
-                    continue
-
-                try:
-                    time = long(float(sline[0]))
-                    utime = float(sline[1])
-                    dtime = float(sline[2])
-                    event = sline[3].strip()
-
-                    idx = timeline.index(time)
-                    eventList[idx].append(
-                        "%s [%.3f / +%.2fs]" % (event, utime, dtime)
-                    )
-                except:
-                    pass
-
-            # Life #
-            elif context == "Life":
-                if slen != 7:
-                    continue
-
-                if not "DRAWLIFE" in SysMgr.environList:
-                    continue
-
-                try:
-                    task = sline[0].strip()
-                    start = sline[1].strip()
-                    end = sline[2].strip()
-
-                    try:
-                        startSec = UtilMgr.convTime2Sec(start)
-                        if not startSec:
-                            raise Exception("no start")
-
-                        startIdx = UtilMgr.bisect_left(timeline, startSec)
-                        eventList[startIdx].append(
-                            "[+] %s [%s]" % (task, start)
-                        )
-                    except:
-                        pass
-
-                    try:
-                        endSec = UtilMgr.convTime2Sec(end)
-                        if not endSec:
-                            raise Exception("no end")
-
-                        endIdx = UtilMgr.bisect_left(timeline, endSec)
-                        eventList[endIdx].append("[-] %s [%s]" % (task, end))
-                    except:
-                        pass
-                except:
-                    pass
 
             # CPU #
             elif context == "CPU":
@@ -90512,6 +90462,90 @@ class TaskAnalyzer(object):
                             cpuList
                         )
                         cpuProcUsage[pname]["maximum"] = max(cpuList)
+
+            # Event #
+            elif context == "Event":
+                if slen != 4:
+                    continue
+
+                try:
+                    time = long(float(sline[0]))
+                    utime = float(sline[1])
+                    dtime = float(sline[2])
+                    event = sline[3].strip()
+
+                    idx = timeline.index(time)
+                    eventList[idx].append(
+                        "%s [%.3f / +%.2fs]" % (event, utime, dtime)
+                    )
+                except:
+                    pass
+
+            # File #
+            elif context == "File":
+                if "NORECFILE" in SysMgr.environList:
+                    continue
+                elif slen != 2:
+                    if line.startswith("[Top File"):
+                        for item in line.strip().split("("):
+                            if not item.startswith("Path:"):
+                                continue
+                            path = UtilMgr.lstrip(item, "Path: ").strip(")")
+                    continue
+
+                try:
+                    utime = float(sline[0])
+                    idx = timeline.index(long(utime))
+                    dtime = 0
+
+                    if not path in TaskAnalyzer.fileNameTable:
+                        TaskAnalyzer.fileNameTable[path] = "#%s" % len(
+                            TaskAnalyzer.fileNameTable
+                        )
+                    name = TaskAnalyzer.fileNameTable[path]
+
+                    event = "%s> %s" % (name, sline[1].strip())
+
+                    eventList[idx].insert(0, event)
+                except:
+                    pass
+
+            # Life #
+            elif context == "Life":
+                if slen != 7:
+                    continue
+
+                if not "DRAWLIFE" in SysMgr.environList:
+                    continue
+
+                try:
+                    task = sline[0].strip()
+                    start = sline[1].strip()
+                    end = sline[2].strip()
+
+                    try:
+                        startSec = UtilMgr.convTime2Sec(start)
+                        if not startSec:
+                            raise Exception("no start")
+
+                        startIdx = UtilMgr.bisect_left(timeline, startSec)
+                        eventList[startIdx].append(
+                            "[+] %s [%s]" % (task, start)
+                        )
+                    except:
+                        pass
+
+                    try:
+                        endSec = UtilMgr.convTime2Sec(end)
+                        if not endSec:
+                            raise Exception("no end")
+
+                        endIdx = UtilMgr.bisect_left(timeline, endSec)
+                        eventList[endIdx].append("[-] %s [%s]" % (task, end))
+                    except:
+                        pass
+                except:
+                    pass
 
         if curSize:
             UtilMgr.deleteProgress()
@@ -94002,7 +94036,24 @@ class TaskAnalyzer(object):
                 drawCmdStr = "{0:20} # {1:<100}".format(
                     "DrawCmd", " ".join(SysMgr.origArgs)
                 )
-                SysMgr.sysinfoBuffer = SysMgr.sysinfoBuffer[:-1] + drawCmdStr
+                SysMgr.sysinfoBuffer = (
+                    "<System Info>\n" + SysMgr.sysinfoBuffer[:-1] + drawCmdStr
+                )
+
+                # add file event info #
+                try:
+                    if TaskAnalyzer.fileNameTable:
+                        SysMgr.sysinfoBuffer += "\n\n<File Info>"
+                    for path, name in sorted(
+                        TaskAnalyzer.fileNameTable.items(),
+                        key=lambda e: long(e[1].lstrip("#")),
+                    ):
+                        SysMgr.sysinfoBuffer += "\n%s: %s" % (name, path)
+
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
                 self.figure.text(
                     0, 1, SysMgr.sysinfoBuffer, va="top", ha="left", size=2
@@ -107475,7 +107526,7 @@ class TaskAnalyzer(object):
             TaskAnalyzer.fileIntData.setdefault(path, {})
             TaskAnalyzer.fileIntData[path][SysMgr.uptime] = repr(
                 SysMgr.readFile(path, size, tail)
-            )
+            ).strip("'")
 
     def saveProcStat(self):
         if SysMgr.fixedProcList:
