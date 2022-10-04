@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221003"
+__revision__ = "221004"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23624,6 +23624,7 @@ class SysMgr(object):
     impGlbPkg = {}
     skipImpPkg = {}
     exitFuncList = []
+    exitPrivateFuncList = {}
     dltObj = None
     dltCtx = None
     shmObj = None
@@ -26115,6 +26116,41 @@ Commands:
         SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
 
     @staticmethod
+    def limitPid(pids, attrs):
+        if not pids:
+            return
+
+        # check root permission #
+        SysMgr.checkRootPerm(msg="limit pids using cgroup")
+
+        # check subsystem #
+        if not SysMgr.getCgroupSubPath("pids", False):
+            return
+
+        name = str(time.time()).replace(".", "")
+
+        # set commands for pids #
+        cmds = ["CREATE:pids:guider_{0:1}:".format(name)]
+
+        # get node list #
+        nodes = [item[0] for item in attrs]
+
+        # set commands #
+        for item in attrs:
+            cmds.append(
+                "WRITE:pids:guider_{0:1}:{2:1}@pids.{1:1}".format(
+                    name, item[0], item[1]
+                ),
+            )
+
+        # set commands #
+        for pid in pids:
+            cmds.append("ADD:pids:guider_{0:1}:{1:1}".format(name, pid))
+
+        # execute commands to limit pids #
+        SysMgr.doCgroup(cmds, make=True, remove=True, verb=False)
+
+    @staticmethod
     def limitCpu(pids, attrs):
         if not pids:
             return
@@ -26616,7 +26652,12 @@ Commands:
 
             # register handler to remove directory #
             if remove:
-                SysMgr.addExitFunc(SysMgr.removeCgroup, [targetDir])
+                SysMgr.addExitFunc(
+                    SysMgr.removeCgroup,
+                    [targetDir],
+                    private=True,
+                    redundant=False,
+                )
 
             return targetDir
         except SystemExit:
@@ -29791,6 +29832,7 @@ Commands:
                 "limitcpu": ("CPU", "Linux"),
                 "limitcpuset": ("CPU", "Linux"),
                 "limitmem": ("Memory", "Linux"),
+                "limitpid": ("Task", "Linux"),
                 "limitread": ("I/O", "Linux"),
                 "limitwrite": ("I/O", "Linux"),
                 "pause": ("Thread", "Linux"),
@@ -29813,7 +29855,7 @@ Commands:
                 "mount": ("Mount", "Linux"),
                 "ping": ("ICMP", "Linux/MacOS/Windows"),
                 "print": ("File", "Linux/MacOS/Windows"),
-                "printbind": ("function", "Linux"),
+                "printbind": ("Function", "Linux"),
                 "printcg": ("Cgroup", "Linux"),
                 "printdbus": ("D-Bus", "Linux"),
                 "printdbusintro": ("D-Bus", "Linux"),
@@ -35174,6 +35216,10 @@ Examples:
                         res = "I/O read throughput"
                         value = "20M"
                         addinfo = ""
+                    elif SysMgr.checkMode("limitpid"):
+                        res = "the number of tasks"
+                        value = "10"
+                        addinfo = ""
                     else:
                         res = "I/O write throughput"
                         value = "20M"
@@ -38605,11 +38651,7 @@ Copyright:
             """
 
             # remove stopHandler in exit list to prevent recursive calls #
-            newExitList = []
-            for idx, item in enumerate(SysMgr.exitFuncList):
-                if item[0] != SysMgr.stopHandler:
-                    newExitList.append(item)
-            SysMgr.exitFuncList = newExitList
+            SysMgr.removeExitFunc(SysMgr.stopHandler)
 
             # call exit handlers #
             SysMgr.doExit()
@@ -41420,6 +41462,7 @@ Copyright:
                 "LIMITMEM",
                 "LIMITREAD",
                 "LIMITWRITE",
+                "LIMITPID",
             ):
                 if not item in varList:
                     continue
@@ -41445,6 +41488,10 @@ Copyright:
                     res = "I/O write"
                     default = "write_bps_device"
                     func = SysMgr.limitBlock
+                elif item == "LIMITPID":
+                    res = "pids"
+                    default = "max"
+                    func = SysMgr.limitPid
                 else:
                     continue
 
@@ -43407,6 +43454,8 @@ Copyright:
                 name = "LIMITREAD"
             elif SysMgr.checkMode("limitwrite"):
                 name = "LIMITWRITE"
+            elif SysMgr.checkMode("limitpid"):
+                name = "LIMITPID"
             else:
                 SysMgr.printErr("no support resource limitation")
                 sys.exit(-1)
@@ -43695,6 +43744,7 @@ Copyright:
             "limitcpu",
             "limitcpuset",
             "limitmem",
+            "limitpid",
             "limitread",
             "limitwrite",
         ):
@@ -57302,9 +57352,28 @@ Copyright:
             newList.append(handler)
         SysMgr.exitFuncList = newList
 
+        if not SysMgr.pid in SysMgr.exitPrivateFuncList:
+            return
+
+        newList = []
+        for handler in SysMgr.exitPrivateFuncList[SysMgr.pid]:
+            if handler[0] == func and handler[1] == args:
+                continue
+            newList.append(handler)
+        SysMgr.exitPrivateFuncList[SysMgr.pid] = newList
+
     @staticmethod
-    def addExitFunc(func, args=None):
-        SysMgr.exitFuncList.append([func, args])
+    def addExitFunc(func, args=None, private=False, redundant=True):
+        if not redundant:
+            SysMgr.removeExitFunc(func, args)
+
+        if private:
+            SysMgr.exitPrivateFuncList.setdefault(SysMgr.pid, [])
+            targetList = SysMgr.exitPrivateFuncList[SysMgr.pid]
+        else:
+            targetList = SysMgr.exitFuncList
+
+        targetList.append([func, args])
 
     @staticmethod
     def doExit():
@@ -57314,6 +57383,9 @@ Copyright:
         # clear exit handler list #
         exitList = SysMgr.exitFuncList
         SysMgr.exitFuncList = []
+        if SysMgr.pid in SysMgr.exitPrivateFuncList:
+            exitList += SysMgr.exitPrivateFuncList[SysMgr.pid]
+            SysMgr.exitPrivateFuncList[SysMgr.pid] = []
 
         # block signals #
         SysMgr.setIgnoreSignal()
@@ -60334,23 +60406,22 @@ Copyright:
                         if num > 0:
                             per = convColor(per, "RED")
                         value = "%s/%s%%" % (subdir[val], per)
-                    # runtime #
-                    elif val in (
-                        "cpu.cfs_quota_us",
-                        "cpu.rt_runtime_us",
-                    ) and not subdir[val] in ("-1", "0"):
-                        num = long(subdir[val].replace(",", ""))
-                        sec = num / 1000000.0
-                        unit = UtilMgr.convTime2Unit(sec)
-                        value = convColor(unit, "RED")
-                    # period #
-                    elif val.endswith("_us") and not subdir[val] in (
-                        "-1",
-                        "0",
-                    ):
-                        num = long(subdir[val].replace(",", ""))
-                        sec = num / 1000000.0
-                        value = UtilMgr.convTime2Unit(sec)
+                    # runtime, period #
+                    elif val.endswith("_us"):
+                        if subdir[val] in ("-1", "0"):
+                            value = subdir[val]
+                        else:
+                            num = long(subdir[val].replace(",", ""))
+                            sec = num / 1000000.0
+                            value = UtilMgr.convTime2Unit(sec)
+                            if val in (
+                                "cpu.cfs_quota_us",
+                                "cpu.rt_runtime_us",
+                            ):
+                                value = convColor(value, "RED")
+                        cname = UtilMgr.rstrip(
+                            ".".join(val.split(".")[1:]), "_us"
+                        )
                     # CPU usage #
                     elif val == "cpuacct.usage":
                         num = long(subdir[val].replace(",", ""))
@@ -60443,7 +60514,7 @@ Copyright:
                     indent = "%s%s|" % (indent, "     ")
 
                 if cstr:
-                    cstr = " <%s>" % cstr[:-2]
+                    cstr = " <%s>" % cstr.strip(", ")
 
                 # define proces info #
                 if not nrProcs in ("0", 0):
