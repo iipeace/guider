@@ -1331,13 +1331,18 @@ Help
 
 ```
 Usage:
-    $ ./guider.py COMMAND|FILE [OPTIONS] [--help]
+    $ guider COMMAND|FILE [OPTIONS] [--help]
                 
 COMMAND:
     [CONTROL]       freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
                     kill/tkill        <Signal>        (Linux/MacOS)
                     limitcpu          <CPU>           (Linux)
+                    limitcpuset       <CPU>           (Linux)
+                    limitmem          <Memory>        (Linux)
+                    limitpid          <Task>          (Linux)
+                    limitread         <I/O>           (Linux)
+                    limitwrite        <I/O>           (Linux)
                     pause             <Thread>        (Linux)
                     remote            <Command>       (Linux)
                     rlimit            <Resource>      (Linux)
@@ -1412,12 +1417,13 @@ COMMAND:
                     decomp            <Decompress>    (Linux/MacOS/Windows)
                     dump              <Memory>        (Linux)
                     exec              <Command>       (Linux/MacOS/Windows)
+                    flush             <Memory>        (Linux)
                     getafnt           <Affinity>      (Linux)
                     mkcache           <Cache>         (Linux/MacOS/Windows)
                     mount             <Mount>         (Linux)
                     ping              <ICMP>          (Linux/MacOS/Windows)
                     print             <File>          (Linux/MacOS/Windows)
-                    printbind         <Funcion>       (Linux)
+                    printbind         <Function>      (Linux)
                     printcg           <Cgroup>        (Linux)
                     printdbus         <D-Bus>         (Linux)
                     printdbusintro    <D-Bus>         (Linux)
@@ -1448,6 +1454,7 @@ COMMAND:
     [VISUAL]        convert           <Text>          (Linux/MacOS/Windows)
                     draw              <System>        (Linux/MacOS/Windows)
                     drawavg           <Average>       (Linux/MacOS/Windows)
+                    drawbitmap        <Bitmap>        (Linux/MacOS/Windows)
                     drawcpu           <CPU>           (Linux/MacOS/Windows)
                     drawcpuavg        <CPU>           (Linux/MacOS/Windows)
                     drawdelay         <Delay>         (Linux/MacOS/Windows)
@@ -1468,5 +1475,6 @@ FILE:
     Report  file (e.g. guider.out)
 
 Options:
-    Check COMMAND with --help (e.g. ./guider.py top --help)
+    Check COMMAND with --help (e.g. guider top --help)
+
 ```
