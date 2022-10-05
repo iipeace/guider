@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221004"
+__revision__ = "221005"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30515,6 +30515,10 @@ Examples:
         # {0:1} {1:1} {3:1} -O 1, 4, 10
         # {0:1} {1:1} {3:1} -O 1:10, 14
 
+    - {2:1} with specific file data
+        # {0:1} {1:1} {3:1} -q RECFILEFILTER:a.out
+        # {0:1} {1:1} {3:1} -q RECFILEFILTER:"*.out"
+
     - {2:1} without file data
         # {0:1} {1:1} {3:1} -q NORECFILE
 
@@ -34485,11 +34489,11 @@ Examples:
         # {0:1} {1:1} -I "CMD_TOP" -C guider.conf
 
     - {2:1} with monitoring
-        # {0:1} {1:1} -I "a.out" -q TASKMON
-        # {0:1} {1:1} -I "a.out" -q TASKMON:3
-        # {0:1} {1:1} -I "a.out" -q TASKMON -a
-        # {0:1} {1:1} -I "a.out" -q TASKMON, CHILDSCHED:c:0 -Y r:1
-        # {0:1} {1:1} -I "a.out" -q TASKMON, EXECSCHED:c:0 -Y r:1
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON:3
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON -a
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, CHILDSCHED:c:0 -Y r:1
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, EXECSCHED:c:0 -Y r:1
 
     - {2:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20
@@ -40415,7 +40419,7 @@ Copyright:
 
             # remove file data #
             for path, data in TaskAnalyzer.fileIntData.items():
-                if data:
+                if data and len(SysMgr.procBuffer) < len(data):
                     data.pop(sorted(data, key=lambda e: float(e))[0], None)
 
     @staticmethod
@@ -90563,6 +90567,13 @@ class TaskAnalyzer(object):
                                 continue
                             path = UtilMgr.lstrip(item, "Path: ").strip(")")
                     continue
+                elif (
+                    "RECFILEFILTER" in SysMgr.environList
+                    and not UtilMgr.isValidStr(
+                        path, SysMgr.environList["RECFILEFILTER"]
+                    )
+                ):
+                    continue
 
                 try:
                     utime = float(sline[0])
@@ -107594,10 +107605,18 @@ class TaskAnalyzer(object):
 
         # save file data for this interval #
         for path in SysMgr.environList["RECFILE"]:
+            curData = repr(SysMgr.readFile(path, size, tail)).strip("'")
+
             TaskAnalyzer.fileIntData.setdefault(path, {})
-            TaskAnalyzer.fileIntData[path][SysMgr.uptime] = repr(
-                SysMgr.readFile(path, size, tail)
-            ).strip("'")
+            if TaskAnalyzer.fileIntData[path]:
+                lastData = sorted(
+                    TaskAnalyzer.fileIntData[path].items(),
+                    key=lambda e: float(e[0]),
+                )[-1][1]
+                if lastData == curData:
+                    continue
+
+            TaskAnalyzer.fileIntData[path][SysMgr.uptime] = curData
 
     def saveProcStat(self):
         if SysMgr.fixedProcList:
@@ -108226,6 +108245,10 @@ class TaskAnalyzer(object):
         # save GPU stat #
         self.saveGpuData()
 
+        # save file data #
+        if self.prevMemData:
+            self.saveFileData()
+
         # check system-only monitoring #
         if not SysMgr.taskEnable:
             return
@@ -108238,9 +108261,6 @@ class TaskAnalyzer(object):
         else:
             SysMgr.printErr("wrong monitor target for '%s'" % target)
             sys.exit(-1)
-
-        # save file data #
-        self.saveFileData()
 
     @staticmethod
     def getProcTreeFromList(procInstance, kernel=True):
@@ -111283,6 +111303,7 @@ class TaskAnalyzer(object):
                 ("USS", uss),
                 ("WSS", wssTotal),
             )
+
             for item in unitItems:
                 name = item[0]
                 unit = UtilMgr.convSize2Unit(item[1] << 10)
@@ -113961,6 +113982,9 @@ class TaskAnalyzer(object):
                 lenItem = 7
                 isFirstLined = True
                 limit = SysMgr.lineLength - indent
+                hardLimit = SysMgr.ttyCols - indent
+                if not SysMgr.outPath and limit >= hardLimit:
+                    limit = hardLimit
                 pstr = procData[idx]["wss"][mprop]
 
                 if SysMgr.showAll:
