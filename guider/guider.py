@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221005"
+__revision__ = "221006"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26297,6 +26297,18 @@ Commands:
             # move tasks #
             SysMgr.writeFile(desFile, tasks)
 
+            # read moved tasks #
+            movedTasks = SysMgr.readFile(desFile)
+            if movedTasks:
+                movedTasks = movedTasks.split("\n")
+            else:
+                movedTasks = []
+
+            # get moved tasks #
+            tasks = list(set(tasks) & set(movedTasks))
+            if not tasks:
+                return []
+
             return tasks
 
         def _checkFile(targetFile):
@@ -26460,34 +26472,42 @@ Commands:
                 continue
             # handle move command #
             elif cmd == "MOVE":
+
+                def _getPathInfo(path, name):
+                    try:
+                        targetInfo = path.split("/", 1)
+                        if len(targetInfo) == 1:
+                            targetPath = targetInfo[0]
+                            targetName = "/"
+                        else:
+                            targetPath, targetName = path.split("/", 1)
+                            if not targetName:
+                                targetName = "/"
+                        targetDir = SysMgr.getCgroup(
+                            targetPath, targetName, make, remove
+                        )
+                        targetFile = os.path.join(targetDir, taskNode)
+                        if not os.path.exists(targetFile):
+                            raise Exception("no file")
+
+                        return targetDir, targetFile
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "wrong %s of cgroup '%s' for move" % (name, path),
+                            True,
+                        )
+                        return None, None
+
                 # source #
-                try:
-                    srcSub, srcName = sub.split("/", 1)
-                    srcDir = SysMgr.getCgroup(srcSub, srcName, make, remove)
-                    srcFile = os.path.join(srcDir, taskNode)
-                    if not os.path.exists(srcFile):
-                        raise Exception("no file")
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "wrong source cgroup '%s' for move" % sub, True
-                    )
+                srcDir, srcFile = _getPathInfo(sub, "source")
+                if not srcDir:
                     continue
 
                 # destination #
-                try:
-                    desSub, desName = name.split("/", 1)
-                    desDir = SysMgr.getCgroup(desSub, desName, make, remove)
-                    desFile = os.path.join(desDir, taskNode)
-                    if not os.path.exists(desFile):
-                        raise Exception("no file")
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "wrong destination cgroup '%s' for move" % name, True
-                    )
+                desDir, desFile = _getPathInfo(name, "destination")
+                if not desDir:
                     continue
 
                 # move tasks #
@@ -30200,7 +30220,7 @@ Examples:
     - {3:1} {2:1} and {5:1} {4:1}
         # {0:1} {1:1} -o .
 
-    - {3:1} {2:1} with specific file contents every interval and {5:1} {4:1}
+    - {3:1} {2:1} with contents of specific files or directories every interval and {5:1} {4:1}
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2 -o
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILESIZE:1024 -o
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILETAIL:1024 -o
@@ -30515,7 +30535,7 @@ Examples:
         # {0:1} {1:1} {3:1} -O 1, 4, 10
         # {0:1} {1:1} {3:1} -O 1:10, 14
 
-    - {2:1} with specific file data
+    - {2:1} with contents of specific files or directories
         # {0:1} {1:1} {3:1} -q RECFILEFILTER:a.out
         # {0:1} {1:1} {3:1} -q RECFILEFILTER:"*.out"
 
@@ -32122,7 +32142,7 @@ Examples:
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - {2:1} {3:1} and report also in JSON format with specific file contents
+    - {2:1} {3:1} and report also in JSON format with contents of specific files or directories
         # {0:1} {1:1} -j -Q -q TEXTREPORT, RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
         # {0:1} {1:1} -j -Q -q RECFILE:/tmp/setting1, RECFILESIZE:1024
         # {0:1} {1:1} -j -Q -q RECFILE:/tmp/setting1, RECFILETAIL:1024
@@ -32316,7 +32336,7 @@ Examples:
     - {2:1} /tmp/guider.report with maximum 20 task items
         # {0:1} {1:1} -q NRTOPRANK:20
 
-    - {2:1} /tmp/guider.report with specific file contents
+    - {2:1} /tmp/guider.report with contents of specific files or directories
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILESIZE:1024
         # {0:1} {1:1} -q RECFILE:/tmp/setting1, RECFILETAIL:1024
@@ -32668,19 +32688,21 @@ Examples:
         # {0:1} {1:1} ADD:cpu:test1:"*a.out*" -e t
 
     - Move specific processes between cpu groups
+        # {0:1} {1:1} MOVE:cpu/:cpu/test2:"*a.out*"
         # {0:1} {1:1} MOVE:cpu/test1:cpu/test2:"*a.out*"
 
     - Remove specific processes from a cpu group
         # {0:1} {1:1} REMOVE:cpu/test1:"*a.out*"
 
     - Delete a cpu group
-        # {0:1} {1:1} DELETE:cpu:test1:*
+        # {0:1} {1:1} DELETE:cpu:test1:"*"
 
     - Write value to the specific file
         # {0:1} {1:1} WRITE:memory:test2:100000@memory.limit_in_bytes
 
     - Print all processes in a cpu group
-        # {0:1} {1:1} LIST:cpu:test1:*
+        # {0:1} {1:1} LIST:cpu:/:"*"
+        # {0:1} {1:1} LIST:cpu:test1:"*"
                     """.format(
                         cmd, mode
                     )
@@ -36304,6 +36326,39 @@ Copyright:
                 sys.exit(0)
             except:
                 break
+
+    @staticmethod
+    def fainotify(path, flags=[], wait=False, verb=False):
+        if not path:
+            return False
+
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
+
+        class fanotify_event_metadata(Structure):
+            _fields_ = (
+                ("event_len", c_uint32),
+                ("vers", c_uint8),
+                ("reserved", c_uint8),
+                ("metadata_len", c_uint16),
+                ("mask", c_uint64),
+                ("fd", c_int32),
+                ("pid", c_int32),
+            )
+
+        class fanotify_event_info_header(Structure):
+            _fields_ = (
+                ("info_type", c_uint8),
+                ("pad", c_uint8),
+                ("len", c_uint16),
+            )
+
+        class fanotify_event_info_fid(Structure):
+            _fields_ = (
+                ("hdr", fanotify_event_info_header),
+                ("fsid", c_int * 2),  # __kernel_fsid_t
+                ("file_handle", c_char * 1),
+            )
 
     @staticmethod
     def inotify(path, flags=[], wait=False, verb=False):
@@ -87511,6 +87566,7 @@ class TaskAnalyzer(object):
     reportData = {}
     fileIntData = {}
     fileNameTable = {}
+    dirLastData = {}
     lifeIntData = {}
     lifeProcData = {}
     lifecycleData = {}
@@ -107605,16 +107661,47 @@ class TaskAnalyzer(object):
 
         # save file data for this interval #
         for path in SysMgr.environList["RECFILE"]:
-            curData = repr(SysMgr.readFile(path, size, tail)).strip("'")
-
             TaskAnalyzer.fileIntData.setdefault(path, {})
-            if TaskAnalyzer.fileIntData[path]:
-                lastData = sorted(
-                    TaskAnalyzer.fileIntData[path].items(),
-                    key=lambda e: float(e[0]),
-                )[-1][1]
-                if lastData == curData:
+
+            if os.path.isdir(path):
+                curData = SysMgr.magicStr + "|".join(os.listdir(path))
+                if path in TaskAnalyzer.dirLastData:
+                    if TaskAnalyzer.dirLastData[path] == curData:
+                        continue
+
+                    # get item string #
+                    lastData = set(
+                        UtilMgr.lstrip(
+                            TaskAnalyzer.dirLastData[path], SysMgr.magicStr
+                        ).split("|")
+                    )
+                    TaskAnalyzer.dirLastData[path] = curData
+                    curData = set(
+                        UtilMgr.lstrip(curData, SysMgr.magicStr).split("|")
+                    )
+
+                    # get item list #
+                    newItems = curData - lastData
+                    delItems = lastData - curData
+
+                    # build strings #
+                    curData = ""
+                    if newItems:
+                        curData += "[+]%s " % ",".join(newItems)
+                    if delItems:
+                        curData += "[-]%s " % ",".join(delItems)
+                else:
+                    TaskAnalyzer.dirLastData[path] = curData
                     continue
+            else:
+                curData = repr(SysMgr.readFile(path, size, tail)).strip("'")
+                if TaskAnalyzer.fileIntData[path]:
+                    lastData = sorted(
+                        TaskAnalyzer.fileIntData[path].items(),
+                        key=lambda e: float(e[0]),
+                    )[-1][1]
+                    if lastData == curData:
+                        continue
 
             TaskAnalyzer.fileIntData[path][SysMgr.uptime] = curData
 
