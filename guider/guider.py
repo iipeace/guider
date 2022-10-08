@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221006"
+__revision__ = "221008"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26473,19 +26473,23 @@ Commands:
             # handle move command #
             elif cmd == "MOVE":
 
-                def _getPathInfo(path, name):
+                def _getPathInfo(path, name, make):
                     try:
                         targetInfo = path.split("/", 1)
                         if len(targetInfo) == 1:
                             targetPath = targetInfo[0]
                             targetName = "/"
                         else:
-                            targetPath, targetName = path.split("/", 1)
+                            targetPath, targetName = targetInfo
                             if not targetName:
                                 targetName = "/"
+
                         targetDir = SysMgr.getCgroup(
                             targetPath, targetName, make, remove
                         )
+                        if not targetDir:
+                            raise Exception("no dir")
+
                         targetFile = os.path.join(targetDir, taskNode)
                         if not os.path.exists(targetFile):
                             raise Exception("no file")
@@ -26501,12 +26505,12 @@ Commands:
                         return None, None
 
                 # source #
-                srcDir, srcFile = _getPathInfo(sub, "source")
+                srcDir, srcFile = _getPathInfo(sub, "source", make)
                 if not srcDir:
                     continue
 
                 # destination #
-                desDir, desFile = _getPathInfo(name, "destination")
+                desDir, desFile = _getPathInfo(name, "destination", make)
                 if not desDir:
                     continue
 
@@ -34514,6 +34518,8 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON:3
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON -a
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, TASKFILTER:"*a.out*"
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, TASKFILTER:"*a.out*" -et -P
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, CHILDSCHED:c:0 -Y r:1
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, EXECSCHED:c:0 -Y r:1
 
@@ -35280,6 +35286,8 @@ Examples:
         # {0:1} {1:1} yes:{3:1} -q TASKMON
         # {0:1} {1:1} yes:{3:1} -q TASKMON:3
         # {0:1} {1:1} yes:{3:1} -q TASKMON -a
+        # {0:1} {1:1} yes:{3:1} -q TASKMON, TASKFILTER:"*a.out*"
+        # {0:1} {1:1} yes:{3:1} -q TASKMON, TASKFILTER:"*a.out*" -et -P
         # {0:1} {1:1} yes:{3:1} -q TASKMON, CHILDSCHED:c:0 -Y r:1
         # {0:1} {1:1} yes:{3:1} -q TASKMON, EXECSCHED:c:0 -Y r:1
 
@@ -39005,7 +39013,7 @@ Copyright:
             fsize = UtilMgr.getFileSizeStr(outputFile)
 
             SysMgr.printInfo(
-                "finish saving trace data into '%s'%s successfully"
+                "finished saving trace data into '%s'%s successfully"
                 % (outputFile, fsize)
             )
         except SystemExit:
@@ -41659,6 +41667,16 @@ Copyright:
         # get interval #
         interval = UtilMgr.getEnvironNum("TASKMON", False, 1, False, True)
 
+        # apply filter #
+        if "TASKFILTER" in SysMgr.environList:
+            pids += SysMgr.environList["TASKFILTER"]
+
+        # set enable options #
+        enableOption = "-eb"
+        startOption = SysMgr.getOption("e")
+        if startOption:
+            enableOption += startOption
+
         SysMgr.launchGuider(
             [
                 "top",
@@ -41666,7 +41684,8 @@ Copyright:
                 "-i%s" % interval,
                 "-qFASTINIT,NOSPECIALTASK",
                 "-a" if SysMgr.showAll else "",
-                "-eb",
+                "-P" if SysMgr.groupProcEnable else "",
+                enableOption,
                 "-f",
                 "-Q",
             ],
