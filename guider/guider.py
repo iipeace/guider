@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221008"
+__revision__ = "221009"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5665,6 +5665,25 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             return False
+
+    @staticmethod
+    def sort(l):
+        convert = lambda text: float(text) if text.isdigit() else text
+        alphanum = lambda key: [
+            convert(c) for c in re.split("([-+]?[0-9]*\.?[0-9]*)", key)
+        ]
+
+        if type(l) is list:
+            l.sort(key=alphanum)
+            return l
+        elif type(l) is dict:
+            return sorted(l.items(), key=lambda e: alphanum(e[0]))
+        else:
+            SysMgr.printWarn(
+                "failed to sort items because '%s' is not supported" % type(l),
+                True,
+            )
+            return l
 
     @staticmethod
     def compareSyscallSuperset():
@@ -58419,6 +58438,10 @@ Copyright:
 
         self.printBuddyInfo()
 
+        self.printHugePageInfo()
+
+        self.printKsmInfo()
+
         self.printMmapInfo()
 
         self.printUSBInfo()
@@ -58558,9 +58581,10 @@ Copyright:
                 orders.append("%9s" % convSize(sum(orderSize)))
                 SysMgr.infoBufferPrint(
                     "{0:>5} | {1:<8} | {2:<1}\n{3:1}".format(
-                        node, zone, " ".join(orders), twoLine
+                        node, zone, " ".join(orders), oneLine
                     )
                 )
+                node = ""
 
     def printMmapInfo(self):
         SysMgr.infoBufferPrint("\n[Memory Map Info]\n%s" % twoLine)
@@ -58595,13 +58619,13 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
         try:
-            dirpath = "/proc/sys/kernel"
-            for item in os.listdir(dirpath):
+            dpath = "/proc/sys/kernel"
+            for item in os.listdir(dpath):
                 if not item.startswith("sched_"):
                     continue
 
                 # check type #
-                fpath = os.path.join(dirpath, item)
+                fpath = os.path.join(dpath, item)
                 if os.path.isdir(fpath):
                     continue
 
@@ -58613,6 +58637,65 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr("failed to get sched factors", True)
+
+    def printHugePageInfo(self):
+        dpath = "/sys/kernel/mm/hugepages"
+        if not os.path.exists(dpath):
+            return
+
+        SysMgr.infoBufferPrint("\n[HugePage Info]")
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(
+            "{0:^10} | {1:^30} | {2:^15}".format("Size", "Stat", "Value")
+        )
+        SysMgr.infoBufferPrint(twoLine)
+
+        try:
+            for item in os.listdir(dpath):
+                size = UtilMgr.lstrip(item, "hugepages-")
+                for stat in os.listdir(os.path.join(dpath, item)):
+                    # check type #
+                    fpath = os.path.join(dpath, item, stat)
+                    if os.path.isdir(fpath):
+                        continue
+
+                    value = UtilMgr.convNum(SysMgr.readFile(fpath))
+                    SysMgr.infoBufferPrint(
+                        "{0:>10} | {1:<30} | {2:>15}".format(size, stat, value)
+                    )
+                    size = ""
+
+            SysMgr.infoBufferPrint(twoLine)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get HugePage stats", True)
+
+    def printKsmInfo(self):
+        dpath = "/sys/kernel/mm/ksm"
+        if not os.path.exists(dpath):
+            return
+
+        SysMgr.infoBufferPrint("\n[KSM Info]")
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint("{0:^40} | {1:^15}".format("Stat", "Value"))
+        SysMgr.infoBufferPrint(twoLine)
+
+        try:
+            for item in os.listdir(dpath):
+                # check type #
+                fpath = os.path.join(dpath, item)
+                if os.path.isdir(fpath):
+                    continue
+
+                value = UtilMgr.convNum(SysMgr.readFile(fpath))
+                SysMgr.infoBufferPrint("{0:<40} | {1:>15}".format(item, value))
+
+            SysMgr.infoBufferPrint(twoLine)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get KSM stats", True)
 
     def printSchedFeatInfo(self):
         def _printItems(status, items):
@@ -61481,7 +61564,7 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
         # print block device info #
-        for dev, data in sorted(self.blockData.items()):
+        for dev, data in UtilMgr.sort(self.blockData):
             try:
                 SysMgr.infoBufferPrint(
                     (
@@ -116906,13 +116989,25 @@ class TaskAnalyzer(object):
 
         # add file data #
         for path, data in TaskAnalyzer.fileIntData.items():
-            if not SysMgr.uptime in data:
+            if not data and not path in TaskAnalyzer.dirLastData:
                 continue
 
             self.reportData.setdefault("file", {})
+
+            # dir #
+            if path in TaskAnalyzer.dirLastData:
+                lastData = UtilMgr.lstrip(
+                    TaskAnalyzer.dirLastData[path], SysMgr.magicStr
+                ).split("|")
+            # file #
+            else:
+                lastData = sorted(data.items(), key=lambda e: float(e[0]))[-1][
+                    1
+                ]
+
             self.reportData["file"][path] = {
-                "data": data[SysMgr.uptime],
-                "size": len(data[SysMgr.uptime]),
+                "data": lastData,
+                "size": len(lastData),
             }
 
         # check resource threshold #
