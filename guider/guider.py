@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221009"
+__revision__ = "221010"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5667,17 +5667,21 @@ class UtilMgr(object):
             return False
 
     @staticmethod
-    def sort(l):
+    def sort(l, val=None, reverse=False):
         convert = lambda text: float(text) if text.isdigit() else text
         alphanum = lambda key: [
             convert(c) for c in re.split("([-+]?[0-9]*\.?[0-9]*)", key)
         ]
 
         if type(l) is list:
-            l.sort(key=alphanum)
+            l.sort(key=alphanum, reverse=reverse)
             return l
         elif type(l) is dict:
-            return sorted(l.items(), key=lambda e: alphanum(e[0]))
+            return sorted(
+                l.items(),
+                key=lambda e: alphanum(e[1][val] if val else e[0]),
+                reverse=reverse,
+            )
         else:
             SysMgr.printWarn(
                 "failed to sort items because '%s' is not supported" % type(l),
@@ -24187,12 +24191,12 @@ Commands:
             return []
 
     @staticmethod
-    def killProcGroup(procObj, sig=None):
+    def killProcGroup(pid, sig=None):
         try:
             if not sig:
                 sig = signal.SIGINT
 
-            pgrp = os.getpgid(procObj.pid)
+            pgrp = os.getpgid(pid)
             os.killpg(pgrp, signal.SIGINT)
         except SystemExit:
             sys.exit(0)
@@ -24842,7 +24846,7 @@ Commands:
             duration = time.time() - startTime
 
         # kill subprocess group #
-        SysMgr.killProcGroup(procObj)
+        SysMgr.killProcGroup(procObj.pid)
 
         SysMgr.printInfo("elapsed %.6f for '%s'" % (duration, cmd))
 
@@ -40957,7 +40961,11 @@ Copyright:
         if SysMgr.loggingOpsEnable:
             SysMgr.printLog(log, level="WARN")
 
-        log = "\n%s" % (UtilMgr.convColor(log, "WARNING", force=True))
+        log = "\n%s" % (
+            UtilMgr.convColor(
+                log, "WARNING", force=False if SysMgr.remoteRun else True
+            )
+        )
 
         if newline:
             log = "%s\n" % log
@@ -45820,14 +45828,14 @@ Copyright:
         # init environ variables #
         SysMgr.initEnvironVars()
 
-        # print logo #
-        SysMgr.printLogo(big=True, pager=False)
-
         # increase stack depth #
         sys.setrecursionlimit(2000)
 
         # check environment #
         SysMgr.checkEnv()
+
+        # print logo #
+        SysMgr.printLogo(big=True, pager=False)
 
         # print help #
         SysMgr.printHelp()
@@ -46972,13 +46980,9 @@ Copyright:
             finally:
                 try:
                     # kill subprocess group #
-                    SysMgr.killProcGroup(procObj)
+                    SysMgr.killProcGroup(procObj.pid, signal.SIGKILL)
 
-                    time.sleep(SysMgr.waitDelay)
-
-                    # kill subprocess group #
-                    SysMgr.killProcGroup(procObj, signal.SIGKILL)
-
+                    # close socket #
                     connObj.socket.shutdown(socket.SHUT_RDWR)
                     connObj.close()
                 except:
@@ -47235,7 +47239,7 @@ Copyright:
             # get server config #
             config = SysMgr.getConfigItem("server")
             if not config:
-                return initCmds
+                return initCmds, eventHandlers
 
             SysMgr.printInfo(
                 "loaded server config from '%s'" % SysMgr.confFileName
@@ -47649,7 +47653,8 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printWarn("failed to load config", reason=True)
-            initCmds = eventHandlers = []
+            initCmds = []
+            eventHandlers = {}
 
         # import packages #
         SysMgr.getPkg("select")
@@ -54290,7 +54295,7 @@ Copyright:
                 sys.exit(-1)
 
             # kill subprocess group #
-            SysMgr.killProcGroup(procObj)
+            SysMgr.killProcGroup(procObj.pid)
 
             # get duration time #
             duration = time.time() - startTime
@@ -58580,11 +58585,12 @@ Copyright:
                 orders = ["%9s" % UtilMgr.convNum(order) for order in orders]
                 orders.append("%9s" % convSize(sum(orderSize)))
                 SysMgr.infoBufferPrint(
-                    "{0:>5} | {1:<8} | {2:<1}\n{3:1}".format(
-                        node, zone, " ".join(orders), oneLine
+                    "{0:>5} | {1:<8} | {2:<1}".format(
+                        node, zone, " ".join(orders)
                     )
                 )
                 node = ""
+            SysMgr.infoBufferPrint(oneLine)
 
     def printMmapInfo(self):
         SysMgr.infoBufferPrint("\n[Memory Map Info]\n%s" % twoLine)
@@ -58664,8 +58670,7 @@ Copyright:
                         "{0:>10} | {1:<30} | {2:>15}".format(size, stat, value)
                     )
                     size = ""
-
-            SysMgr.infoBufferPrint(twoLine)
+                SysMgr.infoBufferPrint(oneLine)
         except SystemExit:
             sys.exit(0)
         except:
@@ -58715,19 +58720,17 @@ Copyright:
                 enableStr += " | %s" % item
             SysMgr.infoBufferPrint(enableStr)
 
+        # get sched features #
+        features = SysMgr.readSchedFeatures()
+        if not features:
+            return
+
         SysMgr.infoBufferPrint("\n[Sched Feature Info]")
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
             "{0:^10} {1:<1}".format("STATUS", " | FEATURES")
         )
         SysMgr.infoBufferPrint(twoLine)
-
-        # get sched features #
-        features = SysMgr.readSchedFeatures()
-        if not features:
-            SysMgr.infoBufferPrint("\tNone")
-            SysMgr.infoBufferPrint(twoLine)
-            return
 
         # distinguish items #
         enabled = []
