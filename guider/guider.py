@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221010"
+__revision__ = "221011"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24737,8 +24737,12 @@ Commands:
         gpuStat = {}
 
         # find all clients files #
-        # targetList = UtilMgr.getFiles("/sys/kernel/debug/nvmap", ["clients"])
-        targetList = ["/sys/kernel/debug/nvmap/iovmm/clients"]
+        if "GPUALLMEM" in SysMgr.environList:
+            targetList = UtilMgr.getFiles(
+                "/sys/kernel/debug/nvmap", ["clients"]
+            )
+        else:
+            targetList = ["/sys/kernel/debug/nvmap/iovmm/clients"]
 
         for path in targetList:
             # read NVIDIA GPU memory info #
@@ -30202,6 +30206,7 @@ Examples:
 
     - {3:1} all {2:1} with GPU memory
         # {0:1} {1:1} -a -q GPUMEM
+        # {0:1} {1:1} -a -q GPUMEM, GPUALLMEM
         # {0:1} {1:1} -a -q GPUMEMSUM
 
     - {3:1} all {2:1} with GPU temperature
@@ -30343,6 +30348,9 @@ Examples:
 
     - {3:1} newly executed {2:1} with memory(USS)
         # {0:1} {1:1} -I ./a.out -e u
+
+    - {3:1} newly executed {2:1} and keep the task after termination
+        # {0:1} {1:1} -I ./a.out -q KEEPTASK
 
     - {3:1} {2:1} with unique physical memory (RSS - Text - Shm)
         # {0:1} {1:1} -q EXCEPTSHM
@@ -34808,6 +34816,9 @@ Examples:
     - {3:1} {9:1} repeatedly
         # {0:1} {1:1} ./a.out {7:1} -q REPEAT:3
 
+    - {3:1} {9:1} and keep the target process alive after termination
+        # {0:1} {1:1} ./a.out {7:1} -q KEEPTASK
+
     - {3:1} {9:1} and specific stat interval
         # {0:1} {1:1} ./a.out {7:1} -q STATINTERVAL:2
 
@@ -34822,7 +34833,7 @@ Examples:
                             "Report memory leakage hints of the target process",
                             "after hooking binary injection",
                             "when it's RSS reached the specific size",
-                            "from executing the target program",
+                            "after executing the target program",
                             "-T ./libleaktracer.so",
                             "after marking all anonymous pages as idle when SIGQUIT is received",
                             "with auto start",
@@ -38592,12 +38603,16 @@ Copyright:
         if SysMgr.exitFlag:
             os._exit(0)
 
-        # print delay #
-        SysMgr.printDelayTime()
-
         # mask signal #
         if signum:
             signal.signal(signum, signal.SIG_IGN)
+
+        # print delay #
+        SysMgr.printDelayTime()
+
+        # clear child list to keep them alive #
+        if "KEEPTASK" in SysMgr.environList:
+            SysMgr.clearChildList()
 
         # write user command #
         SysMgr.runProfCmd("STOP")
@@ -57482,6 +57497,9 @@ Copyright:
         if not hasattr(SysMgr, "exitFuncList"):
             return
 
+        # block signals #
+        SysMgr.setIgnoreSignal()
+
         # clear exit handler list #
         exitList = SysMgr.exitFuncList
         SysMgr.exitFuncList = []
@@ -57489,8 +57507,9 @@ Copyright:
             exitList += SysMgr.exitPrivateFuncList[SysMgr.pid]
             SysMgr.exitPrivateFuncList[SysMgr.pid] = []
 
-        # block signals #
-        SysMgr.setIgnoreSignal()
+        # clear child list to keep them alive #
+        if "KEEPTASK" in SysMgr.environList:
+            SysMgr.clearChildList()
 
         # call functions registered #
         for func, args in exitList:
