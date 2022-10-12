@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221011"
+__revision__ = "221012"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -148,6 +148,9 @@ class ConfigMgr(object):
         "blkio.weight_device",
         "blkio.io_wait_time",
         "blkio.throttle.io_service_bytes",
+        "cpu.pressure",
+        "memory.pressure",
+        "io.pressure",
     ]
 
     # cgroup stat #
@@ -23522,7 +23525,7 @@ class SysMgr(object):
     memLowThreshold = 100
     swapPerThreshold = 90
     diskPerHighThreshold = 90
-    fdHighThreshold = 1000
+    fdHighThreshold = 8192
 
     # print condition #
     printCond = dict(
@@ -23619,6 +23622,8 @@ class SysMgr(object):
     perfEventData = {}
     perfEventList = {}
     perfTargetEvent = []
+    psiData = {}
+    prevPsiData = {}
     ignoreItemList = []
     idList = []
     commCache = {}
@@ -23843,6 +23848,7 @@ class SysMgr(object):
     powerEnable = False
     printEnable = True
     processEnable = True
+    psiEnable = True
     pssEnable = False
     rankProcEnable = True
     recursionEnable = False
@@ -29511,6 +29517,58 @@ Commands:
         return res
 
     @staticmethod
+    def readPsiStats():
+        dpath = "/proc/pressure"
+        if not os.path.exists(dpath):
+            return {}
+
+        try:
+            stats = {}
+
+            for item in os.listdir(dpath):
+                # check type #
+                fpath = os.path.join(dpath, item)
+                if os.path.isdir(fpath):
+                    continue
+
+                # read stats #
+                values = SysMgr.readFile(fpath)
+                if not values:
+                    continue
+
+                # init resource struture #
+                stats.setdefault(item, {})
+
+                for line in values.split("\n"):
+                    if not line.strip():
+                        continue
+
+                    # parse items #
+                    target, avg10, avg60, avg300, total = line.split()[:5]
+
+                    """
+                    some: delay for at least one task
+                    full: delay for all tasks simultaneously
+                    ----------------------------------------
+                    avg: average time for seconds in %
+                    total: total time for seconds in us
+                    """
+
+                    # avg in %, total in us #
+                    stats[item][target] = {
+                        "avg10": float(avg10.split("=")[1]),
+                        "avg60": float(avg60.split("=")[1]),
+                        "avg300": float(avg300.split("=")[1]),
+                        "total": float(total.split("=")[1]),
+                    }
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get PSI stats", True)
+
+        return stats
+
+    @staticmethod
     def readSchedFeatures():
         try:
             path = "/sys/kernel/debug/sched_features"
@@ -30051,8 +30109,8 @@ Options:
           [ a:memAvailable | A:Average | b:buffer
             B:bar | c:cpu | C:clone | D:DWARF
             e:encode | E:exec | g:general | G:gpu
-            L:log | O:color | p:print | t:truncate
-            T:task | x:event ]
+            L:log | O:color | p:print | P:PSI
+            t:truncate | T:task | x:event ]
                 """
 
                 jitProfStr = """\
@@ -38427,6 +38485,7 @@ Copyright:
                 _setOpt(items, SysMgr.oomEnable, "OOM ")
                 _setOpt(items, SysMgr.perfEnable, "PERF ")
                 _setOpt(items, SysMgr.perfGroupEnable, "PERFPROC ")
+                _setOpt(items, SysMgr.psiEnable, "PSI ")
                 _setOpt(items, SysMgr.pssEnable, "PSS ")
                 _setOpt(items, SysMgr.reportEnable, "REPORT ")
                 _setOpt(items, SysMgr.reportFileEnable, "RFILE ")
@@ -42160,6 +42219,9 @@ Copyright:
 
                 if "l" in options:
                     SysMgr.latEnable = False
+
+                if "P" in options:
+                    SysMgr.psiEnable = False
 
             elif option == "c":
                 itemList = UtilMgr.splitString(value)
@@ -53044,7 +53106,11 @@ Copyright:
             # read all mount directories #
             elif SysMgr.showAll:
                 for path, value in SysMgr.sysInstance.mountInfo.items():
-                    if not path.startswith("/dev/") or "loop" in path:
+                    if (
+                        not path.startswith("/dev/")
+                        or "loop" in path
+                        or not os.path.exists(value["path"])
+                    ):
                         continue
 
                     if hasattr(os, "statvfs"):
@@ -60670,10 +60736,61 @@ Copyright:
                             sys.exit(0)
                         except:
                             value = ""
+                    # skip weight_device #
                     elif (
                         val == "blkio.weight_device" and subdir[val] == "none"
                     ):
                         value = ""
+                    # memory limit #
+                    elif val.endswith(".pressure"):
+                        try:
+                            totalstr = ""
+
+                            for item in subdir[val].split("\n"):
+                                if not item:
+                                    continue
+
+                                tempval = ""
+
+                                # parse items #
+                                items = item.split()
+                                target = items[0]
+
+                                for data in items[1:]:
+                                    name, stat = data.split("=")
+                                    stat = float(stat)
+                                    if stat > 0:
+                                        # convert us to % #
+                                        stat = float(stat)
+                                        if name == "total":
+                                            stat = stat / 10000
+                                            if stat < 0.1:
+                                                continue
+                                        elif not SysMgr.showAll:
+                                            continue
+                                        stat = "%s%%" % UtilMgr.convNum(
+                                            stat, isFloat=True
+                                        )
+                                        if name == "total":
+                                            stat = convColor(stat, "RED")
+
+                                        # add title #
+                                        if not tempval:
+                                            tempval = "[%s]" % (
+                                                convColor(target, "YELLOW")
+                                            )
+
+                                        tempval += "%s=%s," % (name, stat)
+
+                                if tempval:
+                                    totalstr += tempval.rstrip(",")
+
+                            value = totalstr
+                            if value:
+                                cname = convColor(val, "PINK")
+                        except:
+                            print(SysMgr.getErrMsg())
+                            value = ""
                     # data #
                     else:
                         value = subdir[val]
@@ -108456,6 +108573,11 @@ class TaskAnalyzer(object):
         # save GPU stat #
         self.saveGpuData()
 
+        # save PSI stat #
+        if SysMgr.psiEnable:
+            SysMgr.prevPsiData = SysMgr.psiData
+            SysMgr.psiData = SysMgr.readPsiStats()
+
         # save file data #
         if self.prevMemData:
             self.saveFileData()
@@ -111995,6 +112117,52 @@ class TaskAnalyzer(object):
                 "{0:<1}]\n".format(zoneData[:-2].rstrip()),
                 newline=zoneData.count("\n") + 1,
             )
+
+    def printPsiStat(self, nrIndent):
+        if not SysMgr.prevPsiData:
+            return
+
+        psiData = "%s [PSI > " % (" " * nrIndent)
+
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("psi", {})
+
+        for res, data in sorted(SysMgr.psiData.items()):
+            resstr = ""
+
+            if SysMgr.jsonEnable:
+                SysMgr.jsonData["psi"].setdefault(res, {})
+
+            for attr, stat in data.items():
+                # get total diff #
+                try:
+                    diff = (
+                        stat["total"] - SysMgr.prevPsiData[res][attr]["total"]
+                    )
+                    diff /= 10000.0
+                    diff /= SysMgr.uptimeDiff
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
+
+                if SysMgr.jsonEnable:
+                    SysMgr.jsonData["psi"][res][attr] = diff
+
+                if diff >= 0.1:
+                    diff = UtilMgr.convColor(
+                        "%s%%" % UtilMgr.convNum(diff, True), "RED"
+                    )
+                else:
+                    diff = "0%"
+
+                resstr += "%s(%s) / " % (attr, diff)
+
+            if resstr:
+                psiData += "[%s] %s " % (res, resstr.rstrip("/ "))
+
+        SysMgr.addPrint("{0:<1}]\n".format(psiData.rstrip()))
 
     def printIrqUsage(self, nrIndent):
         if not self.irqData:
@@ -117466,6 +117634,9 @@ class TaskAnalyzer(object):
 
             # print PMU stat #
             self.printPerfUsage(nrIndent)
+
+            # print PSI stat #
+            self.printPsiStat(nrIndent)
 
             # print system stat #
             self.printSystemUsage()
