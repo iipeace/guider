@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221012"
+__revision__ = "221013"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -566,6 +566,7 @@ class ConfigMgr(object):
         19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
         100: "MADV_HWPOISON",  # Poison a page for testing
     }
+    MADV_TYPE_REVERSE = {}
 
     # netlink type #
     NETLINK_TYPE = {
@@ -23815,6 +23816,7 @@ class SysMgr(object):
     functionEnable = False
     generalEnable = True
     gpuEnable = True
+    gpuMemEnable = True
     graphEnable = False
     groupProcEnable = False
     heapEnable = False
@@ -25845,6 +25847,14 @@ Commands:
         SysMgr.libcObj.madvise.argtypes = (POINTER(None), c_size_t, c_int)
         SysMgr.libcObj.madvise.restype = c_int
 
+        # convert page-aligned size #
+        PAGESIZE = SysMgr.PAGESIZE
+        mod = addr % PAGESIZE
+        start = addr - mod
+        end = addr + length
+        addr = start
+        length = long((end - start + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+
         return SysMgr.libcObj.madvise(addr, length, advise)
 
     @staticmethod
@@ -27444,6 +27454,7 @@ Commands:
             "fd",
             "sock",
             "task",
+            "psi",
         ]
 
         # check resources for activation #
@@ -30109,8 +30120,8 @@ Options:
           [ a:memAvailable | A:Average | b:buffer
             B:bar | c:cpu | C:clone | D:DWARF
             e:encode | E:exec | g:general | G:gpu
-            L:log | O:color | p:print | P:PSI
-            t:truncate | T:task | x:event ]
+            L:log | m:gpuMem | O:color | p:print
+            P:PSIt:truncate | T:task | x:event ]
                 """
 
                 jitProfStr = """\
@@ -30745,6 +30756,7 @@ Commands:
     load     load specific library [PATH]
     log      print specific message [MESSAGE]
     map      print memory map
+    madvise  give advise about use of memory [ADDR:LENGTH:ADVISE]
     print    print context [VAR]
     pyfile   execute specific python file [PATH:SYNC]
     pyscript execute python function [PATH:FUNC:ARGS]
@@ -31029,6 +31041,11 @@ Examples:
 
     - {5:1} {7:1} and print 10-length string from the specific address {4:1}
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0x1234:10"
+
+    - {5:1} {7:1} and call madvise {4:1}
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:3"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:DONTNEED"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:MERGEABLE"
 
     - {5:1} {7:1} and return a specific value immediately {4:1}
         # {0:1} {1:1} -g a.out -c "write|ret:3"
@@ -33214,6 +33231,11 @@ Examples:
 
     - {2:1} print 10-length string from the specific memory address
         # {0:1} {1:1} -g a.out -c "rdmem:0x1234:10"
+
+    - {2:1} call madvise
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:3"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:DONTNEED"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:MERGEABLE"
 
     - {2:1} return from the current function with a specific value immediately
         # {0:1} {1:1} -g a.out -c "ret:3"
@@ -38474,6 +38496,7 @@ Copyright:
                 _setOpt(items, SysMgr.eventHandleEnable, "EVENT ")
                 _setOpt(items, SysMgr.floatEnable, "FLOAT ")
                 _setOpt(items, SysMgr.gpuEnable, "GPU ")
+                _setOpt(items, SysMgr.gpuMemEnable, "GPUMEM ")
                 _setOpt(items, SysMgr.groupProcEnable, "PGRP ")
                 _setOpt(items, SysMgr.irqEnable, "IRQ ")
                 _setOpt(items, SysMgr.journalEnable, "JRL ")
@@ -42222,6 +42245,9 @@ Copyright:
 
                 if "P" in options:
                     SysMgr.psiEnable = False
+
+                if "m" in options:
+                    SysMgr.gpuMemEnable = False
 
             elif option == "c":
                 itemList = UtilMgr.splitString(value)
@@ -68058,6 +68084,7 @@ typedef struct {
                 "load": "PATH",
                 "log": "MESSAGE",
                 "map": "",
+                "madvise": "ADDR:LENGTH:ADVISE",
                 "print": "VAR",
                 "pyfile": "PATH:SYNC",
                 "pyscript": "PATH:FUNC:ARGS",
@@ -68426,6 +68453,52 @@ typedef struct {
                 )
 
                 _addPrint("\n[%s] EVENT_%s" % (cmdstr, name))
+
+            elif cmd == "madvise":
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                addr, length, advise = cmdset[1].split(":")
+
+                # get addr and length #
+                addr = UtilMgr.convStr2Num(addr)
+                length = UtilMgr.convStr2Num(length)
+
+                # get advise #
+                if UtilMgr.isNumber(advise):
+                    advise = UtilMgr.convStr2Num(advise)
+                else:
+                    if not ConfigMgr.MADV_TYPE_REVERSE:
+                        for name, value in ConfigMgr.MADV_TYPE.items():
+                            ConfigMgr.MADV_TYPE_REVERSE[value] = name
+
+                    name = "MADV_" + advise.upper()
+                    if name in ConfigMgr.MADV_TYPE_REVERSE:
+                        advise = ConfigMgr.MADV_TYPE_REVERSE[name]
+
+                # convert page-aligned size #
+                PAGESIZE = SysMgr.PAGESIZE
+                mod = addr % PAGESIZE
+                start = addr - mod
+                end = addr + length
+                addr = start
+                length = (
+                    long((end - start + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+                )
+
+                # call madvise #
+                ret = self.madvise(addr, length, advise)
+
+                _addPrint(
+                    "\n[%s] %s = madvise(%s, %s, %s)"
+                    % (
+                        cmdstr,
+                        ret,
+                        hex(addr),
+                        length,
+                        ConfigMgr.MADV_TYPE[advise],
+                    )
+                )
 
             elif cmd in ("proctop", "proctopg", "thrtop", "thrtopg"):
                 if len(cmdset) == 1:
@@ -70396,6 +70469,35 @@ typedef struct {
         except:
             SysMgr.printSigError(pid, "SIGSTOP")
             return -1
+
+    def madvise(self, addr, length, advise):
+        # get function address #
+        symbol = "madvise"
+        func = self.getAddrBySymbol(symbol, one=True)
+        if not func:
+            return None
+
+        # convert page-aligned size #
+        PAGESIZE = SysMgr.PAGESIZE
+        mod = addr % PAGESIZE
+        start = addr - mod
+        end = addr + length
+        addr = start
+        length = long((end - start + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+
+        # set args #
+        args = [addr, length, advise]
+
+        # call madvise #
+        ret = self.remoteUsercall(func, args)
+        if ret < 0:
+            SysMgr.printErr(
+                "failed to call madvise(%s, %s, %s) for %s(%s)"
+                % (hex(addr), length, advise, self.comm, self.pid)
+            )
+            return None
+
+        return ret
 
     def free(self, addr):
         # get function address #
@@ -112142,6 +112244,7 @@ class TaskAnalyzer(object):
                     )
                     diff /= 10000.0
                     diff /= SysMgr.uptimeDiff
+                    SysMgr.psiData[res][attr]["diff"] = diff
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -113385,7 +113488,8 @@ class TaskAnalyzer(object):
 
             # check GPU option #
             if (
-                "GPUMEM" in SysMgr.environList
+                (self.gpuMemData and SysMgr.gpuMemEnable)
+                or "GPUMEM" in SysMgr.environList
                 or "GPUMEMSUM" in SysMgr.environList
             ):
                 sidType = "GPU"
@@ -113981,7 +114085,11 @@ class TaskAnalyzer(object):
                     prtd = "-"
 
             # GPU memory usage #
-            if isGpuMem or isGpuMemSum:
+            if (
+                (SysMgr.gpuMemEnable and self.gpuMemData)
+                or isGpuMem
+                or isGpuMemSum
+            ):
                 if idx in self.gpuMemData:
                     yld = convColor(
                         self.gpuMemData[idx]["size"] >> memFactorMB, "CYAN", 5
@@ -116139,7 +116247,7 @@ class TaskAnalyzer(object):
         except:
             pass
 
-        # check fd #
+        # check socket #
         try:
             if not "sock" in SysMgr.thresholdTarget:
                 raise Exception()
@@ -116148,6 +116256,33 @@ class TaskAnalyzer(object):
             for item in items:
                 intval = _getIntval(item)
                 self.checkThreshold("sock", item, "SOCK", "big", intval=intval)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check PSI #
+        try:
+            if not "psi" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            resList = ["cpu", "memory", "io"]
+            attrList = ["some", "full"]
+            statList = ["avg10", "avg60", "avg300", "diff"]
+            for res in resList:
+                for attr in attrList:
+                    for stat in statList:
+                        try:
+                            name = "%s-%s" % (attr, stat)
+                            target = self.reportData["psi"][res][name]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            continue
+
+                        self.checkThreshold(
+                            "psi", name, "psi", "big", target=target, attr=res
+                        )
         except SystemExit:
             sys.exit(0)
         except:
@@ -117176,6 +117311,17 @@ class TaskAnalyzer(object):
                         evtdata[rank]["status"] = status
 
                         rank += 1
+
+        # add PSI data #
+        if SysMgr.psiData:
+            self.reportData.setdefault("psi", {})
+            for res, data in SysMgr.psiData.items():
+                self.reportData["psi"].setdefault(res, {})
+                for attr, vals in data.items():
+                    for stat, val in vals.items():
+                        self.reportData["psi"][res][
+                            "%s-%s" % (attr, stat)
+                        ] = val
 
         # add file data #
         for path, data in TaskAnalyzer.fileIntData.items():
