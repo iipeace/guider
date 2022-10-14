@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221013"
+__revision__ = "221014"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24670,42 +24670,61 @@ Commands:
         return newList
 
     @staticmethod
-    def getGpuMem():
+    def getGpuMem(incAll=False):
         if SysMgr.gpuMemGetters is None:
             SysMgr.gpuMemGetters = [
                 SysMgr.getNvGpuMem,  # nvidia #
                 SysMgr.getMaliGpuMem,  # mali #
             ]
 
-        res = {}
+        totalStat = {}
+        memStat = {}
         removeList = []
         getters = SysMgr.gpuMemGetters
 
         for func in getters:  # pylint: disable=not-an-iterable
-            ret = func()
-            if ret:
-                # merge size #
-                for item in ret:
-                    if item in res:
-                        res[item]["size"] += ret[item]["size"]
+            gpuStat, procStat = func(incAll)
+
+            # merge total size #
+            if gpuStat:
+                for item in gpuStat:
+                    if item in totalStat:
+                        totalStat[item]["size"] += gpuStat[item]["size"]
                     else:
-                        res[item] = ret[item]
+                        totalStat[item] = gpuStat[item]
             else:
                 removeList.append(func)
+
+            # merge per-type size #
+            for pid, data in procStat.items():
+                memStat.setdefault(pid, {})
+                for mtype, size in data.items():
+                    memStat[pid].setdefault(mtype, 0)
+                    memStat[pid][mtype] += size
+
+        # set total size of each process #
+        for pid, data in memStat.items():
+            total = 0
+            for size in data.values():
+                total += size
+            memStat[pid]["TOTAL"] = total
 
         # remove invalid getters #
         if removeList:
             SysMgr.gpuMemGetters = list(set(getters) - set(removeList))
 
-        return res
+        return totalStat, memStat
 
     @staticmethod
-    def getMaliGpuMem():
+    def getMaliGpuMem(incAll=False):
+        gpuStat = {}
+        procStat = {}
+
         # read Mali GPU memory info #
         try:
             path = "/sys/kernel/debug/mali/gpu_memory"
             if not os.path.exists(path):
-                return
+                return gpuStat, procStat
 
             with open(path, "rb") as fd:
                 gpuInfo = fd.readlines()[2:]
@@ -24713,9 +24732,7 @@ Commands:
             sys.exit(0)
         except:
             SysMgr.printOpenWarn(path)
-            return
-
-        gpuStat = {}
+            return gpuStat, procStat
 
         # parse per-process memory info #
         for item in gpuInfo:
@@ -24738,17 +24755,25 @@ Commands:
             # save stat #
             gpuStat.setdefault(pid, {"comm": comm, "size": long(mali)})
 
-        return gpuStat
+            # save stat to per-process list #
+            if incAll:
+                procStat.setdefault(pid, {})
+                procStat[pid]["mali"] = long(mali)
+                procStat[pid]["extern"] = long(extern)
+                procStat[pid]["ump"] = long(ump)
+                procStat[pid]["dma"] = long(dma)
+
+        return gpuStat, procStat
 
     @staticmethod
-    def getNvGpuMem():
+    def getNvGpuMem(incAll=False):
         gpuStat = {}
+        procStat = {}
+        commonPath = "/sys/kernel/debug/nvmap/"
 
         # find all clients files #
-        if "GPUALLMEM" in SysMgr.environList:
-            targetList = UtilMgr.getFiles(
-                "/sys/kernel/debug/nvmap", ["clients"]
-            )
+        if incAll or "GPUALLMEM" in SysMgr.environList:
+            targetList = UtilMgr.getFiles(commonPath, ["clients"])
         else:
             targetList = ["/sys/kernel/debug/nvmap/iovmm/clients"]
 
@@ -24762,6 +24787,9 @@ Commands:
             except:
                 SysMgr.printOpenWarn(path)
                 continue
+
+            # get memory type #
+            mtype = UtilMgr.lstrip(path, commonPath).rsplit("/", 1)[0]
 
             # parse per-process memory info #
             for item in gpuInfo:
@@ -24785,7 +24813,12 @@ Commands:
                 gpuStat.setdefault(pid, {"comm": comm, "size": 0})
                 gpuStat[pid]["size"] += size
 
-        return gpuStat
+                # save stat to per-process list #
+                if incAll:
+                    procStat.setdefault(pid, {})
+                    procStat[pid][mtype] = size
+
+        return gpuStat, procStat
 
     @staticmethod
     def execSshCmd(cmd, addr, port=22, user="root", passwd=None):
@@ -34638,6 +34671,11 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20@"*yes*|a.out"
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
+
+    - {2:1} with the cpu set limitation using cgroup
+        # {0:1} {1:1} -I "a.out" -q LIMITCPUSET:1
+        # {0:1} {1:1} -I "a.out" -q LIMITCPUSET:"1-2"@"*yes*|a.out"
+        # {0:1} {1:1} -I "a.out" -q LIMITCPUSET:"1-2&4"@"*yes*|a.out"
 
     - {2:1} with the memory limitation using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITMEM:50M
@@ -61442,7 +61480,7 @@ Copyright:
 
     def printGpuMemInfo(self):
         # get per-process GPU memory info #
-        gpuInfo = SysMgr.getGpuMem()
+        gpuInfo, procInfo = SysMgr.getGpuMem(incAll=True)
         if not gpuInfo:
             return
 
@@ -61453,39 +61491,53 @@ Copyright:
             SysMgr.jsonData["general"].setdefault("gpumem", {})
             jsonData = SysMgr.jsonData["general"]["gpumem"]
 
-        # print GPU Memory info #
-        SysMgr.infoBufferPrint("\n[System GPU Memory Info]")
-        SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint(
-            "{0:^32} | {1:^16} |\n{2:1}".format("Process", "Size", oneLine)
-        )
+        # merge all types #
+        mtypes = set()
+        for types in procInfo.values():
+            mtypes = mtypes | set(types)
+        mtypes.discard("TOTAL")
+        mtypes = list(mtypes)
 
-        total = 0
+        # set default title string #
+        title = "{0:^32} | {1:^16} |".format("Process", "TOTAL")
+        for mtype in mtypes:
+            title += " {0:^16} |".format(mtype)
+
+        # print GPU Memory info #
+        SysMgr.infoBufferPrint("\n[System GPU Memory Info]\n%s" % twoLine)
+        SysMgr.infoBufferPrint("%s\n%s" % (title, oneLine))
+
         for pid, item in sorted(
-            gpuInfo.items(), key=lambda e: e[1]["size"], reverse=True
+            procInfo.items(), key=lambda e: e[1]["TOTAL"], reverse=True
         ):
             if pid == "0":
                 continue
 
-            # get size #
-            size = item["size"]
-            total += size
-
-            # reconvert size to unit #
-            size = UtilMgr.convSize2Unit(size)
-
-            proc = "%s(%s)" % (item["comm"], pid)
+            proc = "%s(%s)" % (SysMgr.getComm(pid), pid)
 
             if SysMgr.jsonEnable:
-                jsonData.setdefault(proc, size)
+                jsonData.setdefault(proc, {})
 
-            SysMgr.infoBufferPrint("{0:>32} | {1:>16} |".format(proc, size))
-
-        SysMgr.infoBufferPrint(
-            "{2:1}\n{0:^32} | {1:>16} |".format(
-                "TOTAL", UtilMgr.convSize2Unit(total), oneLine
+            pstr = "{0:>32} | {1:>16} |".format(
+                proc, UtilMgr.convSize2Unit(item["TOTAL"])
             )
-        )
+
+            for mtype in mtypes:
+                if mtype in item:
+                    size = item[mtype]
+                else:
+                    size = 0
+
+                # reconvert size to unit #
+                if size:
+                    size = UtilMgr.convSize2Unit(size)
+
+                    if SysMgr.jsonEnable:
+                        jsonData[proc].setdefault(mtype, size)
+
+                pstr += " {0:>16} |".format(size if size else " ")
+
+            SysMgr.infoBufferPrint(pstr)
 
         SysMgr.infoBufferPrint(oneLine)
 
@@ -108575,7 +108627,7 @@ class TaskAnalyzer(object):
             self.saveVmInfo()
 
         # save GPU memory info #
-        self.gpuMemData = SysMgr.getGpuMem()
+        self.gpuMemData, _ = SysMgr.getGpuMem()
 
         # read vmstat buf #
         # vmstat list from https://access.redhat.com/solutions/406773 #
