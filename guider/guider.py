@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221014"
+__revision__ = "221015"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28233,12 +28233,27 @@ Commands:
 
     @staticmethod
     def getExeCmd(pid):
-        cmd = SysMgr.getCmdline(pid, retList=True)[:2]
-        if cmd[1][0] != "/":
+        # get execute command for Guider #
+        cmd = SysMgr.getCmdline(pid, retList=True)
+        if len(cmd) < 2:
+            return cmd
+
+        # executed by -m option #
+        if cmd[1] == "-m":
+            return cmd[:3]
+
+        # TODO: support packaged executable binary #
+
+        # executed by source path #
+        cmd = cmd[:2]
+
+        # convert relative path to absolute path for source file #
+        if not cmd[-1].startswith("/"):
             pwd = SysMgr.getPwd(pid)
-            if not pwd:
-                pwd = ""
-            cmd[1] = os.path.realpath(os.path.join(pwd, cmd[1]))
+            cmd[-1] = os.path.realpath(
+                os.path.join(pwd if pwd else "", cmd[-1])
+            )
+
         return cmd
 
     @staticmethod
@@ -29772,10 +29787,14 @@ Commands:
             if len(sys.argv) == 1:
                 pass
             elif not _checkMode():
-                SysMgr.printErr(
-                    "'%s' is not supported on '%s' platform"
-                    % (sys.argv[1], sys.platform)
-                )
+                SysMgr.colorEnable = False
+                if sys.argv[1] in SysMgr.getCmdSet():
+                    SysMgr.printErr(
+                        "'%s' is not supported on '%s' platform"
+                        % (sys.argv[1], sys.platform)
+                    )
+                else:
+                    SysMgr.printErr("no command '%s'" % sys.argv[1])
                 sys.exit(-1)
 
             # set default SIGINT handler #
@@ -29793,10 +29812,13 @@ Commands:
             if len(sys.argv) == 1:
                 pass
             elif not _checkMode():
-                SysMgr.printErr(
-                    "'%s' is not supported on '%s' platform"
-                    % (sys.argv[1], sys.platform)
-                )
+                if sys.argv[1] in SysMgr.getCmdSet():
+                    SysMgr.printErr(
+                        "'%s' is not supported on '%s' platform"
+                        % (sys.argv[1], sys.platform)
+                    )
+                else:
+                    SysMgr.printErr("no command '%s'" % sys.argv[1])
                 sys.exit(-1)
 
             # set color flag #
@@ -29883,6 +29905,13 @@ Commands:
             UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCount)
 
         SysMgr.progressCnt += 1
+
+    @staticmethod
+    def getCmdSet():
+        cmdSet = []
+        for types in SysMgr.getCmdList().values():
+            cmdSet += types.keys()
+        return set(cmdSet)
 
     @staticmethod
     def getCmdString():
@@ -38055,7 +38084,7 @@ Copyright:
         except:
             code = ""
 
-        errstr = " ".join(list(map(str, err.args)))
+        errstr = " ".join([str(item) for item in err.args if item is not None])
         return "%s%s%s" % (code, errstr, linestr)
 
     def disableAllEvents(self):
@@ -38737,16 +38766,16 @@ Copyright:
         # write user command #
         SysMgr.runProfCmd("STOP")
 
-        # handle signal #
+        # JSON output #
         if SysMgr.jsonEnable:
             sys.exit(0)
-
+        # filerec mode #
         elif SysMgr.checkMode("filerec") and not SysMgr.intervalEnable:
             sys.exit(0)
-
+        # ftop or system mode #
         elif SysMgr.isFileMode() or SysMgr.isSystemMode():
             SysMgr.condExit = True
-
+        # top or trace mode #
         elif SysMgr.isTopMode() or SysMgr.isTraceMode():
             # skip summary for Debugger #
             if Debugger.dbgInstance:
@@ -38883,7 +38912,9 @@ Copyright:
 
             # do terminate #
             os._exit(0)
-
+        elif not SysMgr.isLinux:
+            sys.exit(0)
+        # recording mode #
         else:
             # write trace message #
             SysMgr.writeEvent("EVENT_STOP", False)
@@ -40168,9 +40199,14 @@ Copyright:
 
     @staticmethod
     def writeEvent(message, show=True):
+        if not SysMgr.isLinux:
+            return
+
         # check mount path #
         if not SysMgr.mountPath:
             SysMgr.mountPath = SysMgr.getDebugfsPath()
+            if not SysMgr.mountPath:
+                return
 
         # check trace file #
         if not SysMgr.eventLogFd:
@@ -41145,14 +41181,18 @@ Copyright:
         if SysMgr.loggingOpsEnable:
             SysMgr.printLog(log, level="ERROR")
 
-        log = "\n%s\n" % (UtilMgr.convColor(log, "FAIL", force=True))
+        log = "\n%s\n" % (
+            UtilMgr.convColor(
+                log, "FAIL", force=False if SysMgr.remoteRun else True
+            )
+        )
 
         # write log to stdout #
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
 
         # write log to stderr #
-        if "REMOTERUN" in os.environ:
+        if SysMgr.remoteRun:
             print(log.replace("\n", ""))
         else:
             SysMgr.writeErr(SysMgr.stderr, log)
@@ -41196,7 +41236,9 @@ Copyright:
             SysMgr.printLog(log)
 
         # color #
-        log = UtilMgr.convColor(log, "BOLD", force=True)
+        log = UtilMgr.convColor(
+            log, "BOLD", force=False if SysMgr.remoteRun else True
+        )
         try:
             log = prefix + log
         except SystemExit:
@@ -41231,7 +41273,11 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         log = "%s%s%s" % ("[INFO] ", proc, line)
-        log = "\n%s" % (UtilMgr.convColor(log, "OKGREEN", force=True))
+        log = "\n%s" % (
+            UtilMgr.convColor(
+                log, "OKGREEN", force=False if SysMgr.remoteRun else True
+            )
+        )
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -41246,7 +41292,11 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         log = "%s%s" % (proc, line)
-        log = "\n%s" % (UtilMgr.convColor(log, "UNDERLINE", force=True))
+        log = "\n%s" % (
+            UtilMgr.convColor(
+                log, "UNDERLINE", force=False if SysMgr.remoteRun else True
+            )
+        )
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -41266,7 +41316,11 @@ Copyright:
         if SysMgr.loggingOpsEnable:
             SysMgr.printLog(log)
 
-        log = "\n%s" % (UtilMgr.convColor(log, "SPECIAL", force=True))
+        log = "\n%s" % (
+            UtilMgr.convColor(
+                log, "SPECIAL", force=False if SysMgr.remoteRun else True
+            )
+        )
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -45488,7 +45542,7 @@ Copyright:
             or SysMgr.checkMode("rtop")
             or SysMgr.checkMode("btop")
             or not SysMgr.selectEnable
-            or "REMOTERUN" in os.environ
+            or SysMgr.remoteRun
         ):
             return
 
@@ -57455,6 +57509,9 @@ Copyright:
 
     @staticmethod
     def getDebugfsPath():
+        if not SysMgr.isLinux:
+            return None
+
         try:
             lines = SysMgr.procReadlines("mounts")
         except:
