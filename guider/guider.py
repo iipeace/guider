@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221015"
+__revision__ = "221016"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28238,13 +28238,13 @@ Commands:
         if len(cmd) < 2:
             return cmd
 
-        # executed by -m option #
+        # executed using modbule with -m option #
         if cmd[1] == "-m":
             return cmd[:3]
 
         # TODO: support packaged executable binary #
 
-        # executed by source path #
+        # executed using source path #
         cmd = cmd[:2]
 
         # convert relative path to absolute path for source file #
@@ -29705,6 +29705,7 @@ Commands:
                 "drawreq",
                 "exec",
                 "flush",
+                "fserver",
                 "iotest",
                 "list",
                 "mkcache",
@@ -30078,6 +30079,7 @@ Commands:
             "network": {
                 "cli": ("Client", "Linux/MacOS/Windows"),
                 "event": ("Event", "Linux"),
+                "fserver": ("File", "Linux/MacOS/Windows"),
                 "list": ("List", "Linux/MacOS/Windows"),
                 "send": ("Signal", "Linux"),
                 "server": ("Server", "Linux/MacOS"),
@@ -36172,6 +36174,61 @@ Examples:
         # {0:1} {1:1} CMD_ENABLE:LOG
                     """.format(
                         cmd, mode, "to all Guider processes"
+                    )
+
+                # fserver #
+                elif SysMgr.checkMode("fserver"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Run file server
+
+Options:
+    -x  <IP:PORT>               set local address
+    -X  <IP:PORT>               set agent address
+    -I  <DIR>                   set default path
+    -u                          run in the background
+    -C  <PATH>                  set config path
+    -E  <DIR>                   set cache dir path
+    -q  <NAME{{:VALUE}}>          set environment variables
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Run server in background
+        # {0:1} {1:1} -u
+
+    - {2:1} specific local address
+        # {0:1} {1:1} -x 127.0.0.1:5556
+
+    - Run server and register to the agent as a service node
+        # {0:1} {1:1} -X 127.0.0.1:3456
+        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIIP:127.0.0.1, CLIPORT:12345
+        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-12399
+        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-
+
+    - {2:1} configuration
+        # {0:1} {1:1} -C
+        # {0:1} {1:1} -C guider.conf
+
+    - {2:1} no timeout
+        # {0:1} {1:1} -q NOTIMEOUT
+
+    - {2:1} specific timeout
+        # {0:1} {1:1} -q TIMEOUT:1.5
+
+    - {2:1} specific read chunk size for command process
+        # {0:1} {1:1} -q READCHUNK:4096
+
+    - {2:1} no output for remote request
+        # {0:1} {1:1} -q QUIET
+                    """.format(
+                        cmd, mode, "{2:1}"
                     )
 
                 # server #
@@ -43420,6 +43477,10 @@ Copyright:
         elif SysMgr.checkMode("server"):
             SysMgr.runServerMode()
 
+        # FSERVER MODE #
+        elif SysMgr.checkMode("fserver"):
+            SysMgr.runFileServerMode()
+
         # CLIENT MODE #
         elif SysMgr.checkMode("cli"):
             SysMgr.runClientMode()
@@ -46840,6 +46901,74 @@ Copyright:
         signal.signal(signal.SIGINT, SysMgr.stopHandler)
         signal.signal(signal.SIGQUIT, SysMgr.newHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+
+    @staticmethod
+    def getServerPkg():
+        if sys.version_info >= (3, 0, 0):
+            return SysMgr.getPkg("http.server")
+        else:
+            return SysMgr.getPkg("SimpleHTTPServer")
+
+    @staticmethod
+    def runFileServerMode():
+        # run file server using HTTP #
+        SysMgr.runHttpServer(SysMgr.getServerPkg().SimpleHTTPRequestHandler)
+
+    @staticmethod
+    def runHttpServer(handler):
+        # get socketserver #
+        if sys.version_info >= (3, 0, 0):
+            socketserver = SysMgr.getPkg("socketserver")
+        else:
+            socketserver = SysMgr.getPkg("SocketServer")
+
+        # set IP and port #
+        if SysMgr.localServObj:
+            ip = SysMgr.localServObj.ip
+            port = SysMgr.localServObj.port
+        else:
+            ip = ""
+            port = 8080
+
+        # set default path #
+        if SysMgr.inputParam:
+            try:
+                defaultPath = SysMgr.inputParam
+                os.chdir(defaultPath)
+            except:
+                SysMgr.printErr(
+                    "failed to set default dir path to '%s'" % defaultPath,
+                    True,
+                )
+                sys.exit(0)
+        else:
+            defaultPath = "."
+        defaultPath = os.path.realpath(defaultPath)
+
+        # start TCP server #
+        try:
+            httpd = socketserver.TCPServer((ip, port), handler)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to create a TCP server", True)
+            sys.exit(0)
+
+        SysMgr.printInfo(
+            "start a HTTP server from '%s' using %s:%s"
+            % (defaultPath, ip if ip else "localhost", port)
+        )
+
+        # start HTTP handling #
+        try:
+            httpd.serve_forever()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to serve a HTTP server", True)
+            sys.exit(0)
+        finally:
+            httpd.server_close()
 
     @staticmethod
     def runServerMode():
