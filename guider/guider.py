@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221016"
+__revision__ = "221017"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8228,7 +8228,7 @@ class NetworkMgr(object):
             self.sendSize = self.socket.getsockopt(SOL_SOCKET, SO_SNDBUF)
             self.recvSize = self.socket.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
-            # set REUSEADDR #
+            # set REUSEADDR flag #
             if reuse:
                 self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 
@@ -29706,6 +29706,7 @@ Commands:
                 "exec",
                 "flush",
                 "fserver",
+                "hserver",
                 "iotest",
                 "list",
                 "mkcache",
@@ -30080,9 +30081,10 @@ Commands:
                 "cli": ("Client", "Linux/MacOS/Windows"),
                 "event": ("Event", "Linux"),
                 "fserver": ("File", "Linux/MacOS/Windows"),
+                "hserver": ("Http", "Linux/MacOS/Windows"),
                 "list": ("List", "Linux/MacOS/Windows"),
                 "send": ("Signal", "Linux"),
-                "server": ("Server", "Linux/MacOS"),
+                "server": ("TCP", "Linux/MacOS"),
                 "start": ("Signal", "Linux"),
             },
             "test": {
@@ -36176,14 +36178,18 @@ Examples:
                         cmd, mode, "to all Guider processes"
                     )
 
-                # fserver #
-                elif SysMgr.checkMode("fserver"):
+                # server / fserver / hserver #
+                elif (
+                    SysMgr.checkMode("server")
+                    or SysMgr.checkMode("fserver")
+                    or SysMgr.checkMode("hserver")
+                ):
                     helpStr = """
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Run file server
+    Run server
 
 Options:
     -x  <IP:PORT>               set local address
@@ -36206,7 +36212,7 @@ Examples:
     - {2:1} specific local address
         # {0:1} {1:1} -x 127.0.0.1:5556
 
-    - Run server and register to the agent as a service node
+    - Run file server and register to the agent as a service node
         # {0:1} {1:1} -X 127.0.0.1:3456
         # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIIP:127.0.0.1, CLIPORT:12345
         # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-12399
@@ -36228,61 +36234,14 @@ Examples:
     - {2:1} no output for remote request
         # {0:1} {1:1} -q QUIET
                     """.format(
-                        cmd, mode, "{2:1}"
-                    )
-
-                # server #
-                elif SysMgr.checkMode("server"):
-                    helpStr = """
-Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
-
-Description:
-    Run server
-
-Options:
-    -x  <IP:PORT>               set local address
-    -X  <IP:PORT>               set agent address
-    -u                          run in the background
-    -C  <PATH>                  set config path
-    -E  <DIR>                   set cache dir path
-    -q  <NAME{{:VALUE}}>          set environment variables
-    -v                          verbose
-                        """.format(
-                        cmd, mode
-                    )
-
-                    helpStr += """
-Examples:
-    - Run server in background
-        # {0:1} {1:1} -u
-
-    - {2:1} specific local address
-        # {0:1} {1:1} -x 127.0.0.1:5556
-
-    - Run server and register to the agent as a service node
-        # {0:1} {1:1} -X 127.0.0.1:3456
-        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIIP:127.0.0.1, CLIPORT:12345
-        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-12399
-        # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-
-
-    - {2:1} configuration
-        # {0:1} {1:1} -C
-        # {0:1} {1:1} -C guider.conf
-
-    - {2:1} no timeout
-        # {0:1} {1:1} -q NOTIMEOUT
-
-    - {2:1} specific timeout
-        # {0:1} {1:1} -q TIMEOUT:1.5
-
-    - {2:1} specific read chunk size for command process
-        # {0:1} {1:1} -q READCHUNK:4096
-
-    - {2:1} no output for remote request
-        # {0:1} {1:1} -q QUIET
-                    """.format(
-                        cmd, mode, "{2:1}"
+                        cmd,
+                        mode,
+                        "Run %s"
+                        % {
+                            "server": "server",
+                            "fserver": "file server",
+                            "hserver": "HTTP server",
+                        }[mode],
                     )
 
                 # client #
@@ -43481,6 +43440,10 @@ Copyright:
         elif SysMgr.checkMode("fserver"):
             SysMgr.runFileServerMode()
 
+        # HSERVER MODE #
+        elif SysMgr.checkMode("hserver"):
+            SysMgr.runHttpServerMode()
+
         # CLIENT MODE #
         elif SysMgr.checkMode("cli"):
             SysMgr.runClientMode()
@@ -46337,7 +46300,7 @@ Copyright:
             return -1
 
     @staticmethod
-    def executeCommandRes(cmd, stdout=1, stderr=True):
+    def executeCommandSync(cmd, stdout=1, stderr=True):
         # create pipe #
         rd, wr = os.pipe()
 
@@ -46910,6 +46873,70 @@ Copyright:
             return SysMgr.getPkg("SimpleHTTPServer")
 
     @staticmethod
+    def runHttpServerMode():
+        # get server package #
+        server = SysMgr.getServerPkg()
+
+        class requestHandler(server.SimpleHTTPRequestHandler):
+            def do_GET(self):
+                # handle path #
+                if self.path == "/":
+                    pass
+
+                # set response #
+                self.send_response(200)
+
+                # set header #
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+
+                # extract query param #
+                try:
+                    urllib = SysMgr.getPkg("urllib", isExit=False)
+                    urlParse = urllib.parse
+                    queryList = urlParse.parse_qs(
+                        urlParse.urlparse(self.path).query
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # make HTML string #
+                html = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hello, Guider!</title>
+  <style>
+    #rectangle {
+      height: 50px;
+      width: 100px;
+      background-color: #00f28f;
+    }
+  </style>
+</head>
+<body>
+  <h2>Hello, Guider!</h2>
+  <div id="rectangle"></div>
+</body>
+</html>
+		"""
+
+                # TODO: add executing worker process and redirecting #
+
+                # write the HTML contents with UTF-8 #
+                self.wfile.write(bytes(html, "utf8"))
+
+                return
+
+                # attach file explorer #
+                return server.SimpleHTTPRequestHandler.do_GET(self)
+
+        # run server using HTTP #
+        SysMgr.runHttpServer(requestHandler)
+
+    @staticmethod
     def runFileServerMode():
         # run file server using HTTP #
         SysMgr.runHttpServer(SysMgr.getServerPkg().SimpleHTTPRequestHandler)
@@ -46945,8 +46972,15 @@ Copyright:
             defaultPath = "."
         defaultPath = os.path.realpath(defaultPath)
 
+        # disable logger guide #
+        try:
+            sys.stderr.notified = True
+        except:
+            pass
+
         # start TCP server #
         try:
+            socketserver.TCPServer.allow_reuse_address = True
             httpd = socketserver.TCPServer((ip, port), handler)
         except SystemExit:
             sys.exit(0)
