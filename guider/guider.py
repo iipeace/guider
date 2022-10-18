@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221017"
+__revision__ = "221018"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23994,6 +23994,11 @@ Commands:
         LogMgr.unlock(fd)
 
     @staticmethod
+    def setRemoteEnv():
+        for item in ("REMOTERUN", "NO_ENCODE", "MAXTTY"):
+            os.environ[item] = "1"
+
+    @staticmethod
     def setErrorLogger():
         if SysMgr.isLinux:
             sys.stderr = LogMgr()
@@ -24857,7 +24862,7 @@ Commands:
         # save start time #
         startTime = time.time()
 
-        # create process to communicate #
+        # create a new worker process #
         procObj = subprocess.Popen(
             cmdList,
             stdout=subprocess.PIPE,
@@ -24868,7 +24873,7 @@ Commands:
             env=env,
         )
 
-        # run mainloop #
+        # handle output #
         try:
             select = SysMgr.getPkg("select")
             while 1:
@@ -36206,7 +36211,7 @@ Options:
 
                     helpStr += """
 Examples:
-    - Run server in background
+    - {2:1} in background
         # {0:1} {1:1} -u
 
     - {2:1} specific local address
@@ -36233,6 +36238,9 @@ Examples:
 
     - {2:1} no output for remote request
         # {0:1} {1:1} -q QUIET
+
+    - {2:1} in parallel mode
+        # {0:1} {1:1} -q PARALLEL
                     """.format(
                         cmd,
                         mode,
@@ -46866,18 +46874,39 @@ Copyright:
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
     @staticmethod
-    def getServerPkg():
+    def getServerPkg(parallel=False):
         if sys.version_info >= (3, 0, 0):
             return SysMgr.getPkg("http.server")
         else:
-            return SysMgr.getPkg("SimpleHTTPServer")
+            if parallel:
+                return SysMgr.getPkg("BaseHTTPServer")
+            else:
+                return SysMgr.getPkg("SimpleHTTPServer")
 
     @staticmethod
     def runHttpServerMode():
-        # get server package #
-        server = SysMgr.getServerPkg()
+        # set environment variables #
+        SysMgr.setRemoteEnv()
 
-        class requestHandler(server.SimpleHTTPRequestHandler):
+        # get subprocess object #
+        subprocess = SysMgr.getPkg("subprocess")
+
+        # set parallel mode #
+        if "PARALLEL" in SysMgr.environList:
+            parallel = True
+        else:
+            parallel = False
+
+        # get server package #
+        server = SysMgr.getServerPkg(parallel)
+
+        # set handler #
+        if parallel:
+            handler = server.BaseHTTPRequestHandler
+        else:
+            handler = server.SimpleHTTPRequestHandler
+
+        class requestHandler(handler):
             def do_GET(self):
                 # handle path #
                 if self.path == "/":
@@ -46887,7 +46916,8 @@ Copyright:
                 self.send_response(200)
 
                 # set header #
-                self.send_header("Content-type", "text/html")
+                self.send_header("Content-type", "text/plain")
+                # self.send_header("Content-type", "text/html")
                 self.end_headers()
 
                 # extract query param #
@@ -46901,6 +46931,46 @@ Copyright:
                     sys.exit(0)
                 except:
                     pass
+
+                # set temporary command #
+                cmd = " ".join(SysMgr.getExeCmd(SysMgr.pid)) + " help"
+
+                # launch a command #
+                try:
+                    procObj = None
+
+                    # create a new worker process #
+                    procObj = subprocess.Popen(
+                        cmd,
+                        shell=True,
+                        bufsize=0,
+                        stdout=self.wfile,
+                        stderr=self.wfile,
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to create a new process to execute '%s'" % cmd
+                    )
+                    return
+
+                # wait for worker process #
+                try:
+                    if procObj:
+                        procObj.wait()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to wait termination for '%s'" % cmd, True
+                    )
+                finally:
+                    # kill subprocess group #
+                    if procObj:
+                        SysMgr.killProcGroup(procObj.pid)
+
+                return
 
                 # make HTML string #
                 html = """
@@ -46923,26 +46993,42 @@ Copyright:
 </html>
 		"""
 
-                # TODO: add executing worker process and redirecting #
-
                 # write the HTML contents with UTF-8 #
                 self.wfile.write(bytes(html, "utf8"))
 
                 return
 
                 # attach file explorer #
-                return server.SimpleHTTPRequestHandler.do_GET(self)
+                return handler.do_GET(self)
 
         # run server using HTTP #
-        SysMgr.runHttpServer(requestHandler)
+        SysMgr.runHttpServer(requestHandler, parallel)
 
     @staticmethod
     def runFileServerMode():
+        # set environment variables #
+        SysMgr.setRemoteEnv()
+
+        # set parallel mode #
+        if "PARALLEL" in SysMgr.environList:
+            parallel = True
+        else:
+            parallel = False
+
+        # get server package #
+        server = SysMgr.getServerPkg(parallel)
+
+        # set handler #
+        if parallel:
+            handler = server.BaseHTTPRequestHandler
+        else:
+            handler = server.SimpleHTTPRequestHandler
+
         # run file server using HTTP #
-        SysMgr.runHttpServer(SysMgr.getServerPkg().SimpleHTTPRequestHandler)
+        SysMgr.runHttpServer(handler, parallel)
 
     @staticmethod
-    def runHttpServer(handler):
+    def runHttpServer(handler, parallel=False):
         # get socketserver #
         if sys.version_info >= (3, 0, 0):
             socketserver = SysMgr.getPkg("socketserver")
@@ -46980,8 +47066,19 @@ Copyright:
 
         # start TCP server #
         try:
-            socketserver.TCPServer.allow_reuse_address = True
-            httpd = socketserver.TCPServer((ip, port), handler)
+            if parallel:
+                # get server package #
+                server = SysMgr.getServerPkg(parallel)
+
+                class ThreadedHTTPServer(
+                    socketserver.ThreadingMixIn, server.HTTPServer
+                ):
+                    pass
+
+                httpd = ThreadedHTTPServer((ip, port), handler)
+            else:
+                socketserver.TCPServer.allow_reuse_address = True
+                httpd = socketserver.TCPServer((ip, port), handler)
         except SystemExit:
             sys.exit(0)
         except:
@@ -46989,8 +47086,13 @@ Copyright:
             sys.exit(0)
 
         SysMgr.printInfo(
-            "start a HTTP server from '%s' using %s:%s"
-            % (defaultPath, ip if ip else "localhost", port)
+            "start a HTTP server in %s mode from '%s' using %s:%s"
+            % (
+                "parallel" if parallel else "sequential",
+                defaultPath,
+                ip if ip else "localhost",
+                port,
+            )
         )
 
         # start HTTP handling #
@@ -47264,7 +47366,7 @@ Copyright:
                 else:
                     procOut = open(SysMgr.nullPath, "wb")
 
-                # create process to communicate #
+                # create a new worker process #
                 procObj = subprocess.Popen(
                     value,
                     shell=True,
@@ -47295,7 +47397,7 @@ Copyright:
                 else:
                     readChunkSize = None
 
-                # run mainloop #
+                # handle output #
                 while 1:
                     try:
                         # wait for event #
@@ -47982,6 +48084,9 @@ Copyright:
 
         # start server mode #
         SysMgr.printInfo("SERVER MODE")
+
+        # set environment variables #
+        SysMgr.setRemoteEnv()
 
         # set default logger #
         if not SysMgr.stdlog:
@@ -54626,7 +54731,7 @@ Copyright:
             else:
                 stderr = None
 
-            # create process to communicate #
+            # create a new worker process #
             procObj = subprocess.Popen(
                 cmd,
                 shell=True,
@@ -54642,7 +54747,7 @@ Copyright:
                 for cmd in SysMgr.environList["EXECSCHED"]:
                     SysMgr.applyPriority("%s:%s" % (cmd, procObj.pid))
 
-            # run mainloop #
+            # wait for worker process #
             try:
                 procObj.wait()
             except SystemExit:
@@ -57091,12 +57196,14 @@ Copyright:
 
     @staticmethod
     def getTty(update=False):
-        if (
+        if "MAXTTY" in os.environ:
+            SysMgr.ttyRows = SysMgr.ttyCols = sys.maxsize
+            return
+        elif (
             not SysMgr.isLinux and not SysMgr.isDarwin
         ) or SysMgr.parentPid > 0:
             return
-
-        if update and not SysMgr.termGetId:
+        elif update and not SysMgr.termGetId:
             return
 
         # update tty info by ioctl #
