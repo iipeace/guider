@@ -30127,7 +30127,7 @@ Commands:
 
             defStr = """
 Usage:
-    $ {0:1} COMMAND|FILE [OPTIONS] [--help]
+    $ {0:1} COMMAND [OPTIONS] [--help]
                 """.format(
                 cmd
             )
@@ -32033,7 +32033,7 @@ Examples:
                 elif SysMgr.checkMode("systop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Monitor syscalls for specific threads
@@ -32087,7 +32087,7 @@ Examples:
                 elif SysMgr.checkMode("pytop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Monitor python calls for specific threads
@@ -32141,7 +32141,7 @@ Examples:
                 elif SysMgr.checkMode("ktop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Monitor kernel function calls for specific threads
@@ -32192,7 +32192,7 @@ Examples:
                 elif SysMgr.checkMode("utop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Monitor native function calls for specific threads
@@ -32268,7 +32268,7 @@ Examples:
                 elif SysMgr.checkMode("btop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Monitor function calls for specific threads
@@ -32398,7 +32398,7 @@ Examples:
                 elif SysMgr.checkMode("stacktop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID> [OPTIONS] [--help]
 
 Description:
     Monitor kernel stacks for specific threads
@@ -32422,7 +32422,7 @@ Examples:
                 elif SysMgr.checkMode("ptop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
     Monitor performance stats using PMU(Performance Monitoring Unit)
@@ -32432,6 +32432,9 @@ Description:
 
                     examStr = """
 Examples:
+    - Monitor performance stats of system
+        # {0:1} {1:1}
+
     - Monitor performance stats of specific threads
         # {0:1} {1:1} -g chrome
 
@@ -32479,7 +32482,7 @@ Examples:
                 elif SysMgr.checkMode("wtop"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <PID|COMM> [OPTIONS] [--help]
 
 Description:
     Monitor WSS(Working Set Size) for specific processes
@@ -32803,7 +32806,7 @@ Examples:
                 elif SysMgr.checkMode("strings"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -I <FILE> [OPTIONS] [--help]
 
 Description:
     Print the sequences of printable characters in files
@@ -32902,7 +32905,7 @@ Examples:
                 elif SysMgr.checkMode("print"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -I <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -I <FILE> [OPTIONS] [--help]
 
 Description:
     Print files
@@ -32951,7 +32954,7 @@ Examples:
                 elif SysMgr.checkMode("dump"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
     Dump memory of the specific process
@@ -32995,7 +32998,7 @@ Examples:
                 elif SysMgr.checkMode("strace"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Trace syscalls for specific threads
@@ -33087,7 +33090,7 @@ Examples:
                 elif SysMgr.checkMode("utrace"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Trace function calls for specific threads
@@ -33157,7 +33160,7 @@ Examples:
                 elif SysMgr.checkMode("pytrace"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Trace python calls for specific threads
@@ -33233,7 +33236,7 @@ Examples:
                 elif SysMgr.checkMode("btrace"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Trace native function calls for specific threads
@@ -33269,7 +33272,7 @@ Options:
                 elif SysMgr.checkMode("remote"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
     Execute commands through specific threads
@@ -33391,7 +33394,7 @@ Examples:
                 elif SysMgr.checkMode("hook"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
     Replace specific functions for specific processes
@@ -33427,7 +33430,7 @@ Examples:
                 elif SysMgr.checkMode("printbind"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
     Print function binding status for specific processes
@@ -33460,7 +33463,7 @@ Examples:
                 elif SysMgr.checkMode("sigtrace"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> | <COMMAND> [OPTIONS] [--help]
 
 Description:
     Trace signals for specific threads
@@ -33519,7 +33522,7 @@ Examples:
                 elif SysMgr.checkMode("mem"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <PID|COMM> [OPTIONS] [--help]
 
 Description:
     Print page attributes for specific processes
@@ -33852,7 +33855,7 @@ Description:
                 elif SysMgr.checkMode("topdiff"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+    # {0:1} {1:1} <FILES> [OPTIONS] [--help]
 
 Description:
     Diff top report files
@@ -33898,7 +33901,7 @@ Examples:
                 elif SysMgr.checkMode("topsum"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+    # {0:1} {1:1} <FILES> [OPTIONS] [--help]
 
 Description:
     Summarize a raw file for task top mode
@@ -33996,7 +33999,7 @@ Examples:
                 elif SysMgr.checkMode("pause"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
     Pause specific threads
@@ -34028,7 +34031,7 @@ Examples:
                 elif SysMgr.checkMode("freeze"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
     Freeze specific tasks
@@ -34222,7 +34225,7 @@ Examples:
                 elif SysMgr.checkMode("printsig"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <PID|COMM> [OPTIONS] [--help]
 
 Description:
     Show signal status for specific processes
@@ -34404,7 +34407,7 @@ Examples:
                 elif SysMgr.checkMode("readahead"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} <FILE|COMM|PID> -g <OFFSET> [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> -g <OFFSET> [OPTIONS] [--help]
 
 Description:
     Initiate file readahead into page cache
@@ -34627,7 +34630,7 @@ Examples:
                 elif SysMgr.checkMode("exec"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} <COMMAND> [OPTIONS] [--help]
 
 Description:
     Execute commands repeatedly with various conditions
@@ -34754,7 +34757,7 @@ Examples:
                 elif SysMgr.checkMode("printext"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} <DEV> [OPTIONS] [--help]
 
 Description:
     Show ext4 inode attributes from a specific device file
@@ -34849,7 +34852,7 @@ Examples:
                 elif SysMgr.checkMode("leaktrace"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <PID|COMM> -T <PATH> [OPTIONS] [--help]
 
 Description:
     Show functions caused memory leakage
@@ -35332,7 +35335,7 @@ Examples:
                 elif SysMgr.checkMode("req"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} <ADDRESS> [OPTIONS] [--help]
 
 Description:
     Request URLs
@@ -35726,7 +35729,7 @@ Examples:
                 elif SysMgr.checkMode("printkconf"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <OPTION> -I <PATH> [OPTIONS] [--help]
+    # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
     Print kernel configs
@@ -35784,7 +35787,7 @@ Examples:
                 elif SysMgr.checkMode("setafnt"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <TARGET:MASK> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM:MASK> [OPTIONS] [--help]
 
 Description:
     Set CPU affinity of specific threads
@@ -36266,7 +36269,7 @@ Examples:
                 elif SysMgr.checkMode("send"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} <COMMAND> [OPTIONS] [--help]
+    # {0:1} {1:1} <MESSAGE> [OPTIONS] [--help]
 
 Description:
     Send a UDP message
