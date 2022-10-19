@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221018"
+__revision__ = "221019"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6138,6 +6138,8 @@ class UtilMgr(object):
         for cond in list(key):
             if not cond:
                 continue
+
+            cond = str(cond)
 
             if ignCap:
                 cond = cond.lower()
@@ -26924,12 +26926,15 @@ Commands:
             if not fcntl:
                 raise Exception("no fcntl")
 
-            flag = fcntl.fcntl(fd.fileno(), fcntl.F_GETFL)
+            if not UtilMgr.isNumber(fd):
+                fd = fd.fileno()
+
+            flag = fcntl.fcntl(fd, fcntl.F_GETFL)
 
             if block:
-                fcntl.fcntl(fd.fileno(), fcntl.F_SETFL, flag & ~os.O_NONBLOCK)
+                fcntl.fcntl(fd, fcntl.F_SETFL, flag & ~os.O_NONBLOCK)
             else:
-                fcntl.fcntl(fd.fileno(), fcntl.F_SETFL, flag | os.O_NONBLOCK)
+                fcntl.fcntl(fd, fcntl.F_SETFL, flag | os.O_NONBLOCK)
 
             return True
         except SystemExit:
@@ -29725,6 +29730,7 @@ Commands:
                 "report",
                 "req",
                 "rtop",
+                "send",
                 "strings",
                 "sym2addr",
                 "tail",
@@ -30088,7 +30094,7 @@ Commands:
                 "fserver": ("File", "Linux/MacOS/Windows"),
                 "hserver": ("Http", "Linux/MacOS/Windows"),
                 "list": ("List", "Linux/MacOS/Windows"),
-                "send": ("Signal", "Linux"),
+                "send": ("UDP", "Linux/MacOS/Windows"),
                 "server": ("TCP", "Linux/MacOS"),
                 "start": ("Signal", "Linux"),
             },
@@ -30856,6 +30862,10 @@ Commands:
 
                 dbgExamStr = """\n
 Common Examples:
+    - Set target ID from user input with task monitoring
+        # {0:1} {1:1} -q TASKMON
+        # {0:1} {1:1} -q TASKMON -e t
+
     - Print backtrace info
         # {0:1} {1:1} -g a.out -H
 
@@ -36250,6 +36260,32 @@ Examples:
                             "fserver": "file server",
                             "hserver": "HTTP server",
                         }[mode],
+                    )
+
+                # send #
+                elif SysMgr.checkMode("send"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} <COMMAND> [OPTIONS] [--help]
+
+Description:
+    Send a UDP message
+
+Options:
+    -x  <IP:PORT>               set local address
+    -X  <IP:PORT>               set request address
+    -q  <NAME{{:VALUE}}>          set environment variables
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Send a UDP message
+        # {0:1} {1:1} OK -X 192.168.100.100:12345
+                    """.format(
+                        cmd, mode
                     )
 
                 # client #
@@ -41898,7 +41934,7 @@ Copyright:
             sys.exit(-1)
 
     @staticmethod
-    def runTaskMonitor(pids=[]):
+    def runTaskMonitor(pids=[], wait=True, block=False, addOpt=[]):
         if not "TASKMON" in SysMgr.environList:
             return
         elif not pids:
@@ -41917,7 +41953,7 @@ Copyright:
         if startOption:
             enableOption += startOption
 
-        SysMgr.launchGuider(
+        pid = SysMgr.launchGuider(
             [
                 "top",
                 "-g%s" % ",".join(pids),
@@ -41928,10 +41964,18 @@ Copyright:
                 enableOption,
                 "-f",
                 "-Q",
-            ],
+            ]
+            + addOpt,
             pipe=False,
             stderr=True,
+            block=block,
         )
+
+        # wait for termination of child #
+        if wait:
+            SysMgr.waitEvent()
+
+        return pid
 
     @staticmethod
     def applyEnvironVars():
@@ -43338,7 +43382,7 @@ Copyright:
     def isKillMode():
         if len(sys.argv) < 2:
             return False
-        elif sys.argv[1] in ("kill", "send", "tkill"):
+        elif sys.argv[1] in ("kill", "tkill"):
             return True
         else:
             return False
@@ -43451,6 +43495,10 @@ Copyright:
         # HSERVER MODE #
         elif SysMgr.checkMode("hserver"):
             SysMgr.runHttpServerMode()
+
+        # SEND MODE #
+        elif SysMgr.checkMode("send"):
+            SysMgr.runSendMode()
 
         # CLIENT MODE #
         elif SysMgr.checkMode("cli"):
@@ -43821,10 +43869,7 @@ Copyright:
             pids = SysMgr.applyLimitVars(limitList)
 
             # start monitoring #
-            SysMgr.runTaskMonitor(pids)
-
-            # wait for events #
-            SysMgr.waitEvent()
+            SysMgr.runTaskMonitor(pids, wait=True)
 
         # PSTREE MODE #
         elif SysMgr.checkMode("pstree"):
@@ -46151,6 +46196,7 @@ Copyright:
         logo=True,
         copyOpt=True,
         initPkg=False,
+        block=False,
     ):
         """
         - desc: launch a new Guider process as a child
@@ -46247,6 +46293,10 @@ Copyright:
             # close stderr #
             if not stderr:
                 sys.stderr.close()
+
+            # block stdin #
+            if block:
+                SysMgr.redirectFd(SysMgr.nullPath, sys.stdin.fileno())
 
             # init time variables #
             SysMgr.startInitTime = 0
@@ -48210,6 +48260,28 @@ Copyright:
                 SysMgr.printBgProcs()
 
         sys.exit(0)
+
+    @staticmethod
+    def runSendMode():
+        # get argument #
+        if SysMgr.hasMainArg():
+            msg = SysMgr.getMainArg()
+        else:
+            SysMgr.printErr("no input message")
+            sys.exit(-1)
+
+        # check remote address #
+        if not SysMgr.remoteServObj:
+            SysMgr.printErr("no server address info with -X option")
+            sys.exit(-1)
+
+        # send message #
+        SysMgr.remoteServObj.send(msg)
+
+        SysMgr.printInfo(
+            "sent '%s' message to %s:%s"
+            % (msg, SysMgr.remoteServObj.ip, SysMgr.remoteServObj.port)
+        )
 
     @staticmethod
     def runClientMode(cmds=None, writer=None):
@@ -50441,6 +50513,21 @@ Copyright:
         else:
             inputParam = None
 
+        # monitor tasks to get target ID #
+        if "TASKMON" in SysMgr.environList:
+            SysMgr.printInfo("start monitoring tasks to get target ID...\n")
+            inputParam = None
+            netObj = NetworkMgr("server", ip=None, port=0)
+            cid = SysMgr.runTaskMonitor(
+                [""],
+                wait=False,
+                addOpt=[
+                    "-cGUIDER send PID -X%s:%s" % (netObj.ip, netObj.port)
+                ],
+            )
+            SysMgr.filterGroup = [netObj.recv().decode()]
+            SysMgr.killChildren(children=[cid])
+
         # check input #
         if not tid and not SysMgr.filterGroup and not inputParam:
             SysMgr.printErr("no input value for target")
@@ -50492,7 +50579,7 @@ Copyright:
         if "ELFFILE" in SysMgr.environList:
             elfPath = SysMgr.environList["ELFFILE"][0]
 
-            SysMgr.printStat("start preloading ElF files from '%s'" % elfPath)
+            SysMgr.printStat("start preloading ELF files from '%s'" % elfPath)
 
             # load ELF files #
             Debugger.loadElfList(elfPath)
@@ -54934,9 +55021,7 @@ Copyright:
         # wait for childs #
         if parallel:
             # start monitoring #
-            SysMgr.runTaskMonitor([""])
-
-            SysMgr.waitChild()
+            SysMgr.runTaskMonitor([""], wait=True)
 
     @staticmethod
     def doGpuTest():
