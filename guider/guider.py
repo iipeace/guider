@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221019"
+__revision__ = "221020"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17296,7 +17296,7 @@ class FunctionAnalyzer(object):
 
             if (
                 SysMgr.countEnable
-                and SysMgr.repeatCount * SysMgr.intervalEnable
+                and SysMgr.repeatCnt * SysMgr.intervalEnable
                 <= float(d["time"]) - float(SysMgr.startTime)
             ):
                 self.lastCore = None
@@ -23507,7 +23507,7 @@ class SysMgr(object):
     defaultServPort = 5555
     bgProcList = None
     waitDelay = 0.5
-    repeatCount = 0
+    repeatCnt = 0
     progressCnt = 0
     termCnt = 0
     repeatInterval = 0
@@ -24578,7 +24578,7 @@ Commands:
                 sys.exit(-1)
 
             # check counter #
-            if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
+            if SysMgr.repeatCnt <= SysMgr.progressCnt and SysMgr.termFlag:
                 # check exit condition #
                 if SysMgr.graphEnable:
                     break
@@ -25217,6 +25217,40 @@ Commands:
         return None
 
     @staticmethod
+    def selectTargetId():
+        if not "TASKMON" in SysMgr.environList:
+            return
+
+        SysMgr.printInfo("start monitoring tasks to get target ID...\n")
+        netObj = NetworkMgr("server", ip=None, port=0)
+
+        # run monitor #
+        cid = SysMgr.runTaskMonitor(
+            [""],
+            wait=False,
+            addOpt=["-cGUIDER send PID -X%s:%s" % (netObj.ip, netObj.port)],
+        )
+
+        # wait for target ID #
+        try:
+            SysMgr.exitFlag = True
+
+            ret = netObj.recv().decode()
+
+            SysMgr.killChildren(children=[cid])
+
+            # remove variable to prevent handling again by child processes #
+            SysMgr.environList.pop("TASKMON", None)
+
+            SysMgr.exitFlag = False
+            return ret
+        except SystemExit:
+            os._exit(0)
+        except:
+            SysMgr.printErr("failed to get target ID to be traced", True)
+            os._exit(-1)
+
+    @staticmethod
     def getPrintFlag():
         if "QUIET" in SysMgr.environList:
             return False
@@ -25355,7 +25389,10 @@ Commands:
     @staticmethod
     def doDump():
         # get argument #
-        if SysMgr.hasMainArg():
+        ret = SysMgr.selectTargetId()
+        if ret:
+            inputParam = [ret]
+        elif SysMgr.hasMainArg():
             inputParam = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             inputParam = SysMgr.filterGroup
@@ -26804,7 +26841,10 @@ Commands:
         SysMgr.checkRootPerm()
 
         # get argument #
-        if SysMgr.hasMainArg():
+        ret = SysMgr.selectTargetId()
+        if ret:
+            value = [ret]
+        elif SysMgr.hasMainArg():
             value = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
@@ -29872,7 +29912,7 @@ Commands:
     @staticmethod
     def onAlarm(signum, frame):
         SysMgr.progressCnt += 1
-        if SysMgr.repeatCount <= SysMgr.progressCnt:
+        if SysMgr.repeatCnt <= SysMgr.progressCnt:
             SysMgr.printWarn("terminated by timer\n", True)
             sys.exit(0)
 
@@ -29895,7 +29935,7 @@ Commands:
         # check reason #
         if exitCond:
             reason = "condition"
-        elif SysMgr.progressCnt >= SysMgr.repeatCount > 0:
+        elif SysMgr.progressCnt >= SysMgr.repeatCnt > 0:
             reason = "timer"
         else:
             reason = None
@@ -29914,8 +29954,8 @@ Commands:
             except:
                 SysMgr.printSigError(SysMgr.pid, "SIGINT")
 
-        if SysMgr.repeatCount > 1:
-            UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCount)
+        if SysMgr.repeatCnt > 1:
+            UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCnt)
 
         SysMgr.progressCnt += 1
 
@@ -30865,6 +30905,11 @@ Common Examples:
     - Set target ID from user input with task monitoring
         # {0:1} {1:1} -q TASKMON
         # {0:1} {1:1} -q TASKMON -e t
+        # {0:1} {1:1} -q TASKMON:3
+        # {0:1} {1:1} -q TASKMON -a
+        # {0:1} {1:1} -q TASKMON, TASKFILTER:"*a.out*"
+        # {0:1} {1:1} -q TASKMON, TASKFILTER:"*a.out*" -e t -P
+        # {0:1} {1:1} -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10"
 
     - Print backtrace info
         # {0:1} {1:1} -g a.out -H
@@ -35490,7 +35535,7 @@ Examples:
         # {0:1} {1:1} yes:{3:1} -q TASKMON:3
         # {0:1} {1:1} yes:{3:1} -q TASKMON -a
         # {0:1} {1:1} yes:{3:1} -q TASKMON, TASKFILTER:"*a.out*"
-        # {0:1} {1:1} yes:{3:1} -q TASKMON, TASKFILTER:"*a.out*" -et -P
+        # {0:1} {1:1} yes:{3:1} -q TASKMON, TASKFILTER:"*a.out*" -e t -P
         # {0:1} {1:1} yes:{3:1} -q TASKMON, CHILDSCHED:c:0 -Y r:1
         # {0:1} {1:1} yes:{3:1} -q TASKMON, EXECSCHED:c:0 -Y r:1
 
@@ -36277,6 +36322,7 @@ Description:
 Options:
     -x  <IP:PORT>               set local address
     -X  <IP:PORT>               set request address
+    -R  <COUNT>                 set repeat count
     -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         """.format(
@@ -36287,6 +36333,9 @@ Options:
 Examples:
     - Send a UDP message
         # {0:1} {1:1} OK -X 192.168.100.100:12345
+
+    - Send a UDP message 5 times
+        # {0:1} {1:1} OK -X 192.168.100.100:12345 -R 5
                     """.format(
                         cmd, mode
                     )
@@ -38989,7 +39038,7 @@ Copyright:
 
         # update record stats #
         SysMgr.recordStatus = False
-        SysMgr.repeatCount = 0
+        SysMgr.repeatCnt = 0
 
         SysMgr.printStat("ready to save and analyze... [ STOP(Ctrl+c) ]")
 
@@ -39120,31 +39169,31 @@ Copyright:
     @staticmethod
     def alarmHandler(signum, frame):
         # check exit condition #
-        if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
+        if SysMgr.repeatCnt <= SysMgr.progressCnt and SysMgr.termFlag:
             UtilMgr.deleteProgress()
             SysMgr.printWarn("terminated by timer\n", True)
             sys.exit(0)
 
         # print progress #
-        if not SysMgr.isRecordMode() and SysMgr.repeatCount > 0:
-            UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCount)
+        if not SysMgr.isRecordMode() and SysMgr.repeatCnt > 0:
+            UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCnt)
 
         # update count #
         SysMgr.progressCnt += 1
         progressCnt = SysMgr.progressCnt
         repeatInterval = SysMgr.repeatInterval
-        repeatCount = SysMgr.repeatCount
+        repeatCnt = SysMgr.repeatCnt
 
         # disable alarm handler #
         signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
 
         if SysMgr.pipeEnable:
-            if repeatCount == progressCnt:
+            if repeatCnt == progressCnt:
                 # stop recording #
                 SysMgr.stopRecording()
             signal.alarm(repeatInterval)
         elif SysMgr.outputFile:
-            if repeatCount == 1 and SysMgr.termFlag:
+            if repeatCnt == 1 and SysMgr.termFlag:
                 output = SysMgr.outputFile
             else:
                 output = "%s_%s" % (SysMgr.outputFile, SysMgr.getRuntime())
@@ -41525,7 +41574,7 @@ Copyright:
         if not value:
             if applyInterval:
                 SysMgr.intervalEnable = 1
-            SysMgr.repeatCount = 1
+            SysMgr.repeatCnt = 1
             repeatParams = None
         elif len(repeatParams) in (2, 3):
             try:
@@ -41543,11 +41592,11 @@ Copyright:
                 # get count #
                 cnt = repeatParams[1]
                 if not cnt:
-                    SysMgr.repeatCount = sys.maxsize
+                    SysMgr.repeatCnt = sys.maxsize
                 elif cnt.isdigit():
-                    SysMgr.repeatCount = long(cnt)
+                    SysMgr.repeatCnt = long(cnt)
                 else:
-                    SysMgr.repeatCount = long(convTime(cnt) / interval)
+                    SysMgr.repeatCnt = long(convTime(cnt) / interval)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -41569,18 +41618,18 @@ Copyright:
                     if ival:
                         ival = long(ival)
                         interval = long(interval / ival)
-                        SysMgr.repeatCount = interval
+                        SysMgr.repeatCnt = interval
                         SysMgr.repeatInterval = interval
                         if applyInterval:
                             SysMgr.intervalEnable = ival
                     else:
-                        SysMgr.repeatCount = interval
+                        SysMgr.repeatCnt = interval
                         SysMgr.repeatInterval = interval
                         if applyInterval:
                             SysMgr.intervalEnable = 1
                 # record mode #
                 else:
-                    SysMgr.repeatCount = 1
+                    SysMgr.repeatCnt = 1
                     SysMgr.repeatInterval = interval
                     if applyInterval:
                         SysMgr.intervalEnable = interval
@@ -41609,7 +41658,7 @@ Copyright:
         if (
             not SysMgr.intervalEnable
             or SysMgr.intervalEnable < 1
-            or SysMgr.repeatCount < 1
+            or SysMgr.repeatCnt < 1
         ):
             SysMgr.printErr(
                 "wrong value for runtime option, input values bigger than 0"
@@ -41642,11 +41691,11 @@ Copyright:
             SysMgr.termFlag = False
             SysMgr.printInfo(
                 "run every %s sec %s time"
-                % (convNum(SysMgr.intervalEnable), convNum(SysMgr.repeatCount))
+                % (convNum(SysMgr.intervalEnable), convNum(SysMgr.repeatCnt))
             )
         else:
             interval = SysMgr.intervalEnable
-            repeat = SysMgr.repeatCount
+            repeat = SysMgr.repeatCnt
             totalSec = convNum(interval)
             totalCnt = convNum(repeat)
             totalTime = convNum(long(interval * repeat))
@@ -41950,6 +41999,18 @@ Copyright:
         if "TASKFILTER" in SysMgr.environList:
             pids += SysMgr.environList["TASKFILTER"]
 
+        # apply additional options #
+        if "TASKMONOPT" in SysMgr.environList:
+            environOption = ""
+
+            # append monitoring options #
+            monOption = SysMgr.environList["TASKMONOPT"]
+        else:
+            monOption = []
+
+            # set environ options #
+            environOption = "-qFASTINIT,NOSPECIALTASK"
+
         # set enable options #
         enableOption = "-eb"
         startOption = SysMgr.getOption("e")
@@ -41961,14 +42022,15 @@ Copyright:
                 "top",
                 "-g%s" % ",".join(pids),
                 "-i%s" % interval,
-                "-qFASTINIT,NOSPECIALTASK",
                 "-a" if SysMgr.showAll else "",
                 "-P" if SysMgr.groupProcEnable else "",
                 enableOption,
+                environOption,
                 "-f",
                 "-Q",
             ]
-            + addOpt,
+            + addOpt
+            + monOption,
             pipe=False,
             stderr=True,
             block=block,
@@ -43501,7 +43563,7 @@ Copyright:
 
         # SEND MODE #
         elif SysMgr.checkMode("send"):
-            SysMgr.runSendMode()
+            SysMgr.sendMessage()
 
         # CLIENT MODE #
         elif SysMgr.checkMode("cli"):
@@ -43525,6 +43587,11 @@ Copyright:
             else:
                 argList = [" "]
 
+            # print signal list #
+            if SysMgr.findOption("l"):
+                SysMgr.printList(ConfigMgr.SIG_LIST, ["0"])
+                sys.exit(0)
+
             # remove additional options #
             if len(argList) > 1:
                 idx = 0
@@ -43536,11 +43603,6 @@ Copyright:
                     argList = argList[: idx + 1]
                 else:
                     argList = argList[: idx + 2]
-
-            # print signal list #
-            if SysMgr.findOption("l"):
-                SysMgr.printList(ConfigMgr.SIG_LIST, ["0"])
-                sys.exit(0)
 
             while 1:
                 # set target type #
@@ -43594,7 +43656,10 @@ Copyright:
         # PAUSE MODE #
         elif SysMgr.checkMode("pause"):
             # get target list #
-            if SysMgr.hasMainArg():
+            ret = SysMgr.selectTargetId()
+            if ret:
+                targets = [ret]
+            elif SysMgr.hasMainArg():
                 targets = SysMgr.getMainArgs()
             else:
                 targets = SysMgr.filterGroup
@@ -43798,7 +43863,10 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # check input #
-            if SysMgr.hasMainArg():
+            ret = SysMgr.selectTargetId()
+            if ret:
+                target = [ret]
+            elif SysMgr.hasMainArg():
                 target = SysMgr.getMainArgs(union=False)
             else:
                 target = SysMgr.filterGroup
@@ -46327,7 +46395,7 @@ Copyright:
 
             # init number variables #
             SysMgr.nrTopRank = 10
-            SysMgr.repeatCount = 0
+            SysMgr.repeatCnt = 0
             SysMgr.progressCnt = 0
             SysMgr.repeatInterval = 0
             SysMgr.intervalEnable = 0
@@ -48265,7 +48333,7 @@ Copyright:
         sys.exit(0)
 
     @staticmethod
-    def runSendMode():
+    def sendMessage(ip=None, port=None):
         # get argument #
         if SysMgr.hasMainArg():
             msg = SysMgr.getMainArg()
@@ -48273,18 +48341,51 @@ Copyright:
             SysMgr.printErr("no input message")
             sys.exit(-1)
 
-        # check remote address #
-        if not SysMgr.remoteServObj:
-            SysMgr.printErr("no server address info with -X option")
-            sys.exit(-1)
+        # use address from option #
+        try:
+            if ip is None and port is None:
+                # check remote address #
+                if not SysMgr.remoteServObj:
+                    SysMgr.printErr("no server address info with -X option")
+                    sys.exit(-1)
 
-        # send message #
-        SysMgr.remoteServObj.send(msg)
+                netObj = SysMgr.remoteServObj
+            # use address from args #
+            else:
+                netObj = NetworkMgr("client", ip=ip, port=port)
 
-        SysMgr.printInfo(
-            "sent '%s' message to %s:%s"
-            % (msg, SysMgr.remoteServObj.ip, SysMgr.remoteServObj.port)
-        )
+            # set IP and PORT #
+            ip = netObj.ip
+            port = netObj.port
+
+            # check repeat count #
+            if SysMgr.repeatInterval:
+                repeat = SysMgr.repeatInterval
+            else:
+                repeat = 1
+
+            # send message #
+            for idx in range(1, repeat + 1):
+                netObj.send(msg)
+
+                if repeat > 1:
+                    progStr = " [%s/%s]" % (
+                        UtilMgr.convNum(idx),
+                        UtilMgr.convNum(repeat),
+                    )
+
+                SysMgr.printInfo(
+                    "sent '%s' message to %s:%s%s" % (msg, ip, port, progStr)
+                )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to send message to %s:%s" % (ip, port), True
+            )
+            return -1
+
+        return 0
 
     @staticmethod
     def runClientMode(cmds=None, writer=None):
@@ -48394,7 +48495,7 @@ Copyright:
                 if SysMgr.isLinux:
                     signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
                     SysMgr.intervalEnable = 1
-                    SysMgr.repeatCount = sys.maxsize
+                    SysMgr.repeatCnt = sys.maxsize
 
             # check short command #
             uinputUpper = uinput.upper()
@@ -49660,7 +49761,10 @@ Copyright:
         SysMgr.checkRootPerm()
 
         # get argument #
-        if SysMgr.hasMainArg():
+        ret = SysMgr.selectTargetId()
+        if ret:
+            filterGroup = [ret]
+        elif SysMgr.hasMainArg():
             filterGroup = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
@@ -50517,19 +50621,10 @@ Copyright:
             inputParam = None
 
         # monitor tasks to get target ID #
-        if "TASKMON" in SysMgr.environList:
-            SysMgr.printInfo("start monitoring tasks to get target ID...\n")
+        ret = SysMgr.selectTargetId()
+        if ret:
             inputParam = None
-            netObj = NetworkMgr("server", ip=None, port=0)
-            cid = SysMgr.runTaskMonitor(
-                [""],
-                wait=False,
-                addOpt=[
-                    "-cGUIDER send PID -X%s:%s" % (netObj.ip, netObj.port)
-                ],
-            )
-            SysMgr.filterGroup = [netObj.recv().decode()]
-            SysMgr.killChildren(children=[cid])
+            SysMgr.filterGroup = [ret]
 
         # check input #
         if not tid and not SysMgr.filterGroup and not inputParam:
@@ -51892,7 +51987,10 @@ Copyright:
         SysMgr.setDwarfFlag()
 
         # check input #
-        if SysMgr.hasMainArg():
+        ret = SysMgr.selectTargetId()
+        if ret:
+            inputArg = [ret]
+        elif SysMgr.hasMainArg():
             inputArg = SysMgr.getMainArgs()
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam).split(",")
@@ -52386,7 +52484,11 @@ Copyright:
             SysMgr.outPath = "/tmp/guider.out"
 
         # check target info #
-        if not SysMgr.filterGroup and SysMgr.hasMainArg():
+        ret = SysMgr.selectTargetId()
+        if ret:
+            inputCmd = []
+            targetList = [ret]
+        elif not SysMgr.filterGroup and SysMgr.hasMainArg():
             inputCmd = SysMgr.getMainArg().split()
             targetList = []
         else:
@@ -54617,13 +54719,13 @@ Copyright:
                     count = UtilMgr.lstrip(uinput, [cmd, cmd.upper()])
 
                     # set repeat count #
-                    SysMgr.repeatCount = long(count)
-                    if SysMgr.repeatCount == 0:
-                        SysMgr.repeatCount = sys.maxsize
+                    SysMgr.repeatCnt = long(count)
+                    if SysMgr.repeatCnt == 0:
+                        SysMgr.repeatCnt = sys.maxsize
 
                     SysMgr.printInfo(
                         "set repeat count to %s"
-                        % UtilMgr.convNum(SysMgr.repeatCount)
+                        % UtilMgr.convNum(SysMgr.repeatCnt)
                     )
                 except:
                     SysMgr.printErr("failed to set repeat count to '%s'", True)
@@ -54705,8 +54807,8 @@ Copyright:
         reqs = reqstr.split("|")
 
         # get repeat count #
-        if SysMgr.repeatCount > 1:
-            repeat = SysMgr.repeatCount
+        if SysMgr.repeatCnt > 1:
+            repeat = SysMgr.repeatCnt
             delay = SysMgr.intervalEnable / 1000.0
         elif SysMgr.intervalEnable > 0:
             repeat = SysMgr.intervalEnable
@@ -55898,7 +56000,10 @@ Copyright:
         # get pid list #
         pids = []
         isThread = not SysMgr.processEnable
-        if target:
+        ret = SysMgr.selectTargetId()
+        if ret:
+            pids.append(ret)
+        elif target:
             pids += SysMgr.getTids(target, isThread=isThread)
         elif SysMgr.hasMainArg():
             items = SysMgr.getMainArgs()
@@ -64364,16 +64469,16 @@ class DbusMgr(object):
             def _checkRepeatCnt():
                 # check user event #
                 if SysMgr.condExit:
-                    if SysMgr.repeatCount == 0:
+                    if SysMgr.repeatCnt == 0:
                         SysMgr.printWarn("terminated by user\n", True)
                     os.kill(SysMgr.pid, signal.SIGINT)
                     return
-                elif SysMgr.repeatCount == 0:
+                elif SysMgr.repeatCnt == 0:
                     return
 
                 # check timer event #
                 SysMgr.progressCnt += 1
-                if SysMgr.repeatCount <= SysMgr.progressCnt:
+                if SysMgr.repeatCnt <= SysMgr.progressCnt:
                     SysMgr.printWarn("terminated by timer\n", True)
                     if SysMgr.outPath:
                         SysMgr.removeExitFunc(_printSummary, [0, 0])
@@ -65128,7 +65233,14 @@ class DbusMgr(object):
 
         # check filter #
         taskList = []
-        if not SysMgr.filterGroup:
+        ret = SysMgr.selectTargetId()
+        if ret:
+            onlyDaemon = False
+            if SysMgr.groupProcEnable:
+                taskList += SysMgr.getTids(ret, sibling=True)
+            else:
+                taskList += _getDefaultTasks(ret)
+        elif not SysMgr.filterGroup:
             if SysMgr.hasMainArg():
                 onlyDaemon = False
                 items = SysMgr.getMainArgs()
@@ -65767,13 +65879,13 @@ class DltAnalyzer(object):
 
         # check term condition #
         SysMgr.progressCnt += 1
-        if 0 < SysMgr.repeatCount <= SysMgr.progressCnt:
+        if 0 < SysMgr.repeatCnt <= SysMgr.progressCnt:
             SysMgr.printWarn("terminated by timer\n", True)
             os.kill(SysMgr.pid, signal.SIGINT)
 
         # print progress #
-        if SysMgr.repeatCount:
-            UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCount)
+        if SysMgr.repeatCnt:
+            UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCnt)
 
         SysMgr.updateTimer()
 
@@ -73065,7 +73177,7 @@ typedef struct {
             SysMgr.clearPrint()
 
         def _checkInterval():
-            if SysMgr.repeatCount == 0:
+            if SysMgr.repeatCnt == 0:
                 return
 
             # check uptime deadline #
@@ -73076,7 +73188,7 @@ typedef struct {
 
             # update and check progress #
             SysMgr.progressCnt += 1
-            if SysMgr.repeatCount <= SysMgr.progressCnt or meetDeadline:
+            if SysMgr.repeatCnt <= SysMgr.progressCnt or meetDeadline:
                 SysMgr.printWarn("terminated by timer\n", True)
                 sys.exit(0)
 
@@ -73626,8 +73738,8 @@ typedef struct {
             _finishPrint(self, needStop, term)
 
             # print progress #
-            if ret and SysMgr.repeatCount > 0:
-                UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCount)
+            if ret and SysMgr.repeatCnt > 0:
+                UtilMgr.printProgress(SysMgr.progressCnt, SysMgr.repeatCnt)
 
     def changeArg(self, name, value):
         for idx, item in enumerate(self.args):
@@ -79710,7 +79822,7 @@ typedef struct {
 
         # summarize samples after last tick #
         if instance.isRealtime and (
-            SysMgr.repeatCount == 0 or SysMgr.progressCnt < SysMgr.repeatCount
+            SysMgr.repeatCnt == 0 or SysMgr.progressCnt < SysMgr.repeatCnt
         ):
             instance.printIntervalSummary()
         else:
@@ -104530,7 +104642,7 @@ class TaskAnalyzer(object):
             return time
         elif (
             SysMgr.countEnable
-            and SysMgr.repeatCount * SysMgr.intervalEnable <= allTime
+            and SysMgr.repeatCnt * SysMgr.intervalEnable <= allTime
         ):
             self.stopFlag = True
             return time
