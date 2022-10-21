@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221020"
+__revision__ = "221021"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25217,7 +25217,18 @@ Commands:
         return None
 
     @staticmethod
-    def selectTargetId():
+    def convertTaskIdInput(taskList=[]):
+        ret = SysMgr.selectTaskId()
+        if ret:
+            newList = []
+            for item in taskList:
+                newList.append(item.replace("PID", ret))
+            return newList
+        else:
+            return taskList
+
+    @staticmethod
+    def selectTaskId():
         if not "TASKMON" in SysMgr.environList:
             return
 
@@ -25389,7 +25400,7 @@ Commands:
     @staticmethod
     def doDump():
         # get argument #
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             inputParam = [ret]
         elif SysMgr.hasMainArg():
@@ -26497,6 +26508,7 @@ Commands:
                 "MOVE",
                 "REMOVE",
                 "DELETE",
+                "READ",
                 "WRITE",
                 "LIST",
             ):
@@ -26519,20 +26531,25 @@ Commands:
             else:
                 targetTasks = None
 
-            # handle move command #
-            if cmd == "WRITE":
+            # handle read / write command #
+            if cmd in ("READ", "WRITE"):
                 # get target info #
                 targetDir = SysMgr.getCgroup(sub, name, make, remove)
                 if not targetDir:
                     continue
 
                 try:
-                    value, name = target.split("@")
+                    if cmd == "READ":
+                        name = target
+                    else:
+                        value, name = target.split("@")
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(
-                        "wrong '%s' in VALUE@FILE format" % target, True
+                        "wrong '%s' for %s in VALUE@FILE format"
+                        % (target, cmd),
+                        True,
                     )
                     continue
 
@@ -26541,16 +26558,23 @@ Commands:
                 if not _checkFile(targetFile):
                     continue
 
+                # reda value #
+                if cmd == "READ":
+                    ret = SysMgr.readFile(targetFile)
+
+                    # print result #
+                    SysMgr.printInfo("read '%s' from '%s'" % (ret, targetFile))
                 # write value #
-                ret = SysMgr.writeFile(targetFile, value)
-                if ret:
-                    # print message #
-                    SysMgr.printInfo(
-                        "wrote '%s' to '%s'" % (value, targetFile)
-                    )
+                else:
+                    ret = SysMgr.writeFile(targetFile, value)
+                    if ret:
+                        # print result #
+                        SysMgr.printInfo(
+                            "wrote '%s' to '%s'" % (value, targetFile)
+                        )
 
                 continue
-            # handle move command #
+            # handle list command #
             elif cmd == "LIST":
                 # get target path #
                 targetDir = SysMgr.getCgroup(sub, name, make, remove)
@@ -26841,7 +26865,7 @@ Commands:
         SysMgr.checkRootPerm()
 
         # get argument #
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             value = [ret]
         elif SysMgr.hasMainArg():
@@ -26919,6 +26943,14 @@ Commands:
                 "failed to set CPU affinity of task because of no target"
             )
             sys.exit(-1)
+
+        # convert task ID #
+        ret = SysMgr.selectTaskId()
+        if ret:
+            newval = []
+            for item in value:
+                newval.append(item.replace("PID", ret))
+            value = newval
 
         while 1:
             SysMgr.parseAffinityOption(value, launch=True)
@@ -32910,6 +32942,7 @@ Commands:
     MOVE     move specific tasks from a group to another group
     REMOVE   remove specific tasks from a group
     DELETE   delete a group
+    READ     read value from the specific file
     WRITE    write value to the specific file
     LIST     print all tasks in a group
                     """
@@ -32935,6 +32968,9 @@ Examples:
 
     - Delete a cpu group
         # {0:1} {1:1} DELETE:cpu:test1:"*"
+
+    - Read value from the specific file
+        # {0:1} {1:1} READ:memory:test2:memory.limit_in_bytes
 
     - Write value to the specific file
         # {0:1} {1:1} WRITE:memory:test2:100000@memory.limit_in_bytes
@@ -34790,6 +34826,7 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:/:PID
         # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:user.slice:PID
         # {0:1} {1:1} -I "a.out" -q APPLYCG:REMOVE:cpu/user.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:READ:memory:user.slice:memory.limit_in_bytes
         # {0:1} {1:1} -I "a.out" -q APPLYCG:WRITE:memory:user.slice:100000@memory.limit_in_bytes
 
     - {2:1} and print environment variables
@@ -35732,6 +35769,15 @@ Examples:
         # {0:1} {1:1} "be:5:a.out"
         # {0:1} {1:1} "rt:process:1:0"
 
+    - {3:1} policy(CFS), priority(-20) for specific target task to be selected
+        # {0:1} {1:1} "-20:PID" -q TASKMON
+        # {0:1} {1:1} "-20:PID" -q TASKMON -e t
+        # {0:1} {1:1} "-20:PID" -q TASKMON:3
+        # {0:1} {1:1} "-20:PID" -q TASKMON -a
+        # {0:1} {1:1} "-20:PID" -q TASKMON, TASKFILTER:"*a.out*"
+        # {0:1} {1:1} "-20:PID" -q TASKMON, TASKFILTER:"*a.out*" -e t -P
+        # {0:1} {1:1} "-20:PID" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10"
+
     - {3:1} policy(CFS), priority(-20) for specific TID
         # {0:1} {1:1} "-20:1234" -q ONLYPID
 
@@ -35860,6 +35906,15 @@ Examples:
 
     - {2:1} to use only CPU 1 every 2 seconds
         # {0:1} {1:1} a.out:1 -i 2
+
+    - {2:1} to use only CPU 1 and CPU 2 after selecting the target task
+        # {0:1} {1:1} "PID:3" -q TASKMON
+        # {0:1} {1:1} "PID:3" -q TASKMON -e t
+        # {0:1} {1:1} "PID:3" -q TASKMON:3
+        # {0:1} {1:1} "PID:3" -q TASKMON -a
+        # {0:1} {1:1} "PID:3" -q TASKMON, TASKFILTER:"*a.out*"
+        # {0:1} {1:1} "PID:3" -q TASKMON, TASKFILTER:"*a.out*" -e t -P
+        # {0:1} {1:1} "PID:3" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10"
                     """.format(
                         cmd, mode, "Set CPU affinity of a specific thread"
                     )
@@ -41827,13 +41882,12 @@ Copyright:
                     "MOVE",
                     "REMOVE",
                     "DELETE",
+                    "READ",
                     "WRITE",
                     "LIST",
                 ):
-                    if not cmd.upper().startswith(item + ":"):
-                        continue
-
-                    cmds.append(cmd)
+                    if cmd.upper().startswith(item + ":"):
+                        cmds.append(cmd)
 
             if cmds:
                 SysMgr.doCgroup(cmds)
@@ -43604,6 +43658,9 @@ Copyright:
                 else:
                     argList = argList[: idx + 2]
 
+            # convert task ID #
+            argList = SysMgr.convertTaskIdInput(argList)
+
             while 1:
                 # set target type #
                 if SysMgr.checkMode("tkill"):
@@ -43656,7 +43713,7 @@ Copyright:
         # PAUSE MODE #
         elif SysMgr.checkMode("pause"):
             # get target list #
-            ret = SysMgr.selectTargetId()
+            ret = SysMgr.selectTaskId()
             if ret:
                 targets = [ret]
             elif SysMgr.hasMainArg():
@@ -43863,7 +43920,7 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # check input #
-            ret = SysMgr.selectTargetId()
+            ret = SysMgr.selectTaskId()
             if ret:
                 target = [ret]
             elif SysMgr.hasMainArg():
@@ -45815,6 +45872,8 @@ Copyright:
         if SysMgr.idList and cmd.isdigit():
             try:
                 pid = SysMgr.idList[long(cmd)]
+            except SystemExit:
+                sys.exit(0)
             except:
                 return
 
@@ -49481,6 +49540,8 @@ Copyright:
             )
             sys.exit(-1)
 
+        # convert task ID #
+        value = SysMgr.convertTaskIdInput(value)
         value = ",".join(value)
 
         while 1:
@@ -49761,7 +49822,7 @@ Copyright:
         SysMgr.checkRootPerm()
 
         # get argument #
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             filterGroup = [ret]
         elif SysMgr.hasMainArg():
@@ -50621,7 +50682,7 @@ Copyright:
             inputParam = None
 
         # monitor tasks to get target ID #
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             inputParam = None
             SysMgr.filterGroup = [ret]
@@ -51987,7 +52048,7 @@ Copyright:
         SysMgr.setDwarfFlag()
 
         # check input #
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             inputArg = [ret]
         elif SysMgr.hasMainArg():
@@ -52484,7 +52545,7 @@ Copyright:
             SysMgr.outPath = "/tmp/guider.out"
 
         # check target info #
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             inputCmd = []
             targetList = [ret]
@@ -55125,8 +55186,11 @@ Copyright:
 
         # wait for childs #
         if parallel:
-            # start monitoring #
-            SysMgr.runTaskMonitor([""], wait=True)
+            if "TASKMON" in SysMgr.environList:
+                # start monitoring #
+                SysMgr.runTaskMonitor([""], wait=True)
+            else:
+                SysMgr.waitChild()
 
     @staticmethod
     def doGpuTest():
@@ -56000,7 +56064,7 @@ Copyright:
         # get pid list #
         pids = []
         isThread = not SysMgr.processEnable
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             pids.append(ret)
         elif target:
@@ -65233,7 +65297,7 @@ class DbusMgr(object):
 
         # check filter #
         taskList = []
-        ret = SysMgr.selectTargetId()
+        ret = SysMgr.selectTaskId()
         if ret:
             onlyDaemon = False
             if SysMgr.groupProcEnable:
