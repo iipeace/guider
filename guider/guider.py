@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221021"
+__revision__ = "221023"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -564,9 +564,66 @@ class ConfigMgr(object):
         17: "MADV_DODUMP",  # Clear the MADV_DONTDUMP flag
         18: "MADV_WIPEONFORK",  # Zero memory on fork, child only
         19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
+        20: "MADV_COLD",  # Deactivatie these pages
+        21: "MADV_PAGEOUT",  # Reclaim these pages
         100: "MADV_HWPOISON",  # Poison a page for testing
     }
     MADV_TYPE_REVERSE = {}
+
+    # fanotify types #
+    FAN_EVENT_TYPE = {
+        0x00000001: "FAN_ACCESS",  # File was accessed #
+        0x00000002: "FAN_MODIFY",  # File was modified #
+        0x00000004: "FAN_ATTRIB",  # Metadata changed #
+        0x00000008: "FAN_CLOSE_WRITE",  # Writtable file closed #
+        0x00000010: "FAN_CLOSE_NOWRITE",  # Unwrittable file closed #
+        0x00000020: "FAN_OPEN",  # File was opened #
+        0x00000040: "FAN_MOVED_FROM",  # File was moved from X #
+        0x00000080: "FAN_MOVED_TO",  # File was moved to Y #
+        0x00000100: "FAN_CREATE",  # Subfile was created #
+        0x00000200: "FAN_DELETE",  # Subfile was deleted #
+        0x00000400: "FAN_DELETE_SELF",  # Self was deleted #
+        0x00000800: "FAN_MOVE_SELF",  # Self was moved #
+        0x00001000: "FAN_OPEN_EXEC",  # File was opened for exec #
+        0x00004000: "FAN_Q_OVERFLOW",  # Event queued overflowed #
+        0x00010000: "FAN_OPEN_PERM",  # File open in perm check #
+        0x00020000: "FAN_ACCESS_PERM",  # File accessed in perm check #
+        0x00040000: "FAN_OPEN_EXEC_PERM",  # File open/exec in perm check #
+        0x40000000: "FAN_ONDIR",  # event occurred against dir #
+        0x08000000: "FAN_EVENT_ON_CHILD",  # interested in child events #
+    }
+
+    FAN_INIT_TYPE = {
+        0x00000000: "FAN_CLASS_NOTIF",
+        0x00000001: "FAN_CLOEXEC",
+        0x00000002: "FAN_NONBLOCK",
+        0x00000004: "FAN_CLASS_CONTENT",
+        0x00000008: "FAN_CLASS_PRE_CONTENT",
+        0x00000010: "FAN_UNLIMITED_QUEUE",
+        0x00000020: "FAN_UNLIMITED_MARKS",
+        0x00000040: "FAN_ENABLE_AUDIT",
+        0x00000100: "FAN_REPORT_TID",
+        0x00000200: "FAN_REPORT_FID",
+    }
+
+    FAN_MARK_TYPE = {
+        0x00000000: "FAN_MARK_INODE",
+        0x00000001: "FAN_MARK_ADD",
+        0x00000002: "FAN_MARK_REMOVE",
+        0x00000004: "FAN_MARK_DONT_FOLLOW",
+        0x00000008: "FAN_MARK_ONLYDIR",
+        0x00000010: "FAN_MARK_MOUNT",
+        0x00000020: "FAN_MARK_IGNORED_MASK",
+        0x00000040: "FAN_MARK_IGNORED_SURV_MODIFY",
+        0x00000080: "FAN_MARK_FLUSH",
+        0x00000100: "FAN_MARK_FILESYSTEM",
+    }
+
+    FAN_PERM_TYPE = {
+        0x01: "FAN_ALLOW",
+        0x02: "FAN_DENY",
+        0x10: "FAN_AUDIT",
+    }
 
     # netlink type #
     NETLINK_TYPE = {
@@ -1097,7 +1154,7 @@ class ConfigMgr(object):
                 ("int", "fanotify_fd"),
                 ("unsigned int", "flags"),
                 ("u64", "mask"),
-                ("int", "fd"),
+                ("int", "dirfd"),
                 ("const char *", "pathname"),
             ),
         ),
@@ -6548,7 +6605,7 @@ class UtilMgr(object):
         return rlist
 
     @staticmethod
-    def getFlagString(value, flist, num="hex"):
+    def getFlagString(value, flist, num="hex", zero=False):
         string = ""
         numVal = long(value)
         for bit in list(flist):
@@ -6564,14 +6621,16 @@ class UtilMgr(object):
                     "failed to get flag info for %s" % value, reason=True
                 )
 
-        # check value for 0 index #
+        # check value for 0 index in limited variable range #
         if 0 in flist:
-            if num == "hex" and numVal & 0xF == 0:
-                string = "%s|%s" % (flist[bit], string)
+            if zero:
+                string = "%s|%s" % (flist[0], string)
+            elif num == "hex" and numVal & 0xF == 0:
+                string = "%s|%s" % (flist[0], string)
             elif num == "oct" and numVal & 0o7 == 0:
-                string = "%s|%s" % (flist[bit], string)
-            elif num == "bin" and numVal & 0 == 0:
-                string = "%s|%s" % (flist[bit], string)
+                string = "%s|%s" % (flist[0], string)
+            elif num == "bin" and numVal & 1 == 0:
+                string = "%s|%s" % (flist[0], string)
 
         if string:
             return string[:-1]
@@ -24778,6 +24837,10 @@ Commands:
         procStat = {}
         commonPath = "/sys/kernel/debug/nvmap/"
 
+        # check dir #
+        if not os.path.exists(commonPath):
+            return gpuStat, procStat
+
         # find all clients files #
         if incAll or "GPUALLMEM" in SysMgr.environList:
             targetList = UtilMgr.getFiles(commonPath, ["clients"])
@@ -36684,7 +36747,7 @@ Copyright:
                 break
 
     @staticmethod
-    def fainotify(path, flags=[], wait=False, verb=False):
+    def fanotify(path, flags=[], wait=False, verb=False):
         if not path:
             return False
 
@@ -69007,7 +69070,7 @@ typedef struct {
                 origArgs = args
                 argList = cmdset[1].split(":")
 
-                # convert args for previous return #
+                # convert args from variable list #
                 argList = self.convRetArgs(argList)
 
                 for item in argList:
@@ -69034,7 +69097,7 @@ typedef struct {
                 # make a new argument list #
                 argList = [None] * (nrMax + 1)
                 for idx, val in argSet.items():
-                    # convert args for previous return #
+                    # convert args from variable list #
                     val = self.convRetArgs([val])
 
                     argList[long(idx)] = val[0]
@@ -69054,7 +69117,7 @@ typedef struct {
                 argStr = ""
                 argList = cmdset[1].split(":")
 
-                # convert args for previous return #
+                # convert args from variable list #
                 argList = self.convRetArgs(argList)
 
                 for item in argList:
@@ -69101,7 +69164,12 @@ typedef struct {
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
 
-                addr, length, advise = cmdset[1].split(":")
+                argList = cmdset[1].split(":")
+
+                # convert args from variable list #
+                argList = self.convRetArgs(argList)
+
+                addr, length, advise = argList[:3]
 
                 # get addr and length #
                 addr = UtilMgr.convStr2Num(addr)
@@ -69115,9 +69183,17 @@ typedef struct {
                         for name, value in ConfigMgr.MADV_TYPE.items():
                             ConfigMgr.MADV_TYPE_REVERSE[value] = name
 
+                    # convert string to number #
                     name = "MADV_" + advise.upper()
                     if name in ConfigMgr.MADV_TYPE_REVERSE:
                         advise = ConfigMgr.MADV_TYPE_REVERSE[name]
+
+                # check advise #
+                if UtilMgr.isString(advise):
+                    SysMgr.printErr(
+                        "failed to recognize '%s' as an advise" % advise
+                    )
+                    return repeat
 
                 # convert page-aligned size #
                 PAGESIZE = SysMgr.PAGESIZE
@@ -69176,7 +69252,7 @@ typedef struct {
                 if len(memset) != 1 and len(memset) != 2:
                     _printCmdErr(cmdval, cmd)
 
-                # convert args for previous return #
+                # convert args from variable list #
                 memset = self.convRetArgs(memset)
 
                 # get addr #
@@ -69264,7 +69340,7 @@ typedef struct {
                 if len(memset) != 2 and len(memset) != 3:
                     _printCmdErr(cmdval, cmd)
 
-                # convert args for previous return #
+                # convert args from variable list #
                 memset = self.convRetArgs(memset)
 
                 # get addr #
@@ -69453,7 +69529,7 @@ typedef struct {
                 # get name #
                 name = memset[0]
 
-                # convert args for previous return #
+                # convert args from variable list #
                 memset = self.convRetArgs(memset)
 
                 # get value #
@@ -69874,7 +69950,7 @@ typedef struct {
                 # remove all breakpoints #
                 self.removeAllBp(verb=False)
 
-                # convert args for previous return #
+                # convert args from variable list #
                 cmdset = self.convRetArgs(cmdset)
 
                 # get function info #
@@ -69905,7 +69981,7 @@ typedef struct {
                 if len(func) > 1:
                     argList = func[1:]
 
-                    # convert args for previous return #
+                    # convert args from variable list #
                     argList = self.convRetArgs(argList)
 
                     argStr = ", ".join(list(map(str, argList)))
@@ -69946,7 +70022,7 @@ typedef struct {
                 if len(func) > 1:
                     argList = func[1:]
 
-                    # convert args for previous return #
+                    # convert args from variable list #
                     argList = self.convRetArgs(argList)
 
                     argStr = ", ".join(list(map(str, argList)))
@@ -70020,7 +70096,7 @@ typedef struct {
                 if len(func) > 1:
                     argList = func[1:]
 
-                    # convert args for previous return #
+                    # convert args from variable list #
                     argList = self.convRetArgs(argList)
 
                     argStr = ", ".join(list(map(str, argList)))
@@ -70100,7 +70176,7 @@ typedef struct {
                     val = envs[0]
                     argList = envs
 
-                # convert args for previous return #
+                # convert args from variable list #
                 argList = self.convRetArgs(argList)
                 argStr = " = ".join(list(map(str, argList)))
 
@@ -70137,7 +70213,7 @@ typedef struct {
                 val = cmdset[1]
                 argList = [val]
 
-                # convert args for previous return #
+                # convert args from variable list #
                 argList = self.convRetArgs(argList)
                 val = argList[0]
 
@@ -71152,7 +71228,7 @@ typedef struct {
         # set args #
         args = [addr]
 
-        # call free $
+        # call free #
         ret = self.remoteUsercall(func, args)
         if ret < 0:
             SysMgr.printErr(
@@ -71218,11 +71294,11 @@ typedef struct {
             # set args #
             args = [1, size]
 
-            # call calloc $
+            # call calloc #
             addr = self.remoteUsercall(func, args)
-            if addr < 0:
+            if addr <= 0:
                 SysMgr.printErr(
-                    "failed to alloc %s size of memory for %s(%s)"
+                    "failed to alloc %s bytes of memory for %s(%s)"
                     % (UtilMgr.convNum(size), self.comm, self.pid)
                 )
                 return None
@@ -72713,6 +72789,18 @@ typedef struct {
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.UMOUNT_TYPE_REVERSE
                 )
+        elif syscall == "fanotify_init":
+            if argname == "flags":
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.FAN_INIT_TYPE, zero=True
+                )
+            elif argname == "event_f_flags":
+                return UtilMgr.getFlagString(value, ConfigMgr.OPEN_TYPE, "oct")
+        elif syscall == "fanotify_mark":
+            if argname == "flags":
+                return UtilMgr.getFlagString(value, ConfigMgr.FAN_MARK_TYPE)
+            elif argname == "mask":
+                return UtilMgr.getFlagString(value, ConfigMgr.FAN_EVENT_TYPE)
 
         # convert fd to name #
         if ref and argname in ("fd", "sockfd"):
@@ -72770,7 +72858,7 @@ typedef struct {
             return ConfigMgr.SEEK_TYPE[c_int(value).value]
 
         # convert at #
-        if argname == "dfd":
+        if argname in ("dfd", "dirfd"):
             try:
                 return ConfigMgr.FAT_TYPE[c_int(value).value]
             except:
