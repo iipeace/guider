@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221023"
+__revision__ = "221024"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -486,25 +486,25 @@ class ConfigMgr(object):
 
     # open flags type #
     OPEN_TYPE = {
-        0o0: "RDONLY",
-        0o1: "WRONLY",
-        0o2: "RDWR",
-        0o100: "CREAT",
-        0o200: "EXCL",
-        0o400: "NOCTTY",
-        0o1000: "TRUNC",
-        0o2000: "APPEND",
-        0o4000: "NONBLOCK",
-        0o10000: "SYNC",
-        0o20000: "ASYNC",
-        0o40000: "DIRECT",
-        0o100000: "LARGEFILE",
-        0o200000: "DIRECTORY",
-        0o400000: "NOFOLLOW",
-        0o1000000: "NOATIME",
-        0o2000000: "CLOEXEC",
-        0o10000000: "PATH",
-        0o20200000: "TMPFILE",
+        0o0: "O_RDONLY",
+        0o1: "O_WRONLY",
+        0o2: "O_RDWR",
+        0o100: "O_CREAT",
+        0o200: "O_EXCL",
+        0o400: "O_NOCTTY",
+        0o1000: "O_TRUNC",
+        0o2000: "O_APPEND",
+        0o4000: "O_NONBLOCK",
+        0o10000: "O_SYNC",
+        0o20000: "O_ASYNC",
+        0o40000: "O_DIRECT",
+        0o100000: "O_LARGEFILE",
+        0o200000: "O_DIRECTORY",
+        0o400000: "O_NOFOLLOW",
+        0o1000000: "O_NOATIME",
+        0o2000000: "O_CLOEXEC",
+        0o10000000: "O_PATH",
+        0o20200000: "O_TMPFILE",
     }
 
     # epoll op type #
@@ -36747,13 +36747,35 @@ Copyright:
                 break
 
     @staticmethod
-    def fanotify(path, flags=[], wait=False, verb=False):
+    def fanotify(
+        path,
+        flags=[],
+        oflags=[],
+        mark="FAN_MARK_ADD",
+        mask=[],
+        dirfd="AT_FDCWD",
+        wait=False,
+        retfd=False,
+        verb=False,
+    ):
+        # set path #
         if not path:
+            return False
+        elif not type(path) is list:
+            path = [path]
+
+        # get select object #
+        selectObj = SysMgr.getPkg("select", False)
+
+        # check flags type #
+        if type(flags) is not list or type(oflags) is not list:
+            SysMgr.printErr("failed to get flags as a list")
             return False
 
         # load libc #
         SysMgr.loadLibcObj(exit=True)
 
+        """
         class fanotify_event_metadata(Structure):
             _fields_ = (
                 ("event_len", c_uint32),
@@ -36778,18 +36800,166 @@ Copyright:
                 ("fsid", c_int * 2),  # __kernel_fsid_t
                 ("file_handle", c_char * 1),
             )
+        """
+
+        # make init flags #
+        if not flags:
+            flags = ["FAN_CLOEXEC"]
+        flagList = {v: k for k, v in ConfigMgr.FAN_INIT_TYPE.items()}
+        flagBits = 0
+        for flag in flags:
+            try:
+                flagBits |= flagList[flag]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to get init flags", True)
+                return False
+
+        # get open flags #
+        if not oflags:
+            oflags = ["O_RDONLY", "O_CLOEXEC", "O_LARGEFILE"]
+        oflagList = {v: k for k, v in ConfigMgr.OPEN_TYPE.items()}
+        oflagBits = 0
+        for flag in oflags:
+            try:
+                oflagBits |= oflagList[flag]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to get open flags", True)
+                return False
+
+        # get event fd #
+        fd = SysMgr.libcObj.fanotify_init(flagBits, oflagBits)
+        if fd < 0:
+            SysMgr.printErr(
+                "failed to call fanotify_init because %s"
+                % SysMgr.getErrReason()
+            )
+            return False
+
+        # get mask flags #
+        # TODO: set default mask list #
+        eflagList = {v: k for k, v in ConfigMgr.FAN_EVENT_TYPE.items()}
+        eflagBits = 0
+        for flag in mask:
+            try:
+                eflagBits |= eflagList[flag]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to get mask flags", True)
+                return False
+
+        # get mark option #
+        try:
+            mark = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}[mark]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to convert mark command '%s'" % mark, True)
+            return False
+
+        # get dirfd option #
+        try:
+            dirfd = {v: k for k, v in ConfigMgr.FAT_TYPE.items()}[dirfd]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to convert dirfd '%s'" % dirfd, True)
+            return False
+
+        # define prototype for fanotify_mark() #
+        SysMgr.libcObj.fanotify_mark.argtypes = [
+            c_int,
+            c_uint,
+            c_uint64,
+            c_int,
+            c_void_p,
+        ]
+
+        # mark each directory #
+        for item in path:
+            ret = SysMgr.libcObj.fanotify_mark(
+                fd, mark, eflagBits, dirfd, item
+            )
+            if ret < 0:
+                SysMgr.printErr(
+                    "failed to call fanotify_mark because %s"
+                    % SysMgr.getErrReason()
+                )
+                return False
+
+        # just return fd #
+        if retfd:
+            return fd
+
+        # disable pager #
+        SysMgr.streamEnable = True
+
+        # define maximum buffer size #
+        BUF_LEN = 8192
+        buf = (c_char * BUF_LEN)()
+        fmt = "IBBHQii"
+        size = struct.calcsize(fmt)
+
+        while 1:
+            try:
+                res = selectObj.select([fd], [], [])
+                if not res[0]:
+                    continue
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to wait for events", True)
+                break
+
+            # read events #
+            length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
+            if length < 0:
+                SysMgr.printWarn("failed to read fanotify event", verb)
+                return False
+
+            i = 0
+            current = SysMgr.updateUptime()
+
+            while i < length:
+                elen, vers, _, dlen, emask, efd, epid = struct.unpack(
+                    fmt, buf[i : i + size]
+                )
+
+                # convert event info #
+                events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
+                epath = SysMgr.getFdName("self", efd)
+                ecomm = SysMgr.getComm(epid)
+
+                # print event info #
+                SysMgr.printPipe(
+                    "[%.6f] %s@%s via %s(%s)"
+                    % (current, events, epath, ecomm, epid)
+                )
+
+                # close event fd for target file #
+                os.close(efd)
+
+                i += size + elen
 
     @staticmethod
     def inotify(path, flags=[], wait=False, verb=False):
+        # check and set path list #
         if not path:
             return False
+        elif not type(path) is list:
+            path = [path]
 
         # load libc #
         SysMgr.loadLibcObj(exit=True)
 
-        # convert path type to list #
-        if type(path) is str:
-            path = [path]
+        # check flags type #
+        if type(flags) is not list:
+            SysMgr.printErr("failed to get flags as a list")
+            return False
 
         # check and wait for files to be created #
         if wait:
@@ -36826,11 +36996,6 @@ Copyright:
             # check exit condition #
             if exitFlag:
                 sys.exit(0)
-
-        # check flags type #
-        if type(flags) is not list:
-            SysMgr.printErr("failed to get flags as a list")
-            return False
 
         if not SysMgr.inotifyEnable:
             inotifyFuncs = [
@@ -47014,11 +47179,20 @@ Copyright:
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
     @staticmethod
+    def signalfd(fd=-1, sig=None, act="block", wait=False):
+        # block signals #
+        if not SysMgr.blockSignal(sig, act, wait=False):
+            return -1
+
+        # return new FD for signal events #
+        sigset = SysMgr.sigsetObj
+        return SysMgr.libcObj.signalfd(fd, byref(sigset), 0)
+
+    @staticmethod
     def blockSignal(sig=None, act="block", wait=False):
         # load libc #
-        if not SysMgr.libcObj:
-            if not SysMgr.loadLibcObj():
-                return False
+        if not SysMgr.loadLibcObj():
+            return False
 
         # set default signal #
         if not sig:
@@ -47037,11 +47211,11 @@ Copyright:
         sigsetold = SysMgr.sigsetOldObj
 
         # check act #
-        if act == "block":
+        if act == "block":  # signal.SIG_BLOCK
             atype = SIG_BLOCK = 0
-        elif act == "unblock":
+        elif act == "unblock":  # signal.SIG_UNBLOCK
             atype = SIG_UNBLOCK = 1
-        else:
+        else:  # signal.SIG_SETMASK
             SysMgr.printErr("no supported '%s' for blocking signal" % act)
             return
 
