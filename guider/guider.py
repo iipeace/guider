@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221024"
+__revision__ = "221025"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34451,6 +34451,9 @@ Examples:
     - Watch the current directory
         # {0:1} {1:1}
 
+    - Watch the current directory with process info
+        # {0:1} {1:1} -q PROCINFO
+
     - Watch specific files to be created and terminate after all them created
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
 
@@ -36623,16 +36626,20 @@ Copyright:
                 sys.exit(0)
 
     @staticmethod
-    def getKernelVersion(name=False):
-        if SysMgr.kernelVersion:
+    def getKernelVersion(name=False, number=False):
+        if not number and SysMgr.kernelVersion:
             return SysMgr.kernelVersion
 
         try:
             kernel = os.uname()[2]
-            if kernel:
+            if not number and kernel:
                 return kernel
 
             kernelList = kernel.split(".")
+
+            # return number tuple #
+            if number:
+                return (long(kernelList[0]), long(kernelList[1]))
 
             # get kernel major version #
             kernelVersion = ".".join(kernelList[0:2])
@@ -36751,11 +36758,12 @@ Copyright:
         path,
         flags=[],
         oflags=[],
-        mark="FAN_MARK_ADD",
+        mark=[],
         mask=[],
         dirfd="AT_FDCWD",
         wait=False,
         retfd=False,
+        retlist=False,
         verb=False,
     ):
         # set path #
@@ -36804,7 +36812,7 @@ Copyright:
 
         # make init flags #
         if not flags:
-            flags = ["FAN_CLOEXEC"]
+            flags = ["FAN_CLOEXEC", "FAN_CLASS_CONTENT"]
         flagList = {v: k for k, v in ConfigMgr.FAN_INIT_TYPE.items()}
         flagBits = 0
         for flag in flags:
@@ -36840,7 +36848,36 @@ Copyright:
             return False
 
         # get mask flags #
-        # TODO: set default mask list #
+        if not mask:
+            mask = [
+                "FAN_ACCESS",
+                "FAN_MODIFY",
+                "FAN_CLOSE_WRITE",
+                "FAN_CLOSE_NOWRITE",
+                "FAN_OPEN",
+                "FAN_EVENT_ON_CHILD",
+            ]
+
+        # check version #
+        if SysMgr.getKernelVersion(number=True) < (5, 1):
+            common = set(mask) & set(
+                [
+                    "FAN_CREATE",
+                    "FAN_DELETE",
+                    "FAN_DELETE_SELF",
+                    "FAN_MOVED_FROM",
+                    "FAN_MOVED_TO",
+                    "FAN_MOVE_SELF",
+                    "FAN_OPEN_EXEC_PERM",
+                ]
+            )
+            if common:
+                SysMgr.printErr(
+                    "failed to set '%s' because they are supported from kernel 5.1"
+                    % "|".join(common)
+                )
+                sys.exit(0)
+
         eflagList = {v: k for k, v in ConfigMgr.FAN_EVENT_TYPE.items()}
         eflagBits = 0
         for flag in mask:
@@ -36853,13 +36890,18 @@ Copyright:
                 return False
 
         # get mark option #
-        try:
-            mark = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}[mark]
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("failed to convert mark command '%s'" % mark, True)
-            return False
+        if not mark:
+            mark = ["FAN_MARK_ADD"]
+        mflagList = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}
+        mflagBits = 0
+        for flag in mark:
+            try:
+                mflagBits |= mflagList[flag]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to get mark flags", True)
+                return False
 
         # get dirfd option #
         try:
@@ -36882,7 +36924,7 @@ Copyright:
         # mark each directory #
         for item in path:
             ret = SysMgr.libcObj.fanotify_mark(
-                fd, mark, eflagBits, dirfd, item
+                fd, mflagBits, eflagBits, dirfd, item.encode("latin-1")
             )
             if ret < 0:
                 SysMgr.printErr(
@@ -36895,14 +36937,13 @@ Copyright:
         if retfd:
             return fd
 
-        # disable pager #
-        SysMgr.streamEnable = True
-
-        # define maximum buffer size #
+        # define variables #
         BUF_LEN = 8192
         buf = (c_char * BUF_LEN)()
         fmt = "IBBHQii"
+        revents = []
         size = struct.calcsize(fmt)
+        conv = UtilMgr.convColor
 
         while 1:
             try:
@@ -36921,9 +36962,10 @@ Copyright:
                 SysMgr.printWarn("failed to read fanotify event", verb)
                 return False
 
-            i = 0
-            current = SysMgr.updateUptime()
+            if not retlist:
+                current = SysMgr.updateUptime()
 
+            i = 0
             while i < length:
                 elen, vers, _, dlen, emask, efd, epid = struct.unpack(
                     fmt, buf[i : i + size]
@@ -36934,19 +36976,29 @@ Copyright:
                 epath = SysMgr.getFdName("self", efd)
                 ecomm = SysMgr.getComm(epid)
 
-                # print event info #
-                SysMgr.printPipe(
-                    "[%.6f] %s@%s via %s(%s)"
-                    % (current, events, epath, ecomm, epid)
-                )
-
                 # close event fd for target file #
                 os.close(efd)
 
+                revents.append([epath, events, epid, ecomm])
+
+                # print event info #
+                if not retlist:
+                    SysMgr.printPipe(
+                        "[%.6f] %s@%s by %s"
+                        % (
+                            current,
+                            conv(events, "WARNING"),
+                            conv(epath, "GREEN"),
+                            conv("%s(%s)" % (ecomm, epid), "YELLOW"),
+                        )
+                    )
+
                 i += size + elen
 
+        return revents
+
     @staticmethod
-    def inotify(path, flags=[], wait=False, verb=False):
+    def inotify(path, flags=[], wait=False, retlist=False, verb=False):
         # check and set path list #
         if not path:
             return False
@@ -37027,12 +37079,15 @@ Copyright:
 
         # create an object #
         ie = inotify_event()
+
+        # define variables #
         fmt = "iIII"
         revents = []
         EVENT_SIZE = sizeof(ie)
         size = struct.calcsize(fmt)
         BUF_LEN = 1024 * (EVENT_SIZE + 16)
         buf = (c_char * BUF_LEN)()
+        conv = UtilMgr.convColor
 
         # create a file descriptor #
         fd = SysMgr.libcObj.inotify_init()
@@ -37071,6 +37126,9 @@ Copyright:
         # get select object #
         selectObj = SysMgr.getPkg("select", False)
 
+        if not retlist:
+            current = SysMgr.updateUptime()
+
         # check events #
         while 1:
             i = 0
@@ -37094,6 +37152,16 @@ Copyright:
                     sys.exit(0)
                 except:
                     pass
+
+                if not retlist:
+                    SysMgr.printPipe(
+                        "[%.6f] %s@%s"
+                        % (
+                            current,
+                            conv("|".join(rtypes), "WARNING"),
+                            conv(os.path.join(wlist[wd], fname), "GREEN"),
+                        )
+                    )
 
                 i += size + flen
 
@@ -50615,14 +50683,23 @@ Copyright:
         targetList = []
         targetInfo = {}
 
+        # set notifier #
+        if "PROCINFO" in SysMgr.environList:
+            notifier = SysMgr.fanotify
+            retlist = False
+        else:
+            notifier = SysMgr.inotify
+            retlist = True
+
         # parse items #
         for item in opList:
             args = item.split(":")
 
-            # convert path #
+            # add path #
             path = SysMgr.convFullPath(args[0])
             targetList.append(path)
 
+            # add event #
             if len(args) > 1:
                 events = args[1].strip().split("|")
                 if events == [""]:
@@ -50630,11 +50707,13 @@ Copyright:
             else:
                 events = []
 
+            # add file name #
             if len(args) > 2:
                 fname = UtilMgr.cleanItem(args[2].split("|"), False)
             else:
                 fname = None
 
+            # add command #
             if len(args) > 3:
                 cmd = args[3].strip().split("|")
                 if cmd == [""]:
@@ -50644,13 +50723,18 @@ Copyright:
 
             targetInfo[path] = {"event": events, "cmd": cmd, "fname": fname}
 
+        conv = UtilMgr.convColor
+
         SysMgr.printInfo("start watching [%s]" % ", ".join(targetList))
 
         # start watching #
         while 1:
             try:
                 # wait for events #
-                ret = SysMgr.inotify(targetList, wait=True, verb=True)
+                # TODO: add outside parser for fanotify #
+                ret = notifier(
+                    targetList, wait=True, retlist=retlist, verb=True
+                )
                 if not ret:
                     break
 
@@ -50679,7 +50763,12 @@ Copyright:
                         fpath = path
 
                     SysMgr.printPipe(
-                        "[%.6f] %s@%s" % (current, "|".join(events), fpath)
+                        "[%.6f] %s@%s"
+                        % (
+                            current,
+                            conv("|".join(events), "WARNING"),
+                            conv(fpath, "GREEN"),
+                        )
                     )
 
                     # print file #
