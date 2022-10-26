@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221025"
+__revision__ = "221026"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32041,6 +32041,9 @@ Examples:
         # {0:1} {1:1} -a
         # {0:1} {1:1} -a -Q
 
+    - Monitor specific processes sorted by the number of file descriptors
+        # {0:1} {1:1} -g chrome -q ONLYPROC
+
     - Monitor open files, sockets, pipes for all processes and print about them in JSON format
         # {0:1} {1:1} -J
         # {0:1} {1:1} -J -Q
@@ -36812,7 +36815,7 @@ Copyright:
 
         # make init flags #
         if not flags:
-            flags = ["FAN_CLOEXEC", "FAN_CLASS_CONTENT"]
+            flags = ["FAN_CLOEXEC", "FAN_CLASS_NOTIF"]
         flagList = {v: k for k, v in ConfigMgr.FAN_INIT_TYPE.items()}
         flagBits = 0
         for flag in flags:
@@ -36826,7 +36829,8 @@ Copyright:
 
         # get open flags #
         if not oflags:
-            oflags = ["O_RDONLY", "O_CLOEXEC", "O_LARGEFILE"]
+            # O_LARGEFILE is needed to support files bigger than 2GB #
+            oflags = ["O_RDONLY", "O_CLOEXEC"]
         oflagList = {v: k for k, v in ConfigMgr.OPEN_TYPE.items()}
         oflagBits = 0
         for flag in oflags:
@@ -36855,6 +36859,7 @@ Copyright:
                 "FAN_CLOSE_WRITE",
                 "FAN_CLOSE_NOWRITE",
                 "FAN_OPEN",
+                "FAN_ONDIR",
                 "FAN_EVENT_ON_CHILD",
             ]
 
@@ -36993,7 +36998,7 @@ Copyright:
                         )
                     )
 
-                i += size + elen
+                i += size
 
         return revents
 
@@ -73054,9 +73059,7 @@ typedef struct {
                 )
         elif syscall == "fanotify_init":
             if argname == "flags":
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.FAN_INIT_TYPE, zero=True
-                )
+                return UtilMgr.getFlagString(value, ConfigMgr.FAN_INIT_TYPE)
             elif argname == "event_f_flags":
                 return UtilMgr.getFlagString(value, ConfigMgr.OPEN_TYPE, "oct")
         elif syscall == "fanotify_mark":
@@ -108430,7 +108433,9 @@ class TaskAnalyzer(object):
 
             # print only per-process summary #
             fdCnt = 0
-            if not SysMgr.showAll and not SysMgr.filterGroup:
+            if "ONLYPROC" in SysMgr.environList or (
+                not SysMgr.showAll and not SysMgr.filterGroup
+            ):
                 if procInfo != "":
                     if SysMgr.jsonEnable:
                         ret = True
