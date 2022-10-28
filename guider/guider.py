@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221026"
+__revision__ = "221028"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34456,6 +34456,13 @@ Examples:
 
     - Watch the current directory with process info
         # {0:1} {1:1} -q PROCINFO
+        # {0:1} {1:1} -q PROCINFO, LARGEFILE
+        # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"vi*"
+
+    - Watch the current mount point with process info
+        # {0:1} {1:1} -q PROCINFO, MOUNTALL
+        # {0:1} {1:1} -q PROCINFO, MOUNTALL, TARGETFILE:"*.data"
+        # {0:1} {1:1} -q PROCINFO, MOUNTALL, EXCEPTFILE:"*.py"
 
     - Watch specific files to be created and terminate after all them created
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
@@ -34465,6 +34472,9 @@ Examples:
 
     - Watch multiple directories
         # {0:1} {1:1} "/home/iipeace/test, /home/iipeace/test/sub"
+
+    - Watch all sub-directories of the current directory
+        # {0:1} {1:1} -q INCSUBDIRS
 
     - Print event list
         # {0:1} {1:1} -l
@@ -34961,8 +34971,9 @@ Examples:
     - {2:1} from current working directory
         # {0:1} {1:1}
 
-    - {2:1} from / directory
+    - {2:1} from specific directory
         # {0:1} {1:1} /
+        # {0:1} {1:1} /proc/device-tree
         # {0:1} {1:1} -I /
 
     - {2:1} from current working directory after sorting per-directory
@@ -36829,8 +36840,9 @@ Copyright:
 
         # get open flags #
         if not oflags:
-            # O_LARGEFILE is needed to support files bigger than 2GB #
             oflags = ["O_RDONLY", "O_CLOEXEC"]
+            if "LARGEFILE" in SysMgr.environList:
+                oflags += ["O_LARGEFILE"]
         oflagList = {v: k for k, v in ConfigMgr.OPEN_TYPE.items()}
         oflagBits = 0
         for flag in oflags:
@@ -36897,6 +36909,11 @@ Copyright:
         # get mark option #
         if not mark:
             mark = ["FAN_MARK_ADD"]
+
+        # add mount info #
+        if "MOUNTALL" in SysMgr.environList:
+            mark += ["FAN_MARK_MOUNT"]
+
         mflagList = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}
         mflagBits = 0
         for flag in mark:
@@ -36949,6 +36966,31 @@ Copyright:
         revents = []
         size = struct.calcsize(fmt)
         conv = UtilMgr.convColor
+        isValidStr = UtilMgr.isValidStr
+
+        # get target file list #
+        if "TARGETFILE" in SysMgr.environList:
+            targetFile = SysMgr.environList["TARGETFILE"]
+        else:
+            targetFile = []
+
+        # get except file list #
+        if "EXCEPTFILE" in SysMgr.environList:
+            exceptFile = SysMgr.environList["EXCEPTFILE"]
+        else:
+            exceptFile = []
+
+        # get target comm list #
+        if "TARGETCOMM" in SysMgr.environList:
+            targetComm = SysMgr.environList["TARGETCOMM"]
+        else:
+            targetComm = []
+
+        # get except comm list #
+        if "EXCEPTCOMM" in SysMgr.environList:
+            exceptComm = SysMgr.environList["EXCEPTCOMM"]
+        else:
+            exceptComm = []
 
         while 1:
             try:
@@ -36983,6 +37025,16 @@ Copyright:
 
                 # close event fd for target file #
                 os.close(efd)
+
+                # check skip conditions #
+                if (
+                    (targetComm and not isValidStr(ecomm, targetComm))
+                    or (exceptComm and isValidStr(ecomm, exceptComm))
+                    or (targetFile and not isValidStr(epath, targetFile))
+                    or (exceptFile and isValidStr(epath, exceptFile))
+                ):
+                    i += size
+                    continue
 
                 revents.append([epath, events, epid, ecomm])
 
@@ -50700,35 +50752,53 @@ Copyright:
         for item in opList:
             args = item.split(":")
 
-            # add path #
-            path = SysMgr.convFullPath(args[0])
-            targetList.append(path)
+            # get full path #
+            pathList = UtilMgr.getFileList([args[0]])
 
-            # add event #
-            if len(args) > 1:
-                events = args[1].strip().split("|")
-                if events == [""]:
+            # check option #
+            if "INCSUBDIRS" in SysMgr.environList:
+                pathList += UtilMgr.getFiles(path, incFile=False, incDir=True)
+
+            # add path to list #
+            for path in pathList:
+                # convert to absolute path #
+                path = SysMgr.convFullPath(path)
+
+                # add to target list #
+                targetList.append(path)
+
+                # add event #
+                if len(args) > 1:
+                    events = args[1].strip().split("|")
+                    if events == [""]:
+                        events = []
+                else:
                     events = []
-            else:
-                events = []
 
-            # add file name #
-            if len(args) > 2:
-                fname = UtilMgr.cleanItem(args[2].split("|"), False)
-            else:
-                fname = None
+                # add file name #
+                if len(args) > 2:
+                    fname = UtilMgr.cleanItem(args[2].split("|"), False)
+                else:
+                    fname = None
 
-            # add command #
-            if len(args) > 3:
-                cmd = args[3].strip().split("|")
-                if cmd == [""]:
+                # add command #
+                if len(args) > 3:
+                    cmd = args[3].strip().split("|")
+                    if cmd == [""]:
+                        cmd = []
+                else:
                     cmd = []
-            else:
-                cmd = []
 
-            targetInfo[path] = {"event": events, "cmd": cmd, "fname": fname}
+                targetInfo[path] = {
+                    "event": events,
+                    "cmd": cmd,
+                    "fname": fname,
+                }
 
         conv = UtilMgr.convColor
+
+        # remove redundant path #
+        targetList = list(set(targetList))
 
         SysMgr.printInfo("start watching [%s]" % ", ".join(targetList))
 
@@ -108571,6 +108641,10 @@ class TaskAnalyzer(object):
                     ret = SysMgr.addPrint("%s\n" % oneLine)
                 if not ret:
                     break
+
+        # add last line #
+        if "ONLYPROC" in SysMgr.environList:
+            ret = SysMgr.addPrint("%s\n" % oneLine)
 
         # print total stats #
         if SysMgr.jsonEnable:
