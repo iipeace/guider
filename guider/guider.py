@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221028"
+__revision__ = "221029"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5469,6 +5469,71 @@ class ConfigMgr(object):
         24: "SHMCTL",
     }
 
+    # ioctl flags #
+    IOCTL_TYPE = {
+        "TCGETS": 0x5401,
+        "TCSETS": 0x5402,
+        "TCSETSW": 0x5403,
+        "TCSETSF": 0x5404,
+        "TCGETA": 0x5405,
+        "TCSETA": 0x5406,
+        "TCSETAW": 0x5407,
+        "TCSETAF": 0x5408,
+        "TCSBRK": 0x5409,
+        "TCXONC": 0x540A,
+        "TCFLSH": 0x540B,
+        "TIOCEXCL": 0x540C,
+        "TIOCNXCL": 0x540D,
+        "TIOCSCTTY": 0x540E,
+        "TIOCGPGRP": 0x540F,
+        "TIOCSPGRP": 0x5410,
+        "TIOCOUTQ": 0x5411,
+        "TIOCSTI": 0x5412,
+        "TIOCGWINSZ": 0x5413,
+        "TIOCSWINSZ": 0x5414,
+        "TIOCMGET": 0x5415,
+        "TIOCMBIS": 0x5416,
+        "TIOCMBIC": 0x5417,
+        "TIOCMSET": 0x5418,
+        "TIOCGSOFTCAR": 0x5419,
+        "TIOCSSOFTCAR": 0x541A,
+        "FIONREAD": 0x541B,
+        "TIOCLINUX": 0x541C,
+        "TIOCCONS": 0x541D,
+        "TIOCGSERIAL": 0x541E,
+        "TIOCSSERIAL": 0x541F,
+        "TIOCPKT": 0x5420,
+        "FIONBIO": 0x5421,
+        "TIOCNOTTY": 0x5422,
+        "TIOCSETD": 0x5423,
+        "TIOCGETD": 0x5424,
+        "TCSBRKP": 0x5425,
+        "TIOCSBRK": 0x5427,
+        "TIOCCBRK": 0x5428,
+        "TIOCGSID": 0x5429,
+        "TIOCGRS485": 0x542E,
+        "TIOCSRS485": 0x542F,
+        "TCGETX": 0x5432,
+        "TCSETX": 0x5433,
+        "TCSETXF": 0x5434,
+        "TCSETXW": 0x5435,
+        "FIONCLEX": 0x5450,
+        "FIOCLEX": 0x5451,
+        "FIOASYNC": 0x5452,
+        "TIOCSERCONFIG": 0x5453,
+        "TIOCSERGWILD": 0x5454,
+        "TIOCSERSWILD": 0x5455,
+        "TIOCGLCKTRMIOS": 0x5456,
+        "TIOCSLCKTRMIOS": 0x5457,
+        "TIOCSERGSTRUCT": 0x5458,
+        "TIOCSERGETLSR": 0x5459,
+        "TIOCSERGETMULTI": 0x545A,
+        "TIOCSERSETMULTI": 0x545B,
+        "TIOCMIWAIT": 0x545C,
+        "TIOCGICOUNT": 0x545D,
+    }
+    IOCTL_TYPE_REVERSE = {}
+
     # ptrace request type #
     PTRACE_TYPE = [
         "PTRACE_TRACEME",  # 0
@@ -5521,6 +5586,8 @@ class ConfigMgr(object):
         + ["NONE" for idx in xrange(120)]
         + ["PTRACE_EVENT_STOP"]
     )
+
+    # perf event types #
     PERF_EVENT_TYPE = [
         "PERF_TYPE_HARDWARE",
         "PERF_TYPE_SOFTWARE",
@@ -34457,12 +34524,18 @@ Examples:
     - Watch the current directory with process info
         # {0:1} {1:1} -q PROCINFO
         # {0:1} {1:1} -q PROCINFO, LARGEFILE
-        # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"vi*"
+        # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
+        # {0:1} {1:1} -q PROCINFO, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
     - Watch the current mount point with process info
-        # {0:1} {1:1} -q PROCINFO, MOUNTALL
-        # {0:1} {1:1} -q PROCINFO, MOUNTALL, TARGETFILE:"*.data"
-        # {0:1} {1:1} -q PROCINFO, MOUNTALL, EXCEPTFILE:"*.py"
+        # {0:1} {1:1} -q INMOUNT
+        # {0:1} {1:1} -q INMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
+        # {0:1} {1:1} -q INMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
+
+    - Watch all mount points with process info
+        # {0:1} {1:1} -q ALLMOUNT
+        # {0:1} {1:1} -q ALLMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
+        # {0:1} {1:1} -q ALLMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
     - Watch specific files to be created and terminate after all them created
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
@@ -36911,7 +36984,10 @@ Copyright:
             mark = ["FAN_MARK_ADD"]
 
         # add mount info #
-        if "MOUNTALL" in SysMgr.environList:
+        if "ALLMOUNT" in SysMgr.environList:
+            mark += ["FAN_MARK_MOUNT"]
+            path = list(SysMgr.convMountList(SysMgr.getMountData()).keys())
+        elif "INMOUNT" in SysMgr.environList:
             mark += ["FAN_MARK_MOUNT"]
 
         mflagList = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}
@@ -37018,10 +37094,16 @@ Copyright:
                     fmt, buf[i : i + size]
                 )
 
+                # ignore my event #
+                if epid == SysMgr.pid:
+                    i += size
+                    os.close(efd)
+                    continue
+
                 # convert event info #
                 events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
                 epath = SysMgr.getFdName("self", efd)
-                ecomm = SysMgr.getComm(epid)
+                ecomm = SysMgr.getComm(epid, cache=True, save=True)
 
                 # close event fd for target file #
                 os.close(efd)
@@ -50741,7 +50823,11 @@ Copyright:
         targetInfo = {}
 
         # set notifier #
-        if "PROCINFO" in SysMgr.environList:
+        if (
+            "PROCINFO" in SysMgr.environList
+            or "INMOUNT" in SysMgr.environList
+            or "ALLMOUNT" in SysMgr.environList
+        ):
             notifier = SysMgr.fanotify
             retlist = False
         else:
@@ -73012,7 +73098,7 @@ typedef struct {
                         reason=True,
                     )
                     return value
-        elif syscall in ("open", "accept4"):
+        elif syscall in ("open", "openat", "accept4"):
             if argname == "flags":
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.OPEN_TYPE, num="oct"
@@ -73137,6 +73223,19 @@ typedef struct {
                 return UtilMgr.getFlagString(value, ConfigMgr.FAN_MARK_TYPE)
             elif argname == "mask":
                 return UtilMgr.getFlagString(value, ConfigMgr.FAN_EVENT_TYPE)
+        elif syscall == "ioctl":
+            if argname == "cmd":
+                if not ConfigMgr.IOCTL_TYPE_REVERSE:
+                    for name, value in ConfigMgr.IOCTL_TYPE.items():
+                        ConfigMgr.IOCTL_TYPE_REVERSE[value] = name
+
+                try:
+                    return ConfigMgr.IOCTL_TYPE_REVERSE[long(value)]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    print(SysMgr.getErrMsg())
+                    pass
 
         # convert fd to name #
         if ref and argname in ("fd", "sockfd"):
