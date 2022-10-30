@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221029"
+__revision__ = "221030"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23831,7 +23831,7 @@ class SysMgr(object):
     netstat = ""
     prevNetstat = ""
     loadavg = ""
-    battery = {}
+    battery = ""
     netInIndex = -1
     nrUDPSock = 0
     nrTCPSock = 0
@@ -26004,6 +26004,48 @@ Commands:
             sysMemStr = 0
         finally:
             return sysMemStr
+
+    @staticmethod
+    def updateBatInfo():
+        try:
+            batPath = "/sys/class/power_supply"
+            if not os.path.exists(batPath):
+                return
+
+            SysMgr.battery = ""
+
+            stats = {
+                "capacity": 0,
+                "status": "",
+                "energy_now": 0,
+                "power_now": 0,
+            }
+
+            for d in os.listdir(batPath):
+                subpath = os.path.join(batPath, d)
+                for sub in os.listdir(subpath):
+                    if not sub in stats:
+                        continue
+
+                    data = SysMgr.readFile(os.path.join(subpath, sub))
+                    if sub in ("capacity", "energy_now", "power_now"):
+                        stats[sub] += long(data)
+                    elif sub == "status" and not data.upper().startswith(
+                        "DIS"
+                    ):
+                        stats[sub] = "+"
+
+            SysMgr.battery = (
+                stats["capacity"],
+                long(stats["energy_now"] / float(stats["power_now"]) * 3600)
+                if stats["power_now"]
+                else 0,
+                stats["status"],
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to get battery info", reason=True)
 
     @staticmethod
     def updateNrRun(path):
@@ -37121,7 +37163,23 @@ Copyright:
                 revents.append([epath, events, epid, ecomm])
 
                 # print event info #
-                if not retlist:
+                if retlist:
+                    pass
+                elif SysMgr.jsonEnable:
+                    dictInfo = {
+                        "time": current,
+                        "event": events,
+                        "path": epath,
+                        "pid": epid,
+                        "comm": ecomm,
+                    }
+
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            dictInfo, pretty=not SysMgr.streamEnable
+                        )
+                    )
+                else:
                     SysMgr.printPipe(
                         "[%.6f] %s@%s by %s"
                         % (
@@ -50923,14 +50981,27 @@ Copyright:
                     else:
                         fpath = path
 
-                    SysMgr.printPipe(
-                        "[%.6f] %s@%s"
-                        % (
-                            current,
-                            conv("|".join(events), "WARNING"),
-                            conv(fpath, "GREEN"),
+                    if SysMgr.jsonEnable:
+                        dictInfo = {
+                            "time": current,
+                            "event": events,
+                            "path": fpath,
+                        }
+
+                        SysMgr.printPipe(
+                            UtilMgr.convDict2Str(
+                                dictInfo, pretty=not SysMgr.streamEnable
+                            )
                         )
-                    )
+                    else:
+                        SysMgr.printPipe(
+                            "[%.6f] %s@%s"
+                            % (
+                                current,
+                                conv("|".join(events), "WARNING"),
+                                conv(fpath, "GREEN"),
+                            )
+                        )
 
                     # print file #
                     if "PRINTFILE" in SysMgr.environList:
@@ -60336,6 +60407,26 @@ Copyright:
             if SysMgr.jsonEnable:
                 jsonData["nrCurOpenFile"] = self.openFileData["cur"]
                 jsonData["nrMaxOpenFile"] = self.openFileData["max"]
+        except:
+            pass
+
+        # battery #
+        try:
+            SysMgr.updateBatInfo()
+
+            if SysMgr.battery:
+                batStr = "%d%% / %s / %s" % (
+                    SysMgr.battery[0],
+                    UtilMgr.convTime(SysMgr.battery[1]),
+                    "+" if SysMgr.battery[2] else "-",
+                )
+
+                SysMgr.infoBufferPrint(
+                    "{0:20} {1:<10}".format("Battery", batStr)
+                )
+
+                if SysMgr.jsonEnable:
+                    jsonData["battery"] = batStr
         except:
             pass
 
@@ -109820,25 +109911,7 @@ class TaskAnalyzer(object):
             pass
 
         # save battery #
-        try:
-            # TODO: save left percent, left second, charge status #
-            """
-            SysMgr.batteryFd.seek(0)
-            battery = SysMgr.batteryFd.readlines()[0]
-            SysMgr.battery = {}
-            """
-            pass
-        except SystemExit:
-            sys.exit(0)
-        except:
-            try:
-                batteryPath = "/sys/class/power_supply/?/capacity"
-                SysMgr.batteryFd = open(batteryPath, "r")
-                SysMgr.battery = SysMgr.batteryFd.readlines()[0]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(batteryPath)
+        SysMgr.updateBatInfo()
 
         # collect perf data #
         if SysMgr.perfEnable:
@@ -113018,7 +113091,7 @@ class TaskAnalyzer(object):
 
         try:
             if SysMgr.battery:
-                battery = " [Power:%d%%/%s/%s]" % (
+                battery = "[Bat: %d%%/%s/%s]" % (
                     SysMgr.battery[0],
                     UtilMgr.convTime(SysMgr.battery[1]),
                     "+" if SysMgr.battery[2] else "-",
@@ -113080,7 +113153,7 @@ class TaskAnalyzer(object):
                 try:
                     jsonData["battery"] = {
                         "per": SysMgr.battery[0],
-                        "leftsec": SysMgr.battery[1],
+                        "left": UtilMgr.convTime(SysMgr.battery[1]),
                         "plugged": "true" if SysMgr.battery[2] else "false",
                     }
                 except SystemExit:
