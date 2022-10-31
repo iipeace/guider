@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221030"
+__revision__ = "221031"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34563,6 +34563,9 @@ Examples:
     - Watch the current directory
         # {0:1} {1:1}
 
+    - Watch the current directory and print summary to specific file
+        # {0:1} {1:1} -o watch.out
+
     - Watch the current directory with process info
         # {0:1} {1:1} -q PROCINFO
         # {0:1} {1:1} -q PROCINFO, LARGEFILE
@@ -36894,12 +36897,15 @@ Copyright:
         retfd=False,
         retlist=False,
         verb=False,
+        summary=None,
     ):
         # set path #
         if not path:
             return False
         elif not type(path) is list:
             path = [path]
+
+        streamEnable = True if SysMgr.findOption("Q") else False
 
         # get select object #
         selectObj = SysMgr.getPkg("select", False)
@@ -37175,27 +37181,51 @@ Copyright:
                     }
 
                     SysMgr.printPipe(
-                        UtilMgr.convDict2Str(
-                            dictInfo, pretty=not SysMgr.streamEnable
-                        )
+                        UtilMgr.convDict2Str(dictInfo, pretty=not streamEnable)
                     )
                 else:
-                    SysMgr.printPipe(
-                        "[%.6f] %s@%s by %s"
-                        % (
-                            current,
-                            conv(events, "WARNING"),
-                            conv(epath, "GREEN"),
-                            conv("%s(%s)" % (ecomm, epid), "YELLOW"),
-                        )
+                    procInfo = "%s(%s)" % (ecomm, epid)
+
+                    outStr = "[%.6f] %s@%s by %s" % (
+                        current,
+                        conv(events, "WARNING"),
+                        conv(epath, "GREEN"),
+                        conv(procInfo, "YELLOW"),
                     )
+
+                    if summary:
+                        SysMgr.addPrint(outStr + "\n", isList=True)
+
+                        fileSummary, procSummary = summary
+                        eventList = events.split("|")
+
+                        # add to file summary #
+                        fileSummary.setdefault(epath, {})
+                        fileSummary[epath].setdefault(procInfo, {})
+                        for event in eventList:
+                            fileSummary[epath][procInfo].setdefault(event, 0)
+                            fileSummary[epath][procInfo][event] += 1
+
+                        # add to proc summary #
+                        procSummary.setdefault(procInfo, {})
+                        procSummary[procInfo].setdefault(epath, {})
+                        for event in eventList:
+                            procSummary[procInfo][epath].setdefault(event, 0)
+                            procSummary[procInfo][epath][event] += 1
+
+                        if streamEnable:
+                            sys.stdout.write(outStr + "\n")
+                    else:
+                        SysMgr.printPipe(outStr)
 
                 i += size
 
         return revents
 
     @staticmethod
-    def inotify(path, flags=[], wait=False, retlist=False, verb=False):
+    def inotify(
+        path, flags=[], wait=False, retlist=False, verb=False, summary=None
+    ):
         # check and set path list #
         if not path:
             return False
@@ -50867,8 +50897,6 @@ Copyright:
     def doWatch():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        SysMgr.setStream()
-
         # check target path #
         if SysMgr.hasMainArg():
             opList = SysMgr.getMainArgs(False)
@@ -50877,8 +50905,79 @@ Copyright:
         else:
             opList = ["."]
 
+        # define lists #
         targetList = []
         targetInfo = {}
+        procSummary = {}
+        fileSummary = {}
+
+        # define summary function #
+        def _printSummary(fileSummary, procSummary):
+            runtime = SysMgr.getRuntime()
+
+            # print file list #
+            SysMgr.printPipe(
+                "[Watch File Summary] [Time: %s] [NrFile: %s]\n%s"
+                % (runtime, UtilMgr.convNum(len(fileSummary)), twoLine)
+            )
+            SysMgr.printPipe(
+                "{0:<32} {1:<32} {2:<32}\n{3:1}".format(
+                    "File", "Proc", "Attr", twoLine
+                )
+            )
+            for path, vals in fileSummary.items():
+                SysMgr.printPipe(path)
+                for proc, subvals in vals.items():
+                    SysMgr.printPipe("{0:32} {1:1}".format(" ", proc))
+                    for attr, cnt in subvals.items():
+                        SysMgr.printPipe(
+                            "{0:32} {1:32} {2:1} : {3:1}".format(
+                                " ", " ", attr, UtilMgr.convNum(cnt)
+                            )
+                        )
+                SysMgr.printPipe(oneLine)
+            if not fileSummary:
+                SysMgr.printPipe("\tNone\n%s" % oneLine)
+
+            # print proc list #
+            SysMgr.printPipe(
+                "\n[Watch Proc Summary] [Time: %s] [NrProc: %s]\n%s"
+                % (runtime, UtilMgr.convNum(len(procSummary)), twoLine)
+            )
+            SysMgr.printPipe(
+                "{0:<32} {1:<32} {2:<32}\n{3:1}".format(
+                    "Proc", "File", "Attr", twoLine
+                )
+            )
+            for proc, vals in procSummary.items():
+                SysMgr.printPipe(proc)
+                for path, subvals in vals.items():
+                    SysMgr.printPipe("{0:32} {1:1}".format(" ", path))
+                    for attr, cnt in subvals.items():
+                        SysMgr.printPipe(
+                            "{0:32} {1:32} {2:1} : {3:1}".format(
+                                " ", " ", attr, UtilMgr.convNum(cnt)
+                            )
+                        )
+                SysMgr.printPipe(oneLine)
+
+            if not procSummary:
+                SysMgr.printPipe("\tNone\n%s" % oneLine)
+
+            # print history #
+            SysMgr.printPipe("\n")
+            SysMgr.doPrint(clear=True, isList=True)
+
+        # set output attributes #
+        if SysMgr.outPath:
+            # register summary function #
+            summaryList = [fileSummary, procSummary]
+            SysMgr.addExitFunc(_printSummary, summaryList)
+        else:
+            summaryList = None
+            SysMgr.setStream()
+
+        streamEnable = True if SysMgr.findOption("Q") else False
 
         # set notifier #
         if (
@@ -50952,7 +51051,11 @@ Copyright:
                 # wait for events #
                 # TODO: add outside parser for fanotify #
                 ret = notifier(
-                    targetList, wait=True, retlist=retlist, verb=True
+                    targetList,
+                    wait=True,
+                    retlist=retlist,
+                    verb=True,
+                    summary=summaryList,
                 )
                 if not ret:
                     break
@@ -50990,18 +51093,29 @@ Copyright:
 
                         SysMgr.printPipe(
                             UtilMgr.convDict2Str(
-                                dictInfo, pretty=not SysMgr.streamEnable
+                                dictInfo, pretty=not streamEnable
                             )
                         )
                     else:
-                        SysMgr.printPipe(
-                            "[%.6f] %s@%s"
-                            % (
-                                current,
-                                conv("|".join(events), "WARNING"),
-                                conv(fpath, "GREEN"),
-                            )
+                        outStr = "[%.6f] %s@%s" % (
+                            current,
+                            conv("|".join(events), "WARNING"),
+                            conv(fpath, "GREEN"),
                         )
+
+                        if SysMgr.outPath:
+                            SysMgr.addPrint(outStr + "\n", isList=True)
+
+                            # add to file summary #
+                            fileSummary.setdefault(fpath, {"N/A": {}})
+                            for event in events:
+                                fileSummary[fpath]["N/A"].setdefault(event, 0)
+                                fileSummary[fpath]["N/A"][event] += 1
+
+                            if streamEnable:
+                                sys.stdout.write(outStr + "\n")
+                        else:
+                            SysMgr.printPipe(outStr)
 
                     # print file #
                     if "PRINTFILE" in SysMgr.environList:
