@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221031"
+__revision__ = "221101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24036,6 +24036,9 @@ class SysMgr(object):
     childList = {}
     gpuMemGetters = None
     pidFilter = ""
+    fileWatchList = {}
+    fileWatchTotalList = {}
+    procWatchList = {}
 
     cliCmdStr = """
 Commands:
@@ -30210,6 +30213,7 @@ Commands:
                 "dbustop": ("D-Bus", "Linux"),
                 "disktop": ("Storage", "Linux/MacOS/Windows"),
                 "dlttop": ("DLT", "Linux/MacOS"),
+                "fetop": ("File", "Linux"),
                 "ftop": ("File", "Linux/MacOS"),
                 "ktop": ("Function", "Linux"),
                 "mtop": ("Memory", "Linux"),
@@ -34542,79 +34546,84 @@ Examples:
                     )
 
                 # watch #
-                elif SysMgr.checkMode("watch"):
+                elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
+                    if SysMgr.checkMode("fetop"):
+                        addStr = "in real-time"
+                    else:
+                        addStr = ""
+
                     helpStr = """
 Usage:
     # {0:1} {1:1} <PATH> [OPTIONS] [--help]
 
 Description:
-    Watch specific files or directories
+    Watch specific files or directories {2:1}
 
 Options:
     -g  <PATH:EVENT:FILE:CMD>   set condition
     -l                          print event list
     -v                          verbose
                         """.format(
-                        cmd, mode
+                        cmd, mode, addStr
                     )
 
                     helpStr += """
 Examples:
-    - Watch the current directory
+    - Watch the current directory {2:1}
         # {0:1} {1:1}
 
-    - Watch the current directory and print summary to specific file
+    - Watch the current directory and print summary to specific file {2:1}
         # {0:1} {1:1} -o watch.out
 
-    - Watch the current directory with process info
+    - Watch the current directory with process info {2:1}
         # {0:1} {1:1} -q PROCINFO
         # {0:1} {1:1} -q PROCINFO, LARGEFILE
         # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q PROCINFO, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
-    - Watch the current mount point with process info
+    - Watch the current mount point with process info {2:1}
         # {0:1} {1:1} -q INMOUNT
         # {0:1} {1:1} -q INMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q INMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
-    - Watch all mount points with process info
+    - Watch all mount points with process info {2:1}
         # {0:1} {1:1} -q ALLMOUNT
         # {0:1} {1:1} -q ALLMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q ALLMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
-    - Watch specific files to be created and terminate after all them created
+    - Watch specific files to be created and terminate after all them created {2:1}
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
 
-    - Watch specific files to be created and monitor them continually
+    - Watch specific files to be created and monitor them continually {2:1}
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2" -q CONT
 
-    - Watch multiple directories
+    - Watch multiple directories {2:1}
         # {0:1} {1:1} "/home/iipeace/test, /home/iipeace/test/sub"
 
-    - Watch all sub-directories of the current directory
+    - Watch all sub-directories of the current directory {2:1}
         # {0:1} {1:1} -q INCSUBDIRS
 
     - Print event list
         # {0:1} {1:1} -l
 
-    - Watch specific events for specific files in the current directory
+    - Watch specific events for specific files in the current directory {2:1}
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out"
 
-    - Watch specific events for specific files in the current directory and print the contents of the files
+    - Watch specific events for specific files in the current directory and print the contents of the files {2:1}
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.*" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.out|b.out" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE, TAIL:3
 
-    - Watch specific events in the current directory and terminate if the events occur
+    - Watch specific events in the current directory and terminate if the events occur {2:1}
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:exit"
 
-    - Watch specific events in the current directory and execute specific commands if the events occur
+    - Watch specific events in the current directory and execute specific commands if the events occur {2:1}
         # {0:1} {1:1} ".:::ls -lha"
         # {0:1} {1:1} ".::a.out:ls -lha a.out"
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:GUIDER event"
                     """.format(
-                        cmd, mode
+                        cmd, mode, addStr
                     )
 
                 # addr2sym #
@@ -36895,17 +36904,15 @@ Copyright:
         dirfd="AT_FDCWD",
         wait=False,
         retfd=False,
-        retlist=False,
+        fd=None,
+        retlist=True,
         verb=False,
-        summary=None,
     ):
         # set path #
         if not path:
             return False
         elif not type(path) is list:
             path = [path]
-
-        streamEnable = True if SysMgr.findOption("Q") else False
 
         # get select object #
         selectObj = SysMgr.getPkg("select", False)
@@ -36945,143 +36952,144 @@ Copyright:
             )
         """
 
-        # make init flags #
-        if not flags:
-            flags = ["FAN_CLOEXEC", "FAN_CLASS_NOTIF"]
-        flagList = {v: k for k, v in ConfigMgr.FAN_INIT_TYPE.items()}
-        flagBits = 0
-        for flag in flags:
-            try:
-                flagBits |= flagList[flag]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to get init flags", True)
-                return False
+        if not fd:
+            # make init flags #
+            if not flags:
+                flags = ["FAN_CLOEXEC", "FAN_CLASS_NOTIF"]
+            flagList = {v: k for k, v in ConfigMgr.FAN_INIT_TYPE.items()}
+            flagBits = 0
+            for flag in flags:
+                try:
+                    flagBits |= flagList[flag]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to get init flags", True)
+                    return False
 
-        # get open flags #
-        if not oflags:
-            oflags = ["O_RDONLY", "O_CLOEXEC"]
-            if "LARGEFILE" in SysMgr.environList:
-                oflags += ["O_LARGEFILE"]
-        oflagList = {v: k for k, v in ConfigMgr.OPEN_TYPE.items()}
-        oflagBits = 0
-        for flag in oflags:
-            try:
-                oflagBits |= oflagList[flag]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to get open flags", True)
-                return False
+            # get open flags #
+            if not oflags:
+                oflags = ["O_RDONLY", "O_CLOEXEC"]
+                if "LARGEFILE" in SysMgr.environList:
+                    oflags += ["O_LARGEFILE"]
+            oflagList = {v: k for k, v in ConfigMgr.OPEN_TYPE.items()}
+            oflagBits = 0
+            for flag in oflags:
+                try:
+                    oflagBits |= oflagList[flag]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to get open flags", True)
+                    return False
 
-        # get event fd #
-        fd = SysMgr.libcObj.fanotify_init(flagBits, oflagBits)
-        if fd < 0:
-            SysMgr.printErr(
-                "failed to call fanotify_init because %s"
-                % SysMgr.getErrReason()
-            )
-            return False
-
-        # get mask flags #
-        if not mask:
-            mask = [
-                "FAN_ACCESS",
-                "FAN_MODIFY",
-                "FAN_CLOSE_WRITE",
-                "FAN_CLOSE_NOWRITE",
-                "FAN_OPEN",
-                "FAN_ONDIR",
-                "FAN_EVENT_ON_CHILD",
-            ]
-
-        # check version #
-        if SysMgr.getKernelVersion(number=True) < (5, 1):
-            common = set(mask) & set(
-                [
-                    "FAN_CREATE",
-                    "FAN_DELETE",
-                    "FAN_DELETE_SELF",
-                    "FAN_MOVED_FROM",
-                    "FAN_MOVED_TO",
-                    "FAN_MOVE_SELF",
-                    "FAN_OPEN_EXEC_PERM",
-                ]
-            )
-            if common:
+            # get event fd #
+            fd = SysMgr.libcObj.fanotify_init(flagBits, oflagBits)
+            if fd < 0:
                 SysMgr.printErr(
-                    "failed to set '%s' because they are supported from kernel 5.1"
-                    % "|".join(common)
-                )
-                sys.exit(0)
-
-        eflagList = {v: k for k, v in ConfigMgr.FAN_EVENT_TYPE.items()}
-        eflagBits = 0
-        for flag in mask:
-            try:
-                eflagBits |= eflagList[flag]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to get mask flags", True)
-                return False
-
-        # get mark option #
-        if not mark:
-            mark = ["FAN_MARK_ADD"]
-
-        # add mount info #
-        if "ALLMOUNT" in SysMgr.environList:
-            mark += ["FAN_MARK_MOUNT"]
-            path = list(SysMgr.convMountList(SysMgr.getMountData()).keys())
-        elif "INMOUNT" in SysMgr.environList:
-            mark += ["FAN_MARK_MOUNT"]
-
-        mflagList = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}
-        mflagBits = 0
-        for flag in mark:
-            try:
-                mflagBits |= mflagList[flag]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to get mark flags", True)
-                return False
-
-        # get dirfd option #
-        try:
-            dirfd = {v: k for k, v in ConfigMgr.FAT_TYPE.items()}[dirfd]
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("failed to convert dirfd '%s'" % dirfd, True)
-            return False
-
-        # define prototype for fanotify_mark() #
-        SysMgr.libcObj.fanotify_mark.argtypes = [
-            c_int,
-            c_uint,
-            c_uint64,
-            c_int,
-            c_void_p,
-        ]
-
-        # mark each directory #
-        for item in path:
-            ret = SysMgr.libcObj.fanotify_mark(
-                fd, mflagBits, eflagBits, dirfd, item.encode("latin-1")
-            )
-            if ret < 0:
-                SysMgr.printErr(
-                    "failed to call fanotify_mark because %s"
+                    "failed to call fanotify_init because %s"
                     % SysMgr.getErrReason()
                 )
                 return False
 
-        # just return fd #
-        if retfd:
-            return fd
+            # get mask flags #
+            if not mask:
+                mask = [
+                    "FAN_ACCESS",
+                    "FAN_MODIFY",
+                    "FAN_CLOSE_WRITE",
+                    "FAN_CLOSE_NOWRITE",
+                    "FAN_OPEN",
+                    "FAN_ONDIR",
+                    "FAN_EVENT_ON_CHILD",
+                ]
+
+            # check version #
+            if SysMgr.getKernelVersion(number=True) < (5, 1):
+                common = set(mask) & set(
+                    [
+                        "FAN_CREATE",
+                        "FAN_DELETE",
+                        "FAN_DELETE_SELF",
+                        "FAN_MOVED_FROM",
+                        "FAN_MOVED_TO",
+                        "FAN_MOVE_SELF",
+                        "FAN_OPEN_EXEC_PERM",
+                    ]
+                )
+                if common:
+                    SysMgr.printErr(
+                        "failed to set '%s' because they are supported from kernel 5.1"
+                        % "|".join(common)
+                    )
+                    sys.exit(0)
+
+            eflagList = {v: k for k, v in ConfigMgr.FAN_EVENT_TYPE.items()}
+            eflagBits = 0
+            for flag in mask:
+                try:
+                    eflagBits |= eflagList[flag]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to get mask flags", True)
+                    return False
+
+            # get mark option #
+            if not mark:
+                mark = ["FAN_MARK_ADD"]
+
+            # add mount info #
+            if "ALLMOUNT" in SysMgr.environList:
+                mark += ["FAN_MARK_MOUNT"]
+                path = list(SysMgr.convMountList(SysMgr.getMountData()).keys())
+            elif "INMOUNT" in SysMgr.environList:
+                mark += ["FAN_MARK_MOUNT"]
+
+            mflagList = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}
+            mflagBits = 0
+            for flag in mark:
+                try:
+                    mflagBits |= mflagList[flag]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to get mark flags", True)
+                    return False
+
+            # get dirfd option #
+            try:
+                dirfd = {v: k for k, v in ConfigMgr.FAT_TYPE.items()}[dirfd]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to convert dirfd '%s'" % dirfd, True)
+                return False
+
+            # define prototype for fanotify_mark() #
+            SysMgr.libcObj.fanotify_mark.argtypes = [
+                c_int,
+                c_uint,
+                c_uint64,
+                c_int,
+                c_void_p,
+            ]
+
+            # mark each directory #
+            for item in path:
+                ret = SysMgr.libcObj.fanotify_mark(
+                    fd, mflagBits, eflagBits, dirfd, item.encode("latin-1")
+                )
+                if ret < 0:
+                    SysMgr.printErr(
+                        "failed to call fanotify_mark because %s"
+                        % SysMgr.getErrReason()
+                    )
+                    return False
+
+            # just return fd #
+            if retfd:
+                return fd
 
         # define variables #
         BUF_LEN = 8192
@@ -37116,115 +37124,85 @@ Copyright:
         else:
             exceptComm = []
 
-        while 1:
-            try:
-                res = selectObj.select([fd], [], [])
-                if not res[0]:
-                    continue
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to wait for events", True)
-                break
-
-            # read events #
-            length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
-            if length < 0:
-                SysMgr.printWarn("failed to read fanotify event", verb)
+        try:
+            res = selectObj.select([fd], [], [])
+            if not res[0]:
                 return False
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to wait for events", True)
+            return False
 
-            if not retlist:
-                current = SysMgr.updateUptime()
+        # read events #
+        length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
+        if length < 0:
+            SysMgr.printWarn("failed to read fanotify event", verb)
+            return False
 
-            i = 0
-            while i < length:
-                elen, vers, _, dlen, emask, efd, epid = struct.unpack(
-                    fmt, buf[i : i + size]
-                )
+        if not retlist:
+            current = SysMgr.updateUptime()
 
-                # ignore my event #
-                if epid == SysMgr.pid:
-                    i += size
-                    os.close(efd)
-                    continue
+        i = 0
+        while i < length:
+            elen, vers, _, dlen, emask, efd, epid = struct.unpack(
+                fmt, buf[i : i + size]
+            )
 
-                # convert event info #
-                events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
-                epath = SysMgr.getFdName("self", efd)
-                ecomm = SysMgr.getComm(epid, cache=True, save=True)
-
-                # close event fd for target file #
+            # ignore my event #
+            if epid == SysMgr.pid:
+                i += size
                 os.close(efd)
+                continue
 
-                # check skip conditions #
-                if (
-                    (targetComm and not isValidStr(ecomm, targetComm))
-                    or (exceptComm and isValidStr(ecomm, exceptComm))
-                    or (targetFile and not isValidStr(epath, targetFile))
-                    or (exceptFile and isValidStr(epath, exceptFile))
-                ):
-                    i += size
-                    continue
+            # get path and comm info #
+            epath = SysMgr.getFdName("self", efd)
+            ecomm = SysMgr.getComm(epid, cache=True, save=True)
 
-                revents.append([epath, events, epid, ecomm])
+            # close event fd for target file #
+            os.close(efd)
 
-                # print event info #
-                if retlist:
-                    pass
-                elif SysMgr.jsonEnable:
-                    dictInfo = {
-                        "time": current,
-                        "event": events,
-                        "path": epath,
-                        "pid": epid,
-                        "comm": ecomm,
-                    }
+            # check skip conditions #
+            if (
+                (targetComm and not isValidStr(ecomm, targetComm))
+                or (exceptComm and isValidStr(ecomm, exceptComm))
+                or (targetFile and not isValidStr(epath, targetFile))
+                or (exceptFile and isValidStr(epath, exceptFile))
+            ):
+                i += size
+                continue
 
-                    SysMgr.printPipe(
-                        UtilMgr.convDict2Str(dictInfo, pretty=not streamEnable)
-                    )
-                else:
-                    procInfo = "%s(%s)" % (ecomm, epid)
+            # get event info #
+            events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
 
-                    outStr = "[%.6f] %s@%s by %s" % (
+            revents.append([epath, events, epid, ecomm])
+
+            # print event info #
+            if not retlist:
+                procInfo = "%s(%s)" % (ecomm, epid)
+                SysMgr.printPipe(
+                    "[%.6f] %s@%s by %s"
+                    % (
                         current,
                         conv(events, "WARNING"),
                         conv(epath, "GREEN"),
                         conv(procInfo, "YELLOW"),
                     )
+                )
 
-                    if summary:
-                        SysMgr.addPrint(outStr + "\n", isList=True)
-
-                        fileSummary, procSummary = summary
-                        eventList = events.split("|")
-
-                        # add to file summary #
-                        fileSummary.setdefault(epath, {})
-                        fileSummary[epath].setdefault(procInfo, {})
-                        for event in eventList:
-                            fileSummary[epath][procInfo].setdefault(event, 0)
-                            fileSummary[epath][procInfo][event] += 1
-
-                        # add to proc summary #
-                        procSummary.setdefault(procInfo, {})
-                        procSummary[procInfo].setdefault(epath, {})
-                        for event in eventList:
-                            procSummary[procInfo][epath].setdefault(event, 0)
-                            procSummary[procInfo][epath][event] += 1
-
-                        if streamEnable:
-                            sys.stdout.write(outStr + "\n")
-                    else:
-                        SysMgr.printPipe(outStr)
-
-                i += size
+            i += size
 
         return revents
 
     @staticmethod
     def inotify(
-        path, flags=[], wait=False, retlist=False, verb=False, summary=None
+        path,
+        flags=[],
+        wait=False,
+        retfd=False,
+        fd=None,
+        retlist=True,
+        verb=False,
     ):
         # check and set path list #
         if not path:
@@ -37315,12 +37293,18 @@ Copyright:
         BUF_LEN = 1024 * (EVENT_SIZE + 16)
         buf = (c_char * BUF_LEN)()
         conv = UtilMgr.convColor
+        isValidStr = UtilMgr.isValidStr
+        origFd = fd
 
-        # create a file descriptor #
-        fd = SysMgr.libcObj.inotify_init()
-        if fd < 0:
-            SysMgr.printWarn("failed to inotify_init", verb)
-            return False
+        if not fd:
+            # create a file descriptor #
+            fd = SysMgr.libcObj.inotify_init()
+            if fd < 0:
+                SysMgr.printWarn("failed to inotify_init", verb)
+                return False
+
+            if retfd:
+                return fd
 
         # get flag bits #
         fbits = UtilMgr.getFlagBit(ConfigMgr.INOTIFY_TYPE, flags)
@@ -37343,6 +37327,18 @@ Copyright:
                 )
                 continue
             wlist[wd] = item
+
+        # get target file list #
+        if "TARGETFILE" in SysMgr.environList:
+            targetFile = SysMgr.environList["TARGETFILE"]
+        else:
+            targetFile = []
+
+        # get except file list #
+        if "EXCEPTFILE" in SysMgr.environList:
+            exceptFile = SysMgr.environList["EXCEPTFILE"]
+        else:
+            exceptFile = []
 
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
@@ -37369,7 +37365,14 @@ Copyright:
                     )
                     fname = fname.decode().rstrip("\0")
                 else:
-                    fname = None
+                    fname = "N/A"
+
+                # check skip conditions #
+                if (targetFile and not isValidStr(fname, targetFile)) or (
+                    exceptFile and isValidStr(fname, exceptFile)
+                ):
+                    i += size + flen
+                    continue
 
                 # get events #
                 try:
@@ -37408,9 +37411,11 @@ Copyright:
                 break
 
         # clean up #
-        for wd in list(wlist):
-            SysMgr.libcObj.inotify_rm_watch(fd, wd)
-        SysMgr.libcObj.close(fd)
+        if not origFd:
+            for wd in list(wlist):
+                SysMgr.libcObj.inotify_rm_watch(fd, wd)
+
+            SysMgr.libcObj.close(fd)
 
         return revents
 
@@ -44062,6 +44067,7 @@ Copyright:
             "dbustop",
             "disktop",
             "dlttop",
+            "fetop",
             "ftop",
             "ktop",
             "mtop",
@@ -44693,13 +44699,23 @@ Copyright:
             SysMgr.doTrace("pytrace")
 
         # WATCH MODE #
-        elif SysMgr.checkMode("watch"):
+        elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
             # just print event list #
             if SysMgr.findOption("l"):
-                SysMgr.printList(ConfigMgr.INOTIFY_TYPE)
+                if (
+                    "PROCINFO" in SysMgr.environList
+                    or "INMOUNT" in SysMgr.environList
+                    or "ALLMOUNT" in SysMgr.environList
+                ):
+                    FAN_EVENT_TYPE_REVERSE = {}
+                    for name, value in ConfigMgr.FAN_EVENT_TYPE.items():
+                        FAN_EVENT_TYPE_REVERSE[value] = name
+                    SysMgr.printList(FAN_EVENT_TYPE_REVERSE)
+                else:
+                    SysMgr.printList(ConfigMgr.INOTIFY_TYPE)
                 sys.exit(0)
 
-            SysMgr.doWatch()
+            SysMgr.doWatch(top=SysMgr.checkMode("fetop"))
 
         # SIGTRACE MODE #
         elif SysMgr.checkMode("sigtrace"):
@@ -50894,7 +50910,7 @@ Copyright:
         sys.exit(0)
 
     @staticmethod
-    def doWatch():
+    def doWatch(top=False):
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # check target path #
@@ -50908,41 +50924,107 @@ Copyright:
         # define lists #
         targetList = []
         targetInfo = {}
-        procSummary = {}
-        fileSummary = {}
 
         # define summary function #
-        def _printSummary(fileSummary, procSummary):
-            runtime = SysMgr.getRuntime()
+        def _printSummary(fileSummary={}, procSummary={}, final=False):
+            isTopMode = SysMgr.isTopMode()
 
-            # print file list #
-            SysMgr.printPipe(
-                "[Watch File Summary] [Time: %s] [NrFile: %s]\n%s"
-                % (runtime, UtilMgr.convNum(len(fileSummary)), twoLine)
-            )
-            SysMgr.printPipe(
-                "{0:<32} {1:<32} {2:<32}\n{3:1}".format(
-                    "File", "Proc", "Attr", twoLine
+            # update uptime #
+            SysMgr.updateUptime()
+
+            # get time #
+            if isTopMode:
+                if not SysMgr.outPath and not SysMgr.streamEnable:
+                    SysMgr.clearScreen()
+
+                if final:
+                    timename = "Runtime"
+                    runtime = SysMgr.getRuntime()
+                else:
+                    timename = "Interval"
+                    runtime = "%.3f" % SysMgr.uptimeDiff
+            else:
+                timename = "Runtime"
+                runtime = SysMgr.getRuntime()
+
+            outStr = ""
+
+            # build file list #
+            outStr += (
+                "[Watch File Summary] [Time: %.3f] [%s: %s] [NrFile: %s]\n%s\n"
+                % (
+                    SysMgr.uptime,
+                    timename,
+                    runtime,
+                    UtilMgr.convNum(len(fileSummary)),
+                    twoLine,
                 )
             )
+            outStr += "{0:<32} {1:<32} {2:<32}\n{3:1}\n".format(
+                "File", "Proc", "Attr", twoLine
+            )
             for path, vals in fileSummary.items():
-                SysMgr.printPipe(path)
+                outStr += path + "\n"
                 for proc, subvals in vals.items():
-                    SysMgr.printPipe("{0:32} {1:1}".format(" ", proc))
-                    for attr, cnt in subvals.items():
-                        SysMgr.printPipe(
-                            "{0:32} {1:32} {2:1} : {3:1}".format(
+                    outStr += "{0:32} {1:1}\n".format(" ", proc)
+
+                    if not isTopMode:
+                        for attr, cnt in subvals.items():
+                            outStr += "{0:32} {1:32} {2:1}: {3:1}\n".format(
                                 " ", " ", attr, UtilMgr.convNum(cnt)
                             )
-                        )
-                SysMgr.printPipe(oneLine)
+                        continue
+
+                    if SysMgr.outPath:
+                        SysMgr.fileWatchTotalList.setdefault(path, {})
+                        SysMgr.fileWatchTotalList[path].setdefault(proc, {})
+
+                    evtList = []
+                    for attr, cnt in sorted(
+                        subvals.items(), key=lambda e: e[1], reverse=True
+                    ):
+                        evtList.append("%s(%s)" % (attr, UtilMgr.convNum(cnt)))
+
+                        if SysMgr.outPath:
+                            SysMgr.fileWatchTotalList[path][proc].setdefault(
+                                attr, 0
+                            )
+                            SysMgr.fileWatchTotalList[path][proc][attr] += cnt
+                    evtStr = "|".join(evtList)
+
+                    outStr += "{0:32} {1:32} {2:1}\n".format(" ", " ", evtStr)
+
+                outStr += oneLine + "\n"
             if not fileSummary:
-                SysMgr.printPipe("\tNone\n%s" % oneLine)
+                outStr += "\tNone\n%s\n" % oneLine
+
+            # print file list #
+            if isTopMode and SysMgr.outPath and not final:
+                SysMgr.addProcBuffer(outStr + "\n")
+            else:
+                SysMgr.printPipe(outStr + "\n")
+
+            # print console #
+            if isTopMode and SysMgr.outPath and SysMgr.streamEnable:
+                sys.stdout.write(outStr + "\n")
+
+            # clear events #
+            if isTopMode:
+                fileSummary.clear()
+                procSummary.clear()
+                SysMgr.clearPrint()
+                return
 
             # print proc list #
             SysMgr.printPipe(
-                "\n[Watch Proc Summary] [Time: %s] [NrProc: %s]\n%s"
-                % (runtime, UtilMgr.convNum(len(procSummary)), twoLine)
+                "[Watch Proc Summary] [Time: %.3f] [%s: %s] [NrFile: %s]\n%s\n"
+                % (
+                    SysMgr.uptime,
+                    timename,
+                    runtime,
+                    UtilMgr.convNum(len(procSummary)),
+                    twoLine,
+                )
             )
             SysMgr.printPipe(
                 "{0:<32} {1:<32} {2:<32}\n{3:1}".format(
@@ -50955,26 +51037,37 @@ Copyright:
                     SysMgr.printPipe("{0:32} {1:1}".format(" ", path))
                     for attr, cnt in subvals.items():
                         SysMgr.printPipe(
-                            "{0:32} {1:32} {2:1} : {3:1}".format(
+                            "{0:32} {1:32} {2:1}: {3:1}".format(
                                 " ", " ", attr, UtilMgr.convNum(cnt)
                             )
                         )
                 SysMgr.printPipe(oneLine)
-
             if not procSummary:
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
+            SysMgr.printPipe("\n")
 
             # print history #
             SysMgr.printPipe("\n")
             SysMgr.doPrint(clear=True, isList=True)
 
+        # define summary function #
+        def _printLastSummary(fileSummary={}, procSummary={}):
+            _printSummary(fileSummary, procSummary, final=True)
+            SysMgr.printProcBuffer()
+            SysMgr.clearProcBuffer()
+
         # set output attributes #
-        if SysMgr.outPath:
+        if top:
+            if SysMgr.outPath:
+                SysMgr.addExitFunc(
+                    _printLastSummary, [SysMgr.fileWatchTotalList, {}]
+                )
+        elif SysMgr.outPath:
             # register summary function #
-            summaryList = [fileSummary, procSummary]
-            SysMgr.addExitFunc(_printSummary, summaryList)
+            SysMgr.addExitFunc(
+                _printSummary, [SysMgr.fileWatchList, SysMgr.procWatchList]
+            )
         else:
-            summaryList = None
             SysMgr.setStream()
 
         streamEnable = True if SysMgr.findOption("Q") else False
@@ -50986,10 +51079,8 @@ Copyright:
             or "ALLMOUNT" in SysMgr.environList
         ):
             notifier = SysMgr.fanotify
-            retlist = False
         else:
             notifier = SysMgr.inotify
-            retlist = True
 
         # parse items #
         for item in opList:
@@ -51043,79 +51134,179 @@ Copyright:
         # remove redundant path #
         targetList = list(set(targetList))
 
-        SysMgr.printInfo("start watching [%s]" % ", ".join(targetList))
+        # print start message #
+        SysMgr.printInfo("start watching [%s]\n" % ", ".join(targetList))
+
+        # get event file descriptor #
+        try:
+            fd = notifier(
+                targetList, wait=True, retfd=True, retlist=False, verb=True
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to watch", reason=True)
+            sys.exit(-1)
+
+        # set timer #
+        if top:
+
+            def _alarmHandler(signum, frame):
+                _printSummary(SysMgr.fileWatchList, SysMgr.procWatchList)
+                signal.alarm(SysMgr.intervalEnable)
+
+            signal.signal(signal.SIGALRM, _alarmHandler)
+
+            # set interval #
+            if not SysMgr.intervalEnable:
+                SysMgr.intervalEnable = 1
+
+            signal.alarm(SysMgr.intervalEnable)
 
         # start watching #
         while 1:
             try:
                 # wait for events #
-                # TODO: add outside parser for fanotify #
-                ret = notifier(
-                    targetList,
-                    wait=True,
-                    retlist=retlist,
-                    verb=True,
-                    summary=summaryList,
-                )
+                ret = notifier(targetList, fd=fd)
                 if not ret:
-                    break
+                    if top:
+                        continue
+                    else:
+                        break
 
+                # get current time #
                 current = SysMgr.getUptime()
 
                 for item in ret:
-                    path, events, fname = item
+                    if len(item) == 3:
+                        path, events, fname = item
 
-                    # check event condition #
-                    if targetInfo[path]["event"]:
-                        cond = set(targetInfo[path]["event"])
-                        new = set(events)
-                        if cond - new == cond:
+                        # check event condition #
+                        if targetInfo[path]["event"]:
+                            cond = set(targetInfo[path]["event"])
+                            new = set(events)
+                            if cond - new == cond:
+                                continue
+
+                        # check file condition #
+                        if targetInfo[path][
+                            "fname"
+                        ] and not UtilMgr.isValidStr(
+                            fname, targetInfo[path]["fname"]
+                        ):
                             continue
 
-                    # check file condition #
-                    if targetInfo[path]["fname"] and not UtilMgr.isValidStr(
-                        fname, targetInfo[path]["fname"]
-                    ):
-                        continue
-
-                    # add file name #
-                    if fname:
-                        fpath = os.path.join(path, fname)
-                    else:
-                        fpath = path
-
-                    if SysMgr.jsonEnable:
-                        dictInfo = {
-                            "time": current,
-                            "event": events,
-                            "path": fpath,
-                        }
-
-                        SysMgr.printPipe(
-                            UtilMgr.convDict2Str(
-                                dictInfo, pretty=not streamEnable
-                            )
-                        )
-                    else:
-                        outStr = "[%.6f] %s@%s" % (
-                            current,
-                            conv("|".join(events), "WARNING"),
-                            conv(fpath, "GREEN"),
-                        )
-
-                        if SysMgr.outPath:
-                            SysMgr.addPrint(outStr + "\n", isList=True)
-
-                            # add to file summary #
-                            fileSummary.setdefault(fpath, {"N/A": {}})
-                            for event in events:
-                                fileSummary[fpath]["N/A"].setdefault(event, 0)
-                                fileSummary[fpath]["N/A"][event] += 1
-
-                            if streamEnable:
-                                sys.stdout.write(outStr + "\n")
+                        # add file name #
+                        if fname:
+                            fpath = os.path.join(path, fname)
                         else:
-                            SysMgr.printPipe(outStr)
+                            fpath = path
+
+                        # print events #
+                        if SysMgr.jsonEnable:
+                            dictInfo = {
+                                "time": current,
+                                "event": events,
+                                "path": fpath,
+                            }
+
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(
+                                    dictInfo, pretty=not streamEnable
+                                )
+                            )
+                        else:
+                            if top or SysMgr.outPath:
+                                # add to file summary #
+                                SysMgr.fileWatchList.setdefault(
+                                    fpath, {"N/A": {}}
+                                )
+                                for event in events:
+                                    SysMgr.fileWatchList[fpath][
+                                        "N/A"
+                                    ].setdefault(event, 0)
+                                    SysMgr.fileWatchList[fpath]["N/A"][
+                                        event
+                                    ] += 1
+
+                            if not top:
+                                outStr = "[%.6f] %s@%s" % (
+                                    current,
+                                    conv("|".join(events), "WARNING"),
+                                    conv(fpath, "GREEN"),
+                                )
+
+                                if SysMgr.outPath:
+                                    SysMgr.addPrint(outStr + "\n", isList=True)
+                                    if streamEnable:
+                                        sys.stdout.write(outStr + "\n")
+                                else:
+                                    SysMgr.printPipe(outStr)
+                    else:
+                        epath, events, epid, ecomm = item
+
+                        # print events #
+                        if SysMgr.jsonEnable:
+                            dictInfo = {
+                                "time": current,
+                                "event": events,
+                                "path": epath,
+                                "pid": epid,
+                                "comm": ecomm,
+                            }
+
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(
+                                    dictInfo, pretty=not streamEnable
+                                )
+                            )
+                        else:
+                            procInfo = "%s(%s)" % (ecomm, epid)
+
+                            if top or SysMgr.outPath:
+                                # get event list #
+                                eventList = events.split("|")
+
+                                # add to file summary #
+                                SysMgr.fileWatchList.setdefault(epath, {})
+                                SysMgr.fileWatchList[epath].setdefault(
+                                    procInfo, {}
+                                )
+                                for event in eventList:
+                                    SysMgr.fileWatchList[epath][
+                                        procInfo
+                                    ].setdefault(event, 0)
+                                    SysMgr.fileWatchList[epath][procInfo][
+                                        event
+                                    ] += 1
+
+                                # add to proc summary #
+                                SysMgr.procWatchList.setdefault(procInfo, {})
+                                SysMgr.procWatchList[procInfo].setdefault(
+                                    epath, {}
+                                )
+                                for event in eventList:
+                                    SysMgr.procWatchList[procInfo][
+                                        epath
+                                    ].setdefault(event, 0)
+                                    SysMgr.procWatchList[procInfo][epath][
+                                        event
+                                    ] += 1
+
+                            if not top:
+                                outStr = "[%.6f] %s@%s by %s" % (
+                                    current,
+                                    conv(events, "WARNING"),
+                                    conv(epath, "GREEN"),
+                                    conv(procInfo, "YELLOW"),
+                                )
+
+                                if SysMgr.outPath:
+                                    SysMgr.addPrint(outStr + "\n", isList=True)
+                                    if streamEnable:
+                                        sys.stdout.write(outStr + "\n")
+                                else:
+                                    SysMgr.printPipe(outStr)
 
                     # print file #
                     if "PRINTFILE" in SysMgr.environList:
@@ -51144,7 +51335,6 @@ Copyright:
                         SysMgr.createCmdProcess(cmd)
                         if wait:
                             os.wait()
-
             except SystemExit:
                 sys.exit(0)
             except:
@@ -113205,7 +113395,7 @@ class TaskAnalyzer(object):
 
         try:
             if SysMgr.battery:
-                battery = "[Bat: %d%%/%s/%s]" % (
+                battery = " [Bat: %d%%/%s/%s]" % (
                     SysMgr.battery[0],
                     UtilMgr.convTime(SysMgr.battery[1]),
                     "+" if SysMgr.battery[2] else "-",
