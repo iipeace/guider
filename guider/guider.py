@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221101"
+__revision__ = "221102"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32978,7 +32978,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # process top #
-                elif SysMgr.isTopMode():
+                elif SysMgr.isTopMode() and not SysMgr.checkMode("fetop"):
                     helpStr = """
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -34580,6 +34580,7 @@ Examples:
         # {0:1} {1:1} -q PROCINFO, LARGEFILE
         # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q PROCINFO, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
+        # {0:1} {1:1} -q PROCINFO, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
 
     - Watch the current mount point with process info {2:1}
         # {0:1} {1:1} -q INMOUNT
@@ -34590,6 +34591,10 @@ Examples:
         # {0:1} {1:1} -q ALLMOUNT
         # {0:1} {1:1} -q ALLMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q ALLMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
+        # {0:1} {1:1} -q ALLMOUNT, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
+
+    - Watch specific events for all mount points with process info {2:1}
+        # {0:1} {1:1} -q ALLMOUNT, TARGETEVT:FAN_MODIFY, TARGETEVT:FAN_CLOSE_WRITE
 
     - Watch specific files to be created and terminate after all them created {2:1}
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
@@ -34616,7 +34621,7 @@ Examples:
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE, TAIL:3
 
     - Watch specific events in the current directory and terminate if the events occur {2:1}
-        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:exit"
+        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:EXIT"
 
     - Watch specific events in the current directory and execute specific commands if the events occur {2:1}
         # {0:1} {1:1} ".:::ls -lha"
@@ -37124,6 +37129,18 @@ Copyright:
         else:
             exceptComm = []
 
+        # get event list #
+        if "TARGETEVT" in SysMgr.environList:
+            targetEvt = SysMgr.environList["TARGETEVT"]
+        else:
+            targetEvt = []
+
+        # get command list #
+        if "EVENTCMD" in SysMgr.environList:
+            targetCmd = SysMgr.environList["EVENTCMD"]
+        else:
+            targetCmd = []
+
         try:
             res = selectObj.select([fd], [], [])
             if not res[0]:
@@ -37175,6 +37192,12 @@ Copyright:
             # get event info #
             events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
 
+            # check target event #
+            if targetEvt and not UtilMgr.isValidStr(events, targetEvt):
+                i += size
+                continue
+
+            # add items to return list #
             revents.append([epath, events, epid, ecomm])
 
             # print event info #
@@ -37190,7 +37213,15 @@ Copyright:
                     )
                 )
 
+            # execute command #
+            if targetCmd:
+                SysMgr.runFileCmd(targetCmd, epath)
+
             i += size
+
+        # return empty list #
+        if length > 0 and not revents:
+            revents.append([])
 
         return revents
 
@@ -37340,6 +37371,12 @@ Copyright:
         else:
             exceptFile = []
 
+        # get command list #
+        if "EVENTCMD" in SysMgr.environList:
+            targetCmd = SysMgr.environList["EVENTCMD"]
+        else:
+            targetCmd = []
+
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
         if length < 0:
@@ -37393,7 +37430,15 @@ Copyright:
                         )
                     )
 
+                # execute command #
+                if targetCmd:
+                    SysMgr.runFileCmd(targetCmd, fname)
+
                 i += size + flen
+
+            # return empty list #
+            if length > 0 and not revents:
+                revents.append([])
 
             # check and read remain data #
             try:
@@ -39906,6 +39951,26 @@ Copyright:
             SysMgr.printErr(
                 "failed to write trace data to '%s'" % outputFile, True
             )
+
+    @staticmethod
+    def runFileCmd(cmdList, path):
+        for cmd in cmdList:
+            if cmd.upper() == "EXIT":
+                sys.exit(0)
+            elif cmd.endswith("&"):
+                cmd = cmd[:-1]
+                wait = False
+            else:
+                wait = True
+
+            # convert path #
+            if path:
+                cmd = cmd.replace("PATH", path)
+
+            # create a new process #
+            SysMgr.createCmdProcess(cmd)
+            if wait:
+                os.wait()
 
     @staticmethod
     def runProfCmd(time, convList={}):
@@ -50999,8 +51064,17 @@ Copyright:
                 outStr += "\tNone\n%s\n" % oneLine
 
             # print file list #
-            if isTopMode and SysMgr.outPath and not final:
-                SysMgr.addProcBuffer(outStr + "\n")
+            if isTopMode:
+                if SysMgr.outPath:
+                    if final:
+                        SysMgr.printPipe(outStr + "\n")
+                    else:
+                        SysMgr.addProcBuffer(outStr + "\n")
+                else:
+                    for line in outStr.split("\n"):
+                        if not SysMgr.addPrint(line + "\n"):
+                            break
+                    SysMgr.printTopStats()
             else:
                 SysMgr.printPipe(outStr + "\n")
 
@@ -51101,6 +51175,10 @@ Copyright:
                 # add to target list #
                 targetList.append(path)
 
+                # no condition #
+                if len(args) == 1:
+                    continue
+
                 # add event #
                 if len(args) > 1:
                     events = args[1].strip().split("|")
@@ -51178,36 +51256,39 @@ Copyright:
                 current = SysMgr.getUptime()
 
                 for item in ret:
+                    # inotify #
                     if len(item) == 3:
                         path, events, fname = item
 
-                        # check event condition #
-                        if targetInfo[path]["event"]:
-                            cond = set(targetInfo[path]["event"])
-                            new = set(events)
-                            if cond - new == cond:
-                                continue
+                        # check conditions #
+                        if targetInfo:
+                            # event condition #
+                            if targetInfo[path]["event"]:
+                                cond = set(targetInfo[path]["event"])
+                                new = set(events)
+                                if cond - new == cond:
+                                    continue
 
-                        # check file condition #
-                        if targetInfo[path][
-                            "fname"
-                        ] and not UtilMgr.isValidStr(
-                            fname, targetInfo[path]["fname"]
-                        ):
-                            continue
+                            # file condition #
+                            if targetInfo[path][
+                                "fname"
+                            ] and not UtilMgr.isValidStr(
+                                fname, targetInfo[path]["fname"]
+                            ):
+                                continue
 
                         # add file name #
                         if fname:
-                            fpath = os.path.join(path, fname)
+                            epath = os.path.join(path, fname)
                         else:
-                            fpath = path
+                            epath = path
 
                         # print events #
                         if SysMgr.jsonEnable:
                             dictInfo = {
                                 "time": current,
                                 "event": events,
-                                "path": fpath,
+                                "path": epath,
                             }
 
                             SysMgr.printPipe(
@@ -51219,13 +51300,13 @@ Copyright:
                             if top or SysMgr.outPath:
                                 # add to file summary #
                                 SysMgr.fileWatchList.setdefault(
-                                    fpath, {"N/A": {}}
+                                    epath, {"N/A": {}}
                                 )
                                 for event in events:
-                                    SysMgr.fileWatchList[fpath][
+                                    SysMgr.fileWatchList[epath][
                                         "N/A"
                                     ].setdefault(event, 0)
-                                    SysMgr.fileWatchList[fpath]["N/A"][
+                                    SysMgr.fileWatchList[epath]["N/A"][
                                         event
                                     ] += 1
 
@@ -51233,7 +51314,7 @@ Copyright:
                                 outStr = "[%.6f] %s@%s" % (
                                     current,
                                     conv("|".join(events), "WARNING"),
-                                    conv(fpath, "GREEN"),
+                                    conv(epath, "GREEN"),
                                 )
 
                                 if SysMgr.outPath:
@@ -51242,8 +51323,21 @@ Copyright:
                                         sys.stdout.write(outStr + "\n")
                                 else:
                                     SysMgr.printPipe(outStr)
-                    else:
+                    # fanotify #
+                    elif len(item) == 4:
                         epath, events, epid, ecomm = item
+
+                        # check file condition #
+                        if targetInfo:
+                            path, fname = epath.rsplit("/", 1)
+                            if (
+                                path in targetInfo
+                                and targetInfo[path]["fname"]
+                                and not UtilMgr.isValidStr(
+                                    fname, targetInfo[path]["fname"]
+                                )
+                            ):
+                                continue
 
                         # print events #
                         if SysMgr.jsonEnable:
@@ -51307,34 +51401,25 @@ Copyright:
                                         sys.stdout.write(outStr + "\n")
                                 else:
                                     SysMgr.printPipe(outStr)
+                    # error #
+                    else:
+                        continue
 
                     # print file #
                     if "PRINTFILE" in SysMgr.environList:
                         try:
-                            SysMgr.doPrintFile(fpath)
+                            SysMgr.doPrintFile(epath)
                         except SystemExit:
                             sys.exit(0)
                         except:
                             pass
 
+                    # check skip condition #
+                    if not targetInfo or not path in targetInfo:
+                        continue
+
                     # execute command #
-                    for cmd in targetInfo[path]["cmd"]:
-                        if cmd.upper() == "EXIT":
-                            sys.exit(0)
-                        elif cmd.endswith("&"):
-                            cmd = cmd[:-1]
-                            wait = False
-                        else:
-                            wait = True
-
-                        # convert path #
-                        if fpath:
-                            cmd = cmd.replace("PATH", fpath)
-
-                        # create a new process #
-                        SysMgr.createCmdProcess(cmd)
-                        if wait:
-                            os.wait()
+                    SysMgr.runFileCmd(targetInfo[path]["cmd"], epath)
             except SystemExit:
                 sys.exit(0)
             except:
