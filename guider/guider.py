@@ -51205,6 +51205,9 @@ Copyright:
             or "INMOUNT" in SysMgr.environList
             or "ALLMOUNT" in SysMgr.environList
         ):
+            # check permission #
+            SysMgr.checkRootPerm()
+
             notifier = SysMgr.fanotify
         else:
             notifier = SysMgr.inotify
