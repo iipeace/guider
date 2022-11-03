@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221102"
+__revision__ = "221103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28886,6 +28886,10 @@ Commands:
         return pwd
 
     @staticmethod
+    def clearCommCache():
+        SysMgr.commCache = {}
+
+    @staticmethod
     def getComm(pid, cache=False, save=False):
         if pid in SysMgr.commCache:
             return SysMgr.commCache[pid]
@@ -36919,9 +36923,6 @@ Copyright:
         elif not type(path) is list:
             path = [path]
 
-        # get select object #
-        selectObj = SysMgr.getPkg("select", False)
-
         # check flags type #
         if type(flags) is not list or type(oflags) is not list:
             SysMgr.printErr("failed to get flags as a list")
@@ -37104,6 +37105,7 @@ Copyright:
         size = struct.calcsize(fmt)
         conv = UtilMgr.convColor
         isValidStr = UtilMgr.isValidStr
+        current = None
 
         # get target file list #
         if "TARGETFILE" in SysMgr.environList:
@@ -37141,15 +37143,8 @@ Copyright:
         else:
             targetCmd = []
 
-        try:
-            res = selectObj.select([fd], [], [])
-            if not res[0]:
-                return False
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("failed to wait for events", True)
-            return False
+        # get select object #
+        selectObj = SysMgr.getPkg("select", False)
 
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
@@ -37157,67 +37152,85 @@ Copyright:
             SysMgr.printWarn("failed to read fanotify event", verb)
             return False
 
-        if not retlist:
-            current = SysMgr.updateUptime()
-
-        i = 0
-        while i < length:
-            elen, vers, _, dlen, emask, efd, epid = struct.unpack(
-                fmt, buf[i : i + size]
-            )
-
-            # ignore my event #
-            if epid == SysMgr.pid:
-                i += size
-                os.close(efd)
-                continue
-
-            # get path and comm info #
-            epath = SysMgr.getFdName("self", efd)
-            ecomm = SysMgr.getComm(epid, cache=True, save=True)
-
-            # close event fd for target file #
-            os.close(efd)
-
-            # check skip conditions #
-            if (
-                (targetComm and not isValidStr(ecomm, targetComm))
-                or (exceptComm and isValidStr(ecomm, exceptComm))
-                or (targetFile and not isValidStr(epath, targetFile))
-                or (exceptFile and isValidStr(epath, exceptFile))
-            ):
-                i += size
-                continue
-
-            # get event info #
-            events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
-
-            # check target event #
-            if targetEvt and not UtilMgr.isValidStr(events, targetEvt):
-                i += size
-                continue
-
-            # add items to return list #
-            revents.append([epath, events, epid, ecomm])
-
-            # print event info #
-            if not retlist:
-                procInfo = "%s(%s)" % (ecomm, epid)
-                SysMgr.printPipe(
-                    "[%.6f] %s@%s by %s"
-                    % (
-                        current,
-                        conv(events, "WARNING"),
-                        conv(epath, "GREEN"),
-                        conv(procInfo, "YELLOW"),
-                    )
+        while 1:
+            i = 0
+            while i < length:
+                elen, vers, _, dlen, emask, efd, epid = struct.unpack(
+                    fmt, buf[i : i + size]
                 )
 
-            # execute command #
-            if targetCmd:
-                SysMgr.runFileCmd(targetCmd, epath)
+                # ignore my event #
+                if epid == SysMgr.pid:
+                    i += size
+                    os.close(efd)
+                    continue
 
-            i += size
+                # get path and comm info #
+                epath = SysMgr.getFdName("self", efd)
+                ecomm = SysMgr.getComm(epid, cache=True, save=True)
+
+                # close event fd for target file #
+                os.close(efd)
+
+                # check skip conditions #
+                if (
+                    (targetComm and not isValidStr(ecomm, targetComm))
+                    or (exceptComm and isValidStr(ecomm, exceptComm))
+                    or (targetFile and not isValidStr(epath, targetFile))
+                    or (exceptFile and isValidStr(epath, exceptFile))
+                ):
+                    i += size
+                    continue
+
+                # get event info #
+                events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
+
+                # check target event #
+                if targetEvt and not UtilMgr.isValidStr(events, targetEvt):
+                    i += size
+                    continue
+
+                # add items to return list #
+                revents.append([epath, events, epid, ecomm])
+
+                # print event info #
+                if not retlist:
+                    if not current:
+                        current = SysMgr.updateUptime()
+
+                    procInfo = "%s(%s)" % (ecomm, epid)
+                    SysMgr.printPipe(
+                        "[%.6f] %s@%s by %s"
+                        % (
+                            current,
+                            conv(events, "WARNING"),
+                            conv(epath, "GREEN"),
+                            conv(procInfo, "YELLOW"),
+                        )
+                    )
+
+                # execute command #
+                if targetCmd:
+                    SysMgr.runFileCmd(targetCmd, epath)
+
+                i += size
+
+            # check and read remain data #
+            try:
+                res = selectObj.select([fd], [], [], 0)
+                if not res[0]:
+                    break
+
+                # read events #
+                res = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
+                if res < 0:
+                    break
+                else:
+                    length = res
+            except SystemExit:
+                sys.exit(0)
+            except:
+                break
 
         # return empty list #
         if length > 0 and not revents:
@@ -37377,14 +37390,14 @@ Copyright:
         else:
             targetCmd = []
 
+        # get select object #
+        selectObj = SysMgr.getPkg("select", False)
+
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
         if length < 0:
             SysMgr.printWarn("failed to read inotify event", verb)
             return False
-
-        # get select object #
-        selectObj = SysMgr.getPkg("select", False)
 
         if not retlist:
             current = SysMgr.updateUptime()
@@ -37436,10 +37449,6 @@ Copyright:
 
                 i += size + flen
 
-            # return empty list #
-            if length > 0 and not revents:
-                revents.append([])
-
             # check and read remain data #
             try:
                 res = selectObj.select([fd], [], [], 0)
@@ -37447,13 +37456,19 @@ Copyright:
                     break
 
                 # read events #
-                length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
-                if length < 0:
+                res = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
+                if res < 0:
                     break
+                else:
+                    length = res
             except SystemExit:
                 sys.exit(0)
             except:
                 break
+
+        # return empty list #
+        if length > 0 and not revents:
+            revents.append([])
 
         # clean up #
         if not origFd:
@@ -40012,7 +40027,7 @@ Copyright:
                 )
 
     @staticmethod
-    def readFile(path, size=-1, tail=False):
+    def readFile(path, size=-1, tail=False, verb=True):
         try:
             with open(path, "r") as fd:
                 if tail:
@@ -40026,7 +40041,8 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("failed to read '%s'" % path, True)
+            if verb:
+                SysMgr.printErr("failed to read '%s'" % path, True)
             return None
 
     @staticmethod
@@ -50997,8 +51013,36 @@ Copyright:
             # update uptime #
             SysMgr.updateUptime()
 
+            title = "Watch File Summary"
+
             # get time #
             if isTopMode:
+                # clear comm cache #
+                SysMgr.clearCommCache()
+
+                # get CPU usage for myself #
+                diff = SysMgr.uptimeDiff
+                if diff >= 1:
+                    cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage(system=True)
+                else:
+                    cpuUsage = [0, 0, 0, 100]
+                ttime = cpuUsage[0] / diff
+                utime = cpuUsage[1] / diff
+                stime = cpuUsage[2] / diff
+                mcpu = "%d%%" % ttime
+                cpuStr = " [%s(%s): %s(U%d%%+S%d%%)]" % (
+                    SysMgr.comm,
+                    SysMgr.pid,
+                    mcpu,
+                    utime,
+                    stime,
+                )
+
+                # get CPU usage for system #
+                ctime = 100 - (cpuUsage[3] / diff)
+                ctime = ctime if ctime > 0 else 0
+                cpuStr += " [SYS: %d%%]" % ctime
+
                 if not SysMgr.outPath and not SysMgr.streamEnable:
                     SysMgr.clearScreen()
 
@@ -51006,24 +51050,28 @@ Copyright:
                     timename = "Runtime"
                     runtime = SysMgr.getRuntime()
                 else:
+                    title = "Top File Event"
                     timename = "Interval"
                     runtime = "%.3f" % SysMgr.uptimeDiff
             else:
                 timename = "Runtime"
                 runtime = SysMgr.getRuntime()
+                cpuStr = ""
 
             outStr = ""
 
             # build file list #
-            outStr += (
-                "[Watch File Summary] [Time: %.3f] [%s: %s] [NrFile: %s]\n%s\n"
-                % (
-                    SysMgr.uptime,
-                    timename,
-                    runtime,
-                    UtilMgr.convNum(len(fileSummary)),
-                    twoLine,
-                )
+            outStr += "[%s] [Time: %.3f] [%s: %s] [NrFile: %s]%s%s\n%s\n" % (
+                title,
+                SysMgr.uptime,
+                timename,
+                runtime,
+                UtilMgr.convNum(len(fileSummary)),
+                " [nrProc: %s]" % UtilMgr.convNum(len(procSummary))
+                if procSummary
+                else "",
+                cpuStr,
+                twoLine,
             )
             outStr += "{0:<32} {1:<32} {2:<32}\n{3:1}\n".format(
                 "File", "Proc", "Attr", twoLine
@@ -51132,6 +51180,11 @@ Copyright:
 
         # set output attributes #
         if top:
+            # initialize task stat #
+            TaskAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
+            TaskAnalyzer.dbgObj.initValues()
+            TaskAnalyzer.dbgObj.getCpuUsage(system=True)
+
             if SysMgr.outPath:
                 SysMgr.addExitFunc(
                     _printLastSummary, [SysMgr.fileWatchTotalList, {}]
@@ -51244,6 +51297,8 @@ Copyright:
         # start watching #
         while 1:
             try:
+                current = None
+
                 # wait for events #
                 ret = notifier(targetList, fd=fd)
                 if not ret:
@@ -51252,10 +51307,15 @@ Copyright:
                     else:
                         break
 
-                # get current time #
-                current = SysMgr.getUptime()
-
                 for item in ret:
+                    # error #
+                    if not item:
+                        continue
+
+                    # get current time #
+                    if not current:
+                        current = SysMgr.getUptime()
+
                     # inotify #
                     if len(item) == 3:
                         path, events, fname = item
@@ -51299,17 +51359,16 @@ Copyright:
                         else:
                             if top or SysMgr.outPath:
                                 # add to file summary #
-                                SysMgr.fileWatchList.setdefault(
-                                    epath, {"N/A": {}}
-                                )
+                                watchList = SysMgr.fileWatchList
                                 for event in events:
-                                    SysMgr.fileWatchList[epath][
-                                        "N/A"
-                                    ].setdefault(event, 0)
-                                    SysMgr.fileWatchList[epath]["N/A"][
-                                        event
-                                    ] += 1
-
+                                    try:
+                                        watchList[epath]["N/A"][event] += 1
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        watchList.setdefault(epath, {})
+                                        watchList[epath].setdefault("N/A", {})
+                                        watchList[epath]["N/A"][event] = 1
                             if not top:
                                 outStr = "[%.6f] %s@%s" % (
                                     current,
@@ -51362,30 +51421,32 @@ Copyright:
                                 eventList = events.split("|")
 
                                 # add to file summary #
-                                SysMgr.fileWatchList.setdefault(epath, {})
-                                SysMgr.fileWatchList[epath].setdefault(
-                                    procInfo, {}
-                                )
+                                fwatchList = SysMgr.fileWatchList
                                 for event in eventList:
-                                    SysMgr.fileWatchList[epath][
-                                        procInfo
-                                    ].setdefault(event, 0)
-                                    SysMgr.fileWatchList[epath][procInfo][
-                                        event
-                                    ] += 1
+                                    try:
+                                        fwatchList[epath][procInfo][event] += 1
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        fwatchList.setdefault(epath, {})
+                                        fwatchList[epath].setdefault(
+                                            procInfo, {}
+                                        )
+                                        fwatchList[epath][procInfo][event] = 1
 
                                 # add to proc summary #
-                                SysMgr.procWatchList.setdefault(procInfo, {})
-                                SysMgr.procWatchList[procInfo].setdefault(
-                                    epath, {}
-                                )
+                                pwatchList = SysMgr.procWatchList
                                 for event in eventList:
-                                    SysMgr.procWatchList[procInfo][
-                                        epath
-                                    ].setdefault(event, 0)
-                                    SysMgr.procWatchList[procInfo][epath][
-                                        event
-                                    ] += 1
+                                    try:
+                                        pwatchList[procInfo][epath][event] += 1
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        pwatchList.setdefault(procInfo, {})
+                                        pwatchList[procInfo].setdefault(
+                                            epath, {}
+                                        )
+                                        pwatchList[procInfo][epath][event] = 1
 
                             if not top:
                                 outStr = "[%.6f] %s@%s by %s" % (
@@ -60121,6 +60182,8 @@ Copyright:
 
         self.printSchedFeatInfo()
 
+        self.printVmstatInfo()
+
         self.printBuddyInfo()
 
         self.printHugePageInfo()
@@ -60355,6 +60418,38 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr("failed to get HugePage stats", True)
+
+    def printVmstatInfo(self):
+        dpath = "/proc/sys/vm"
+        if not os.path.exists(dpath):
+            return
+
+        SysMgr.infoBufferPrint("\n[VM Info]")
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint("{0:^40} | {1:^16}".format("Stat", "Value"))
+        SysMgr.infoBufferPrint(twoLine)
+
+        try:
+            for item in os.listdir(dpath):
+                # check type #
+                fpath = os.path.join(dpath, item)
+                if os.path.isdir(fpath):
+                    continue
+
+                # read value #
+                value = SysMgr.readFile(fpath, verb=False)
+                if not value:
+                    continue
+
+                SysMgr.infoBufferPrint(
+                    "{0:<40} | {1:>16}".format(item, value.replace("\t", " "))
+                )
+
+            SysMgr.infoBufferPrint(twoLine)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get VM stats", True)
 
     def printKsmInfo(self):
         dpath = "/sys/kernel/mm/ksm"
