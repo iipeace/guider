@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221103"
+__revision__ = "221104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34575,9 +34575,11 @@ Options:
 Examples:
     - Watch the current directory {2:1}
         # {0:1} {1:1}
+        # {0:1} {1:1} -f
 
     - Watch the current directory and print summary to specific file {2:1}
         # {0:1} {1:1} -o watch.out
+        # {0:1} {1:1} -o watch.out -f
 
     - Watch the current directory with process info {2:1}
         # {0:1} {1:1} -q PROCINFO
@@ -34596,6 +34598,7 @@ Examples:
         # {0:1} {1:1} -q ALLMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q ALLMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
         # {0:1} {1:1} -q ALLMOUNT, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
+        # {0:1} {1:1} -q ALLMOUNT, TARGETPATH:"/media*", EXCEPTPATH:"/proc*"
 
     - Watch specific events for all mount points with process info {2:1}
         # {0:1} {1:1} -q ALLMOUNT, TARGETEVT:FAN_MODIFY, TARGETEVT:FAN_CLOSE_WRITE
@@ -37051,6 +37054,28 @@ Copyright:
                 path = list(SysMgr.convMountList(SysMgr.getMountData()).keys())
             elif "INMOUNT" in SysMgr.environList:
                 mark += ["FAN_MARK_MOUNT"]
+
+            # apply target path filter #
+            if "TARGETPATH" in SysMgr.environList:
+                newPath = []
+                for item in path:
+                    if not UtilMgr.isValidStr(
+                        item, SysMgr.environList["TARGETPATH"]
+                    ):
+                        continue
+                    newPath.append(item)
+                path = newPath
+
+            # apply except path filter #
+            if "EXCEPTPATH" in SysMgr.environList:
+                newPath = []
+                for item in path:
+                    if UtilMgr.isValidStr(
+                        item, SysMgr.environList["EXCEPTPATH"]
+                    ):
+                        continue
+                    newPath.append(item)
+                path = newPath
 
             mflagList = {v: k for k, v in ConfigMgr.FAN_MARK_TYPE.items()}
             mflagBits = 0
@@ -51014,22 +51039,28 @@ Copyright:
             SysMgr.updateUptime()
 
             title = "Watch File Summary"
+            ioStr = ""
 
             # get time #
             if isTopMode:
+                dbgObj = TaskAnalyzer.dbgObj
+                tmpObj = TaskAnalyzer.tmpObj
+
                 # clear comm cache #
                 SysMgr.clearCommCache()
 
                 # get CPU usage for myself #
                 diff = SysMgr.uptimeDiff
                 if diff >= 1:
-                    cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage(system=True)
+                    cpuUsage = dbgObj.getCpuUsage(system=True)
                 else:
                     cpuUsage = [0, 0, 0, 100]
                 ttime = cpuUsage[0] / diff
                 utime = cpuUsage[1] / diff
                 stime = cpuUsage[2] / diff
                 mcpu = "%d%%" % ttime
+                if ttime:
+                    mcpu = UtilMgr.convColor(mcpu, "YELLOW")
                 cpuStr = " [%s(%s): %s(U%d%%+S%d%%)]" % (
                     SysMgr.comm,
                     SysMgr.pid,
@@ -51053,6 +51084,25 @@ Copyright:
                     title = "Top File Event"
                     timename = "Interval"
                     runtime = "%.3f" % SysMgr.uptimeDiff
+
+                # get I/O usage for system #
+                try:
+                    tmpObj.saveVmData()
+                    pgInDiff = (
+                        tmpObj.vmData["pgpgin"] - tmpObj.prevVmData["pgpgin"]
+                    ) >> 10
+                    if pgInDiff:
+                        pgInDiff = UtilMgr.convColor("%sM" % pgInDiff, "RED")
+                    pgOutDiff = (
+                        tmpObj.vmData["pgpgout"] - tmpObj.prevVmData["pgpgout"]
+                    ) >> 10
+                    if pgOutDiff:
+                        pgOutDiff = UtilMgr.convColor("%sM" % pgOutDiff, "RED")
+                    ioStr = " [I/O: %s/%s]" % (pgInDiff, pgOutDiff)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
             else:
                 timename = "Runtime"
                 runtime = SysMgr.getRuntime()
@@ -51061,7 +51111,7 @@ Copyright:
             outStr = ""
 
             # build file list #
-            outStr += "[%s] [Time: %.3f] [%s: %s] [NrFile: %s]%s%s\n%s\n" % (
+            outStr += "[%s] [Time: %.3f] [%s: %s] [NrFile: %s]%s%s%s\n%s\n" % (
                 title,
                 SysMgr.uptime,
                 timename,
@@ -51071,43 +51121,56 @@ Copyright:
                 if procSummary
                 else "",
                 cpuStr,
+                ioStr,
                 twoLine,
             )
             outStr += "{0:<32} {1:<32} {2:<32}\n{3:1}\n".format(
                 "File", "Proc", "Attr", twoLine
             )
-            for path, vals in fileSummary.items():
+            for path, vals in sorted(
+                fileSummary.items(), key=lambda e: e[1]["TOTAL"], reverse=True
+            ):
                 outStr += path + "\n"
                 for proc, subvals in vals.items():
-                    outStr += "{0:32} {1:1}\n".format(" ", proc)
-
-                    if not isTopMode:
-                        for attr, cnt in subvals.items():
-                            outStr += "{0:32} {1:32} {2:1}: {3:1}\n".format(
-                                " ", " ", attr, UtilMgr.convNum(cnt)
-                            )
+                    if proc == "TOTAL":
                         continue
 
-                    if SysMgr.outPath:
-                        SysMgr.fileWatchTotalList.setdefault(path, {})
-                        SysMgr.fileWatchTotalList[path].setdefault(proc, {})
+                    outStr += "{0:32} {1:32}".format(" ", proc)
 
+                    # merge events #
                     evtList = []
                     for attr, cnt in sorted(
                         subvals.items(), key=lambda e: e[1], reverse=True
                     ):
                         evtList.append("%s(%s)" % (attr, UtilMgr.convNum(cnt)))
 
-                        if SysMgr.outPath:
-                            SysMgr.fileWatchTotalList[path][proc].setdefault(
-                                attr, 0
-                            )
+                        # check skip condition for event merge #
+                        if final or not isTopMode or not SysMgr.outPath:
+                            continue
+
+                        try:
+                            SysMgr.fileWatchTotalList[path]["TOTAL"] += cnt
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.fileWatchTotalList.setdefault(path, {})
+                            SysMgr.fileWatchTotalList[path]["TOTAL"] = cnt
+
+                        try:
                             SysMgr.fileWatchTotalList[path][proc][attr] += cnt
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.fileWatchTotalList.setdefault(path, {})
+                            SysMgr.fileWatchTotalList[path].setdefault(
+                                proc, {}
+                            )
+                            SysMgr.fileWatchTotalList[path][proc][attr] = cnt
+
                     evtStr = "|".join(evtList)
-
-                    outStr += "{0:32} {1:32} {2:1}\n".format(" ", " ", evtStr)
-
+                    outStr += "%s\n" % evtStr
                 outStr += oneLine + "\n"
+
             if not fileSummary:
                 outStr += "\tNone\n%s\n" % oneLine
 
@@ -51137,9 +51200,11 @@ Copyright:
                 SysMgr.clearPrint()
                 return
 
+            outStr = ""
+
             # print proc list #
-            SysMgr.printPipe(
-                "[Watch Proc Summary] [Time: %.3f] [%s: %s] [NrFile: %s]\n%s\n"
+            outStr += (
+                "[Watch Proc Summary] [Time: %.3f] [%s: %s] [NrProc: %s]\n%s\n"
                 % (
                     SysMgr.uptime,
                     timename,
@@ -51148,25 +51213,34 @@ Copyright:
                     twoLine,
                 )
             )
-            SysMgr.printPipe(
-                "{0:<32} {1:<32} {2:<32}\n{3:1}".format(
-                    "Proc", "File", "Attr", twoLine
-                )
+
+            outStr += "{0:<32} {1:<32} {2:<32}\n{3:1}\n".format(
+                "Proc", "File", "Attr", twoLine
             )
-            for proc, vals in procSummary.items():
-                SysMgr.printPipe(proc)
+            for proc, vals in sorted(
+                procSummary.items(), key=lambda e: e[1]["TOTAL"], reverse=True
+            ):
+                outStr += proc + "\n"
                 for path, subvals in vals.items():
-                    SysMgr.printPipe("{0:32} {1:1}".format(" ", path))
-                    for attr, cnt in subvals.items():
-                        SysMgr.printPipe(
-                            "{0:32} {1:32} {2:1}: {3:1}".format(
-                                " ", " ", attr, UtilMgr.convNum(cnt)
-                            )
-                        )
-                SysMgr.printPipe(oneLine)
+                    if path == "TOTAL":
+                        continue
+
+                    outStr += "{0:32} {1:32}".format(" ", path)
+
+                    # merge events #
+                    evtList = []
+                    for attr, cnt in sorted(
+                        subvals.items(), key=lambda e: e[1], reverse=True
+                    ):
+                        evtList.append("%s(%s)" % (attr, UtilMgr.convNum(cnt)))
+
+                    evtStr = "|".join(evtList)
+                    outStr += " [%s]\n" % evtStr
+                outStr += oneLine + "\n"
+
             if not procSummary:
-                SysMgr.printPipe("\tNone\n%s" % oneLine)
-            SysMgr.printPipe("\n")
+                outStr += "\tNone\n%s\n" % oneLine
+            SysMgr.printPipe(outStr + "\n")
 
             # print history #
             SysMgr.printPipe("\n")
@@ -51184,6 +51258,8 @@ Copyright:
             TaskAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
             TaskAnalyzer.dbgObj.initValues()
             TaskAnalyzer.dbgObj.getCpuUsage(system=True)
+            TaskAnalyzer.tmpObj = TaskAnalyzer(onlyInstance=True)
+            TaskAnalyzer.tmpObj.saveVmData()
 
             if SysMgr.outPath:
                 SysMgr.addExitFunc(
@@ -51305,9 +51381,12 @@ Copyright:
                 # wait for events #
                 ret = notifier(targetList, fd=fd)
                 if not ret:
-                    if top:
+                    if top or SysMgr.forceEnable:
                         continue
                     else:
+                        SysMgr.printWarn(
+                            "stopped to watch files because of no event", True
+                        )
                         break
 
                 for item in ret:
@@ -51364,6 +51443,14 @@ Copyright:
                                 # add to file summary #
                                 watchList = SysMgr.fileWatchList
                                 for event in events:
+                                    try:
+                                        watchList[epath]["TOTAL"] += 1
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        watchList.setdefault(epath, {})
+                                        watchList[epath]["TOTAL"] = 1
+
                                     try:
                                         watchList[epath]["N/A"][event] += 1
                                     except SystemExit:
@@ -51427,6 +51514,14 @@ Copyright:
                                 fwatchList = SysMgr.fileWatchList
                                 for event in eventList:
                                     try:
+                                        fwatchList[epath]["TOTAL"] += 1
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        fwatchList.setdefault(epath, {})
+                                        fwatchList[epath]["TOTAL"] = 1
+
+                                    try:
                                         fwatchList[epath][procInfo][event] += 1
                                     except SystemExit:
                                         sys.exit(0)
@@ -51440,6 +51535,14 @@ Copyright:
                                 # add to proc summary #
                                 pwatchList = SysMgr.procWatchList
                                 for event in eventList:
+                                    try:
+                                        pwatchList[procInfo]["TOTAL"] += 1
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        pwatchList.setdefault(procInfo, {})
+                                        pwatchList[procInfo]["TOTAL"] = 1
+
                                     try:
                                         pwatchList[procInfo][epath][event] += 1
                                     except SystemExit:
@@ -89662,6 +89765,7 @@ class TaskAnalyzer(object):
     procEventData = []
     dbusData = {"totalCnt": 0, "totalErr": 0}
     dbgObj = None
+    tmpObj = None
 
     # request type #
     requestType = ["LOG", "EVENT", "PRINT", "REPORT", "THRESHOLD"]
@@ -110253,6 +110357,18 @@ class TaskAnalyzer(object):
             proc.kill()
             proc.wait()
 
+    def saveVmData(self):
+        # vmstat list from https://access.redhat.com/solutions/406773 #
+        self.prevVmData = self.vmData
+        self.vmData = {}
+        vmBuf = SysMgr.readProcStat(
+            SysMgr.vmstatFd, "vmstat", SysMgr, "vmstatFd"
+        )
+        if vmBuf:
+            for line in vmBuf:
+                vmList = line.split()
+                self.vmData[vmList[0]] = long(vmList[1])
+
     def saveSystemStat(self, target="task"):
         # update uptime #
         SysMgr.updateUptime()
@@ -110328,16 +110444,7 @@ class TaskAnalyzer(object):
         self.gpuMemData, _ = SysMgr.getGpuMem()
 
         # read vmstat buf #
-        # vmstat list from https://access.redhat.com/solutions/406773 #
-        self.prevVmData = self.vmData
-        self.vmData = {}
-        vmBuf = SysMgr.readProcStat(
-            SysMgr.vmstatFd, "vmstat", SysMgr, "vmstatFd"
-        )
-        if vmBuf:
-            for line in vmBuf:
-                vmList = line.split()
-                self.vmData[vmList[0]] = long(vmList[1])
+        self.saveVmData()
 
         # read swap buf #
         swapBuf = SysMgr.readProcStat(SysMgr.swapFd, "swaps", SysMgr, "swapFd")
