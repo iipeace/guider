@@ -31382,8 +31382,10 @@ Examples:
 
     - {5:1} {7:1} and call madvise {4:1}
         # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:3"
-        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:DONTNEED"
-        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:MERGEABLE"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:2K:DONTNEED"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:2M:MERGEABLE"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:stack:1M:WILLNEED"
+        # {0:1} {1:1} -g a.out -c "printf|madvise:heap:4M:MERGEABLE"
 
     - {5:1} {7:1} and return a specific value immediately {4:1}
         # {0:1} {1:1} -g a.out -c "write|ret:3"
@@ -33581,9 +33583,11 @@ Examples:
         # {0:1} {1:1} -g a.out -c "rdmem:0x1234:10"
 
     - {2:1} call madvise
-        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:3"
-        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:DONTNEED"
-        # {0:1} {1:1} -g a.out -c "printf|madvise:0x1234:8092:MERGEABLE"
+        # {0:1} {1:1} -g a.out -c "madvise:0x1234:8092:3"
+        # {0:1} {1:1} -g a.out -c "madvise:0x1234:2K:DONTNEED"
+        # {0:1} {1:1} -g a.out -c "madvise:0x1234:1M:MERGEABLE"
+        # {0:1} {1:1} -g a.out -c "madvise:stack:1M:WILLNEED"
+        # {0:1} {1:1} -g a.out -c "madvise:heap:4M:MERGEABLE"
 
     - {2:1} return from the current function with a specific value immediately
         # {0:1} {1:1} -g a.out -c "ret:3"
@@ -70276,9 +70280,19 @@ typedef struct {
 
                 addr, length, advise = argList[:3]
 
-                # get addr and length #
-                addr = UtilMgr.convStr2Num(addr)
-                length = UtilMgr.convStr2Num(length)
+                # get addr #
+                if UtilMgr.isNumber(addr):
+                    addr = UtilMgr.convStr2Num(addr)
+                elif addr in ("heap", "stack"):
+                    addr = long(
+                        FileAnalyzer.getMapAddr(self.pid, "[%s]" % addr)[0], 16
+                    )
+                else:
+                    SysMgr.printErr("wrong address '%s' for madvise" % addr)
+                    sys.exit(-1)
+
+                # get length #
+                length = UtilMgr.convUnit2Size(length)
 
                 # get advise #
                 if UtilMgr.isNumber(advise):
