@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221104"
+__revision__ = "221105"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20838,6 +20838,7 @@ class LeakAnalyzer(object):
                                 break
                             elif bitmap[targetIdx] != bitVal:
                                 size -= pageSize
+
                         # TODO: consider spanning chunks between two pages #
                 except SystemExit:
                     sys.exit(0)
@@ -30292,6 +30293,7 @@ Commands:
             "util": {
                 "addr2sym": ("Symbol", "Linux/MacOS/Windows"),
                 "cgroup": ("Cgroup", "Linux"),
+                "checkdedup": ("Page", "Linux"),
                 "comp": ("Compress", "Linux/MacOS/Windows"),
                 "decomp": ("Decompress", "Linux/MacOS/Windows"),
                 "dump": ("Memory", "Linux"),
@@ -34500,7 +34502,7 @@ Description:
 
 Options:
     -o  <DIR|FILE>              set output path
-    -g  <TID|COMM>              set task filter
+    -g  <PID|COMM>              set task filter
     -J                          print in JSON format
     -v                          verbose
                         """.format(
@@ -34510,11 +34512,11 @@ Options:
                     helpStr += """
 Examples:
     - Print signal status info for specific processes
-        # {0:1} {1:1} a.out, java
+        # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
 
     - Print signal status info for specific threads
-        # {0:1} {1:1} a.out, java -e t
+        # {0:1} {1:1} "a.out, java" -e t
         # {0:1} {1:1} -g a.out, java -e t
                     """.format(
                         cmd, mode
@@ -34551,6 +34553,38 @@ Examples:
                         cmd,
                         mode,
                         "Print D-Bus signal subscription info",
+                    )
+
+                # checkdedup #
+                elif SysMgr.checkMode("checkdedup"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} -g <PID|COMM> [OPTIONS] [--help]
+
+Description:
+    Check dedup for pages of specific processes
+
+Options:
+    -o  <DIR|FILE>              set output path
+    -g  <PID|COMM>              set task filter
+    -J                          print in JSON format
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - {2:1}
+        # {0:1} {1:1} "a.out, java"
+        # {0:1} {1:1} -g a.out, java
+
+    - {2:1} and execute specific remote commands for each memory segments
+        # {0:1} {1:1} "a.out, java" -c madvise:START:SIZE:DONTNEED
+                    """.format(
+                        cmd,
+                        mode,
+                        "Check dedup for all anon pages of specific processes",
                     )
 
                 # watch #
@@ -44808,6 +44842,10 @@ Copyright:
         elif SysMgr.checkMode("pytrace"):
             SysMgr.doTrace("pytrace")
 
+        # CHECKDEDUP MODE #
+        elif SysMgr.checkMode("checkdedup"):
+            SysMgr.doCheckDedup()
+
         # WATCH MODE #
         elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
             # just print event list #
@@ -51020,10 +51058,126 @@ Copyright:
         sys.exit(0)
 
     @staticmethod
+    def doCheckDedup():
+        # get target process #
+        if SysMgr.hasMainArg():
+            targetList = SysMgr.getMainArgs(False)
+        elif SysMgr.filterGroup:
+            targetList = SysMgr.filterGroup
+        else:
+            SysMgr.printErr("no target process info")
+            sys.exit(-1)
+
+        SysMgr.checkRootPerm()
+
+        # get pids for tasks #
+        pids = SysMgr.convTaskList(targetList, exceptMe=True)
+        if not pids:
+            SysMgr.printErr("no process for '%s'" % ", ".join(targetList))
+            sys.exit(-1)
+
+        SysMgr.setStream()
+
+        mergeTable = {}
+        PAGESIZE = SysMgr.PAGESIZE
+
+        if SysMgr.customCmd:
+            SysMgr.printInfo(
+                "'%s' will be executed" % ("|".join(SysMgr.customCmd))
+            )
+
+        # get page info #
+        for pid in pids:
+            comm = SysMgr.getComm(pid)
+            SysMgr.printInfo(
+                "start reading memory for %s(%s)..." % (comm, pid)
+            )
+
+            # create a debugger object #
+            dbgObj = Debugger(pid)
+            dbgObj.initValues()
+
+            # read segments from memory map #
+            mems = FileAnalyzer.getMapAddr(pid, "anon", retList=True)
+
+            """
+            mems = PageAnalyzer.getPageInfo(
+                [pid], "anon", retList=True, verb=False, progress=True,
+            )
+            """
+
+            # check dedup #
+            for segment in mems:
+                UtilMgr.printProgress()
+
+                start, end = long(segment[0], 16), long(segment[1], 16)
+                size = end - start
+
+                # read segment #
+                mem = dbgObj.readMem(start, size, verb=False)
+                if not mem:
+                    continue
+
+                # merge pages #
+                pos = 0
+                while pos < len(mem):
+                    # check size #
+                    if pos + PAGESIZE > len(mem):
+                        break
+
+                    try:
+                        mergeTable[mem[pos : pos + PAGESIZE]] += 1
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        mergeTable[mem[pos : pos + PAGESIZE]] = 1
+
+                    pos += PAGESIZE
+
+                # execute commands #
+                if SysMgr.customCmd:
+                    cmds = []
+                    # convert START and SIZE values #
+                    for item in SysMgr.customCmd:
+                        item = item.replace("START", str(start)).replace(
+                            "SIZE", str(size)
+                        )
+                        cmds.append(item)
+
+                    # execute remote commands #
+                    dbgObj.executeCmd(cmds, force=True)
+
+                UtilMgr.deleteProgress()
+
+            # destroy debugger object #
+            del dbgObj
+
+        # calculate results #
+        counts = mergeTable.values()
+        uniqSize = len(counts) * PAGESIZE
+        totalSize = sum(counts) * PAGESIZE
+        dedupSize = totalSize - uniqSize
+        sizeMB = 1048576
+
+        # print results #
+        SysMgr.printInfo(
+            "%s/%s(%.1f%%) is duplicated"
+            % (
+                UtilMgr.convSize2Unit(
+                    dedupSize, unit="M" if dedupSize > sizeMB else None
+                ),
+                UtilMgr.convSize2Unit(
+                    totalSize, unit="M" if totalSize > sizeMB else None
+                ),
+                dedupSize / float(totalSize) * 100,
+            )
+        )
+
+    @staticmethod
     def doWatch(top=False):
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        # check target path #
+        # get target path #
         if SysMgr.hasMainArg():
             opList = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
@@ -73376,8 +73530,8 @@ typedef struct {
                 elif ret == -1:
                     self.errmsg = SysMgr.getErrReason()
                     SysMgr.printWarn(
-                        "failed to process_vm_readv for %s(%s) because %s"
-                        % (self.comm, self.pid, self.errmsg)
+                        "failed to process_vm_readv(%s,%s) for %s(%s) because %s"
+                        % (addr, size, self.comm, self.pid, self.errmsg)
                     )
                     raise Exception()
 
@@ -73389,7 +73543,8 @@ typedef struct {
             except SystemExit:
                 sys.exit(0)
             except:
-                self.supportProcessVmRd = False
+                if not hasattr(SysMgr.libcObj, "process_vm_readv"):
+                    self.supportProcessVmRd = False
 
         # define return list #
         data = bytes()
@@ -77079,7 +77234,7 @@ typedef struct {
 
         # execute remote commands #
         for cmd in SysMgr.customCmd:
-            self.executeCmd([cmd], sym=None, fname=None, args=args, force=True)
+            self.executeCmd([cmd], args=args, force=True)
 
     def getBpContext(self, sym, addr, args, isRetBp):
         # set default symbol color #
