@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221105"
+__revision__ = "221106"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20526,9 +20526,10 @@ class LeakAnalyzer(object):
         # leakage history #
         title = "Leakage History"
         SysMgr.printPipe(
-            "\n[%s] [Start: %s] [Total: %s] [Count: %s]\n%s"
+            "\n[%s] [Process: %s] [Start: %s] [Total: %s] [Count: %s]\n%s"
             % (
                 title,
+                proc,
                 startTime,
                 convSize(self.totalLeakSize, True),
                 convSize(len(self.callData), True),
@@ -20557,7 +20558,7 @@ class LeakAnalyzer(object):
                 "{0:>16} | {1:>16} | {2:>6} |{3:<50}| {4:<53}\n{5:1}".format(
                     timeval,
                     items["addr"] if "addr" in items else " ",
-                    convSize(long(items["size"])),
+                    long(items["size"]),
                     items["data"][:-1],
                     stack,
                     oneLine,
@@ -34565,8 +34566,10 @@ Description:
     Check dedup for pages of specific processes
 
 Options:
+    -I  <FILE>                  set input path
     -o  <DIR|FILE>              set output path
     -g  <PID|COMM>              set task filter
+    -q  <NAME{{:VALUE}}>          set environment variables
     -J                          print in JSON format
     -v                          verbose
                         """.format(
@@ -34578,6 +34581,15 @@ Examples:
     - {2:1}
         # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
+
+    - Check dedup for specific pages from the leakage report
+        # {0:1} {1:1} -I guider.out
+        # {0:1} {1:1} -I guider.out -q TARGETSYM:"*testFile*"
+        # {0:1} {1:1} -I guider.out -q EXCEPTSYM:"*verifyFile*"
+
+    - Check dedup for specific pages of specific processes
+        # {0:1} {1:1} "a.out, java" -q ONLYHEAP
+        # {0:1} {1:1} "a.out, java" -q ONLYSTACK
 
     - {2:1} and execute specific remote commands for each memory segments
         # {0:1} {1:1} "a.out, java" -c madvise:START:SIZE:DONTNEED
@@ -51059,8 +51071,98 @@ Copyright:
 
     @staticmethod
     def doCheckDedup():
+        mems = []
+
         # get target process #
-        if SysMgr.hasMainArg():
+        if SysMgr.inputParam:
+            buf = SysMgr.readFile(SysMgr.inputParam)
+            if not buf:
+                sys.exit(-1)
+
+            # strip header info #
+            pos = buf.find("[Leakage History] ")
+            if pos < 0:
+                SysMgr.printErr("no leakage history")
+                sys.exit(-1)
+
+            # get process info #
+            buf = buf[pos:].split("\n")
+            info = buf.pop(0)
+            pids = [info.split("(", 1)[1].split(")", 1)[0]]
+
+            # get include list #
+            if "TARGETSYM" in SysMgr.environList:
+                includeList = SysMgr.environList["TARGETSYM"]
+            else:
+                includeList = []
+
+            # get exclude list #
+            if "EXCEPTSYM" in SysMgr.environList:
+                excludeList = SysMgr.environList["EXCEPTSYM"]
+            else:
+                excludeList = []
+
+            # remake call list #
+            callList = []
+            while buf:
+                line = buf.pop(0)
+
+                # skip line #
+                if line.startswith("-"):
+                    continue
+
+                # add call info #
+                items = line.split("|")
+                if len(items) > 4:
+                    try:
+                        sym = items[4].strip()
+
+                        # check filter #
+                        if includeList and not UtilMgr.isValidStr(
+                            sym, includeList
+                        ):
+                            continue
+                        elif excludeList and UtilMgr.isValidStr(
+                            sym, excludeList
+                        ):
+                            continue
+
+                        callList.append(
+                            [
+                                long(items[1].strip(), 16),
+                                long(items[2].strip()),
+                            ]
+                        )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        continue
+
+            # sort calls by address #
+            callList.sort(key=lambda e: e[0])
+
+            # merge calls in page unit #
+            PAGESIZE = SysMgr.PAGESIZE
+            chunk = None
+            for call in callList:
+                # convert to page-aligned number #
+                addr, size = call
+                addr = long(addr / PAGESIZE) * PAGESIZE
+                size = long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+
+                if not chunk:
+                    chunk = [addr, size]
+                    continue
+
+                # contiguous #
+                last = chunk[0] + chunk[1]
+                if last >= addr:
+                    chunk[1] += addr - last + size
+                # distant #
+                else:
+                    mems.append(chunk)
+                    chunk = [addr, size]
+        elif SysMgr.hasMainArg():
             targetList = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
             targetList = SysMgr.filterGroup
@@ -51071,13 +51173,26 @@ Copyright:
         SysMgr.checkRootPerm()
 
         # get pids for tasks #
-        pids = SysMgr.convTaskList(targetList, exceptMe=True)
-        if not pids:
-            SysMgr.printErr("no process for '%s'" % ", ".join(targetList))
-            sys.exit(-1)
+        if not SysMgr.inputParam:
+            pids = SysMgr.convTaskList(targetList, exceptMe=True)
+            if not pids:
+                SysMgr.printErr("no process for '%s'" % ", ".join(targetList))
+                sys.exit(-1)
+        commList = SysMgr.getCommList(pids)
+
+        # get target area #
+        if "ONLYHEAP" in SysMgr.environList:
+            target = "[heap]"
+        elif "ONLYSTACK" in SysMgr.environList:
+            target = "[stack]"
+        else:
+            target = "anon"
+
+        SysMgr.printInfo(
+            "check deduplicated memory areas for [ %s ]" % commList
+        )
 
         SysMgr.setStream()
-
         mergeTable = {}
         PAGESIZE = SysMgr.PAGESIZE
 
@@ -51088,33 +51203,36 @@ Copyright:
 
         # get page info #
         for pid in pids:
-            comm = SysMgr.getComm(pid)
-            SysMgr.printInfo(
-                "start reading memory for %s(%s)..." % (comm, pid)
-            )
-
             # create a debugger object #
             dbgObj = Debugger(pid)
             dbgObj.initValues()
 
             # read segments from memory map #
-            mems = FileAnalyzer.getMapAddr(pid, "anon", retList=True)
+            if not mems:
+                mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
 
-            """
-            mems = PageAnalyzer.getPageInfo(
-                [pid], "anon", retList=True, verb=False, progress=True,
+            # print status #
+            comm = SysMgr.getComm(pid)
+            SysMgr.printInfo(
+                "start reading %s memory areas for %s(%s)..."
+                % (UtilMgr.convNum(len(mems)), comm, pid)
             )
-            """
 
             # check dedup #
-            for segment in mems:
-                UtilMgr.printProgress()
+            for idx, segment in enumerate(mems):
+                UtilMgr.printProgress(idx, len(mems))
 
-                start, end = long(segment[0], 16), long(segment[1], 16)
-                size = end - start
+                # get addr and size #
+                try:
+                    start, end = long(segment[0], 16), long(segment[1], 16)
+                    size = end - start
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    start, size = segment
 
                 # read segment #
-                mem = dbgObj.readMem(start, size, verb=False)
+                mem = dbgObj.readMem(start, size, verb=False, onlyBulk=True)
                 if not mem:
                     continue
 
@@ -51161,7 +51279,7 @@ Copyright:
 
         # print results #
         SysMgr.printInfo(
-            "%s/%s(%.1f%%) is duplicated"
+            "%s/%s(%.1f%%) is duplicated for [ %s ]"
             % (
                 UtilMgr.convSize2Unit(
                     dedupSize, unit="M" if dedupSize > sizeMB else None
@@ -51170,6 +51288,7 @@ Copyright:
                     totalSize, unit="M" if totalSize > sizeMB else None
                 ),
                 dedupSize / float(totalSize) * 100,
+                commList,
             )
         )
 
@@ -73468,7 +73587,7 @@ typedef struct {
             symList=funcFilter, binList=fileList, verb=verb
         )
 
-    def readMem(self, addr, size=0, retWord=False, verb=True):
+    def readMem(self, addr, size=0, retWord=False, verb=True, onlyBulk=False):
         wordSize = ConfigMgr.wordSize
 
         if not addr:
@@ -73530,8 +73649,14 @@ typedef struct {
                 elif ret == -1:
                     self.errmsg = SysMgr.getErrReason()
                     SysMgr.printWarn(
-                        "failed to process_vm_readv(%s,%s) for %s(%s) because %s"
-                        % (addr, size, self.comm, self.pid, self.errmsg)
+                        "failed to process_vm_readv(%s+%s) for %s(%s) because %s"
+                        % (
+                            hex(addr),
+                            UtilMgr.convNum(size),
+                            self.comm,
+                            self.pid,
+                            self.errmsg,
+                        )
                     )
                     raise Exception()
 
@@ -73545,6 +73670,9 @@ typedef struct {
             except:
                 if not hasattr(SysMgr.libcObj, "process_vm_readv"):
                     self.supportProcessVmRd = False
+
+        if onlyBulk:
+            return None
 
         # define return list #
         data = bytes()
