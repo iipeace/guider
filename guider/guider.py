@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221106"
+__revision__ = "221107"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20345,14 +20345,7 @@ class LeakAnalyzer(object):
         proc = "%s(%s)" % (SysMgr.getComm(self.pid), self.pid)
 
         # get memory usage #
-        try:
-            ret = TaskAnalyzer.getMemStats(tobj, self.pid)
-            vss = convSize(ret["vss"], unit="M")
-            rss = convSize(ret["rss"], unit="M")
-            pss = convSize(ret["pss"], unit="M")
-            uss = convSize(ret["uss"], unit="M")
-        except:
-            vss = rss = pss = uss = "?"
+        mstat = TaskAnalyzer.getMemStr(tobj, self.pid)
 
         # set name #
         name = "Leakage"
@@ -20366,17 +20359,14 @@ class LeakAnalyzer(object):
         title = "Function %s Info" % name
         titleStr = (
             "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-            "[Mem: VSS(%s)/RSS(%s)/PSS(%s)/USS(%s)] [%s: %s] [NrCall: %s]"
+            "[Mem: %s] [%s: %s] [NrCall: %s]"
         ) % (
             title,
             proc,
             startTime,
             runtime,
             profileTime,
-            vss,
-            rss,
-            pss,
-            uss,
+            mstat,
             name,
             convSize(self.totalLeakSize),
             convSize(len(self.callData)),
@@ -20451,8 +20441,7 @@ class LeakAnalyzer(object):
         SysMgr.printPipe(
             (
                 "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
-                "[Mem: VSS(%s)/RSS(%s)/PSS(%s)/USS(%s)] "
-                "[%s: %s] [NrCall: %s]\n%s"
+                "[Mem: %s] [%s: %s] [NrCall: %s]\n%s"
             )
             % (
                 title,
@@ -20460,10 +20449,7 @@ class LeakAnalyzer(object):
                 startTime,
                 runtime,
                 profileTime,
-                vss,
-                rss,
-                pss,
-                uss,
+                mstat,
                 name,
                 convSize(self.totalLeakSize),
                 convSize(len(self.callData)),
@@ -36768,7 +36754,7 @@ Examples:
                     helpStr = (
                         defStr
                         + """
-COMMAND:
+COMMAND({2:1}):
 {0:1}
 FILE:
     Profile file (e.g. guider.dat)
@@ -36777,7 +36763,9 @@ FILE:
 Options:
     Check COMMAND with --help (e.g. {1:1} top --help)
                     """.format(
-                            SysMgr.getCmdString(), cmd
+                            SysMgr.getCmdString(),
+                            cmd,
+                            len(SysMgr.getCmdSet()),
                         )
                     )
 
@@ -42781,6 +42769,40 @@ Copyright:
         return pid
 
     @staticmethod
+    def applyIgnoreSignals():
+        if not "IGNORESIGNAL" in SysMgr.environList:
+            return
+
+        if Debugger.ignoreSignals:
+            for signum in Debugger.ignoreSignals:
+                signal.signal(signum, signal.SIG_IGN)
+            return
+
+        for sig in SysMgr.environList["IGNORESIGNAL"]:
+            try:
+                if UtilMgr.isNumber(sig):
+                    signum = long(sig)
+                elif sig.upper() in ConfigMgr.SIG_LIST:
+                    signum = ConfigMgr.SIG_LIST.index(sig.upper())
+                elif "SIG" + sig.upper() in ConfigMgr.SIG_LIST:
+                    signum = ConfigMgr.SIG_LIST.index("SIG" + sig.upper())
+                else:
+                    raise Exception("no signal")
+
+                # ignore signal #
+                signal.signal(signum, signal.SIG_IGN)
+
+                # regisetr ignore list #
+                Debugger.ignoreSignals[signum] = 0
+
+                SysMgr.printInfo("blocked %s" % ConfigMgr.SIG_LIST[signum])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to block %s signal" % sig, True)
+                sys.exit(-1)
+
+    @staticmethod
     def applyEnvironVars():
         def _applyVar(name, tobj, tvar):
             if not name in SysMgr.environList:
@@ -42907,30 +42929,7 @@ Copyright:
             )
 
         # ignore signals #
-        if "IGNORESIGNAL" in SysMgr.environList:
-            for sig in SysMgr.environList["IGNORESIGNAL"]:
-                try:
-                    if UtilMgr.isNumber(sig):
-                        signum = long(sig)
-                    elif sig.upper() in ConfigMgr.SIG_LIST:
-                        signum = ConfigMgr.SIG_LIST.index(sig.upper())
-                    elif "SIG" + sig.upper() in ConfigMgr.SIG_LIST:
-                        signum = ConfigMgr.SIG_LIST.index("SIG" + sig.upper())
-                    else:
-                        raise Exception("no signal")
-
-                    # ignore signal #
-                    signal.signal(signum, signal.SIG_IGN)
-
-                    # regisetr ignore list #
-                    Debugger.ignoreSignals[signum] = 0
-
-                    SysMgr.printInfo("blocked %s" % ConfigMgr.SIG_LIST[signum])
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr("failed to block %s signal" % sig, True)
-                    sys.exit(-1)
+        SysMgr.applyIgnoreSignals()
 
         # limit resources #
         SysMgr.applyLimitVars()
@@ -47606,6 +47605,8 @@ Copyright:
         signal.signal(signal.SIGCHLD, signal.SIG_DFL)
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
+        SysMgr.applyIgnoreSignals()
+
     @staticmethod
     def setSimpleSignal():
         if not SysMgr.isLinux and not SysMgr.isDarwin:
@@ -47617,6 +47618,8 @@ Copyright:
         signal.signal(signal.SIGQUIT, SysMgr.exitHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
+
+        SysMgr.applyIgnoreSignals()
 
     @staticmethod
     def setPipeHandler():
@@ -47760,6 +47763,8 @@ Copyright:
         signal.signal(signal.SIGINT, SysMgr.stopHandler)
         signal.signal(signal.SIGQUIT, SysMgr.newHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+
+        SysMgr.applyIgnoreSignals()
 
     @staticmethod
     def getServerPkg(parallel=False):
@@ -51162,6 +51167,9 @@ Copyright:
                 else:
                     mems.append(chunk)
                     chunk = [addr, size]
+            # add last chunk #
+            if chunk:
+                mems.append(chunk)
         elif SysMgr.hasMainArg():
             targetList = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
@@ -51192,9 +51200,13 @@ Copyright:
             "check deduplicated memory areas for [ %s ]" % commList
         )
 
+        # define variables #
         SysMgr.setStream()
         mergeTable = {}
         PAGESIZE = SysMgr.PAGESIZE
+        SysMgr.memEnable = True
+        SysMgr.ussEnable = True
+        convSize = UtilMgr.convSize2Unit
 
         if SysMgr.customCmd:
             SysMgr.printInfo(
@@ -51207,6 +51219,16 @@ Copyright:
             dbgObj = Debugger(pid)
             dbgObj.initValues()
 
+            # get memory usage #
+            try:
+                tobj = SysMgr.initTaskMon(pid, update=False)
+                tobj.saveProcStat()
+                mstat = TaskAnalyzer.getMemStr(tobj, pid)
+                mstat = " <%s>" % mstat
+                del tobj
+            except:
+                mstat = ""
+
             # read segments from memory map #
             if not mems:
                 mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
@@ -51214,8 +51236,8 @@ Copyright:
             # print status #
             comm = SysMgr.getComm(pid)
             SysMgr.printInfo(
-                "start reading %s memory areas for %s(%s)..."
-                % (UtilMgr.convNum(len(mems)), comm, pid)
+                "start reading %s memory areas for %s(%s)%s..."
+                % (UtilMgr.convNum(len(mems)), comm, pid, mstat)
             )
 
             # check dedup #
@@ -51281,12 +51303,8 @@ Copyright:
         SysMgr.printInfo(
             "%s/%s(%.1f%%) is duplicated for [ %s ]"
             % (
-                UtilMgr.convSize2Unit(
-                    dedupSize, unit="M" if dedupSize > sizeMB else None
-                ),
-                UtilMgr.convSize2Unit(
-                    totalSize, unit="M" if totalSize > sizeMB else None
-                ),
+                convSize(dedupSize, unit="M" if dedupSize > sizeMB else None),
+                convSize(totalSize, unit="M" if totalSize > sizeMB else None),
                 dedupSize / float(totalSize) * 100,
                 commList,
             )
@@ -53757,13 +53775,16 @@ Copyright:
             # define indexes #
             utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
             stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+            rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
             path = "%s/%s" % (SysMgr.procPath, pid)
 
             # check destination value #
             if cond in (sys.maxsize, SysMgr.maxSize):
-                conds = ""
+                unit = None
+                des = ""
             else:
-                conds = "/%s" % conv(cond, unit="M")
+                unit = "M"
+                des = " at RSS(%s)" % conv(cond)
 
             # reset and save proc instance #
             tobj.saveProcInstance()
@@ -53781,7 +53802,8 @@ Copyright:
 
             # wait for RSS #
             prevCpu = None
-            prevRss = None
+            prevMem = None
+            printSame = False
             while 1:
                 ret = tobj.saveProcData(path, pid)
                 if not ret:
@@ -53811,43 +53833,34 @@ Copyright:
                     continue
 
                 # get memory usage #
-                ret = TaskAnalyzer.getMemStats(tobj, pid)
-                if ret:
-                    vss = conv(ret["vss"], unit="M")
-                    rss = ret["rss"]
-                    rssUnit = conv(rss, unit="M")
-                    pss = ret["pss"]
-                    pssUnit = conv(pss, unit="M")
-                    uss = ret["uss"]
-                    ussUnit = conv(uss, unit="M")
-                else:
-                    vss = rss = rssUnit = pssUnit = ussUnit = 0
+                rss = long(procData[rssIdx]) << 12
+                mstat = TaskAnalyzer.getMemStr(tobj, pid, tok=", ", unit=unit)
 
                 # reset and save proc instance #
                 tobj.saveProcInstance()
 
                 # print memory usage #
-                if prevCpu != cpu or prevRss != rssUnit:
+                if prevCpu != ttime or prevMem != rss:
                     SysMgr.printInfo(
-                        (
-                            "%s %s(%s)'s CPU(%s%%), VSS(%s), RSS(%s%s), "
-                            "PSS(%s), USS(%s) for %s"
-                        )
+                        "%s %s(%s)'s CPU(%s%%), %s for %s%s"
                         % (
                             diff,
                             comm,
                             pid,
                             cpustr,
-                            vss,
-                            rssUnit,
-                            conds,
-                            pssUnit,
-                            ussUnit,
+                            mstat,
                             purpose,
+                            des,
                         ),
                         prefix=False,
                     )
-                prevRss = rssUnit
+                    printSame = False
+                elif not printSame:
+                    SysMgr.printInfo("%s no change" % diff, prefix=False)
+                    printSame = True
+
+                # update stats #
+                prevMem = rss
                 prevCpu = ttime
 
                 if cond <= rss:
@@ -54414,6 +54427,8 @@ Copyright:
                 "-qNOCONTEXT",
                 "-dL" if not "debug" in SysMgr.environList else "",
             ]
+        else:
+            hcmd = []
 
         # wait for START signal #
         if not autostart and startSig and waitSignal:
@@ -54641,6 +54656,7 @@ Copyright:
                 True,
             )
         finally:
+            # recover OOM adjust value #
             SysMgr.setOOMAdj(pid, oomAdj)
 
         # init repeat count #
@@ -57054,17 +57070,7 @@ Copyright:
 
             # get memory usage #
             pid = str(pid)
-            ret = TaskAnalyzer.getMemStats(obj, pid)
-            statstr = ""
-            if ret:
-                for item in ("rss", "pss", "uss"):
-                    if not item in ret:
-                        continue
-                    statstr += "%s: %s, " % (
-                        item.upper(),
-                        conv(ret[item], unit="M"),
-                    )
-            statstr = statstr.rstrip(", ")
+            statstr = TaskAnalyzer.getMemStr(obj, pid, tok=", ")
 
             # get new task #
             newTasks = set(procs) - set(prevProcs)
@@ -57072,8 +57078,14 @@ Copyright:
                 newstr = "\n[%9s]" % "NEW"
                 for pid in sorted(newTasks):
                     comm = procs[pid]["stat"][obj.commIdx].strip("()")
-                    rss = conv(long(procs[pid]["stat"][obj.rssIdx]) << 12)
-                    newstr = "%s %s(%s)[%s], " % (newstr, comm, pid, rss)
+                    mstat = TaskAnalyzer.getMemStr(
+                        obj, pid, stats=["rss", "pss", "uss"]
+                    )
+                    if not mstat:
+                        mstat = conv(
+                            long(prevProcs[pid]["stat"][obj.rssIdx]) << 12
+                        )
+                    newstr = "%s %s(%s)[%s], " % (newstr, comm, pid, mstat)
                 newstr = newstr[:-2]
             else:
                 newstr = ""
@@ -57091,7 +57103,7 @@ Copyright:
                 diestr = ""
 
             if alloc:
-                allocstr = "\n[%9s] SIZE: %s, %s" % (
+                allocstr = "\n[%9s] SIZE(%s), %s" % (
                     "ALLOC",
                     conv(size, True),
                     statstr,
@@ -60845,7 +60857,7 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
         try:
-            for item in os.listdir(dpath):
+            for item in sorted(os.listdir(dpath)):
                 # check type #
                 fpath = os.path.join(dpath, item)
                 if os.path.isdir(fpath):
@@ -63037,7 +63049,7 @@ Copyright:
                             return statstr
 
                     def _getMemStat(pid, task):
-                        statstr = ""
+                        mstat = ""
 
                         # get stats #
                         try:
@@ -63049,51 +63061,19 @@ Copyright:
 
                             # check cache #
                             if tgid in memCaches:
-                                statstr = memCaches[tgid]
-                                return
+                                mstat = memCaches[tgid]
+                                return mstat
 
                             # get memory usage #
                             conv = UtilMgr.convSize2Unit
-                            ret = TaskAnalyzer.getMemStats(
-                                taskMgr, tgid, False
+                            mstat = "[%s]" % TaskAnalyzer.getMemStr(
+                                taskMgr, tgid, verb=False, color="YELLOW"
                             )
-                            if not ret or not ret["vss"]:
-                                return
-
-                            vss = conv(ret["vss"], unit="M")
-                            vss = convColor(vss, "YELLOW")
-
-                            rss = ret["rss"]
-                            if rss:
-                                rssUnit = conv(rss, unit="M")
-                                rssUnit = convColor(rssUnit, "YELLOW")
-                            else:
-                                rssUnit = rss
-
-                            pss = ret["pss"]
-                            if pss:
-                                pssUnit = conv(pss, unit="M")
-                                pssUnit = convColor(pssUnit, "YELLOW")
-                            else:
-                                pssUnit = 0
-
-                            uss = ret["uss"]
-                            if uss:
-                                ussUnit = conv(uss, unit="M")
-                                ussUnit = convColor(ussUnit, "YELLOW")
-                            else:
-                                ussUnit = 0
-
-                            # build final string #
-                            statstr = "[VSS:%s, RSS:%s, PSS:%s, USS:%s]" % (
-                                vss,
-                                rssUnit,
-                                pssUnit,
-                                ussUnit,
-                            )
+                            if not mstat:
+                                return mstat
 
                             # save cache #
-                            memCaches[tgid] = statstr
+                            memCaches[tgid] = mstat
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -63101,7 +63081,7 @@ Copyright:
                                 "failed to get memory stats", reason=True
                             )
                         finally:
-                            return statstr
+                            return mstat
 
                     def _getIoStat(pid, task):
                         statstr = ""
@@ -112991,12 +112971,14 @@ class TaskAnalyzer(object):
                     lenLine = SysMgr.lineLength - lenCoreStat - lenFreq - 2
 
                     # print graph of per-core usage #
-                    if not SysMgr.totalEnable and totalCoreUsage > 0:
+                    if totalCoreUsage == 0:
+                        coreGraph = " " * lenLine
+                    else:
+                        if SysMgr.totalEnable:
+                            totalCoreUsage /= SysMgr.uptime
                         coreGraph = "#" * long(lenLine * totalCoreUsage / 100)
                         coreGraph += " " * (lenLine - len(coreGraph))
                         coreGraph = convCpuColor(totalCoreUsage, coreGraph)
-                    else:
-                        coreGraph = " " * lenLine
 
                     SysMgr.addPrint(
                         "%s%s| %s\n" % (coreStat, coreGraph, coreFreq)
@@ -118666,6 +118648,37 @@ class TaskAnalyzer(object):
         SysMgr.thresholdEventHistory.setdefault(ename, None)
 
         return ename
+
+    @staticmethod
+    def getMemStr(
+        tobj, pid, verb=True, stats=[], tok="/", unit="M", color=None
+    ):
+        try:
+            mstat = ""
+            ret = TaskAnalyzer.getMemStats(tobj, pid)
+            if not ret:
+                return mstat
+
+            if not stats:
+                stats = ("vss", "rss", "pss", "uss")
+
+            for item in stats:
+                if not item in ret:
+                    continue
+                size = UtilMgr.convSize2Unit(ret[item], unit=unit)
+                if color:
+                    size = UtilMgr.convColor(size, color)
+                mstat += "%s(%s)%s" % (
+                    item.upper(),
+                    size,
+                    tok,
+                )
+
+            return mstat.rstrip(tok)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return mstat
 
     @staticmethod
     def getMemStats(tobj, pid, verb=True):
