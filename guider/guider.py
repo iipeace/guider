@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221107"
+__revision__ = "221108"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7342,19 +7342,24 @@ class UtilMgr(object):
         return outputFile
 
     @staticmethod
-    def convUnit2Time(data):
+    def convUnit2Time(data, isFloat=False):
+        if isFloat:
+            unit = float
+        else:
+            unit = long
+
         if str(data).isdigit():
-            ret = long(data)
+            ret = unit(data)
         elif data.upper().endswith("S"):
-            ret = long(data[:-1])
+            ret = unit(data[:-1])
         elif data.upper().endswith("M"):
-            ret = long(data[:-1]) * 60
+            ret = unit(data[:-1]) * 60
         elif data.upper().endswith("H"):
-            ret = long(data[:-1]) * 60 * 60
+            ret = unit(data[:-1]) * 60 * 60
         elif data.upper().endswith("D"):
-            ret = long(data[:-1]) * 60 * 60 * 24
+            ret = unit(data[:-1]) * 60 * 60 * 24
         elif data.upper().endswith("W"):
-            ret = long(data[:-1]) * 60 * 60 * 24 * 7
+            ret = unit(data[:-1]) * 60 * 60 * 24 * 7
         else:
             ret = 0
             SysMgr.printErr("failed to convert '%s' to seconds" % data)
@@ -30280,7 +30285,7 @@ Commands:
             "util": {
                 "addr2sym": ("Symbol", "Linux/MacOS/Windows"),
                 "cgroup": ("Cgroup", "Linux"),
-                "checkdedup": ("Page", "Linux"),
+                "checkdup": ("Page", "Linux"),
                 "comp": ("Compress", "Linux/MacOS/Windows"),
                 "decomp": ("Decompress", "Linux/MacOS/Windows"),
                 "dump": ("Memory", "Linux"),
@@ -34542,14 +34547,14 @@ Examples:
                         "Print D-Bus signal subscription info",
                     )
 
-                # checkdedup #
-                elif SysMgr.checkMode("checkdedup"):
+                # checkdup#
+                elif SysMgr.checkMode("checkdup"):
                     helpStr = """
 Usage:
     # {0:1} {1:1} -g <PID|COMM> [OPTIONS] [--help]
 
 Description:
-    Check dedup for pages of specific processes
+    Check duplicated pages of specific processes
 
 Options:
     -I  <FILE>                  set input path
@@ -34568,12 +34573,12 @@ Examples:
         # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
 
-    - Check dedup for specific pages from the leakage report
+    - Check specific duplicated pages from the leakage report
         # {0:1} {1:1} -I guider.out
         # {0:1} {1:1} -I guider.out -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I guider.out -q EXCEPTSYM:"*verifyFile*"
 
-    - Check dedup for specific pages of specific processes
+    - Check specific duplicated pages of specific processes
         # {0:1} {1:1} "a.out, java" -q ONLYHEAP
         # {0:1} {1:1} "a.out, java" -q ONLYSTACK
 
@@ -34582,7 +34587,7 @@ Examples:
                     """.format(
                         cmd,
                         mode,
-                        "Check dedup for all anon pages of specific processes",
+                        "Check all duplicated pages of specific processes",
                     )
 
                 # watch #
@@ -36343,6 +36348,9 @@ Examples:
         # {0:1} {1:1} "read:TEST1,TEST2" -R 5
         # {0:1} {1:1} "read:TEST*" -R 5
 
+    - Read specific files 5 times with sleep for 1.5 seconds
+        # {0:1} {1:1} "read:TEST1,TEST2" -R 5 -q SLEEP:1.5s
+
     - Read the specific file with specific chunk size
         # {0:1} {1:1} read:TEST -q CHUNK:1M
 
@@ -36377,7 +36385,9 @@ Description:
 Options:
     -x  <IP:PORT>               set local address
     -I  <PROTOCOL{{:IP:PORT}}>    set job
-    -R  <TIME>                  set timer
+    -i  <TIME>                  set timer
+    -R  <COUNT>                 set repeat count
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -36387,10 +36397,19 @@ Options:
 Examples:
     - Send UDP packets
         # {0:1} {1:1}
+        # {0:1} {1:1} udp:192.168.105.10:2222
+
+    - Send UDP packets 5 times
+        # {0:1} {1:1} udp:192.168.105.10:2222 -R 5
+
+    - Send UDP packets 5 times with sleep for 1.5 seconds
+        # {0:1} {1:1} udp:192.168.105.10:2222 -R 5 -q SLEEP:1.5s
+
+    - Send UDP packets for 3 seconds
+        # {0:1} {1:1} udp:192.168.105.10:2222 -R -i 3
 
     - Send UDP packets with 3 processes
-        # {0:1} {1:1} udp, udp, udp
-        # {0:1} {1:1} -I udp, udp, udp
+        # {0:1} {1:1} "udp:192.168.105.10:2222, udp:192.168.105.10:2222, udp:192.168.105.10:2222"
                     """.format(
                         cmd, mode
                     )
@@ -44853,9 +44872,9 @@ Copyright:
         elif SysMgr.checkMode("pytrace"):
             SysMgr.doTrace("pytrace")
 
-        # CHECKDEDUP MODE #
-        elif SysMgr.checkMode("checkdedup"):
-            SysMgr.doCheckDedup()
+        # CHECKDUP MODE #
+        elif SysMgr.checkMode("checkdup"):
+            SysMgr.doCheckDup()
 
         # WATCH MODE #
         elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
@@ -51075,7 +51094,7 @@ Copyright:
         sys.exit(0)
 
     @staticmethod
-    def doCheckDedup():
+    def doCheckDup():
         mems = []
 
         # get target process #
@@ -51196,9 +51215,7 @@ Copyright:
         else:
             target = "anon"
 
-        SysMgr.printInfo(
-            "check deduplicated memory areas for [ %s ]" % commList
-        )
+        SysMgr.printInfo("check duplicated memory areas for [ %s ]" % commList)
 
         # define variables #
         SysMgr.setStream()
@@ -51240,7 +51257,7 @@ Copyright:
                 % (UtilMgr.convNum(len(mems)), comm, pid, mstat)
             )
 
-            # check dedup #
+            # check duplicated memory #
             for idx, segment in enumerate(mems):
                 UtilMgr.printProgress(idx, len(mems))
 
@@ -51296,16 +51313,16 @@ Copyright:
         counts = mergeTable.values()
         uniqSize = len(counts) * PAGESIZE
         totalSize = sum(counts) * PAGESIZE
-        dedupSize = totalSize - uniqSize
+        dupSize = totalSize - uniqSize
         sizeMB = 1048576
 
         # print results #
         SysMgr.printInfo(
             "%s/%s(%.1f%%) is duplicated for [ %s ]"
             % (
-                convSize(dedupSize, unit="M" if dedupSize > sizeMB else None),
+                convSize(dupSize, unit="M" if dupSize > sizeMB else None),
                 convSize(totalSize, unit="M" if totalSize > sizeMB else None),
-                dedupSize / float(totalSize) * 100,
+                dupSize / float(totalSize) * 100,
                 commList,
             )
         )
@@ -54701,7 +54718,7 @@ Copyright:
         msg = "*" * 4096
         msg = msg.encode()
 
-        def _iotask(val):
+        def _nettask(val):
             prot = val[0].lower()
             if prot == "tcp":
                 tcp = True
@@ -54718,8 +54735,35 @@ Copyright:
                 "client", ip=gObj.ip, port=gObj.port, tcp=tcp
             )
 
-            while 1:
+            # set repeat count #
+            repeat = SysMgr.repeatInterval
+            if repeat == 0:
+                repeat = 1
+
+            # get sleep time #
+            if "SLEEP" in SysMgr.environList:
+                sleep = UtilMgr.convUnit2Time(
+                    SysMgr.environList["SLEEP"][0], True
+                )
+            else:
+                sleep = 0
+
+            for seq in xrange(repeat):
+                sys.stdout.write(
+                    "[%s] (%s) send a %s packet to %s:%s\n"
+                    % (
+                        SysMgr.getUptime(),
+                        UtilMgr.convNum(seq),
+                        prot,
+                        val[1],
+                        val[2],
+                    )
+                )
+
                 networkObject.sendto(msg, val[1], val[2])
+
+                # sleep #
+                time.sleep(sleep)
 
             sys.exit(0)
 
@@ -54745,7 +54789,7 @@ Copyright:
                 jobs = None
 
             if jobs:
-                for item in jobs.split(","):
+                for item in UtilMgr.cleanItem(jobs.split(","), False):
                     task = item.split(":")
                     if len(task) == 1:
                         prot = task[0]
@@ -54780,7 +54824,7 @@ Copyright:
             try:
                 pid = SysMgr.createProcess()
                 if pid == 0:
-                    _iotask(workload[idx])
+                    _nettask(workload[idx])
                 else:
                     ioTasks[pid] = workload[idx]
             except SystemExit:
@@ -54790,8 +54834,17 @@ Copyright:
                 sys.exit(-1)
 
         # set alarm #
-        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(SysMgr.intervalEnable)
+        try:
+            interval = SysMgr.getOption("i")
+            if interval:
+                interval = long(interval)
+                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+                signal.alarm(interval)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to set alarm to %s" % interval, True)
+            sys.exit(-1)
 
         # wait for childrenren #
         while 1:
@@ -55040,6 +55093,14 @@ Copyright:
                 else:
                     sync = False
 
+                # get sleep time #
+                if "SLEEP" in SysMgr.environList:
+                    sleep = UtilMgr.convUnit2Time(
+                        SysMgr.environList["SLEEP"][0], True
+                    )
+                else:
+                    sleep = 0
+
                 # run loop #
                 for seq in xrange(repeat):
                     sys.stdout.write(
@@ -55078,6 +55139,9 @@ Copyright:
                                 elif size > 0 and done >= size:
                                     break
                             os.close(fd)
+
+                            # sleep #
+                            time.sleep(sleep)
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -55103,6 +55167,9 @@ Copyright:
                                     if not piece:
                                         break
                                 os.close(fd)
+
+                                # sleep #
+                                time.sleep(sleep)
                             except SystemExit:
                                 sys.exit(0)
                             except:
@@ -55226,12 +55293,15 @@ Copyright:
 
         # set alarm #
         try:
-            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-            signal.alarm(SysMgr.intervalEnable)
+            interval = SysMgr.getOption("i")
+            if interval:
+                interval = long(interval)
+                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+                signal.alarm(interval)
+        except SystemExit:
+            sys.exit(0)
         except:
-            SysMgr.printErr(
-                "failed to set alarm to %s" % SysMgr.intervalEnable, True
-            )
+            SysMgr.printErr("failed to set alarm to %s" % interval, True)
             sys.exit(-1)
 
         # wait for childrenren #
@@ -117854,7 +117924,7 @@ class TaskAnalyzer(object):
         if SysMgr.isLinux:
             # convert timer #
             try:
-                timeunit = cmd.strip("%s:" % target)
+                timeunit = UtilMgr.lstrip(cmd, "%s:" % target)
                 if not timeunit:
                     raise Exception("no time")
                 sec = UtilMgr.convUnit2Time(timeunit)
