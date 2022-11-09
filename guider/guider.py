@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221108"
+__revision__ = "221109"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28994,6 +28994,16 @@ Commands:
             return False
 
     @staticmethod
+    def isKernelTask(pid):
+        return (
+            False
+            if SysMgr.readFile(
+                os.path.join(SysMgr.procPath, str(pid), "maps"), 1
+            )
+            else True
+        )
+
+    @staticmethod
     def dlopen(path):
         # load libc #
         if not SysMgr.loadLibcObj():
@@ -34572,6 +34582,9 @@ Examples:
     - {2:1}
         # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
+
+    - Check all duplicated pages of all user processes
+        # {0:1} {1:1} "a.out, java" -q ONLYUSER
 
     - Check specific duplicated pages from the leakage report
         # {0:1} {1:1} -I guider.out
@@ -45841,6 +45854,18 @@ Copyright:
         else:
             exceptList = []
 
+        # check only kernel task option #
+        if "ONLYKERNEL" in SysMgr.environList:
+            onlyKernelTask = True
+        else:
+            onlyKernelTask = False
+
+        # check only user task option #
+        if "ONLYUSER" in SysMgr.environList:
+            onlyUserTask = True
+        else:
+            onlyUserTask = False
+
         while 1:
             # set check list #
             targetList = SysMgr.getPidList()
@@ -45850,6 +45875,12 @@ Copyright:
 
             for pid in curList:
                 if not pid.isdigit():
+                    continue
+
+                # check task type #
+                if onlyKernelTask and not SysMgr.isKernelTask(pid):
+                    continue
+                elif onlyUserTask and SysMgr.isKernelTask(pid):
                     continue
 
                 # process #
@@ -51232,6 +51263,11 @@ Copyright:
 
         # get page info #
         for pid in pids:
+            # check task #
+            if not SysMgr.isAlive(pid):
+                SysMgr.printErr("no PID " + pid)
+                continue
+
             # create a debugger object #
             dbgObj = Debugger(pid)
             dbgObj.initValues()
@@ -51243,11 +51279,13 @@ Copyright:
                 mstat = TaskAnalyzer.getMemStr(tobj, pid)
                 mstat = " <%s>" % mstat
                 del tobj
+            except SystemExit:
+                sys.exit(0)
             except:
                 mstat = ""
 
             # read segments from memory map #
-            if not mems:
+            if not SysMgr.inputParam:
                 mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
 
             # print status #
@@ -51308,6 +51346,11 @@ Copyright:
 
             # destroy debugger object #
             del dbgObj
+
+        # check result #
+        if not mergeTable:
+            SysMgr.printErr("no memory area to be checked")
+            sys.exit(0)
 
         # calculate results #
         counts = mergeTable.values()
@@ -57972,10 +58015,10 @@ Copyright:
         finalList = list(set(targetList))
 
         if exceptMe:
-            try:
+            if SysMgr.pid in finalList:
                 finalList.remove(SysMgr.pid)
-            except:
-                pass
+            elif str(SysMgr.pid) in finalList:
+                finalList.remove(str(SysMgr.pid))
 
         return finalList
 
@@ -111368,7 +111411,7 @@ class TaskAnalyzer(object):
 
     def isKernelThread(self, tid):
         ppid = self.procData[tid]["stat"][self.ppidIdx]
-        if ppid == "2" or tid == "2":
+        if "2" in (ppid, tid):
             return True
         else:
             return False
