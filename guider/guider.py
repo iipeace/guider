@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221109"
+__revision__ = "221110"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31340,10 +31340,10 @@ Examples:
 
     - {3:1} {7:1} with call interval info
         # {0:1} {1:1} -g a.out -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QSGThreadedRenderLoop::polishAndSync*" -q INTERCALL
-        # {0:1} {1:1} -g a.out -c "QCoreApplication::notifyInterval2*" -q INTERCALL -H
-        # {0:1} {1:1} -g a.out -c "QOpenGLContext::swapBuffers*" -q INTERCALL
+        # {0:1} {1:1} -g a.out -c "QAnimationDriver::advanceAnimation*" -q INTERCALL -P
+        # {0:1} {1:1} -g a.out -c "QSGThreadedRenderLoop::polishAndSync*" -q INTERCALL -P
+        # {0:1} {1:1} -g a.out -c "QCoreApplication::notifyInterval2*" -q INTERCALL -P -H
+        # {0:1} {1:1} -g a.out -c "QOpenGLContext::swapBuffers*" -q INTERCALL -P
 
     - {3:1} and print context combined both entry and exit
         # {0:1} {1:1} -g a.out -c "*|getret' -q COMPLETECALL
@@ -34564,7 +34564,7 @@ Usage:
     # {0:1} {1:1} -g <PID|COMM> [OPTIONS] [--help]
 
 Description:
-    Check duplicated pages of specific processes
+    Check duplicated page frames of specific processes
 
 Options:
     -I  <FILE>                  set input path
@@ -34583,15 +34583,15 @@ Examples:
         # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
 
-    - Check all duplicated pages of all user processes
+    - Check all duplicated page frames of all user processes
         # {0:1} {1:1} "a.out, java" -q ONLYUSER
 
-    - Check specific duplicated pages from the leakage report
+    - Check specific duplicated page frames from the leakage report
         # {0:1} {1:1} -I guider.out
         # {0:1} {1:1} -I guider.out -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I guider.out -q EXCEPTSYM:"*verifyFile*"
 
-    - Check specific duplicated pages of specific processes
+    - Check specific duplicated page frames of specific processes
         # {0:1} {1:1} "a.out, java" -q ONLYHEAP
         # {0:1} {1:1} "a.out, java" -q ONLYSTACK
 
@@ -34600,7 +34600,7 @@ Examples:
                     """.format(
                         cmd,
                         mode,
-                        "Check all duplicated pages of specific processes",
+                        "Check all duplicated page frames of specific processes",
                     )
 
                 # watch #
@@ -47850,7 +47850,7 @@ Copyright:
             handler = server.SimpleHTTPRequestHandler
 
         class requestHandler(handler):
-            def do_GET(self):
+            def doGET(self):
                 # handle path #
                 if self.path == "/":
                     pass
@@ -47942,7 +47942,7 @@ Copyright:
                 return
 
                 # attach file explorer #
-                return handler.do_GET(self)
+                return handler.doGET(self)
 
         # run server using HTTP #
         SysMgr.runHttpServer(requestHandler, parallel)
@@ -51307,40 +51307,76 @@ Copyright:
                     sys.exit(0)
                 except:
                     start, size = segment
+                    end = start + size
 
-                # read segment #
-                mem = dbgObj.readMem(start, size, verb=False, onlyBulk=True)
-                if not mem:
-                    continue
+                # get pagemap #
+                pagemap = PageAnalyzer.getPagemap(pid, start, size)
 
-                # merge pages #
-                pos = 0
-                while pos < len(mem):
-                    # check size #
-                    if pos + PAGESIZE > len(mem):
-                        break
-
+                # get a list for contiguous chunks #
+                idx = addr = chunkStart = 0
+                chunkList = []
+                for addr in xrange(start, end, PAGESIZE):
+                    # get page frame info #
                     try:
-                        mergeTable[mem[pos : pos + PAGESIZE]] += 1
+                        entry = struct.unpack("Q", pagemap[idx : idx + 8])[0]
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        mergeTable[mem[pos : pos + PAGESIZE]] = 1
+                        entry = 0
+                    finally:
+                        idx += 8
 
-                    pos += PAGESIZE
+                    # check page attribute #
+                    if not PageAnalyzer.isSwapped(
+                        entry
+                    ) and PageAnalyzer.isPresent(entry):
+                        if chunkStart == 0:
+                            chunkStart = addr
+                    elif chunkStart != 0:
+                        chunkList.append([chunkStart, addr - chunkStart])
+                        chunkStart = 0
+                if addr > 0 and chunkStart != 0:
+                    chunkList.append([chunkStart, addr - chunkStart])
+                    chunkStart = 0
 
-                # execute commands #
-                if SysMgr.customCmd:
-                    cmds = []
-                    # convert START and SIZE values #
-                    for item in SysMgr.customCmd:
-                        item = item.replace("START", str(start)).replace(
-                            "SIZE", str(size)
-                        )
-                        cmds.append(item)
+                for offset, length in chunkList:
+                    # read segment #
+                    mem = dbgObj.readMem(
+                        offset, length, verb=False, onlyBulk=True
+                    )
+                    if not mem:
+                        continue
 
-                    # execute remote commands #
-                    dbgObj.executeCmd(cmds, force=True)
+                    # merge pages #
+                    pos = 0
+                    while pos < len(mem):
+                        # check size #
+                        if pos + PAGESIZE > len(mem):
+                            break
+
+                        frame = mem[pos : pos + PAGESIZE]
+
+                        try:
+                            mergeTable[frame] += 1
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            mergeTable[frame] = 1
+
+                        pos += PAGESIZE
+
+                    # execute commands #
+                    if SysMgr.customCmd:
+                        cmds = []
+                        # convert START and SIZE values #
+                        for item in SysMgr.customCmd:
+                            item = item.replace("START", str(start)).replace(
+                                "SIZE", str(size)
+                            )
+                            cmds.append(item)
+
+                        # execute remote commands #
+                        dbgObj.executeCmd(cmds, force=True)
 
                 UtilMgr.deleteProgress()
 
