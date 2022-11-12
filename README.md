@@ -1331,9 +1331,9 @@ Help
 
 ```
 Usage:
-    $ guider COMMAND|FILE [OPTIONS] [--help]
+    $ guider COMMAND [OPTIONS] [--help]
                 
-COMMAND:
+COMMAND(132):
     [CONTROL]       freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
                     kill/tkill        <Signal>        (Linux/MacOS)
@@ -1367,7 +1367,9 @@ COMMAND:
                     dbustop           <D-Bus>         (Linux)
                     disktop           <Storage>       (Linux/MacOS/Windows)
                     dlttop            <DLT>           (Linux/MacOS)
+                    fetop             <File>          (Linux)
                     ftop              <File>          (Linux/MacOS)
+                    irqtop            <IRQ>           (Linux)
                     ktop              <Function>      (Linux)
                     mtop              <Memory>        (Linux)
                     ntop              <Network>       (Linux/MacOS/Windows)
@@ -1385,9 +1387,11 @@ COMMAND:
 
     [NETWORK]       cli               <Client>        (Linux/MacOS/Windows)
                     event             <Event>         (Linux)
+                    fserver           <File>          (Linux/MacOS/Windows)
+                    hserver           <Http>          (Linux/MacOS/Windows)
                     list              <List>          (Linux/MacOS/Windows)
-                    send              <Signal>        (Linux)
-                    server            <Server>        (Linux/MacOS)
+                    send              <UDP>           (Linux/MacOS/Windows)
+                    server            <TCP>           (Linux/MacOS)
                     start             <Signal>        (Linux)
 
     [PROFILE]       filerec           <File>          (Linux)
@@ -1413,6 +1417,7 @@ COMMAND:
 
     [UTIL]          addr2sym          <Symbol>        (Linux/MacOS/Windows)
                     cgroup            <Cgroup>        (Linux)
+                    checkdup          <Page>          (Linux)
                     comp              <Compress>      (Linux/MacOS/Windows)
                     decomp            <Decompress>    (Linux/MacOS/Windows)
                     dump              <Memory>        (Linux)

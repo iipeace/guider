@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221110"
+__revision__ = "221112"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30222,6 +30222,7 @@ Commands:
                 "dlttop": ("DLT", "Linux/MacOS"),
                 "fetop": ("File", "Linux"),
                 "ftop": ("File", "Linux/MacOS"),
+                "irqtop": ("IRQ", "Linux"),
                 "ktop": ("Function", "Linux"),
                 "mtop": ("Memory", "Linux"),
                 "ntop": ("Network", "Linux/MacOS/Windows"),
@@ -32840,6 +32841,30 @@ Examples:
 
     - Stop collecting processes in the background and let them report system analysis result
         # {0:1} stop
+
+    See the top COMMAND help for more examples.
+                    """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
+                # irq top #
+                elif SysMgr.checkMode("irqtop"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor the status of irqs on the system
+                        """.format(
+                        cmd, mode
+                    )
+
+                    examStr = """
+Examples:
+    - Monitor the status of all irqs
+        # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
                     """.format(
@@ -44256,6 +44281,7 @@ Copyright:
             "dlttop",
             "fetop",
             "ftop",
+            "irqtop",
             "ktop",
             "mtop",
             "ntop",
@@ -44889,7 +44915,7 @@ Copyright:
         elif SysMgr.checkMode("checkdup"):
             SysMgr.doCheckDup()
 
-        # WATCH MODE #
+        # WATCH/FETOP MODE #
         elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
             # just print event list #
             if SysMgr.findOption("l"):
@@ -50437,8 +50463,7 @@ Copyright:
 
             if nrCnt == 0:
                 SysMgr.addPrint("\tNone\n")
-            if nrCnt >= 0:
-                SysMgr.addPrint("%s\n" % oneLine, force=True)
+            SysMgr.addPrint("%s\n" % oneLine, force=True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -50565,8 +50590,7 @@ Copyright:
 
             if nrCnt == 0:
                 SysMgr.addPrint("\tNone\n")
-            if nrCnt >= 0:
-                SysMgr.addPrint("%s\n" % oneLine, force=True)
+            SysMgr.addPrint("%s\n" % oneLine, force=True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -91496,6 +91520,8 @@ class TaskAnalyzer(object):
             self.prevCpuData = {}
             self.irqData = {}
             self.prevIrqData = {}
+            self.irqInfo = {}
+            self.prevIrqInfo = {}
             self.zoneData = {}
             self.prevZoneData = {}
             self.slabData = {}
@@ -91665,6 +91691,14 @@ class TaskAnalyzer(object):
             # D-Bus mode #
             elif SysMgr.dbusTopEnable:
                 DbusMgr.runDbusSnooper(mode="top")
+            # irq #
+            elif SysMgr.checkMode("irqtop"):
+                try:
+                    self.runIrqTop()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to monitor irqs", reason=True)
             # slab mode #
             elif SysMgr.checkMode("slabtop"):
                 try:
@@ -92010,6 +92044,37 @@ class TaskAnalyzer(object):
 
     def __del__(self):
         pass
+
+    def runIrqTop(self):
+        # create an object #
+        tobj = TaskAnalyzer(onlyInstance=True)
+
+        # run loop #
+        while 1:
+            # save timestamp #
+            prevTime = time.time()
+
+            # check repeat count #
+            SysMgr.checkProgress()
+
+            # save irqs #
+            tobj.saveIrqs(full=True)
+            if tobj.prevIrqData:
+                tobj.printIrqs()
+
+            # write user command #
+            SysMgr.runProfCmd("AFTER")
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SysMgr.intervalEnable:
+                waitTime = 0.000001
+            else:
+                waitTime = SysMgr.intervalEnable - delayTime
+
+            # wait for next tick #
+            if not SysMgr.waitUserInput(waitTime):
+                time.sleep(waitTime)
 
     def runVmallocTop(self):
         # run loop #
@@ -110150,7 +110215,70 @@ class TaskAnalyzer(object):
             else:
                 continue
 
-    def saveIrqs(self):
+    def printIrqs(self):
+        diffList = {}
+
+        # calculate diffs #
+        for irq, total in self.irqData.items():
+            if irq in self.prevIrqData:
+                prevTotal = self.prevIrqData[irq]
+                diffStats = [
+                    a - b
+                    for a, b in zip(
+                        self.irqInfo[irq]["stats"],
+                        self.prevIrqInfo[irq]["stats"],
+                    )
+                ]
+            else:
+                prevTotal = 0
+                diffStats = self.irqInfo[irq]["stats"]
+
+            diffList[irq] = {"total": total - prevTotal, "diff": diffStats}
+
+        # get total count #
+        totalCnt = sum([x["total"] for x in diffList.values()])
+
+        # print title #
+        SysMgr.addPrint(
+            "[Top IRQ Info] [Time: %.6f] [NrIRQs: %s] [Total: %s] \n%s\n"
+            % (
+                SysMgr.uptime,
+                UtilMgr.convNum(len(self.irqData)),
+                UtilMgr.convNum(totalCnt),
+                twoLine,
+            ),
+            newline=2,
+        )
+        title = "{0:>7} {1:>7} ".format("IRQ", "TOTAL")
+        title += " ".join(
+            [
+                "{0:>5}".format("CPU%s" % core)
+                for core in range(len(list(diffList.values())[0]["diff"]))
+            ]
+        )
+        title += " Info"
+        SysMgr.addPrint(title + "\n" + twoLine + "\n")
+
+        # print per-core stats #
+        for irq, data in sorted(
+            diffList.items(), key=lambda e: e[1]["total"], reverse=True
+        ):
+            statstr = "{0:>7} {1:>7} ".format(
+                irq, UtilMgr.convNum(data["total"])
+            )
+            statstr += " ".join(
+                ["{0:>5}".format(stat) for stat in data["diff"]]
+            )
+            statstr += " %s\n" % (self.irqInfo[irq]["info"])
+            SysMgr.addPrint(statstr)
+
+        if len(diffList) == 0:
+            SysMgr.addPrint("\tNone\n")
+        SysMgr.addPrint("%s\n" % oneLine, force=True)
+
+        SysMgr.printTopStats()
+
+    def saveIrqs(self, full=False):
         # read irq buf #
         irqBuf = SysMgr.readProcStat(
             SysMgr.irqFd, "interrupts", SysMgr, "irqFd"
@@ -110167,19 +110295,37 @@ class TaskAnalyzer(object):
         except:
             pass
 
-        if irqBuf:
-            self.prevIrqData = self.irqData
-            self.irqData = {}
-            cpuCnt = len(irqBuf.pop(0).split())
+        if not irqBuf:
+            return
 
-            for line in irqBuf:
+        # save previous data #
+        self.prevIrqData = self.irqData
+        self.irqData = {}
+        self.prevIrqInfo = self.irqInfo
+        self.irqInfo = {}
+
+        # get cpu count #
+        cpuCnt = len(irqBuf.pop(0).split())
+
+        for line in irqBuf:
+            try:
                 irqList = line.split()
-                try:
-                    irqSum = sum(list(map(long, irqList[1:cpuCnt])))
-                    if irqSum > 0:
-                        self.irqData[irqList[0][:-1]] = irqSum
-                except:
-                    pass
+                name = irqList[0][:-1]
+                irqSum = sum(list(map(long, irqList[1 : cpuCnt + 1])))
+                if irqSum > 0:
+                    self.irqData[name] = irqSum
+
+                if not full:
+                    continue
+
+                self.irqInfo[name] = {
+                    "stats": list(map(long, irqList[1 : cpuCnt + 1])),
+                    "info": " ".join(irqList[cpuCnt + 1 :]),
+                }
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
     def saveCgroupStat(self):
         def _getStats(root, path, sub):
