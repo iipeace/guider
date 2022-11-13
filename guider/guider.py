@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221112"
+__revision__ = "221113"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24199,6 +24199,8 @@ Commands:
             return False
         elif SysMgr.libcObj:
             return True
+        elif SysMgr.libcObj is False and not exit:
+            return False
 
         try:
             ret = SysMgr.loadLib(SysMgr.libcPath)
@@ -24206,10 +24208,12 @@ Commands:
                 SysMgr.libcObj = ret
                 return True
             else:
-                SysMgr.printErr("failed to load libc")
+                SysMgr.libcObj = False
                 if exit:
+                    SysMgr.printErr("failed to load libc")
                     sys.exit(-1)
                 else:
+                    SysMgr.printWarn("failed to load libc", True)
                     return False
         except SystemExit:
             sys.exit(0)
@@ -30455,7 +30459,7 @@ Options:
             B:bar | c:cpu | C:clone | D:DWARF
             e:encode | E:exec | g:general | G:gpu
             L:log | m:gpuMem | O:color | p:print
-            P:PSIt:truncate | T:task | x:event ]
+            P:PSI | t:truncate | T:task | x:event ]
                 """
 
                 jitProfStr = """\
@@ -31160,6 +31164,9 @@ Common Examples:
         # {0:1} {1:1} a.out -q STDERR:"/dev/null"
 
     - Use merged symbols
+        # {0:1} {1:1} a.out -q MERGESYM
+
+    - Use all symbols
         # {0:1} {1:1} a.out -q ALLSYM
 
     - Don't use previous sampled caches
@@ -34742,6 +34749,9 @@ Examples:
         # {0:1} {1:1} -I "/usr/lib/*" -g ab1cf
 
     - Print merged symbols mapped to specific addresses from specific files
+        # {0:1} {1:1} -I /usr/bin/yes -g ab1cf -q MERGESYM
+
+    - Print all symbols mapped to specific addresses from specific files
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf -q ALLSYM
 
     - Print symbols mapped to specific addresses from specific processes
@@ -34867,6 +34877,9 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
     - Print specific merged symbols from a file
+        # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q MERGESYM
+
+    - Print all symbols related to specific word from a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc -q ALLSYM
 
     - {2:1} from specific files
@@ -38485,7 +38498,7 @@ Copyright:
 
         try:
             if perfbuf:
-                perfbuf = "[%s]" % perfbuf[: perfbuf.rfind(" /")]
+                perfbuf = "%s" % perfbuf[: perfbuf.rfind(" /")]
         except SystemExit:
             sys.exit(0)
         except:
@@ -52452,6 +52465,7 @@ Copyright:
                     dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                     dobj.trace(mode="sample", wait=wait, multi=multi)
             elif mode == "pycall":
+                SysMgr.addEnvironVar("ALLSYM")
                 dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                 dobj.trace(mode="pycall", wait=wait, multi=multi)
             elif mode in ("breakcall", "pytrace"):
@@ -52463,7 +52477,7 @@ Copyright:
                     except:
                         ppid = None
 
-                    # set per-process convert breakpoint list #
+                    # set per-process breakpoint list #
                     if ppid in bpList:
                         bpList = bpList[ppid]
                     if ppid in exceptBpList:
@@ -78465,7 +78479,57 @@ typedef struct {
         frameList = {}
 
         while 1:
-            if sys.version_info >= (3, 7):
+            if sys.version_info >= (3, 11):
+                # TODO: implement more #
+                SysMgr.printErr("no support python 3.11 yet")
+                sys.exit(0)
+
+                tstate_head = self.readMem(addr + 8)
+
+                PyThreadState = struct.unpack("Q", tstate_head)[0]
+                if PyThreadState == 0:
+                    addr += 8
+                    continue
+
+                PyThreadState = self.readMem(PyThreadState, 200)
+                if not PyThreadState:
+                    break
+
+                (
+                    prevp,
+                    nextp,
+                    interp,
+                    _initialized,
+                    _static,
+                    recursion_remaining,
+                    recursion_limit,
+                    recursion_headroom,
+                    tracing,
+                    tracing_what,
+                    cframe,
+                    c_profilefunc,
+                    c_tracefunc,
+                    c_profileobj,
+                    c_traceobj,
+                    curexc_type,
+                    curexc_value,
+                    curexc_traceback,
+                    exc_info,
+                    dictp,
+                    gilstate_counter,
+                    async_exc,
+                    thread_id,
+                    native_thread_id,
+                    trash_delete_nesting,
+                    trash_delete_later,
+                    on_delete,
+                    on_delete_data,
+                ) = struct.unpack(
+                    "QQQiiiiiiiQQQQQQQQQQiQLLiQQQ", PyThreadState
+                )
+
+                framep = cframe + 8
+            elif sys.version_info >= (3, 7):
                 tstate_head = self.readMem(addr + 8)
 
                 PyThreadState = struct.unpack("Q", tstate_head)[0]
@@ -78594,7 +78658,38 @@ typedef struct {
 
     def readPyFrame64(self, addr):
         # read PyFrameObject #
-        if sys.version_info >= (3, 7):
+        if sys.version_info >= (3, 11):
+            PyFrameObject = self.readMem(addr, 64)
+            (
+                ob_refcnt,
+                ob_type,
+                ob_size,
+                f_back,
+                f_frame,
+                f_trace,
+                f_lineno,
+                f_trace_lines,
+                f_trace_opcodes,
+                f_fast_as_locals,
+                f_frame_data,
+            ) = struct.unpack("IQQQQQicccQ", PyFrameObject)
+
+            PyInterpreterFrameObject = self.readMem(f_frame, 64)
+            (
+                f_func,
+                f_globals,
+                f_builtins,
+                f_locals,
+                f_code,
+                frame_obj,
+                previous,
+                prev_instr,
+                stacktop,
+                is_entry,
+                owner,
+                localsplus,
+            ) = struct.unpack("QQQQQQQQibcQ", PyInterpreterFrameObject)
+        elif sys.version_info >= (3, 7):
             PyFrameObject = self.readMem(addr, 112)
             (
                 ob_refcnt,
@@ -78988,8 +79083,7 @@ typedef struct {
         pyThreadStateP = self.readMem(self.pyAddr)
         if not pyThreadStateP:
             return
-        else:
-            pyThreadStateP = struct.unpack("Q", pyThreadStateP)[0]
+        pyThreadStateP = struct.unpack("Q", pyThreadStateP)[0]
 
         # read native call stack for version < 3.7 #
         if sys.version_info < (3, 7) and not pyThreadStateP:
@@ -85641,10 +85735,16 @@ class ElfAnalyzer(object):
         curLen = 0
 
         # set merge flag #
-        if "ALLSYM" in SysMgr.environList:
+        if "MERGESYM" in SysMgr.environList:
             mergeFlag = True
         else:
             mergeFlag = False
+
+        # set merge flag #
+        if "ALLSYM" in SysMgr.environList:
+            allFlag = True
+        else:
+            allFlag = False
 
         # sort and convert table #
         for idx, item in sorted(
@@ -85670,6 +85770,9 @@ class ElfAnalyzer(object):
                 # merge all symbols #
                 if mergeFlag:
                     mainSym += "/%s" % idx
+                # handle all #
+                elif allFlag:
+                    pass
                 # ignore _SYMBOL #
                 elif idx.startswith("_") and not mainSym.startswith("_"):
                     pass
@@ -103317,10 +103420,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe("\n[Top Summary Info]\n%s\n" % twoLine)
 
         # check available memory type #
-        if SysMgr.freeMemEnable:
-            memTitle = "Free/User/Cache"
-        else:
-            memTitle = "Avl/User/Cache"
+        memTitle = "%s/User/Cache" % "Free" if SysMgr.freeMemEnable else "Avl"
 
         SysMgr.printPipe(
             (
@@ -114389,12 +114489,13 @@ class TaskAnalyzer(object):
                     databuf += "%s]\n" % curline.rstrip(", ")
                     curline = str(edata)
                     nrLine += 1
-                curline += "%s, " % item
+                curline += "%s / " % item
 
         # check last line #
         if curline != data:
-            databuf += "%s]" % curline.rstrip(", \n")
+            databuf += "%s]" % curline.rstrip(", \n/")
         databuf = databuf.rstrip(", \n")
+        databuf = databuf.replace(", ", ",")
 
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
 
@@ -114453,10 +114554,10 @@ class TaskAnalyzer(object):
         vmInfo += "swappiness: %s" % SysMgr.swappiness
 
         # vmpressure #
-        vmInfo += ", cache_pressure: %s" % UtilMgr.convNum(SysMgr.vmpressure)
+        vmInfo += " / cache_pressure: %s" % UtilMgr.convNum(SysMgr.vmpressure)
 
         # overcommit #
-        vmInfo += ", overcommit: %s" % SysMgr.overcommit
+        vmInfo += " / overcommit: %s" % SysMgr.overcommit
 
         SysMgr.addPrint(vmInfo + "]\n")
 
@@ -114735,7 +114836,7 @@ class TaskAnalyzer(object):
         if not perfString:
             return
 
-        SysMgr.addPrint("%s %s\n" % (" " * nrIndent, perfString))
+        SysMgr.addPrint("%s [PMU > %s]\n" % (" " * nrIndent, perfString))
 
         # add JSON stats #
         if SysMgr.jsonEnable:
