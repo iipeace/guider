@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221113"
+__revision__ = "221114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35060,26 +35060,32 @@ Examples:
     - {2:1} 5 times in parallel
         # {0:1} {1:1} -I "ls -lha" -R 5 -q PARALLEL
 
-    - {3:1} with range variables
+    - {3:1} with RANGE variables
         # {0:1} {1:1} -I "touch RANGE" -c RANGE:1:100:0.1
 
-    - {3:1} with file variables
+    - {3:1} with FILE variables
         # {0:1} {1:1} -I "ls -lha FILE" -c FILE:"/data/*"
 
-    - {3:1} with id variables
+    - {3:1} with ID variables
         # {0:1} {1:1} -I "kill -9 PID" -c PID:"*task"
         # {0:1} {1:1} -I "kill -9 TID" -c TID:"*task"
 
-    - {3:1} with name variables
+    - {3:1} with COMM variables
         # {0:1} {1:1} -I "kill -9 PCOMM" -c PCOMM:"*task"
         # {0:1} {1:1} -I "kill -9 TCOMM" -c TCOMM:"*task"
 
-    - {3:1} with range and file variables
+    - {3:1} with RANGE and FILE variables
         # {0:1} {1:1} -I "echo PCOMM_RANGE" -c PCOMM:"*task", RANGE:1:10:1
         # {0:1} {1:1} -I "{0:1} {1:1} -I \"echo PCOMM=PID\" -c PID:PCOMM" -c PCOMM:"*task"
 
-    - {3:1} with range and file variables without logo and log
+    - {3:1} with RANGE and FILE variables without logo and log
         # VERB=0 {0:1} {1:1} -I "{0:1} {1:1} -I \"echo PCOMM=PID\" -c PID:PCOMM" -c PCOMM:"*task"
+
+    - {3:1} without shell
+        # {0:1} {1:1} -I "ls -lha" -q NOSHELL
+
+    - {3:1} with LDD
+        # {0:1} {1:1} -I "ls -lha" -q NOSHELL, LDD
 
     - {3:1} including specific environment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
@@ -56577,6 +56583,36 @@ Copyright:
                 stderr = open(path, "wb")
             else:
                 stderr = None
+
+            # apply LDD #
+            if "LDD" in SysMgr.environList:
+                # get RTLD path #
+                rtld = FileAnalyzer.getMapFilePath(SysMgr.pid, "ld-")
+                if not rtld:
+                    SysMgr.printErr("failed to get RTLD path")
+                    sys.exit(-1)
+
+                # add RTLD path to cmdline #
+                cmd = UtilMgr.cleanItem(cmd.split(), False)
+                cmd[0] = os.path.realpath(cmd[0])
+                cmd.insert(0, rtld)
+
+                # set LD environment variables #
+                env["LD_TRACE_LOADED_OBJECTS"] = "1"
+                env["LD_WARN"] = "1"
+                env["LD_BIND_NOW"] = "1"
+                env["LD_VERBOSE"] = "1"
+                env["LD_DEBUG"] = "all"
+
+                # execute ld #
+                os.execvpe(cmd[0], cmd, env)
+
+            # check shell mode #
+            if "NOSHELL" in SysMgr.environList:
+                shell = False
+                cmd = cmd.split(" ")
+            else:
+                shell = True
 
             # create a new worker process #
             procObj = subprocess.Popen(
@@ -78484,14 +78520,11 @@ typedef struct {
                 SysMgr.printErr("no support python 3.11 yet")
                 sys.exit(0)
 
-                tstate_head = self.readMem(addr + 8)
+                # read gilstate.tstate_current from pyruntimestate #
+                tstate_current = self.readMem(addr + 576)
+                tstate_current = struct.unpack("Q", tstate_current)[0]
 
-                PyThreadState = struct.unpack("Q", tstate_head)[0]
-                if PyThreadState == 0:
-                    addr += 8
-                    continue
-
-                PyThreadState = self.readMem(PyThreadState, 200)
+                PyThreadState = self.readMem(tstate_current, 200)
                 if not PyThreadState:
                     break
 
