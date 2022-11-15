@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221114"
+__revision__ = "221115"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31130,7 +31130,7 @@ Common Examples:
         # {0:1} {1:1} -q TASKMON -a
         # {0:1} {1:1} -q TASKMON, TASKFILTER:"*a.out*"
         # {0:1} {1:1} -q TASKMON, TASKFILTER:"*a.out*" -e t -P
-        # {0:1} {1:1} -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10"
+        # {0:1} {1:1} -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
 
     - Print backtrace info
         # {0:1} {1:1} -g a.out -H
@@ -33350,7 +33350,10 @@ Examples:
     - Trace only failed syscalls {5:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - {4:1} from a specific binary with no strip for buffer contents
+    - {4:1} from a specific binary without data output for buffer contents
+        # {0:1} {1:1} -I "ls -al" -t process_vm_readv -q ONLYADDR
+
+    - {4:1} from a specific binary without strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
     - {4:1} with colorful elapsed time exceeds 0.1 second
@@ -35114,6 +35117,7 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, TASKFILTER:"*a.out*" -et -P
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, CHILDSCHED:c:0 -Y r:1
         # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, EXECSCHED:c:0 -Y r:1
+        # {0:1} {1:1} -I "a.out" -q PARALLEL, TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
 
     - {2:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -I "a.out" -q LIMITCPU:20
@@ -35141,7 +35145,7 @@ Examples:
         # {0:1} {1:1} -I "a.out" -q APPLYCG:CREATE:cpu:user.slice:PID
         # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:/:PID
         # {0:1} {1:1} -I "a.out" -q APPLYCG:ADD:cpu:user.slice:PID
-        # {0:1} {1:1} -I "a.out" -q APPLYCG:REMOVE:cpu/user.slice:PID
+        # {0:1} {1:1} -I "a.out" -q APPLYCG:REMOVE:cpu:user.slice:PID
         # {0:1} {1:1} -I "a.out" -q APPLYCG:READ:memory:user.slice:memory.limit_in_bytes
         # {0:1} {1:1} -I "a.out" -q APPLYCG:WRITE:memory:user.slice:100000@memory.limit_in_bytes
 
@@ -36093,7 +36097,7 @@ Examples:
         # {0:1} {1:1} "-20:PID" -q TASKMON -a
         # {0:1} {1:1} "-20:PID" -q TASKMON, TASKFILTER:"*a.out*"
         # {0:1} {1:1} "-20:PID" -q TASKMON, TASKFILTER:"*a.out*" -e t -P
-        # {0:1} {1:1} "-20:PID" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10"
+        # {0:1} {1:1} "-20:PID" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
 
     - {3:1} policy(CFS), priority(-20) for specific TID
         # {0:1} {1:1} "-20:1234" -q ONLYPID
@@ -36231,7 +36235,7 @@ Examples:
         # {0:1} {1:1} "PID:3" -q TASKMON -a
         # {0:1} {1:1} "PID:3" -q TASKMON, TASKFILTER:"*a.out*"
         # {0:1} {1:1} "PID:3" -q TASKMON, TASKFILTER:"*a.out*" -e t -P
-        # {0:1} {1:1} "PID:3" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10"
+        # {0:1} {1:1} "PID:3" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
                     """.format(
                         cmd, mode, "Set CPU affinity of a specific thread"
                     )
@@ -42806,7 +42810,7 @@ Copyright:
             environOption = ""
 
             # append monitoring options #
-            monOption = SysMgr.environList["TASKMONOPT"]
+            monOption = "|".join(SysMgr.environList["TASKMONOPT"]).split("|")
         else:
             monOption = []
 
@@ -70157,7 +70161,7 @@ typedef struct {
 
         return Debugger.gLockObj
 
-    def readArgs(self):
+    def readArgs(self, syscall=False):
         arch = self.arch
         regs = self.regs
 
@@ -70173,7 +70177,14 @@ typedef struct {
                 regs.x7,
             )
         elif arch == "x64":
-            ret = (regs.rdi, regs.rsi, regs.rdx, regs.rcx, regs.r8, regs.r9)
+            ret = (
+                regs.rdi,
+                regs.rsi,
+                regs.rdx,
+                regs.r10 if syscall else regs.rcx,
+                regs.r8,
+                regs.r9,
+            )
         elif arch == "arm":
             ret = (
                 regs.r0,
@@ -74030,7 +74041,7 @@ typedef struct {
 
         return msgInfo
 
-    def readIoVec(self, addr, cnt):
+    def readIoVec(self, addr, cnt, baseAddr=False):
         iov = {}
 
         # get iov header info #
@@ -74051,6 +74062,11 @@ typedef struct {
             iov[idx]["iov_len"] = iovobjlen
             if iovobjlen == 0:
                 iov[idx]["iov_base"] = ""
+                continue
+
+            # get base addr #
+            if baseAddr:
+                iov[idx]["iov_base"] = hex(iovobj.contents.iov_base)
                 continue
 
             # strip data #
@@ -74415,8 +74431,27 @@ typedef struct {
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    print(SysMgr.getErrMsg())
-                    pass
+                    return value
+        elif syscall in ("process_vm_readv", "process_vm_writev"):
+            if not SysMgr.showAll or not argname == "riovcnt":
+                return value
+
+            # get params #
+            argList = [["lvec", "liovcnt"], ["rvec", "riovcnt"]]
+
+            # get iov info #
+            for name, cnt in argList:
+                if "ONLYADDR" in SysMgr.environList:
+                    baseAddr = True
+                else:
+                    baseAddr = False if name == "lvec" else True
+
+                vec = self.readIoVec(
+                    argset[name], argset[cnt], baseAddr=baseAddr
+                )
+                self.changeArg(name, str(vec))
+
+            return value
 
         # convert fd to name #
         if ref and argname in ("fd", "sockfd"):
@@ -79341,7 +79376,7 @@ typedef struct {
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         # get argument values from register #
-        regstr = self.readArgs()
+        regstr = self.readArgs(syscall=True)
 
         # check prototype #
         if self.syscall in proto:
@@ -79872,7 +79907,7 @@ typedef struct {
                     for command in item[1:]:
                         if not command.startswith("ret"):
                             continue
-                        args = self.readArgs()
+                        args = self.readArgs(syscall=True)
                         self.executeCmd([command], name, None, args)
                         needUpdateRegs = True
 
