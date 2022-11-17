@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221115"
+__revision__ = "221117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -52314,8 +52314,14 @@ Copyright:
             pids = SysMgr.convTaskList(
                 SysMgr.filterGroup,
                 isThread=isThread,
+                exceptMe=True,
                 sibling=SysMgr.groupProcEnable,
             )
+
+            # except for my parent #
+            ppid = str(os.getppid())
+            if ppid in pids:
+                pids.remove(ppid)
 
             # check multiple process #
             if len(pids) > 1 and mode in ("bind"):
@@ -52462,6 +52468,11 @@ Copyright:
 
         # start tracing #
         try:
+            # add environment variable to look up python variable symbols #
+            if mode in ("pycall", "pytrace"):
+                SysMgr.addEnvironVar("ALLSYM")
+
+            # create Debugger instance and start tracing #
             if mode == "kernelcall":
                 dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
                 dobj.trace(mode="kernel", wait=wait, multi=multi)
@@ -52475,7 +52486,6 @@ Copyright:
                     dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                     dobj.trace(mode="sample", wait=wait, multi=multi)
             elif mode == "pycall":
-                SysMgr.addEnvironVar("ALLSYM")
                 dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                 dobj.trace(mode="pycall", wait=wait, multi=multi)
             elif mode in ("breakcall", "pytrace"):
@@ -78551,12 +78561,8 @@ typedef struct {
 
         while 1:
             if sys.version_info >= (3, 11):
-                # TODO: implement more #
-                SysMgr.printErr("no support python 3.11 yet")
-                sys.exit(0)
-
                 # read gilstate.tstate_current from pyruntimestate #
-                tstate_current = self.readMem(addr + 576)
+                tstate_current = self.readMem(addr + 16)
                 tstate_current = struct.unpack("Q", tstate_current)[0]
 
                 PyThreadState = self.readMem(tstate_current, 200)
@@ -78596,7 +78602,10 @@ typedef struct {
                     "QQQiiiiiiiQQQQQQQQQQiQLLiQQQ", PyThreadState
                 )
 
-                framep = cframe + 8
+                # get current_frame address from PyCframe #
+                framep = self.readMem(cframe + 8, 8)
+                framep = struct.unpack("Q", framep)[0]
+
             elif sys.version_info >= (3, 7):
                 tstate_head = self.readMem(addr + 8)
 
@@ -78727,11 +78736,11 @@ typedef struct {
     def readPyFrame64(self, addr):
         # read PyFrameObject #
         if sys.version_info >= (3, 11):
-            PyFrameObject = self.readMem(addr, 64)
+            """
+            PyFrameObject = self.readMem(addr, 56)
             (
                 ob_refcnt,
                 ob_type,
-                ob_size,
                 f_back,
                 f_frame,
                 f_trace,
@@ -78740,9 +78749,10 @@ typedef struct {
                 f_trace_opcodes,
                 f_fast_as_locals,
                 f_frame_data,
-            ) = struct.unpack("IQQQQQicccQ", PyFrameObject)
+            ) = struct.unpack("IQQQQicccQ", PyFrameObject)
+            """
 
-            PyInterpreterFrameObject = self.readMem(f_frame, 64)
+            PyInterpreterFrameObject = self.readMem(addr, 80)
             (
                 f_func,
                 f_globals,
@@ -78757,6 +78767,9 @@ typedef struct {
                 owner,
                 localsplus,
             ) = struct.unpack("QQQQQQQQibcQ", PyInterpreterFrameObject)
+
+            f_back = previous
+            f_lineno = 0
         elif sys.version_info >= (3, 7):
             PyFrameObject = self.readMem(addr, 112)
             (
@@ -78800,7 +78813,42 @@ typedef struct {
             ) = struct.unpack("IQQQQQQQQQQQQQQii", PyFrameObject)
 
         # read PyCodeObject #
-        if sys.version_info >= (3, 8, 0):
+        if sys.version_info >= (3, 11, 0):
+            PyCodeObject = self.readMem(f_code, 184)
+            (
+                ob_refcnt,
+                ob_type,
+                ob_size,
+                co_consts,
+                co_names,
+                co_exceptiontable,
+                co_flags,
+                co_warmup,
+                _co_linearray_entry_size,
+                co_argcount,
+                co_posonlyargcount,
+                co_kwonlyargcount,
+                co_stacksize,
+                co_firstlineno,
+                co_nlocalsplus,
+                co_nlocals,
+                co_nplaincellvars,
+                co_ncellvars,
+                co_nfreevars,
+                co_localsplusnames,
+                co_localspluskinds,
+                co_filename,
+                co_name,
+                co_qualname,
+                co_linetable,
+                co_weakreflist,
+                _co_code,
+                _co_linearray,
+                _co_firsttraceable,
+                co_extra,
+            ) = struct.unpack("IQQQQQIHHIIIIIIIIIIQQQQQQQQQIQ", PyCodeObject)
+
+        elif sys.version_info >= (3, 8, 0):
             PyCodeObject = self.readMem(f_code, 144)
             (
                 ob_refcnt,
@@ -78825,6 +78873,7 @@ typedef struct {
                 co_zomebiframe,
                 co_wearreflist,
             ) = struct.unpack("IQIIIIIIIQQQQQQQQQQQQ", PyCodeObject)
+
         elif sys.version_info >= (3, 0):
             PyCodeObject = self.readMem(f_code, 136)
             (
@@ -78849,6 +78898,7 @@ typedef struct {
                 co_zomebiframe,
                 co_wearreflist,
             ) = struct.unpack("IQIIIIIIQQQQQQQQQQQQ", PyCodeObject)
+
         else:
             PyCodeObject = self.readMem(f_code, 128)
             (
@@ -78896,9 +78946,13 @@ typedef struct {
 
         while 1:
             # read PyFrameObject #
-            f_back, f_lineno, f_code, co_name, co_filename = self.readPyFrame(
-                framep
-            )
+            (
+                f_back,
+                f_lineno,
+                f_code,
+                co_name,
+                co_filename,
+            ) = self.readPyFrame(framep)
 
             # read context #
             if f_code in self.pyFrameCache:
@@ -78955,7 +79009,7 @@ typedef struct {
         # entry context #
         else:
             # get pointer to PyFrameObject #
-            framep = self.readArgs()[0]
+            framep = self.readArgs()[1 if sys.version_info >= (3, 11) else 0]
 
             # read frames #
             try:
@@ -79147,8 +79201,14 @@ typedef struct {
                     SysMgr.funcDepth, cur=True, native=True
                 )
 
+        # change offset for PyThreadState #
+        if sys.version_info >= (3, 11):
+            addr = self.pyAddr + 8
+        else:
+            addr = self.pyAddr
+
         # read address for PyThreadState #
-        pyThreadStateP = self.readMem(self.pyAddr)
+        pyThreadStateP = self.readMem(addr)
         if not pyThreadStateP:
             return
         pyThreadStateP = struct.unpack("Q", pyThreadStateP)[0]
@@ -81442,12 +81502,11 @@ typedef struct {
                 SysMgr.printInfo(
                     "start waiting for %s(%s) awakened" % (self.comm, self.pid)
                 )
-                # sleep for syscall wakeup #
-                self.ptrace(self.syscallCmd)
-                self.waitpid()
 
-                self.ptrace(self.syscallCmd)
-                self.waitpid()
+                # sleep for syscall wakeup #
+                for _ in range(2):
+                    self.ptrace(self.syscallCmd)
+                    self.waitpid()
         elif self.isBreakMode:
             if self.isRunning:
                 # register breakpoint data #
