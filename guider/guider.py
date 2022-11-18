@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221117"
+__revision__ = "221118"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23585,8 +23585,11 @@ class SysMgr(object):
     # python call function #
     if sys.version_info < (3, 6):
         pyCallFunc = "PyEval_EvalFrameEx"
-    else:
+    elif sys.version_info < (3, 11):
         pyCallFunc = "_PyEval_EvalFrameDefault"
+    else:
+        # TODO: change return function #
+        pyCallFunc = "_PyThreadState_PopFrame"
 
     startInitTime = 0  # init time for Guider #
     startTime = 0  # start time for Guider #
@@ -41266,7 +41269,7 @@ Copyright:
             else:
                 config.TIMEUNIT = "us"
 
-            # set font size #
+            # set duration #
             duration = 0
             if "DURATION" in SysMgr.environList:
                 try:
@@ -78769,7 +78772,28 @@ typedef struct {
             ) = struct.unpack("QQQQQQQQibcQ", PyInterpreterFrameObject)
 
             f_back = previous
-            f_lineno = 0
+
+        elif sys.version_info >= (3, 10):
+            PyFrameObject = self.readMem(addr, 104)
+            (
+                ob_refcnt,
+                ob_type,
+                ob_size,
+                f_back,
+                f_code,
+                f_builtins,
+                f_globals,
+                f_locals,
+                f_valuestack,
+                f_trace,
+                f_stackdepth,
+                f_trace_lines,
+                f_trace_opcodes,
+                f_gen,
+                f_lasti,
+                f_lineno,
+            ) = struct.unpack("IQQQQQQQQQiccQii", PyFrameObject)
+
         elif sys.version_info >= (3, 7):
             PyFrameObject = self.readMem(addr, 112)
             (
@@ -78790,6 +78814,7 @@ typedef struct {
                 f_lasti,
                 f_lineno,
             ) = struct.unpack("IQQQQQQQQQQbbQii", PyFrameObject)
+
         else:
             PyFrameObject = self.readMem(addr, 128)
             (
@@ -78848,6 +78873,9 @@ typedef struct {
                 co_extra,
             ) = struct.unpack("IQQQQQIHHIIIIIIIIIIQQQQQQQQQIQ", PyCodeObject)
 
+            # TODO: Add offset for lasti in _PyInterpreterFrame_GetLine() #
+            f_lineno = co_firstlineno
+
         elif sys.version_info >= (3, 8, 0):
             PyCodeObject = self.readMem(f_code, 144)
             (
@@ -78873,6 +78901,9 @@ typedef struct {
                 co_zomebiframe,
                 co_wearreflist,
             ) = struct.unpack("IQIIIIIIIQQQQQQQQQQQQ", PyCodeObject)
+
+            if sys.version_info >= (3, 10, 0):
+                f_lineno = co_firstlineno
 
         elif sys.version_info >= (3, 0):
             PyCodeObject = self.readMem(f_code, 136)
@@ -78985,6 +79016,9 @@ typedef struct {
 
     def handlePyTrap(self, sym, fname, addr):
         """
+        PyObject* _Py_HOT_FUNCTION _PyEval_EvalFrameDefault(
+            PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
+
         PyObject* _Py_HOT_FUNCTION_PyEval_EvalFrameDefault(
             PyThreadState *tstate, PyFrameObject *f, int throwflag)
 
@@ -79009,7 +79043,7 @@ typedef struct {
         # entry context #
         else:
             # get pointer to PyFrameObject #
-            framep = self.readArgs()[1 if sys.version_info >= (3, 11) else 0]
+            framep = self.readArgs()[1 if sys.version_info >= (3, 10) else 0]
 
             # read frames #
             try:
@@ -80941,7 +80975,7 @@ typedef struct {
             if self.arch in ("aarch64", "arm"):
                 pos = self.lr
             else:
-                pos = self.getBacktrace(limit=1, cur=False)[0][0]
+                pos = self.getBacktrace(limit=2, cur=False)[0][0]
         except SystemExit:
             sys.exit(0)
         except:
