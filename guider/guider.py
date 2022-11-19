@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221118"
+__revision__ = "221119"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22758,6 +22758,7 @@ class LogMgr(object):
                 SysMgr.cacheDirPath = "/tmp"
                 errorFile = "%s/guider.err" % SysMgr.cacheDirPath
 
+            # open log file #
             try:
                 self.errFd = open(errorFile, "a")
             except SystemExit:
@@ -22766,6 +22767,13 @@ class LogMgr(object):
                 SysMgr.printOpenErr(errorFile)
                 self.error = True
 
+            # change permission #
+            try:
+                os.chmod(errorFile, 0o777)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
         try:
             if hasattr(self, "notified") and not self.notified:
                 SysMgr.printErr(
@@ -47902,7 +47910,7 @@ Copyright:
             handler = server.SimpleHTTPRequestHandler
 
         class requestHandler(handler):
-            def doGET(self):
+            def do_GET(self):
                 # handle path #
                 if self.path == "/":
                     pass
@@ -48043,6 +48051,8 @@ Copyright:
             try:
                 defaultPath = SysMgr.inputParam
                 os.chdir(defaultPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(
                     "failed to set default dir path to '%s'" % defaultPath,

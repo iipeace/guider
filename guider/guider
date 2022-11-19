@@ -15,33 +15,38 @@ export CMDLINE
 
 # check PYTHON variable #
 if [ $PYTHON ]; then
-    $PYTHON -m guider "$@"
-    exit 0
+    exec $PYTHON -m guider "$@"
 fi
+
+# define PYTHON variable #
+PYTHON=""
 
 # check python binaries #
 for cmd in python3 python python2
 do
     # check a python binary #
-    RES=$(which $cmd 2> /dev/null)
+    R=$(which $cmd 2> /dev/null)
+    if [ $? -ne "0" ]; then
+        continue;
+    fi
+
+    # set available python list #
+    PYTHON="$PYTHON$cmd "
+
+    # check guider module #
+    R=$($cmd -m guider)
     if [ $? -ne "0" ]; then
         continue;
     fi
 
     # launch Guider #
-    PYTHON=$cmd
-    $cmd -m guider "$@"
-
-    # check result #
-    if [ $? -eq "0" ]; then
-        exit 0
-    fi
+    exec $cmd -m guider "$@"
 done
 
 # print error message #
-if [ ! $PYTHON ]; then
+if [ -z "$PYTHON" ]; then
     echo "[Error] failed to find python"
 else
-    echo "[Error] failed to find Guider module"
+    echo "[Error] failed to find Guider module in $PYTHON"
 fi
 exit 1
