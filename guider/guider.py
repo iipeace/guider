@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221119"
+__revision__ = "221120"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -52482,7 +52482,10 @@ Copyright:
         # start tracing #
         try:
             # add environment variable to look up python variable symbols #
-            if mode in ("pycall", "pytrace"):
+            if (
+                mode in ("pycall", "pytrace")
+                or "PYSTACK" in SysMgr.environList
+            ):
                 SysMgr.addEnvironVar("ALLSYM")
 
             # create Debugger instance and start tracing #
@@ -76745,7 +76748,7 @@ typedef struct {
             if not native:
                 # python callstack #
                 if Debugger.envFlags["PYSTACK"]:
-                    btList = self.handlePycall(retbt=True)
+                    btList = self.handlePycall(retbt=True, cur=True)
                     if btList:
                         self.btList = btList
                         return self.btList
@@ -79017,7 +79020,7 @@ typedef struct {
                 bt.append([f_lineno, name, filename])
 
             # check last frame #
-            if depth <= len(bt) or f_back == 0:
+            if f_back == 0 or (depth and depth <= len(bt)):
                 break
 
             framep = f_back
@@ -79230,7 +79233,7 @@ typedef struct {
         else:
             SysMgr.printPipe(callString, newline=False, flush=True)
 
-    def handlePycall(self, retbt=False):
+    def handlePycall(self, retbt=False, cur=False):
         # check init status #
         if not self.pyAddr and not self.initPyEnv():
             return
@@ -79285,6 +79288,10 @@ typedef struct {
         bt, lastAddr, lastName, lastFile = self.readPyStack(
             framep, SysMgr.funcDepth
         )
+
+        # add last frame to backtrace #
+        if cur:
+            bt.insert(0, [lastAddr, lastName, lastFile])
 
         # check filter #
         if SysMgr.pyFuncFilter and not UtilMgr.isValidStr(
