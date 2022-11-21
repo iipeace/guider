@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221120"
+__revision__ = "221121"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26046,6 +26046,10 @@ Commands:
                     ):
                         stats[sub] = "+"
 
+            # check capacity #
+            if stats["capacity"] == 0:
+                return
+
             SysMgr.battery = (
                 stats["capacity"],
                 long(stats["energy_now"] / float(stats["power_now"]) * 3600)
@@ -32386,6 +32390,10 @@ Examples:
     - {2:1} {3:1} using 100 us sampling
         # {0:1} {1:1} -g iotop
 
+    - {2:1} {3:1} using 100 us sampling {4:1}
+        # {0:1} {1:1} iotop
+        # {0:1} {1:1} iotop -f
+
     - {2:1} with backtrace {3:1} (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g iotop -H
 
@@ -32409,6 +32417,7 @@ Examples:
                             mode,
                             "Monitor python calls",
                             "for specific threads",
+                            "from a specific binary",
                         ).rstrip()
                         + dbgExamStr
                     )
@@ -33491,6 +33500,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
     -u                          run in the background
+    -f                          force execution
     -a                          show all stats with registers
     -T  <FILE>                  set target file
     -g  <COMM|TID{:FILE}>       set task filter
@@ -33512,14 +33522,11 @@ Examples:
     - {3:1} {4:1}
         # {0:1} {1:1} -g iotop
 
-    - {3:1} from a specific binary
-        # {0:1} {1:1} "ls -al"
+    - {3:1} {4:1} {5:1}
+        # {0:1} {1:1} iotop
+        # {0:1} {1:1} iotop -f
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
-        # {0:1} {1:1} -I "ls -al"
-
-    - {3:1} {4:1} from a specific binary
-        # {0:1} {1:1} "ls -al" -g iotop
-        # {0:1} {1:1} -I "ls -al" -g iotop
+        # {0:1} {1:1} iotop -g iotop -f
 
     - {3:1} {4:1} in 10ms cycles
         # {0:1} {1:1} -g iotop -i 10000
@@ -33542,6 +33549,7 @@ Examples:
                             cmdListStr,
                             "Trace python calls",
                             "for specific threads",
+                            "from a specific binary",
                         ).rstrip()
                         + dbgExamStr
                     )
@@ -78476,9 +78484,15 @@ typedef struct {
             sys.exit(-1)
 
     def initPyEnv(self):
+        if self.pyAddr:
+            return True
+
         # check python version for target #
         if not self.checkPyVer():
-            sys.exit(-1)
+            if SysMgr.forceEnable:
+                return False
+            else:
+                sys.exit(-1)
 
         # set target info #
         procInfo = "%s(%s)" % (self.comm, self.pid)
@@ -81213,6 +81227,10 @@ typedef struct {
                             "start profiling %s(%d)..." % (self.comm, self.pid)
                         )
 
+                        # init python environment #
+                        if self.mode in ("pycall", "pybreak"):
+                            self.initPyEnv()
+
                         # set first command #
                         if self.cmd:
                             self.ptrace(self.cmd)
@@ -81472,10 +81490,6 @@ typedef struct {
                     % UtilMgr.convNum(SysMgr.funcDepth)
                 )
 
-        # init python environment #
-        if self.mode in ("pycall", "pybreak"):
-            self.initPyEnv()
-
         # prepare environment for the running target #
         if self.isRunning:
             # check the process is running #
@@ -81492,9 +81506,9 @@ typedef struct {
                     )
                 sys.exit(-1)
 
-            # initialize environment for python #
-            if mode in ("pycall", "pybreak"):
-                pass
+            # init python environment #
+            if self.mode in ("pycall", "pybreak"):
+                self.initPyEnv()
             # load user symbols #
             elif SysMgr.funcDepth > 0 or mode not in (
                 "syscall",
@@ -81531,7 +81545,6 @@ typedef struct {
                     sys.exit(0)
                 except:
                     return
-
         # set trap event type for the new target #
         else:
             self.ptraceEvent(self.traceEventList)
@@ -111983,7 +111996,7 @@ class TaskAnalyzer(object):
         if cstr:
             self.procData[tid]["cgroup"] = cstr[:-2]
 
-    def saveProcStatusData(self, path, tid):
+    def saveProcStatusData(self, path, tid, force=False):
         if SysMgr.minStatEnable or not tid in self.procData:
             return
 
@@ -111992,7 +112005,7 @@ class TaskAnalyzer(object):
         # PID/status #
         stat = "status"
         # no memory and context switch for kernel threads in process mode #
-        if SysMgr.processEnable and isKernelThread:
+        if not force and SysMgr.processEnable and isKernelThread:
             pass
         elif not self.procData[tid][stat]:
             statusBuf = self.saveTaskData(path, tid, stat, False)
@@ -117533,6 +117546,8 @@ class TaskAnalyzer(object):
                 swapSize = (
                     long(value["status"]["VmSwap"].split()[0]) >> memFactorKB
                 )
+            except SystemExit:
+                sys.exit(0)
             except:
                 swapSize = "-"
 
@@ -117540,6 +117555,8 @@ class TaskAnalyzer(object):
                 try:
                     readSize = value["read"] >> memFactorMB
                     writeSize = value["write"] >> memFactorMB
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     readSize = writeSize = 0
             else:
@@ -117559,6 +117576,8 @@ class TaskAnalyzer(object):
                 try:
                     pgid = dataset[idx]["mainID"]
                     etc = "%s(%s)" % (dataset[pgid]["comm"], pgid)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     etc = "-"
             else:
@@ -117566,6 +117585,8 @@ class TaskAnalyzer(object):
                 try:
                     pgid = dataset[idx]["stat"][self.ppidIdx]
                     etc = "%s(%s)" % (dataset[pgid]["comm"], pgid)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     etc = "-"
 
@@ -117578,11 +117599,15 @@ class TaskAnalyzer(object):
 
             try:
                 vss = long(stat[self.vssIdx]) >> memFactorMB
+            except SystemExit:
+                sys.exit(0)
             except:
                 vss = 0
 
             try:
                 rss = _memFactorPG(long(stat[self.rssIdx]))
+            except SystemExit:
+                sys.exit(0)
             except:
                 rss = 0
 
@@ -117594,6 +117619,8 @@ class TaskAnalyzer(object):
                     rss -= shr
                     if rss < 0:
                         rss = 0
+            except SystemExit:
+                sys.exit(0)
             except:
                 shr = "-"
 
@@ -117607,8 +117634,46 @@ class TaskAnalyzer(object):
                     rss -= codeSize
                     if rss < 0:
                         rss = 0
+            except SystemExit:
+                sys.exit(0)
             except:
                 codeSize = 0
+
+            try:
+                if SysMgr.gpuMemEnable and self.gpuMemData:
+                    raise Exception("gpumem")
+
+                sid = stat[self.sidIdx][-5:]
+                if sid == "0":
+                    sid = "-"
+            except SystemExit:
+                sys.exit(0)
+            except:
+                sid = "-"
+
+            try:
+                if tid in self.procData and "user" in self.procData[tid]:
+                    user = self.procData[tid]["user"]
+                elif (
+                    tid in self.prevProcData
+                    and "user" in self.prevProcData[tid]
+                ):
+                    user = self.prevProcData[tid]["user"]
+                else:
+                    # get uid #
+                    if not value["status"]:
+                        self.saveProcStatusData(
+                            value["taskPath"], str(tid), force=True
+                        )
+                    uid = value["status"]["Uid"].split()[0]
+
+                    # get user list #
+                    SysMgr.sysInstance.saveUserInfo()
+                    user = SysMgr.sysInstance.userData[uid]["name"][:6]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                user = "-"
 
             # print thread information #
             SysMgr.addPrint(
@@ -117637,8 +117702,8 @@ class TaskAnalyzer(object):
                     readSize,
                     writeSize,
                     value["majflt"],
-                    "-",
-                    "-",
+                    sid,
+                    user,
                     "-",
                     lifeTime[:9],
                     etc[:21],
