@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221121"
+__revision__ = "221122"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35931,29 +35931,34 @@ Examples:
                 elif SysMgr.checkMode("setcpu"):
                     helpStr = """
 Usage:
-    # {0:1} {1:1} -g <CORE:CLOCK:GOVERNOR> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <CORE:CLOCK|ON|OFF:GOVERNOR> [OPTIONS] [--help]
 
 Description:
-    Set CPU clock and governor
+    Set CPU clock, governor, hotplug
 
 Options:
-    -g  <CORE:CLOCK:GOVERNOR>   set filter
-    -l                          print core info
-    -v                          verbose
+    -g  <CORE:CLOCK|ON|OFF:GOVERNOR>   set filter
+    -l                                 print core info
+    -v                                 verbose
                         """.format(
                         cmd, mode
                     )
 
                     helpStr += """
 Examples:
-    - {2:1} 2,000,000HZ and the governor to userspace for CPU1
-        # {0:1} {1:1} 1:20000000:userspace
+    - {2:1} 2,000,000HZ for CPU0
+        # {0:1} {1:1} 0:20000000
+
+    - {2:1} 2,000,000HZ and the governor to userspace for specific CPUs
+        # {0:1} {1:1} 1-4:20000000:userspace
+        # {0:1} {1:1} 0-8:20000000:performance
 
     - {2:1} 2,000,000HZ and the governor to userspace for All CPUs
         # {0:1} {1:1} :20000000:userspace
 
-    - {2:1} 2,000,000HZ for CPU0
-        # {0:1} {1:1} 0:20000000
+    - Set hotplug status of specific CPUs
+        # {0:1} {1:1} 0-3:ON
+        # {0:1} {1:1} 4-7:OFF
 
     - Set the governor to performance for CPU2
         # {0:1} {1:1} 2::performance
@@ -50057,66 +50062,84 @@ Copyright:
             SysMgr.printErr("no input for core info")
             sys.exit(-1)
 
+        errMsg = "wrong value to set CPU clock, input in the format CORE:CLOCK(HZ){:GOVERNOR}"
+
         # parse values #
         targetlist = []
         for val in list(filterGroup):
+            # split items #
             vals = val.split(":")
-
-            # check error #
-            if (
-                not len(vals) in (2, 3)
-                or (vals[0] and not vals[0].isdigit())
-                or (vals[1] and not vals[1].isdigit())
-            ):
-                SysMgr.printErr(
-                    (
-                        "wrong value to set CPU clock, "
-                        "input in the format CORE:CLOCK(HZ){:GOVERNOR}"
-                    )
-                )
+            if not len(vals) in (2, 3):
+                SysMgr.printErr(errMsg)
                 sys.exit(-1)
 
-            targetlist.append(vals)
+            core, clock = vals[0:2]
+
+            # check core #
+            if not core:
+                pass
+            elif not core.isdigit() and not "-" in core:
+                SysMgr.printErr(errMsg)
+                sys.exit(-1)
+
+            # check clock #
+            if not clock:
+                pass
+            elif not clock.isdigit() and not clock.upper() in ("ON", "OFF"):
+                SysMgr.printErr(errMsg)
+                sys.exit(-1)
+
+            coreRange = vals[0].split("-", 1)
+            if len(coreRange) == 1:
+                targetlist.append(vals)
+            else:
+                try:
+                    start, end = list(map(long, coreRange))
+                    for idx in range(start, end + 1):
+                        vals[0] = idx
+                        targetlist.append(list(vals))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(errMsg)
+                    sys.exit(-1)
 
         def _printCpuInfo(cpulist, core):
             conv = UtilMgr.convNum
+            convColor = UtilMgr.convColor
+            status = {}
+
+            for item in ("cur", "min", "max", "governor", "online"):
+                try:
+                    status[item] = conv(cpulist[core][item].strip())
+                except:
+                    status[item] = "?"
 
             try:
-                curfreq = conv(cpulist[core]["cur"].strip())
-            except:
-                curfreq = "?"
+                if "avail" in cpulist[core]:
+                    avail = list(map(conv, cpulist[core]["avail"]))
 
-            try:
-                avail = list(map(conv, cpulist[core]["avail"]))
-                idx = avail.index(curfreq)
-                if idx >= 0:
-                    avail[idx] = UtilMgr.convColor("*%s" % avail[idx], "GREEN")
-                avail = " ".join(avail)
+                    idx = (
+                        UtilMgr.bisect_left(
+                            avail, status["cur"].replace(",", "")
+                        )
+                        - 1
+                    )
+
+                    if idx >= 0:
+                        avail[idx] = convColor("*%s" % avail[idx], "GREEN")
+
+                    avail = " ".join(avail)
+                else:
+                    avail = convColor("*%s" % status["cur"], "GREEN")
             except:
                 avail = "?"
 
             try:
-                minfreq = conv(cpulist[core]["min"].strip())
-            except:
-                minfreq = "?"
-
-            try:
-                maxfreq = conv(cpulist[core]["max"].strip())
-            except:
-                maxfreq = "?"
-
-            try:
-                curgov = cpulist[core]["governor"].strip()
-            except:
-                curgov = "?"
-
-            try:
                 governors = cpulist[core]["governors"]
-                idx = governors.index(curgov)
+                idx = governors.index(status["governor"])
                 if idx >= 0:
-                    governors[idx] = UtilMgr.convColor(
-                        "*%s" % governors[idx], "GREEN"
-                    )
+                    governors[idx] = convColor("*%s" % governors[idx], "GREEN")
                 governors = " ".join(governors)
             except:
                 governors = "?"
@@ -50127,9 +50150,18 @@ Copyright:
                     "- frequency: [ %s ]\n"
                     "- min_frequency: [ %s ]\n"
                     "- max_frequency: [ %s ]\n"
-                    "- governor: [ %s ]\n\n"
+                    "- governor: [ %s ]\n"
+                    "- oneline: [ %s ]\n\n"
                 )
-                % (core, avail, minfreq, maxfreq, governors)
+                % (
+                    core,
+                    avail,
+                    status["min"],
+                    status["max"],
+                    governors,
+                    status["online"],
+                ),
+                trim=False,
             )
 
         # get available CPU list #
@@ -50144,6 +50176,7 @@ Copyright:
 
             # set path #
             commonpath = "%s/%s/cpufreq" % (freqPath, f)
+            onlinepath = "%s/%s/online" % (freqPath, f)
             affectpath = "%s/affected_cpus" % commonpath
             govpath = "%s/scaling_available_governors" % commonpath
             curgovpath = "%s/scaling_governor" % commonpath
@@ -50217,6 +50250,15 @@ Copyright:
             except:
                 cpulist.pop(cpu, None)
 
+            # online #
+            try:
+                with open(onlinepath, "r") as fd:
+                    cpulist[cpu]["online"] = fd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             # print cpu info #
             if printList:
                 _printCpuInfo(cpulist, cpu)
@@ -50235,6 +50277,32 @@ Copyright:
             # check values #
             if not core and not clock and not gov:
                 SysMgr.printErr("no value for CPU")
+                continue
+
+            # set hotplug status #
+            if clock.upper() in ("ON", "OFF"):
+                onlinepath = "%s/cpu%s/online" % (freqPath, core)
+                try:
+                    with open(onlinepath, "w") as fd:
+                        if clock.upper() == "ON":
+                            fd.write("1")
+                            power = "ONLINE"
+                        else:
+                            fd.write("0")
+                            power = "ONLINE"
+
+                    SysMgr.printInfo(
+                        "changed CPU(%s) status to %s" % (core, power)
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to change hotplug status for CPU(%s)" % core,
+                        True,
+                    )
+                    sys.exit(-1)
+
                 continue
 
             if not core:
