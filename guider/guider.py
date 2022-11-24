@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221122"
+__revision__ = "221124"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -544,6 +544,19 @@ class ConfigMgr(object):
         "CLOCK_BOOTTIME_ALARM": 9,  # CLOCK_BOOTTIME but also wakes suspended system
         "CLOCK_TAI": 11,  # Like CLOCK_REALTIME but in International Atomic Time
     }
+
+    # fadvise type #
+    FADV_TYPE = {
+        0: "FADV_NORMAL",  # No further special treatment
+        1: "FADV_RANDOM",  # Expect random page references
+        2: "FADV_SEQUENTIAL",  # Expect sequential page references
+        3: "FADV_WILLNEED",  # Will need these pages
+        4: "FADV_DONTNEED",  # Don't need these pages
+        5: "FADV_NOREUSE",  # Data will be accessed once
+        6: "FADV_DONTNEED",  # Don't need these pages
+        7: "FADV_NOREUSE",  # Data will be accessed once
+    }
+    FADV_TYPE_REVERSE = {}
 
     # madvise type #
     MADV_TYPE = {
@@ -1787,9 +1800,9 @@ class ConfigMgr(object):
         "madvise": (
             "long",
             (
-                ("unsigned long", "start"),
-                ("size_t", "len"),
-                ("int", "behavior"),
+                ("unsigned long", "addr"),
+                ("size_t", "length"),
+                ("int", "advice"),
             ),
         ),
         "mbind": (
@@ -29082,26 +29095,33 @@ Commands:
         return pickle
 
     @staticmethod
-    def invalidateFile(path=None, fd=None, pos=0, size=0):
+    def fadvise(path=None, fd=None, pos=0, size=0, advice=None):
         try:
             if path:
                 f = open(path, "br")
                 fd = f.fileno()
             elif not fd:
                 SysMgr.printErr(
-                    "failed to invalidate file because neither path nor fd"
+                    "failed to get file info because neither path nor fd"
                 )
                 sys.exit(0)
+            else:
+                path = fd.name
 
             # get whole file size #
             if size == 0:
                 size = os.fstat(fd).st_size
 
-            os.posix_fadvise(fd, pos, size, os.POSIX_FADV_DONTNEED)
+            # set advice #
+            if not advice:
+                advice = os.POSIX_FADV_DONTNEED
+
+            # call fadvise #
+            os.posix_fadvise(fd, pos, size, advice)
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("failed to invalidate '%s'" % path, True)
+            SysMgr.printErr("failed to fadvise '%s'" % path, True)
 
     @staticmethod
     def isAlive(tid):
@@ -31532,6 +31552,7 @@ Examples:
     - {5:1} within a specific range {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "open|start|getret:stop, *"
         # {0:1} {1:1} -g a.out -c "open|start|getret:exit, *"
+        # {0:1} {1:1} -g a.out -c "open|start|getret:exit, *|getret"
         # {0:1} {1:1} -g a.out -c "open|start, *, close|getret:condexit"
 
     - {5:1} and call specific functions every time {4:1} {7:1}
@@ -38862,15 +38883,15 @@ Copyright:
     def writeSyscallCmd(enable):
         scmd = ""
         defaultList = [
+            "sys_bpf",
             "sys_execve",
             "sys_execveat",
+            "sys_ioprio_set",
             "sys_nice",
-            "sys_setpriority",
+            "sys_sched_setattr",
             "sys_sched_setparam",
             "sys_sched_setscheduler",
-            "sys_sched_setattr",
-            "sys_bpf",
-            "sys_ioprio_set",
+            "sys_setpriority",
         ]
 
         if SysMgr.isFuncMode() and not SysMgr.heapEnable:
@@ -47948,8 +47969,16 @@ Copyright:
                 except:
                     pass
 
-                # set temporary command #
-                cmd = " ".join(SysMgr.getExeCmd(SysMgr.pid)) + " help"
+                # get command #
+                cmd = self.path.lstrip("/")
+                if not cmd:
+                    cmd = "help"
+
+                # print command #
+                print("COMMAND: %s" % cmd)
+
+                # build full command #
+                cmd = " ".join(SysMgr.getExeCmd(SysMgr.pid)) + " " + cmd
 
                 # launch a command #
                 try:
@@ -55176,7 +55205,9 @@ Copyright:
                 SysMgr.printInfo(
                     "flush file caches for '%s'... " % os.path.realpath(cmd),
                 )
-                SysMgr.invalidateFile(cmd)
+
+                # call fadvise #
+                SysMgr.fadvise(path=cmd, advice=os.POSIX_FADV_DONTNEED)
 
             if interval is None:
                 break
@@ -74487,9 +74518,17 @@ typedef struct {
                 except:
                     return value
         elif syscall.startswith("madvise"):
-            if argname == "behavior":
+            if argname == "advice":
                 try:
                     return ConfigMgr.MADV_TYPE[c_int(value).value]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return value
+        elif syscall.startswith("fadvise"):
+            if argname == "advice":
+                try:
+                    return ConfigMgr.FADV_TYPE[c_int(value).value]
                 except SystemExit:
                     sys.exit(0)
                 except:
