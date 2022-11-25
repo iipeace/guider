@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221124"
+__revision__ = "221125"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -553,8 +553,8 @@ class ConfigMgr(object):
         3: "FADV_WILLNEED",  # Will need these pages
         4: "FADV_DONTNEED",  # Don't need these pages
         5: "FADV_NOREUSE",  # Data will be accessed once
-        6: "FADV_DONTNEED",  # Don't need these pages
-        7: "FADV_NOREUSE",  # Data will be accessed once
+        # 6: "FADV_DONTNEED",  # Don't need these pages
+        # 7: "FADV_NOREUSE",  # Data will be accessed once
     }
     FADV_TYPE_REVERSE = {}
 
@@ -5690,6 +5690,12 @@ class UtilMgr(object):
             string = string.replace(key, val)
 
         return string
+
+    @staticmethod
+    def makeReverseDict(orig, new):
+        if not new:
+            for name, value in orig.items():
+                new[value] = name
 
     @staticmethod
     def removeColor(string):
@@ -25082,6 +25088,12 @@ Commands:
         if SysMgr.checkMode("ttop"):
             SysMgr.processEnable = False
 
+            # check GPU option #
+            if not (
+                "GPUMEM" in SysMgr.environList
+                or "GPUMEMSUM" in SysMgr.environList
+            ):
+                SysMgr.gpuMemEnable = False
         # file #
         elif SysMgr.checkMode("ftop"):
             SysMgr.fileTopEnable = True
@@ -29100,6 +29112,7 @@ Commands:
             if path:
                 f = open(path, "br")
                 fd = f.fileno()
+                doClose = True
             elif not fd:
                 SysMgr.printErr(
                     "failed to get file info because neither path nor fd"
@@ -29107,6 +29120,7 @@ Commands:
                 sys.exit(0)
             else:
                 path = fd.name
+                doClose = False
 
             # get whole file size #
             if size == 0:
@@ -29118,6 +29132,9 @@ Commands:
 
             # call fadvise #
             os.posix_fadvise(fd, pos, size, advice)
+
+            if doClose:
+                f.close()
         except SystemExit:
             sys.exit(0)
         except:
@@ -30007,7 +30024,6 @@ Commands:
                 "disktop",
                 "drawreq",
                 "exec",
-                "flush",
                 "fserver",
                 "hserver",
                 "iotest",
@@ -30341,6 +30357,7 @@ Commands:
                 "dump": ("Memory", "Linux"),
                 "exec": ("Command", "Linux/MacOS/Windows"),
                 "flush": ("Memory", "Linux"),
+                "fadvise": ("File", "Linux"),
                 "getafnt": ("Affinity", "Linux"),
                 "mkcache": ("Cache", "Linux/MacOS/Windows"),
                 "mount": ("Mount", "Linux"),
@@ -30368,6 +30385,7 @@ Commands:
                 "req": ("URL", "Linux/MacOS/Windows"),
                 "strings": ("Text", "Linux/MacOS/Windows"),
                 "sym2addr": ("Address", "Linux/MacOS/Windows"),
+                "sync": ("File", "Linux"),
                 "systat": ("Status", "Linux"),
                 "topdiff": ("Diff", "Linux/MacOS/Windows"),
                 "topsum": ("Summary", "Linux/MacOS/Windows"),
@@ -36549,6 +36567,66 @@ Examples:
 
     - Flush specific file pages for the file every 3 seconds
         # {0:1} {1:1} ./TEST -i 3
+                    """.format(
+                        cmd,
+                        mode,
+                    )
+
+                # sync #
+                elif SysMgr.checkMode("sync"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Commit filesystem caches to disk
+
+Options:
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Commit system filesystem caches to disk
+        # {0:1} {1:1}
+
+    - Commit filesystem caches of specific files to disk
+        # {0:1} {1:1} "TEST,TEST2"
+                    """.format(
+                        cmd,
+                        mode,
+                    )
+
+                # fadvise #
+                elif SysMgr.checkMode("fadvise"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Predeclare an access pattern for file data
+
+Options:
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Predeclare an access pattern for whole file data
+        # {0:1} {1:1} a.out:RANDOM
+        # {0:1} {1:1} a.out:SEQUENTIAL
+        # {0:1} {1:1} a.out:WILLNEED
+        # {0:1} {1:1} a.out:DONTNEED
+        # {0:1} {1:1} a.out:NOREUSE
+
+    - Predeclare an access pattern for specific file data
+        # {0:1} {1:1} a.out:DONTNEED:10m
+        # {0:1} {1:1} a.out:DONTNEED:0:100m
+        # {0:1} {1:1} a.out:DONTNEED:100k:1m
                     """.format(
                         cmd,
                         mode,
@@ -44868,9 +44946,17 @@ Copyright:
 
             SysMgr.doMemTest()
 
+        # FADVISE MODE #
+        elif SysMgr.checkMode("fadvise"):
+            SysMgr.doFadvise()
+
         # FLUSH MODE #
         elif SysMgr.checkMode("flush"):
             SysMgr.doFlush()
+
+        # SYNC MODE #
+        elif SysMgr.checkMode("sync"):
+            SysMgr.doSync()
 
         # EXEC MODE #
         elif SysMgr.checkMode("exec"):
@@ -55178,6 +55264,113 @@ Copyright:
             return None
 
     @staticmethod
+    def doFadvise():
+        # get command #
+        if SysMgr.hasMainArg():
+            pathList = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            pathList = SysMgr.filterGroup
+        else:
+            SysMgr.printErr("no input file")
+            sys.exit(-1)
+
+        for item in pathList:
+            try:
+                cmd = item.split(":", 4)
+                if len(cmd) < 2:
+                    raise Exception("wrong command")
+
+                path, advice = cmd[0:2]
+
+                # update advice #
+                advice = advice.upper()
+                if not advice.startswith("FADV_"):
+                    advice = "FADV_" + advice
+
+                # check advice #
+                UtilMgr.makeReverseDict(
+                    ConfigMgr.FADV_TYPE, ConfigMgr.FADV_TYPE_REVERSE
+                )
+                if advice in ConfigMgr.FADV_TYPE_REVERSE:
+                    advicestr = advice
+                    advice = ConfigMgr.FADV_TYPE_REVERSE[advice]
+                else:
+                    raise Exception("wrong advice")
+
+                # get pos and size #
+                pos = size = 0
+                if len(cmd) > 2:
+                    pos = UtilMgr.convUnit2Size(cmd[2])
+                    if len(cmd) == 3:
+                        size = UtilMgr.getFileSize(path, string=False) - pos
+
+                if len(cmd) > 3:
+                    size = UtilMgr.convUnit2Size(cmd[3])
+
+                if pos or size:
+                    offsetstr = " ( +%s from %s )" % (
+                        UtilMgr.convNum(size),
+                        UtilMgr.convNum(pos),
+                    )
+                else:
+                    offsetstr = ""
+
+                SysMgr.printInfo(
+                    "pass advise %s for %s%s" % (advicestr, path, offsetstr)
+                )
+
+                # call fadvise #
+                SysMgr.fadvise(path, pos=pos, size=size, advice=advice)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to handle '%s', input in the format FILE:ADVICE{:POS:SIZE}"
+                    % item,
+                    True,
+                )
+                sys.exit(-1)
+
+    @staticmethod
+    def doSync(pathList=[]):
+        # get command #
+        if pathList:
+            pass
+        elif SysMgr.hasMainArg():
+            pathList = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            pathList = SysMgr.filterGroup
+        else:
+            pathList = None
+
+        # flush caches #
+        if pathList:
+            for path in pathList:
+                try:
+                    SysMgr.printInfo(
+                        "start flushing filesystem caches for %s..." % path,
+                        suffix=False,
+                    )
+                    fd = open(path, "r")
+                    os.fsync(fd)
+                    fd.close()
+                    SysMgr.printInfo(
+                        " [done]\n", prefix=False, suffix=False, title=False
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to sync %s" % path, True)
+        else:
+            SysMgr.printInfo(
+                "start flushing system filesystem caches...", suffix=False
+            )
+            os.sync()
+            SysMgr.printInfo(
+                " [done]\n", prefix=False, suffix=False, title=False
+            )
+
+    @staticmethod
     def doFlush():
         # check root permission #
         SysMgr.checkRootPerm()
@@ -55202,9 +55395,7 @@ Copyright:
             elif cmd in ("1", "2", "3"):
                 SysMgr.dropCaches(cmd, verb=True)
             else:
-                SysMgr.printInfo(
-                    "flush file caches for '%s'... " % os.path.realpath(cmd),
-                )
+                SysMgr.doSync([os.path.realpath(cmd)])
 
                 # call fadvise #
                 SysMgr.fadvise(path=cmd, advice=os.POSIX_FADV_DONTNEED)
@@ -70918,9 +71109,9 @@ typedef struct {
                 if UtilMgr.isNumber(advise):
                     advise = UtilMgr.convStr2Num(advise)
                 else:
-                    if not ConfigMgr.MADV_TYPE_REVERSE:
-                        for name, value in ConfigMgr.MADV_TYPE.items():
-                            ConfigMgr.MADV_TYPE_REVERSE[value] = name
+                    UtilMgr.makeReverseDict(
+                        ConfigMgr.MADV_TYPE, ConfigMgr.MADV_TYPE_REVERSE
+                    )
 
                     # convert string to number #
                     name = "MADV_" + advise.upper()
@@ -74535,18 +74726,18 @@ typedef struct {
                     return value
         elif syscall == "mount":
             if argname == "flags":
-                if not ConfigMgr.MOUNT_TYPE_REVERSE:
-                    for name, value in ConfigMgr.MOUNT_TYPE.items():
-                        ConfigMgr.MOUNT_TYPE_REVERSE[value] = name
+                UtilMgr.makeReverseDict(
+                    ConfigMgr.MOUNT_TYPE, ConfigMgr.MOUNT_TYPE_REVERSE
+                )
 
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.MOUNT_TYPE_REVERSE
                 )
         elif syscall.startswith("umount"):
             if argname == "flags":
-                if not ConfigMgr.UMOUNT_TYPE_REVERSE:
-                    for name, value in ConfigMgr.UMOUNT_TYPE.items():
-                        ConfigMgr.UMOUNT_TYPE_REVERSE[value] = name
+                UtilMgr.makeReverseDict(
+                    ConfigMgr.UMOUNT_TYPE, ConfigMgr.UMOUNT_TYPE_REVERSE
+                )
 
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.UMOUNT_TYPE_REVERSE
@@ -74563,9 +74754,9 @@ typedef struct {
                 return UtilMgr.getFlagString(value, ConfigMgr.FAN_EVENT_TYPE)
         elif syscall == "ioctl":
             if argname == "cmd":
-                if not ConfigMgr.IOCTL_TYPE_REVERSE:
-                    for name, value in ConfigMgr.IOCTL_TYPE.items():
-                        ConfigMgr.IOCTL_TYPE_REVERSE[value] = name
+                UtilMgr.makeReverseDict(
+                    ConfigMgr.IOCTL_TYPE, ConfigMgr.IOCTL_TYPE_REVERSE
+                )
 
                 try:
                     return ConfigMgr.IOCTL_TYPE_REVERSE[long(value)]
@@ -116902,9 +117093,14 @@ class TaskAnalyzer(object):
                 or isGpuMem
                 or isGpuMemSum
             ):
-                if idx in self.gpuMemData:
+                if SysMgr.processEnable:
+                    tid = idx
+                else:
+                    tid = value["mainID"]
+
+                if tid in self.gpuMemData:
                     yld = convColor(
-                        self.gpuMemData[idx]["size"] >> memFactorMB, "CYAN", 5
+                        self.gpuMemData[tid]["size"] >> memFactorMB, "CYAN", 5
                     )
                 else:
                     yld = "-"
