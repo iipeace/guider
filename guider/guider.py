@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221125"
+__revision__ = "221127"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -36787,6 +36787,7 @@ Examples:
 
     - {2:1} specific local address
         # {0:1} {1:1} -x 127.0.0.1:5556
+        # {0:1} {1:1} -x 0 -q PUBLICIP
 
     - Run file server and register to the agent as a service node
         # {0:1} {1:1} -X 127.0.0.1:3456
@@ -43806,6 +43807,11 @@ Copyright:
             elif option == "x":
                 SysMgr.checkOptVal(option, value)
                 service, ip, port = NetworkMgr.parseAddr(value)
+
+                # check public IP #
+                if "PUBLICIP" in SysMgr.environList:
+                    ip = NetworkMgr.getPublicIp()
+
                 ret = NetworkMgr.setServerNetwork(ip, port, verb=True)
                 if not ret:
                     sys.exit(-1)
@@ -48061,7 +48067,7 @@ Copyright:
                     cmd = "help"
 
                 # print command #
-                print("COMMAND: %s" % cmd)
+                print("COMMAND '%s' is executed..." % cmd)
 
                 # build full command #
                 cmd = " ".join(SysMgr.getExeCmd(SysMgr.pid)) + " " + cmd
@@ -118215,22 +118221,29 @@ class TaskAnalyzer(object):
         # set event name #
         name = "USER" if user else source
 
+        ocmd = cmd.split(":", 1)[0]
+
         # SAVE #
-        if cmd == "SAVE" or cmd.startswith("SAVE:"):
+        if ocmd == "SAVE":
             ret = self.handleSaveCmd(cmd, name)
             if not ret:
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
             return ret
         # SAVERAW #
-        elif cmd == "SAVERAW" or cmd.startswith("SAVERAW:"):
+        elif ocmd == "SAVERAW":
             ret = self.handleSaveCmd(cmd, name, raw=True)
             if not ret:
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
             return ret
         # UPDATE #
-        elif cmd.startswith("UPDATE:"):
+        elif ocmd == "UPDATE":
+            # check command #
+            if cmd == ocmd:
+                SysMgr.printErr("no update path for '%s' command" % cmd)
+                return None
+
             # get threshold data #
             value = None
             path = UtilMgr.lstrip(cmd, "UPDATE:")
@@ -118269,7 +118282,12 @@ class TaskAnalyzer(object):
                 UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True)
             )
         # FILTER #
-        elif cmd.startswith("FILTER:"):
+        elif ocmd == "FILTER":
+            # check command #
+            if cmd == ocmd:
+                SysMgr.printErr("no filter keyword for '%s' command" % cmd)
+                return None
+
             value = UtilMgr.lstrip(cmd, "FILTER:").strip()
             if value:
                 value = UtilMgr.cleanItem(value.split("|"))
@@ -118287,7 +118305,12 @@ class TaskAnalyzer(object):
                 % (value, cmd, name)
             )
         # NOTIFY #
-        elif cmd.startswith("NOTIFY:"):
+        elif ocmd == "NOTIFY":
+            # check command #
+            if cmd == ocmd:
+                SysMgr.printErr("no notify event for '%s' command" % cmd)
+                return None
+
             value = UtilMgr.lstrip(cmd, "NOTIFY:").strip()
             if not value:
                 SysMgr.printErr("failed to handle notify event '%s'" % cmd)
@@ -118363,8 +118386,13 @@ class TaskAnalyzer(object):
             if eventList:
                 self.handleThresholdEvents()
         # ENABLE / DISABLE #
-        elif cmd.startswith("ENABLE:") or cmd.startswith("DISABLE:"):
-            if cmd.startswith("ENABLE:"):
+        elif ocmd in ("ENABLE", "DISABLE"):
+            # check command #
+            if cmd == ocmd:
+                SysMgr.printErr("no resource name for '%s' command" % cmd)
+                return None
+
+            if ocmd == "ENABLE":
                 act = "enable"
                 value = True
                 res = UtilMgr.lstrip(cmd, "ENABLE:")
@@ -118413,7 +118441,7 @@ class TaskAnalyzer(object):
                 % (act, res, cmd, name)
             )
         # CLEAR #
-        elif cmd.startswith("CLEAR"):
+        elif cmd == "CLEAR":
             # clear buffer #
             SysMgr.clearProcBuffer()
 
@@ -118426,7 +118454,12 @@ class TaskAnalyzer(object):
                 % (cmd, name)
             )
         # BUFFER #
-        elif cmd.startswith("BUFFER:"):
+        elif ocmd == "BUFFER":
+            # check command #
+            if cmd == ocmd:
+                SysMgr.printErr("no buffer size for '%s' command" % cmd)
+                return None
+
             # get buffer size #
             size = UtilMgr.lstrip(cmd, "BUFFER:")
 
@@ -118448,10 +118481,10 @@ class TaskAnalyzer(object):
                 % (UtilMgr.convSize2Unit(size), cmd, name)
             )
         # INTERVAL #
-        elif cmd.startswith("INTERVAL:"):
+        elif ocmd == "INTERVAL":
             # get interval #
             interval = UtilMgr.lstrip(cmd, "INTERVAL:")
-            if not interval:
+            if ocmd == cmd or not interval:
                 interval = 1
             elif interval.startswith("_"):
                 interval = interval[1:]
@@ -118476,7 +118509,7 @@ class TaskAnalyzer(object):
                 % (UtilMgr.convNum(interval), cmd, name)
             )
         # RELOAD #
-        elif cmd.startswith("RELOAD"):
+        elif ocmd == "RELOAD":
             # print message #
             SysMgr.printInfo("start reloading threshold config")
 
@@ -118513,7 +118546,7 @@ class TaskAnalyzer(object):
             # reload threshold config #
             SysMgr.applyThreshold()
         # PAUSE #
-        elif cmd.startswith("PAUSE"):
+        elif cmd == "PAUSE":
             # clear buffer #
             SysMgr.clearPrint()
             SysMgr.clearProcBuffer()
@@ -118538,7 +118571,7 @@ class TaskAnalyzer(object):
                 time.sleep(1)
                 self.checkServer()
         # STOP #
-        elif cmd.startswith("STOP"):
+        elif cmd == "STOP":
             # print message #
             SysMgr.printInfo("stop the threshold monitoring")
 
@@ -118554,7 +118587,9 @@ class TaskAnalyzer(object):
             SysMgr.thresholdEventList = {}
             SysMgr.thresholdEventHistory = {}
         else:
-            SysMgr.printWarn("no support '%s' command" % cmd, True)
+            SysMgr.printWarn(
+                "no support '%s' as an embedded command" % cmd, True
+            )
             return None
 
         return True
@@ -118796,9 +118831,17 @@ class TaskAnalyzer(object):
         if SysMgr.isLinux:
             # convert timer #
             try:
+                # no time #
+                if target == cmd:
+                    timeunit = 0
+                    raise Exception("no time")
+
                 timeunit = UtilMgr.lstrip(cmd, "%s:" % target)
+
+                # no time #
                 if not timeunit:
                     raise Exception("no time")
+
                 sec = UtilMgr.convUnit2Time(timeunit)
             except SystemExit:
                 sys.exit(0)
@@ -118857,13 +118900,13 @@ class TaskAnalyzer(object):
                 continue
 
             for cmd in value["command"]:
-                # convert command to full command by name #
+                # extract full command by name in current context #
                 if (
                     "COMMAND" in SysMgr.thresholdData
                     and cmd in SysMgr.thresholdData["COMMAND"]
                 ):
                     cmd = SysMgr.thresholdData["COMMAND"][cmd]
-                # convert command to full command by name #
+                # extract full command by name in previous context #
                 elif (
                     "COMMAND" in SysMgr.prevThresholdData
                     and cmd in SysMgr.prevThresholdData["COMMAND"]
@@ -118910,7 +118953,7 @@ class TaskAnalyzer(object):
 
                 SysMgr.printInfo('executed "%s" by %s event' % (cmd, event))
 
-                # create a new process #
+                # create a new process to execute command #
                 ret = SysMgr.createCmdProcess(cmd)
                 if ret:
                     # register the event handling process #
