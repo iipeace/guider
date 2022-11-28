@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221127"
+__revision__ = "221128"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33032,11 +33032,14 @@ Examples:
     - {2:1} including BEGIN messages such like org.freedesktop.DBus.Hello
         # {0:1} {1:1} -a
 
-    - {2:1} including DBus interfaces
+    - {2:1} including D-Bus interfaces
         # {0:1} {1:1} -g dbus-daemon
 
-    - {2:1} for dbus-client process
-        # {0:1} {1:1} -g dbus-client
+    - {2:1} only for specific processes
+        # {0:1} {1:1} -g dbusExam
+
+    - {2:1} only for a new processes
+        # {0:1} {1:1} dbusExam
 
     - {2:1} including specific word
         # {0:1} {1:1} -c test
@@ -34492,8 +34495,11 @@ Examples:
     - {2:1} including specific word in real-time
         # {0:1} {1:1} -c test
 
-    - {2:1} with backtrace for a.out process in real-time
+    - {2:1} with backtrace only for specific processes in real-time
         # {0:1} {1:1} -g a.out -H
+
+    - {2:1} with backtrace only for a new process in real-time
+        # {0:1} {1:1} a.out -H
 
     - {2:1} for a specific session bus
         # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
@@ -47597,7 +47603,12 @@ Copyright:
 
     @staticmethod
     def createProcess(
-        cmd=None, isDaemon=False, mute=False, chPgid=False, chMid=False
+        cmd=None,
+        isDaemon=False,
+        mute=False,
+        chPgid=False,
+        chMid=False,
+        sleep=0,
     ):
 
         # flush print buffer before fork #
@@ -47673,6 +47684,10 @@ Copyright:
 
             # convert ~ to realpath #
             cmd[0] = os.path.expanduser(cmd[0])
+
+            # make a delay #
+            if sleep:
+                time.sleep(sleep)
 
             # execute #
             SysMgr.executeProcess(cmd, mute)
@@ -66497,6 +66512,15 @@ class DbusMgr(object):
                             )
                         )
 
+                    # handle terminated tasks #
+                    if (
+                        not pid in taskManager.procData
+                        and pid in taskManager.prevProcData
+                    ):
+                        taskManager.procData[pid] = taskManager.prevProcData[
+                            pid
+                        ]
+
                     # add D-Bus usage #
                     taskManager.procData[pid]["dbusList"] = dbusList
                     taskManager.procData[pid]["dbusCnt"] = dbusCnt
@@ -66674,7 +66698,12 @@ class DbusMgr(object):
                     # main thread #
                     else:
                         try:
-                            signal.pause()
+                            # check tracers #
+                            while 1:
+                                if not SysMgr.getChildList():
+                                    SysMgr.printErr("no alive target task")
+                                    sys.exit(0)
+                                time.sleep(SysMgr.intervalEnable)
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -67280,25 +67309,35 @@ class DbusMgr(object):
         # check filter #
         taskList = []
         ret = SysMgr.selectTaskId()
+        # selected processes #
         if ret:
             onlyDaemon = False
             if SysMgr.groupProcEnable:
                 taskList += SysMgr.getTids(ret, sibling=True)
             else:
                 taskList += _getDefaultTasks(ret)
-        elif not SysMgr.filterGroup:
+        # new or daemon processes #
+        elif not SysMgr.getOption("g"):
             if SysMgr.hasMainArg():
                 onlyDaemon = False
-                items = SysMgr.getMainArgs()
-                for val in items:
-                    if SysMgr.groupProcEnable:
-                        taskList += SysMgr.getTids(val, sibling=True)
-                    else:
-                        taskList += _getDefaultTasks(val)
+
+                # get command #
+                cmd = SysMgr.getMainArg()
+                execCmd = UtilMgr.parseCommand(cmd)
+
+                # execute command with a new process #
+                pid = SysMgr.createProcess(execCmd, mute=True)
+                if not pid:
+                    sys.exit(0)
+
+                # add TID to target list #
+                taskList += [str(pid)]
+            # daemon processes #
             else:
                 onlyDaemon = True
                 taskList += _getDefaultTasks("dbus-daemon")
                 taskList += _getDefaultTasks("dbus-broker")
+        # specific processes #
         else:
             onlyDaemon = False
             for val in SysMgr.filterGroup:
@@ -67534,12 +67573,13 @@ class DbusMgr(object):
 
                 # wait for parent to create all children #
                 if syncLock:
-                    lockf(  # pylint: disable=undefined-variable
-                        syncLock, LOCK_EX  # pylint: disable=undefined-variable
-                    )
-                    lockf(  # pylint: disable=undefined-variable
-                        syncLock, LOCK_UN  # pylint: disable=undefined-variable
-                    )
+                    for flag in (
+                        LOCK_EX,
+                        LOCK_UN,
+                    ):  # pylint: disable=undefined-variable
+                        lockf(
+                            syncLock, flag
+                        )  # pylint: disable=undefined-variable
 
                 # execute strace mode #
                 SysMgr.doTrace("syscall", tid=tid)
@@ -74824,13 +74864,22 @@ typedef struct {
                 return ret
 
         # convert iov #
-        if ref and argname == "vlen" and "vec" in argset:
-            vaddr = argset["vec"]
-            cnt = value
+        if ref and argname in ("vlen", "nr_segs"):
             try:
-                ret = self.readIoVec(vaddr, cnt)
-                if ret != argset["vec"]:
-                    self.changeArg("vec", ret)
+                # set vector name #
+                if argname == "vlen":
+                    avec = argset["vec"]
+                else:
+                    avec = argset["iov"]
+
+                if "ONLYADDR" in SysMgr.environList:
+                    baseAddr = True
+                else:
+                    baseAddr = False
+
+                vec = self.readIoVec(avec, value, baseAddr=baseAddr)
+                if vec != avec:
+                    self.changeArg("vec", str(vec))
                 return value
             except SystemExit:
                 sys.exit(0)
