@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221128"
+__revision__ = "221129"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30779,25 +30779,25 @@ Examples:
     - {3:1} {2:1} and {5:1} in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p
 
-    - {3:1} {2:1} and save the result composed only of raw data to ./guider.out in real-time until SIGINT arrives
+    - {3:1} {2:1} and save the result composed only of raw data to guider.out in real-time until SIGINT arrives
         # {0:1} {1:1} -o . -e p -q NOSUMMARY
 
-    - {3:1} {2:1} and save the result except for the interval summary to ./guider.out {4:1}
+    - {3:1} {2:1} and save the result except for the interval summary to guider.out {4:1}
         # {0:1} {1:1} -o . -q NOINTSUMMARY
 
     - {3:1} {2:1} only for 5 items
         # {0:1} {1:1} -R 5
 
-    - {3:1} {2:1} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
+    - {3:1} {2:1} and report the result collected every 3 seconds for total 5 minutes to guider.out
         # {0:1} {1:1} -R 3s:5m -o .
 
-    - {3:1} {2:1} and report the result collected every 3 seconds for 5 times to ./guider.out
+    - {3:1} {2:1} and report the result collected every 3 seconds for 5 times to guider.out
         # {0:1} {1:1} -R 3s:5 -o .
 
-    - {3:1} {2:1} and report the result collected every 10 seconds for 60 minutes to ./guider.out
+    - {3:1} {2:1} and report the result collected every 10 seconds for 60 minutes to guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
 
-    - {3:1} {2:1} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
+    - {3:1} {2:1} and report the result collected every 3 seconds for 5 minutes to guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
     - {3:1} {2:1} with memory(PSS)
@@ -30849,13 +30849,13 @@ Examples:
     - {3:1} {2:1} with elapsed times for each step
         # {0:1} {1:1} -q PRINTDELAY
 
-    - {3:1} {2:1} and report the results to both ./guider.out and console {4:1}
+    - {3:1} {2:1} and report the results to both guider.out and console {4:1}
         # {0:1} {1:1} -o . -Q
 
     - {3:1} {2:1} and print environment variables
         # {0:1} {1:1} -q PRINTENV
 
-    - {3:1} {2:1} and report the results to ./guider.out after freeing up space in the target directories {4:1}
+    - {3:1} {2:1} and report the results to guider.out after freeing up space in the target directories {4:1}
         # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G
 
     - {3:1} {2:1} and execute special commands
@@ -30902,7 +30902,7 @@ Examples:
                     target,
                     "Monitor the status of",
                     "when SIGINT arrives",
-                    "report the result to ./guider.out",
+                    "report the result to guider.out",
                 )
 
                 drawExamStr = """
@@ -31381,7 +31381,7 @@ Examples:
         # {0:1} {1:1} -g 1234 -c "printPeace*"
         # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
-    - {5:1} {7:1} and report the result to ./guider.out
+    - {5:1} {7:1} and report the result to guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o .
         # {0:1} {1:1} -g a.out -c printPeace -o . -q FORCESUMMARY
 
@@ -31778,40 +31778,40 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} for all threads to ./guider.dat
+    - {2:1} for all threads to guider.dat
         # {0:1} {1:1} -s .
 
-    - {2:1} including user-level call-stacks for all threads to ./guider.dat
+    - {2:1} including user-level call-stacks for all threads to guider.dat
         # {0:1} {1:1} -s .
 
-    - {2:1} for all threads to ./guider.dat for only 3 minutes
+    - {2:1} for all threads to guider.dat for only 3 minutes
         # {0:1} {1:1} -s . -R 3m
 
-    - {2:1} for all threads to ./guider.dat every 3 minutes continuously
+    - {2:1} for all threads to guider.dat every 3 minutes continuously
         # {0:1} {1:1} -s . -R 3m:1:1
 
-    - {2:1} for specific threads having TID bigger than 1024 to ./guider.dat in the background
+    - {2:1} for specific threads having TID bigger than 1024 to guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
 
-    - {2:1} including memory, block, heap for all threads to ./guider.dat
+    - {2:1} including memory, block, heap for all threads to guider.dat
         # {0:1} {1:1} -s . -e m, b, h
 
-    - {2:1} including all syscalls for all threads to ./guider.dat
+    - {2:1} including all syscalls for all threads to guider.dat
         # {0:1} {1:1} -s . -t
 
     - {2:1} for all threads and save recording commands to specific script file
         # {0:1} {1:1} -B guider.cmd
 
-    - {2:1} including softirq_entry event for all threads to ./guider.dat
+    - {2:1} including softirq_entry event for all threads to guider.dat
         # {0:1} {1:1} -s . -c "softirq_entry:vec==1"
 
-    - {2:1} including segmentation fault for all threads to ./guider.dat in real-time
+    - {2:1} including segmentation fault for all threads to guider.dat in real-time
         # {0:1} {1:1} -s . -d c -K "segflt:bad_area" -e p
 
-    - {2:1} including blocking for all threads to ./guider.dat
+    - {2:1} including blocking for all threads to guider.dat
         # {0:1} {1:1} -s . -d c -K "block:schedule"
 
-    - {2:1} for all threads to ./guider.dat and execute user commands
+    - {2:1} for all threads to guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - {3:1} for all threads and print the result
@@ -31822,23 +31822,23 @@ Examples:
     - {3:1} for all threads and print the result only for specific cores
         # {0:1} {1:1} -e g -O 1, 2
 
-    - {3:1} for all threads and report the result to ./guider.dat with the compression
+    - {3:1} for all threads and report the result to guider.dat with the compression
         # {0:1} {1:1} -e g -s .
 
-    - {3:1} for all threads and report the result to ./guider.dat without the compression
+    - {3:1} for all threads and report the result to guider.dat without the compression
         # {0:1} {1:1} -e g -s . -d C
 
-    - {3:1} for all threads and print the result to ./guider.out
+    - {3:1} for all threads and print the result to guider.out
         # {0:1} {1:1} -e g -o .
 
-    - {3:1} for specific threads to ./guider.out
+    - {3:1} for specific threads to guider.out
         # {0:1} {1:1} -e g -o . -g 1022, 1211
         # {0:1} {1:1} -e g -o . -g "thread*" -P
 
-    - Record specific kernel function calls for all threads to ./guider.out
+    - Record specific kernel function calls for all threads to guider.out
         # {0:1} {1:1} -e g -o . -c "mutex_*"
 
-    - {3:1} that took at least 100 us or longer for all threads to ./guider.out
+    - {3:1} that took at least 100 us or longer for all threads to guider.out
         # {0:1} {1:1} -e g -o . -q ELAPSED:100
 
     - report the results of analyzing the recorded data
@@ -31886,7 +31886,7 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} of on-memory files for all processes to ./guider.out
+    - {2:1} of on-memory files for all processes to guider.out
         # {0:1} {1:1} -o . -a
 
     - {2:1} of on-memory files for specific threads
@@ -31901,10 +31901,10 @@ Examples:
     - {2:1} of specific on-memory files from specific directories recursively
         # {0:1} {1:1} -c "/usr/share" -r
 
-    - {2:1} on each intervals of on-memory files for all processes to ./guider.out
+    - {2:1} on each intervals of on-memory files for all processes to guider.out
         # {0:1} {1:1} -o . -i
 
-    - {2:1} of on-memory files for all processes to ./guider.out and make the readahead list to readahead.list
+    - {2:1} of on-memory files for all processes to guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
@@ -31946,46 +31946,46 @@ Options:
 
                     helpStr += """
 Examples:
-    - {3:1} based on ./guider.dat to ./guider.out
+    - {3:1} based on guider.dat to guider.out
         # {0:1} {1:1}
 
     - {3:1} based on trace.dat
         # {0:1} {1:1} trace.dat
 
-    - {3:1} based on ./guider.dat except for user-level call-stacks to ./guider.out
+    - {3:1} based on guider.dat except for user-level call-stacks to guider.out
         # {0:1} {1:1} -d u
 
-    - {3:1} based on ./guider.dat to ./guider.out and draw the flame graph
+    - {3:1} based on guider.dat to guider.out and draw the flame graph
         # {0:1} {1:1} -q DRAWFLAME
 
-    - Report all the analysis result {2:1} having TID 1234 or COMM including a.out to ./guider.out
+    - Report all the analysis result {2:1} having TID 1234 or COMM including a.out to guider.out
         # {0:1} {1:1} -o . -g "1234, a.out" -a
 
-    - {3:1} based on ./guider.dat to ./guider.out with sched block time
+    - {3:1} based on guider.dat to guider.out with sched block time
         # {0:1} {1:1} -d l
 
-    - {3:1} based on ./guider.dat to ./guider.out with higher time resolution
+    - {3:1} based on guider.dat to guider.out with higher time resolution
         # {0:1} {1:1} -q PRECISE
 
     - Convert the compressed recording data to the original one
-        # {0:1} {1:1} ./guider.dat -s .
+        # {0:1} {1:1} guider.dat -s .
 
-    - Report all the analysis result including interval information for all threads to ./guider.out
+    - Report all the analysis result including interval information for all threads to guider.out
         # {0:1} {1:1} -o . -a -i
 
-    - {3:1} including preemption info {2:1} to ./guider.out
+    - {3:1} including preemption info {2:1} to guider.out
         # {0:1} {1:1} -o . -p 1234, 4567
 
-    - {3:1} {2:1} to ./guider.out within specific interval range in second unit
+    - {3:1} {2:1} to guider.out within specific interval range in second unit
         # {0:1} {1:1} -o . -q TRIM:2:9
         # {0:1} {1:1} -o . -q TRIM::9
         # {0:1} {1:1} -o . -q TRIM:2:
 
-    - {3:1} {2:1} to ./guider.out after converting all target inodes to paths from specific directory
+    - {3:1} {2:1} to guider.out after converting all target inodes to paths from specific directory
         # {0:1} {1:1} -o . -q CONVINODE
         # {0:1} {1:1} -o . -q CONVINODE:/data
 
-    - {3:1} {2:1} to ./guider.out and make the readahead list to readahead.list
+    - {3:1} {2:1} to guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, CONVINODE:/data
@@ -31996,10 +31996,10 @@ Examples:
         # {0:1} {1:1} -o . -q RALIST, RADENYLIST:deny.list
         # {0:1} {1:1} -o . -q RALIST, RAADDLIST:add.list
 
-    - {3:1} {2:1} and their siblings to ./guider.out
+    - {3:1} {2:1} and their siblings to guider.out
         # {0:1} {1:1} -o . -P -g 1234, 4567 -a
 
-    - Report the function analysis result with maximum 3-depth {2:1} to ./guider.out
+    - Report the function analysis result with maximum 3-depth {2:1} to guider.out
         # {0:1} {1:1} -o . -g 1234 -H 3
                     """.format(
                         cmd,
@@ -32040,10 +32040,10 @@ Options:
 
                     helpStr += """
 Examples:
-    - Report the analysis result of system to ./guider.out
+    - Report the analysis result of system to guider.out
         # {0:1} {1:1} -o .
 
-    - Report the analysis result of system to ./guider.out for 3 seconds
+    - Report the analysis result of system to guider.out for 3 seconds
         # {0:1} {1:1} -o . -R 3s
                     """.format(
                         cmd, mode
@@ -32147,51 +32147,51 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} of all threads to ./guider.dat
+    - {2:1} of all threads to guider.dat
         # {0:1} {1:1} -s .
 
-    - {2:1} of specific threads that having TID bigger than 1234 to ./guider.dat
+    - {2:1} of specific threads that having TID bigger than 1234 to guider.dat
         # {0:1} {1:1} -s . -g ">1234"
 
     - {2:1} of all threads and their commands
         # {0:1} {1:1} -s . -B
 
-    - {2:1} of all threads to ./guider.dat for only 3 seconds
+    - {2:1} of all threads to guider.dat for only 3 seconds
         # {0:1} {1:1} -s . -R 3
 
-    - {2:1} of all threads to ./guider.dat every 3 seconds continuously
+    - {2:1} of all threads to guider.dat every 3 seconds continuously
         # {0:1} {1:1} -s . -R 3:1:1
 
-    - {2:1} of all threads to ./guider.dat with fastest initialization
+    - {2:1} of all threads to guider.dat with fastest initialization
         # {0:1} {1:1} -s . -q FASTINIT
 
-    - record specific events including memory, block, irq of all threads to ./guider.dat in the background
+    - record specific events including memory, block, irq of all threads to guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
 
-    - {2:1} including specific syscalls of all threads to ./guider.dat
+    - {2:1} including specific syscalls of all threads to guider.dat
         # {0:1} {1:1} -s . -t sys_read, write
         # {0:1} {1:1} -s . -t "write*", "*64"
 
-    - {2:1} including lock of all threads to ./guider.dat
+    - {2:1} including lock of all threads to guider.dat
         # {0:1} {1:1} -s . -e L
 
-    - {2:1} including specific user function of all threads to ./guider.dat
+    - {2:1} including specific user function of all threads to guider.dat
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
 
-    - {2:1} including specific kernel function of all threads to ./guider.dat
+    - {2:1} including specific kernel function of all threads to guider.dat
         # {0:1} {1:1} -s . -d c -K "evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16"
 
-    - {2:1} including specific kernel function with args of all threads on x86 to ./guider.dat
+    - {2:1} including specific kernel function with args of all threads on x86 to guider.dat
         # {0:1} {1:1} -s . -d c -K "open:do_sys_open:dfd=%ax filename=%bx;u64 flags=%cx;s32 mode=+4(\$stack):NONE"
 
-    - {2:1} including specific kernel function with register values of all threads on x86 to ./guider.dat
+    - {2:1} including specific kernel function with register values of all threads on x86 to guider.dat
         # {0:1} {1:1} -s . -d c -K "strace32:func1:%bp/u32.%sp/s64, strace:0x1234:\$stack:NONE"
 
-    - {2:1} including specific kernel function with the return value of all threads to ./guider.dat
+    - {2:1} including specific kernel function with the return value of all threads to guider.dat
         # {0:1} {1:1} -s . -d c -K "openfile:getname::*string, access:0x1234:NONE:*string"
         # {0:1} {1:1} -s . -d c -K "openfile:getname::**string, access:0x1234:NONE:*string"
 
-    - {2:1} of all threads to ./guider.dat and execute user commands
+    - {2:1} of all threads to guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - Report the results of analyzing the recorded data
@@ -32252,7 +32252,7 @@ Examples:
         # {0:1} {1:1} -a -e L
         # {0:1} {1:1} -a -e L -g apps
 
-    - Report analysis result of open files, sockets, pipes to ./guider.out
+    - Report analysis result of open files, sockets, pipes to guider.out
         # {0:1} {1:1} -o .
         # {0:1} {1:1} -a -o .
 
@@ -32389,7 +32389,7 @@ Examples:
     - Monitor only failed syscalls {3:1}
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - {2:1} and report the result to ./guider.out when SIGINT arrives
+    - {2:1} and report the result to guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
     - {2:1} with breakpoint for read syscalls {3:1}
@@ -32492,7 +32492,7 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
 
-    - {2:1} and report the result to ./guider.out when SIGINT arrives
+    - {2:1} and report the result to guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
 
     - {2:1} {3:1} {4:1}
@@ -32549,7 +32549,7 @@ Examples:
         # {0:1} {1:1} -g node -q JITSYM
         # {0:1} {1:1} -g java -q JITSYM
 
-    - {3:1} and report the result to ./guider.out when SIGINT arrives
+    - {3:1} and report the result to guider.out when SIGINT arrives
         # {0:1} {1:1} -o .
         # {0:1} {1:1} -o . -q FORCESUMMARY
 
@@ -32902,7 +32902,7 @@ Description:
 
                     examStr = """
 Examples:
-    - Collect system status to ./guider.out in the background
+    - Collect system status to guider.out in the background
         # {0:1} {1:1} -o .
 
     - Stop collecting processes in the background and let them report system analysis result
@@ -33424,7 +33424,7 @@ Examples:
     - {3:1} {5:1} and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
 
-    - {4:1} {5:1} and report the result to ./guider.out
+    - {4:1} {5:1} and report the result to guider.out
         # {0:1} {1:1} -g a.out -t read -o .
 
     - {3:1} with breakpoint for read {5:1}
@@ -33504,7 +33504,7 @@ Examples:
     - {2:1} with 1/10 instructions {3:1}
         # {0:1} {1:1} -g a.out -H 10
 
-    - {2:1} {3:1} and report the result to ./guider.out
+    - {2:1} {3:1} and report the result to guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
     - {2:1} with breakpoint for specific functions {3:1}
@@ -33579,7 +33579,7 @@ Examples:
     - {3:1} with 1/10 instructions {4:1}
         # {0:1} {1:1} -g iotop -H 10
 
-    - {3:1} {4:1} and report the result to ./guider.out
+    - {3:1} {4:1} and report the result to guider.out
         # {0:1} {1:1} -g iotop -o . -a
 
     - {3:1} with breakpoint for specific functions {4:1}
@@ -35371,11 +35371,11 @@ Options:
 Examples:
     - {3:1} {2:1} {6:1} {9:1}
         # {0:1} {1:1} ./a.out {7:1}
-        # {0:1} {1:1} ./a.out -o ./guider.out {7:1}
+        # {0:1} {1:1} ./a.out -o guider.out {7:1}
         # {0:1} {1:1} ./a.out {7:1} -q MUTE
 
     - {3:1} {2:1} {6:1} and waiting for SIGINT to start profiling
-        # {0:1} {1:1} ./a.out -o ./guider.out {7:1} -q WAITSIGNAL
+        # {0:1} {1:1} ./a.out -o guider.out {7:1} -q WAITSIGNAL
 
     - {3:1} {2:1} {6:1} after setting environment variables
         # {0:1} {1:1} ./a.out {7:1} -q ENV:TEST=1, ENV:PATH=/data
@@ -65324,6 +65324,28 @@ class DbusMgr(object):
         return msg, reply
 
     @staticmethod
+    def getMessageIterObj():
+        class DBusMessageIter(Structure):
+            _fields_ = (
+                ("dummy1", c_void_p),
+                ("dummy2", c_void_p),
+                ("dummy3", c_uint32),
+                ("dummy4", c_int),
+                ("dummy5", c_int),
+                ("dummy6", c_int),
+                ("dummy7", c_int),
+                ("dummy8", c_int),
+                ("dummy9", c_int),
+                ("dummy10", c_int),
+                ("dummy11", c_int),
+                ("pad1", c_int),
+                ("pad2", c_void_p),
+                ("pad3", c_void_p),
+            )
+
+        return DBusMessageIter()
+
+    @staticmethod
     def getStats(bus, request, des=None, tid=None, procStr=None):
         # pylint: disable=no-member
         def _printWarn(procStr, line, err):
@@ -65441,32 +65463,14 @@ class DbusMgr(object):
         perProcList = {}
         perSigList = {}
 
-        class DBusMessageIter(Structure):
-            _fields_ = (
-                ("dummy1", c_void_p),
-                ("dummy2", c_void_p),
-                ("dummy3", c_uint32),
-                ("dummy4", c_int),
-                ("dummy5", c_int),
-                ("dummy6", c_int),
-                ("dummy7", c_int),
-                ("dummy8", c_int),
-                ("dummy9", c_int),
-                ("dummy10", c_int),
-                ("dummy11", c_int),
-                ("pad1", c_int),
-                ("pad2", c_void_p),
-                ("pad3", c_void_p),
-            )
-
         # initialize message iterator #
-        rootIter = DBusMessageIter()
+        rootIter = DbusMgr.getMessageIterObj()
         rootIterP = byref(rootIter)
-        arrayIter = DBusMessageIter()
+        arrayIter = DbusMgr.getMessageIterObj()
         arrayIterP = byref(arrayIter)
-        dictIter = DBusMessageIter()
+        dictIter = DbusMgr.getMessageIterObj()
         dictIterP = byref(dictIter)
-        arraySigIter = DBusMessageIter()
+        arraySigIter = DbusMgr.getMessageIterObj()
         arraySigIterP = byref(arraySigIter)
 
         procInfo = c_char_p("".encode())
@@ -65504,7 +65508,7 @@ class DbusMgr(object):
             uint32 = c_char("u".encode())
             DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
 
-            varIter = DBusMessageIter()
+            varIter = DbusMgr.getMessageIterObj()
             varIterP = byref(varIter)
 
             name = c_char_p("".encode())
@@ -65724,6 +65728,227 @@ class DbusMgr(object):
         # dbusObj.dbus_connection_unref(conn)
 
         return perProcList, perSigList
+
+    @staticmethod
+    def getAllInfo(bus, des, path):
+        # pylint: disable=no-member
+        def _printWarn(des, line, err):
+            SysMgr.printWarn(
+                ("failed to parse D-Bus message for %s at %s " "because %s")
+                % (des, line, err),
+                True,
+            )
+
+        if not all([bus, des, path]):
+            return
+
+        dbusObj = SysMgr.libdbusObj
+        getLine = SysMgr.getLine
+        getErr = DbusMgr.getErrInfo
+
+        # get connection #
+        conn = DbusMgr.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        iface = "org.freedesktop.DBus.Properties"
+        method = "GetAll"
+        timeout = c_int(100)
+
+        msg = dbusObj.dbus_message_new_method_call(
+            des.encode(), path.encode(), iface.encode(), method.encode()
+        )
+        if not msg:
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("failed to create a D-Bus message")
+            return
+
+        # prepare args #
+        char = c_char("s".encode())
+        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        null = c_char("\0".encode())
+        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+        array = c_char("a".encode())
+        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
+        dicte = c_char("e".encode())
+        DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
+        variant = c_char("v".encode())
+        DBUS_TYPE_VARIANT = cast(byref(variant), POINTER(c_int)).contents
+        uint64 = c_char("t".encode())
+        DBUS_TYPE_UINT64 = cast(byref(uint64), POINTER(c_int)).contents
+        uint32 = c_char("u".encode())
+        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
+        boolean = c_char("b".encode())
+        DBUS_TYPE_BOOLEAN = cast(byref(boolean), POINTER(c_int)).contents
+        double = c_char("d".encode())
+        DBUS_TYPE_DOUBLE = cast(byref(double), POINTER(c_int)).contents
+
+        # append args #
+        item = c_char_p("".encode())
+        res = dbusObj.dbus_message_append_args(
+            msg, DBUS_TYPE_STRING, byref(item), DBUS_TYPE_INVALID
+        )
+        if not res:
+            dbusObj.dbus_message_unref(msg)
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("failed to append D-Bus message args")
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(
+            conn, msg, timeout, DbusMgr.getErrP()
+        )
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn(
+                "failed to call a D-Bus remote method because %s at %s"
+                % (DbusMgr.getErrInfo(), SysMgr.getLine())
+            )
+            return
+
+        # parse args #
+        cntRes = c_int(0)
+        arrayRes = (POINTER(c_char_p))()
+        name = c_char_p("".encode())
+        value = c_char_p("".encode())
+        statList = {}
+
+        # initialize message iterator #
+        rootIter = DbusMgr.getMessageIterObj()
+        rootIterP = byref(rootIter)
+        arrayIter = DbusMgr.getMessageIterObj()
+        arrayIterP = byref(arrayIter)
+        dictIter = DbusMgr.getMessageIterObj()
+        dictIterP = byref(dictIter)
+        varIter = DbusMgr.getMessageIterObj()
+        varIterP = byref(varIter)
+
+        # initialize iteration #
+        ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
+        if not ret:
+            _printWarn(des, getLine(), getErr())
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            return
+
+        ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
+        if ret != DBUS_TYPE_ARRAY.value:
+            _printWarn(des, getLine(), getErr())
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            return
+
+        # get item count #
+        # cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+        dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
+
+        # array item loop #
+        while 1:
+            ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
+            if ret != DBUS_TYPE_DICT_ENTRY.value:
+                _printWarn(des, getLine(), getErr())
+                dbusObj.dbus_message_unref(msg)
+                dbusObj.dbus_message_unref(reply)
+                # dbusObj.dbus_connection_unref(conn)
+                return statList
+
+            dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
+
+            # dictionary item loop #
+            while 1:
+                ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
+                if ret != DBUS_TYPE_STRING.value:
+                    _printWarn(des, getLine(), getErr())
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    # dbusObj.dbus_connection_unref(conn)
+                    return statList
+
+                # get name #
+                dbusObj.dbus_message_iter_get_basic(dictIterP, byref(name))
+                if not name.value:
+                    return statList
+
+                # decode name #
+                sname = name.value.decode()
+
+                # next stat value #
+                if not dbusObj.dbus_message_iter_next(dictIterP):
+                    break
+
+                # get stat values as a variant-type value #
+                ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
+                if ret != DBUS_TYPE_VARIANT.value:
+                    _printWarn(des, getLine(), getErr())
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    # dbusObj.dbus_connection_unref(conn)
+                    break
+
+                # parse variant #
+                dbusObj.dbus_message_iter_recurse(dictIterP, varIterP)
+
+                # variant item loop #
+                while 1:
+                    ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
+
+                    # check type #
+                    if not ret in (
+                        DBUS_TYPE_STRING.value,
+                        DBUS_TYPE_UINT64.value,
+                        DBUS_TYPE_UINT32.value,
+                        DBUS_TYPE_BOOLEAN.value,
+                        DBUS_TYPE_DOUBLE.value,
+                    ):
+                        _printWarn(
+                            des, getLine(), "no support arg type (%s)" % ret
+                        )
+                        if not dbusObj.dbus_message_iter_next(varIterP):
+                            break
+                        else:
+                            continue
+
+                    # get value #
+                    dbusObj.dbus_message_iter_get_basic(varIterP, byref(value))
+                    if ret == DBUS_TYPE_STRING.value:
+                        if value.value:
+                            statList[sname] = value.value.decode()
+                        else:
+                            statList[sname] = ""
+                    else:
+                        if ret == DBUS_TYPE_UINT32.value:
+                            ctype = c_uint32
+                        elif ret == DBUS_TYPE_UINT64.value:
+                            ctype = c_uint64
+                        elif ret == DBUS_TYPE_BOOLEAN.value:
+                            ctype = c_bool
+                        elif ret == DBUS_TYPE_DOUBLE.value:
+                            ctype = c_double
+                        else:
+                            ctype = None
+
+                        if ctype:
+                            statList[sname] = cast(
+                                byref(value), POINTER(ctype)
+                            ).contents.value
+
+                    # next value #
+                    if not dbusObj.dbus_message_iter_next(varIterP):
+                        break
+
+                # next stat #
+                if not dbusObj.dbus_message_iter_next(dictIterP):
+                    break
+
+            # next item #
+            if not dbusObj.dbus_message_iter_next(arrayIterP):
+                break
+
+        return statList
 
     @staticmethod
     def getServiceProc(bus, service):
@@ -66413,6 +66638,8 @@ class DbusMgr(object):
 
     @staticmethod
     def runDbusSnooper(mode="top"):
+        # pylint: disable=undefined-variable
+
         def _updateTaskInfo(dbusData, sentData, recvData):
             try:
                 taskManager.saveSystemStat()
@@ -67527,8 +67754,13 @@ class DbusMgr(object):
                 continue
             # printstat #
             elif mode == "printstat":
-                ret = DbusMgr.getStats(bus, "stats", procStr=procStr)
+                ret = DbusMgr.getStats(bus, "stats")
                 DbusMgr.printStatInfo(tid, ret)
+                continue
+            # printall #
+            elif mode == "printall":
+                # TODO: utilize this function #
+                ret = DbusMgr.getAllInfo(bus, "des", "path")
                 continue
 
             # create a new process #
@@ -67573,13 +67805,8 @@ class DbusMgr(object):
 
                 # wait for parent to create all children #
                 if syncLock:
-                    for flag in (
-                        LOCK_EX,
-                        LOCK_UN,
-                    ):  # pylint: disable=undefined-variable
-                        lockf(
-                            syncLock, flag
-                        )  # pylint: disable=undefined-variable
+                    for flag in (LOCK_EX, LOCK_UN):
+                        lockf(syncLock, flag)
 
                 # execute strace mode #
                 SysMgr.doTrace("syscall", tid=tid)
