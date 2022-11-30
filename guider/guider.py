@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221129"
+__revision__ = "221130"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -65193,41 +65193,12 @@ class DbusMgr(object):
             return
 
         # prepare args #
-        array = c_char("a".encode())
-        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
-        dicte = c_char("e".encode())
-        DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
-        char = c_char("s".encode())
-        char2 = c_char("s".encode())
-        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
-        uint32 = c_char("u".encode())
-        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
-        null = c_char("\0".encode())
-        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+        d = DbusMgr.getTypeList()
         zero = c_uint32(0)
+        char = c_char("s".encode())
 
-        class DBusMessageIter(Structure):
-            _fields_ = (
-                ("dummy1", c_void_p),
-                ("dummy2", c_void_p),
-                ("dummy3", c_uint32),
-                ("dummy4", c_int),
-                ("dummy5", c_int),
-                ("dummy6", c_int),
-                ("dummy7", c_int),
-                ("dummy8", c_int),
-                ("dummy9", c_int),
-                ("dummy10", c_int),
-                ("dummy11", c_int),
-                ("pad1", c_int),
-                ("pad2", c_void_p),
-                ("pad3", c_void_p),
-            )
-
-        msgIter = DBusMessageIter()
-        msgIterP = byref(msgIter)
-        arrayIter = DBusMessageIter()
-        arrayIterP = byref(arrayIter)
+        msgIterP = byref(DbusMgr.getMessageIterObj())
+        arrayIterP = byref(DbusMgr.getMessageIterObj())
 
         # initialize iteration #
         ret = dbusObj.dbus_message_iter_init_append(msg, msgIterP)
@@ -65239,7 +65210,7 @@ class DbusMgr(object):
 
         # append container #
         ret = dbusObj.dbus_message_iter_open_container(
-            msgIterP, DBUS_TYPE_ARRAY, byref(char2), arrayIterP
+            msgIterP, d["DBUS_TYPE_ARRAY"], byref(char), arrayIterP
         )
         if not ret:
             SysMgr.printWarn("failed to initialize D-Bus message container")
@@ -65250,7 +65221,7 @@ class DbusMgr(object):
         """
         # append filter #
         ret = dbusObj.dbus_message_iter_append_basic(
-            arrayIterP, DBUS_TYPE_STRING, byref(char))
+            arrayIterP, d["DBUS_TYPE_STRING"], byref(char))
         if not ret:
             SysMgr.printWarn("failed to initialize D-Bus message iteration")
             dbusObj.dbus_message_unref(msg)
@@ -65268,7 +65239,7 @@ class DbusMgr(object):
 
         # append zero to container #
         ret = dbusObj.dbus_message_iter_append_basic(
-            msgIterP, DBUS_TYPE_UINT32, pointer(zero)
+            msgIterP, d["DBUS_TYPE_UINT32"], pointer(zero)
         )
         if not ret:
             SysMgr.printWarn("failed to initialize D-Bus message iteration")
@@ -65408,16 +65379,7 @@ class DbusMgr(object):
 
         # prepare args #
         # refer to https://dbus.freedesktop.org/doc/api/html/group__DBusProtocol.html #
-        array = c_char("a".encode())
-        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
-        dicte = c_char("e".encode())
-        DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
-        char = c_char("s".encode())
-        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
-        uint32 = c_char("u".encode())
-        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
-        null = c_char("\0".encode())
-        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+        d = DbusMgr.getTypeList()
 
         # introspect #
         if request == "introspect":
@@ -65425,9 +65387,9 @@ class DbusMgr(object):
             res = dbusObj.dbus_message_get_args(
                 reply,
                 DbusMgr.getErrP(),
-                DBUS_TYPE_STRING,
+                d["DBUS_TYPE_STRING"],
                 byref(strRes),
-                DBUS_TYPE_INVALID,
+                d["DBUS_TYPE_INVALID"],
             )
             if not res:
                 dbusObj.dbus_message_unref(msg)
@@ -65441,9 +65403,9 @@ class DbusMgr(object):
             res = dbusObj.dbus_message_get_args(
                 reply,
                 DbusMgr.getErrP(),
-                DBUS_TYPE_STRING,
+                d["DBUS_TYPE_STRING"],
                 byref(strRes),
-                DBUS_TYPE_INVALID,
+                d["DBUS_TYPE_INVALID"],
             )
             if not res:
                 _printWarn(procStr, getLine(), getErr())
@@ -65464,14 +65426,10 @@ class DbusMgr(object):
         perSigList = {}
 
         # initialize message iterator #
-        rootIter = DbusMgr.getMessageIterObj()
-        rootIterP = byref(rootIter)
-        arrayIter = DbusMgr.getMessageIterObj()
-        arrayIterP = byref(arrayIter)
-        dictIter = DbusMgr.getMessageIterObj()
-        dictIterP = byref(dictIter)
-        arraySigIter = DbusMgr.getMessageIterObj()
-        arraySigIterP = byref(arraySigIter)
+        rootIterP = byref(DbusMgr.getMessageIterObj())
+        arrayIterP = byref(DbusMgr.getMessageIterObj())
+        dictIterP = byref(DbusMgr.getMessageIterObj())
+        arraySigIterP = byref(DbusMgr.getMessageIterObj())
 
         procInfo = c_char_p("".encode())
         sigInfo = c_char_p("".encode())
@@ -65486,7 +65444,7 @@ class DbusMgr(object):
             return
 
         ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
-        if ret != DBUS_TYPE_ARRAY.value:
+        if ret != d["DBUS_TYPE_ARRAY"]:
             _printWarn(procStr, getLine(), getErr())
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
@@ -65495,6 +65453,8 @@ class DbusMgr(object):
 
         # get item count #
         # cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+
+        # get root #
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
         # stats #
@@ -65503,13 +65463,7 @@ class DbusMgr(object):
                 "start collecting stats for %s bus for %s" % (bus, procStr)
             )
 
-            variant = c_char("v".encode())
-            DBUS_TYPE_VARIANT = cast(byref(variant), POINTER(c_int)).contents
-            uint32 = c_char("u".encode())
-            DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
-
-            varIter = DbusMgr.getMessageIterObj()
-            varIterP = byref(varIter)
+            varIterP = byref(DbusMgr.getMessageIterObj())
 
             name = c_char_p("".encode())
             value = c_uint32(0)
@@ -65518,7 +65472,7 @@ class DbusMgr(object):
             # array item loop #
             while 1:
                 ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
-                if ret != DBUS_TYPE_DICT_ENTRY.value:
+                if ret != d["DBUS_TYPE_DICT_ENTRY"]:
                     _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
@@ -65530,7 +65484,7 @@ class DbusMgr(object):
                 # dictionary item loop #
                 while 1:
                     ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
-                    if ret != DBUS_TYPE_STRING.value:
+                    if ret != d["DBUS_TYPE_STRING"]:
                         _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
@@ -65554,7 +65508,7 @@ class DbusMgr(object):
 
                     # get stat values as a variant-type value #
                     ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
-                    if ret != DBUS_TYPE_VARIANT.value:
+                    if ret != d["DBUS_TYPE_VARIANT"]:
                         _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
@@ -65567,7 +65521,7 @@ class DbusMgr(object):
                     # variant item loop #
                     while 1:
                         ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
-                        if ret != DBUS_TYPE_UINT32.value:
+                        if ret != d["DBUS_TYPE_UINT32"]:
                             _printWarn(procStr, getLine(), getErr())
                             dbusObj.dbus_message_unref(msg)
                             dbusObj.dbus_message_unref(reply)
@@ -65603,7 +65557,7 @@ class DbusMgr(object):
         # array item loop #
         while 1:
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
-            if ret != DBUS_TYPE_DICT_ENTRY.value:
+            if ret != d["DBUS_TYPE_DICT_ENTRY"]:
                 _printWarn(procStr, getLine(), getErr())
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
@@ -65615,7 +65569,7 @@ class DbusMgr(object):
             # dictionary item loop #
             while 1:
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
-                if ret != DBUS_TYPE_STRING.value:
+                if ret != d["DBUS_TYPE_STRING"]:
                     _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
@@ -65635,7 +65589,7 @@ class DbusMgr(object):
                     break
 
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
-                if ret != DBUS_TYPE_ARRAY.value:
+                if ret != d["DBUS_TYPE_ARRAY"]:
                     _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
@@ -65658,7 +65612,7 @@ class DbusMgr(object):
 
                 while 1:
                     ret = dbusObj.dbus_message_iter_get_arg_type(arraySigIterP)
-                    if ret != DBUS_TYPE_STRING.value:
+                    if ret != d["DBUS_TYPE_STRING"]:
                         _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
@@ -65730,6 +65684,303 @@ class DbusMgr(object):
         return perProcList, perSigList
 
     @staticmethod
+    def getUnitAttr(bus, path, attr):
+        # pylint: disable=no-member
+
+        # check input #
+        if not all([bus, path, attr]):
+            return
+
+        dbusObj = SysMgr.libdbusObj
+
+        # get connection #
+        conn = DbusMgr.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        des = "org.freedesktop.systemd1"
+        unit = "org.freedesktop.systemd1.Unit"
+        iface = "org.freedesktop.DBus.Properties"
+        method = "Get"
+        timeout = c_int(100)
+
+        msg = dbusObj.dbus_message_new_method_call(
+            des.encode(), path.encode(), iface.encode(), method.encode()
+        )
+        if not msg:
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("failed to create a D-Bus message")
+            return
+
+        # prepare args #
+        d = DbusMgr.getTypeList()
+
+        # append args #
+        for item in (c_char_p(unit.encode()), c_char_p(attr.encode())):
+            res = dbusObj.dbus_message_append_args(
+                msg, d["DBUS_TYPE_STRING"], byref(item), d["DBUS_TYPE_INVALID"]
+            )
+            if not res:
+                dbusObj.dbus_message_unref(msg)
+                # dbusObj.dbus_connection_unref(conn)
+                SysMgr.printWarn("failed to append D-Bus message args")
+                return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(
+            conn, msg, timeout, DbusMgr.getErrP()
+        )
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn(
+                "failed to call a D-Bus remote method because %s at %s"
+                % (DbusMgr.getErrInfo(), SysMgr.getLine())
+            )
+            return
+
+        val = c_uint64(0)
+        rootIterP = byref(DbusMgr.getMessageIterObj())
+        arrayIterP = byref(DbusMgr.getMessageIterObj())
+        varIterP = byref(DbusMgr.getMessageIterObj())
+
+        # initialize iteration #
+        ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
+        if not ret:
+            SysMgr.printWarn(
+                "failed to parse D-Bus message args because %s"
+                % DbusMgr.getErrInfo()
+            )
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            return
+
+        # get root #
+        dbusObj.dbus_message_iter_recurse(rootIterP, varIterP)
+
+        # variant item loop #
+        ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
+        if ret != d["DBUS_TYPE_UINT64"]:
+            SysMgr.printWarn(
+                "failed to parse D-Bus message args because %s"
+                % DbusMgr.getErrInfo()
+            )
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            return
+
+        # get value #
+        dbusObj.dbus_message_iter_get_basic(varIterP, byref(val))
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        # dbusObj.dbus_connection_unref(conn)
+
+        if val is None:
+            return val
+        else:
+            return val.value
+
+    @staticmethod
+    def getUnitList(bus):
+        # pylint: disable=no-member
+        def _printWarn(line, err):
+            SysMgr.printWarn(
+                ("failed to parse D-Bus message at %s " "because %s")
+                % (line, err),
+                True,
+            )
+
+        # check input #
+        if not bus:
+            return
+
+        dbusObj = SysMgr.libdbusObj
+        getLine = SysMgr.getLine
+        getErr = DbusMgr.getErrInfo
+
+        # get connection #
+        conn = DbusMgr.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        des = "org.freedesktop.systemd1"
+        path = "/org/freedesktop/systemd1"
+        iface = "org.freedesktop.systemd1.Manager"
+        method = "ListUnits"
+        timeout = c_int(100)
+
+        msg = dbusObj.dbus_message_new_method_call(
+            des.encode(), path.encode(), iface.encode(), method.encode()
+        )
+        if not msg:
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("failed to create a D-Bus message")
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(
+            conn, msg, -1, DbusMgr.getErrP()
+        )
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn(
+                "failed to call a D-Bus remote method because %s at %s"
+                % (DbusMgr.getErrInfo(), SysMgr.getLine())
+            )
+            return
+
+        # get arg types #
+        d = DbusMgr.getTypeList()
+
+        # parse args #
+        cntRes = c_int(0)
+        arrayRes = (POINTER(c_char_p))()
+        name = c_char_p("".encode())
+        value = c_char_p("".encode())
+        statList = []
+
+        # initialize message iterator #
+        rootIterP = byref(DbusMgr.getMessageIterObj())
+        arrayIterP = byref(DbusMgr.getMessageIterObj())
+        structIterP = byref(DbusMgr.getMessageIterObj())
+        varIterP = byref(DbusMgr.getMessageIterObj())
+
+        # initialize iteration #
+        ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
+        if not ret:
+            _printWarn(getLine(), getErr())
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            return
+
+        ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
+        if ret != d["DBUS_TYPE_ARRAY"]:
+            _printWarn(getLine(), getErr())
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            return
+
+        # get item count #
+        # cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+
+        # get root #
+        dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
+
+        """
+        https://www.freedesktop.org/wiki/Software/systemd/dbus/
+
+		0) The primary unit name as string
+		1) The human readable description string
+		2) The load state (i.e. whether the unit file has been loaded successfully)
+		3) The active state (i.e. whether the unit is currently started or not)
+		4) The sub state (a more fine-grained version of the active state that is specific to the unit type, which the active state is not)
+		5) A unit that is being followed in its state by this unit, if there is any, otherwise the empty string.
+		6) The unit object path
+		7) If there is a job queued for the job unit the numeric job id, 0 otherwise
+		8) The job type as string
+		9) The job object path
+        """
+
+        # array item loop #
+        while 1:
+            ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
+            if ret != d["DBUS_TYPE_STRUCT"]:
+                _printWarn(getLine(), getErr())
+                dbusObj.dbus_message_unref(msg)
+                dbusObj.dbus_message_unref(reply)
+                # dbusObj.dbus_connection_unref(conn)
+                return statList
+
+            dbusObj.dbus_message_iter_recurse(arrayIterP, structIterP)
+
+            statList.append([])
+
+            # struct item loop #
+            while 1:
+                ret = dbusObj.dbus_message_iter_get_arg_type(structIterP)
+
+                if ret in (d["DBUS_TYPE_STRING"], d["DBUS_TYPE_OBJECT_PATH"]):
+                    dbusObj.dbus_message_iter_get_basic(
+                        structIterP, byref(name)
+                    )
+                    val = name.value.decode()
+                elif ret == d["DBUS_TYPE_UINT32"]:
+                    dbusObj.dbus_message_iter_get_basic(
+                        structIterP, byref(cntRes)
+                    )
+                    val = cntRes.value
+                else:
+                    _printWarn(getLine(), getErr())
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    # dbusObj.dbus_connection_unref(conn)
+                    return statList
+
+                # decode name #
+                statList[-1].append(val)
+
+                # next stat value #
+                if not dbusObj.dbus_message_iter_next(structIterP):
+                    break
+
+            # next item #
+            if not dbusObj.dbus_message_iter_next(arrayIterP):
+                break
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        # dbusObj.dbus_connection_unref(conn)
+
+        return statList
+
+    @staticmethod
+    def getTypeList():
+        array = c_char("a".encode())
+        boolean = c_char("b".encode())
+        byte = c_char("y".encode())
+        char = c_char("s".encode())
+        dicte = c_char("e".encode())
+        double = c_char("d".encode())
+        null = c_char("\0".encode())
+        objpath = c_char("o".encode())
+        struct = c_char("r".encode())
+        ufd = c_char("h".encode())
+        uint16 = c_char("q".encode())
+        uint32 = c_char("u".encode())
+        uint64 = c_char("t".encode())
+        variant = c_char("v".encode())
+
+        def _getVal(tname):
+            return cast(byref(tname), POINTER(c_int)).contents.value
+
+        return {
+            "DBUS_TYPE_ARRAY": _getVal(array),
+            "DBUS_TYPE_BOOLEAN": _getVal(boolean),
+            "DBUS_TYPE_BYTE": _getVal(byte),
+            "DBUS_TYPE_DICT_ENTRY": _getVal(dicte),
+            "DBUS_TYPE_DOUBLE": _getVal(double),
+            "DBUS_TYPE_INVALID": _getVal(null),
+            "DBUS_TYPE_OBJECT_PATH": _getVal(objpath),
+            "DBUS_TYPE_STRING": _getVal(char),
+            "DBUS_TYPE_STRUCT": _getVal(struct),
+            "DBUS_TYPE_UINT16": _getVal(uint16),
+            "DBUS_TYPE_UINT32": _getVal(uint32),
+            "DBUS_TYPE_UINT64": _getVal(uint64),
+            "DBUS_TYPE_UNIX_FD": _getVal(ufd),
+            "DBUS_TYPE_VARIANT": _getVal(variant),
+        }
+
+    @staticmethod
     def getAllInfo(bus, des, path):
         # pylint: disable=no-member
         def _printWarn(des, line, err):
@@ -65739,6 +65990,7 @@ class DbusMgr(object):
                 True,
             )
 
+        # check input #
         if not all([bus, des, path]):
             return
 
@@ -65765,29 +66017,12 @@ class DbusMgr(object):
             return
 
         # prepare args #
-        char = c_char("s".encode())
-        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
-        null = c_char("\0".encode())
-        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
-        array = c_char("a".encode())
-        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
-        dicte = c_char("e".encode())
-        DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
-        variant = c_char("v".encode())
-        DBUS_TYPE_VARIANT = cast(byref(variant), POINTER(c_int)).contents
-        uint64 = c_char("t".encode())
-        DBUS_TYPE_UINT64 = cast(byref(uint64), POINTER(c_int)).contents
-        uint32 = c_char("u".encode())
-        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
-        boolean = c_char("b".encode())
-        DBUS_TYPE_BOOLEAN = cast(byref(boolean), POINTER(c_int)).contents
-        double = c_char("d".encode())
-        DBUS_TYPE_DOUBLE = cast(byref(double), POINTER(c_int)).contents
+        d = DbusMgr.getTypeList()
 
         # append args #
         item = c_char_p("".encode())
         res = dbusObj.dbus_message_append_args(
-            msg, DBUS_TYPE_STRING, byref(item), DBUS_TYPE_INVALID
+            msg, d["DBUS_TYPE_STRING"], byref(item), d["DBUS_TYPE_INVALID"]
         )
         if not res:
             dbusObj.dbus_message_unref(msg)
@@ -65816,14 +66051,10 @@ class DbusMgr(object):
         statList = {}
 
         # initialize message iterator #
-        rootIter = DbusMgr.getMessageIterObj()
-        rootIterP = byref(rootIter)
-        arrayIter = DbusMgr.getMessageIterObj()
-        arrayIterP = byref(arrayIter)
-        dictIter = DbusMgr.getMessageIterObj()
-        dictIterP = byref(dictIter)
-        varIter = DbusMgr.getMessageIterObj()
-        varIterP = byref(varIter)
+        rootIterP = byref(DbusMgr.getMessageIterObj())
+        arrayIterP = byref(DbusMgr.getMessageIterObj())
+        dictIterP = byref(DbusMgr.getMessageIterObj())
+        varIterP = byref(DbusMgr.getMessageIterObj())
 
         # initialize iteration #
         ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
@@ -65835,7 +66066,7 @@ class DbusMgr(object):
             return
 
         ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
-        if ret != DBUS_TYPE_ARRAY.value:
+        if ret != d["DBUS_TYPE_ARRAY"]:
             _printWarn(des, getLine(), getErr())
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
@@ -65844,12 +66075,14 @@ class DbusMgr(object):
 
         # get item count #
         # cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+
+        # get root #
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
         # array item loop #
         while 1:
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
-            if ret != DBUS_TYPE_DICT_ENTRY.value:
+            if ret != d["DBUS_TYPE_DICT_ENTRY"]:
                 _printWarn(des, getLine(), getErr())
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
@@ -65861,7 +66094,7 @@ class DbusMgr(object):
             # dictionary item loop #
             while 1:
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
-                if ret != DBUS_TYPE_STRING.value:
+                if ret != d["DBUS_TYPE_STRING"]:
                     _printWarn(des, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
@@ -65882,7 +66115,7 @@ class DbusMgr(object):
 
                 # get stat values as a variant-type value #
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
-                if ret != DBUS_TYPE_VARIANT.value:
+                if ret != d["DBUS_TYPE_VARIANT"]:
                     _printWarn(des, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
@@ -65898,11 +66131,11 @@ class DbusMgr(object):
 
                     # check type #
                     if not ret in (
-                        DBUS_TYPE_STRING.value,
-                        DBUS_TYPE_UINT64.value,
-                        DBUS_TYPE_UINT32.value,
-                        DBUS_TYPE_BOOLEAN.value,
-                        DBUS_TYPE_DOUBLE.value,
+                        d["DBUS_TYPE_STRING"],
+                        d["DBUS_TYPE_UINT64"],
+                        d["DBUS_TYPE_UINT32"],
+                        d["DBUS_TYPE_BOOLEAN"],
+                        d["DBUS_TYPE_DOUBLE"],
                     ):
                         _printWarn(
                             des, getLine(), "no support arg type (%s)" % ret
@@ -65914,19 +66147,19 @@ class DbusMgr(object):
 
                     # get value #
                     dbusObj.dbus_message_iter_get_basic(varIterP, byref(value))
-                    if ret == DBUS_TYPE_STRING.value:
+                    if ret == d["DBUS_TYPE_STRING"]:
                         if value.value:
                             statList[sname] = value.value.decode()
                         else:
                             statList[sname] = ""
                     else:
-                        if ret == DBUS_TYPE_UINT32.value:
+                        if ret == d["DBUS_TYPE_UINT32"]:
                             ctype = c_uint32
-                        elif ret == DBUS_TYPE_UINT64.value:
+                        elif ret == d["DBUS_TYPE_UINT64"]:
                             ctype = c_uint64
-                        elif ret == DBUS_TYPE_BOOLEAN.value:
+                        elif ret == d["DBUS_TYPE_BOOLEAN"]:
                             ctype = c_bool
-                        elif ret == DBUS_TYPE_DOUBLE.value:
+                        elif ret == d["DBUS_TYPE_DOUBLE"]:
                             ctype = c_double
                         else:
                             ctype = None
@@ -65947,6 +66180,11 @@ class DbusMgr(object):
             # next item #
             if not dbusObj.dbus_message_iter_next(arrayIterP):
                 break
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        # dbusObj.dbus_connection_unref(conn)
 
         return statList
 
@@ -65975,15 +66213,12 @@ class DbusMgr(object):
             return
 
         # prepare args #
-        char = c_char("s".encode())
-        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
-        null = c_char("\0".encode())
-        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+        d = DbusMgr.getTypeList()
 
         # append args #
         item = c_char_p(service.encode())
         res = dbusObj.dbus_message_append_args(
-            msg, DBUS_TYPE_STRING, byref(item), DBUS_TYPE_INVALID
+            msg, d["DBUS_TYPE_STRING"], byref(item), d["DBUS_TYPE_INVALID"]
         )
         if not res:
             dbusObj.dbus_message_unref(msg)
@@ -66006,14 +66241,12 @@ class DbusMgr(object):
 
         # parse args #
         pid = c_uint32(0)
-        uint32 = c_char("u".encode())
-        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
         res = dbusObj.dbus_message_get_args(
             reply,
             DbusMgr.getErrP(),
-            DBUS_TYPE_UINT32,
+            d["DBUS_TYPE_UINT32"],
             byref(pid),
-            DBUS_TYPE_INVALID,
+            d["DBUS_TYPE_INVALID"],
         )
 
         # clean up #
@@ -66065,12 +66298,7 @@ class DbusMgr(object):
             return
 
         # prepare args #
-        array = c_char("a".encode())
-        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
-        char = c_char("s".encode())
-        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
-        null = c_char("\0".encode())
-        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+        d = DbusMgr.getTypeList()
 
         # parse args #
         cntRes = c_int(0)
@@ -66078,11 +66306,11 @@ class DbusMgr(object):
         res = dbusObj.dbus_message_get_args(
             reply,
             DbusMgr.getErrP(),
-            DBUS_TYPE_ARRAY,
-            DBUS_TYPE_STRING,
+            d["DBUS_TYPE_ARRAY"],
+            d["DBUS_TYPE_STRING"],
             byref(arrayRes),
             byref(cntRes),
-            DBUS_TYPE_INVALID,
+            d["DBUS_TYPE_INVALID"],
         )
         if not res:
             dbusObj.dbus_message_unref(msg)
