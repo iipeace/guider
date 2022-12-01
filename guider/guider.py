@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221130"
+__revision__ = "221201"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -51607,9 +51607,13 @@ Copyright:
                     elif chunkStart != 0:
                         chunkList.append([chunkStart, addr - chunkStart])
                         chunkStart = 0
-                if addr > 0 and chunkStart != 0:
-                    chunkList.append([chunkStart, addr - chunkStart])
-                    chunkStart = 0
+                # handle the last valid chunks #
+                if 0 < addr <= end and chunkStart != 0:
+                    if addr == chunkStart:
+                        csize = PAGESIZE
+                    else:
+                        csize = addr - chunkStart
+                    chunkList.append([chunkStart, csize])
 
                 for offset, length in chunkList:
                     # read segment #
@@ -59755,8 +59759,10 @@ Copyright:
                 for dev in dirnames[1]:
                     # I/O scheduler #
                     schedPath = os.path.join(blockDir, dev, "queue/scheduler")
+                    if not os.path.exists(schedPath):
+                        sched = None
+                        continue
                     schedList = SysMgr.readFile(schedPath).split()
-                    sched = None
                     for item in schedList:
                         if item.startswith("["):
                             sched = item.strip("[]")
@@ -59764,6 +59770,9 @@ Copyright:
 
                     # readahead size in KB #
                     raPath = os.path.join(blockDir, dev, "queue/read_ahead_kb")
+                    if not os.path.exists(raPath):
+                        ra = 0
+                        continue
                     ra = SysMgr.readFile(raPath)
                     if ra:
                         ra = UtilMgr.convSize2Unit(long(ra) << 10)
@@ -59772,12 +59781,18 @@ Copyright:
                     sizePath = os.path.join(
                         blockDir, dev, "queue/physical_block_size"
                     )
+                    if not os.path.exists(sizePath):
+                        size = 0
+                        continue
                     size = SysMgr.readFile(sizePath)
                     if size:
                         size = long(size)
 
                     # write cache #
                     wrPath = os.path.join(blockDir, dev, "queue/write_cache")
+                    if not os.path.exists(wrPath):
+                        wr = 0
+                        continue
                     wr = SysMgr.readFile(wrPath)
                     if wr:
                         wr = wr.split()
@@ -59788,20 +59803,32 @@ Copyright:
                     minSizePath = os.path.join(
                         blockDir, dev, "queue/minimum_io_size"
                     )
+                    if not os.path.exists(minSizePath):
+                        minSize = 0
+                        continue
                     minSize = SysMgr.readFile(minSizePath)
 
                     # optimal size for streaming I/O #
                     optSizePath = os.path.join(
                         blockDir, dev, "queue/optimal_io_size"
                     )
+                    if not os.path.exists(optSizePath):
+                        optSize = 0
+                        continue
                     optSize = SysMgr.readFile(optSizePath)
 
                     # rq_affinity #
                     afntPath = os.path.join(blockDir, dev, "queue/rq_affinity")
+                    if not os.path.exists(afntPath):
+                        afnt = 0
+                        continue
                     afnt = SysMgr.readFile(afntPath)
 
                     # io_poll #
                     pollPath = os.path.join(blockDir, dev, "queue/io_poll")
+                    if not os.path.exists(pollPath):
+                        poll = 0
+                        continue
                     poll = SysMgr.readFile(pollPath)
 
                     # save info #
@@ -61423,7 +61450,7 @@ Copyright:
         if not os.path.exists(dpath):
             return
 
-        SysMgr.infoBufferPrint("\n[KSM Info]")
+        SysMgr.infoBufferPrint("\n[KSM Info] (Path: /sys/kernel/mm/ksm)")
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint("{0:^40} | {1:^15}".format("Stat", "Value"))
         SysMgr.infoBufferPrint(twoLine)
@@ -74648,10 +74675,11 @@ typedef struct {
 
         if self.supportProcessVmRd:
             try:
-                # prepare process_vm_readv syscall #
-                process_vm_readv = SysMgr.libcObj.process_vm_readv
-
                 if not self.initPvr:
+                    if not hasattr(SysMgr.libcObj, "process_vm_readv"):
+                        self.supportProcessVmRd = False
+                        raise Exception("no suppport process_vm_readv")
+
                     SysMgr.libcObj.process_vm_readv.restype = c_size_t
                     SysMgr.libcObj.process_vm_readv.argtypes = [
                         c_int,
@@ -74662,6 +74690,9 @@ typedef struct {
                         c_ulong,
                     ]
                     self.initPvr = True
+
+                # prepare process_vm_readv syscall #
+                process_vm_readv = SysMgr.libcObj.process_vm_readv
 
                 # create params #
                 pid = self.pid
@@ -74710,7 +74741,7 @@ typedef struct {
                 if not hasattr(SysMgr.libcObj, "process_vm_readv"):
                     self.supportProcessVmRd = False
 
-        if onlyBulk:
+        if self.supportProcessVmRd and onlyBulk:
             return None
 
         # define return list #
@@ -106096,7 +106127,7 @@ class TaskAnalyzer(object):
 
         # get network info #
         try:
-            netinfo = " [%s/%s]" % (
+            netinfo = " (%s/%s)" % (
                 NetworkMgr.getHostName(),
                 NetworkMgr.getPublicIp(),
             )
@@ -106108,7 +106139,7 @@ class TaskAnalyzer(object):
         # print title #
         printFunc(
             (
-                "\n[%s Tree Info] [Uptime: %s]%s\n%s\n"
+                "\n[%s Tree Info] (Uptime: %s)%s\n%s\n"
                 "  %-24s %4s(%11s/%15s) <%s>\n%s"
             )
             % (
@@ -114354,7 +114385,21 @@ class TaskAnalyzer(object):
                     ) or SysMgr.barGraphEnable is False:
                         shortCoreStats += coreStat
                         coreFactor = long(maxCols / lenCoreStat)
-                        if (idx + 1) % coreFactor == 0:
+                        if (
+                            idx + 1
+                        ) % coreFactor == 0 or idx + 1 == SysMgr.nrCore:
+                            lenShortStats = len(
+                                UtilMgr.removeColor(shortCoreStats)
+                            )
+                            if lenShortStats < SysMgr.lineLength:
+                                shortCoreStats = (
+                                    shortCoreStats[:-1]
+                                    + (
+                                        " "
+                                        * (SysMgr.lineLength - lenShortStats)
+                                    )
+                                    + "| "
+                                )
                             SysMgr.addPrint(shortCoreStats[:-1] + "\n")
                             shortCoreStats = ""
 
@@ -116393,8 +116438,15 @@ class TaskAnalyzer(object):
                     long(now[k[0]]["status"][prmpt])
                     - long(prev[k[0]]["status"][prmpt])
                 )
-                if k[0] in prev
-                else 0,
+                if now[k[0]]["status"]
+                and k[0] in prev
+                and prev[k[0]]["status"]
+                else (
+                    long(now[k[0]]["status"][yld])
+                    + long(now[k[0]]["status"][prmpt])
+                    if now[k[0]]["status"]
+                    else 0
+                ),
                 reverse=True if reverse is None else reverse,
             )
         # dbus #
@@ -116896,6 +116948,10 @@ class TaskAnalyzer(object):
                     return False
 
             exceptFlag = False
+
+            # check fixed task list #
+            if idx in self.fixedProcData:
+                return False
 
             # check comm and ID #
             if not TaskAnalyzer.checkFilter(procData[idx]["comm"], idx):
