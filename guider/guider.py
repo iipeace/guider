@@ -65813,7 +65813,119 @@ class DbusMgr(object):
             return val.value
 
     @staticmethod
+    def getUnitByPID(bus, pid):
+        # pylint: disable=no-member
+
+        # check input #
+        if not all([bus, pid]):
+            return
+
+        dbusObj = SysMgr.libdbusObj
+
+        # get connection #
+        conn = DbusMgr.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        des = "org.freedesktop.systemd1"
+        path = "/org/freedesktop/systemd1"
+        iface = "org.freedesktop.systemd1.Manager"
+        method = "GetUnitByPID"
+        timeout = c_int(100)
+
+        msg = dbusObj.dbus_message_new_method_call(
+            des.encode(), path.encode(), iface.encode(), method.encode()
+        )
+        if not msg:
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("failed to create a D-Bus message")
+            return
+
+        # prepare args #
+        d = DbusMgr.getTypeList()
+        pid = c_uint32(pid)
+
+        # append args #
+        res = dbusObj.dbus_message_append_args(
+            msg, d["DBUS_TYPE_UINT32"], byref(pid), d["DBUS_TYPE_INVALID"]
+        )
+        if not res:
+            dbusObj.dbus_message_unref(msg)
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("failed to append D-Bus message args")
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(
+            conn, msg, timeout, DbusMgr.getErrP()
+        )
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            # dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn(
+                "failed to call a D-Bus remote method because %s at %s"
+                % (DbusMgr.getErrInfo(), SysMgr.getLine())
+            )
+            return
+
+        unit = c_char_p("".encode())
+        res = dbusObj.dbus_message_get_args(
+            reply,
+            DbusMgr.getErrP(),
+            d["DBUS_TYPE_OBJECT_PATH"],
+            byref(unit),
+            d["DBUS_TYPE_INVALID"],
+        )
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        # dbusObj.dbus_connection_unref(conn)
+
+        if not res:
+            SysMgr.printWarn(
+                "failed to parse D-Bus message args because %s"
+                % DbusMgr.getErrInfo()
+            )
+            return
+
+        return unit.value.decode()
+
+    @staticmethod
+    def getJobList(bus):
+        """
+        https://www.freedesktop.org/wiki/Software/systemd/dbus/
+
+        0) The numeric job id
+        1) The primary unit name for this job
+        2) The job type as string
+        3) The job state as string
+        4) The job object path
+        5) The unit object path
+        """
+        return DbusMgr.getList(bus, "ListJobs")
+
+    @staticmethod
     def getUnitList(bus):
+        """
+        https://www.freedesktop.org/wiki/Software/systemd/dbus/
+
+        0) The primary unit name as string
+        1) The human readable description string
+        2) The load state (i.e. whether the unit file has been loaded successfully)
+        3) The active state (i.e. whether the unit is currently started or not)
+        4) The sub state (a more fine-grained version of the active state that is specific to the unit type, which the active state is not)
+        5) A unit that is being followed in its state by this unit, if there is any, otherwise the empty string.
+        6) The unit object path
+        7) If there is a job queued for the job unit the numeric job id, 0 otherwise
+        8) The job type as string
+        9) The job object path
+        """
+        return DbusMgr.getList(bus, "ListUnits")
+
+    @staticmethod
+    def getList(bus, method):
         # pylint: disable=no-member
         def _printWarn(line, err):
             SysMgr.printWarn(
@@ -65823,7 +65935,7 @@ class DbusMgr(object):
             )
 
         # check input #
-        if not bus:
+        if not all([bus, method]):
             return
 
         dbusObj = SysMgr.libdbusObj
@@ -65839,7 +65951,6 @@ class DbusMgr(object):
         des = "org.freedesktop.systemd1"
         path = "/org/freedesktop/systemd1"
         iface = "org.freedesktop.systemd1.Manager"
-        method = "ListUnits"
         timeout = c_int(100)
 
         msg = dbusObj.dbus_message_new_method_call(
@@ -65902,26 +66013,12 @@ class DbusMgr(object):
         # get root #
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
-        """
-        https://www.freedesktop.org/wiki/Software/systemd/dbus/
-
-		0) The primary unit name as string
-		1) The human readable description string
-		2) The load state (i.e. whether the unit file has been loaded successfully)
-		3) The active state (i.e. whether the unit is currently started or not)
-		4) The sub state (a more fine-grained version of the active state that is specific to the unit type, which the active state is not)
-		5) A unit that is being followed in its state by this unit, if there is any, otherwise the empty string.
-		6) The unit object path
-		7) If there is a job queued for the job unit the numeric job id, 0 otherwise
-		8) The job type as string
-		9) The job object path
-        """
-
         # array item loop #
         while 1:
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
             if ret != d["DBUS_TYPE_STRUCT"]:
-                _printWarn(getLine(), getErr())
+                if ret != 0:
+                    _printWarn(getLine(), getErr())
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
                 # dbusObj.dbus_connection_unref(conn)
