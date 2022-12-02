@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221201"
+__revision__ = "221202"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23942,6 +23942,7 @@ class SysMgr(object):
     cpuAvgEnable = True
     cpuEnable = True
     dbusTopEnable = False
+    dbusUnitEnable = False
     delayEnable = False
     demangleEnable = True
     depEnable = False
@@ -29493,7 +29494,7 @@ Commands:
         if not options:
             return False
 
-        optionList = "BCDEFGHILMNOPRSTWYabcdefghijklmnopqrrstuvwxy"
+        optionList = "BCDEFGHILMNOPRSUTWYabcdefghijklmnopqrrstuvwxy"
         for opt in options:
             if not opt in optionList:
                 return False
@@ -30505,7 +30506,7 @@ Options:
             n:net | N:namespace | o:oomScore | O:iosched
             p:pipe | P:perf | q:quit | r:report
             R:reportFile | s:stack | S:pss| t:thread
-            T:total | u:uss | w:wss | W:wchan
+            T:total | u:uss | U:unit | w:wss | W:wchan
             x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:Average | b:buffer
@@ -30584,6 +30585,9 @@ Examples:
     - {3:1} {2:1} with cmdline
         # {0:1} {1:1} -e L
         # {0:1} {1:1} -e L -g apps
+
+    - {3:1} {2:1} with D-Bus unit
+        # {0:1} {1:1} -e U
 
     - {3:1} {2:1} except the one having COMM test
         # {0:1} {1:1} -g ^test
@@ -43518,6 +43522,9 @@ Copyright:
 
                 if "L" in options:
                     SysMgr.cmdlineEnable = True
+
+                if "U" in options:
+                    SysMgr.dbusUnitEnable = True
 
                 # check last field #
                 if "O" in options:
@@ -64934,6 +64941,7 @@ class DbusMgr(object):
     isTopMode = False
     watchList = []
     totalTime = 0
+    pidUnitList = {}
 
     G_IO_ERROR_TYPE = [
         "G_IO_ERROR_FAILED",
@@ -65813,7 +65821,7 @@ class DbusMgr(object):
             return val.value
 
     @staticmethod
-    def getUnitByPID(bus, pid):
+    def getUnitByPID(bus, pid, verb=False):
         # pylint: disable=no-member
 
         # check input #
@@ -65838,8 +65846,8 @@ class DbusMgr(object):
             des.encode(), path.encode(), iface.encode(), method.encode()
         )
         if not msg:
-            # dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("failed to create a D-Bus message")
+            if verb:
+                SysMgr.printWarn("failed to create a D-Bus message")
             return
 
         # prepare args #
@@ -65852,8 +65860,8 @@ class DbusMgr(object):
         )
         if not res:
             dbusObj.dbus_message_unref(msg)
-            # dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("failed to append D-Bus message args")
+            if verb:
+                SysMgr.printWarn("failed to append D-Bus message args")
             return
 
         # call a remote method #
@@ -65862,11 +65870,11 @@ class DbusMgr(object):
         )
         if not reply:
             dbusObj.dbus_message_unref(msg)
-            # dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn(
-                "failed to call a D-Bus remote method because %s at %s"
-                % (DbusMgr.getErrInfo(), SysMgr.getLine())
-            )
+            if verb:
+                SysMgr.printWarn(
+                    "failed to call a D-Bus remote method because %s at %s"
+                    % (DbusMgr.getErrInfo(), SysMgr.getLine())
+                )
             return
 
         unit = c_char_p("".encode())
@@ -65884,10 +65892,11 @@ class DbusMgr(object):
         # dbusObj.dbus_connection_unref(conn)
 
         if not res:
-            SysMgr.printWarn(
-                "failed to parse D-Bus message args because %s"
-                % DbusMgr.getErrInfo()
-            )
+            if verb:
+                SysMgr.printWarn(
+                    "failed to parse D-Bus message args because %s"
+                    % DbusMgr.getErrInfo()
+                )
             return
 
         return unit.value.decode()
@@ -67885,9 +67894,16 @@ class DbusMgr(object):
         # check permission #
         SysMgr.checkRootPerm()
 
+        # check mode for returning list #
+        if mode in ("getunitspid"):
+            retList = True
+        else:
+            retList = False
+
         # check filter #
+        pidList = {}
         taskList = []
-        ret = SysMgr.selectTaskId()
+        ret = SysMgr.selectTaskId() if not retList else None
         # selected processes #
         if ret:
             onlyDaemon = False
@@ -67896,8 +67912,8 @@ class DbusMgr(object):
             else:
                 taskList += _getDefaultTasks(ret)
         # new or daemon processes #
-        elif not SysMgr.getOption("g"):
-            if SysMgr.hasMainArg():
+        elif not SysMgr.getOption("g") or retList:
+            if SysMgr.hasMainArg() and not retList:
                 onlyDaemon = False
 
                 # get command #
@@ -67966,43 +67982,48 @@ class DbusMgr(object):
         busServiceList = {}
         gBusServiceList = {}
         threadingList = []
-        SysMgr.filterGroup = taskList
 
-        # get item for log filter #
-        if "WATCHLOG" in SysMgr.environList:
-            DbusMgr.watchList = SysMgr.environList["WATCHLOG"][0].split("+")
+        # update task filter #
+        if not retList:
+            SysMgr.filterGroup = taskList
 
-        # initialize system stat #
-        SysMgr.exceptCommFilter = True
-        taskManager = TaskAnalyzer(onlyInstance=True)
-        taskManager.saveSystemStat()
-        SysMgr.sort = "d"
-        SysMgr.processEnable = False
-        SysMgr.cmdlineEnable = True
+            # get item for log filter #
+            if "WATCHLOG" in SysMgr.environList:
+                DbusMgr.watchList = SysMgr.environList["WATCHLOG"][0].split(
+                    "+"
+                )
 
-        # set target syscalls #
-        if onlyDaemon:
-            if SysMgr.showAll:
-                SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_read"))
-        else:
-            SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmsg"))
-            SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmmsg"))
-        SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_sendmsg"))
-        SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_sendmmsg"))
+            # initialize system stat #
+            SysMgr.exceptCommFilter = True
+            taskManager = TaskAnalyzer(onlyInstance=True)
+            taskManager.saveSystemStat()
+            SysMgr.sort = "d"
+            SysMgr.processEnable = False
+            SysMgr.cmdlineEnable = True
 
-        # set colors for each message types #
-        DbusMgr.msgColorList = {
-            "INVALID": UtilMgr.convColor("INVALI", "RED", 6),
-            "ERROR": UtilMgr.convColor("ERROR", "RED", 6),
-            "METHOD": UtilMgr.convColor("METHOD", "CYAN", 6),
-            "RETURN": UtilMgr.convColor("RETURN", "BLUE", 6),
-            "SIGNAL": UtilMgr.convColor("SIGNAL", "PINK", 6),
-        }
+            # set target syscalls #
+            if onlyDaemon:
+                if SysMgr.showAll:
+                    SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_read"))
+            else:
+                SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmsg"))
+                SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmmsg"))
+            SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_sendmsg"))
+            SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_sendmmsg"))
 
-        # create a sync lock #
-        syncLock = Debugger.getGlobalLock(SysMgr.pid, exit=False)
-        if syncLock:
-            lockf(syncLock, LOCK_EX)  # pylint: disable=undefined-variable
+            # set colors for each message types #
+            DbusMgr.msgColorList = {
+                "INVALID": UtilMgr.convColor("INVALI", "RED", 6),
+                "ERROR": UtilMgr.convColor("ERROR", "RED", 6),
+                "METHOD": UtilMgr.convColor("METHOD", "CYAN", 6),
+                "RETURN": UtilMgr.convColor("RETURN", "BLUE", 6),
+                "SIGNAL": UtilMgr.convColor("SIGNAL", "PINK", 6),
+            }
+
+            # create a sync lock #
+            syncLock = Debugger.getGlobalLock(SysMgr.pid, exit=False)
+            if syncLock:
+                lockf(syncLock, LOCK_EX)  # pylint: disable=undefined-variable
 
         # create child processes to monitor each targets #
         for tid in taskList:
@@ -68114,6 +68135,18 @@ class DbusMgr(object):
                 # TODO: utilize this function #
                 ret = DbusMgr.getAllInfo(bus, "des", "path")
                 continue
+            elif mode == "getunitspid":
+                if not pidList:
+                    pidList = {k: None for k in SysMgr.getPidList()}
+
+                for pid in pidList:
+                    if not pid.isdigit():
+                        continue
+                    elif pidList[pid]:
+                        continue
+
+                    pidList[pid] = DbusMgr.getUnitByPID(bus, long(pid))
+                continue
 
             # create a new process #
             pid = SysMgr.createProcess()
@@ -68169,9 +68202,11 @@ class DbusMgr(object):
             else:
                 sys.exit(-1)
 
-        # check signal mode #
+        # check mode #
         if mode == "signal":
             return
+        elif mode == "getunitspid":
+            return pidList
 
         # release lock to start tracers #
         if syncLock:
@@ -93612,6 +93647,10 @@ class TaskAnalyzer(object):
         else:
             printFlag = False
 
+        # get D-Bus unit list #
+        if SysMgr.dbusUnitEnable:
+            DbusMgr.pidUnitList = DbusMgr.runDbusSnooper(mode="getunitspid")
+
         # run loop #
         while 1:
             if SysMgr.remoteServObj:
@@ -118232,6 +118271,23 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format("CMDLINE", value["cmdline"])
                 )
+
+            # print D-Bus unit #
+            if DbusMgr.pidUnitList:
+                if SysMgr.processEnable:
+                    target = idx
+                else:
+                    target = pid
+
+                if (
+                    target in DbusMgr.pidUnitList
+                    and DbusMgr.pidUnitList[target]
+                ):
+                    SysMgr.addPrint(
+                        "{0:>39} | {1:1}\n".format(
+                            "UNIT", DbusMgr.pidUnitList[target]
+                        )
+                    )
 
             # print namespace #
             if SysMgr.nsEnable and value["ns"]:
