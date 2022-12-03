@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221202"
+__revision__ = "221203"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33041,9 +33041,11 @@ Examples:
 
     - {2:1} only for specific processes
         # {0:1} {1:1} -g dbusExam
+        # {0:1} {1:1} -g dbusExam -f
 
     - {2:1} only for a new processes
         # {0:1} {1:1} dbusExam
+        # {0:1} {1:1} dbusExam -f
 
     - {2:1} including specific word
         # {0:1} {1:1} -c test
@@ -67945,6 +67947,14 @@ class DbusMgr(object):
         if not taskList:
             SysMgr.printErr("failed to find task to analyze D-Bus message")
             sys.exit(-1)
+        elif not onlyDaemon:
+            if not (
+                _getDefaultTasks("dbus-daemon")
+                + _getDefaultTasks("dbus-broker")
+            ):
+                SysMgr.printErr("failed to find D-Bus daemon")
+                if not SysMgr.forceEnable:
+                    sys.exit(-1)
         else:
             # remove redundant tasks #
             taskList = UtilMgr.cleanItem(taskList)
