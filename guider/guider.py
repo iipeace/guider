@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221203"
+__revision__ = "221208"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    # from ctypes import *
+    # from ctypes import * # for lint check
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -11471,6 +11471,7 @@ class Ext4Analyzer(object):
 
             def create_mapping(*entries):
                 # pylint: disable=no-method-argument
+                # pylint: disable=no-self-argument
                 """
                 Converts a list of 2-tuples
                 (diskBlkIdx, blkCnt) into a list of MappingEntry instances
@@ -30367,8 +30368,10 @@ Commands:
                 "printbind": ("Function", "Linux"),
                 "printcg": ("Cgroup", "Linux"),
                 "printdbus": ("D-Bus", "Linux"),
+                "printdbusinfo": ("D-Bus", "Linux"),
                 "printdbusintro": ("D-Bus", "Linux"),
                 "printdbusstat": ("D-Bus", "Linux"),
+                "printdbusunit": ("D-Bus", "Linux"),
                 "printdbussub": ("D-Bus", "Linux"),
                 "printdir": ("Dir", "Linux/MacOS/Windows"),
                 "printenv": ("Env", "Linux"),
@@ -34629,21 +34632,41 @@ Examples:
                         cmd, mode
                     )
 
-                # printdbussub #
-                elif SysMgr.checkMode("printdbussub"):
+                # printdbus* #
+                elif SysMgr.getMode() in (
+                    "printdbusintro",
+                    "printdbussub",
+                    "printdbusstat",
+                    "printdbusunit",
+                    "printdbusinfo",
+                ):
+                    ocmd = SysMgr.getMode()
+                    if ocmd == "printdbusintro":
+                        msg = "Print D-Bus introspection"
+                    elif ocmd == "printdbussub":
+                        msg = "Print D-Bus signal subscription info"
+                    elif ocmd == "printdbusstat":
+                        msg = "Print D-Bus stats"
+                    elif ocmd == "printdbusunit":
+                        msg = "Print D-Bus units"
+                    elif ocmd == "printdbusinfo":
+                        msg = "Print D-Bus unit info"
+
                     helpStr = """
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show D-Bus signal subscription info
+    {2:1}
 
 Options:
-    -o  <DIR|FILE>              set output path
-    -a                          show all stats
     -v                          verbose
+    -a                          show all info
+    -c  <WORD>                  set item filter or input
+    -g  <COMM>                  set task filter
+    -o  <DIR|FILE>              set output path
                         """.format(
-                        cmd, mode
+                        cmd, mode, msg
                     )
 
                     helpStr += """
@@ -34651,15 +34674,19 @@ Examples:
     - {2:1}
         # {0:1} {1:1}
 
-    - {2:1} with specific values
+    - {2:1} with specific input
+        # {0:1} {1:1} -c /org/freedesktop/systemd1/unit/avahi_2ddaemon_2eservice
+        # {0:1} {1:1} -c ActiveEnterTimestampMonotonic
+
+    - {2:1} for all
         # {0:1} {1:1} -a
 
     - {2:1} to a specific file
-        # {0:1} {1:1} -o sig.out
+        # {0:1} {1:1} -o guider.out
                     """.format(
                         cmd,
                         mode,
-                        "Print D-Bus signal subscription info",
+                        msg,
                     )
 
                 # checkdup#
@@ -34976,66 +35003,6 @@ Examples:
                         cmd,
                         mode,
                         "Print specific symbols",
-                    )
-
-                # printdbusstat #
-                elif SysMgr.checkMode("printdbusstat"):
-                    helpStr = """
-Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
-
-Description:
-    Print D-Bus stats
-
-Options:
-    -v                          verbose
-    -g  <COMM>                  set task filter
-    -o  <DIR|FILE>              set output path
-                        """.format(
-                        cmd, mode
-                    )
-
-                    helpStr += """
-Examples:
-    - {2:1}
-        # {0:1} {1:1}
-
-    - {2:1} into the specific file
-        # {0:1} {1:1} -o stats.out
-                    """.format(
-                        cmd,
-                        mode,
-                        "Print D-Bus stats",
-                    )
-
-                # printdbusintro #
-                elif SysMgr.checkMode("printdbusintro"):
-                    helpStr = """
-Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
-
-Description:
-    Print D-Bus introspection in XML
-
-Options:
-    -v                          verbose
-    -g  <COMM>                  set task filter
-    -o  <DIR|FILE>              set output path
-                        """.format(
-                        cmd, mode
-                    )
-
-                    helpStr += """
-Examples:
-    - {2:1}
-        # {0:1} {1:1}
-
-    - {2:1} into the specific file
-        # {0:1} {1:1} -o intro.out
-                    """.format(
-                        cmd,
-                        mode,
-                        "Print D-Bus introspection",
                     )
 
                 # printcgroup #
@@ -44391,6 +44358,20 @@ Copyright:
             return False
 
     @staticmethod
+    def getMode(orig=False):
+        # set target list #
+        if orig:
+            target = SysMgr.origArgs
+        else:
+            target = sys.argv
+
+        # check value #
+        if len(target) > 1:
+            return target[1]
+        else:
+            return None
+
+    @staticmethod
     def checkMode(mode, orig=False):
         # set target list #
         if orig:
@@ -44763,32 +44744,25 @@ Copyright:
         elif SysMgr.checkMode("logsys"):
             SysMgr.doLogMode("syslog")
 
-        # PRINTDBUS MODE #
-        elif SysMgr.checkMode("printdbus"):
+        # PRINTDBUS* MODE #
+        elif SysMgr.getMode() in (
+            "printdbus",
+            "printdbusstat",
+            "printdbusintro",
+            "printdbussub",
+            "printdbusunit",
+            "printdbusinfo",
+        ):
+            # remove dbus word #
+            cmd = SysMgr.getMode().replace("dbus", "")
+
             # set console info #
-            SysMgr.setStream()
+            if cmd == "print":
+                SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            DbusMgr.runDbusSnooper(mode="print")
-
-        # PRINTDBUSSTAT MODE #
-        elif SysMgr.checkMode("printdbusstat"):
-            SysMgr.printLogo(big=True, onlyFile=True)
-
-            DbusMgr.runDbusSnooper(mode="printstat")
-
-        # PRINTDBUSINTRO MODE #
-        elif SysMgr.checkMode("printdbusintro"):
-            SysMgr.printLogo(big=True, onlyFile=True)
-
-            DbusMgr.runDbusSnooper(mode="printintro")
-
-        # PRINTDBUSSUB MODE #
-        elif SysMgr.checkMode("printdbussub"):
-            SysMgr.printLogo(big=True, onlyFile=True)
-
-            DbusMgr.runDbusSnooper(mode="signal")
+            DbusMgr.runDbusSnooper(mode=cmd)
 
         elif SysMgr.isPrintLogMode():
             # set console info #
@@ -65354,7 +65328,7 @@ class DbusMgr(object):
         return DBusMessageIter()
 
     @staticmethod
-    def getStats(bus, request, des=None, tid=None, procStr=None):
+    def getStats(bus, request, des=None, tid=None, procStr=None, path=None):
         # pylint: disable=no-member
         def _printWarn(procStr, line, err):
             SysMgr.printWarn(
@@ -65376,7 +65350,8 @@ class DbusMgr(object):
         getErr = DbusMgr.getErrInfo
 
         # prepare method args #
-        path = "/"
+        if not path:
+            path = "/"
         if not des:
             des = "org.freedesktop.DBus"
         if not des.startswith(":"):
@@ -66079,6 +66054,25 @@ class DbusMgr(object):
         return statList
 
     @staticmethod
+    def getCtype(typename):
+        try:
+            return {
+                "DBUS_TYPE_BOOLEAN": c_bool,
+                "DBUS_TYPE_INT16": c_int16,
+                "DBUS_TYPE_INT32": c_int32,
+                "DBUS_TYPE_INT64": c_int64,
+                "DBUS_TYPE_UINT16": c_uint16,
+                "DBUS_TYPE_UINT32": c_uint32,
+                "DBUS_TYPE_UINT64": c_uint64,
+                "DBUS_TYPE_FLOAT": c_float,
+                "DBUS_TYPE_DOUBLE": c_double,
+            }[typename]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+    @staticmethod
     def getTypeList():
         array = c_char("a".encode())
         boolean = c_char("b".encode())
@@ -66090,8 +66084,11 @@ class DbusMgr(object):
         objpath = c_char("o".encode())
         struct = c_char("r".encode())
         ufd = c_char("h".encode())
+        int16 = c_char("n".encode())
         uint16 = c_char("q".encode())
+        int32 = c_char("i".encode())
         uint32 = c_char("u".encode())
+        int64 = c_char("x".encode())
         uint64 = c_char("t".encode())
         variant = c_char("v".encode())
 
@@ -66108,22 +66105,28 @@ class DbusMgr(object):
             "DBUS_TYPE_OBJECT_PATH": _getVal(objpath),
             "DBUS_TYPE_STRING": _getVal(char),
             "DBUS_TYPE_STRUCT": _getVal(struct),
+            "DBUS_TYPE_INT16": _getVal(int16),
             "DBUS_TYPE_UINT16": _getVal(uint16),
+            "DBUS_TYPE_INT32": _getVal(int32),
             "DBUS_TYPE_UINT32": _getVal(uint32),
+            "DBUS_TYPE_INT64": _getVal(int64),
             "DBUS_TYPE_UINT64": _getVal(uint64),
             "DBUS_TYPE_UNIX_FD": _getVal(ufd),
             "DBUS_TYPE_VARIANT": _getVal(variant),
         }
 
     @staticmethod
-    def getAllInfo(bus, des, path):
+    def getAllInfo(bus, path, des=None, verb=True):
         # pylint: disable=no-member
         def _printWarn(des, line, err):
             SysMgr.printWarn(
                 ("failed to parse D-Bus message for %s at %s " "because %s")
                 % (des, line, err),
-                True,
+                verb,
             )
+
+        if not des:
+            des = "org.freedesktop.systemd1"
 
         # check input #
         if not all([bus, des, path]):
@@ -66152,7 +66155,9 @@ class DbusMgr(object):
             return
 
         # prepare args #
+        rd = {}
         d = DbusMgr.getTypeList()
+        UtilMgr.makeReverseDict(d, rd)
 
         # append args #
         item = c_char_p("".encode())
@@ -66265,15 +66270,25 @@ class DbusMgr(object):
                     ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
 
                     # check type #
-                    if not ret in (
-                        d["DBUS_TYPE_STRING"],
-                        d["DBUS_TYPE_UINT64"],
-                        d["DBUS_TYPE_UINT32"],
-                        d["DBUS_TYPE_BOOLEAN"],
-                        d["DBUS_TYPE_DOUBLE"],
-                    ):
+                    if not ret in rd:
                         _printWarn(
-                            des, getLine(), "no support arg type (%s)" % ret
+                            des,
+                            getLine(),
+                            "no support arg type (%s)" % rd[ret]
+                            if ret in rd
+                            else ret,
+                        )
+                        if not dbusObj.dbus_message_iter_next(varIterP):
+                            break
+                        else:
+                            continue
+
+                    if ret in (d["DBUS_TYPE_ARRAY"], d["DBUS_TYPE_STRUCT"]):
+                        _printWarn(
+                            des,
+                            getLine(),
+                            "no implementation of %s's arg type (%s)"
+                            % (sname, rd[ret] if ret in rd else ret),
                         )
                         if not dbusObj.dbus_message_iter_next(varIterP):
                             break
@@ -66281,28 +66296,34 @@ class DbusMgr(object):
                             continue
 
                     # get value #
+                    res = False
                     dbusObj.dbus_message_iter_get_basic(varIterP, byref(value))
                     if ret == d["DBUS_TYPE_STRING"]:
                         if value.value:
                             statList[sname] = value.value.decode()
                         else:
                             statList[sname] = ""
-                    else:
-                        if ret == d["DBUS_TYPE_UINT32"]:
-                            ctype = c_uint32
-                        elif ret == d["DBUS_TYPE_UINT64"]:
-                            ctype = c_uint64
-                        elif ret == d["DBUS_TYPE_BOOLEAN"]:
-                            ctype = c_bool
-                        elif ret == d["DBUS_TYPE_DOUBLE"]:
-                            ctype = c_double
-                        else:
-                            ctype = None
-
+                        res = True
+                    elif ret in rd:
+                        ctype = DbusMgr.getCtype(rd[ret])
                         if ctype:
                             statList[sname] = cast(
                                 byref(value), POINTER(ctype)
                             ).contents.value
+                            res = True
+
+                    if not res:
+                        _printWarn(
+                            des,
+                            getLine(),
+                            "no implementation of arg type (%s)" % rd[ret]
+                            if ret in rd
+                            else ret,
+                        )
+                        if not dbusObj.dbus_message_iter_next(varIterP):
+                            break
+                        else:
+                            continue
 
                     # next value #
                     if not dbusObj.dbus_message_iter_next(varIterP):
@@ -66706,6 +66727,94 @@ class DbusMgr(object):
             SysMgr.printPipe(
                 "\n[%s]\n%s%s%s\n" % (name, oneLine, value, oneLine)
             )
+
+    @staticmethod
+    def printUnitInfo(tid, unitList):
+        conv = UtilMgr.convNum
+        procId = "%s(%s)" % (SysMgr.getComm(tid, cache=True), tid)
+
+        if not unitList:
+            SysMgr.printErr("no unit for %s" % procId)
+            return
+
+        # print title #
+        SysMgr.printPipe(
+            "\n[D-Bus Unit Info] <Target: %s>\n%s" % (procId, twoLine)
+        )
+        SysMgr.printPipe("{0:^16}".format("Unit (Description)"))
+        SysMgr.printPipe(
+            "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | {5:>1} | {6:>1}({7:>1}/{8:>1})\n{9:1}".format(
+                "    ",
+                "Load",
+                "Active",
+                "State",
+                "Path",
+                "Follow",
+                "Job",
+                "Path",
+                "Type",
+                twoLine,
+            )
+        )
+
+        if not unitList:
+            SysMgr.printPipe("\tNone\n%s" % oneLine)
+            return
+
+        # print units #
+        for items in sorted(unitList, key=lambda i: i[0].lower()):
+            # check filter #
+            if SysMgr.customCmd:
+                if not UtilMgr.isValidStr(
+                    " ".join(list(map(str, items))), SysMgr.customCmd, inc=True
+                ):
+                    continue
+
+            (
+                unit,
+                desc,
+                load,
+                active,
+                state,
+                stat,
+                path,
+                job,
+                jtype,
+                jpath,
+            ) = items
+
+            if load != "loaded":
+                load = UtilMgr.convColor(load, "WARNING", 8)
+
+            if active == "active":
+                active = UtilMgr.convColor(active, "GREEN", 8)
+            else:
+                active = UtilMgr.convColor(active, "WARNING", 8)
+
+            if not stat:
+                stat = "."
+
+            if job and job != "0":
+                jobstr = " | %s(%s/%s)" % (job, jtype, jpath)
+            else:
+                jobstr = ""
+
+            SysMgr.printPipe("{0:1} ({1:1})".format(unit, desc))
+            SysMgr.printPipe(
+                "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | {5:>1}{6:>1}\n{7:1}".format(
+                    "    ", load, active, state, path, stat, jobstr, oneLine
+                )
+            )
+
+    @staticmethod
+    def printUnitStatInfo(path, info):
+        # print title #
+        SysMgr.printPipe(
+            "\n[D-Bus Unit Stat Info] <Target: %s>\n%s" % (path, twoLine)
+        )
+
+        # print unit stats #
+        SysMgr.printPipe(info + "\n" + oneLine)
 
     @staticmethod
     def printStatInfo(tid, statList):
@@ -68109,7 +68218,13 @@ class DbusMgr(object):
                     # register methods and properties #
                     if mode == "printintro":
                         introList[service] = DbusMgr.getStats(
-                            bus, "introspect", service, procStr=pinfo
+                            bus,
+                            "introspect",
+                            service,
+                            procStr=pinfo,
+                            path=SysMgr.customCmd[0]
+                            if SysMgr.customCmd
+                            else None,
                         )
 
                 busServiceList[tid].setdefault(bus, busProcList)
@@ -68125,11 +68240,11 @@ class DbusMgr(object):
                     DbusMgr.printIntrospection(tid, introList)
                 continue
             # monitor #
-            elif mode == "monitor":
+            elif mode == "printmonitor":
                 DbusMgr.runMonitor(bus)
                 continue
             # signal #
-            elif mode == "signal":
+            elif mode == "printsub":
                 ret = DbusMgr.getStats(bus, "allmatch", procStr=procStr)
                 if ret:
                     perProc, perSig = ret
@@ -68140,10 +68255,26 @@ class DbusMgr(object):
                 ret = DbusMgr.getStats(bus, "stats")
                 DbusMgr.printStatInfo(tid, ret)
                 continue
-            # printall #
-            elif mode == "printall":
-                # TODO: utilize this function #
-                ret = DbusMgr.getAllInfo(bus, "des", "path")
+            # printinfo #
+            elif mode == "printinfo":
+                if not SysMgr.customCmd:
+                    SysMgr.printErr("no input for path")
+                    return
+
+                for cpath in SysMgr.customCmd:
+                    ret = DbusMgr.getAllInfo(
+                        bus, cpath, verb=True if SysMgr.warnEnable else False
+                    )
+                    if not ret:
+                        continue
+
+                    DbusMgr.printUnitStatInfo(
+                        cpath, UtilMgr.convDict2Str(ret, pretty=True)
+                    )
+                continue
+            elif mode == "printunit":
+                ret = DbusMgr.getUnitList(bus)
+                DbusMgr.printUnitInfo(tid, ret)
                 continue
             elif mode == "getunitspid":
                 if not pidList:
@@ -68213,10 +68344,16 @@ class DbusMgr(object):
                 sys.exit(-1)
 
         # check mode #
-        if mode == "signal":
-            return
-        elif mode == "getunitspid":
+        if mode == "getunitspid":
             return pidList
+        elif mode in (
+            "printintro",
+            "printsub",
+            "printstat",
+            "printunit",
+            "printinfo",
+        ):
+            return
 
         # release lock to start tracers #
         if syncLock:
@@ -99783,6 +99920,7 @@ class TaskAnalyzer(object):
 
     def printResourceUsage(self):
         # pylint: disable=undefined-variable
+        # pylint: disable=import-error
 
         title = "Thread Info"
 
@@ -100700,9 +100838,7 @@ class TaskAnalyzer(object):
             if not matplotlib:
                 SysMgr.printPipWarn("matplotlib", "matplotlib")
                 sys.exit(-1)
-            from matplotlib.ticker import (
-                MaxNLocator,
-            )  # pylint: disable=import-error
+            from matplotlib.ticker import MaxNLocator
 
             SysMgr.matplotlibVersion = float(
                 ".".join(matplotlib.__version__.split(".")[:2])
@@ -102779,6 +102915,7 @@ class TaskAnalyzer(object):
 
     def printIntervalInfo(self):
         # pylint: disable=undefined-variable
+        # pylint: disable=import-error
 
         if SysMgr.intervalEnable <= 0 or not (
             SysMgr.cpuEnable or SysMgr.memEnable or SysMgr.blockEnable
@@ -103160,9 +103297,7 @@ class TaskAnalyzer(object):
             if not matplotlib:
                 SysMgr.printPipWarn("matplotlib", "matplotlib")
                 sys.exit(-1)
-            from matplotlib.ticker import (
-                MaxNLocator,
-            )  # pylint: disable=import-error
+            from matplotlib.ticker import MaxNLocator
 
             SysMgr.matplotlibVersion = float(
                 ".".join(matplotlib.__version__.split(".")[:2])
