@@ -34675,8 +34675,9 @@ Examples:
         # {0:1} {1:1}
 
     - {2:1} with specific input
-        # {0:1} {1:1} -c /org/freedesktop/systemd1/unit/avahi_2ddaemon_2eservice
         # {0:1} {1:1} -c ActiveEnterTimestampMonotonic
+        # {0:1} {1:1} -c /org/freedesktop/systemd1/unit/_2d_2eslice
+        # {0:1} {1:1} -c "*service"
 
     - {2:1} for all
         # {0:1} {1:1} -a
@@ -68271,19 +68272,23 @@ class DbusMgr(object):
                 DbusMgr.printStatInfo(tid, ret)
             # printinfo #
             elif mode == "printinfo":
-                customCmd = SysMgr.customCmd
+                # get all info #
+                ret = DbusMgr.getUnitList(bus)
+                if ret:
+                    units = [item[6] for item in ret]
+                    units.sort()
+                    units.insert(0, "/org/freedesktop/systemd1")
+                else:
+                    SysMgr.printErr("no input for path")
+                    sys.exit(-1)
 
-                if not customCmd:
-                    ret = DbusMgr.getUnitList(bus)
-                    if ret:
-                        customCmd = [item[6] for item in ret]
-                        customCmd.sort()
-                        customCmd.insert(0, "/org/freedesktop/systemd1")
-                    else:
-                        SysMgr.printErr("no input for path")
-                        sys.exit(-1)
+                # print info #
+                for cpath in units:
+                    if SysMgr.customCmd and not UtilMgr.isValidStr(
+                        cpath, SysMgr.customCmd
+                    ):
+                        continue
 
-                for cpath in customCmd:
                     ret = DbusMgr.getAllInfo(
                         bus, cpath, verb=True if SysMgr.warnEnable else False
                     )
