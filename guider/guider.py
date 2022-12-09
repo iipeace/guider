@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221208"
+__revision__ = "221209"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -66743,7 +66743,10 @@ class DbusMgr(object):
         )
         SysMgr.printPipe("{0:^16}".format("Unit (Description)"))
         SysMgr.printPipe(
-            "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | {5:>1} | {6:>1}({7:>1}/{8:>1})\n{9:1}".format(
+            (
+                "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | "
+                "{5:>1} | {6:>1}({7:>1}/{8:>1})\n{9:1}"
+            ).format(
                 "    ",
                 "Load",
                 "Active",
@@ -66801,7 +66804,10 @@ class DbusMgr(object):
 
             SysMgr.printPipe("{0:1} ({1:1})".format(unit, desc))
             SysMgr.printPipe(
-                "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | {5:>1}{6:>1}\n{7:1}".format(
+                (
+                    "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | "
+                    "{5:>1}{6:>1}\n{7:1}"
+                ).format(
                     "    ", load, active, state, path, stat, jobstr, oneLine
                 )
             )
@@ -66813,8 +66819,11 @@ class DbusMgr(object):
             "\n[D-Bus Unit Stat Info] <Target: %s>\n%s" % (path, twoLine)
         )
 
+        for attr, name in sorted(info.items()):
+            SysMgr.printPipe("{0:<40}: {1:1}".format(attr, name))
+
         # print unit stats #
-        SysMgr.printPipe(info + "\n" + oneLine)
+        SysMgr.printPipe(oneLine)
 
     @staticmethod
     def printStatInfo(tid, statList):
@@ -68146,6 +68155,8 @@ class DbusMgr(object):
 
         # create child processes to monitor each targets #
         for tid in taskList:
+            cont = True
+
             # create pipe #
             rd, wr = os.pipe()
 
@@ -68159,44 +68170,50 @@ class DbusMgr(object):
             except:
                 cmdline = ""
 
-            # get bus type #
+            # define variables #
             bus = None
             listen = None
-            introList = {}
-            cmdline += SysMgr.getCmdline(tid)
-            if "--system" in cmdline:
-                bus = "system"
-            elif "--session" in cmdline:
-                bus = "session"
-            elif "--scope system" in cmdline:
-                bus = "system"
-            elif "--scope user" in cmdline:
-                bus = "user"
-            elif "--config-file=" in cmdline:
-                try:
-                    cpath = cmdline.split("--config-file=", 1)[1]
-                    pos = cpath.find(" --")
-                    if pos > 0:
-                        cpath = cpath[:pos]
 
-                    with open(cpath, "r") as fd:
-                        for item in fd.readlines():
-                            item = item.strip()
-                            if item.startswith("<listen>"):
-                                item = UtilMgr.lstrip(item, "<listen>")
-                                item = UtilMgr.rstrip(item, "</listen>")
+            # get bus type for daemons #
+            if onlyDaemon:
+                cmdline += SysMgr.getCmdline(tid)
+                if "--system" in cmdline:
+                    bus = "system"
+                elif "--session" in cmdline:
+                    bus = "session"
+                elif "--scope system" in cmdline:
+                    bus = "system"
+                elif "--scope user" in cmdline:
+                    bus = "user"
+                elif "--config-file=" in cmdline:
+                    try:
+                        cpath = cmdline.split("--config-file=", 1)[1]
+                        pos = cpath.find(" --")
+                        if pos > 0:
+                            cpath = cpath[:pos]
+
+                        with open(cpath, "r") as fd:
+                            for item in fd.readlines():
                                 item = item.strip()
-                                listen = item
-                            if item.startswith("<type>"):
-                                item = UtilMgr.lstrip(item, "<type>")
-                                item = UtilMgr.rstrip(item, "</type>")
-                                item = item.strip()
-                                bus = item
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printWarn("failed to get D-Bus config", reason=True)
-            busList.append(bus)
+                                if item.startswith("<listen>"):
+                                    item = UtilMgr.lstrip(item, "<listen>")
+                                    item = UtilMgr.rstrip(item, "</listen>")
+                                    item = item.strip()
+                                    listen = item
+                                if item.startswith("<type>"):
+                                    item = UtilMgr.lstrip(item, "<type>")
+                                    item = UtilMgr.rstrip(item, "</type>")
+                                    item = item.strip()
+                                    bus = item
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printWarn(
+                            "failed to get D-Bus config", reason=True
+                        )
+
+                # add bus type #
+                busList.append(bus)
 
             # get service list #
             if bus:
@@ -68205,6 +68222,7 @@ class DbusMgr(object):
                 services = None
 
             # register services #
+            introList = {}
             busServiceList.setdefault(tid, {})
             if services:
                 busProcList = {}
@@ -68238,44 +68256,44 @@ class DbusMgr(object):
             if mode == "printintro":
                 for service, intro in introList.items():
                     DbusMgr.printIntrospection(tid, introList)
-                continue
             # monitor #
             elif mode == "printmonitor":
                 DbusMgr.runMonitor(bus)
-                continue
             # signal #
             elif mode == "printsub":
                 ret = DbusMgr.getStats(bus, "allmatch", procStr=procStr)
                 if ret:
                     perProc, perSig = ret
                     DbusMgr.printSignalInfo(tid, perProc, perSig, busProcList)
-                continue
             # printstat #
             elif mode == "printstat":
                 ret = DbusMgr.getStats(bus, "stats")
                 DbusMgr.printStatInfo(tid, ret)
-                continue
             # printinfo #
             elif mode == "printinfo":
-                if not SysMgr.customCmd:
-                    SysMgr.printErr("no input for path")
-                    return
+                customCmd = SysMgr.customCmd
 
-                for cpath in SysMgr.customCmd:
+                if not customCmd:
+                    ret = DbusMgr.getUnitList(bus)
+                    if ret:
+                        customCmd = [item[6] for item in ret]
+                        customCmd.sort()
+                        customCmd.insert(0, "/org/freedesktop/systemd1")
+                    else:
+                        SysMgr.printErr("no input for path")
+                        sys.exit(-1)
+
+                for cpath in customCmd:
                     ret = DbusMgr.getAllInfo(
                         bus, cpath, verb=True if SysMgr.warnEnable else False
                     )
                     if not ret:
                         continue
 
-                    DbusMgr.printUnitStatInfo(
-                        cpath, UtilMgr.convDict2Str(ret, pretty=True)
-                    )
-                continue
+                    DbusMgr.printUnitStatInfo(cpath, ret)
             elif mode == "printunit":
                 ret = DbusMgr.getUnitList(bus)
                 DbusMgr.printUnitInfo(tid, ret)
-                continue
             elif mode == "getunitspid":
                 if not pidList:
                     pidList = {k: None for k in SysMgr.getPidList()}
@@ -68287,6 +68305,11 @@ class DbusMgr(object):
                         continue
 
                     pidList[pid] = DbusMgr.getUnitByPID(bus, long(pid))
+            else:
+                cont = False
+
+            # skip more processing #
+            if cont:
                 continue
 
             # create a new process #
@@ -81824,8 +81847,6 @@ typedef struct {
             SysMgr.setStream()
 
         # continue target #
-        if self.mode == "syscall":
-            SysMgr.syscall(self.tkillIdx, self.pid, signal.SIGCONT)
         self.cont(check=True, sig=signal.SIGCONT)
 
         return pid
