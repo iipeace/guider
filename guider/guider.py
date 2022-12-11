@@ -70591,8 +70591,9 @@ class Debugger(object):
 
         # set ptrace indexes #
         plist = ConfigMgr.PTRACE_TYPE
-        self.peekIdx = plist.index("PTRACE_PEEKTEXT")
-        self.pokeIdx = plist.index("PTRACE_POKEDATA")
+        self.attachCmd = plist.index("PTRACE_ATTACH")
+        self.peekCmd = plist.index("PTRACE_PEEKTEXT")
+        self.pokeCmd = plist.index("PTRACE_POKEDATA")
         self.contCmd = plist.index("PTRACE_CONT")
         self.getregsCmd = plist.index("PTRACE_GETREGS")
         self.getfpregsCmd = plist.index("PTRACE_GETFPREGS")
@@ -70600,6 +70601,9 @@ class Debugger(object):
         self.syscallCmd = plist.index("PTRACE_SYSCALL")
         self.sysemuCmd = plist.index("PTRACE_SYSEMU")
         self.singlestepCmd = plist.index("PTRACE_SINGLESTEP")
+        self.seizeCmd = 0x4206
+        self.interruptCmd = 0x4207
+        self.listenCmd = 0x4208
 
         # set ptrace event indexes #
         pelist = ConfigMgr.PTRACE_EVENT_TYPE
@@ -71208,7 +71212,7 @@ typedef struct {
                 while 1:
                     # write hook address for target #
                     if slotAddr % ConfigMgr.wordSize == 0:
-                        ret = dobj.accessMem(dobj.pokeIdx, slotAddr, hookAddr)
+                        ret = dobj.accessMem(dobj.pokeCmd, slotAddr, hookAddr)
                     else:
                         ret = dobj.writeMem(slotAddr, hookAddr)
 
@@ -71742,7 +71746,7 @@ typedef struct {
                 else:
                     targetAddr = self.fp + wordSize
                     if targetAddr % wordSize == 0:
-                        targetAddr = self.accessMem(self.peekIdx, targetAddr)
+                        targetAddr = self.accessMem(self.peekCmd, targetAddr)
                     else:
                         targetAddr = self.readMem(targetAddr, retWord=True)
 
@@ -73734,7 +73738,7 @@ typedef struct {
             elif addr % ConfigMgr.wordSize:
                 origWord = self.readMem(addr)
             else:
-                origWord = self.accessMem(self.peekIdx, addr)
+                origWord = self.accessMem(self.peekCmd, addr)
                 if origWord > 0:
                     origWord = UtilMgr.convWord2Str(origWord)
                 else:
@@ -73863,11 +73867,10 @@ typedef struct {
 
         # attach to the thread #
         plist = ConfigMgr.PTRACE_TYPE
-        cmd = plist.index("PTRACE_ATTACH")
         doExit = False
 
         while 1:
-            ret = self.ptrace(cmd)
+            ret = self.ptrace(self.attachCmd)
             if ret != 0:
                 tracer = SysMgr.getTracerId(pid)
                 if tracer > 0:
@@ -74294,7 +74297,7 @@ typedef struct {
                 # read original address for target #
                 slotAddr = vstart + attr["value"]
                 if slotAddr % ConfigMgr.wordSize == 0:
-                    func = self.accessMem(self.peekIdx, slotAddr)
+                    func = self.accessMem(self.peekCmd, slotAddr)
                 else:
                     func = self.readMem(slotAddr, retWord=True)
         else:
@@ -74858,7 +74861,7 @@ typedef struct {
                         size = 1
                     for idx in xrange(size):
                         ret = self.accessMem(
-                            self.pokeIdx, addr + (idx * wordSize), data
+                            self.pokeCmd, addr + (idx * wordSize), data
                         )
                         if ret < 0:
                             break
@@ -74922,7 +74925,7 @@ typedef struct {
         for idx in xrange(0, len(fdata), wordSize):
             data = UtilMgr.convStr2Word(fdata[idx : idx + wordSize])
 
-            ret = self.accessMem(self.pokeIdx, addr + idx, data)
+            ret = self.accessMem(self.pokeCmd, addr + idx, data)
             if ret == -1:
                 break
 
@@ -75063,7 +75066,7 @@ typedef struct {
         # read words from target address space #
         while size > 0:
             # read a word #
-            word = self.accessMem(self.peekIdx, addr)
+            word = self.accessMem(self.peekCmd, addr)
             if word == -1:
                 # failed to read partial area #
                 if data:
@@ -78072,7 +78075,7 @@ typedef struct {
         if not targetAddr:
             return None
         elif targetAddr % ConfigMgr.wordSize == 0:
-            return self.accessMem(self.peekIdx, targetAddr)
+            return self.accessMem(self.peekCmd, targetAddr)
         else:
             return self.readMem(targetAddr, retWord=True)
 
@@ -81853,6 +81856,9 @@ typedef struct {
 
         # continue target #
         self.cont(check=True, sig=signal.SIGCONT)
+        if pid == 0:
+            # handle nested SIGSTOP(?) #
+            self.cont(check=True, sig=signal.SIGCONT)
 
         return pid
 
@@ -82882,7 +82888,7 @@ typedef struct {
         else:
             # check alignment #
             if addr % ConfigMgr.wordSize == 0:
-                origWord = instance.accessMem(instance.peekIdx, addr)
+                origWord = instance.accessMem(instance.peekCmd, addr)
                 origWord = UtilMgr.convWord2Str(origWord)
             else:
                 origWord = instance.readMem(addr)
