@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221209"
+__revision__ = "221212"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -37843,6 +37843,9 @@ Copyright:
 
             logger("failed to get root permission%s" % msg)
 
+        if SysMgr.forceEnable:
+            return True
+
         # exit #
         if exit:
             sys.exit(-1)
@@ -66814,6 +66817,139 @@ class DbusMgr(object):
             )
 
     @staticmethod
+    def printSystemBootInfo(info, ret=False):
+        # define field name #
+        finish = "FinishTimestampMonotonic"
+        firmwareStart = "FirmwareTimestampMonotonic"
+        loaderStart = "LoaderTimestampMonotonic"
+        kernelStart = "KernelTimestamp"
+        securityStart = "SecurityStartTimestampMonotonic"
+        initrdStart = "InitRDTimestampMonotonic"
+        userStart = "UserspaceTimestampMonotonic"
+        genStart = "GeneratorsStartTimestampMonotonic"
+        genFinish = "GeneratorsFinishTimestampMonotonic"
+        unitStart = "UnitsLoadStartTimestampMonotonic"
+        unitFinish = "UnitsLoadFinishTimestampMonotonic"
+        initrdSecurityStart = "InitRDSecurityStartTimestampMonotonic"
+        initrdSecurityFinish = "InitRDSecurityFinishTimestampMonotonic"
+        initrdGenStart = "InitRDGeneratorsStartTimestampMonotonic"
+        initrdGenFinish = "InitRDGeneratorsFinishTimestampMonotonic"
+        initrdUnitStart = "InitRDUnitsLoadStartTimestampMonotonic"
+        initrdUnitFinish = "InitRDUnitsLoadFinishTimestampMonotonic"
+
+        # print title #
+        SysMgr.printPipe("\n[systemd Boot Info]\n" + twoLine)
+
+        offset = 0
+
+        def _getTime(name):
+            if name in info:
+                return long(info[name]) - offset
+            else:
+                return 0
+
+        initrdTime = _getTime(initrdStart)
+        userTime = _getTime(userStart)
+
+        finishTime = _getTime(finish)
+        if finishTime <= 0:
+            SysMgr.printPipe("Bootup is not finished\n%s" % oneLine)
+            return
+
+        if initrdTime > 0:
+            kernelDoneTime = initrdTime
+        else:
+            kernelDoneTime = userTime
+
+        offset = userTime
+        firmwareTime = _getTime(firmwareStart)
+        loaderTime = _getTime(loaderStart)
+        genStartTime = _getTime(genStart)
+        genFinishTime = _getTime(genFinish)
+        unitStartTime = _getTime(unitStart)
+        unitFinishTime = _getTime(unitFinish)
+
+        firmware = firmwareTime - loaderTime
+        loader = loaderTime
+        kernel = kernelDoneTime
+        user = finishTime - userTime
+        initrd = finishTime - initrdTime - user
+
+        if ret:
+            return [firmware, loader, kernel, initrd, user]
+        else:
+            total = 0
+
+            def _convTime(name, value):
+                if value <= 0:
+                    return "", 0
+                elapsed = float(value / 1000000.0)
+                return "{0:<10}:{1:>10.3f}s\n".format(name, elapsed), elapsed
+
+            timeStr = ""
+            for name, value in (
+                ("Firmware", firmware),
+                ("Loader", loader),
+                ("Kernel", kernel),
+                ("Initrd", initrd),
+                ("Userspace", user),
+            ):
+                addStr, val = _convTime(name, value)
+                timeStr += addStr
+                total += val
+
+            if timeStr:
+                timeStr += "{2:1}\n{0:<10}:{1:>10.3f}s\n".format(
+                    "Total", total, oneLine
+                )
+            else:
+                timeStr = "\tNone\n"
+
+            SysMgr.printPipe(timeStr)
+
+        SysMgr.printPipe(oneLine)
+
+    @staticmethod
+    def getUnitBootInfo(path, info):
+        activeEnter = "ActiveEnterTimestampMonotonic"
+        activeExit = "ActiveExitTimestampMonotonic"
+        inactiveEnter = "InactiveEnterTimestampMonotonic"
+        inactiveExit = "InactiveExitTimestampMonotonic"
+        userStart = "UserspaceTimestampMonotonic"
+
+        # get times #
+        offset = 0
+
+        def _getTime(name):
+            if name in info:
+                return long(info[name]) - offset
+            else:
+                return 0
+
+        offset = _getTime(userStart)
+        activating = _getTime(activeEnter)
+        activated = _getTime(activeExit)
+        deactivating = _getTime(inactiveEnter)
+        deactivated = _getTime(inactiveExit)
+
+        # calculate activation #
+        if activated >= activating:
+            activation = activated - activating
+        elif deactivated >= activating:
+            activation = deactivated - activating
+        else:
+            activation = 0
+
+        return {
+            "start": offset,
+            "activating": activating,
+            "activated": activated,
+            "deactivating": deactivating,
+            "deactivated": activated,
+            "activation": activation,
+        }
+
+    @staticmethod
     def printUnitStatInfo(path, info):
         # print title #
         SysMgr.printPipe(
@@ -67015,7 +67151,9 @@ class DbusMgr(object):
                     procList.update(procs)
 
                 SysMgr.printPipe(
-                    "{0:>23} {1:<12} <nrProxy: {2:1}> <nrSignal: {3:1}>".format(
+                    (
+                        "{0:>23} {1:<12} <nrProxy: {2:1}> " "<nrSignal: {3:1}>"
+                    ).format(
                         " ", iface, conv(len(procList)), conv(len(receiver))
                     )
                 )
@@ -68266,6 +68404,10 @@ class DbusMgr(object):
                 if ret:
                     perProc, perSig = ret
                     DbusMgr.printSignalInfo(tid, perProc, perSig, busProcList)
+                else:
+                    SysMgr.printWarn(
+                        "no subscription info for %s" % procStr, True
+                    )
             # printstat #
             elif mode == "printstat":
                 ret = DbusMgr.getStats(bus, "stats")
@@ -68294,6 +68436,10 @@ class DbusMgr(object):
                     )
                     if not ret:
                         continue
+
+                    # print boot info #
+                    if cpath == "/org/freedesktop/systemd1":
+                        DbusMgr.printSystemBootInfo(ret)
 
                     DbusMgr.printUnitStatInfo(cpath, ret)
             elif mode == "printunit":
