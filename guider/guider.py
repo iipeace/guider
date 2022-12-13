@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221212"
+__revision__ = "221213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34676,6 +34676,7 @@ Examples:
 
     - {2:1} with specific input
         # {0:1} {1:1} -c ActiveEnterTimestampMonotonic
+        # {0:1} {1:1} -c cloud-config.service
         # {0:1} {1:1} -c /org/freedesktop/systemd1/unit/_2d_2eslice
         # {0:1} {1:1} -c "*service"
 
@@ -66869,11 +66870,19 @@ class DbusMgr(object):
         unitStartTime = _getTime(unitStart)
         unitFinishTime = _getTime(unitFinish)
 
-        firmware = firmwareTime - loaderTime
+        if firmwareTime:
+            firmware = firmwareTime - loaderTime
+        else:
+            firmware = 0
+
         loader = loaderTime
         kernel = kernelDoneTime
         user = finishTime - userTime
-        initrd = finishTime - initrdTime - user
+
+        if initrdTime:
+            initrd = finishTime - initrdTime - user
+        else:
+            initrd = 0
 
         if ret:
             return [firmware, loader, kernel, initrd, user]
@@ -66910,14 +66919,12 @@ class DbusMgr(object):
         SysMgr.printPipe(oneLine)
 
     @staticmethod
-    def getUnitBootInfo(path, info):
+    def getUnitBootInfo(info):
         activeEnter = "ActiveEnterTimestampMonotonic"
         activeExit = "ActiveExitTimestampMonotonic"
         inactiveEnter = "InactiveEnterTimestampMonotonic"
         inactiveExit = "InactiveExitTimestampMonotonic"
         userStart = "UserspaceTimestampMonotonic"
-
-        # get times #
         offset = 0
 
         def _getTime(name):
@@ -66926,11 +66933,12 @@ class DbusMgr(object):
             else:
                 return 0
 
+        # get time stats #
         offset = _getTime(userStart)
-        activating = _getTime(activeEnter)
-        activated = _getTime(activeExit)
-        deactivating = _getTime(inactiveEnter)
-        deactivated = _getTime(inactiveExit)
+        activating = _getTime(inactiveExit)
+        activated = _getTime(activeEnter)
+        deactivating = _getTime(activeExit)
+        deactivated = _getTime(inactiveEnter)
 
         # calculate activation #
         if activated >= activating:
@@ -66956,8 +66964,11 @@ class DbusMgr(object):
             "\n[D-Bus Unit Stat Info] <Target: %s>\n%s" % (path, twoLine)
         )
 
-        for attr, name in sorted(info.items()):
-            SysMgr.printPipe("{0:<40}: {1:1}".format(attr, name))
+        for attr, value in sorted(info.items()):
+            if UtilMgr.isNumber(value):
+                value = UtilMgr.convNum(value)
+
+            SysMgr.printPipe("{0:<40}: {1:1}".format(attr, value))
 
         # print unit stats #
         SysMgr.printPipe(oneLine)
@@ -68395,9 +68406,11 @@ class DbusMgr(object):
             if mode == "printintro":
                 for service, intro in introList.items():
                     DbusMgr.printIntrospection(tid, introList)
+
             # monitor #
             elif mode == "printmonitor":
                 DbusMgr.runMonitor(bus)
+
             # signal #
             elif mode == "printsub":
                 ret = DbusMgr.getStats(bus, "allmatch", procStr=procStr)
@@ -68408,43 +68421,68 @@ class DbusMgr(object):
                     SysMgr.printWarn(
                         "no subscription info for %s" % procStr, True
                     )
+
             # printstat #
             elif mode == "printstat":
                 ret = DbusMgr.getStats(bus, "stats")
                 DbusMgr.printStatInfo(tid, ret)
+
             # printinfo #
             elif mode == "printinfo":
-                # get all info #
+                # get unit info #
                 ret = DbusMgr.getUnitList(bus)
-                if ret:
-                    units = [item[6] for item in ret]
-                    units.sort()
-                    units.insert(0, "/org/freedesktop/systemd1")
-                else:
-                    SysMgr.printErr("no input for path")
-                    sys.exit(-1)
+                if not ret:
+                    SysMgr.printWarn(
+                        "no input for path for %s" % procStr, True
+                    )
+                    continue
 
-                # print info #
+                # make lists #
+                unitDict = {item[6]: item for item in ret}
+                units = list(unitDict)
+                units.sort()
+                units.insert(0, "/org/freedesktop/systemd1")
+                unitStats = {}
+
+                # get stats #
                 for cpath in units:
-                    if SysMgr.customCmd and not UtilMgr.isValidStr(
-                        cpath, SysMgr.customCmd
-                    ):
-                        continue
-
+                    # get all stats #
                     ret = DbusMgr.getAllInfo(
                         bus, cpath, verb=True if SysMgr.warnEnable else False
                     )
                     if not ret:
                         continue
 
-                    # print boot info #
                     if cpath == "/org/freedesktop/systemd1":
+                        # print boot info #
                         DbusMgr.printSystemBootInfo(ret)
+                    else:
+                        # get activation time #
+                        ret.setdefault(
+                            "Activation",
+                            DbusMgr.getUnitBootInfo(ret)["activation"],
+                        )
 
-                    DbusMgr.printUnitStatInfo(cpath, ret)
+                        # save stats #
+                        unitStats[unitDict[cpath][0]] = ret
+
+                # print stats #
+                for unit, stats in sorted(
+                    unitStats.items(),
+                    key=lambda x: x[1]["Activation"],
+                    reverse=True,
+                ):
+                    if SysMgr.customCmd and not UtilMgr.isValidStr(
+                        unit, SysMgr.customCmd
+                    ):
+                        continue
+
+                    DbusMgr.printUnitStatInfo(unit, stats)
+
             elif mode == "printunit":
                 ret = DbusMgr.getUnitList(bus)
                 DbusMgr.printUnitInfo(tid, ret)
+
             elif mode == "getunitspid":
                 if not pidList:
                     pidList = {k: None for k in SysMgr.getPidList()}
@@ -68456,6 +68494,7 @@ class DbusMgr(object):
                         continue
 
                     pidList[pid] = DbusMgr.getUnitByPID(bus, long(pid))
+
             else:
                 cont = False
 
