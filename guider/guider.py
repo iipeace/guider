@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221213"
+__revision__ = "221214"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30250,7 +30250,7 @@ Commands:
                 else:
                     types = " "
 
-                cmdbuf = "%s%4s%-12s%4s%-14s%4s%-15s (%-s)\n" % (
+                cmdbuf = "%s%4s%-12s%4s%-18s%4s%-15s (%-s)\n" % (
                     cmdbuf,
                     " ",
                     types,
@@ -30368,10 +30368,8 @@ Commands:
                 "printbind": ("Function", "Linux"),
                 "printcg": ("Cgroup", "Linux"),
                 "printdbus": ("D-Bus", "Linux"),
-                "printdbusinfo": ("D-Bus", "Linux"),
                 "printdbusintro": ("D-Bus", "Linux"),
                 "printdbusstat": ("D-Bus", "Linux"),
-                "printdbusunit": ("D-Bus", "Linux"),
                 "printdbussub": ("D-Bus", "Linux"),
                 "printdir": ("Dir", "Linux/MacOS/Windows"),
                 "printenv": ("Env", "Linux"),
@@ -30381,7 +30379,9 @@ Commands:
                 "printns": ("Namespace", "Linux"),
                 "printsig": ("Signal", "Linux"),
                 "printslab": ("Slab", "Linux"),
-                "printsvc": ("systemd", "Linux"),
+                "printsystemd": ("Systemd", "Linux"),
+                "printsystemdinfo": ("Systemd", "Linux"),
+                "printsystemdunit": ("Systemd", "Linux"),
                 "printvma": ("Vmalloc", "Linux"),
                 "pstree": ("Process", "Linux/MacOS/Windows"),
                 "readahead": ("File", "Linux"),
@@ -30764,6 +30764,9 @@ Examples:
 
     - {3:1} {2:1} and {5:1} with memo {4:1}
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
+
+    - {3:1} {2:1} and {5:1} without USB info
+        # {0:1} {1:1} -o . -q NOUSBINFO
 
     - {3:1} {2:1} and {5:1} with limited memory buffer 50MB {4:1}
         # {0:1} {1:1} -o . -b 50m
@@ -34632,13 +34635,13 @@ Examples:
                         cmd, mode
                     )
 
-                # printdbus* #
+                # print{dbus|systemd}* #
                 elif SysMgr.getMode() in (
                     "printdbusintro",
                     "printdbussub",
                     "printdbusstat",
-                    "printdbusunit",
-                    "printdbusinfo",
+                    "printsystemdunit",
+                    "printsystemdinfo",
                 ):
                     ocmd = SysMgr.getMode()
                     if ocmd == "printdbusintro":
@@ -34647,10 +34650,10 @@ Examples:
                         msg = "Print D-Bus signal subscription info"
                     elif ocmd == "printdbusstat":
                         msg = "Print D-Bus stats"
-                    elif ocmd == "printdbusunit":
-                        msg = "Print D-Bus units"
-                    elif ocmd == "printdbusinfo":
-                        msg = "Print D-Bus unit info"
+                    elif ocmd == "printsystemdunit":
+                        msg = "Print systemd unit status"
+                    elif ocmd == "printsystemdinfo":
+                        msg = "Print systemd info"
 
                     helpStr = """
 Usage:
@@ -35581,8 +35584,8 @@ Examples:
                         cmd, mode
                     )
 
-                # printsvc #
-                elif SysMgr.checkMode("printsvc"):
+                # printsystemd #
+                elif SysMgr.checkMode("printsystemd"):
                     helpStr = """
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -37336,10 +37339,10 @@ Copyright:
                 )
                 if ret < 0:
                     SysMgr.printErr(
-                        "failed to call fanotify_mark because %s"
-                        % SysMgr.getErrReason()
+                        "failed to call fanotify_mark for '%s' because %s"
+                        % (item, SysMgr.getErrReason())
                     )
-                    return False
+                    continue
 
             # just return fd #
             if retfd:
@@ -39871,8 +39874,7 @@ Copyright:
                 SysMgr.printLogo(absolute=True, big=True)
 
                 # save system info #
-                SysMgr.saveSysStats()
-                SysMgr.printInfoBuffer()
+                SysMgr.saveSysStats(True)
 
                 # submit summary report and details #
                 if "NOINTSUMMARY" in SysMgr.environList:
@@ -40009,8 +40011,7 @@ Copyright:
             SysMgr.printLogo(absolute=True, big=True)
 
             # save system info #
-            SysMgr.saveSysStats()
-            SysMgr.printInfoBuffer()
+            SysMgr.saveSysStats(True)
 
             # submit summarized report and details #
             TaskAnalyzer.printIntervalUsage()
@@ -44752,14 +44753,14 @@ Copyright:
         # PRINTDBUS* MODE #
         elif SysMgr.getMode() in (
             "printdbus",
-            "printdbusstat",
             "printdbusintro",
+            "printdbusstat",
             "printdbussub",
-            "printdbusunit",
-            "printdbusinfo",
+            "printsystemdinfo",
+            "printsystemdunit",
         ):
             # remove dbus word #
-            cmd = SysMgr.getMode().replace("dbus", "")
+            cmd = SysMgr.getMode().replace("dbus", "").replace("systemd", "")
 
             # set console info #
             if cmd == "print":
@@ -45112,9 +45113,9 @@ Copyright:
         elif SysMgr.checkMode("printns"):
             SysMgr.doPrintNs()
 
-        # PRINTSVC MODE #
-        elif SysMgr.checkMode("printsvc"):
-            SysMgr.doPrintSvc()
+        # PRINTSYSTEMD MODE #
+        elif SysMgr.checkMode("printsystemd"):
+            SysMgr.doPrintSystemd()
 
         # PRINTINFO MODE #
         elif SysMgr.checkMode("printinfo"):
@@ -51174,7 +51175,7 @@ Copyright:
         return attrs
 
     @staticmethod
-    def doPrintSvc():
+    def doPrintSystemd():
         def _getAttr(fpath):
             try:
                 fd = open(fpath, "r")
@@ -51998,6 +51999,24 @@ Copyright:
 
         # remove redundant path #
         targetList = list(set(targetList))
+
+        # set maximum notify object number #
+        try:
+            userInstance = long(
+                SysMgr.readFile("/proc/sys/fs/inotify/max_user_instances")
+            )
+            if userInstance < 8182:
+                SysMgr.writeFile(
+                    "/proc/sys/fs/inotify/max_user_instances", "8192"
+                )
+                SysMgr.printInfo("changed max_user_instance to '8192'")
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "failed to apply inotify max_user_instances", True, True
+            )
+            sys.exit(-1)
 
         # print start message #
         SysMgr.printInfo("start watching [%s]\n" % ", ".join(targetList))
@@ -59512,12 +59531,15 @@ Copyright:
             pass
 
     @staticmethod
-    def saveSysStats():
+    def saveSysStats(printBuf=False):
         if not SysMgr.sysInstance:
             SysMgr()
 
         if SysMgr.sysInstance:
             SysMgr.sysInstance.saveSysStat()
+
+        if printBuf:
+            SysMgr.printInfoBuffer()
 
     def saveSysStat(self, initialized=True):
         if not SysMgr.isLinux:
@@ -61247,6 +61269,10 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
     def printUSBInfo(self):
+        # check skip option #
+        if "NOUSBINFO" in SysMgr.environList:
+            return
+
         SysMgr.infoBufferPrint("\n[System USB Info]")
         SysMgr.infoBufferPrint(twoLine)
 
@@ -66744,7 +66770,7 @@ class DbusMgr(object):
 
         # print title #
         SysMgr.printPipe(
-            "\n[D-Bus Unit Info] <Target: %s>\n%s" % (procId, twoLine)
+            "\n[Systemd Unit Status] <Target: %s>\n%s" % (procId, twoLine)
         )
         SysMgr.printPipe("{0:^16}".format("Unit (Description)"))
         SysMgr.printPipe(
@@ -66824,7 +66850,9 @@ class DbusMgr(object):
         firmwareStart = "FirmwareTimestampMonotonic"
         loaderStart = "LoaderTimestampMonotonic"
         kernelStart = "KernelTimestamp"
-        securityStart = "SecurityStartTimestampMonotonic"
+        securityStart = "SecurityStartTimestamp"
+        securityTime = "SecurityStartTimestampMonotonic"
+        securityFinish = "SecurityFinishTimestamp"
         initrdStart = "InitRDTimestampMonotonic"
         userStart = "UserspaceTimestampMonotonic"
         genStart = "GeneratorsStartTimestampMonotonic"
@@ -66837,9 +66865,6 @@ class DbusMgr(object):
         initrdGenFinish = "InitRDGeneratorsFinishTimestampMonotonic"
         initrdUnitStart = "InitRDUnitsLoadStartTimestampMonotonic"
         initrdUnitFinish = "InitRDUnitsLoadFinishTimestampMonotonic"
-
-        # print title #
-        SysMgr.printPipe("\n[systemd Boot Info]\n" + twoLine)
 
         offset = 0
 
@@ -66862,6 +66887,7 @@ class DbusMgr(object):
         else:
             kernelDoneTime = userTime
 
+        # get times #
         offset = userTime
         firmwareTime = _getTime(firmwareStart)
         loaderTime = _getTime(loaderStart)
@@ -66869,15 +66895,21 @@ class DbusMgr(object):
         genFinishTime = _getTime(genFinish)
         unitStartTime = _getTime(unitStart)
         unitFinishTime = _getTime(unitFinish)
+        securityStartTime = _getTime(securityStart)
+        securityFinishTime = _getTime(securityFinish)
 
         if firmwareTime:
             firmware = firmwareTime - loaderTime
         else:
             firmware = 0
 
+        # get duration #
         loader = loaderTime
         kernel = kernelDoneTime
         user = finishTime - userTime
+        security = securityFinishTime - securityStartTime
+        unit = unitFinishTime - unitStartTime
+        gen = genFinishTime - genStartTime
 
         if initrdTime:
             initrd = finishTime - initrdTime - user
@@ -66885,30 +66917,36 @@ class DbusMgr(object):
             initrd = 0
 
         if ret:
-            return [firmware, loader, kernel, initrd, user]
+            return [firmware, kernel, initrd, unit, gen, user]
         else:
+            # print title #
+            SysMgr.printPipe("\n[systemd Boot Info]\n" + twoLine)
+
             total = 0
 
             def _convTime(name, value):
                 if value <= 0:
                     return "", 0
                 elapsed = float(value / 1000000.0)
-                return "{0:<10}:{1:>10.3f}s\n".format(name, elapsed), elapsed
+                return "{0:<20}:{1:>10.3f}s\n".format(name, elapsed), elapsed
 
             timeStr = ""
             for name, value in (
                 ("Firmware", firmware),
-                ("Loader", loader),
                 ("Kernel", kernel),
                 ("Initrd", initrd),
-                ("Userspace", user),
+                ("User", user),
+                ("|_SecuritySetup", security),
+                ("|_Generators", gen),
+                ("|_UnitLoading", unit),
             ):
                 addStr, val = _convTime(name, value)
                 timeStr += addStr
-                total += val
+                if not addStr.startswith("|"):
+                    total += val
 
             if timeStr:
-                timeStr += "{2:1}\n{0:<10}:{1:>10.3f}s\n".format(
+                timeStr += "{2:1}\n{0:<20}:{1:>10.3f}s\n".format(
                     "Total", total, oneLine
                 )
             else:
@@ -66920,12 +66958,12 @@ class DbusMgr(object):
 
     @staticmethod
     def getUnitBootInfo(info):
+        offset = 0
+        userStart = "UserspaceTimestampMonotonic"
+        inactiveExit = "InactiveExitTimestampMonotonic"
         activeEnter = "ActiveEnterTimestampMonotonic"
         activeExit = "ActiveExitTimestampMonotonic"
         inactiveEnter = "InactiveEnterTimestampMonotonic"
-        inactiveExit = "InactiveExitTimestampMonotonic"
-        userStart = "UserspaceTimestampMonotonic"
-        offset = 0
 
         def _getTime(name):
             if name in info:
@@ -66940,9 +66978,10 @@ class DbusMgr(object):
         deactivating = _getTime(activeExit)
         deactivated = _getTime(inactiveEnter)
 
-        # calculate activation #
+        # activating -> activated #
         if activated >= activating:
             activation = activated - activating
+        # activating -> deactivated #
         elif deactivated >= activating:
             activation = deactivated - activating
         else:
@@ -66961,7 +67000,7 @@ class DbusMgr(object):
     def printUnitStatInfo(path, info):
         # print title #
         SysMgr.printPipe(
-            "\n[D-Bus Unit Stat Info] <Target: %s>\n%s" % (path, twoLine)
+            "\n[Systemd Unit Info] <Target: %s>\n%s" % (path, twoLine)
         )
 
         for attr, value in sorted(info.items()):
@@ -68456,6 +68495,9 @@ class DbusMgr(object):
                     if cpath == "/org/freedesktop/systemd1":
                         # print boot info #
                         DbusMgr.printSystemBootInfo(ret)
+
+                        # print systemd info #
+                        DbusMgr.printUnitStatInfo("systemd", ret)
                     else:
                         # get activation time #
                         ret.setdefault(
@@ -83142,8 +83184,7 @@ typedef struct {
     def printSummary(instance):
         def _printSystemStat():
             # save system info #
-            SysMgr.saveSysStats()
-            SysMgr.printInfoBuffer()
+            SysMgr.saveSysStats(True)
 
         # check realtime mode #
         if not SysMgr.outPath or SysMgr.jsonEnable:
@@ -93154,6 +93195,7 @@ class TaskAnalyzer(object):
             self.zoneData = {}
             self.prevZoneData = {}
             self.slabData = {}
+            self.ksmData = {}
             self.buddyData = {}
             self.vmallocData = {}
             self.memData = {}
@@ -93363,8 +93405,7 @@ class TaskAnalyzer(object):
             # print system general info in advance #
             if SysMgr.outPath and SysMgr.pipeEnable and SysMgr.exitFlag:
                 SysMgr.printLogo(big=True)
-                SysMgr.saveSysStats()
-                SysMgr.printInfoBuffer()
+                SysMgr.saveSysStats(True)
                 SysMgr.printPipe("\n")
 
             # request service to remote server #
@@ -111732,6 +111773,29 @@ class TaskAnalyzer(object):
     def saveBuddyInfo(self):
         self.buddyData = SysMgr.readBuddyInfo()
 
+    def saveKSMInfo(self):
+        dpath = "/sys/kernel/mm/ksm"
+        if not os.path.exists(dpath):
+            return
+
+        self.ksmData = {}
+
+        # read KSM data #
+        try:
+            for item in sorted(os.listdir(dpath)):
+                # check type #
+                fpath = os.path.join(dpath, item)
+                if os.path.isdir(fpath):
+                    continue
+
+                value = SysMgr.readFile(fpath)
+
+                self.ksmData[item] = value
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get KSM stats", True)
+
     def saveSlabInfo(self):
         self.slabData = {}
 
@@ -112635,10 +112699,11 @@ class TaskAnalyzer(object):
 
         # save memory info #
         if SysMgr.memEnable:
-            self.saveSlabInfo()
             self.saveBuddyInfo()
-            self.saveZoneInfo()
+            self.saveKSMInfo()
+            self.saveSlabInfo()
             self.saveVmInfo()
+            self.saveZoneInfo()
 
         # save GPU memory info #
         self.gpuMemData, _ = SysMgr.getGpuMem()
@@ -115991,7 +116056,7 @@ class TaskAnalyzer(object):
             # add stats in a line #
             item = "%-15s %7s" % ("%s:" % name, size)
             if len(item) + len(curline) >= SysMgr.ttyCols:
-                databuf += "%s]\n" % curline.rstrip(", ")
+                databuf += "%s\n" % curline.rstrip(", ")
                 curline = str(edata)
 
             # set color #
@@ -116022,13 +116087,14 @@ class TaskAnalyzer(object):
 
         for node, items in sorted(self.buddyData.items()):
             for zone, orders in sorted(items.items()):
+                orders = "_".join(list(map(UtilMgr.convNum, orders)))
                 # add stats in a line #
-                item = "%s: %s" % (zone, tuple(orders))
+                item = "%s: %s" % (zone, orders)
                 if (
                     SysMgr.ttyCols
                     and len(item) + len(curline) >= SysMgr.ttyCols
                 ):
-                    databuf += "%s]\n" % curline.rstrip(", ")
+                    databuf += "%s\n" % curline.rstrip(", ")
                     curline = str(edata)
                     nrLine += 1
                 curline += "%s / " % item
@@ -116038,6 +116104,39 @@ class TaskAnalyzer(object):
             databuf += "%s]" % curline.rstrip(", \n/")
         databuf = databuf.rstrip(", \n")
         databuf = databuf.replace(", ", ",")
+
+        SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
+
+    def printKSMStat(self, nrIndent):
+        if not self.ksmData:
+            return
+
+        databuf = ""
+        edata = "%s %-8s" % (" " * nrIndent, " ")
+        data = "%s [%-4s > " % (" " * nrIndent, "KSM")
+        curline = str(data)
+        nrLine = 1
+
+        for name, value in sorted(self.ksmData.items()):
+            # convert value #
+            if name.startswith("pages_") and not name.endswith("_scan"):
+                value = UtilMgr.convSize2Unit(long(value) << 12)
+            else:
+                value = UtilMgr.convNum(value)
+
+            # add stats in a line #
+            item = "%s: %s" % (name, value)
+            if len(item) + len(curline) >= SysMgr.ttyCols:
+                databuf += "%s\n" % curline.rstrip(", ")
+                curline = str(edata)
+                nrLine += 1
+
+            curline += "%s, " % item
+
+        # check last line #
+        if curline != data:
+            databuf += "%s]" % curline.rstrip(", \n")
+        databuf = databuf.rstrip(", \n")
 
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
 
@@ -116073,7 +116172,7 @@ class TaskAnalyzer(object):
                 if nrLine >= cutLine:
                     break
 
-                databuf += "%s]\n" % curline.rstrip(", ")
+                databuf += "%s\n" % curline.rstrip(", ")
                 curline = str(edata)
                 nrLine += 1
 
@@ -121974,6 +122073,9 @@ class TaskAnalyzer(object):
 
             # print buddy stats #
             self.printBuddyUsage(nrIndent)
+
+            # print KSM stats #
+            self.printKSMStat(nrIndent)
 
             # print vm stats #
             self.printVmInfo(nrIndent)
