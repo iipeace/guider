@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221214"
+__revision__ = "221215"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30250,7 +30250,7 @@ Commands:
                 else:
                     types = " "
 
-                cmdbuf = "%s%4s%-12s%4s%-18s%4s%-15s (%-s)\n" % (
+                cmdbuf = "%s%4s%-12s%4s%-14s%4s%-15s (%-s)\n" % (
                     cmdbuf,
                     " ",
                     types,
@@ -30377,11 +30377,11 @@ Commands:
                 "printinfo": ("System", "Linux"),
                 "printkconf": ("kernel", "Linux"),
                 "printns": ("Namespace", "Linux"),
+                "printsd": ("Systemd", "Linux"),
+                "printsdinfo": ("Systemd", "Linux"),
+                "printsdunit": ("Systemd", "Linux"),
                 "printsig": ("Signal", "Linux"),
                 "printslab": ("Slab", "Linux"),
-                "printsystemd": ("Systemd", "Linux"),
-                "printsystemdinfo": ("Systemd", "Linux"),
-                "printsystemdunit": ("Systemd", "Linux"),
                 "printvma": ("Vmalloc", "Linux"),
                 "pstree": ("Process", "Linux/MacOS/Windows"),
                 "readahead": ("File", "Linux"),
@@ -34640,8 +34640,8 @@ Examples:
                     "printdbusintro",
                     "printdbussub",
                     "printdbusstat",
-                    "printsystemdunit",
-                    "printsystemdinfo",
+                    "printsdunit",
+                    "printsdinfo",
                 ):
                     ocmd = SysMgr.getMode()
                     if ocmd == "printdbusintro":
@@ -34650,9 +34650,9 @@ Examples:
                         msg = "Print D-Bus signal subscription info"
                     elif ocmd == "printdbusstat":
                         msg = "Print D-Bus stats"
-                    elif ocmd == "printsystemdunit":
+                    elif ocmd == "printsdunit":
                         msg = "Print systemd unit status"
-                    elif ocmd == "printsystemdinfo":
+                    elif ocmd == "printsdinfo":
                         msg = "Print systemd info"
 
                     helpStr = """
@@ -34668,6 +34668,8 @@ Options:
     -c  <WORD>                  set item filter or input
     -g  <COMM>                  set task filter
     -o  <DIR|FILE>              set output path
+    -J                          print in JSON format
+    -Q                          print all rows in a stream
                         """.format(
                         cmd, mode, msg
                     )
@@ -34688,6 +34690,13 @@ Examples:
 
     - {2:1} to a specific file
         # {0:1} {1:1} -o guider.out
+
+    - {2:1} in JSON format
+        # {0:1} {1:1} -J
+        # {0:1} {1:1} -J -Q
+
+    - {2:1} only for boot time
+        # {0:1} {1:1} -q ONLYBOOT
                     """.format(
                         cmd,
                         mode,
@@ -35584,8 +35593,8 @@ Examples:
                         cmd, mode
                     )
 
-                # printsystemd #
-                elif SysMgr.checkMode("printsystemd"):
+                # printsd #
+                elif SysMgr.checkMode("printsd"):
                     helpStr = """
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -44750,17 +44759,17 @@ Copyright:
         elif SysMgr.checkMode("logsys"):
             SysMgr.doLogMode("syslog")
 
-        # PRINTDBUS* MODE #
+        # PRINT{DBUS|SD}* MODE #
         elif SysMgr.getMode() in (
             "printdbus",
             "printdbusintro",
             "printdbusstat",
             "printdbussub",
-            "printsystemdinfo",
-            "printsystemdunit",
+            "printsdinfo",
+            "printsdunit",
         ):
             # remove dbus word #
-            cmd = SysMgr.getMode().replace("dbus", "").replace("systemd", "")
+            cmd = SysMgr.getMode().replace("dbus", "")
 
             # set console info #
             if cmd == "print":
@@ -44768,7 +44777,21 @@ Copyright:
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            DbusMgr.runDbusSnooper(mode=cmd)
+            # convert command by JSON option #
+            if SysMgr.jsonEnable:
+                if cmd == "printsdinfo":
+                    cmd = "getunitlist"
+                elif cmd == "printsdunit":
+                    cmd = "getunitstat"
+
+            # run command #
+            ret = DbusMgr.runDbusSnooper(mode=cmd)
+
+            # print result in JSON format #
+            if SysMgr.jsonEnable:
+                SysMgr.printPipe(
+                    UtilMgr.convDict2Str(ret, pretty=not SysMgr.streamEnable)
+                )
 
         elif SysMgr.isPrintLogMode():
             # set console info #
@@ -45113,9 +45136,9 @@ Copyright:
         elif SysMgr.checkMode("printns"):
             SysMgr.doPrintNs()
 
-        # PRINTSYSTEMD MODE #
-        elif SysMgr.checkMode("printsystemd"):
-            SysMgr.doPrintSystemd()
+        # PRINTSD MODE #
+        elif SysMgr.checkMode("printsd"):
+            SysMgr.doPrintSd()
 
         # PRINTINFO MODE #
         elif SysMgr.checkMode("printinfo"):
@@ -51175,7 +51198,7 @@ Copyright:
         return attrs
 
     @staticmethod
-    def doPrintSystemd():
+    def doPrintSd():
         def _getAttr(fpath):
             try:
                 fd = open(fpath, "r")
@@ -51212,13 +51235,13 @@ Copyright:
 
         # set dir path #
         if SysMgr.inputParam:
-            systemdPathList = SysMgr.inputParam.split(",")
-            for d in systemdPathList:
+            sdPathList = SysMgr.inputParam.split(",")
+            for d in sdPathList:
                 if not os.path.isdir(d.strip()):
                     SysMgr.printErr("%s is not an accessible directory" % d)
                     sys.exit(-1)
         else:
-            systemdPathList = ["/etc/systemd/system", "/lib/systemd/system"]
+            sdPathList = ["/etc/systemd/system", "/lib/systemd/system"]
 
         cv = UtilMgr.convNum
 
@@ -51230,7 +51253,7 @@ Copyright:
         obj.saveSystemStat()
 
         # parse service files #
-        for spath in systemdPathList:
+        for spath in sdPathList:
             for items in os.walk(spath):
                 for node in items[2]:
                     if not node.endswith(".service"):
@@ -66760,40 +66783,129 @@ class DbusMgr(object):
             )
 
     @staticmethod
-    def printUnitInfo(tid, unitList):
+    def printSdInfo(bus, procStr=None, retList=False):
+        # get unit info #
+        ret = DbusMgr.getUnitList(bus)
+        if not ret:
+            SysMgr.printWarn("no input for path for %s" % procStr, True)
+            return
+
+        # get only boot option #
+        onlyBoot = "ONLYBOOT" in SysMgr.environList
+
+        # make lists #
+        unitDict = {item[6]: item for item in ret}
+        units = list(unitDict)
+        units.sort()
+        units.insert(0, "/org/freedesktop/systemd1")
+        unitStats = {}
+        resList = {}
+
+        # get stats #
+        for cpath in units:
+            # get all stats #
+            ret = DbusMgr.getAllInfo(
+                bus, cpath, verb=True if SysMgr.warnEnable else False
+            )
+            if not ret:
+                continue
+
+            if cpath == "/org/freedesktop/systemd1":
+                # print boot info #
+                res = DbusMgr.printSystemBootInfo(ret, retList)
+                if res:
+                    resList["systemd"] = res
+                    continue
+
+                # print systemd info #
+                if not onlyBoot:
+                    DbusMgr.printUnitStatInfo("systemd", ret)
+            else:
+                # get activation time #
+                ret.setdefault(
+                    "Activation",
+                    DbusMgr.getUnitBootInfo(ret)["activation"],
+                )
+
+                # save stats #
+                unitStats[unitDict[cpath][0]] = ret
+
+        # return list #
+        if retList:
+            resList.update(unitStats)
+            return resList
+
+        if onlyBoot:
+            # print title #
+            SysMgr.printPipe(
+                "\n[Systemd Boot Info] (Bus: %s) \n%s" % (bus, twoLine)
+            )
+
+        # print stats #
+        cnt = 0
+        for unit, stats in sorted(
+            unitStats.items(),
+            key=lambda x: x[1]["Activation"],
+            reverse=True,
+        ):
+            if SysMgr.customCmd and not UtilMgr.isValidStr(
+                unit, SysMgr.customCmd
+            ):
+                continue
+
+            if onlyBoot:
+                SysMgr.printPipe(
+                    "{0:>10.3f}s {1:1}".format(
+                        float(stats["Activation"] / 1000000.0), unit
+                    )
+                )
+            else:
+                DbusMgr.printUnitStatInfo(unit, stats)
+
+            cnt += 1
+
+        if onlyBoot:
+            if not cnt:
+                SysMgr.printPipe("\tNone")
+            SysMgr.printPipe(oneLine)
+
+    @staticmethod
+    def printUnitInfo(tid, unitList, retList=False):
         conv = UtilMgr.convNum
         procId = "%s(%s)" % (SysMgr.getComm(tid, cache=True), tid)
+        resList = {}
 
         if not unitList:
             SysMgr.printErr("no unit for %s" % procId)
             return
 
         # print title #
-        SysMgr.printPipe(
-            "\n[Systemd Unit Status] <Target: %s>\n%s" % (procId, twoLine)
-        )
-        SysMgr.printPipe("{0:^16}".format("Unit (Description)"))
-        SysMgr.printPipe(
-            (
-                "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | "
-                "{5:>1} | {6:>1}({7:>1}/{8:>1})\n{9:1}"
-            ).format(
-                "    ",
-                "Load",
-                "Active",
-                "State",
-                "Path",
-                "Follow",
-                "Job",
-                "Path",
-                "Type",
-                twoLine,
+        if not retList:
+            SysMgr.printPipe(
+                "\n[Systemd Unit Status] <Target: %s>\n%s" % (procId, twoLine)
             )
-        )
+            SysMgr.printPipe("{0:^16}".format("Unit (Description)"))
+            SysMgr.printPipe(
+                (
+                    "{0:<1} {1:>9} | {2:>8} | {3:>9} | {4:>1} | "
+                    "{5:>1} | {6:>1}({7:>1}/{8:>1})\n{9:1}"
+                ).format(
+                    "    ",
+                    "Load",
+                    "Active",
+                    "State",
+                    "Path",
+                    "Follow",
+                    "Job",
+                    "Path",
+                    "Type",
+                    twoLine,
+                )
+            )
 
-        if not unitList:
-            SysMgr.printPipe("\tNone\n%s" % oneLine)
-            return
+            if not unitList:
+                SysMgr.printPipe("\tNone\n%s" % oneLine)
+                return
 
         # print units #
         for items in sorted(unitList, key=lambda i: i[0].lower()):
@@ -66817,16 +66929,33 @@ class DbusMgr(object):
                 jpath,
             ) = items
 
-            if load != "loaded":
-                load = UtilMgr.convColor(load, "WARNING", 8)
+            # apply colors #
+            if not retList:
+                if load != "loaded":
+                    load = UtilMgr.convColor(load, "WARNING", 8)
 
-            if active == "active":
-                active = UtilMgr.convColor(active, "GREEN", 8)
-            else:
-                active = UtilMgr.convColor(active, "WARNING", 8)
+                if active == "active":
+                    active = UtilMgr.convColor(active, "GREEN", 8)
+                else:
+                    active = UtilMgr.convColor(active, "WARNING", 8)
 
             if not stat:
                 stat = "."
+
+            # save items to list #
+            if retList:
+                resList[unit] = {
+                    "desc": desc,
+                    "load": load,
+                    "active": active,
+                    "state": state,
+                    "path": path,
+                    "stat": stat,
+                    "job": job,
+                    "jobtype": jtype,
+                    "jobpath": jpath,
+                }
+                continue
 
             if job and job != "0":
                 jobstr = " | %s(%s/%s)" % (job, jtype, jpath)
@@ -66842,6 +66971,8 @@ class DbusMgr(object):
                     "    ", load, active, state, path, stat, jobstr, oneLine
                 )
             )
+
+        return resList
 
     @staticmethod
     def printSystemBootInfo(info, ret=False):
@@ -66917,44 +67048,49 @@ class DbusMgr(object):
             initrd = 0
 
         if ret:
-            return [firmware, kernel, initrd, unit, gen, user]
+            return {
+                "firmware": firmware,
+                "kernel": kernel,
+                "initrd": initrd,
+                "unitload": unit,
+                "generator": gen,
+                "user": user,
+            }
+
+        # print title #
+        SysMgr.printPipe("\n[Systemd Boot Info]\n" + twoLine)
+
+        total = 0
+
+        def _convTime(name, value):
+            if value <= 0:
+                return "", 0
+            elapsed = float(value / 1000000.0)
+            return "{0:<20}:{1:>10.3f}s\n".format(name, elapsed), elapsed
+
+        timeStr = ""
+        for name, value in (
+            ("Firmware", firmware),
+            ("Kernel", kernel),
+            ("Initrd", initrd),
+            ("User", user),
+            ("|_SecuritySetup", security),
+            ("|_Generators", gen),
+            ("|_UnitLoading", unit),
+        ):
+            addStr, val = _convTime(name, value)
+            timeStr += addStr
+            if not addStr.startswith("|"):
+                total += val
+
+        if timeStr:
+            timeStr += "{2:1}\n{0:<20}:{1:>10.3f}s\n".format(
+                "Total", total, oneLine
+            )
         else:
-            # print title #
-            SysMgr.printPipe("\n[systemd Boot Info]\n" + twoLine)
+            timeStr = "\tNone\n"
 
-            total = 0
-
-            def _convTime(name, value):
-                if value <= 0:
-                    return "", 0
-                elapsed = float(value / 1000000.0)
-                return "{0:<20}:{1:>10.3f}s\n".format(name, elapsed), elapsed
-
-            timeStr = ""
-            for name, value in (
-                ("Firmware", firmware),
-                ("Kernel", kernel),
-                ("Initrd", initrd),
-                ("User", user),
-                ("|_SecuritySetup", security),
-                ("|_Generators", gen),
-                ("|_UnitLoading", unit),
-            ):
-                addStr, val = _convTime(name, value)
-                timeStr += addStr
-                if not addStr.startswith("|"):
-                    total += val
-
-            if timeStr:
-                timeStr += "{2:1}\n{0:<20}:{1:>10.3f}s\n".format(
-                    "Total", total, oneLine
-                )
-            else:
-                timeStr = "\tNone\n"
-
-            SysMgr.printPipe(timeStr)
-
-        SysMgr.printPipe(oneLine)
+        SysMgr.printPipe(timeStr + oneLine)
 
     @staticmethod
     def getUnitBootInfo(info):
@@ -68204,13 +68340,14 @@ class DbusMgr(object):
         SysMgr.checkRootPerm()
 
         # check mode for returning list #
-        if mode in ("getunitspid"):
+        if mode in ("getpidlist", "getunitlist", "getunitstat"):
             retList = True
         else:
             retList = False
 
         # check filter #
         pidList = {}
+        unitList = {}
         taskList = []
         ret = SysMgr.selectTaskId() if not retList else None
         # selected processes #
@@ -68438,10 +68575,10 @@ class DbusMgr(object):
             else:
                 busServiceList[tid].setdefault(bus, {})
 
-            # define process string #
+            # define process info #
             procStr = "%s(%s)" % (SysMgr.getComm(tid, cache=True), tid)
 
-            # printintro #
+            # introspection #
             if mode == "printintro":
                 for service, intro in introList.items():
                     DbusMgr.printIntrospection(tid, introList)
@@ -68461,71 +68598,32 @@ class DbusMgr(object):
                         "no subscription info for %s" % procStr, True
                     )
 
-            # printstat #
+            # stat #
             elif mode == "printstat":
                 ret = DbusMgr.getStats(bus, "stats")
                 DbusMgr.printStatInfo(tid, ret)
 
-            # printinfo #
-            elif mode == "printinfo":
-                # get unit info #
+            # sdinfo #
+            elif mode in ("printsdinfo", "getunitlist"):
+                if mode == "printsdinfo":
+                    DbusMgr.printSdInfo(bus, procStr)
+                else:
+                    ret = DbusMgr.printSdInfo(bus, procStr, True)
+                    unitList.setdefault(bus, {})
+                    unitList[bus].update(ret)
+
+            # sdunit #
+            elif mode in ("printsdunit", "getunitstat"):
                 ret = DbusMgr.getUnitList(bus)
-                if not ret:
-                    SysMgr.printWarn(
-                        "no input for path for %s" % procStr, True
-                    )
-                    continue
+                if mode == "printsdunit":
+                    DbusMgr.printUnitInfo(tid, ret)
+                else:
+                    res = DbusMgr.printUnitInfo(tid, ret, True)
+                    unitList.setdefault(bus, {})
+                    unitList[bus].update(res)
 
-                # make lists #
-                unitDict = {item[6]: item for item in ret}
-                units = list(unitDict)
-                units.sort()
-                units.insert(0, "/org/freedesktop/systemd1")
-                unitStats = {}
-
-                # get stats #
-                for cpath in units:
-                    # get all stats #
-                    ret = DbusMgr.getAllInfo(
-                        bus, cpath, verb=True if SysMgr.warnEnable else False
-                    )
-                    if not ret:
-                        continue
-
-                    if cpath == "/org/freedesktop/systemd1":
-                        # print boot info #
-                        DbusMgr.printSystemBootInfo(ret)
-
-                        # print systemd info #
-                        DbusMgr.printUnitStatInfo("systemd", ret)
-                    else:
-                        # get activation time #
-                        ret.setdefault(
-                            "Activation",
-                            DbusMgr.getUnitBootInfo(ret)["activation"],
-                        )
-
-                        # save stats #
-                        unitStats[unitDict[cpath][0]] = ret
-
-                # print stats #
-                for unit, stats in sorted(
-                    unitStats.items(),
-                    key=lambda x: x[1]["Activation"],
-                    reverse=True,
-                ):
-                    if SysMgr.customCmd and not UtilMgr.isValidStr(
-                        unit, SysMgr.customCmd
-                    ):
-                        continue
-
-                    DbusMgr.printUnitStatInfo(unit, stats)
-
-            elif mode == "printunit":
-                ret = DbusMgr.getUnitList(bus)
-                DbusMgr.printUnitInfo(tid, ret)
-
-            elif mode == "getunitspid":
+            # pidlist #
+            elif mode == "getpidlist":
                 if not pidList:
                     pidList = {k: None for k in SysMgr.getPidList()}
 
@@ -68599,14 +68697,16 @@ class DbusMgr(object):
                 sys.exit(-1)
 
         # check mode #
-        if mode == "getunitspid":
+        if mode == "getpidlist":
             return pidList
+        elif mode in ("getunitlist", "getunitstat"):
+            return unitList
         elif mode in (
             "printintro",
             "printsub",
             "printstat",
-            "printunit",
-            "printinfo",
+            "printsdunit",
+            "printsdinfo",
         ):
             return
 
@@ -94054,7 +94154,7 @@ class TaskAnalyzer(object):
 
         # get D-Bus unit list #
         if SysMgr.dbusUnitEnable:
-            DbusMgr.pidUnitList = DbusMgr.runDbusSnooper(mode="getunitspid")
+            DbusMgr.pidUnitList = DbusMgr.runDbusSnooper(mode="getpidlist")
 
         # run loop #
         while 1:
