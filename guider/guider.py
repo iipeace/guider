@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221215"
+__revision__ = "221218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28813,12 +28813,12 @@ Commands:
         return 0
 
     @staticmethod
-    def getPpid(pid):
+    def getPpid(pid, target="PPid"):
         statusPath = "%s/%s/status" % (SysMgr.procPath, pid)
         try:
             with open(statusPath, "r") as fd:
                 for line in fd.readlines():
-                    if line.startswith("PPid"):
+                    if line.startswith(target):
                         return line.split(":")[1].split()[0]
         except SystemExit:
             sys.exit(0)
@@ -59796,6 +59796,7 @@ Copyright:
                         sched = None
                         continue
                     schedList = SysMgr.readFile(schedPath).split()
+                    sched = None
                     for item in schedList:
                         if item.startswith("["):
                             sched = item.strip("[]")
@@ -65391,6 +65392,13 @@ class DbusMgr(object):
                 True,
             )
 
+        def _cleanUp(msg, reply, procStr, warn=True):
+            SysMgr.libdbusObj.dbus_message_unref(msg)
+            SysMgr.libdbusObj.dbus_message_unref(reply)
+            # dbusObj.dbus_connection_unref(conn)
+            if warn:
+                _printWarn(procStr, getLine(), getErr())
+
         if not bus:
             return
 
@@ -65445,7 +65453,9 @@ class DbusMgr(object):
 
         # prepare args #
         # refer to https://dbus.freedesktop.org/doc/api/html/group__DBusProtocol.html #
+        rd = {}
         d = DbusMgr.getTypeList()
+        UtilMgr.makeReverseDict(d, rd)
 
         # introspect #
         if request == "introspect":
@@ -65458,10 +65468,7 @@ class DbusMgr(object):
                 d["DBUS_TYPE_INVALID"],
             )
             if not res:
-                dbusObj.dbus_message_unref(msg)
-                dbusObj.dbus_message_unref(reply)
-                # dbusObj.dbus_connection_unref(conn)
-                _printWarn(procStr, getLine(), getErr())
+                _cleanUp(msg, reply, procStr)
                 return
 
             # parse args #
@@ -65481,9 +65488,7 @@ class DbusMgr(object):
             buf = str(strRes.value.decode())
 
             # clean up #
-            dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_message_unref(reply)
-            # dbusObj.dbus_connection_unref(conn)
+            _cleanUp(msg, reply, procStr, False)
 
             return buf
 
@@ -65503,18 +65508,12 @@ class DbusMgr(object):
         # initialize iteration #
         ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
         if not ret:
-            _printWarn(procStr, getLine(), getErr())
-            dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_message_unref(reply)
-            # dbusObj.dbus_connection_unref(conn)
+            _cleanUp(msg, reply, procStr)
             return
 
         ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
         if ret != d["DBUS_TYPE_ARRAY"]:
-            _printWarn(procStr, getLine(), getErr())
-            dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_message_unref(reply)
-            # dbusObj.dbus_connection_unref(conn)
+            _cleanUp(msg, reply, procStr)
             return
 
         # get item count #
@@ -65539,10 +65538,7 @@ class DbusMgr(object):
             while 1:
                 ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
                 if ret != d["DBUS_TYPE_DICT_ENTRY"]:
-                    _printWarn(procStr, getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
+                    _cleanUp(msg, reply, procStr)
                     return statList
 
                 dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
@@ -65551,10 +65547,7 @@ class DbusMgr(object):
                 while 1:
                     ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                     if ret != d["DBUS_TYPE_STRING"]:
-                        _printWarn(procStr, getLine(), getErr())
-                        dbusObj.dbus_message_unref(msg)
-                        dbusObj.dbus_message_unref(reply)
-                        # dbusObj.dbus_connection_unref(conn)
+                        _cleanUp(msg, reply, procStr)
                         return statList
 
                     # get name #
@@ -65575,35 +65568,13 @@ class DbusMgr(object):
                     # get stat values as a variant-type value #
                     ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                     if ret != d["DBUS_TYPE_VARIANT"]:
-                        _printWarn(procStr, getLine(), getErr())
-                        dbusObj.dbus_message_unref(msg)
-                        dbusObj.dbus_message_unref(reply)
-                        # dbusObj.dbus_connection_unref(conn)
+                        _cleanUp(msg, reply, procStr)
                         break
 
-                    # parse variant #
-                    dbusObj.dbus_message_iter_recurse(dictIterP, varIterP)
-
-                    # variant item loop #
-                    while 1:
-                        ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
-                        if ret != d["DBUS_TYPE_UINT32"]:
-                            _printWarn(procStr, getLine(), getErr())
-                            dbusObj.dbus_message_unref(msg)
-                            dbusObj.dbus_message_unref(reply)
-                            # dbusObj.dbus_connection_unref(conn)
-                            return statList
-
-                        # get value #
-                        dbusObj.dbus_message_iter_get_basic(
-                            varIterP, byref(value)
-                        )
-                        if value.value:
-                            statList[sname].append(value.value)
-
-                        # next value #
-                        if not dbusObj.dbus_message_iter_next(varIterP):
-                            break
+                    # get items #
+                    statList[sname] = DbusMgr.getVariantItems(
+                        dictIterP, value, d, rd
+                    )
 
                     # next stat #
                     if not dbusObj.dbus_message_iter_next(dictIterP):
@@ -65624,10 +65595,7 @@ class DbusMgr(object):
         while 1:
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
             if ret != d["DBUS_TYPE_DICT_ENTRY"]:
-                _printWarn(procStr, getLine(), getErr())
-                dbusObj.dbus_message_unref(msg)
-                dbusObj.dbus_message_unref(reply)
-                # dbusObj.dbus_connection_unref(conn)
+                _cleanUp(msg, reply, procStr)
                 return
 
             dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
@@ -65636,19 +65604,13 @@ class DbusMgr(object):
             while 1:
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != d["DBUS_TYPE_STRING"]:
-                    _printWarn(procStr, getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
+                    _cleanUp(msg, reply, procStr)
                     return
 
                 # get process ID #
                 dbusObj.dbus_message_iter_get_basic(dictIterP, byref(procInfo))
                 if not procInfo.value:
-                    _printWarn(procStr, getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
+                    _cleanUp(msg, reply, procStr)
                     return
 
                 if not dbusObj.dbus_message_iter_next(dictIterP):
@@ -65656,17 +65618,15 @@ class DbusMgr(object):
 
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != d["DBUS_TYPE_ARRAY"]:
-                    _printWarn(procStr, getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
+                    _cleanUp(msg, reply, procStr)
                     return
 
                 # check array size #
                 if dbusObj.dbus_message_iter_get_element_count(dictIterP) == 0:
                     if not dbusObj.dbus_message_iter_next(dictIterP):
                         break
-                    continue
+                    else:
+                        continue
 
                 # allocate a new task dict #
                 procId = procInfo.value.decode()
@@ -65679,10 +65639,7 @@ class DbusMgr(object):
                 while 1:
                     ret = dbusObj.dbus_message_iter_get_arg_type(arraySigIterP)
                     if ret != d["DBUS_TYPE_STRING"]:
-                        _printWarn(procStr, getLine(), getErr())
-                        dbusObj.dbus_message_unref(msg)
-                        dbusObj.dbus_message_unref(reply)
-                        # dbusObj.dbus_connection_unref(conn)
+                        _cleanUp(msg, reply, procStr)
                         return
 
                     # get signal info #
@@ -65743,9 +65700,7 @@ class DbusMgr(object):
                 break
 
         # clean up #
-        dbusObj.dbus_message_unref(msg)
-        dbusObj.dbus_message_unref(reply)
-        # dbusObj.dbus_connection_unref(conn)
+        _cleanUp(msg, reply, procStr, False)
 
         return perProcList, perSigList
 
@@ -65965,6 +65920,50 @@ class DbusMgr(object):
         return DbusMgr.getList(bus, "ListUnits")
 
     @staticmethod
+    def getVariantItems(varIterP, value, d, rd):
+        items = []
+        dbusObj = SysMgr.libdbusObj
+        iterP = byref(DbusMgr.getMessageIterObj())
+        dbusObj.dbus_message_iter_recurse(varIterP, iterP)
+
+        while 1:
+            # get item type #
+            ret = dbusObj.dbus_message_iter_get_arg_type(iterP)
+            if not ret:
+                break
+
+            # get an item #
+            if ret in (d["DBUS_TYPE_STRING"], d["DBUS_TYPE_OBJECT_PATH"]):
+                dbusObj.dbus_message_iter_get_basic(iterP, byref(value))
+                val = value.value.decode()
+            elif ret == d["DBUS_TYPE_ARRAY"]:
+                array = DbusMgr.getVariantItems(iterP, value, d, rd)
+                val = str(array)
+            elif ret == d["DBUS_TYPE_STRUCT"]:
+                val = DbusMgr.getVariantItems(iterP, value, d, rd)
+            elif ret in rd:
+                dbusObj.dbus_message_iter_get_basic(iterP, byref(value))
+                ctype = DbusMgr.getCtype(rd[ret])
+                if ctype:
+                    val = cast(byref(value), POINTER(ctype)).contents.value
+                else:
+                    val = None
+            else:
+                SysMgr.printWarn(
+                    "no implementation of arg type (%s)" % rd[ret], True
+                )
+                val = None
+
+            # add to list #
+            items.append(val)
+
+            # move to next item #
+            if not dbusObj.dbus_message_iter_next(iterP):
+                break
+
+        return items
+
+    @staticmethod
     def getList(bus, method):
         # pylint: disable=no-member
         def _printWarn(line, err):
@@ -66015,7 +66014,9 @@ class DbusMgr(object):
             return
 
         # get arg types #
+        rd = {}
         d = DbusMgr.getTypeList()
+        UtilMgr.makeReverseDict(d, rd)
 
         # parse args #
         cntRes = c_int(0)
@@ -66059,42 +66060,9 @@ class DbusMgr(object):
             if ret != d["DBUS_TYPE_STRUCT"]:
                 if ret != 0:
                     _printWarn(getLine(), getErr())
-                dbusObj.dbus_message_unref(msg)
-                dbusObj.dbus_message_unref(reply)
-                # dbusObj.dbus_connection_unref(conn)
-                return statList
+                break
 
-            dbusObj.dbus_message_iter_recurse(arrayIterP, structIterP)
-
-            statList.append([])
-
-            # struct item loop #
-            while 1:
-                ret = dbusObj.dbus_message_iter_get_arg_type(structIterP)
-
-                if ret in (d["DBUS_TYPE_STRING"], d["DBUS_TYPE_OBJECT_PATH"]):
-                    dbusObj.dbus_message_iter_get_basic(
-                        structIterP, byref(name)
-                    )
-                    val = name.value.decode()
-                elif ret == d["DBUS_TYPE_UINT32"]:
-                    dbusObj.dbus_message_iter_get_basic(
-                        structIterP, byref(cntRes)
-                    )
-                    val = cntRes.value
-                else:
-                    _printWarn(getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
-                    return statList
-
-                # decode name #
-                statList[-1].append(val)
-
-                # next stat value #
-                if not dbusObj.dbus_message_iter_next(structIterP):
-                    break
+            statList.append(DbusMgr.getVariantItems(arrayIterP, value, d, rd))
 
             # next item #
             if not dbusObj.dbus_message_iter_next(arrayIterP):
@@ -66238,8 +66206,6 @@ class DbusMgr(object):
             return
 
         # parse args #
-        cntRes = c_int(0)
-        arrayRes = (POINTER(c_char_p))()
         name = c_char_p("".encode())
         value = c_char_p("".encode())
         statList = {}
@@ -66278,10 +66244,7 @@ class DbusMgr(object):
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
             if ret != d["DBUS_TYPE_DICT_ENTRY"]:
                 _printWarn(des, getLine(), getErr())
-                dbusObj.dbus_message_unref(msg)
-                dbusObj.dbus_message_unref(reply)
-                # dbusObj.dbus_connection_unref(conn)
-                return statList
+                break
 
             dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
 
@@ -66290,15 +66253,12 @@ class DbusMgr(object):
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != d["DBUS_TYPE_STRING"]:
                     _printWarn(des, getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
-                    return statList
+                    break
 
                 # get name #
                 dbusObj.dbus_message_iter_get_basic(dictIterP, byref(name))
                 if not name.value:
-                    return statList
+                    break
 
                 # decode name #
                 sname = name.value.decode()
@@ -66311,77 +66271,12 @@ class DbusMgr(object):
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != d["DBUS_TYPE_VARIANT"]:
                     _printWarn(des, getLine(), getErr())
-                    dbusObj.dbus_message_unref(msg)
-                    dbusObj.dbus_message_unref(reply)
-                    # dbusObj.dbus_connection_unref(conn)
                     break
 
-                # parse variant #
-                dbusObj.dbus_message_iter_recurse(dictIterP, varIterP)
-
-                # variant item loop #
-                while 1:
-                    ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
-
-                    # check type #
-                    if not ret in rd:
-                        _printWarn(
-                            des,
-                            getLine(),
-                            "no support arg type (%s)" % rd[ret]
-                            if ret in rd
-                            else ret,
-                        )
-                        if not dbusObj.dbus_message_iter_next(varIterP):
-                            break
-                        else:
-                            continue
-
-                    if ret in (d["DBUS_TYPE_ARRAY"], d["DBUS_TYPE_STRUCT"]):
-                        _printWarn(
-                            des,
-                            getLine(),
-                            "no implementation of %s's arg type (%s)"
-                            % (sname, rd[ret] if ret in rd else ret),
-                        )
-                        if not dbusObj.dbus_message_iter_next(varIterP):
-                            break
-                        else:
-                            continue
-
-                    # get value #
-                    res = False
-                    dbusObj.dbus_message_iter_get_basic(varIterP, byref(value))
-                    if ret == d["DBUS_TYPE_STRING"]:
-                        if value.value:
-                            statList[sname] = value.value.decode()
-                        else:
-                            statList[sname] = ""
-                        res = True
-                    elif ret in rd:
-                        ctype = DbusMgr.getCtype(rd[ret])
-                        if ctype:
-                            statList[sname] = cast(
-                                byref(value), POINTER(ctype)
-                            ).contents.value
-                            res = True
-
-                    if not res:
-                        _printWarn(
-                            des,
-                            getLine(),
-                            "no implementation of arg type (%s)" % rd[ret]
-                            if ret in rd
-                            else ret,
-                        )
-                        if not dbusObj.dbus_message_iter_next(varIterP):
-                            break
-                        else:
-                            continue
-
-                    # next value #
-                    if not dbusObj.dbus_message_iter_next(varIterP):
-                        break
+                # get items #
+                statList[sname] = DbusMgr.getVariantItems(
+                    dictIterP, value, d, rd
+                )[0]
 
                 # next stat #
                 if not dbusObj.dbus_message_iter_next(dictIterP):
@@ -67143,7 +67038,7 @@ class DbusMgr(object):
             if UtilMgr.isNumber(value):
                 value = UtilMgr.convNum(value)
 
-            SysMgr.printPipe("{0:<40}: {1:1}".format(attr, value))
+            SysMgr.printPipe("{0:<40}: {1:1}".format(attr, str(value)))
 
         # print unit stats #
         SysMgr.printPipe(oneLine)
@@ -92876,18 +92771,10 @@ class TaskAnalyzer(object):
 
         SysMgr.printPipe(oneLine)
 
-        # check memory type #
-        if SysMgr.pssEnable:
-            mtype = "PSS"
-        elif SysMgr.ussEnable:
-            mtype = "USS"
-        else:
-            mtype = "RSS"
-
         # print memory diff #
         SysMgr.printPipe(
-            "\n[Diff %s Info] (NrTask: %s) %s\n%s"
-            % (mtype, convNum(len(unionRssList) - 1), colors, twoLine)
+            "\n[Diff Mem Info] (NrTask: %s) %s\n%s"
+            % (convNum(len(unionRssList) - 1), colors, twoLine)
         )
 
         emptyRssStat = "%7s(%2s)(%7s/%7s/%7s) |" % ("-", "-", "-", "-", "-")
@@ -112267,10 +112154,17 @@ class TaskAnalyzer(object):
             TaskAnalyzer.fileIntData[path][SysMgr.uptime] = curData
 
     def saveProcStat(self):
+        # get process list #
         if SysMgr.fixedProcList:
-            pids = list(SysMgr.fixedProcList)
+            if SysMgr.processEnable:
+                pids = list(SysMgr.fixedProcList)
+            else:
+                pids = []
+                for tid in SysMgr.fixedProcList:
+                    pid = SysMgr.getPpid(tid, "Tgid")
+                    if pid:
+                        pids.append(pid)
         else:
-            # get process list #
             pids = SysMgr.getPidList()
 
         # reset and save proc instance #
@@ -112312,7 +112206,7 @@ class TaskAnalyzer(object):
             # set thread group path #
             taskPath = "%s/task" % procPath
 
-            # save info per thread #
+            # save per-thread data #
             try:
                 tids = os.listdir(taskPath)
             except SystemExit:
@@ -112328,6 +112222,13 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     continue
+
+                # check fixed tasks and main tasks #
+                if SysMgr.fixedProcList:
+                    if tid in SysMgr.fixedProcList:
+                        pass
+                    elif tid != pid:
+                        continue
 
                 if self.maxPid < nrTid:
                     self.maxPid = nrTid
@@ -113650,14 +113551,13 @@ class TaskAnalyzer(object):
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
         # check task status #
-        tstat = self.procData[tid]["stat"][self.statIdx]
+        statData = self.procData[tid]["stat"]
+        tstat = statData[self.statIdx]
         if tstat != "S" and tstat != "R" and tstat != "I":
             self.abnormalTasks[tid] = tstat
 
         # set comm #
-        comm = self.procData[tid]["comm"] = self.procData[tid]["stat"][
-            self.commIdx
-        ].strip("()")
+        comm = self.procData[tid]["comm"] = statData[self.commIdx].strip("()")
 
         # change sched priority #
         for item in SysMgr.schedFilter:
@@ -114290,40 +114190,20 @@ class TaskAnalyzer(object):
             if interval == 0:
                 return
 
-        # set context switch #
-        try:
-            nrCtxSwc = (
-                self.cpuData["ctxt"]["ctxt"] - self.prevCpuData["ctxt"]["ctxt"]
-            )
-            if nrCtxSwc < 0:
-                nrCtxSwc = 0
-        except SystemExit:
-            sys.exit(0)
-        except:
-            nrCtxSwc = 0
-
-        try:
-            nrIrq = (
-                self.cpuData["intr"]["intr"] - self.prevCpuData["intr"]["intr"]
-            )
-            if nrIrq < 0:
-                nrIrq = 0
-        except SystemExit:
-            sys.exit(0)
-        except:
-            nrIrq = 0
-
-        try:
-            nrSoftIrq = (
-                self.cpuData["softirq"]["softirq"]
-                - self.prevCpuData["softirq"]["softirq"]
-            )
-            if nrSoftIrq < 0:
-                nrSoftIrq = 0
-        except SystemExit:
-            sys.exit(0)
-        except:
-            nrSoftIrq = 0
+        # get event count #
+        nrVars = []
+        for var in ("ctxt", "intr", "softriq"):
+            try:
+                res = self.cpuData[var][var] - self.prevCpuData[var][var]
+                if res < 0:
+                    res = 0
+            except SystemExit:
+                sys.exit(0)
+            except:
+                res = 0
+            finally:
+                nrVars.append(res)
+        nrCtxSwc, nrIrq, nrSoftIrq = nrVars
 
         # get total CPU usage #
         try:
