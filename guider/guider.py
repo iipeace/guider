@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221218"
+__revision__ = "221219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34697,6 +34697,11 @@ Examples:
 
     - {2:1} only for boot time
         # {0:1} {1:1} -q ONLYBOOT
+
+    - {2:1} with specific filters
+        # {0:1} {1:1} -q SDFILTER:ActiveState:"active\,inactive"
+        # {0:1} {1:1} -q SDEXFILTER:ActiveState:"active"
+        # {0:1} {1:1} -q SDITEM:"Active*"
                     """.format(
                         cmd,
                         mode,
@@ -51558,8 +51563,7 @@ Copyright:
 
             # get memory usage #
             try:
-                tobj = SysMgr.initTaskMon(pid, update=False)
-                tobj.saveProcStat()
+                tobj = SysMgr.initTaskMon(pid)
                 mstat = TaskAnalyzer.getMemStr(tobj, pid)
                 mstat = " <%s>" % mstat
                 del tobj
@@ -54104,10 +54108,12 @@ Copyright:
         if not SysMgr.isLinux:
             return None
 
+        # save proc data #
         tobj = TaskAnalyzer(None, onlyInstance=True)
         path = "%s/%s" % (SysMgr.procPath, pid)
         tobj.saveProcData(path, pid)
 
+        # update time and instances #
         SysMgr.updateUptime()
         if update:
             tobj.saveProcInstance()
@@ -66696,8 +66702,12 @@ class DbusMgr(object):
         unitStats = {}
         resList = {}
 
+        SysMgr.printInfo("start gathering unit info...")
+
         # get stats #
-        for cpath in units:
+        for idx, cpath in enumerate(units):
+            UtilMgr.printProgress(idx, len(units))
+
             # get all stats #
             ret = DbusMgr.getAllInfo(
                 bus, cpath, verb=True if SysMgr.warnEnable else False
@@ -66725,6 +66735,8 @@ class DbusMgr(object):
                 # save stats #
                 unitStats[unitDict[cpath][0]] = ret
 
+        UtilMgr.deleteProgress()
+
         # return list #
         if retList:
             resList.update(unitStats)
@@ -66735,6 +66747,30 @@ class DbusMgr(object):
             SysMgr.printPipe(
                 "\n[Systemd Boot Info] (Bus: %s) \n%s" % (bus, twoLine)
             )
+
+        # get inclusive filters #
+        if "SDFILTER" in SysMgr.environList:
+            incCond = {}
+            for item in SysMgr.environList["SDFILTER"]:
+                items = item.split(":", 1)
+                if len(items) == 1:
+                    incCond[items[0]] = None
+                else:
+                    incCond[items[0]] = items[1].split(",")
+        else:
+            incCond = {}
+
+        # get exclusive filters #
+        if "SDEXFILTER" in SysMgr.environList:
+            exCond = {}
+            for item in SysMgr.environList["SDEXFILTER"]:
+                items = item.split(":", 1)
+                if len(items) == 1:
+                    exCond[items[0]] = None
+                else:
+                    exCond[items[0]] = items[1].split(",")
+        else:
+            exCond = {}
 
         # print stats #
         cnt = 0
@@ -66755,6 +66791,28 @@ class DbusMgr(object):
                     )
                 )
             else:
+                # check inclusive condition #
+                skip = False
+                for f, v in incCond.items():
+                    if f not in stats:
+                        skip = True
+                    elif not UtilMgr.isValidStr(stats[f], v):
+                        skip = True
+                    else:
+                        skip = False
+                        break
+                if skip:
+                    continue
+
+                # check exclusive condition #
+                skip = False
+                for f, v in exCond.items():
+                    if f in stats and UtilMgr.isValidStr(stats[f], v):
+                        skip = True
+                        break
+                if skip:
+                    continue
+
                 DbusMgr.printUnitStatInfo(unit, stats)
 
             cnt += 1
@@ -67034,11 +67092,23 @@ class DbusMgr(object):
             "\n[Systemd Unit Info] <Target: %s>\n%s" % (path, twoLine)
         )
 
+        cnt = 0
+
         for attr, value in sorted(info.items()):
+            # get items #
+            if "SDITEM" in SysMgr.environList:
+                if not UtilMgr.isValidStr(attr, SysMgr.environList["SDITEM"]):
+                    continue
+
             if UtilMgr.isNumber(value):
                 value = UtilMgr.convNum(value)
 
             SysMgr.printPipe("{0:<40}: {1:1}".format(attr, str(value)))
+
+            cnt += 1
+
+        if cnt == 0:
+            SysMgr.printPipe("\tNone")
 
         # print unit stats #
         SysMgr.printPipe(oneLine)
@@ -112942,6 +113012,10 @@ class TaskAnalyzer(object):
         elif "NOSMAPS" in SysMgr.environList:
             return
 
+        # make path #
+        if not path:
+            path = "%s/%s" % (SysMgr.procPath, tid)
+
         buf = ""
         mtype = ""
         stable = {}
@@ -113480,6 +113554,7 @@ class TaskAnalyzer(object):
 
             return statBuf
 
+        # make path #
         if not path:
             path = "%s/%s" % (SysMgr.procPath, tid)
 
@@ -120823,10 +120898,13 @@ class TaskAnalyzer(object):
     def getMemStats(tobj, pid, verb=True):
         pid = str(pid)
         comm = SysMgr.getComm(pid)
-        procPath = "%s/%s" % (SysMgr.procPath, pid)
+
+        # remove proc data #
+        if pid in tobj.procData:
+            tobj.procData.pop(pid, None)
 
         # save proc data #
-        ret = tobj.saveProcData(procPath, pid)
+        ret = tobj.saveProcData(None, pid)
         if not ret:
             if not verb:
                 pass
@@ -120838,15 +120916,20 @@ class TaskAnalyzer(object):
                 )
             return None
 
+        # get proc data #
         procData = tobj.procData[pid]
 
         # save memory usage #
         if SysMgr.isRoot():
-            tobj.saveProcSmapsData(procPath, pid, mini=True)
+            tobj.saveProcSmapsData(None, pid, mini=True)
+
             try:
                 maps = procData["maps"]
+            except SystemExit:
+                sys.exit(0)
             except:
                 return None
+
             memBuf, rss, pss, uss = tobj.getMemDetails(pid, maps)
             return {
                 "vss": long(procData["stat"][tobj.vssIdx]),
