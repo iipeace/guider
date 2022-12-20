@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221219"
+__revision__ = "221220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26260,7 +26260,7 @@ Commands:
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
         else:
-            SysMgr.printErr("no input for path")
+            SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
         SysMgr.setStream()
@@ -30377,7 +30377,7 @@ Commands:
                 "printinfo": ("System", "Linux"),
                 "printkconf": ("kernel", "Linux"),
                 "printns": ("Namespace", "Linux"),
-                "printsd": ("Systemd", "Linux"),
+                "printsdfile": ("Systemd", "Linux"),
                 "printsdinfo": ("Systemd", "Linux"),
                 "printsdunit": ("Systemd", "Linux"),
                 "printsig": ("Signal", "Linux"),
@@ -35598,14 +35598,14 @@ Examples:
                         cmd, mode
                     )
 
-                # printsd #
-                elif SysMgr.checkMode("printsd"):
+                # printsdfile #
+                elif SysMgr.checkMode("printsdfile"):
                     helpStr = """
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show systemd services on the system
+    Show systemd files on the system
 
 Options:
     -a                          show all attributes
@@ -35634,7 +35634,7 @@ Examples:
     - {2:1} in specific directories
         # {0:1} {1:1} -I /home/iipeace/services
                     """.format(
-                        cmd, mode, "Print systemd services"
+                        cmd, mode, "Print systemd files"
                     )
 
                 # printinfo #
@@ -45141,9 +45141,9 @@ Copyright:
         elif SysMgr.checkMode("printns"):
             SysMgr.doPrintNs()
 
-        # PRINTSD MODE #
-        elif SysMgr.checkMode("printsd"):
-            SysMgr.doPrintSd()
+        # PRINTSDFILE MODE #
+        elif SysMgr.checkMode("printsdfile"):
+            SysMgr.doPrintSdFile()
 
         # PRINTINFO MODE #
         elif SysMgr.checkMode("printinfo"):
@@ -50129,7 +50129,7 @@ Copyright:
 
         # check input path #
         if not inputParam:
-            SysMgr.printErr("no input for path")
+            SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
         # get response time from file #
@@ -51203,7 +51203,7 @@ Copyright:
         return attrs
 
     @staticmethod
-    def doPrintSd():
+    def doPrintSdFile():
         def _getAttr(fpath):
             try:
                 fd = open(fpath, "r")
@@ -51253,15 +51253,19 @@ Copyright:
         busServiceList = {}
         filteredList = {}
 
+        # save system stat #
         SysMgr.cmdlineEnable = True
         obj = TaskAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
+
+        # set filter #
+        fileFilter = ["*.service", "*.target", "*.socket"]
 
         # parse service files #
         for spath in sdPathList:
             for items in os.walk(spath):
                 for node in items[2]:
-                    if not node.endswith(".service"):
+                    if not UtilMgr.isValidStr(node, fileFilter):
                         continue
                     elif node in busServiceList:
                         continue
@@ -52823,7 +52827,7 @@ Copyright:
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam)
         else:
-            SysMgr.printErr("no input for path")
+            SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
         # check symbol #
@@ -57224,7 +57228,7 @@ Copyright:
             inputList = SysMgr.inputParam.split(",")
             inputList = UtilMgr.cleanItem(inputList)
         else:
-            SysMgr.printErr("no input for path")
+            SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
         # get config path #
@@ -65953,6 +65957,9 @@ class DbusMgr(object):
                 if ctype:
                     val = cast(byref(value), POINTER(ctype)).contents.value
                 else:
+                    SysMgr.printWarn(
+                        "no implementation of type (%s)" % ret, True
+                    )
                     val = None
             else:
                 SysMgr.printWarn(
@@ -66086,14 +66093,15 @@ class DbusMgr(object):
         try:
             return {
                 "DBUS_TYPE_BOOLEAN": c_bool,
+                "DBUS_TYPE_BYTE": c_byte,
+                "DBUS_TYPE_DOUBLE": c_double,
+                "DBUS_TYPE_FLOAT": c_float,
                 "DBUS_TYPE_INT16": c_int16,
                 "DBUS_TYPE_INT32": c_int32,
                 "DBUS_TYPE_INT64": c_int64,
                 "DBUS_TYPE_UINT16": c_uint16,
                 "DBUS_TYPE_UINT32": c_uint32,
                 "DBUS_TYPE_UINT64": c_uint64,
-                "DBUS_TYPE_FLOAT": c_float,
-                "DBUS_TYPE_DOUBLE": c_double,
             }[typename]
         except SystemExit:
             sys.exit(0)
@@ -66688,14 +66696,19 @@ class DbusMgr(object):
         # get unit info #
         ret = DbusMgr.getUnitList(bus)
         if not ret:
-            SysMgr.printWarn("no input for path for %s" % procStr, True)
+            SysMgr.printWarn("no unit info for %s" % procStr, True)
             return
 
         # get only boot option #
         onlyBoot = "ONLYBOOT" in SysMgr.environList
 
         # make lists #
-        unitDict = {item[6]: item for item in ret}
+        unitDict = {
+            item[6]: item
+            for item in ret
+            if not SysMgr.customCmd
+            or UtilMgr.isValidStr(item[0], SysMgr.customCmd)
+        }
         units = list(unitDict)
         units.sort()
         units.insert(0, "/org/freedesktop/systemd1")
@@ -66707,6 +66720,10 @@ class DbusMgr(object):
         # get stats #
         for idx, cpath in enumerate(units):
             UtilMgr.printProgress(idx, len(units))
+
+            # print path info #
+            if SysMgr.warnEnable:
+                SysMgr.printWarn("start reading '%s' info..." % cpath)
 
             # get all stats #
             ret = DbusMgr.getAllInfo(
@@ -66779,11 +66796,6 @@ class DbusMgr(object):
             key=lambda x: x[1]["Activation"],
             reverse=True,
         ):
-            if SysMgr.customCmd and not UtilMgr.isValidStr(
-                unit, SysMgr.customCmd
-            ):
-                continue
-
             if onlyBoot:
                 SysMgr.printPipe(
                     "{0:>10.3f}s {1:1}".format(
@@ -66796,7 +66808,7 @@ class DbusMgr(object):
                 for f, v in incCond.items():
                     if f not in stats:
                         skip = True
-                    elif not UtilMgr.isValidStr(stats[f], v):
+                    elif not UtilMgr.isValidStr(str(stats[f]), v):
                         skip = True
                     else:
                         skip = False
@@ -66807,12 +66819,19 @@ class DbusMgr(object):
                 # check exclusive condition #
                 skip = False
                 for f, v in exCond.items():
-                    if f in stats and UtilMgr.isValidStr(stats[f], v):
+                    if f in stats and UtilMgr.isValidStr(str(stats[f]), v):
                         skip = True
                         break
                 if skip:
                     continue
 
+                # add MainCOMM field #
+                if "MainPID" in stats:
+                    comm = SysMgr.getComm(stats["MainPID"])
+                    if comm:
+                        stats["MainCOMM"] = comm
+
+                # print info #
                 DbusMgr.printUnitStatInfo(unit, stats)
 
             cnt += 1
@@ -92188,7 +92207,7 @@ class TaskAnalyzer(object):
         # get stats from files #
         flist = UtilMgr.getFileList(flist, exceptDir=True)
         if not flist:
-            SysMgr.printErr("no input for path")
+            SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
         # define variable and table #
@@ -113009,8 +113028,6 @@ class TaskAnalyzer(object):
         # check root permission #
         if not SysMgr.isRoot():
             return
-        elif "NOSMAPS" in SysMgr.environList:
-            return
 
         # make path #
         if not path:
@@ -115927,6 +115944,7 @@ class TaskAnalyzer(object):
                     initVal = "[%s]" % UtilMgr.convColor(unit, "RED", 7)
                     self.procData[idx]["wss"][name] = initVal
 
+        # erase memory info #
         if not SysMgr.memEnable:
             memBuf = []
 
@@ -118086,6 +118104,12 @@ class TaskAnalyzer(object):
             def _memFactorPG(stat):
                 return stat >> 8
 
+        # get smaps option #
+        if "NOSMAPS" in SysMgr.environList:
+            smapsEnable = False
+        else:
+            smapsEnable = True
+
         # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
@@ -118192,7 +118216,9 @@ class TaskAnalyzer(object):
                 self.saveProcWchanData(value["taskPath"], idx)
 
             # save memory map info to get memory details #
-            if SysMgr.memEnable:
+            if SysMgr.memEnable and (
+                smapsEnable or SysMgr.pssEnable or SysMgr.ussEnable
+            ):
                 TaskAnalyzer.saveProcSmapsData(
                     value["taskPath"], idx, mini=not SysMgr.wssEnable
                 )
@@ -118464,6 +118490,9 @@ class TaskAnalyzer(object):
                 )
                 value["pss"] = pss >> memFactorKB
                 value["uss"] = uss >> memFactorKB
+
+                if not smapsEnable:
+                    memBuf = []
             elif SysMgr.pssEnable:
                 pss = TaskAnalyzer.readProcMemStats(
                     value["taskPath"], idx, retPss=True, retShr=False
@@ -118874,7 +118903,7 @@ class TaskAnalyzer(object):
                     pass
 
             procCnt += 1
-            if SysMgr.memEnable:
+            if SysMgr.memEnable and smapsEnable:
                 SysMgr.addPrint("%s\n" % oneLine)
 
         # check stream flag #
