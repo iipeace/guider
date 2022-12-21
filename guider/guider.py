@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221220"
+__revision__ = "221221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5633,6 +5633,7 @@ class ConfigMgr(object):
         "PERF_COUNT_SW_EMULATION_FAULTS",
         "PERF_COUNT_SW_DUMMY",
         "PERF_COUNT_SW_BPF_OUTPUT",
+        "PERF_COUNT_SW_CGROUP_SWITCHES",
     ]
     PERF_CACHE_EVENT_TYPE = [
         "PERF_COUNT_HW_CACHE_L1D",
@@ -5651,6 +5652,54 @@ class ConfigMgr(object):
     PERF_CACHE_EVENT_OPRES = [
         "PERF_COUNT_HW_CACHE_RESULT_ACCESS",
         "PERF_COUNT_HW_CACHE_RESULT_MISS",
+    ]
+    PERF_EVENT_SAMPLE = {
+        "PERF_SAMPLE_IP": 1 << 0,
+        "PERF_SAMPLE_TID": 1 << 1,
+        "PERF_SAMPLE_TIME": 1 << 2,
+        "PERF_SAMPLE_ADDR": 1 << 3,
+        "PERF_SAMPLE_READ": 1 << 4,
+        "PERF_SAMPLE_CALLCHAIN": 1 << 5,
+        "PERF_SAMPLE_ID": 1 << 6,
+        "PERF_SAMPLE_CPU": 1 << 7,
+        "PERF_SAMPLE_PERIOD": 1 << 8,
+        "PERF_SAMPLE_STREAM_ID": 1 << 9,
+        "PERF_SAMPLE_RAW": 1 << 10,
+        "PERF_SAMPLE_BRANCH_STACK": 1 << 11,
+        "PERF_SAMPLE_REGS_USER": 1 << 12,
+        "PERF_SAMPLE_STACK_USER": 1 << 13,
+        "PERF_SAMPLE_WEIGHT": 1 << 14,
+        "PERF_SAMPLE_DATA_SRC": 1 << 15,
+        "PERF_SAMPLE_IDENTIFIER": 1 << 16,
+        "PERF_SAMPLE_TRANSACTION": 1 << 17,
+        "PERF_SAMPLE_REGS_INTR": 1 << 18,
+        "PERF_SAMPLE_PHYS_ADDR": 1 << 19,
+        "PERF_SAMPLE_AUX": 1 << 20,
+        "PERF_SAMPLE_CGROUP": 1 << 21,
+        "PERF_SAMPLE_DATA_PAGE_SIZE": 1 << 22,
+        "PERF_SAMPLE_CODE_PAGE_SIZE": 1 << 23,
+        "PERF_SAMPLE_WEIGHT_STRUCT": 1 << 24,
+    }
+    PERF_BRANCH_SAMPLE_SHIFT = [
+        "PERF_SAMPLE_BRANCH_USER_SHIFT",  # user branches #
+        "PERF_SAMPLE_BRANCH_KERNEL_SHIFT",  # kernel branches #
+        "PERF_SAMPLE_BRANCH_HV_SHIFT",  # hypervisor branches #
+        "PERF_SAMPLE_BRANCH_ANY_SHIFT",  # any branch types #
+        "PERF_SAMPLE_BRANCH_ANY_CALL_SHIFT",  # any call branch #
+        "PERF_SAMPLE_BRANCH_ANY_RETURN_SHIFT",  # any return branch #
+        "PERF_SAMPLE_BRANCH_IND_CALL_SHIFT",  # indirect calls #
+        "PERF_SAMPLE_BRANCH_ABORT_TX_SHIFT",  # transaction aborts #
+        "PERF_SAMPLE_BRANCH_IN_TX_SHIFT",  # in transaction #
+        "PERF_SAMPLE_BRANCH_NO_TX_SHIFT",  # not in transaction #
+        "PERF_SAMPLE_BRANCH_COND_SHIFT",  # conditional branches #
+        "PERF_SAMPLE_BRANCH_CALL_STACK_SHIFT",  # call/ret stack #
+        "PERF_SAMPLE_BRANCH_IND_JUMP_SHIFT",  # indirect jumps #
+        "PERF_SAMPLE_BRANCH_CALL_SHIFT",  # direct call #
+        "PERF_SAMPLE_BRANCH_NO_FLAGS_SHIFT",  # no flags #
+        "PERF_SAMPLE_BRANCH_NO_CYCLES_SHIFT",  # no cycles #
+        "PERF_SAMPLE_BRANCH_TYPE_SAVE_SHIFT",  # save branch type #
+        "PERF_SAMPLE_BRANCH_HW_INDEX_SHIFT",  # save low level index of raw branch records #
+        "PERF_SAMPLE_BRANCH_PRIV_SAVE_SHIFT",  # save privilege mode #
     ]
 
     @staticmethod
@@ -37942,14 +37991,34 @@ Copyright:
         class union_anon_7(Union):
             pass
 
-        union_anon_7.__slots__ = ["bp_addr", "config1"]
-        union_anon_7._fields_ = [("bp_addr", c_uint64), ("config1", c_uint64)]
+        union_anon_7.__slots__ = [
+            "bp_addr",
+            "kprobe_func",
+            "uprobe_path",
+            "config1",
+        ]
+        union_anon_7._fields_ = [
+            ("bp_addr", c_uint64),
+            ("kprobe_func", c_uint64),
+            ("uprobe_path", c_uint64),
+            ("config1", c_uint64),
+        ]
 
         class union_anon_8(Union):
             pass
 
-        union_anon_8.__slots__ = ["bp_len", "config2"]
-        union_anon_8._fields_ = [("bp_len", c_uint64), ("config2", c_uint64)]
+        union_anon_8.__slots__ = [
+            "bp_len",
+            "kprobe_addr",
+            "probe_offset",
+            "config2",
+        ]
+        union_anon_8._fields_ = [
+            ("bp_len", c_uint64),
+            ("kprobe_addr", c_uint64),
+            ("probe_offset", c_uint64),
+            ("config2", c_uint64),
+        ]
 
         class struct_perf_event_attr(Structure):
             pass
@@ -38004,7 +38073,7 @@ Copyright:
                      sample_id_all:1,           /* sample_type all events */
                      exclude_host:1,            /* don't count in host   */
                      exclude_guest:1,           /* don't count in guest  */
-                     exclude_callchain_kernel:1,        /* exclude kernel callchains */
+                     exclude_callchain_kernel:1,/* exclude kernel callchains */
                      exclude_callchain_user:1,  /* exclude user callchains */
                      mmap2:1,                   /* include mmap with inode data     */
                      comm_exec:1,               /* flag comm events that are due to an exec */
@@ -38012,11 +38081,16 @@ Copyright:
                      context_switch:1,          /* context switch data */
                      write_backward:1,          /* Write ring buffer from end to beginning */
                      namespaces:1,              /* include namespaces data */
-                     __reserved_1:35;
+                     ksymbol:1,                 /* include ksymbol events */
+                     bpf_event:1,               /* include bpf events */
+                     aux_output:1,              /* generate AUX records
+                     cgroup:1,                  /* include cgroup events */
+                     text_poke:1,               /* include text poke events */
+                     __reserved_1:30;
 
             union
             {
-                uint32_t wakeup_events; /* wakeup every n events */
+                uint32_t wakeup_events;         /* wakeup every n events */
                 uint32_t wakeup_watermark;      /* bytes before wakeup   */
             };
 
@@ -38025,12 +38099,16 @@ Copyright:
             union
             {
                 uint64_t bp_addr;
+                uint64 kprobe_func;             /* for perf_kprobe */
+                uint64 uprobe_path;             /* for perf_uprobe */
                 uint64_t config1;               /* extension of config */
             };
 
             union
             {
                 uint64_t bp_len;
+                uint64 kprobe_addr;             /* with kprobe_func == NULL */
+                uint64 probe_offset;            /* for perf_[k,u]probe */
                 uint64_t config2;               /* extension of config1 */
             };
 
@@ -38086,6 +38164,11 @@ Copyright:
             "context_switch",
             "write_backward",
             "namespaces",
+            "ksymbol",
+            "bpf_event",
+            "aux_output",
+            "cgroup",
+            "text_poke",
             "__reserved_1",
             "unnamed_2",
             "bp_type",
@@ -38141,7 +38224,12 @@ Copyright:
             ("context_switch", c_uint64, 1),
             ("write_backward", c_uint64, 1),
             ("namespaces", c_uint64, 1),
-            ("__reserved_1", c_uint64, 35),
+            ("ksymbol", c_uint64, 1),
+            ("bpf_event", c_uint64, 1),
+            ("aux_output", c_uint64, 1),
+            ("cgroup", c_uint64, 1),
+            ("text_poke", c_uint64, 1),
+            ("__reserved_1", c_uint64, 30),
             ("unnamed_2", union_anon_6),
             ("bp_type", c_uint32),
             ("unnamed_3", union_anon_7),
@@ -38421,6 +38509,7 @@ Copyright:
             "PERF_COUNT_SW_CPU_CLOCK",
             "PERF_COUNT_SW_PAGE_FAULTS_MIN",
             "PERF_COUNT_SW_PAGE_FAULTS_MAJ",
+            "PERF_COUNT_SW_DUMMY",
         ]
 
         successCnt = 0
@@ -65103,49 +65192,55 @@ class DbusMgr(object):
         if bus in DbusMgr.connCache:
             return DbusMgr.connCache[bus]
 
+        ADDRENV = "DBUS_SESSION_BUS_ADDRESS"
         dbusObj = SysMgr.libdbusObj
         name = "guider.method.caller".encode()
         procInfo = "%s(%s)" % (SysMgr.getComm(tid, cache=True), tid)
 
         # get bus type #
         if bus == "system":
-            bustype = DbusMgr.DBusBusType["DBUS_BUS_SYSTEM"]
+            busType = DbusMgr.DBusBusType["DBUS_BUS_SYSTEM"]
 
             # save EUID #
             euidOrig = os.geteuid()
-        elif bus in ("session", "user"):
-            bustype = DbusMgr.DBusBusType["DBUS_BUS_SESSION"]
+        else:
+            busType = DbusMgr.DBusBusType["DBUS_BUS_SESSION"]
+
+            if tid:
+                # set bus address #
+                envList = SysMgr.getEnv(tid)
+                for env in envList:
+                    if env.startswith(ADDRENV):
+                        saddr = UtilMgr.lstrip(env, ADDRENV)[1:]
+                        os.environ[ADDRENV] = saddr
+                        break
 
             # set EUID #
             euidOrig = _setEuid()
-        else:
-            SysMgr.printWarn(
-                "failed to recognize %s bus for %s" % (bus, procInfo)
-            )
-            return None
 
         # get connection #
-        conn = dbusObj.dbus_bus_get_private(bustype, DbusMgr.getErrP())
+        conn = dbusObj.dbus_bus_get_private(busType, DbusMgr.getErrP())
         if conn:
             conn = dbusObj.dbus_connection_ref(conn)
         else:
             # get connection by session address #
-            ADDRENV = "DBUS_SESSION_BUS_ADDRESS"
             if ADDRENV in os.environ:
-                address = os.environ[ADDRENV]
-                address = c_char_p(address.encode())
-                conn = dbusObj.dbus_connection_open(address, DbusMgr.getErrP())
+                addr = os.environ[ADDRENV]
+                addr = c_char_p(addr.encode())
+                conn = dbusObj.dbus_connection_open(addr, DbusMgr.getErrP())
             elif tid:
                 # recover EUID #
                 os.seteuid(euidOrig)
 
+                # set bus address #
                 envList = SysMgr.getEnv(tid)
                 for env in envList:
                     if env.startswith(ADDRENV):
-                        renv = UtilMgr.lstrip(env, ADDRENV)[1:].encode()
-                        address = c_char_p(renv)
+                        saddr = UtilMgr.lstrip(env, ADDRENV)[1:]
+                        renv = saddr.encode()
+                        addr = c_char_p(renv)
                         conn = dbusObj.dbus_connection_open(
-                            address, DbusMgr.getErrP()
+                            addr, DbusMgr.getErrP()
                         )
                         break
 
@@ -65202,7 +65297,7 @@ class DbusMgr(object):
                 method = "Hello"
                 msg, reply = DbusMgr.callMethod(conn, des, path, iface, method)
                 if not msg or not reply:
-                    if bustype == DbusMgr.DBusBusType["DBUS_BUS_SESSION"]:
+                    if busType == DbusMgr.DBusBusType["DBUS_BUS_SESSION"]:
                         SysMgr.printWarn(
                             (
                                 "check DBUS_SESSION_BUS_ADDRESS "
@@ -66713,9 +66808,9 @@ class DbusMgr(object):
         units.sort()
         units.insert(0, "/org/freedesktop/systemd1")
         unitStats = {}
-        resList = {}
+        resList = {"bus": bus}
 
-        SysMgr.printInfo("start gathering unit info...")
+        SysMgr.printInfo("start gathering unit info for %s..." % procStr)
 
         # get stats #
         for idx, cpath in enumerate(units):
@@ -66741,7 +66836,7 @@ class DbusMgr(object):
 
                 # print systemd info #
                 if not onlyBoot:
-                    DbusMgr.printUnitStatInfo("systemd", ret)
+                    DbusMgr.printUnitStatInfo("systemd", ret, bus, procStr)
             else:
                 # get activation time #
                 ret.setdefault(
@@ -66832,7 +66927,7 @@ class DbusMgr(object):
                         stats["MainCOMM"] = comm
 
                 # print info #
-                DbusMgr.printUnitStatInfo(unit, stats)
+                DbusMgr.printUnitStatInfo(unit, stats, bus, procStr)
 
             cnt += 1
 
@@ -66842,10 +66937,10 @@ class DbusMgr(object):
             SysMgr.printPipe(oneLine)
 
     @staticmethod
-    def printUnitInfo(tid, unitList, retList=False):
+    def printUnitInfo(tid, unitList, bus, procStr, retList=False):
         conv = UtilMgr.convNum
         procId = "%s(%s)" % (SysMgr.getComm(tid, cache=True), tid)
-        resList = {}
+        resList = {"bus": bus}
 
         if not unitList:
             SysMgr.printErr("no unit for %s" % procId)
@@ -66854,7 +66949,8 @@ class DbusMgr(object):
         # print title #
         if not retList:
             SysMgr.printPipe(
-                "\n[Systemd Unit Status] <Target: %s>\n%s" % (procId, twoLine)
+                "\n[Systemd Unit Status] (Target: %s) (Bus: %s) (Proc: %s)\n%s"
+                % (procId, bus, procStr, twoLine)
             )
             SysMgr.printPipe("{0:^16}".format("Unit (Description)"))
             SysMgr.printPipe(
@@ -67105,10 +67201,11 @@ class DbusMgr(object):
         }
 
     @staticmethod
-    def printUnitStatInfo(path, info):
+    def printUnitStatInfo(path, info, bus=None, procStr=None):
         # print title #
         SysMgr.printPipe(
-            "\n[Systemd Unit Info] <Target: %s>\n%s" % (path, twoLine)
+            "\n[Systemd Unit Info] (Target: %s) (Bus: %s) (Proc: %s)\n%s"
+            % (path, bus, procStr, twoLine)
         )
 
         cnt = 0
@@ -68463,6 +68560,8 @@ class DbusMgr(object):
             if syncLock:
                 lockf(syncLock, LOCK_EX)  # pylint: disable=undefined-variable
 
+        # os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
+
         # create child processes to monitor each targets #
         for tid in taskList:
             cont = True
@@ -68487,9 +68586,9 @@ class DbusMgr(object):
             # get bus type for daemons #
             if onlyDaemon:
                 cmdline += SysMgr.getCmdline(tid)
-                if "--system" in cmdline:
+                if "--system " in cmdline or cmdline.endswith("--system"):
                     bus = "system"
-                elif "--session" in cmdline:
+                elif "--session " in cmdline or cmdline.endswith("--session"):
                     bus = "session"
                 elif "--scope system" in cmdline:
                     bus = "system"
@@ -68593,18 +68692,18 @@ class DbusMgr(object):
                     DbusMgr.printSdInfo(bus, procStr)
                 else:
                     ret = DbusMgr.printSdInfo(bus, procStr, True)
-                    unitList.setdefault(bus, {})
-                    unitList[bus].update(ret)
+                    unitList.setdefault(procStr, {})
+                    unitList[procStr].update(ret)
 
             # sdunit #
             elif mode in ("printsdunit", "getunitstat"):
                 ret = DbusMgr.getUnitList(bus)
                 if mode == "printsdunit":
-                    DbusMgr.printUnitInfo(tid, ret)
+                    DbusMgr.printUnitInfo(tid, ret, bus, procStr)
                 else:
-                    res = DbusMgr.printUnitInfo(tid, ret, True)
-                    unitList.setdefault(bus, {})
-                    unitList[bus].update(res)
+                    res = DbusMgr.printUnitInfo(tid, ret, bus, procStr, True)
+                    unitList.setdefault(procStr, {})
+                    unitList[procStr].update(res)
 
             # pidlist #
             elif mode == "getpidlist":
@@ -105086,7 +105185,7 @@ class TaskAnalyzer(object):
                 "NrIRQ",
                 "NrTask",
                 "Core",
-                "Network",
+                "NetIO",
             )
         )
         SysMgr.printPipe("%s\n" % twoLine)
@@ -114265,7 +114364,7 @@ class TaskAnalyzer(object):
             "NrSIRQ",
             "PgMlk",
             "PgDirt",
-            "Network",
+            "NetIO",
         )
 
         # print system status menu #
