@@ -31389,8 +31389,14 @@ Common Examples:
     - Except for file info
         # {0:1} {1:1} -g a.out -q NOFILE
 
+    - Print ld(loader) info
+        # {0:1} {1:1} -g a.out -q PRINTLD
+
     - Except for ld(loader) info
         # {0:1} {1:1} -g a.out -q EXCEPTLD
+
+    - Check new mapping every time until loading libc
+        # {0:1} {1:1} a.out -q WATCHLD
 
     - Ignore specific signals
         # {0:1} {1:1} -g a.out -q IGNORESIGNAL:SIGABRT
@@ -40285,10 +40291,11 @@ Copyright:
                 % (outputFile, UtilMgr.convSize2Unit(totalSize))
             )
 
+            # open compressor #
             f = open(outputFile, "wb")
             os.chmod(outputFile, 0o777)
             if compressor:
-                f = compressor.GzipFile(fileobj=f)
+                f = compressor.GzipFile(mode="wb", fileobj=f)
 
             # write system info #
             if SysMgr.sysinfoBuffer:
@@ -42098,7 +42105,7 @@ Copyright:
                     compressor = SysMgr.getPkg("gzip", False)
                     if compressor:
                         SysMgr.printFd = compressor.GzipFile(
-                            fileobj=SysMgr.printFd
+                            mode="wb", fileobj=SysMgr.printFd
                         )
 
                 # print file name #
@@ -52183,7 +52190,7 @@ Copyright:
                         )
                         break
 
-                for item in ret:
+                for item in ret:  # pylint: disable=not-an-iterable
                     # error #
                     if not item:
                         continue
@@ -70887,6 +70894,7 @@ class Debugger(object):
         self.jmapSymTable = []
         self.jmapAddrTable = []
         self.needMapScan = True
+        self.watchLd = False
         self.initPtrace = False
         self.initWaitpid = False
         self.initPvr = False
@@ -71309,6 +71317,10 @@ typedef struct {
         # filter for CPU threshold #
         if "CPUCOND" in SysMgr.environList:
             Debugger.cpuCond = UtilMgr.getEnvironNum("CPUCOND", isInt=True)
+
+        # set watchld flag #
+        if "WATCHLD" in SysMgr.environList:
+            self.watchLd = True
 
         # set string size #
         if Debugger.strSize == -1 and "STRSIZE" in SysMgr.environList:
@@ -73684,6 +73696,8 @@ typedef struct {
         return cmdSet
 
     def injectDefaultBp(self):
+        printld = "PRINTLD" in SysMgr.environList
+
         # add default breakpoints such as mmap #
         for lib in list(self.dftBpFileList):
             # add all symbols of loader #
@@ -73697,7 +73711,7 @@ typedef struct {
                 for item in ret:
                     ldaddr, ldsym, ldlib = item
                     ret = self.injectBp(ldaddr, ldsym, fname=ldlib, reins=True)
-                    if ret:
+                    if not printld and ret:
                         # register exceptional address #
                         self.exceptBpList[ldaddr] = 0
 
@@ -73712,7 +73726,7 @@ typedef struct {
 
                 addr = ret[0][0]
                 ret = self.injectBp(addr, dsym, fname=lib, reins=True)
-                if ret:
+                if not printld and ret:
                     # register exceptional address #
                     self.exceptBpList[addr] = 0
 
@@ -79667,6 +79681,10 @@ typedef struct {
         sym = self.bpList[addr]["symbol"]
         fname = self.bpList[addr]["filename"]
         isRetBp = False
+
+        # check watchld to prevent missing new mapping #
+        if self.watchLd and not self.libcLoaded:
+            self.needMapScan = True
 
         # update memory map and load new ELF objects #
         if self.needMapScan or (
@@ -104410,7 +104428,7 @@ class TaskAnalyzer(object):
             # compressed data #
             with open(fname, "rb") as fd:
                 compressor = SysMgr.getPkg("gzip")
-                fd = compressor.GzipFile(fileobj=fd)
+                fd = compressor.GzipFile(mode="rb", fileobj=fd)
 
                 lines = []
                 tlines = fd.read().decode().split("\n")
@@ -107285,7 +107303,7 @@ class TaskAnalyzer(object):
             try:
                 if UtilMgr.isCompressed(fd=fd):
                     compressor = SysMgr.getPkg("gzip")
-                    fd = compressor.GzipFile(fileobj=fd)
+                    fd = compressor.GzipFile(mode="rb", fileobj=fd)
                 else:
                     SysMgr.compressEnable = False
                     compressor = None
