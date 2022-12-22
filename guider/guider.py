@@ -7371,6 +7371,10 @@ class UtilMgr(object):
         if outFile:
             outputFile = outFile
         else:
+            # convert file object to string #
+            if hasattr(logFile, "name"):
+                logFile = logFile.name
+
             if SysMgr.outPath:
                 outputFile = os.path.normpath(SysMgr.outPath)
             else:
@@ -48265,6 +48269,9 @@ Copyright:
 
                 # set response #
                 self.send_response(200)
+
+                # TODO: support graph response #
+                # SysMgr.drawStats(fdlist=io.buf, outFd=self.wfile)
 
                 # set header #
                 self.send_header("Content-type", "text/plain")
@@ -95840,7 +95847,15 @@ class TaskAnalyzer(object):
 
         return matplotlib
 
-    def drawStats(self, flist, outFile=None, onlyGraph=False, onlyChart=False):
+    def drawStats(
+        self,
+        flist=[],
+        fdlist=[],
+        outFile=None,
+        outFd=None,
+        onlyGraph=False,
+        onlyChart=False,
+    ):
         def _printMemUsage(signum=None, frame=None):
             pid = SysMgr.pid
             comm = SysMgr.getComm(pid)
@@ -95865,16 +95880,27 @@ class TaskAnalyzer(object):
 
             signal.alarm(SysMgr.intervalEnable)
 
-        # convert str to list #
-        if type(flist) is str:
+        # convert to list #
+        if type(flist) is not list:
             flist = [flist]
+        if type(fdlist) is not list:
+            fdlist = [fdlist]
+
+        # set target #
+        if fdlist:
+            targets = fdlist
+        else:
+            targets = flist
 
         # get stats from a single file #
-        if len(flist) == 1:
-            logFile = flist[0]
+        if len(targets) == 1:
+            logFile = targets[0]
 
             # parse stats #
-            graphStats, chartStats = TaskAnalyzer.getStatsFile(logFile)
+            graphStats, chartStats = TaskAnalyzer.getStatsFile(
+                logFile=logFile if flist else None,
+                handle=logFile if fdlist else None,
+            )
         # get stats from multiple files for comparison #
         else:
             logFile = SysMgr.outFilePath
@@ -95891,7 +95917,7 @@ class TaskAnalyzer(object):
                 concatenated = False
 
             # parse stats from multiple files #
-            for lfile in flist:
+            for lfile in targets:
                 try:
                     gstats, cstats = TaskAnalyzer.getStatsFile(
                         lfile, onlyStart=concatenated
@@ -96056,7 +96082,11 @@ class TaskAnalyzer(object):
         try:
             if not onlyChart:
                 self.drawGraph(
-                    graphStats, logFile, outFile=outFile, logEvents=logEvents
+                    graphStats,
+                    logFile,
+                    outFile=outFile,
+                    outFd=outFd,
+                    logEvents=logEvents,
                 )
         except SystemExit:
             sys.exit(0)
@@ -96590,7 +96620,9 @@ class TaskAnalyzer(object):
             except:
                 continue
 
-    def drawGraph(self, graphStats, logFile, outFile=None, logEvents=[]):
+    def drawGraph(
+        self, graphStats, logFile, outFile=None, outFd=None, logEvents=[]
+    ):
         # pylint: disable=undefined-variable
 
         # ==================== DEFINE PART ====================#
@@ -98848,7 +98880,9 @@ class TaskAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        TaskAnalyzer.saveImage(logFile, "graph", outFile=outFile)
+        TaskAnalyzer.saveImage(
+            logFile, "graph", outFile=outFile, fd=outFd if outFd else None
+        )
 
     def getMargin(self):
         # pylint: disable=undefined-variable
@@ -98861,7 +98895,7 @@ class TaskAnalyzer(object):
 
         return margin
 
-    def drawAvgGraph(self, graphStats, logFile, outFile=None):
+    def drawAvgGraph(self, graphStats, logFile, outFile=None, outFd=None):
         def _getTextAlign(idx, timeline):
             if idx < len(timeline) / 4:
                 return "left"
@@ -99554,33 +99588,47 @@ class TaskAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        TaskAnalyzer.saveImage(logFile, "graph", outFile=outFile)
+        TaskAnalyzer.saveImage(
+            logFile, "graph", outFile=outFile, fd=outFd if outFd else None
+        )
 
     @staticmethod
-    def saveImage(logFile, itype="", outFile=None):
+    def saveImage(logFile, itype="", outFile=None, fd=None):
         # get pylab object #
         SysMgr.importPkgItems("pylab")
 
-        # get output file name #
-        outputFile = UtilMgr.prepareForImageFile(logFile, itype, outFile)
-
         try:
+            outFd = None
+
+            # get output file name #
+            if fd:
+                outFd = fd
+            else:
+                outFd = UtilMgr.prepareForImageFile(logFile, itype, outFile)
+
             # save graph #
             savefig(  # pylint: disable=undefined-variable
-                outputFile, dpi=SysMgr.matplotlibDpi
+                outFd, dpi=SysMgr.matplotlibDpi
             )
             clf()  # pylint: disable=undefined-variable
 
+            fname = outFd.name if hasattr(outFd, "name") else outFd
+
             # get output size #
-            fsize = UtilMgr.getFileSizeStr(outputFile)
+            fsize = UtilMgr.getFileSizeStr(fname)
 
             SysMgr.printStat(
-                "wrote resource %s into '%s'%s" % (itype, outputFile, fsize)
+                "wrote resource %s into '%s'%s" % (itype, fname, fsize)
             )
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("failed to draw image to '%s'" % outputFile, True)
+            SysMgr.printErr(
+                "failed to draw image to '%s'" % outFd.name
+                if hasattr(outFd, "name")
+                else outFd,
+                True,
+            )
             return
 
     def sampleStack(self, period):
