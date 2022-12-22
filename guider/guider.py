@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221221"
+__revision__ = "221222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32211,6 +32211,75 @@ Options:
                     """
 
                     helpStr += """
+  * uprobe
+	p[:[GRP/]EVENT] PATH:OFFSET [FETCHARGS] : Set a uprobe
+	r[:[GRP/]EVENT] PATH:OFFSET [FETCHARGS] : Set a return uprobe (uretprobe)
+	p[:[GRP/]EVENT] PATH:OFFSET%return [FETCHARGS] : Set a return uprobe (uretprobe)
+	-:[GRP/]EVENT                           : Clear uprobe or uretprobe event
+
+	GRP           : Group name. If omitted, "uprobes" is the default value.
+	EVENT         : Event name. If omitted, the event name is generated based on PATH+OFFSET.
+	PATH          : Path to an executable or a library.
+	OFFSET        : Offset where the probe is inserted.
+	OFFSET%return : Offset where the return probe is inserted.
+	FETCHARGS     : Arguments. Each probe can have up to 128 args.
+	 %REG         : Fetch register REG
+	 @ADDR        : Fetch memory at ADDR (ADDR should be in userspace)
+	 @+OFFSET     : Fetch memory at OFFSET (OFFSET from same file as PATH)
+	 $stackN      : Fetch Nth entry of stack (N >= 0)
+	 $stack       : Fetch stack address.
+	 $retval      : Fetch return value.(\*1)
+	 $comm        : Fetch current task comm.
+	 +|-[u]OFFS(FETCHARG) : Fetch memory at FETCHARG +|- OFFS address.(\*2)(\*3)
+	 \IMM         : Store an immediate value to the argument.
+	 NAME=FETCHARG     : Set NAME as the argument name of FETCHARG.
+	 FETCHARG:TYPE     : Set TYPE as the type of FETCHARG. Currently, basic types
+						 (u8/u16/u32/u64/s8/s16/s32/s64), hexadecimal types
+						 (x8/x16/x32/x64), "string" and bitfield are supported.
+	(\*1) only for return probe.
+	(\*2) this is useful for fetching a field of data structures.
+	(\*3) Unlike kprobe event, "u" prefix will just be ignored, becuse uprobe
+		  events can access only user-space memory.
+
+  * kprobe
+     p[:[GRP/][EVENT]] [MOD:]SYM[+offs]|MEMADDR [FETCHARGS]        : Set a probe
+     r[MAXACTIVE][:[GRP/][EVENT]] [MOD:]SYM[+0] [FETCHARGS]        : Set a return probe
+     p[:[GRP/][EVENT]] [MOD:]SYM[+0]%return [FETCHARGS]    : Set a return probe
+     -:[GRP/][EVENT]                                               : Clear a probe
+
+    GRP            : Group name. If omitted, use "kprobes" for it.
+    EVENT          : Event name. If omitted, the event name is generated
+                     based on SYM+offs or MEMADDR.
+    MOD            : Module name which has given SYM.
+    SYM[+offs]     : Symbol+offset where the probe is inserted.
+    SYM%return     : Return address of the symbol
+    MEMADDR        : Address where the probe is inserted.
+    MAXACTIVE      : Maximum number of instances of the specified function that
+                     can be probed simultaneously, or 0 for the default value
+                     as defined in Documentation/trace/kprobes.rst section 1.3.1.
+    FETCHARGS      : Arguments. Each probe can have up to 128 args.
+     %REG          : Fetch register REG
+     @ADDR         : Fetch memory at ADDR (ADDR should be in kernel)
+     @SYM[+|-offs] : Fetch memory at SYM +|- offs (SYM should be a data symbol)
+     $stackN       : Fetch Nth entry of stack (N >= 0)
+     $stack        : Fetch stack address.
+     $argN         : Fetch the Nth function argument. (N >= 1) (\*1)
+     $retval       : Fetch return value.(\*2)
+     $comm         : Fetch current task comm.
+     +|-[u]OFFS(FETCHARG) : Fetch memory at FETCHARG +|- OFFS address.(\*3)(\*4)
+     \IMM          : Store an immediate value to the argument.
+     NAME=FETCHARG : Set NAME as the argument name of FETCHARG.
+     FETCHARG:TYPE : Set TYPE as the type of FETCHARG. Currently, basic types
+                     (u8/u16/u32/u64/s8/s16/s32/s64), hexadecimal types
+                     (x8/x16/x32/x64), "string", "ustring" and bitfield
+                     are supported.
+     (\*1) only for the probe on function entry (offs == 0).
+     (\*2) only for return probe.
+     (\*3) this is useful for fetching a field of data structures.
+     (\*4) "u" means user-space dereference. See :ref:`user_mem_access`.
+                    """
+
+                    helpStr += """
 Examples:
     - {2:1} of all threads to guider.dat
         # {0:1} {1:1} -s .
@@ -32242,6 +32311,8 @@ Examples:
 
     - {2:1} including specific user function of all threads to guider.dat
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
+        # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out:arg1=%ip arg2=%ax"
+        # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out:arg1=%ip:RET", "evt1:func2:/tmp/a.out:arg1=%ip:u64"
 
     - {2:1} including specific kernel function of all threads to guider.dat
         # {0:1} {1:1} -s . -d c -K "evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16"
@@ -38939,39 +39010,50 @@ Copyright:
             cmdFormat = cvtCmd.split(":")
             cmdFormat = [cmd.replace("#", "::") for cmd in cmdFormat]
 
-            if len(cmdFormat) != 3:
+            # check count of items #
+            if not (3 <= len(cmdFormat) <= 5):
                 SysMgr.printErr(
-                    "wrong format for user command [NAME:FUNC|ADDR:FILE]"
+                    "wrong format for user command [NAME:FUNC|ADDR:FILE{:ARGS:RET}]"
                 )
                 sys.exit(-1)
 
+            # get items #
+            name, func, path = cmdFormat[:3]
+            if len(cmdFormat) <= 4:
+                args = cmdFormat[3]
+            else:
+                args = ""
+
+            if len(cmdFormat) == 5:
+                retval = cmdFormat[4]
+            else:
+                retval = ""
+
             # check redundant event name #
-            if kernelCmd and cmd[0] in [
+            if kernelCmd and name in [
                 kcmd.split(":")[0] for kcmd in kernelCmd
             ]:
                 SysMgr.printErr(
                     (
-                        "redundant event name '%s' "
-                        "as user event and kernel event"
+                        "redundant event name '%s' exists "
+                        "both user event and kernel event"
                     )
-                    % cmd[0]
+                    % name,
                 )
                 sys.exit(-1)
 
             # check binary file #
-            if not os.path.isfile(cmdFormat[2]):
-                SysMgr.printErr("failed to find '%s' binary" % cmdFormat[2])
+            if not os.path.isfile(path):
+                SysMgr.printErr("failed to find '%s' binary" % path)
                 sys.exit(-1)
 
             # symbol input #
             objdumpPath = None
-            if not cmdFormat[1].startswith("0x"):
+            if not func.startswith("0x"):
                 # symbol input with no objdump path #
                 if not "OBJDUMP" in SysMgr.environList:
                     # get address of symbol in binary #
-                    addr = ElfAnalyzer.getSymOffset(
-                        cmdFormat[1], cmdFormat[2], loadAddr=False
-                    )
+                    addr = ElfAnalyzer.getSymOffset(func, path, loadAddr=False)
                 # symbol input with objdump #
                 else:
                     objdumpPath = SysMgr.environList["OBJDUMP"][0]
@@ -38988,18 +39070,15 @@ Copyright:
 
                     # get address of symbol in binary #
                     addr = ElfAnalyzer.getSymOffset(
-                        cmdFormat[1], cmdFormat[2], objdumpPath, loadAddr=True
+                        func, path, objdumpPath, loadAddr=True
                     )
 
                 if not addr:
-                    SysMgr.printErr(
-                        "failed to find '%s' in %s"
-                        % (cmdFormat[1], cmdFormat[2])
-                    )
+                    SysMgr.printErr("failed to find '%s' in %s" % (func, path))
                     sys.exit(-1)
             # address input #
             else:
-                addr = cmdFormat[1]
+                addr = func
                 try:
                     hex(long(addr, base=16))
                 except:
@@ -39007,7 +39086,7 @@ Copyright:
                     sys.exit(-1)
 
             for item in effectiveCmd:
-                if cmdFormat[0] == item[0]:
+                if name == item[0]:
                     SysMgr.printErr("redundant user event name '%s'" % item[0])
                     sys.exit(-1)
 
@@ -39018,7 +39097,7 @@ Copyright:
                 except:
                     addr = str(addr[0][1])
 
-            effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
+            effectiveCmd.append([name, addr, path, args, retval])
 
         # print uprobe event list #
         SysMgr.printInfo(
@@ -39029,13 +39108,28 @@ Copyright:
         # apply uprobe events #
         for cmd in effectiveCmd:
             # apply entry events #
-            pCmd = "p:%s_enter %s:%s" % (cmd[0], cmd[2], cmd[1])
+            pCmd = "p:%s_enter %s:%s %s" % (cmd[0], cmd[2], cmd[1], cmd[3])
             if SysMgr.writeTraceCmd("../uprobe_events", pCmd, append=True) < 0:
                 SysMgr.printErr("wrong command '%s'" % pCmd)
                 sys.exit(-1)
 
+            # get retval name #
+            if cmd[4]:
+                if cmd[4].upper() == "RET":
+                    retval = "ret=$retval"
+                else:
+                    retval = "ret=$retval:%s" % cmd[4]
+            else:
+                retval = ""
+
             # apply return events #
-            rCmd = "r:%s_exit %s:%s" % (cmd[0], cmd[2], cmd[1])
+            rCmd = "r:%s_exit %s:%s %s %s" % (
+                cmd[0],
+                cmd[2],
+                cmd[1],
+                cmd[3],
+                retval,
+            )
             if SysMgr.writeTraceCmd("../uprobe_events", rCmd, append=True) < 0:
                 SysMgr.printErr("wrong command '%s'" % rCmd)
                 sys.exit(-1)
@@ -100082,7 +100176,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(
                 (
                     "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
-                    "{5:^16} {6:>10}\n{7:1}"
+                    "{5:^16} {6:>10} {7:1} \n{8:1}"
                 ).format(
                     "EVENT",
                     "TYPE",
@@ -100091,6 +100185,7 @@ class TaskAnalyzer(object):
                     "TID",
                     "CALLER",
                     "ELAPSED",
+                    "ARGS",
                     twoLine,
                 )
             )
@@ -100120,10 +100215,11 @@ class TaskAnalyzer(object):
                         pass
 
                 cnt += 1
+                args = (" ".join(val[6].split(" arg"))).replace("=", ">")
                 SysMgr.printPipe(
                     (
                         "{0:<32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
-                        "{5:>16} {6:>10}"
+                        "{5:>16} {6:>10} {7:1}"
                     ).format(
                         val[1],
                         val[0],
@@ -100132,6 +100228,7 @@ class TaskAnalyzer(object):
                         val[3],
                         val[5],
                         elapsed,
+                        args.lstrip(),
                     )
                 )
             if cnt == 0:
@@ -100279,7 +100376,7 @@ class TaskAnalyzer(object):
                     val[4],
                     val[6],
                     elapsed,
-                    args,
+                    args.lstrip(),
                 )
             )
         if cnt == 0:
@@ -111150,280 +111247,258 @@ class TaskAnalyzer(object):
         if not handleSpecialEvents:
             return time
 
-        # user event #
-        for name in SysMgr.userEventList:
-            if not func.startswith(name):
-                continue
+        for item in (
+            (
+                SysMgr.userEventList,
+                "userEvent",
+                self.userEventInfo,
+                self.userEventData,
+            ),
+            (
+                SysMgr.kernelEventList,
+                "kernelEvent",
+                self.kernelEventInfo,
+                self.kernelEventData,
+            ),
+        ):
+            eventList, eventName, eventInfo, eventData = item
 
-            if not threadData["userEvent"]:
-                threadData["userEvent"] = {}
+            for name in eventList:
+                if not func.startswith(name):
+                    continue
 
-            threadData["userEvent"].setdefault(name, dict(self.init_eventData))
+                if not threadData[eventName]:
+                    threadData[eventName] = {}
 
-            self.userEventInfo.setdefault(name, dict(self.init_eventData))
-
-            # define eventObj #
-            eventObj = threadData["userEvent"][name]
-
-            if func == "%s_enter" % name:
-                self.userEventData.append(
-                    ["ENTER", name, comm, thread, allTime, ""]
+                threadData[eventName].setdefault(
+                    name, dict(self.init_eventData)
                 )
 
-                # get interval #
-                interDiff = 0
-                if eventObj["start"] > 0:
-                    interDiff = ftime - eventObj["start"]
+                eventInfo.setdefault(name, dict(self.init_eventData))
 
-                threadData["userEvent"][name]["count"] += 1
-                threadData["userEvent"][name]["start"] = ftime
+                # define eventObj #
+                eventObj = threadData[eventName][name]
 
-                # update period of thread #
-                if (
-                    interDiff > eventObj["maxPeriod"]
-                    or eventObj["maxPeriod"] == 0
-                ):
-                    threadData["userEvent"][name]["maxPeriod"] = interDiff
-                if (
-                    interDiff < eventObj["minPeriod"]
-                    or eventObj["minPeriod"] == 0
-                ):
-                    threadData["userEvent"][name]["minPeriod"] = interDiff
+                if func == "%s_enter" % name:
+                    isSaved = True
 
-                self.userEventInfo[name]["count"] += 1
+                    # user enter #
+                    if eventName == "userEvent":
+                        m = re.match(r"^\s*\((?P<addr>.+)\)(?P<args>.+)", etc)
+                        if m:
+                            d = m.groupdict()
+                            eventData.append(
+                                [
+                                    "ENTER",
+                                    name,
+                                    comm,
+                                    thread,
+                                    allTime,
+                                    "",
+                                    d["args"],
+                                ]
+                            )
+                        else:
+                            isSaved = False
+                            SysMgr.printWarn(
+                                "failed to recognize '%s' user event" % etc
+                            )
+                    # kernel enter #
+                    else:
+                        m = re.match(
+                            (
+                                r"^\s*\((?P<name>.+)\+(?P<offset>.+) "
+                                r"<(?P<addr>.+)>\)(?P<args>.*)"
+                            ),
+                            etc,
+                        )
+                        if m:
+                            d = m.groupdict()
+                            eventData.append(
+                                [
+                                    "ENTER",
+                                    name,
+                                    d["addr"],
+                                    comm,
+                                    thread,
+                                    allTime,
+                                    "",
+                                    d["args"],
+                                ]
+                            )
+                        else:
+                            m = re.match(
+                                r"^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)",
+                                etc,
+                            )
+                            if m:
+                                d = m.groupdict()
+                                eventData.append(
+                                    [
+                                        "ENTER",
+                                        name,
+                                        "",
+                                        comm,
+                                        thread,
+                                        allTime,
+                                        "",
+                                        d["args"],
+                                    ]
+                                )
+                            else:
+                                isSaved = False
+                                SysMgr.printWarn(
+                                    "failed to recognize '%s' kernel event"
+                                    % etc
+                                )
 
-                # update period of system #
-                if (
-                    interDiff > self.userEventInfo[name]["maxPeriod"]
-                    or self.userEventInfo[name]["maxPeriod"] == 0
-                ):
-                    self.userEventInfo[name]["maxPeriod"] = interDiff
-                if (
-                    interDiff < self.userEventInfo[name]["minPeriod"]
-                    or self.userEventInfo[name]["minPeriod"] == 0
-                ):
-                    self.userEventInfo[name]["minPeriod"] = interDiff
+                    if not isSaved:
+                        continue
 
-            elif func == "%s_exit" % name:
-                self.userEventData.append(
-                    [
-                        "EXIT",
-                        name,
-                        comm,
-                        thread,
-                        allTime,
-                        etc[etc.find("(") + 1 : etc.rfind("<-")],
-                    ]
-                )
+                    # get interval #
+                    interDiff = 0
+                    if eventObj["start"] > 0:
+                        interDiff = ftime - eventObj["start"]
 
-                # get usage #
-                usage = 0
-                if eventObj["start"] > 0:
+                    threadData[eventName][name]["count"] += 1
+                    threadData[eventName][name]["start"] = ftime
+
+                    # update period of thread #
+                    if (
+                        interDiff > eventObj["maxPeriod"]
+                        or eventObj["maxPeriod"] == 0
+                    ):
+                        threadData[eventName][name]["maxPeriod"] = interDiff
+                    if (
+                        interDiff < eventObj["minPeriod"]
+                        or eventObj["minPeriod"] == 0
+                    ):
+                        threadData[eventName][name]["minPeriod"] = interDiff
+
+                    eventInfo[name]["count"] += 1
+
+                    # update period of system #
+                    if (
+                        interDiff > eventInfo[name]["maxPeriod"]
+                        or eventInfo[name]["maxPeriod"] == 0
+                    ):
+                        eventInfo[name]["maxPeriod"] = interDiff
+                    if (
+                        interDiff < eventInfo[name]["minPeriod"]
+                        or eventInfo[name]["minPeriod"] == 0
+                    ):
+                        eventInfo[name]["minPeriod"] = interDiff
+
+                elif func == "%s_exit" % name:
+                    isSaved = True
+
+                    # user exit #
+                    if eventName == "userEvent":
+                        m = re.match(
+                            r"^\s*\((?P<addr>.+) <- (?P<caller>.+)\)(?P<args>.+)",
+                            etc,
+                        )
+                        if m:
+                            d = m.groupdict()
+                            eventData.append(
+                                [
+                                    "EXIT",
+                                    name,
+                                    comm,
+                                    thread,
+                                    allTime,
+                                    d["caller"],
+                                    d["args"],
+                                ]
+                            )
+                        else:
+                            isSaved = False
+                            SysMgr.printWarn(
+                                "failed to recognize '%s' user event" % etc
+                            )
+
+                    # kernel exit #
+                    else:
+                        m = re.match(
+                            (
+                                r"^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- "
+                                r"(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)"
+                            ),
+                            etc,
+                        )
+                        if m:
+                            d = m.groupdict()
+                            eventData.append(
+                                [
+                                    "EXIT",
+                                    name,
+                                    d["addr"],
+                                    comm,
+                                    thread,
+                                    allTime,
+                                    d["caller"],
+                                    d["args"],
+                                    d["caddr"],
+                                ]
+                            )
+                        else:
+                            m = re.match(
+                                (
+                                    r"^\s*\((?P<caller>.+)\+(?P<offset>.+) <- "
+                                    r"(?P<name>.+)\)(?P<args>.*)"
+                                ),
+                                etc,
+                            )
+                            if m:
+                                d = m.groupdict()
+                                eventData.append(
+                                    [
+                                        "EXIT",
+                                        name,
+                                        "",
+                                        comm,
+                                        thread,
+                                        allTime,
+                                        d["caller"],
+                                        d["args"],
+                                        "",
+                                    ]
+                                )
+                            else:
+                                isSaved = False
+                                SysMgr.printWarn(
+                                    "failed to recognize '%s' kernel event"
+                                    % etc
+                                )
+
+                    if not isSaved:
+                        continue
+
+                    # get usage #
+                    if eventObj["start"] <= 0:
+                        continue
+
                     usage = ftime - eventObj["start"]
-                    threadData["userEvent"][name]["usage"] += usage
-                    self.userEventInfo[name]["usage"] += usage
+                    threadData[eventName][name]["usage"] += usage
+                    eventInfo[name]["usage"] += usage
 
                     # update usage of thread #
                     if usage > eventObj["max"] or eventObj["max"] == 0:
-                        threadData["userEvent"][name]["max"] = usage
+                        threadData[eventName][name]["max"] = usage
                     if usage < eventObj["min"] or eventObj["min"] == 0:
-                        threadData["userEvent"][name]["min"] = usage
+                        threadData[eventName][name]["min"] = usage
 
                     # update usage of system #
                     if (
-                        usage > self.userEventInfo[name]["max"]
-                        or self.userEventInfo[name]["max"] == 0
+                        usage > eventInfo[name]["max"]
+                        or eventInfo[name]["max"] == 0
                     ):
-                        self.userEventInfo[name]["max"] = usage
+                        eventInfo[name]["max"] = usage
                     if (
-                        usage < self.userEventInfo[name]["min"]
-                        or self.userEventInfo[name]["min"] == 0
+                        usage < eventInfo[name]["min"]
+                        or eventInfo[name]["min"] == 0
                     ):
-                        self.userEventInfo[name]["min"] = usage
-
-        # kernel event #
-        for name in SysMgr.kernelEventList:
-            if not func.startswith(name):
-                continue
-
-            if not threadData["kernelEvent"]:
-                threadData["kernelEvent"] = {}
-
-            threadData["kernelEvent"].setdefault(
-                name, dict(self.init_eventData)
-            )
-
-            self.kernelEventInfo.setdefault(name, dict(self.init_eventData))
-
-            # define eventObj #
-            eventObj = threadData["kernelEvent"][name]
-
-            if func == "%s_enter" % name:
-                isSaved = True
-                m = re.match(
-                    (
-                        r"^\s*\((?P<name>.+)\+(?P<offset>.+) "
-                        r"<(?P<addr>.+)>\)(?P<args>.*)"
-                    ),
-                    etc,
-                )
-                if m:
-                    d = m.groupdict()
-                    self.kernelEventData.append(
-                        [
-                            "ENTER",
-                            name,
-                            d["addr"],
-                            comm,
-                            thread,
-                            allTime,
-                            "",
-                            d["args"],
-                        ]
-                    )
-                else:
-                    m = re.match(
-                        r"^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)",
-                        etc,
-                    )
-                    if m:
-                        d = m.groupdict()
-                        self.kernelEventData.append(
-                            [
-                                "ENTER",
-                                name,
-                                "",
-                                comm,
-                                thread,
-                                allTime,
-                                "",
-                                d["args"],
-                            ]
-                        )
-                    else:
-                        isSaved = False
-                        SysMgr.printWarn(
-                            "failed to recognize '%s' kernel event" % etc
-                        )
-
-                if not isSaved:
-                    continue
-
-                # get interval #
-                interDiff = 0
-                if eventObj["start"] > 0:
-                    interDiff = ftime - eventObj["start"]
-
-                threadData["kernelEvent"][name]["count"] += 1
-                threadData["kernelEvent"][name]["start"] = ftime
-
-                # update period of thread #
-                if (
-                    interDiff > eventObj["maxPeriod"]
-                    or eventObj["maxPeriod"] == 0
-                ):
-                    threadData["kernelEvent"][name]["maxPeriod"] = interDiff
-                if (
-                    interDiff < eventObj["minPeriod"]
-                    or eventObj["minPeriod"] == 0
-                ):
-                    threadData["kernelEvent"][name]["minPeriod"] = interDiff
-
-                self.kernelEventInfo[name]["count"] += 1
-
-                # update period of system #
-                if (
-                    interDiff > self.kernelEventInfo[name]["maxPeriod"]
-                    or self.kernelEventInfo[name]["maxPeriod"] == 0
-                ):
-                    self.kernelEventInfo[name]["maxPeriod"] = interDiff
-                if (
-                    interDiff < self.kernelEventInfo[name]["minPeriod"]
-                    or self.kernelEventInfo[name]["minPeriod"] == 0
-                ):
-                    self.kernelEventInfo[name]["minPeriod"] = interDiff
-
-            elif func == "%s_exit" % name:
-                isSaved = True
-                m = re.match(
-                    (
-                        r"^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- "
-                        r"(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)"
-                    ),
-                    etc,
-                )
-                if m:
-                    d = m.groupdict()
-                    self.kernelEventData.append(
-                        [
-                            "EXIT",
-                            name,
-                            d["addr"],
-                            comm,
-                            thread,
-                            allTime,
-                            d["caller"],
-                            d["args"],
-                            d["caddr"],
-                        ]
-                    )
-                else:
-                    m = re.match(
-                        (
-                            r"^\s*\((?P<caller>.+)\+(?P<offset>.+) <- "
-                            r"(?P<name>.+)\)(?P<args>.*)"
-                        ),
-                        etc,
-                    )
-                    if m:
-                        d = m.groupdict()
-                        self.kernelEventData.append(
-                            [
-                                "EXIT",
-                                name,
-                                "",
-                                comm,
-                                thread,
-                                allTime,
-                                d["caller"],
-                                d["args"],
-                                "",
-                            ]
-                        )
-                    else:
-                        isSaved = False
-                        SysMgr.printWarn(
-                            "failed to recognize '%s' kernel event" % etc
-                        )
-
-                if not isSaved:
-                    continue
-
-                # get usage #
-                if eventObj["start"] <= 0:
-                    continue
-
-                usage = ftime - eventObj["start"]
-                threadData["kernelEvent"][name]["usage"] += usage
-                self.kernelEventInfo[name]["usage"] += usage
-
-                # update usage of thread #
-                if usage > eventObj["max"] or eventObj["max"] == 0:
-                    threadData["kernelEvent"][name]["max"] = usage
-                if usage < eventObj["min"] or eventObj["min"] == 0:
-                    threadData["kernelEvent"][name]["min"] = usage
-
-                # update usage of system #
-                if (
-                    usage > self.kernelEventInfo[name]["max"]
-                    or self.kernelEventInfo[name]["max"] == 0
-                ):
-                    self.kernelEventInfo[name]["max"] = usage
-                if (
-                    usage < self.kernelEventInfo[name]["min"]
-                    or self.kernelEventInfo[name]["min"] == 0
-                ):
-                    self.kernelEventInfo[name]["min"] = usage
+                        eventInfo[name]["min"] = usage
 
         # return time #
         return time
