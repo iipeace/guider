@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221222"
+__revision__ = "221223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -48267,17 +48267,6 @@ Copyright:
                 if self.path == "/":
                     pass
 
-                # set response #
-                self.send_response(200)
-
-                # TODO: support graph response #
-                # SysMgr.drawStats(fdlist=io.buf, outFd=self.wfile)
-
-                # set header #
-                self.send_header("Content-type", "text/plain")
-                # self.send_header("Content-type", "text/html")
-                self.end_headers()
-
                 # extract query param #
                 try:
                     urllib = SysMgr.getPkg("urllib", isExit=False)
@@ -48295,48 +48284,80 @@ Copyright:
                 if not cmd:
                     cmd = "help"
 
+                # set response #
+                self.send_response(200)
+
                 # print command #
                 print("COMMAND '%s' is executed..." % cmd)
 
-                # build full command #
-                cmd = " ".join(SysMgr.getExeCmd(SysMgr.pid)) + " " + cmd
+                # draw #
+                if cmd == "draw":
+                    # set header #
+                    self.send_header("Content-type", "image/png")
+                    self.end_headers()
 
-                # launch a command #
-                try:
-                    procObj = None
+                    # initialize environment for drawing #
+                    TaskAnalyzer.initDrawEnv(dpi=100)
 
-                    # create a new worker process #
-                    procObj = subprocess.Popen(
-                        cmd,
-                        shell=True,
-                        bufsize=0,
-                        stdout=self.wfile,
-                        stderr=self.wfile,
-                    )
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "failed to create a new process to execute '%s'" % cmd
+                    # TODO: support graph response #
+                    TaskAnalyzer(onlyInstance=True).drawStats(
+                        "guider.out",
+                        outFd=self.wfile,
+                        onlyGraph=True,
+                        applyOpt=False,
                     )
                     return
 
-                # wait for worker process #
-                try:
-                    if procObj:
-                        procObj.wait()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "failed to wait termination for '%s'" % cmd, True
-                    )
-                finally:
-                    # kill subprocess group #
-                    if procObj:
-                        SysMgr.killProcGroup(procObj.pid)
+                # help #
+                elif cmd == "help":
+                    # set header #
+                    self.send_header("Content-type", "text/plain")
+                    self.end_headers()
 
-                return
+                    # build full command #
+                    cmd = " ".join(SysMgr.getExeCmd(SysMgr.pid)) + " " + cmd
+
+                    # launch a command #
+                    try:
+                        procObj = None
+
+                        # create a new worker process #
+                        procObj = subprocess.Popen(
+                            cmd,
+                            shell=True,
+                            bufsize=0,
+                            stdout=self.wfile,
+                            stderr=self.wfile,
+                        )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "failed to create a new process to execute '%s'"
+                            % cmd
+                        )
+                        return
+
+                    # wait for worker process #
+                    try:
+                        if procObj:
+                            procObj.wait()
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "failed to wait termination for '%s'" % cmd, True
+                        )
+                    finally:
+                        # kill subprocess group #
+                        if procObj:
+                            SysMgr.killProcGroup(procObj.pid)
+
+                    return
+
+                # set header #
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
 
                 # make HTML string #
                 html = """
@@ -50246,7 +50267,7 @@ Copyright:
             _drawMeta(None, xfsize)
 
             # save to file #
-            TaskAnalyzer.saveImage(SysMgr.inputFile, "graph")
+            return TaskAnalyzer.saveImage(SysMgr.inputFile, "graph")
 
         def _getDrawStat(path):
             try:
@@ -95650,7 +95671,7 @@ class TaskAnalyzer(object):
         figObj.text(0, 1, info, va="top", ha="left", size=3)
 
         # save map to file #
-        TaskAnalyzer.saveImage(inputFile, "bitmap")
+        return TaskAnalyzer.saveImage(inputFile, "bitmap")
 
     @staticmethod
     def drawFigure():
@@ -95822,7 +95843,7 @@ class TaskAnalyzer(object):
             res.set_zorder(1)
 
     @staticmethod
-    def initDrawEnv():
+    def initDrawEnv(dpi=0):
         # pylint: disable=import-error
 
         # get matplotlib object #
@@ -95843,7 +95864,9 @@ class TaskAnalyzer(object):
         SysMgr.importPkgItems("pylab")
 
         # set dpi #
-        matplotlib.rcParams["figure.dpi"] = SysMgr.matplotlibDpi
+        matplotlib.rcParams["figure.dpi"] = (
+            dpi if dpi else SysMgr.matplotlibDpi
+        )
 
         return matplotlib
 
@@ -95855,6 +95878,7 @@ class TaskAnalyzer(object):
         outFd=None,
         onlyGraph=False,
         onlyChart=False,
+        applyOpt=True,
     ):
         def _printMemUsage(signum=None, frame=None):
             pid = SysMgr.pid
@@ -95900,6 +95924,7 @@ class TaskAnalyzer(object):
             graphStats, chartStats = TaskAnalyzer.getStatsFile(
                 logFile=logFile if flist else None,
                 handle=logFile if fdlist else None,
+                applyOpt=applyOpt,
             )
         # get stats from multiple files for comparison #
         else:
@@ -95920,7 +95945,7 @@ class TaskAnalyzer(object):
             for lfile in targets:
                 try:
                     gstats, cstats = TaskAnalyzer.getStatsFile(
-                        lfile, onlyStart=concatenated
+                        lfile, onlyStart=concatenated, applyOpt=applyOpt
                     )
                 except SystemExit:
                     sys.exit(0)
@@ -96081,7 +96106,7 @@ class TaskAnalyzer(object):
         # draw graphs #
         try:
             if not onlyChart:
-                self.drawGraph(
+                ret = self.drawGraph(
                     graphStats,
                     logFile,
                     outFile=outFile,
@@ -96097,7 +96122,7 @@ class TaskAnalyzer(object):
         # draw charts #
         try:
             if not onlyGraph:
-                self.drawChart(chartStats, logFile, outFile=outFile)
+                ret = self.drawChart(chartStats, logFile, outFile=outFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -96228,6 +96253,7 @@ class TaskAnalyzer(object):
             try:
                 ypos = seq >> 1
                 xpos = seq - (ypos << 1)
+                ax.remove()
                 ax = subplot2grid(
                     (height, 2), (ypos, xpos), rowspan=1, colspan=1
                 )
@@ -96339,7 +96365,7 @@ class TaskAnalyzer(object):
         ).subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
-        TaskAnalyzer.saveImage(logFile, "chart", outFile=outFile)
+        return TaskAnalyzer.saveImage(logFile, "chart", outFile=outFile)
 
     def drawLayout(
         self, graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent, logEvents
@@ -97120,9 +97146,8 @@ class TaskAnalyzer(object):
                     plot(
                         timeline,
                         cpuUsage,
-                        "-",
+                        "--",
                         c=ccolor,
-                        linestyle="--",
                         linewidth=1,
                         marker="d",
                         markersize=1,
@@ -98724,7 +98749,7 @@ class TaskAnalyzer(object):
                 # System #
                 else:
                     if not "MEMSYSPLOT" in SysMgr.environList:
-                        __drawMemPlots(ymax)
+                        ymax = __drawMemPlots(ymax)
 
             """
             ylabel('MEMORY', fontsize=5)
@@ -98849,9 +98874,12 @@ class TaskAnalyzer(object):
                 drawCmdStr = "{0:20} # {1:<100}".format(
                     "DrawCmd", " ".join(SysMgr.origArgs)
                 )
-                SysMgr.sysinfoBuffer = (
-                    "<System Info>\n" + SysMgr.sysinfoBuffer[:-1] + drawCmdStr
-                )
+                if not drawCmdStr in SysMgr.sysinfoBuffer:
+                    SysMgr.sysinfoBuffer = (
+                        "<System Info>\n"
+                        + SysMgr.sysinfoBuffer[:-1]
+                        + drawCmdStr
+                    )
 
                 # add file event info #
                 try:
@@ -98880,7 +98908,7 @@ class TaskAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        TaskAnalyzer.saveImage(
+        return TaskAnalyzer.saveImage(
             logFile, "graph", outFile=outFile, fd=outFd if outFd else None
         )
 
@@ -99588,7 +99616,7 @@ class TaskAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        TaskAnalyzer.saveImage(
+        return TaskAnalyzer.saveImage(
             logFile, "graph", outFile=outFile, fd=outFd if outFd else None
         )
 
@@ -104483,7 +104511,7 @@ class TaskAnalyzer(object):
         if SysMgr.graphEnable and (
             len(cpuUsageList) > 0 or len(ioUsageList) > 0
         ):
-            TaskAnalyzer.saveImage(SysMgr.inputFile, "graph")
+            return TaskAnalyzer.saveImage(SysMgr.inputFile, "graph")
 
     def getNetworkUsage(self, prev, now):
         if not now or prev == now:
