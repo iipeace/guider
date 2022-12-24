@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221223"
+__revision__ = "221225"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8425,7 +8425,7 @@ class NetworkMgr(object):
 
             self.fileno = self.socket.fileno()
 
-            # increate socket buffer size to 1MB #
+            # increase socket buffer size to 1MB #
             self.socket.setsockopt(SOL_SOCKET, SO_SNDBUF, 1 << 20)
             self.socket.setsockopt(SOL_SOCKET, SO_RCVBUF, 1 << 20)
 
@@ -8641,6 +8641,93 @@ class NetworkMgr(object):
             )
 
         return True
+
+    @staticmethod
+    def recvData(sockObj, ip, port=0):
+        connMan = NetworkMgr("server", ip, port, tcp=True, bind=True)
+        if not connMan:
+            return
+
+        # send connection info #
+        try:
+            sockObj.send(("%s:%s" % (connMan.ip, connMan.port)).encode())
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to send connection info to %s:%s"
+                % (sockObj.ip, sockObj.port),
+                True,
+            )
+            return
+
+        # listen #
+        try:
+            connMan.listen()
+            connMan.timeout()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to listen to prepare for connection", True)
+            sys.exit(-1)
+
+        # accept #
+        try:
+            sock, addr = connMan.accept()
+        except SystemExit:
+            sys.exit(0)
+        except IOError as err:
+            if err.errno != errno.EINTR:
+                SysMgr.printWarn(
+                    "failed to accept the connection request", reason=True
+                )
+                return
+        except SysMgr.getPkg("socket").timeout:
+            return
+        except:
+            SysMgr.printWarn(
+                "failed to accept the connection request", reason=True
+            )
+            return
+
+        SysMgr.printInfo(
+            "connected to the new client (%s:%s)" % (addr[0], addr[1])
+        )
+
+        try:
+            # get payload size #
+            size = sock.recv(SysMgr.PAGESIZE)
+            size = long(size.decode())
+
+            # send ACK #
+            sock.send("ACK".encode())
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to get payload size from %s:%s" % (addr[0], addr[1]),
+                True,
+            )
+            return
+
+        # receive data #
+        try:
+            buf = b""
+            while 1:
+                data = sock.recv(SysMgr.PAGESIZE)
+                if data:
+                    buf += data
+                else:
+                    break
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to receive data from %s:%s" % (addr[0], addr[1]), True
+            )
+            return
+
+        return buf
 
     @staticmethod
     def recvFile(sock, ip, port, src, des):
@@ -30926,6 +31013,8 @@ Examples:
 
     - {3:1} {2:1} through the local server having 5555 port
         # {0:1} {1:1} -X 5555
+        # {0:1} {1:1} -X PRINT@5555
+        # {0:1} {1:1} -X REPORT@5555
 
     - {3:1} {2:1} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT@192.168.0.5:5555
@@ -36812,6 +36901,7 @@ Commands:
     CMD_DISABLE:ATTR          disable monitoring of the specific resource
     CMD_ENABLE:ATTR           enable monitoring of the specific resource
     CMD_FILTER:ITEM           set the task filter
+    CMD_GETDUMP               get monitoring data
     CMD_INTERVAL:TIME         change the monitoring interval
     CMD_PAUSE                 pause all monitoring activities
     CMD_RELOAD:PATH           reload the threshold config
@@ -45673,9 +45763,9 @@ Copyright:
                     event[idx] = "EVENT_%s" % item
 
             # create a network object #
-            networkObject = NetworkMgr("client", ip, long(port))
-            ip = networkObject.ip
-            port = networkObject.port
+            netObj = NetworkMgr("client", ip, long(port))
+            ip = netObj.ip
+            port = netObj.port
 
             # check network object #
             if not ip or not port:
@@ -45687,17 +45777,25 @@ Copyright:
             # send events #
             for item in event:
                 try:
-                    networkObject.request = item
-                    networkObject.send("%s@%s" % (item, uptime))
+                    netObj.request = item
+                    netObj.send("%s@%s" % (item, uptime))
                     SysMgr.printInfo(
                         "sent event '%s' to %s:%s" % (item, ip, port)
                     )
+
+                    # handle GETDUMP event #
+                    if item == "EVENT_CMD_GETDUMP":
+                        data = NetworkMgr.recvData(
+                            netObj, SysMgr.localServObj.ip
+                        )
+                        SysMgr.printPipe(data.decode(), pager=False)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "failed to send event '%s' to %s:%s"
                         % (item, ip, port),
+                        True,
                         True,
                     )
 
@@ -119763,6 +119861,9 @@ class TaskAnalyzer(object):
                 # disable event handling for child process #
                 SysMgr.eventHandleEnable = False
             return ret
+        # GETDUMP #
+        elif ocmd == "GETDUMP":
+            return self.handleDumpCmd(cmd)
         # UPDATE #
         elif ocmd == "UPDATE":
             # check command #
@@ -120269,6 +120370,63 @@ class TaskAnalyzer(object):
             # wrong request or just data from server #
             else:
                 SysMgr.printErr("failed to recognize the request from client")
+
+    def handleDumpCmd(self, cmd):
+        # get connection info #
+        ret = SysMgr.localServObj.recvfrom()
+        if not ret or not ret[0]:
+            SysMgr.printErr(
+                "failed to get connection info for %s command" % cmd
+            )
+            return -1
+
+        if SysMgr.isLinux:
+            # create a new process #
+            pid = SysMgr.createProcess()
+            if pid > 0:
+                return pid
+
+            # change priority #
+            SysMgr.setLowPriority(True)
+
+            # register SIGINT handler #
+            signal.signal(signal.SIGINT, SysMgr.stopHandler)
+
+            # disable report #
+            SysMgr.reportEnable = False
+        else:
+            SysMgr.closePrintFd()
+
+        # parse connection info #
+        addr = ret[0].decode()
+
+        # create a new socket for TCP #
+        cliObj = NetworkMgr.setRemoteServer(addr, tcp=True)
+
+        # connect to the agent #
+        cliObj.connect()
+        SysMgr.printInfo(
+            "connected to the client(%s) for %s command" % (addr, cmd)
+        )
+
+        # make payload #
+        data = ("\n".join(SysMgr.procBuffer)).encode()
+
+        # send data size #
+        cliObj.send(str(len(data)).encode())
+
+        # receive ACK #
+        cliObj.recv(3)
+
+        # send data #
+        cliObj.send(data)
+
+        SysMgr.printInfo(
+            "sent data (%s) to the client(%s) for %s command"
+            % (UtilMgr.convSize2Unit(len(data)), addr, cmd)
+        )
+
+        sys.exit(0)
 
     def handleSaveCmd(self, cmd, event, raw=False):
         # replace event name #
