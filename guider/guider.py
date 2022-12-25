@@ -45762,42 +45762,7 @@ Copyright:
                 if not item.startswith("EVENT_"):
                     event[idx] = "EVENT_%s" % item
 
-            # create a network object #
-            netObj = NetworkMgr("client", ip, long(port))
-            ip = netObj.ip
-            port = netObj.port
-
-            # check network object #
-            if not ip or not port:
-                SysMgr.printWarn(
-                    "failed to use '%s:%s' as the remote address" % (ip, port)
-                )
-                return
-
-            # send events #
-            for item in event:
-                try:
-                    netObj.request = item
-                    netObj.send("%s@%s" % (item, uptime))
-                    SysMgr.printInfo(
-                        "sent event '%s' to %s:%s" % (item, ip, port)
-                    )
-
-                    # handle GETDUMP event #
-                    if item == "EVENT_CMD_GETDUMP":
-                        data = NetworkMgr.recvData(
-                            netObj, SysMgr.localServObj.ip
-                        )
-                        SysMgr.printPipe(data.decode(), pager=False)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printWarn(
-                        "failed to send event '%s' to %s:%s"
-                        % (item, ip, port),
-                        True,
-                        True,
-                    )
+            SysMgr.sendEvents(ip, port, event, uptime)
 
         # get event #
         if SysMgr.hasMainArg():
@@ -46122,40 +46087,53 @@ Copyright:
                     )
                     continue
 
-                # create a network object #
-                networkObject = NetworkMgr("client", ip, long(port))
-                ip = networkObject.ip
-                port = networkObject.port
-
-                # check network object #
-                if not ip or not port:
-                    SysMgr.printWarn(
-                        "failed to use '%s:%s' as the remote address"
-                        % (ip, port)
-                    )
-                    continue
-
-                # get comm #
-                comm = SysMgr.getComm(pid, save=True)
-
-                # send events #
-                for item in event:
-                    try:
-                        networkObject.request = item
-                        networkObject.send("%s@%s" % (item, uptime))
-                        SysMgr.printInfo(
-                            "sent event '%s' to %s:%s for %s(%s)"
-                            % (item, ip, port, comm, pid)
-                        )
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            "failed to send event '%s' to %s:%s for %s(%s)"
-                            % (item, ip, port, comm, pid)
-                        )
+                SysMgr.sendEvents(ip, port, event, uptime, pid)
 
         return pids
+
+    @staticmethod
+    def sendEvents(ip, port, event, uptime, pid=None):
+        # create a network object #
+        netObj = NetworkMgr("client", ip, long(port))
+        ip, port = netObj.ip, netObj.port
+
+        # check network object #
+        if not ip or not port:
+            SysMgr.printWarn(
+                "failed to use '%s:%s' as the remote address" % (ip, port)
+            )
+            return
+
+        # get comm #
+        if pid:
+            comm = SysMgr.getComm(pid, save=True)
+            procInfo = " for %s(%s)" % (comm, pid)
+        else:
+            comm = None
+            procInfo = ""
+
+        # send events #
+        for item in event:
+            try:
+                netObj.request = item
+                netObj.send("%s@%s" % (item, uptime))
+                SysMgr.printInfo(
+                    "sent event '%s' to %s:%s%s" % (item, ip, port, procInfo)
+                )
+
+                # handle GETDUMP event #
+                if item == "EVENT_CMD_GETDUMP":
+                    data = NetworkMgr.recvData(netObj, ip)
+                    SysMgr.printPipe(data.decode(), pager=False)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to send event '%s' to %s:%s%s"
+                    % (item, ip, port, procInfo),
+                    True,
+                    True,
+                )
 
     @staticmethod
     def updateBgProcs(cache=False):
