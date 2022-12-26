@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221225"
+__revision__ = "221226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42169,7 +42169,7 @@ Copyright:
         if type(line) is list:
             if not line:
                 line = ""
-            elif line[0][-1] == "\n":
+            elif line[0] and line[0][-1] == "\n":
                 line = "".join(line)
             else:
                 line = "\n".join(line)
@@ -42180,6 +42180,7 @@ Copyright:
             or SysMgr.pipeForPager
             or SysMgr.outPath
             or SysMgr.streamEnable
+            or SysMgr.checkMode("hserver")
         ):
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
@@ -42919,14 +42920,14 @@ Copyright:
             )
 
     @staticmethod
-    def reloadFileBuffer(path=None, retFd=False):
+    def reloadFileBuffer(path=None, retFd=False, fd=None):
         # pylint: disable=no-member
         SysMgr.procBuffer = []
 
         # load raw data from the file #
         try:
             # get path #
-            if path:
+            if path or fd:
                 pass
             elif SysMgr.printFd:
                 path = SysMgr.printFd.name
@@ -42949,7 +42950,9 @@ Copyright:
                 return []
 
             # open file #
-            if UtilMgr.isGzipFile(path):
+            if fd:
+                pass
+            elif UtilMgr.isGzipFile(path):
                 fd = SysMgr.getPkg("gzip", False).open(path, "r")
             else:
                 fd = open(path, "r")
@@ -46092,7 +46095,7 @@ Copyright:
         return pids
 
     @staticmethod
-    def sendEvents(ip, port, event, uptime, pid=None):
+    def sendEvents(ip, port, event, uptime=None, pid=None, verb=True):
         # create a network object #
         netObj = NetworkMgr("client", ip, long(port))
         ip, port = netObj.ip, netObj.port
@@ -46103,6 +46106,10 @@ Copyright:
                 "failed to use '%s:%s' as the remote address" % (ip, port)
             )
             return
+
+        # get uptime #
+        if not uptime:
+            uptime = SysMgr.getUptime()
 
         # get comm #
         if pid:
@@ -46123,8 +46130,10 @@ Copyright:
 
                 # handle GETDUMP event #
                 if item == "EVENT_CMD_GETDUMP":
-                    data = NetworkMgr.recvData(netObj, ip)
-                    SysMgr.printPipe(data.decode(), pager=False)
+                    data = NetworkMgr.recvData(netObj, ip).decode()
+                    if verb:
+                        SysMgr.printPipe(data, pager=False)
+                    return data
             except SystemExit:
                 sys.exit(0)
             except:
@@ -48372,12 +48381,23 @@ Copyright:
                     self.send_header("Content-type", "image/png")
                     self.end_headers()
 
+                    # get monitoring data #
+                    data = SysMgr.sendEvents(
+                        "172.28.97.24", 5555, ["EVENT_CMD_GETDUMP"], verb=False
+                    )
+
+                    # convert data to file object #
+                    fd = MemoryFile(name="buf")
+                    fd.write(data.encode())
+                    fd.seek(0)
+
                     # initialize environment for drawing #
                     TaskAnalyzer.initDrawEnv(dpi=100)
 
-                    # TODO: support graph response #
+                    # draw graphs and return #
+                    SysMgr.addEnvironVar("TOPSUM")
                     TaskAnalyzer(onlyInstance=True).drawStats(
-                        "guider.out",
+                        fdlist=[fd],
                         outFd=self.wfile,
                         onlyGraph=True,
                         applyOpt=False,
@@ -84853,7 +84873,11 @@ class MemoryFile(object):
     def getsize(self):
         return len(self.mem)
 
-    def read(self, size):
+    def read(self, size=0):
+        # update size #
+        if not size:
+            size = self.size - self.pos
+
         des = self.pos + size
 
         if des > self.size:
@@ -84868,6 +84892,7 @@ class MemoryFile(object):
     def write(self, buf):
         self.mem = self.mem[: self.pos] + buf + self.mem[self.pos + len(buf) :]
         self.pos += len(buf)
+        self.size = len(self.mem)
 
     def tell(self):
         return self.pos
@@ -94618,7 +94643,14 @@ class TaskAnalyzer(object):
         # summarize details in advance #
         if "TOPSUM" in SysMgr.environList:
             # load whole file #
-            SysMgr.reloadFileBuffer(fd.name)
+            SysMgr.reloadFileBuffer(path=fd.name, fd=fd if handle else None)
+
+            # get new stats #
+            idx = 0
+            for idx, item in enumerate(SysMgr.procBuffer):
+                if item.lstrip("\n ").startswith("[Top Info]"):
+                    break
+            SysMgr.procBuffer = SysMgr.procBuffer[idx:]
 
             # backup print fd #
             origFd = SysMgr.printFd
@@ -120383,12 +120415,23 @@ class TaskAnalyzer(object):
 
         # connect to the agent #
         cliObj.connect()
+
         SysMgr.printInfo(
             "connected to the client(%s) for %s command" % (addr, cmd)
         )
 
+        # get system info #
+        if not SysMgr.sysinfoBuffer:
+            if SysMgr.sysInstance:
+                SysMgr.sysInstance.printSystemInfo()
+
+        if SysMgr.sysinfoBuffer:
+            data = SysMgr.sysinfoBuffer + "\n"
+        else:
+            data = ""
+
         # make payload #
-        data = ("\n".join(SysMgr.procBuffer)).encode()
+        data = (data + "\n".join(SysMgr.procBuffer)).encode()
 
         # send data size #
         cliObj.send(str(len(data)).encode())
