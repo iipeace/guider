@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221226"
+__revision__ = "221227"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23967,6 +23967,7 @@ class SysMgr(object):
     readaheadMaxSize = 1048576  # 1MB #
     matplotlibVersion = 0
     matplotlibDpi = 500
+    matplotlibSize = None
     sigsetObj = None
     sigsetOldObj = None
     ansiObj = None
@@ -31068,6 +31069,10 @@ Examples:
     - {2:1} for specific files from current directory to all sub-directories
         # {0:1} {1:1} "**/*"
 
+    - {2:1} for specific files with fixed resolution or DPI
+        # {0:1} {1:1} {4:1} -q DPI:400
+        # {0:1} {1:1} {4:1} -q RESOLUTION:"16*8"
+
     - {2:1} that haven't been summarized yet for specific files
         # {0:1} {1:1} {4:1} -q TOPSUM
 
@@ -31234,6 +31239,7 @@ Examples:
         # {0:1} {1:1} {4:1} worstcase.out -q XFONTSIZE:2
         # {0:1} {1:1} {4:1} worstcase.out -q LFONTSIZE:5
         # {0:1} {1:1} {4:1} worstcase.out -q GROUPFONTSIZE:30
+        # {0:1} {1:1} {4:1} worstcase.out -q LABELSIZE:30
 
     - {2:1} of top 5 processes
         # {0:1} {1:1} {4:1} worstcase.out -T 5
@@ -46130,9 +46136,15 @@ Copyright:
 
                 # handle GETDUMP event #
                 if item == "EVENT_CMD_GETDUMP":
-                    data = NetworkMgr.recvData(netObj, ip).decode()
+                    data = NetworkMgr.recvData(netObj, ip)
+                    if data:
+                        data = data.decode()
+                    else:
+                        raise Exception("no data")
+
                     if verb:
                         SysMgr.printPipe(data, pager=False)
+
                     return data
             except SystemExit:
                 sys.exit(0)
@@ -48382,9 +48394,13 @@ Copyright:
                     self.end_headers()
 
                     # get monitoring data #
+                    # TODO: make address interface #
                     data = SysMgr.sendEvents(
                         "172.28.97.24", 5555, ["EVENT_CMD_GETDUMP"], verb=False
                     )
+                    if not data:
+                        SysMgr.printErr("failed to get monitoring data")
+                        return
 
                     # convert data to file object #
                     fd = MemoryFile(name="buf")
@@ -48392,9 +48408,12 @@ Copyright:
                     fd.seek(0)
 
                     # initialize environment for drawing #
-                    TaskAnalyzer.initDrawEnv(dpi=100)
+                    TaskAnalyzer.initDrawEnv(dpi=100, size=None, fontsize=None)
 
-                    # draw graphs and return #
+                    # set canvas layout #
+                    # SysMgr.layout = "CPU"
+
+                    # draw graphs #
                     SysMgr.addEnvironVar("TOPSUM")
                     TaskAnalyzer(onlyInstance=True).drawStats(
                         fdlist=[fd],
@@ -93314,14 +93333,6 @@ class TaskAnalyzer(object):
         else:
             self.execEnable = True
 
-        # draw attributes #
-        if "FONTSIZE" in SysMgr.environList:
-            fontsize = UtilMgr.getEnvironNum("FONTSIZE")
-            self.xfsize = self.lfsize = fontsize
-        else:
-            self.xfsize = UtilMgr.getEnvironNum("XFONTSIZE", False, 4, False)
-            self.lfsize = UtilMgr.getEnvironNum("LFONTSIZE", False, 3, False)
-
         # thread mode #
         if fpath:
             self.initThreadData()
@@ -95817,8 +95828,15 @@ class TaskAnalyzer(object):
         )
 
     @staticmethod
-    def drawYticks(ax, ymax, fontsize=5, adjust=True):
+    def drawYticks(ax, ymax, fontsize=0, adjust=True):
         # pylint: disable=undefined-variable
+
+        # set font size #
+        if not fontsize and hasattr(TaskAnalyzer, "xfsize"):
+            fontsize = TaskAnalyzer.xfsize
+        else:
+            fontsize = 5
+
         if "YRANGE" in SysMgr.environList:
             yminval, ymaxval = SysMgr.environList["YRANGE"][0].split(":")
 
@@ -95903,7 +95921,7 @@ class TaskAnalyzer(object):
         draw=True,
         anchor=(1.12, 0.75),
         loc="upper right",
-        fontsize=3.5,
+        fontsize=None,
         markerfirst=False,
     ):
         # pylint: disable=undefined-variable
@@ -95911,6 +95929,9 @@ class TaskAnalyzer(object):
         # check labels #
         if not labelList:
             return
+
+        if not fontsize:
+            fontsize = UtilMgr.getEnvironNum("LABELSIZE", False, 3.5, False)
 
         # set legend position #
         if SysMgr.matplotlibVersion >= 1.2:
@@ -95951,7 +95972,7 @@ class TaskAnalyzer(object):
             res.set_zorder(1)
 
     @staticmethod
-    def initDrawEnv(dpi=0):
+    def initDrawEnv(dpi=0, size=None, fontsize=None):
         # pylint: disable=import-error
 
         # get matplotlib object #
@@ -95972,9 +95993,36 @@ class TaskAnalyzer(object):
         SysMgr.importPkgItems("pylab")
 
         # set dpi #
+        if not dpi and "DPI" in SysMgr.environList:
+            dpi = long(SysMgr.environList["DPI"])
         matplotlib.rcParams["figure.dpi"] = (
             dpi if dpi else SysMgr.matplotlibDpi
         )
+
+        # set resolution #
+        if not size:
+            if "RESOLUTION" in SysMgr.environList:
+                size = list(
+                    map(long, SysMgr.environList["RESOLUTION"][0].split("*"))
+                )
+            elif SysMgr.matplotlibSize:
+                size = SysMgr.matplotlibSize
+        if size:
+            matplotlib.rcParams["figure.figsize"] = size
+
+        # set font size #
+        if fontsize:
+            TaskAnalyzer.xfsize = TaskAnalyzer.lfsize = fontsize
+        elif "FONTSIZE" in SysMgr.environList:
+            fontsize = UtilMgr.getEnvironNum("FONTSIZE")
+            TaskAnalyzer.xfsize = TaskAnalyzer.lfsize = fontsize
+        else:
+            TaskAnalyzer.xfsize = UtilMgr.getEnvironNum(
+                "XFONTSIZE", False, 4, False
+            )
+            TaskAnalyzer.lfsize = UtilMgr.getEnvironNum(
+                "LFONTSIZE", False, 3, False
+            )
 
         return matplotlib
 
@@ -101579,6 +101627,10 @@ class TaskAnalyzer(object):
             # set dpi #
             matplotlib.rcParams["figure.dpi"] = SysMgr.matplotlibDpi
 
+            # set resolution #
+            if SysMgr.matplotlibSize:
+                matplotlib.rcParams["figure.figsize"] = SysMgr.matplotlibSize
+
             # set backend #
             matplotlib.use("Agg")
 
@@ -104110,7 +104162,7 @@ class TaskAnalyzer(object):
                 pass
 
             grid(which="both", linestyle=":", linewidth=0.2)
-            yticks(fontsize=5)
+            yticks(fontsize=self.xfsize)
             xticks(fontsize=self.xfsize)
 
             # draw base #
@@ -104269,7 +104321,7 @@ class TaskAnalyzer(object):
             suptitle("Guider Thread Graph", fontsize=8)
 
             grid(which="both", linestyle=":", linewidth=0.2)
-            yticks(fontsize=5)
+            yticks(fontsize=self.xfsize)
             xticks(fontsize=self.xfsize)
 
             # draw base #
