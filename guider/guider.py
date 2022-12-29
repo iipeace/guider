@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221227"
+__revision__ = "221229"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34944,6 +34944,7 @@ Description:
 
 Options:
     -I  <FILE>                  set input path
+    -a                          show page contents
     -o  <DIR|FILE>              set output path
     -g  <PID|COMM>              set task filter
     -q  <NAME{{:VALUE}}>          set environment variables
@@ -34959,12 +34960,17 @@ Examples:
         # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
 
+    - {2:1} with page contents
+        # {0:1} {1:1} "a.out, java" -a
+
     - Check all duplicated page frames of all user processes
         # {0:1} {1:1} "a.out, java" -q ONLYUSER
 
     - Check specific duplicated page frames from the leakage report
         # {0:1} {1:1} -I guider.out
         # {0:1} {1:1} -I guider.out -q TARGETSYM:"*testFile*"
+        # {0:1} {1:1} -I "guider.out, guider2.out" -q TARGETSYM:"*testFile*"
+        # {0:1} {1:1} -I "guider*.out" -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I guider.out -q EXCEPTSYM:"*verifyFile*"
 
     - Check specific duplicated page frames of specific processes
@@ -51752,100 +51758,107 @@ Copyright:
 
     @staticmethod
     def doCheckDup():
-        mems = []
+        pids = {}
+        memsProc = {}
 
         # get target process #
         if SysMgr.inputParam:
-            buf = SysMgr.readFile(SysMgr.inputParam)
-            if not buf:
-                sys.exit(-1)
+            flist = UtilMgr.cleanItem(SysMgr.inputParam.split(","), False)
+            flist = UtilMgr.getFileList(flist, exceptDir=True)
+            for fname in flist:
+                buf = SysMgr.readFile(fname)
+                if not buf:
+                    sys.exit(-1)
 
-            # strip header info #
-            pos = buf.find("[Leakage History] ")
-            if pos < 0:
-                SysMgr.printErr("no leakage history")
-                sys.exit(-1)
+                # strip header info #
+                pos = buf.find("[Leakage History] ")
+                if pos < 0:
+                    SysMgr.printErr("no leakage history")
+                    sys.exit(-1)
 
-            # get process info #
-            buf = buf[pos:].split("\n")
-            info = buf.pop(0)
-            pids = [info.split("(", 1)[1].split(")", 1)[0]]
+                # get process info #
+                buf = buf[pos:].split("\n")
+                info = buf.pop(0)
+                pid = info.split("(", 1)[1].split(")", 1)[0]
+                pids[pid] = None
 
-            # get include list #
-            if "TARGETSYM" in SysMgr.environList:
-                includeList = SysMgr.environList["TARGETSYM"]
-            else:
-                includeList = []
+                # get include list #
+                if "TARGETSYM" in SysMgr.environList:
+                    includeList = SysMgr.environList["TARGETSYM"]
+                else:
+                    includeList = []
 
-            # get exclude list #
-            if "EXCEPTSYM" in SysMgr.environList:
-                excludeList = SysMgr.environList["EXCEPTSYM"]
-            else:
-                excludeList = []
+                # get exclude list #
+                if "EXCEPTSYM" in SysMgr.environList:
+                    excludeList = SysMgr.environList["EXCEPTSYM"]
+                else:
+                    excludeList = []
 
-            # remake call list #
-            callList = []
-            while buf:
-                line = buf.pop(0)
+                # remake call list #
+                callList = []
+                while buf:
+                    line = buf.pop(0)
 
-                # skip line #
-                if line.startswith("-"):
-                    continue
-
-                # add call info #
-                items = line.split("|")
-                if len(items) > 4:
-                    try:
-                        sym = items[4].strip()
-
-                        # check filter #
-                        if includeList and not UtilMgr.isValidStr(
-                            sym, includeList
-                        ):
-                            continue
-                        elif excludeList and UtilMgr.isValidStr(
-                            sym, excludeList
-                        ):
-                            continue
-
-                        callList.append(
-                            [
-                                long(items[1].strip(), 16),
-                                long(items[2].strip()),
-                            ]
-                        )
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
+                    # skip line #
+                    if line.startswith("-"):
                         continue
 
-            # sort calls by address #
-            callList.sort(key=lambda e: e[0])
+                    # add call info #
+                    items = line.split("|")
+                    if len(items) > 4:
+                        try:
+                            sym = items[4].strip()
 
-            # merge calls in page unit #
-            PAGESIZE = SysMgr.PAGESIZE
-            chunk = None
-            for call in callList:
-                # convert to page-aligned number #
-                addr, size = call
-                addr = long(addr / PAGESIZE) * PAGESIZE
-                size = long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+                            # check filter #
+                            if includeList and not UtilMgr.isValidStr(
+                                sym, includeList
+                            ):
+                                continue
+                            elif excludeList and UtilMgr.isValidStr(
+                                sym, excludeList
+                            ):
+                                continue
 
-                if not chunk:
-                    chunk = [addr, size]
-                    continue
+                            callList.append(
+                                [
+                                    long(items[1].strip(), 16),
+                                    long(items[2].strip()),
+                                ]
+                            )
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            continue
 
-                # contiguous #
-                last = chunk[0] + chunk[1]
-                if last >= addr:
-                    chunk[1] += addr - last + size
-                # distant #
-                else:
-                    mems.append(chunk)
-                    chunk = [addr, size]
-            # add last chunk #
-            if chunk:
-                mems.append(chunk)
+                # sort calls by address #
+                callList.sort(key=lambda e: e[0])
+
+                # merge calls in page unit #
+                PAGESIZE = SysMgr.PAGESIZE
+                chunk = None
+                for call in callList:
+                    # convert to page-aligned number #
+                    addr, size = call
+                    addr = long(addr / PAGESIZE) * PAGESIZE
+                    size = long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+
+                    if not chunk:
+                        chunk = [addr, size]
+                        continue
+
+                    # contiguous #
+                    last = chunk[0] + chunk[1]
+                    if last >= addr:
+                        chunk[1] += addr - last + size
+                    # distant #
+                    else:
+                        memsProc.setdefault(pid, [])
+                        memsProc[pid].append(chunk)
+                        chunk = [addr, size]
+                # add last chunk #
+                if chunk:
+                    memsProc.setdefault(pid, [])
+                    memsProc[pid].append(chunk)
         elif SysMgr.hasMainArg():
             targetList = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
@@ -51856,7 +51869,7 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
-        # get pids for tasks #
+        # get target task #
         if not SysMgr.inputParam:
             pids = SysMgr.convTaskList(targetList, exceptMe=True)
             if not pids:
@@ -51881,6 +51894,7 @@ Copyright:
         SysMgr.memEnable = True
         SysMgr.ussEnable = True
         convSize = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
 
         if SysMgr.customCmd:
             SysMgr.printInfo(
@@ -51910,14 +51924,16 @@ Copyright:
                 mstat = ""
 
             # read segments from memory map #
-            if not SysMgr.inputParam:
+            if SysMgr.inputParam:
+                mems = memsProc[pid]
+            else:
                 mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
 
             # print status #
             comm = SysMgr.getComm(pid)
             SysMgr.printInfo(
                 "start reading %s memory areas for %s(%s)%s..."
-                % (UtilMgr.convNum(len(mems)), comm, pid, mstat)
+                % (convNum(len(mems)), comm, pid, mstat)
             )
 
             # check duplicated memory #
@@ -52024,9 +52040,17 @@ Copyright:
         dupSize = totalSize - uniqSize
         sizeMB = 1048576
 
-        # print results #
-        SysMgr.printInfo(
-            "%s/%s(%.1f%%) is duplicated for [ %s ]"
+        # print table #
+        table = {}
+        for cnt in counts:
+            if cnt in table:
+                table[cnt] += 1
+            else:
+                table[cnt] = 1
+
+        # print summary #
+        SysMgr.printPipe(
+            "\n[Dup Info] (Total: %s/%s(%.1f%%)) (Proc: %s)"
             % (
                 convSize(dupSize, unit="M" if dupSize > sizeMB else None),
                 convSize(totalSize, unit="M" if totalSize > sizeMB else None),
@@ -52034,6 +52058,44 @@ Copyright:
                 commList,
             )
         )
+
+        # print details #
+        SysMgr.printPipe(
+            "{4:1}\n{0:>12} ({1:>12}): {2:>12} ({3:>12})\n{4:1}".format(
+                "DupPages", "Size", "Count", "Size", twoLine
+            )
+        )
+        for dupCnt, num in sorted(
+            table.items(), key=lambda x: long(x[0]), reverse=True
+        ):
+            SysMgr.printPipe(
+                "{0:>12} ({1:>12}): {2:>12} ({3:>12})".format(
+                    convNum(dupCnt),
+                    convNum(dupCnt * PAGESIZE),
+                    convNum(num),
+                    convSize(dupCnt * PAGESIZE * num),
+                )
+            )
+        if not table:
+            SysMgr.printPipe("\tNone")
+        SysMgr.printPipe(oneLine + "\n")
+
+        if SysMgr.showAll:
+            SysMgr.printPipe(
+                "{3:1}\n{2:1}\n{0:>12} {1:1}\n{2:1}".format(
+                    "Cnt", "Content (2 Char In 1 Byte)", twoLine, "[Page Info]"
+                )
+            )
+            for page, cnt in sorted(
+                mergeTable.items(), key=lambda x: long(x[1]), reverse=True
+            ):
+                SysMgr.printPipe(
+                    "{0:>12} {1:1}".format(
+                        convNum(cnt),
+                        repr(page).replace("\\x", "").lstrip("b'"),
+                    )
+                )
+            SysMgr.printPipe(oneLine)
 
     @staticmethod
     def doWatch(top=False):
