@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221229"
+__revision__ = "221230"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33925,6 +33925,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c "madvise:0x1234:1M:MERGEABLE"
         # {0:1} {1:1} -g a.out -c "madvise:stack:1M:WILLNEED"
         # {0:1} {1:1} -g a.out -c "madvise:heap:4M:MERGEABLE"
+        # {0:1} {1:1} -g a.out -c "madvise:heap::MERGEABLE"
 
     - {2:1} return from the current function with a specific value immediately
         # {0:1} {1:1} -g a.out -c "ret:3"
@@ -51766,6 +51767,9 @@ Copyright:
             flist = UtilMgr.cleanItem(SysMgr.inputParam.split(","), False)
             flist = UtilMgr.getFileList(flist, exceptDir=True)
             for fname in flist:
+                SysMgr.printInfo("start reading '%s'..." % fname)
+
+                # read file #
                 buf = SysMgr.readFile(fname)
                 if not buf:
                     sys.exit(-1)
@@ -51773,7 +51777,7 @@ Copyright:
                 # strip header info #
                 pos = buf.find("[Leakage History] ")
                 if pos < 0:
-                    SysMgr.printErr("no leakage history")
+                    SysMgr.printErr("no leakage history in '%s'" % fname)
                     sys.exit(-1)
 
                 # get process info #
@@ -51781,6 +51785,8 @@ Copyright:
                 info = buf.pop(0)
                 pid = info.split("(", 1)[1].split(")", 1)[0]
                 pids[pid] = None
+                bufLen = len(buf)
+                pos = 0
 
                 # get include list #
                 if "TARGETSYM" in SysMgr.environList:
@@ -51797,6 +51803,9 @@ Copyright:
                 # remake call list #
                 callList = []
                 while buf:
+                    UtilMgr.printProgress(pos, bufLen)
+                    pos += 1
+
                     line = buf.pop(0)
 
                     # skip line #
@@ -51829,6 +51838,9 @@ Copyright:
                             sys.exit(0)
                         except:
                             continue
+
+                if pos:
+                    UtilMgr.deleteProgress()
 
                 # sort calls by address #
                 callList.sort(key=lambda e: e[0])
@@ -51984,10 +51996,10 @@ Copyright:
                         csize = addr - chunkStart
                     chunkList.append([chunkStart, csize])
 
-                for offset, length in chunkList:
+                for which, length in chunkList:
                     # read segment #
                     mem = dbgObj.readMem(
-                        offset, length, verb=False, onlyBulk=True
+                        which, length, verb=False, onlyBulk=True
                     )
                     if not mem:
                         continue
@@ -52048,15 +52060,16 @@ Copyright:
             else:
                 table[cnt] = 1
 
+        summary = "%s/%s[%.1f%%]" % (
+            convSize(dupSize, unit="M" if dupSize > sizeMB else None),
+            convSize(totalSize, unit="M" if totalSize > sizeMB else None),
+            dupSize / float(totalSize) * 100,
+        )
+
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] (Total: %s/%s(%.1f%%)) (Proc: %s)"
-            % (
-                convSize(dupSize, unit="M" if dupSize > sizeMB else None),
-                convSize(totalSize, unit="M" if totalSize > sizeMB else None),
-                dupSize / float(totalSize) * 100,
-                commList,
-            )
+            "\n[Dup Info] (Total: %s) (Proc: %s)"
+            % (UtilMgr.convColor(summary, "RED"), commList)
         )
 
         # print details #
@@ -52083,7 +52096,10 @@ Copyright:
         if SysMgr.showAll:
             SysMgr.printPipe(
                 "{3:1}\n{2:1}\n{0:>12} {1:1}\n{2:1}".format(
-                    "Cnt", "Content (2 Char In 1 Byte)", twoLine, "[Page Info]"
+                    "DupPages",
+                    "Content (2 Char In 1 Byte)",
+                    twoLine,
+                    "[Page Info]",
                 )
             )
             for page, cnt in sorted(
@@ -72655,9 +72671,12 @@ typedef struct {
                 if UtilMgr.isNumber(addr):
                     addr = UtilMgr.convStr2Num(addr)
                 elif addr in ("heap", "stack"):
-                    addr = long(
-                        FileAnalyzer.getMapAddr(self.pid, "[%s]" % addr)[0], 16
+                    addr, end = FileAnalyzer.getMapAddr(
+                        self.pid, "[%s]" % addr
                     )
+                    addr = long(addr, 16)
+                    if not length:
+                        length = long(end, 16) - addr
                 else:
                     SysMgr.printErr("wrong address '%s' for madvise" % addr)
                     sys.exit(-1)
@@ -116679,6 +116698,7 @@ class TaskAnalyzer(object):
         data = "%s [%-4s > " % (" " * nrIndent, "KSM")
         curline = str(data)
         nrLine = 1
+        rmColor = UtilMgr.removeColor
 
         for name, value in sorted(self.ksmData.items()):
             # convert value #
@@ -116687,9 +116707,13 @@ class TaskAnalyzer(object):
             else:
                 value = UtilMgr.convNum(value)
 
+            # apply color #
+            if name in ("pages_shared", "pages_sharing", "run", "full_scans"):
+                value = UtilMgr.convColor(value, "YELLOW")
+
             # add stats in a line #
             item = "%s: %s" % (name, value)
-            if len(item) + len(curline) >= SysMgr.ttyCols:
+            if len(rmColor(item)) + len(rmColor(curline)) >= SysMgr.ttyCols:
                 databuf += "%s\n" % curline.rstrip(", ")
                 curline = str(edata)
                 nrLine += 1
