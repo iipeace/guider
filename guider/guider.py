@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221230"
+__revision__ = "221231"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20605,7 +20605,7 @@ class LeakAnalyzer(object):
         title = "File %s Info" % name
         SysMgr.printPipe(
             (
-                "\n\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
+                "\n[%s] [Process: %s] [Start: %s] [Run: %s] [Profile: %s] "
                 "[Mem: %s] [%s: %s] [NrCall: %s]\n%s"
             )
             % (
@@ -20669,6 +20669,12 @@ class LeakAnalyzer(object):
         inputFile = os.path.realpath(inputFile)
         SysMgr.printStat(r"start drawing flamegraph...")
         Debugger.drawFlame(inputFile, stackList, titleStr, suffix=True)
+
+        # print histo stats for size #
+        sizeStats = UtilMgr.convList2Histo(
+            [v["size"] for v in self.callData.values()]
+        )
+        UtilMgr.printHist(sizeStats, "Allocation", "byte")
 
         # check exit condition #
         if not SysMgr.showAll:
@@ -52068,31 +52074,37 @@ Copyright:
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] (Total: %s) (Proc: %s)"
+            "\n[Dup Info] (Dup: %s) (Proc: %s)"
             % (UtilMgr.convColor(summary, "RED"), commList)
         )
 
         # print details #
         SysMgr.printPipe(
-            "{4:1}\n{0:>12} ({1:>12}): {2:>12} ({3:>12})\n{4:1}".format(
-                "DupPages", "Size", "Count", "Size", twoLine
+            "{5:1}\n{0:>12} ({1:>12}) {2:>12} ({3:>4}) {4:>12}\n{5:1}".format(
+                "DupPages", "Size", "Count", "%", "Total", twoLine
             )
         )
         for dupCnt, num in sorted(
             table.items(), key=lambda x: long(x[0]), reverse=True
         ):
             SysMgr.printPipe(
-                "{0:>12} ({1:>12}): {2:>12} ({3:>12})".format(
+                "{0:>12} ({1:>12}) {2:>12} ({3:>3}%) {4:>12}".format(
                     convNum(dupCnt),
                     convNum(dupCnt * PAGESIZE),
                     convNum(num),
+                    long(num / len(counts) * 100),
                     convSize(dupCnt * PAGESIZE * num),
                 )
             )
         if not table:
             SysMgr.printPipe("\tNone")
-        SysMgr.printPipe(oneLine + "\n")
+        SysMgr.printPipe(oneLine)
 
+        # print histo stats for size #
+        dupStats = UtilMgr.convList2Histo(list(counts))
+        UtilMgr.printHist(dupStats, "Dup", "nrPage")
+
+        # print contents #
         if SysMgr.showAll:
             SysMgr.printPipe(
                 "{3:1}\n{2:1}\n{0:>12} {1:1}\n{2:1}".format(
