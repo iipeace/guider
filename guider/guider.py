@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2022, Guider"
+__copyright__ = "Copyright 2015-2023, Guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "221231"
+__revision__ = "230101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -2553,7 +2553,7 @@ class ConfigMgr(object):
                 ("struct rseq *", "rseq"),
                 ("uint32_t", "rseq_len"),
                 ("int", "flags"),
-                ("uint32_t", "sig"),
+                ("uint32_t", "rseq_sig"),
             ),
         ),
         "rt_sigaction": (
@@ -81432,16 +81432,24 @@ typedef struct {
             argset[argname] = value
 
             # convert argument value #
-            value = self.convSyscallParam(
-                argtype,
-                argname,
-                value,
-                seq,
-                ref,
-                argset,
-                SysMgr.showAll,
-                retval,
-            )
+            try:
+                value = self.convSyscallParam(
+                    argtype,
+                    argname,
+                    value,
+                    seq,
+                    ref,
+                    argset,
+                    SysMgr.showAll,
+                    retval,
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to convert %s's %s" % (self.syscall, argname),
+                    reason=True,
+                )
 
             if value is not None:
                 self.addArg(argtype, argname, value)
@@ -81959,7 +81967,7 @@ typedef struct {
                 return
 
             # convert error code #
-            if retval < 0:
+            if retval and retval < 0:
                 # increase error count #
                 self.errCnt += 1
 
@@ -81975,13 +81983,16 @@ typedef struct {
                 try:
                     retstr = -1
                     errtype = ConfigMgr.ERR_TYPE[abs(retval + 1)]
-                    err = "%s (%s)" % (errtype, os.strerror(abs(retval)))
 
                     # correct wrong status for sys_enter #
+                    # TODO: distinguish between wrong context and error return #
+                    """
                     if errtype == "ENOSYS":
                         self.status = "exit"
                         return
+                    """
 
+                    err = "%s (%s)" % (errtype, os.strerror(abs(retval)))
                     self.addSample(name, "??", err=retval)
                 except SystemExit:
                     sys.exit(0)
