@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230101"
+__revision__ = "230102"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -2553,7 +2553,7 @@ class ConfigMgr(object):
                 ("struct rseq *", "rseq"),
                 ("uint32_t", "rseq_len"),
                 ("int", "flags"),
-                ("uint32_t", "rseq_sig"),
+                ("uint32_t", "sig"),
             ),
         ),
         "rt_sigaction": (
@@ -4041,7 +4041,7 @@ class ConfigMgr(object):
             "sys_rseq",
             "sys_kexec_file_load",
         ]
-        + ["sys_null" for idx in xrange(295, 423, 1)]
+        + ["sys_null" for idx in xrange(295, 424, 1)]
         + SYSCALL_COMMON
     )
 
@@ -4795,7 +4795,7 @@ class ConfigMgr(object):
             "sys_io_pgetevents",
             "sys_rseq",
         ]
-        + ["sys_null" for idx in xrange(335, 423, 1)]
+        + ["sys_null" for idx in xrange(335, 424, 1)]
         + SYSCALL_COMMON
     )
 
@@ -5481,6 +5481,45 @@ class ConfigMgr(object):
         23: "SHMGET",
         24: "SHMCTL",
     }
+
+    # ioring_enter flags #
+    IORING_ENTER_FLAG = {
+        1: "IORING_ENTER_GETEVENTS",
+        2: "IORING_ENTER_SQ_WAKEUP",
+        4: "IORING_ENTER_SQ_WAIT",
+        8: "IORING_ENTER_EXT_ARG",
+        16: "IORING_ENTER_REGISTERED_RING",
+    }
+
+    # ioring_register opcode #
+    IORING_REGISTER_OPCODE = [
+        "IORING_REGISTER_BUFFERS",
+        "IORING_UNREGISTER_BUFFERS",
+        "IORING_REGISTER_FILES",
+        "IORING_UNREGISTER_FILES",
+        "IORING_REGISTER_EVENTFD",
+        "IORING_UNREGISTER_EVENTFD",
+        "IORING_REGISTER_FILES_UPDATE",
+        "IORING_REGISTER_EVENTFD_ASYNC",
+        "IORING_REGISTER_PROBE",
+        "IORING_REGISTER_PERSONALITY",
+        "IORING_UNREGISTER_PERSONALITY",
+        "IORING_REGISTER_RESTRICTIONS",
+        "IORING_REGISTER_ENABLE_RINGS",
+        "IORING_REGISTER_FILES2",
+        "IORING_REGISTER_FILES_UPDATE2",
+        "IORING_REGISTER_BUFFERS2",
+        "IORING_REGISTER_BUFFERS_UPDATE",
+        "IORING_REGISTER_IOWQ_AFF",
+        "IORING_UNREGISTER_IOWQ_AFF",
+        "IORING_REGISTER_IOWQ_MAX_WORKERS",
+        "IORING_REGISTER_RING_FDS",
+        "IORING_UNREGISTER_RING_FDS",
+        "IORING_REGISTER_PBUF_RING",
+        "IORING_UNREGISTER_PBUF_RING",
+        "IORING_REGISTER_SYNC_CANCEL",
+        "IORING_REGISTER_FILE_ALLOC_RANGE",
+    ]
 
     # ioctl flags #
     IOCTL_TYPE = {
@@ -33660,6 +33699,9 @@ Examples:
 
     - {4:1} from a specific binary without strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
+
+    - {4:1} {5:1} with fixing wrong context automatically
+        # {0:1} {1:1} -g a.out -t read -q FIXCTX
 
     - {4:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
@@ -67550,7 +67592,8 @@ class DbusMgr(object):
                 if not UtilMgr.isValidStr(attr, SysMgr.environList["SDITEM"]):
                     continue
 
-            if UtilMgr.isNumber(value):
+            # convert number format #
+            if UtilMgr.isNumber(value) and not "PID" in attr:
                 value = UtilMgr.convNum(value)
 
             SysMgr.printPipe("{0:<40}: {1:1}".format(attr, str(value)))
@@ -76185,6 +76228,7 @@ typedef struct {
         """
 
         # handle syscalls #
+        # TODO: apply hasing-based handling #
         if syscall in ("sendmsg", "recvmsg"):
             if ref and argname == "msg":
                 try:
@@ -76380,6 +76424,14 @@ typedef struct {
                 self.changeArg(name, str(vec))
 
             return value
+        elif syscall == "io_uring_enter":
+            if argname == "flags":
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.IORING_ENTER_FLAG
+                )
+        elif syscall == "io_uring_register":
+            if argname == "op":
+                return ConfigMgr.IORING_REGISTER_OPCODE[value]
 
         # convert fd to name #
         if ref and argname in ("fd", "sockfd"):
@@ -76498,8 +76550,8 @@ typedef struct {
             if syscall.startswith("send") or syscall.startswith("recv"):
                 return UtilMgr.getFlagString(value, ConfigMgr.MSG_TYPE)
 
-        # convert signal #
-        if argname in ("signum", "sig"):
+        # convert signal number #
+        if argname in ("signum", "sig") and argtype == "int":
             return ConfigMgr.SIG_LIST[c_int(value).value]
 
         # remove const prefix #
@@ -81984,13 +82036,11 @@ typedef struct {
                     retstr = -1
                     errtype = ConfigMgr.ERR_TYPE[abs(retval + 1)]
 
-                    # correct wrong status for sys_enter #
+                    # correct wrong context between sys_enter and sys_exit #
                     # TODO: distinguish between wrong context and error return #
-                    """
-                    if errtype == "ENOSYS":
+                    if errtype == "ENOSYS" and "FIXCTX" in SysMgr.environList:
                         self.status = "exit"
                         return
-                    """
 
                     err = "%s (%s)" % (errtype, os.strerror(abs(retval)))
                     self.addSample(name, "??", err=retval)
