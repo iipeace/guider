@@ -860,6 +860,7 @@ class ConfigMgr(object):
         "getpeername": 0,
         "getsockname": 0,
         "gettimeofday": 0,
+        "io_uring_setup": 0,
         "pread": 0,
         "pread64": 0,
         "process_vm_readv": 0,
@@ -5520,6 +5521,23 @@ class ConfigMgr(object):
         "IORING_REGISTER_SYNC_CANCEL",
         "IORING_REGISTER_FILE_ALLOC_RANGE",
     ]
+
+    # ioring_param features #
+    IORING_PARAM_FEATURES = {
+        0x1: "IORING_FEAT_SINGLE_MMAP",
+        0x2: "IORING_FEAT_NODROP",
+        0x4: "IORING_FEAT_SUBMIT_STABLE",
+        0x8: "IORING_FEAT_RW_CUR_POS",
+        0x16: "IORING_FEAT_CUR_PERSONALITY",
+        0x32: "IORING_FEAT_FAST_POLL",
+        0x64: "IORING_FEAT_POLL_32BITS",
+        0x128: "IORING_FEAT_SQPOLL_NONFIXED",
+        0x256: "IORING_FEAT_EXT_ARG",
+        0x512: "IORING_FEAT_NATIVE_WORKERS",
+        0x1024: "IORING_FEAT_RSRC_TAGS",
+        0x2048: "IORING_FEAT_CQE_SKIP",
+        0x4096: "IORING_FEAT_LINKED_FILE",
+    }
 
     # ioctl flags #
     IOCTL_TYPE = {
@@ -34971,6 +34989,7 @@ Examples:
 
     - {2:1} only for boot time
         # {0:1} {1:1} -q ONLYBOOT
+        # {0:1} {1:1} -q ONLYBOOT, SORTBYSTART
 
     - {2:1} with specific filters
         # {0:1} {1:1} -q SDFILTER:ActiveState:"active\,inactive"
@@ -67214,11 +67233,11 @@ class DbusMgr(object):
                 if not onlyBoot:
                     DbusMgr.printUnitStatInfo("systemd", ret, bus, procStr)
             else:
+                bootInfo = DbusMgr.getUnitBootInfo(ret)
+
                 # get activation time #
-                ret.setdefault(
-                    "Activation",
-                    DbusMgr.getUnitBootInfo(ret)["activation"],
-                )
+                ret.setdefault("Activation", bootInfo["activation"])
+                ret.setdefault("Boot", bootInfo)
 
                 # save stats #
                 unitStats[unitDict[cpath][0]] = ret
@@ -67262,15 +67281,28 @@ class DbusMgr(object):
 
         # print stats #
         cnt = 0
+        sortByStart = "SORTBYSTART" in SysMgr.environList
         for unit, stats in sorted(
             unitStats.items(),
-            key=lambda x: x[1]["Activation"],
-            reverse=True,
+            key=lambda x: x[1]["Boot"]["activating"]
+            if sortByStart
+            else x[1]["Activation"],
+            reverse=False if sortByStart else True,
         ):
             if onlyBoot:
+                start = stats["Boot"]["activating"]
+
+                if stats["Boot"]["activated"]:
+                    last = stats["Boot"]["activated"]
+                else:
+                    last = stats["Boot"]["deactivated"]
+
                 SysMgr.printPipe(
-                    "{0:>10.3f}s {1:1}".format(
-                        float(stats["Activation"] / 1000000.0), unit
+                    "{0:>10.3f}s {1:1} ({2:>.3f}s ~ {3:>.3f}s)".format(
+                        float(stats["Activation"] / 1000000.0),
+                        UtilMgr.convColor(unit, "YELLOW"),
+                        float(start / 1000000.0),
+                        float(last / 1000000.0),
                     )
                 )
             else:
@@ -71537,6 +71569,92 @@ struct cmsghdr {
 
         self.cmsghdr = cmsghdr
         self.cmsghdr_ptr = POINTER(cmsghdr)
+
+        """
+struct io_sqring_offsets {
+	__u32 head;
+	__u32 tail;
+	__u32 ring_mask;
+	__u32 ring_entries;
+	__u32 flags;
+	__u32 dropped;
+	__u32 array;
+	__u32 resv1;
+	__u64 resv2;
+};
+        """
+
+        class io_sqring_offsets(Structure):
+            _fields_ = (
+                ("head", c_uint32),
+                ("tail", c_uint32),
+                ("ring_mask", c_uint32),
+                ("ring_entries", c_uint32),
+                ("flags", c_uint32),
+                ("dropped", c_uint32),
+                ("array", c_uint32),
+                ("resv1", c_uint32),
+                ("resv2", c_uint64),
+            )
+
+        """
+struct io_cqring_offsets {
+	__u32 head;
+	__u32 tail;
+	__u32 ring_mask;
+	__u32 ring_entries;
+	__u32 overflow;
+	__u32 cqes;
+	__u32 flags;
+	__u32 resv1;
+	__u64 resv2;
+};
+        """
+
+        class io_cqring_offsets(Structure):
+            _fields_ = (
+                ("head", c_uint32),
+                ("tail", c_uint32),
+                ("ring_mask", c_uint32),
+                ("ring_entries", c_uint32),
+                ("overflow", c_uint32),
+                ("cqes", c_uint32),
+                ("flags", c_uint32),
+                ("resv1", c_uint32),
+                ("resv2", c_uint64),
+            )
+
+        """
+struct io_uring_params {
+	__u32 sq_entries;
+	__u32 cq_entries;
+	__u32 flags;
+	__u32 sq_thread_cpu;
+	__u32 sq_thread_idle;
+	__u32 features;
+	__u32 wq_fd;
+	__u32 resv[3];
+	struct io_sqring_offsets sq_off;
+	struct io_cqring_offsets cq_off;
+};
+        """
+
+        class io_uring_params(Structure):
+            _fields_ = (
+                ("sq_entries", c_uint32),
+                ("cq_entries", c_uint32),
+                ("flags", c_uint32),
+                ("sq_thread_cpu", c_uint32),
+                ("sq_thread_idle", c_uint32),
+                ("features", c_uint32),
+                ("wq_fd", c_uint32),
+                ("resv", c_uint32 * 3),
+                ("sq_off", io_sqring_offsets),
+                ("cq_off", io_cqring_offsets),
+            )
+
+        self.io_uring_params = io_uring_params
+        self.io_uring_params_ptr = POINTER(io_uring_params)
 
         """
 typedef struct {
@@ -76004,6 +76122,44 @@ typedef struct {
 
         return msgInfo
 
+    def readUringParam(self, addr):
+        paddr = cast(addr, c_void_p).value
+
+        pobj = self.readMem(addr, sizeof(self.io_uring_params))
+        pobj = cast(pobj, self.io_uring_params_ptr)
+
+        params = {
+            "sq_entries": pobj.contents.sq_entries * 16,
+            "cq_entries": pobj.contents.cq_entries * 16,
+            "flags": pobj.contents.flags,
+            "sq_thread_cpu": pobj.contents.sq_thread_cpu,
+            "sq_thread_idle": pobj.contents.sq_thread_idle,
+            "features": UtilMgr.getFlagString(
+                pobj.contents.features, ConfigMgr.IORING_PARAM_FEATURES
+            ),
+            "wq_fd": pobj.contents.wq_fd,
+            "sq_off": {
+                "head": pobj.contents.sq_off.head,
+                "tail": pobj.contents.sq_off.tail,
+                "ring_mask": pobj.contents.sq_off.ring_mask,
+                "ring_entries": pobj.contents.sq_off.ring_entries,
+                "flags": pobj.contents.sq_off.flags,
+                "dropped": pobj.contents.sq_off.dropped,
+                "array": pobj.contents.sq_off.array,
+            },
+            "cq_off": {
+                "head": pobj.contents.cq_off.head,
+                "tail": pobj.contents.cq_off.tail,
+                "ring_mask": pobj.contents.cq_off.ring_mask,
+                "ring_entries": pobj.contents.cq_off.ring_entries,
+                "overflow": pobj.contents.cq_off.overflow,
+                "cqes": pobj.contents.cq_off.cqes,
+                "flags": pobj.contents.cq_off.flags,
+            },
+        }
+
+        return params
+
     def readIoVec(self, addr, cnt, baseAddr=False):
         iov = {}
 
@@ -76432,6 +76588,9 @@ typedef struct {
         elif syscall == "io_uring_register":
             if argname == "op":
                 return ConfigMgr.IORING_REGISTER_OPCODE[value]
+        elif syscall == "io_uring_setup":
+            if argname == "p":
+                return self.readUringParam(value)
 
         # convert fd to name #
         if ref and argname in ("fd", "sockfd"):
