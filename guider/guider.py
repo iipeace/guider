@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230102"
+__revision__ = "230103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35366,8 +35366,11 @@ Examples:
     - {2:1} with specific tasks used resources
         # {0:1} {1:1} -a -q SKIPIDLE
 
-    - {2:1} with processes having specific name
+    - {2:1} with only processes having specific name
         # {0:1} {1:1} -a -g kworker
+
+    - {2:1} with the highlited processes having specific name
+        # {0:1} {1:1} -a -c kworker
 
     - {2:1} with depth limitation
         # {0:1} {1:1} -H 3
@@ -35417,6 +35420,9 @@ Examples:
 
     - {2:1} 5 times in parallel
         # {0:1} {1:1} -I "ls -lha" -R 5 -q PARALLEL
+
+    - {2:1} only for %s seconds
+        # {0:1} {1:1} -I "ls -lha" -q TIMEOUT:3s
 
     - {3:1} with RANGE variables
         # {0:1} {1:1} -I "touch RANGE" -c RANGE:1:100:0.1
@@ -35732,7 +35738,7 @@ Examples:
         # {0:1} {1:1} ./a.out {7:1} -w START:"GUIDER sigtrace -g PID &" -q IGNORESIGNAL:SIGSEGV, SKIPSIGNAL:8, STOPTARGET
 
     - {3:1} {9:1} but no stop
-        # {0:1} {1:1} ./a.out {7:1} -q CONTTARGET
+        # {0:1} {1:1} ./a.out {7:1} -q KEEPTASK
 
     - {3:1} {9:1} but no clean up
         # {0:1} {1:1} ./a.out {7:1} -q NOCLEANUP
@@ -55525,7 +55531,7 @@ Copyright:
         try:
             # stop target process #
             if (
-                inputCmd and not "CONTTARGET" in SysMgr.environList
+                inputCmd and not "KEEPTASK" in SysMgr.environList
             ) or "STOPTARGET" in SysMgr.environList:
                 SysMgr.sendSignalProcs(signal.SIGSTOP, [pid])
             # clean up target process #
@@ -57440,6 +57446,10 @@ Copyright:
 
             startTime = time.time()
 
+            # set mute #
+            if "MUTE" in SysMgr.environList:
+                SysMgr.closeStdFd(stderr=False)
+
             # redirect stdin to file #
             if "STDIN" in SysMgr.environList:
                 path = SysMgr.environList["STDIN"][0]
@@ -57659,6 +57669,18 @@ Copyright:
             parallel = True
         else:
             parallel = False
+
+        # set timeout #
+        if "TIMEOUT" in SysMgr.environList:
+            timeout = UtilMgr.convUnit2Sec(SysMgr.environList["TIMEOUT"][0])
+
+            def __onAlarm(signum, frame):
+                children = TaskAnalyzer.getDescendantList(SysMgr.pid)
+                SysMgr.killChildren(sig=signal.SIGKILL, children=children)
+                SysMgr.onAlarm(signum, frame)
+
+            signal.signal(signal.SIGALRM, __onAlarm)
+            signal.alarm(timeout)
 
         for seq in range(repeat):
             # create a worker process #
@@ -64352,7 +64374,14 @@ Copyright:
                             reason=True,
                         )
 
-                    if UtilMgr.isValidStr(comm, ignCap=True):
+                    # check filter and print task info #
+                    if comm and UtilMgr.isValidStr(comm, ignCap=True):
+                        if SysMgr.filterGroup:
+                            comm = convColor(comm, "RED")
+                        elif SysMgr.customCmd and UtilMgr.isValidStr(
+                            comm, SysMgr.customCmd
+                        ):
+                            comm = convColor(comm, "RED")
                         SysMgr.infoBufferPrint(
                             "%s- %s(%s)%s" % (indent, comm, curdir, pstr)
                         )
@@ -73714,6 +73743,7 @@ typedef struct {
                     argStr = "()"
 
                 # get address and file path #
+                path = ""
                 addr = UtilMgr.convStr2Num(val, verb=False)
                 if addr is None:
                     # address #
@@ -73728,8 +73758,6 @@ typedef struct {
                         ret = self.getSymbolInfo(addr)
                         if ret and ret[1]:
                             path = "/%s" % os.path.basename(ret[1])
-                        else:
-                            path = ""
 
                 output = "\n[%s] %s[0x%x%s]%s" % (
                     cmdstr,
