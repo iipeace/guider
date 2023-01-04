@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230103"
+__revision__ = "230104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28729,7 +28729,9 @@ Commands:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("failed to send ping to %s", True)
+                SysMgr.printErr(
+                    "failed to send ping to [ %s ]" % ", ".join(urlList), True
+                )
 
     @staticmethod
     def getExeCmd(pid):
