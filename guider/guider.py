@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230104"
+__revision__ = "230106"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -155,11 +155,12 @@ class ConfigMgr(object):
 
     # cgroup stat #
     CGROUP_STAT = {
+        "blkio.throttle.io_service_bytes_recursive": None,
+        "cgroup.procs": None,
+        "cpu.stat": None,
         "cpuacct.usage": None,
         "memory.usage_in_bytes": None,
         "tasks": None,
-        "cgroup.procs": None,
-        "cpu.stat": None,
     }
 
     # state of process #
@@ -14711,6 +14712,11 @@ class PageAnalyzer(object):
                 if SysMgr.magicStr in fname:
                     continue
 
+                # convert path from overlayfs mount point #
+                overlayInfo = SysMgr.getOverlayfsInfo(pid)
+                if overlayInfo:
+                    fname = UtilMgr.convOverlayPath(fname, overlayInfo)
+
                 try:
                     soffset = hex(info["vstart"]).rstrip("L")
                     eoffset = hex(info["vend"]).rstrip("L")
@@ -14784,6 +14790,12 @@ class PageAnalyzer(object):
 
                 size = convSize(eoffset - soffset, True)
 
+                # convert path from overlayfs mount point #
+                fname = target[5] if len(target) > 5 else " "
+                overlayInfo = SysMgr.getOverlayfsInfo(pid)
+                if overlayInfo:
+                    fname = UtilMgr.convOverlayPath(fname, overlayInfo)
+
                 SysMgr.printPipe(
                     "%18s %18s %4s %8s %6s %12s %5s %s"
                     % (
@@ -14794,7 +14806,7 @@ class PageAnalyzer(object):
                         target[3],
                         target[4],
                         size,
-                        target[5] if len(target) > 5 else " ",
+                        fname,
                     )
                 )
             except SystemExit:
@@ -21623,7 +21635,12 @@ class FileAnalyzer(object):
             mdict = FileAnalyzer.parseMapLine(item)
             if mdict and mdict["binName"]:
                 if os.path.basename(mdict["binName"]).startswith(fname):
-                    return str(mdict["binName"])
+                    path = str(mdict["binName"])
+                    overlayInfo = SysMgr.getOverlayfsInfo(pid)
+                    if overlayInfo:
+                        path = UtilMgr.convOverlayPath(path, overlayInfo)
+                    return path
+
         return None
 
     @staticmethod
@@ -23992,6 +24009,7 @@ class SysMgr(object):
     pciList = []
     limitDirList = {}
     fixedTaskList = []
+    overlayfsCache = {}
 
     # threshold #
     thresholdData = {}
@@ -34097,7 +34115,7 @@ Examples:
                     """.format(
                         cmd,
                         mode,
-                        "-g a.out -c malloc#./libhook.so#malloc2",
+                        "-g a.out -c malloc#./libhook.so#mallocHook",
                     )
 
                 # printbind #
@@ -37743,7 +37761,12 @@ Copyright:
                 ecomm = SysMgr.getComm(epid, cache=True, save=True)
 
                 # close event fd for target file #
-                os.close(efd)
+                try:
+                    os.close(efd)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
                 # check skip conditions #
                 if (
@@ -41168,7 +41191,10 @@ Copyright:
         return tempList
 
     @staticmethod
-    def getOverlayfsInfo(pid):
+    def getOverlayfsInfo(pid, cache=True):
+        if cache and pid in SysMgr.overlayfsCache:
+            return SysMgr.overlayfsCache[pid]
+
         data = SysMgr.getMountData(pid)
         mountList = SysMgr.convMountList(data)
         if not mountList:
@@ -41198,6 +41224,8 @@ Copyright:
                 sys.exit(0)
             except:
                 continue
+
+        SysMgr.overlayfsCache[pid] = overlayList
 
         return overlayList
 
@@ -52818,6 +52846,20 @@ Copyright:
         return False
 
     @staticmethod
+    def getMapList(pidList=[], onlyExec=True):
+        mapList = []
+        for pid in pidList:
+            maps = FileAnalyzer.getProcMapInfo(pid, onlyExec=onlyExec)
+            overlayInfo = SysMgr.getOverlayfsInfo(pid)
+            if overlayInfo:
+                for idx, path in enumerate(list(maps)):
+                    newpath = UtilMgr.convOverlayPath(path, overlayInfo)
+                    if path != newpath:
+                        maps[newpath] = maps.pop(path, None)
+            mapList += maps
+        return list(set(mapList))
+
+    @staticmethod
     def doTrace(mode, tid=None):
         def _doCommonJobs(pids, procList):
             # check STOP condition #
@@ -52855,11 +52897,7 @@ Copyright:
             pidList = list(map(long, procList))
 
             # merge map files #
-            mapList = []
-            getProcMapInfo = FileAnalyzer.getProcMapInfo
-            for pid in pidList:
-                mapList += getProcMapInfo(pid, onlyExec=True)
-            mapList = list(set(mapList))
+            mapList = SysMgr.getMapList(pidList)
 
             # load symbol caches at once #
             printLog = True
@@ -54009,6 +54047,14 @@ Copyright:
             SysMgr.printErr("failed to get memory map for %s" % procInfo)
             return resInfo
 
+        # convert path from overlayfs mount point #
+        overlayInfo = SysMgr.getOverlayfsInfo(pid)
+        if overlayInfo:
+            for idx, path in enumerate(list(fileList)):
+                newpath = UtilMgr.convOverlayPath(path, overlayInfo)
+                if path != newpath:
+                    fileList[newpath] = fileList.pop(path, None)
+
         # apply file filter #
         if fileFilter:
             newFileList = {}
@@ -54427,11 +54473,7 @@ Copyright:
             pidList = list(map(long, procList))
 
             # merge map files #
-            mapList = []
-            getProcMapInfo = FileAnalyzer.getProcMapInfo
-            for pid in pidList:
-                mapList += getProcMapInfo(pid, onlyExec=True)
-            mapList = list(set(mapList))
+            mapList = SysMgr.getMapList(pidList)
 
             # load symbol caches at once #
             for item in mapList:
@@ -71972,7 +72014,7 @@ typedef struct {
 
                 # remote load #
                 ret = dobj.dlopen(fpath)
-                if ret == 0:
+                if not ret:
                     errMsg = " because remote dlopen failed"
                 else:
                     errMsg = ""
@@ -75209,9 +75251,12 @@ typedef struct {
 
         # handle android #
         if SysMgr.isAndroid:
-            libcPath = FileAnalyzer.getMapFilePath(
-                self.pid, SysMgr.libcObj._name, self.mapFd
-            )
+            for lpath in (SysMgr.libcObj._name, "libc.so"):
+                libcPath = FileAnalyzer.getMapFilePath(
+                    self.pid, lpath, self.mapFd
+                )
+                if libcPath:
+                    break
 
             # get ELF object #
             fcache = ElfAnalyzer.getObject(libcPath)
@@ -75221,7 +75266,7 @@ typedef struct {
                 )
                 return None
 
-            # get mapping info #
+            # get libc address #
             func = 0
             targetSym = "dlopen"
             if not self.pmap or not libcPath in self.pmap:
@@ -75248,6 +75293,13 @@ typedef struct {
         else:
             # get function address #
             func = "__libc_dlopen_mode"
+            if not self.getAddrBySymbol(func):
+                func = "dlopen"
+                if not self.getAddrBySymbol(func):
+                    SysMgr.printErr(
+                        "failed to find '%s' on memory map for %s(%s)"
+                        % (func, self.comm, self.pid)
+                    )
 
             """
             # alloc a memory segment for file name string #
@@ -75315,6 +75367,7 @@ typedef struct {
             # get function address #
             func = self.getAddrBySymbol(usercall, inc=inc, one=True)
             if not func:
+                SysMgr.printErr("failed to get address of '%s'" % usercall)
                 return None
         else:
             SysMgr.printErr(
@@ -77785,7 +77838,7 @@ typedef struct {
 
         return [start, end]
 
-    def updateProcMap(self, onlyExec=True):
+    def updateProcMap(self, onlyExec=True, overlayInfo=None):
         # get original map #
         try:
             mapstr = FileAnalyzer.procMapStrCache[self.pid]
@@ -77796,6 +77849,11 @@ typedef struct {
         self.pmap = FileAnalyzer.getProcMapInfo(
             self.pid, self.mapFd, onlyExec=onlyExec
         )
+        if overlayInfo:
+            for idx, path in enumerate(list(self.pmap)):
+                newpath = UtilMgr.convOverlayPath(path, overlayInfo)
+                if path != newpath:
+                    self.pmap[newpath] = self.pmap.pop(path, None)
 
         # check map change #
         try:
@@ -77931,7 +77989,12 @@ typedef struct {
             return True
 
     def loadSymbols(self, onlyFunc=True, onlyExec=True, tpath=None):
-        ret = self.updateProcMap(onlyExec=onlyExec)
+        if not self.pmap and not self.overlayfsList:
+            self.overlayfsList = SysMgr.getOverlayfsInfo(self.pid)
+
+        ret = self.updateProcMap(
+            onlyExec=onlyExec, overlayInfo=self.overlayfsList
+        )
         if not ret and self.fileList:
             return False
 
@@ -117977,22 +118040,82 @@ class TaskAnalyzer(object):
                         try:
                             # throttled_time #
                             stat = long(value.split("\n")[2].split()[1])
-                            pvalue = prevData[system][group][name]
-                            prevStat = long(pvalue.split("\n")[2].split()[1])
-                            stat = stat - prevStat
+                            if SysMgr.totalEnable:
+                                prevStat = 0
+                            else:
+                                pvalue = prevData[system][group][name]
+                                prevStat = long(
+                                    pvalue.split("\n")[2].split()[1]
+                                )
+                            stat = (stat - prevStat) / interval
                         except SystemExit:
                             sys.exit(0)
                         except:
                             stat = 0
                     else:
-                        stat = long(value.rstrip())
+                        if system == "blkio":
+
+                            def _getIOStats(value):
+                                rd = wr = 0
+                                for line in value.split("\n"):
+                                    items = line.split()
+                                    if len(items) != 3:
+                                        continue
+                                    elif not items[1] in ("Read", "Write"):
+                                        continue
+
+                                    # sum I/O stats for all devices #
+                                    # TODO: remove redundant stats for same device #
+                                    op = items[1]
+                                    if op == "Read":
+                                        rd += long(items[2].rstrip())
+                                    else:
+                                        wr += long(items[2].rstrip())
+
+                                return rd, wr
+
+                            # get read and write stats for current #
+                            rd, wr = _getIOStats(value)
+
+                            # save stat #
+                            try:
+                                if SysMgr.totalEnable:
+                                    stats[group][name] = [rd, wr]
+                                else:
+                                    if (
+                                        type(prevData[system][group][name])
+                                        is list
+                                    ):
+                                        prevRd, prevWr = prevData[system][
+                                            group
+                                        ][name]
+                                    else:
+                                        prevRd, prevWr = _getIOStats(
+                                            prevData[system][group][name]
+                                        )
+                                    stats[group][name] = [
+                                        rd - prevRd,
+                                        wr - prevWr,
+                                    ]
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                pass
+
+                            continue
+
+                        else:
+                            stat = long(value.rstrip())
 
                         # calculate usage #
                         if system == "cpuacct":
                             try:
-                                prevStat = prevData[system][group][name]
-                                prevStat = long(prevStat.rstrip())
-                                stat = stat - prevStat
+                                if SysMgr.totalEnable:
+                                    prevStat = 0
+                                else:
+                                    prevStat = prevData[system][group][name]
+                                    prevStat = long(prevStat.rstrip())
+                                stat = (stat - prevStat) / interval
                             except SystemExit:
                                 sys.exit(0)
                             except:
@@ -118092,14 +118215,25 @@ class TaskAnalyzer(object):
                 proc = 0
                 task = 0
 
+            # I/O #
+            try:
+                rd, wr = list(
+                    map(
+                        UtilMgr.convSize2Unit,
+                        value["blkio.throttle.io_service_bytes_recursive"],
+                    )
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                rd = wr = "-"
+
             # print stats of a process #
             ret = SysMgr.addPrint(
                 (
                     "{0:<108}|{1:>4}|{2:>4}|"
                     "{3:>6}|{4:>3}|{5:>7}|{6:>7}|{7:>7}|\n"
-                ).format(
-                    system[-108:], proc, task, cpu, throttle, mem, "-", "-"
-                )
+                ).format(system[-108:], proc, task, cpu, throttle, mem, rd, wr)
             )
             if not ret:
                 return -1
