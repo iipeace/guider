@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230106"
+__revision__ = "230107"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24114,6 +24114,7 @@ class SysMgr(object):
     sortCond = None
     sortCondOp = None
     newlined = True
+    nsType = "pid"
 
     # descriptor #
     maxFd = 512
@@ -24218,6 +24219,7 @@ class SysMgr(object):
     minStatEnable = False
     networkEnable = False
     nsEnable = False
+    nsAllEnable = False
     oomEnable = False
     perfEnable = False
     perfGroupEnable = False
@@ -30815,6 +30817,12 @@ Examples:
 
     - {3:1} {2:1} with D-Bus unit
         # {0:1} {1:1} -e U
+
+    - {3:1} {2:1} with namespace
+        # {0:1} {1:1} -e N
+        # {0:1} {1:1} -e N -q NSTYPE:net
+        # {0:1} {1:1} -e N -q NSTYPE:mnt
+        # {0:1} {1:1} -e N -q PRINTNS
 
     - {3:1} {2:1} except the one having COMM test
         # {0:1} {1:1} -g ^test
@@ -43592,6 +43600,14 @@ Copyright:
                 % UtilMgr.convDict2Str(dict(os.environ), pretty=True),
                 True,
             )
+
+        # enable all namespace info #
+        if "PRINTNS" in SysMgr.environList:
+            SysMgr.nsAllEnable = True
+
+        # set specific namespace type #
+        if "NSTYPE" in SysMgr.environList:
+            SysMgr.nsType = SysMgr.environList["NSTYPE"][0].lower()
 
     @staticmethod
     def checkOptVal(option, value):
@@ -94017,6 +94033,7 @@ class TaskAnalyzer(object):
             self.cgroupData = {}
             self.prevCgroupData = {}
             self.nsData = {}
+            self.nsProcData = {}
             self.fileData = {}
             self.cpuData = {}
             self.gpuData = {}
@@ -94992,6 +95009,7 @@ class TaskAnalyzer(object):
     def reinitStats(self):
         self.prevCpuData = self.cpuData
         self.nsData = {}
+        self.nsProcData = {}
         self.cpuData = {}
         self.fileData = {}
         self.abnormalTasks = {}
@@ -113725,6 +113743,28 @@ class TaskAnalyzer(object):
             SysMgr.printErr("wrong monitor target for '%s'" % target)
             sys.exit(-1)
 
+        # save namespace leader tasks #
+        for ns, data in self.nsData.items():
+            if not data:
+                continue
+            self.nsProcData[ns] = {}
+            for nid, proc in data.items():
+                try:
+                    tid = [
+                        tid
+                        for tid, start in sorted(
+                            proc.items(), key=lambda e: long(e[1])
+                        )
+                    ][0]
+                    self.nsProcData[ns][nid] = "%s(%s)" % (
+                        self.procData[tid]["comm"],
+                        tid,
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
     @staticmethod
     def getProcTreeFromList(procInstance, kernel=True):
         procTree = {}
@@ -114630,9 +114670,13 @@ class TaskAnalyzer(object):
                     value = value[1:-1]
                     self.nsData.setdefault(node, {})
                     self.nsData[node].setdefault(value, {})
-                    self.nsData[node][value].setdefault(tid, 0)
+                    self.nsData[node][value].setdefault(
+                        tid, self.procData[tid]["stat"][self.starttimeIdx]
+                    )
 
                     # update task info #
+                    if not SysMgr.nsAllEnable:
+                        continue
                     self.procData[tid]["ns"] += "%s:%s, " % (node, value)
         except SystemExit:
             sys.exit(0)
@@ -118660,6 +118704,8 @@ class TaskAnalyzer(object):
                 etc = "OOMScore"
             elif SysMgr.sigHandlerEnable:
                 etc = "SignalHandler"
+            elif SysMgr.nsEnable:
+                etc = "Namespace[%s]" % SysMgr.nsType
             elif SysMgr.processEnable:
                 etc = "Parent"
             else:
@@ -118905,10 +118951,10 @@ class TaskAnalyzer(object):
             ret = SysMgr.addPrint(
                 (
                     "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
-                    "{5:>4}({6:^3}/{7:^3}/{8:^3})|"
-                    "{9:>4}({10:>4}/{11:^3}/{12:^3}/{13:^3})|"
+                    "{5:>4}({6:>3}/{7:>3}/{8:>3})|"
+                    "{9:>4}({10:>4}/{11:>3}/{12:>3}/{13:>3})|"
                     "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
-                    "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n"
+                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n{23:1}\n"
                 ).format(
                     mode,
                     pidType,
@@ -119322,6 +119368,12 @@ class TaskAnalyzer(object):
                 elif not SysMgr.processEnable:
                     pgid = procData[idx]["mainID"]
                     etc = "%s(%s)" % (procData[pgid]["comm"], pgid)
+                elif SysMgr.nsEnable:
+                    ns = SysMgr.nsType
+                    nsid = os.readlink("%s/ns/%s" % (value["taskPath"], ns))[
+                        len(ns) + 2 : -1
+                    ]
+                    etc = self.nsProcData[ns][nsid]
                 else:
                     pgid = procData[idx]["stat"][self.ppidIdx]
                     if pgid == "0":
