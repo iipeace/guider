@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230107"
+__revision__ = "230109"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24150,7 +24150,6 @@ class SysMgr(object):
 
     # flag #
     affinityEnable = False
-    avgEnable = False
     barGraphEnable = None
     binderEnable = False
     blockEnable = False
@@ -24875,10 +24874,6 @@ Commands:
             # I/O #
             elif SysMgr.checkMode("drawio"):
                 SysMgr.layout = "IO"
-
-            # average #
-            if SysMgr.isDrawAvgMode():
-                SysMgr.avgEnable = True
 
             # modify args for drawing multiple input files #
             sys.argv[1] = "top"
@@ -34545,6 +34540,8 @@ Usage:
 
 Description:
     Draw system resource graph, event timeline, memory chart
+
+    * The system memory chart is created only when using PSS-enabled report
                         """.format(
                         cmd, mode
                     )
@@ -48522,7 +48519,10 @@ Copyright:
                     # get monitoring data #
                     # TODO: make address interface #
                     data = SysMgr.sendEvents(
-                        "172.28.97.24", 5555, ["EVENT_CMD_GETDUMP"], verb=False
+                        "172.28.209.100",
+                        5555,
+                        ["EVENT_CMD_GETDUMP"],
+                        verb=False,
                     )
                     if not data:
                         SysMgr.printErr("failed to get monitoring data")
@@ -96664,7 +96664,7 @@ class TaskAnalyzer(object):
         TaskAnalyzer.initDrawEnv()
 
         # draw avreage graphs #
-        if SysMgr.avgEnable:
+        if SysMgr.isDrawAvgMode():
             try:
                 # convert pull path to file name #
                 fnameList = [os.path.basename(fname) for fname in flist]
@@ -96687,7 +96687,7 @@ class TaskAnalyzer(object):
         try:
             if not onlyChart:
                 ret = self.drawGraph(
-                    graphStats,
+                    deepcopy(graphStats),
                     logFile,
                     outFile=outFile,
                     outFd=outFd,
@@ -96702,14 +96702,135 @@ class TaskAnalyzer(object):
         # draw charts #
         try:
             if not onlyGraph:
-                ret = self.drawChart(chartStats, logFile, outFile=outFile)
+                # draw detailed memory chart #
+                ret = self.drawProcChart(chartStats, logFile, outFile=outFile)
+
+                # draw system memory chart #
+                if SysMgr.pssEnable:
+                    ret = self.drawSmemChart(
+                        graphStats, logFile, outFile=outFile
+                    )
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr("failed to draw chart", True)
             return
 
-    def drawChart(self, data, logFile, outFile=None):
+    def drawSmemChart(self, data, logFile, outFile=None):
+        # pylint: disable=undefined-variable
+
+        if not data:
+            return
+
+        labels = []
+        sizes = []
+        details = []
+
+        colors = [
+            "skyblue",
+            "pink",
+            "lightgreen",
+            "lightcoral",
+            "gold",
+            "yellowgreen",
+        ]
+
+        def _make_autopct(values):
+            def _autopct(pct):
+                total = sum(values)
+                val = long(round(pct * total / 100.0)) << 20
+                val = UtilMgr.convSize2Unit(val, False)
+                usage = "{v:s} ({p:.0f}%)".format(p=pct, v=val)
+                string = "{s:1} {l:1}{d:1}".format(
+                    s=usage, d=details[self.tmpCnt], l=""
+                )
+                self.tmpCnt += 1
+                return string
+
+            return _autopct
+
+        # set title #
+        suptitle("Guider System Memory Chart", fontsize=8)
+
+        self.tmpCnt = 0
+        summary = 0
+        total = data["totalRam"] >> 20
+
+        # add available memory #
+        labels.append("[Available]")
+        availMem = data["memFree"][-1]
+        summary += availMem
+        sizes.append(availMem)
+        details.append("[Available]")
+
+        # add proc memory #
+        for proc, mstats in data["memProcUsage"].items():
+            # skip kernel tasks #
+            if not "rssUsage" in mstats:
+                continue
+
+            # get pss #
+            pss = long(mstats["rssUsage"].strip().split()[-1])
+            summary += pss
+
+            # add info #
+            labels.append(proc)
+            sizes.append(pss)
+            details.append(proc)
+
+        # add other memory #
+        labels.append("[Other]")
+        sizes.append(total - summary)
+        details.append("[Other]")
+
+        # convert labels to tuple #
+        labels = tuple(labels)
+
+        # find and mark index of max value #
+        explode = [0] * len(sizes)
+        explode[sizes.index(max(sizes))] = 0.03
+
+        ax = subplot2grid((1, 1), (0, 0), rowspan=1, colspan=1)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        # draw chart #
+        patches, texts, autotexts = pie(
+            sizes,
+            explode=explode,
+            labels=labels,
+            colors=colors,
+            autopct=_make_autopct(sizes),
+            shadow=True,
+            startangle=50 if SysMgr.matplotlibVersion >= 1.2 else None,
+            pctdistance=0.7,
+            labeldistance=1.1,
+        )
+
+        # print total size in legend #
+        legend(
+            patches,
+            labels,
+            loc="lower right",
+            shadow=True,
+            fontsize=self.xfsize if SysMgr.matplotlibVersion >= 1.2 else None,
+        )
+
+        # set font size #
+        for idx, val in enumerate(texts):
+            val.set_fontsize(self.xfsize + 1)
+            autotexts[idx].set_fontsize(self.lfsize)
+        axis("equal")
+        tight_layout()
+
+        # draw image #
+        figure(
+            num=1, figsize=(10, 10), facecolor="b", edgecolor="k"
+        ).subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
+
+        # save to file #
+        return TaskAnalyzer.saveImage(logFile, "sysmem_chart", outFile=outFile)
+
+    def drawProcChart(self, data, logFile, outFile=None):
         # pylint: disable=undefined-variable
 
         if not data:
@@ -96734,6 +96855,7 @@ class TaskAnalyzer(object):
 
         # init variables #
         seq = 0
+        self.tmpCnt = 0
 
         height = (
             long(len(data) / 2)
@@ -96765,7 +96887,7 @@ class TaskAnalyzer(object):
         convSize = UtilMgr.convSize2Unit
 
         # set title #
-        suptitle("Guider Memory Chart", fontsize=8)
+        suptitle("Guider Process Memory Chart", fontsize=8)
 
         for idx, item in sorted(
             data.items(),
@@ -96888,27 +97010,16 @@ class TaskAnalyzer(object):
             ]
 
             # draw chart #
-            if SysMgr.matplotlibVersion >= 1.2:
-                patches, texts, autotexts = pie(
-                    sizes,
-                    explode=explode,
-                    labels=labels,
-                    colors=colors,
-                    autopct=_make_autopct(sizes),
-                    shadow=True,
-                    startangle=50,
-                    pctdistance=0.5,
-                )
-            else:
-                patches, texts, autotexts = pie(
-                    sizes,
-                    explode=explode,
-                    labels=labels,
-                    colors=colors,
-                    autopct=_make_autopct(sizes),
-                    shadow=True,
-                    pctdistance=0.5,
-                )
+            patches, texts, autotexts = pie(
+                sizes,
+                explode=explode,
+                labels=labels,
+                colors=colors,
+                autopct=_make_autopct(sizes),
+                shadow=True,
+                startangle=50 if SysMgr.matplotlibVersion >= 1.2 else None,
+                pctdistance=0.5,
+            )
 
             # set font size #
             for idx, val in enumerate(texts):
@@ -96917,25 +97028,17 @@ class TaskAnalyzer(object):
             axis("equal")
 
             # print total size in legend #
-            if SysMgr.matplotlibVersion >= 1.2:
-                legend(
-                    patches,
-                    totalList,
-                    loc="lower right",
-                    shadow=True,
-                    fontsize=self.xfsize,
-                    handlelength=0,
-                    bbox_to_anchor=(1.2, 0.01),
-                )
-            else:
-                legend(
-                    patches,
-                    totalList,
-                    loc="lower right",
-                    shadow=True,
-                    handlelength=0,
-                    bbox_to_anchor=(1.2, 0.01),
-                )
+            legend(
+                patches,
+                totalList,
+                loc="lower right",
+                shadow=True,
+                fontsize=self.xfsize
+                if SysMgr.matplotlibVersion >= 1.2
+                else None,
+                handlelength=0,
+                bbox_to_anchor=(1.2, 0.01),
+            )
 
             seq += 1
 
@@ -96945,7 +97048,9 @@ class TaskAnalyzer(object):
         ).subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
-        return TaskAnalyzer.saveImage(logFile, "chart", outFile=outFile)
+        return TaskAnalyzer.saveImage(
+            logFile, "procmem_chart", outFile=outFile
+        )
 
     def drawLayout(
         self, graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent, logEvents
