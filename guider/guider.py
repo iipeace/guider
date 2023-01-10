@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230109"
+__revision__ = "230110"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8275,7 +8275,8 @@ function format_percent(n) {
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn("failed to get file size for '%s'" % path)
+            if UtilMgr.isString(path) and os.path.exists(path):
+                SysMgr.printWarn("failed to get file size for '%s'" % path)
 
             if string:
                 return "?"
@@ -8703,7 +8704,7 @@ class NetworkMgr(object):
     @staticmethod
     def recvData(sockObj, ip, port=0):
         connMan = NetworkMgr("server", ip, port, tcp=True, bind=True)
-        if not connMan:
+        if not connMan.ip:
             return
 
         # send connection info #
@@ -31314,11 +31315,13 @@ Examples:
 
     - {2:1} within specific interval range in index unit
         # {0:1} {1:1} {4:1} -q TRIMIDX:0:3
+        # {0:1} {1:1} {4:1} -q TRIMIDX:-5:
 
     - {2:1} with y range 1-100
         # {0:1} {1:1} {4:1} worstcase.out -q YRANGE:1:100
         # {0:1} {1:1} {4:1} worstcase.out -q YRANGE:10:
         # {0:1} {1:1} {4:1} worstcase.out -q YRANGE::100
+        # {0:1} {1:1} {4:1} worstcase.out -q YRANGE::100, KEEPYRANGE
 
     - {2:1} with specific font size
         # {0:1} {1:1} {4:1} worstcase.out -q FONTSIZE:15
@@ -37142,6 +37145,9 @@ Examples:
 
     - {2:1} in parallel mode
         # {0:1} {1:1} -q PARALLEL
+
+    - Request the performance image to HTTP server
+        # {0:1} req "http://127.0.0.1:12345/draw?ip=127.0.0.1&port=5555&type=cpu"
                     """.format(
                         cmd,
                         mode,
@@ -46259,7 +46265,7 @@ Copyright:
 
                 # handle GETDUMP event #
                 if item == "EVENT_CMD_GETDUMP":
-                    data = NetworkMgr.recvData(netObj, ip)
+                    data = NetworkMgr.recvData(netObj, SysMgr.localServObj.ip)
                     if data:
                         data = data.decode()
                     else:
@@ -48483,26 +48489,47 @@ Copyright:
 
         class requestHandler(handler):
             def do_GET(self):
-                # handle path #
-                if self.path == "/":
-                    pass
+                ip = port = drawType = None
 
                 # extract query param #
                 try:
+                    # parse query #
                     urllib = SysMgr.getPkg("urllib", isExit=False)
                     urlParse = urllib.parse
-                    queryList = urlParse.parse_qs(
-                        urlParse.urlparse(self.path).query
-                    )
+                    parseObj = urlParse.urlparse(self.path)
+
+                    # get command #
+                    cmd = parseObj.path.lstrip("/")
+
+                    # get params #
+                    queryList = urlParse.parse_qs(parseObj.query)
+
+                    # get IP #
+                    if "ip" in queryList:
+                        ip = queryList["ip"][0]
+
+                    # get PORT #
+                    if "port" in queryList:
+                        port = queryList["port"][0]
+
+                    # get TYPE #
+                    if "type" in queryList:
+                        drawType = queryList["type"][0]
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    pass
+                    # get command #
+                    cmd = self.path.lstrip("/")
 
-                # get command #
-                cmd = self.path.lstrip("/")
+                # set default command #
                 if not cmd:
                     cmd = "help"
+
+                # set default ip and port #
+                if not ip:
+                    ip = SysMgr.localServObj.ip
+                if not port:
+                    port = SysMgr.defaultServPort
 
                 # set response #
                 self.send_response(200)
@@ -48516,13 +48543,9 @@ Copyright:
                     self.send_header("Content-type", "image/png")
                     self.end_headers()
 
-                    # get monitoring data #
-                    # TODO: make address interface #
+                    # get monitoring data from remote server #
                     data = SysMgr.sendEvents(
-                        "172.28.209.100",
-                        5555,
-                        ["EVENT_CMD_GETDUMP"],
-                        verb=False,
+                        ip, port, ["EVENT_CMD_GETDUMP"], verb=False
                     )
                     if not data:
                         SysMgr.printErr("failed to get monitoring data")
@@ -48537,7 +48560,8 @@ Copyright:
                     TaskAnalyzer.initDrawEnv(dpi=100, size=None, fontsize=None)
 
                     # set canvas layout #
-                    # SysMgr.layout = "CPU"
+                    if drawType:
+                        SysMgr.layout = drawType
 
                     # draw graphs #
                     SysMgr.addEnvironVar("TOPSUM")
@@ -48693,6 +48717,9 @@ Copyright:
             sys.stderr.notified = True
         except:
             pass
+
+        # print debug info #
+        SysMgr.warnEnable = True
 
         # start TCP server #
         try:
@@ -49828,7 +49855,7 @@ Copyright:
             connObj = NetworkMgr(
                 "server", addr[0], addr[1], tcp=True, bind=False
             )
-            if not connObj or not connObj.ip:
+            if not connObj.ip:
                 continue
 
             # apply connected socket to object #
@@ -93009,9 +93036,9 @@ class TaskAnalyzer(object):
         # parse stats from multiple files #
         for idx, lfile in enumerate(flist):
             try:
-                gstats, cstats = TaskAnalyzer.getStatsFile(
-                    lfile, applyOpt=False
-                )
+                gstats, _ = TaskAnalyzer.getStatsFile(lfile, applyOpt=False)
+                if not gstats:
+                    continue
             except SystemExit:
                 sys.exit(0)
             except:
@@ -96012,6 +96039,10 @@ class TaskAnalyzer(object):
             imin = 0
             imax = len(timeline)
 
+        if not timeline[imin:imax]:
+            SysMgr.printErr("no data in the range %s:%s" % (imin, imax))
+            return {}, {}
+
         # set graph argument list #
         graphStats = {
             "timeline": timeline[imin:imax],
@@ -96263,6 +96294,9 @@ class TaskAnalyzer(object):
 
         if "YRANGE" in SysMgr.environList:
             yminval, ymaxval = SysMgr.environList["YRANGE"][0].split(":")
+            # use only one time for first graph #
+            if not "KEEPYRANGE" in SysMgr.environList:
+                SysMgr.environList.pop("YRANGE", None)
 
             # set ymin #
             try:
@@ -96524,9 +96558,11 @@ class TaskAnalyzer(object):
             # parse stats from multiple files #
             for lfile in targets:
                 try:
-                    gstats, cstats = TaskAnalyzer.getStatsFile(
+                    gstats, _ = TaskAnalyzer.getStatsFile(
                         lfile, onlyStart=concatenated, applyOpt=applyOpt
                     )
+                    if not gstats:
+                        continue
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -96651,7 +96687,9 @@ class TaskAnalyzer(object):
                 SysMgr.outPath = origOutput
 
                 try:
-                    gstats, cstats = TaskAnalyzer.getStatsFile(targetFile)
+                    gstats, _ = TaskAnalyzer.getStatsFile(targetFile)
+                    if not gstats:
+                        sys.exit(-1)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -96685,7 +96723,7 @@ class TaskAnalyzer(object):
 
         # draw graphs #
         try:
-            if not onlyChart:
+            if graphStats and not onlyChart:
                 ret = self.drawGraph(
                     deepcopy(graphStats),
                     logFile,
@@ -96701,12 +96739,12 @@ class TaskAnalyzer(object):
 
         # draw charts #
         try:
-            if not onlyGraph:
+            if chartStats and not onlyGraph:
                 # draw detailed memory chart #
                 ret = self.drawProcChart(chartStats, logFile, outFile=outFile)
 
                 # draw system memory chart #
-                if SysMgr.pssEnable:
+                if graphStats and SysMgr.pssEnable:
                     ret = self.drawSmemChart(
                         graphStats, logFile, outFile=outFile
                     )
@@ -97649,7 +97687,10 @@ class TaskAnalyzer(object):
                 blkProcUsage = graphStats["%sblkProcUsage" % fname]
                 gpuUsage = graphStats["%sgpuUsage" % fname]
                 nrCore = graphStats["%snrCore" % fname]
-                maxCore = max(nrCore)
+                if nrCore:
+                    maxCore = max(nrCore)
+                else:
+                    maxCore = 1
                 coreStr = "< CPU Core > - %s\n" % conv(maxCore)
 
                 # convert total CPU usage by core number #
@@ -97691,10 +97732,10 @@ class TaskAnalyzer(object):
                             stat,
                             "-",
                             c=gcolor,
-                            linestyle="--",
-                            linewidth=1,
+                            linestyle="-",
+                            linewidth=0.3,
                             marker="d",
-                            markersize=1,
+                            markersize=0.3,
                             path_effects=_getPathEffect(),
                             solid_capstyle="round",
                         )
@@ -98154,6 +98195,8 @@ class TaskAnalyzer(object):
                     pass
 
             # update yticks #
+            if ymax < 100:
+                ymax = 100
             TaskAnalyzer.drawYticks(ax, ymax)
 
             # add % unit to each value #
