@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230110"
+__revision__ = "230111"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -37015,7 +37015,7 @@ Commands:
     CMD_DISABLE:ATTR          disable monitoring of the specific resource
     CMD_ENABLE:ATTR           enable monitoring of the specific resource
     CMD_FILTER:ITEM           set the task filter
-    CMD_GETDUMP               get monitoring data
+    CMD_GETDUMP:LEN           get monitoring data
     CMD_INTERVAL:TIME         change the monitoring interval
     CMD_PAUSE                 pause all monitoring activities
     CMD_RELOAD:PATH           reload the threshold config
@@ -37147,7 +37147,8 @@ Examples:
         # {0:1} {1:1} -q PARALLEL
 
     - Request the performance image to HTTP server
-        # {0:1} req "http://127.0.0.1:12345/draw?ip=127.0.0.1&port=5555&type=cpu"
+        # {0:1} req "http://127.0.0.1:12345/draw?ip=127.0.0.1&port=5555&type=cpu&drawlen:50"
+        # {0:1} req "http://127.0.0.1:12345/draw?filter=test*,guider&env=trimidx:-20:&all=true"
                     """.format(
                         cmd,
                         mode,
@@ -46264,7 +46265,12 @@ Copyright:
                 )
 
                 # handle GETDUMP event #
-                if item == "EVENT_CMD_GETDUMP":
+                if item.startswith("EVENT_CMD_GETDUMP"):
+                    if not SysMgr.localServObj:
+                        NetworkMgr.setServerNetwork(
+                            None, None, reuse=False, weakPort=True
+                        )
+
                     data = NetworkMgr.recvData(netObj, SysMgr.localServObj.ip)
                     if data:
                         data = data.decode()
@@ -48489,7 +48495,10 @@ Copyright:
 
         class requestHandler(handler):
             def do_GET(self):
-                ip = port = drawType = None
+                ip = port = ctype = None
+                origFilter = SysMgr.filterGroup
+                origEnv = SysMgr.environList
+                origAll = SysMgr.showAll
 
                 # extract query param #
                 try:
@@ -48514,7 +48523,21 @@ Copyright:
 
                     # get TYPE #
                     if "type" in queryList:
-                        drawType = queryList["type"][0]
+                        ctype = queryList["type"][0]
+
+                    # get FILTER #
+                    if "filter" in queryList:
+                        SysMgr.filterGroup = queryList["filter"][0].split(",")
+
+                    # get ENV #
+                    if "env" in queryList:
+                        envs = UtilMgr.splitString(queryList["env"][0])
+                        SysMgr.environList = UtilMgr.convList2Dict(
+                            envs, cap=True
+                        )
+
+                    if "all" in queryList:
+                        SysMgr.showAll = True
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -48543,10 +48566,12 @@ Copyright:
                     self.send_header("Content-type", "image/png")
                     self.end_headers()
 
+                    drawCmd = "EVENT_CMD_GETDUMP"
+                    if "DRAWLEN" in SysMgr.environList:
+                        drawCmd += ":%s" % SysMgr.environList["DRAWLEN"][0]
+
                     # get monitoring data from remote server #
-                    data = SysMgr.sendEvents(
-                        ip, port, ["EVENT_CMD_GETDUMP"], verb=False
-                    )
+                    data = SysMgr.sendEvents(ip, port, [drawCmd], verb=False)
                     if not data:
                         SysMgr.printErr("failed to get monitoring data")
                         return
@@ -48560,18 +48585,20 @@ Copyright:
                     TaskAnalyzer.initDrawEnv(dpi=100, size=None, fontsize=None)
 
                     # set canvas layout #
-                    if drawType:
-                        SysMgr.layout = drawType
+                    if ctype:
+                        SysMgr.layout = ctype
 
                     # draw graphs #
-                    SysMgr.addEnvironVar("TOPSUM")
-                    TaskAnalyzer(onlyInstance=True).drawStats(
-                        fdlist=[fd],
-                        outFd=self.wfile,
-                        onlyGraph=True,
-                        applyOpt=False,
-                    )
-                    return
+                    try:
+                        SysMgr.addEnvironVar("TOPSUM")
+                        TaskAnalyzer(onlyInstance=True).drawStats(
+                            fdlist=[fd],
+                            outFd=self.wfile,
+                            onlyGraph=True,
+                            applyOpt=False,
+                        )
+                    except:
+                        pass
 
                 # help #
                 elif cmd == "help":
@@ -48601,7 +48628,6 @@ Copyright:
                             "failed to create a new process to execute '%s'"
                             % cmd
                         )
-                        return
 
                     # wait for worker process #
                     try:
@@ -48618,7 +48644,12 @@ Copyright:
                         if procObj:
                             SysMgr.killProcGroup(procObj.pid)
 
-                    return
+                # recover environment variables #
+                SysMgr.filterGroup = origFilter
+                SysMgr.environList = origEnv
+                SysMgr.showAll = origAll
+
+                return
 
                 # set header #
                 self.send_header("Content-type", "text/html")
@@ -50990,33 +51021,33 @@ Copyright:
                     "failed to set %s of CPU(%s)" % (res, core), True
                 )
 
+            def _writeData(tpath, ttype, data, core):
+                try:
+                    with open(tpath, "w") as fd:
+                        fd.write(data)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    _printErr("%s clock" % ttype, core)
+
             for core in cpuRange:
                 # set path #
                 commonpath = "%s/cpu%s/cpufreq" % (freqPath, core)
                 curgovpath = "%s/scaling_governor" % commonpath
+                curfreqpath = "%s/scaling_cur_freq" % commonpath
                 minfreqpath = "%s/scaling_min_freq" % commonpath
                 maxfreqpath = "%s/scaling_max_freq" % commonpath
 
                 # set clock range #
                 if clock and long(clock) > 0:
-                    try:
-                        with open(minfreqpath, "w") as fd:
-                            fd.write(clock)
-                    except:
-                        _printErr("min clock", core)
-
-                    try:
-                        with open(maxfreqpath, "w") as fd:
-                            fd.write(clock)
-                    except:
-                        _printErr("max clock", core)
+                    _writeData(minfreqpath, "min clock", clock, core)
+                    _writeData(maxfreqpath, "max clock", clock, core)
 
                 if gov:
-                    try:
-                        with open(curgovpath, "w") as fd:
-                            fd.write(gov)
-                    except:
-                        _printErr("governor", core)
+                    _writeData(curgovpath, "governor", gov, core)
+
+                # cur_clock #
+                curfreqstr = SysMgr.readFile(curfreqpath, verb=False)
 
                 # cur_governor #
                 try:
@@ -51045,8 +51076,8 @@ Copyright:
                 else:
                     prevclockstr = "?"
 
-                if clock:
-                    curclockstr = "%sHz" % UtilMgr.convNum(clock)
+                if curfreqstr:
+                    curclockstr = "%sHz" % UtilMgr.convNum(curfreqstr)
                 else:
                     curclockstr = "?"
 
@@ -64060,9 +64091,27 @@ Copyright:
                                 if item.startswith("Total"):
                                     continue
 
+                                # get device stats #
                                 dev, op, stat = item.split()
                                 if stat == "0" or op == "Total":
                                     continue
+
+                                # convert device ID to PATH #
+                                for (
+                                    path,
+                                    minfo,
+                                ) in SysMgr.sysInstance.mountInfo.items():
+                                    try:
+                                        devid = "%s:%s" % (
+                                            minfo["major"],
+                                            minfo["minor"],
+                                        )
+                                        if devid == dev:
+                                            dev = path
+                                    except SystemExit:
+                                        sys.exit(0)
+                                    except:
+                                        pass
 
                                 # new device #
                                 if prevDev != dev:
@@ -97206,6 +97255,7 @@ class TaskAnalyzer(object):
                 for idx, item in enumerate(list(xtickLabel)):
                     if idx & 1:
                         xtickLabel[idx] = "\n%s" % item
+                ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
 
                 lastIdx = len(ax.get_xticks().tolist())
@@ -97235,6 +97285,7 @@ class TaskAnalyzer(object):
                         except:
                             xtickLabel[seq] = " "
 
+                ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
                 lastIdx = len(ax.get_xticks().tolist())
                 xtickLabel[lastIdx - 1] += "\nRUN(NR)".expandtabs()
@@ -97261,6 +97312,7 @@ class TaskAnalyzer(object):
                     except:
                         xtickLabel[seq] = " "
 
+                ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
                 lastIdx = len(ax.get_xticks().tolist())
                 xtickLabel[lastIdx - 1] += "\nTASK(NR)".expandtabs()
@@ -97730,7 +97782,6 @@ class TaskAnalyzer(object):
                         plot(
                             timeline,
                             stat,
-                            "-",
                             c=gcolor,
                             linestyle="-",
                             linewidth=0.3,
@@ -97807,7 +97858,6 @@ class TaskAnalyzer(object):
                         plot(
                             timeline,
                             blkWait,
-                            "-",
                             c=icolor,
                             linestyle="--",
                             linewidth=1,
@@ -121116,6 +121166,15 @@ class TaskAnalyzer(object):
                 SysMgr.printErr("failed to recognize the request from client")
 
     def handleDumpCmd(self, cmd):
+        # get size #
+        origCmd = cmd
+        parts = cmd.split(":", 1)
+        cmd = parts[0]
+        if len(parts) > 1:
+            length = 0 - long(parts[1])
+        else:
+            length = 0
+
         # get connection info #
         ret = SysMgr.localServObj.recvfrom()
         if not ret or not ret[0]:
@@ -121165,7 +121224,7 @@ class TaskAnalyzer(object):
             data = ""
 
         # make payload #
-        data = (data + "\n".join(SysMgr.procBuffer)).encode()
+        data = (data + "\n".join(SysMgr.procBuffer[length:])).encode()
 
         # send data size #
         cliObj.send(str(len(data)).encode())
