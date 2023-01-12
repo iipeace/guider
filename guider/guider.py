@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230111"
+__revision__ = "230112"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23928,11 +23928,14 @@ class SysMgr(object):
     # path #
     procPath = "/proc"
     imagePath = None
-    mountPath = None
     mountCmd = None
     cgroupPath = None
     drawFormat = "svg"
-    debugfsPath = "/sys/kernel/debug"
+    traceEventPath = None
+    tracefsPath = None
+    defaultTracefsPath = "/sys/kernel/tracing"
+    debugfsPath = None
+    defaultDebugfsPath = "/sys/kernel/debug"
     cacheDirPath = "/var/log/guider"
     outFilePath = "guider.out"
     confFileName = "guider.conf"
@@ -24734,7 +24737,7 @@ Commands:
             SysMgr.systemEnable = True
 
         # update record status #
-        SysMgr.inputFile = "/sys/kernel/debug/tracing/trace"
+        SysMgr.inputFile = "%s/../trace" % SysMgr.getTraceEventPath()
 
         SysMgr.parseRecordOption()
 
@@ -25528,8 +25531,14 @@ Commands:
     @staticmethod
     def loadLibCache():
         try:
+            # no ld cache file #
+            if not SysMgr.ldCachePath:
+                return
+
             if not os.path.exists(SysMgr.ldCachePath):
-                raise Exception("no %s" % SysMgr.ldCachePath)
+                reason = SysMgr.ldCachePath
+                SysMgr.ldCachePath = None
+                raise Exception("no %s" % reason)
 
             libDict = {}
 
@@ -30322,7 +30331,10 @@ Commands:
                 SysMgr.isAndroid = True
                 SysMgr.libcPath = "libc"
                 SysMgr.libcppPath = "libstdc++"
-                SysMgr.libdemanglePath = "libgccdemangle"
+                if os.path.exists("/system/lib/libgccdemangle.so"):
+                    SysMgr.libdemanglePath = "libgccdemangle"
+                else:
+                    SysMgr.libdemanglePath = "libbacktrace"
                 SysMgr.cacheDirPath = "/data/log/guider"
 
         # Windows #
@@ -39035,7 +39047,7 @@ Copyright:
                 "wrong format for kernel command [NAME:FUNC|ADDR{:ARGS:RET}]"
             )
             sys.exit(-1)
-        elif not os.path.isfile(SysMgr.mountPath + "../kprobe_events"):
+        elif not os.path.isfile(SysMgr.traceEventPath + "../kprobe_events"):
             SysMgr.printErr(
                 "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS kernel option"
             )
@@ -39213,7 +39225,7 @@ Copyright:
                 "wrong format for user command [NAME:FUNC|ADDR:FILE]"
             )
             sys.exit(-1)
-        elif not os.path.isfile(SysMgr.mountPath + "../uprobe_events"):
+        elif not os.path.isfile("%s/uprobe_events" % SysMgr.getTracefsPath()):
             SysMgr.printErr(
                 "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT kernel option"
             )
@@ -40521,7 +40533,7 @@ Copyright:
 
             # read trace data #
             try:
-                rpath = os.path.join(SysMgr.mountPath, "../trace")
+                rpath = "%s/trace" % SysMgr.getTracefsPath()
                 if sys.version_info >= (3, 0, 0):
                     with open(rpath, "r", encoding="latin-1") as fr:
                         lines = fr.readlines()
@@ -40742,7 +40754,7 @@ Copyright:
     def readTraceFile(path):
         # open for applying command #
         try:
-            target = "%s%s" % (SysMgr.mountPath, path)
+            target = "%s/%s" % (SysMgr.traceEventPath, path)
             with open(target, "r") as fd:
                 return fd.read()[:-1]
         except:
@@ -40934,9 +40946,9 @@ Copyright:
 
             if SysMgr.cmdFd:
                 try:
-                    cmd = 'echo "%s" > %s%s 2>%s\n' % (
+                    cmd = 'echo "%s" > %s/%s 2>%s\n' % (
                         str(val),
-                        SysMgr.mountPath,
+                        SysMgr.traceEventPath,
                         path,
                         SysMgr.nullPath,
                     )
@@ -40950,7 +40962,7 @@ Copyright:
 
         # open node #
         try:
-            target = "%s%s" % (SysMgr.mountPath, path)
+            target = "%s/%s" % (SysMgr.traceEventPath, path)
             if append:
                 fd = os.open(target, os.O_RDWR | os.O_CREAT | os.O_APPEND)
             else:
@@ -41266,7 +41278,8 @@ Copyright:
             fs, dev = right[0:2]
             soption = " ".join(right[2:])
 
-            if ":" in dev:
+            # get device ID #
+            if not "/" in dev and ":" in dev:
                 major, minor = dev.split(":")
             else:
                 major = minor = -1
@@ -41656,17 +41669,15 @@ Copyright:
         if not SysMgr.isLinux:
             return
 
-        # check mount path #
-        if not SysMgr.mountPath:
-            SysMgr.mountPath = SysMgr.getDebugfsPath()
-            if not SysMgr.mountPath:
-                return
+        # check event path #
+        if not SysMgr.getTraceEventPath():
+            return
 
         # check trace file #
         if not SysMgr.eventLogFd:
             if not SysMgr.eventLogPath:
-                SysMgr.eventLogPath = "%s%s" % (
-                    SysMgr.mountPath,
+                SysMgr.eventLogPath = "%s/%s" % (
+                    SysMgr.traceEventPath,
                     "../trace_marker",
                 )
 
@@ -45873,20 +45884,32 @@ Copyright:
         return retval
 
     @staticmethod
-    def mountDebugfs(mp=None):
-        if not mp:
-            mp = SysMgr.debugfsPath
-
+    def mountFsCmd(fs, path):
         # check root permission #
-        SysMgr.checkRootPerm(msg="mount debugfs")
+        SysMgr.checkRootPerm(msg="mount %s" % fs)
 
         # mount debugfs #
-        SysMgr.mountCmd = "mount -t debugfs nodev %s 2> /dev/null" % mp
+        SysMgr.mountCmd = "mount -t %s nodev %s 2> /dev/null" % (fs, path)
         os.system(SysMgr.mountCmd)
 
+    @staticmethod
+    def mountTracefs():
+        # mount tracefs #
+        SysMgr.mountFsCmd("tracefs", SysMgr.defaultTracefsPath)
+
+        # check tracefs #
+        SysMgr.tracefsPath = SysMgr.getTracefsPath(mount=False)
+        if not SysMgr.tracefsPath:
+            SysMgr.printWarn("failed to mount tracefs to trace events")
+
+    @staticmethod
+    def mountDebugfs():
+        # mount debugfs #
+        SysMgr.mountFsCmd("debugfs", SysMgr.defaultDebugfsPath)
+
         # check debugfs #
-        SysMgr.mountPath = SysMgr.getDebugfsPath()
-        if not SysMgr.mountPath:
+        SysMgr.debugfsPath = SysMgr.getDebugfsPath(mount=False)
+        if not SysMgr.debugfsPath:
             SysMgr.printErr("failed to mount debugfs to trace events")
             sys.exit(-1)
 
@@ -45913,9 +45936,8 @@ Copyright:
             event = None
 
         # mount debug fs #
-        SysMgr.mountPath = SysMgr.getDebugfsPath()
-        if not SysMgr.mountPath:
-            SysMgr.printWarn("failed to get debugfs mount point", True)
+        if not SysMgr.getTraceEventPath():
+            SysMgr.printWarn("failed to get tracefs/debugfs mount point", True)
 
         # check target address #
         if SysMgr.remoteServObj:
@@ -60241,7 +60263,7 @@ Copyright:
 
     def saveCommCache(self):
         try:
-            path = "%s/../saved_cmdlines" % SysMgr.mountPath
+            path = "%s/saved_cmdlines" % SysMgr.getTracefsPath()
             with open(path, "r") as fd:
                 commList = fd.readlines()
                 for item in commList:
@@ -60617,7 +60639,7 @@ Copyright:
 
     @staticmethod
     def getBufferSize():
-        bufFile = "%s../buffer_size_kb" % SysMgr.mountPath
+        bufFile = "%s/buffer_size_kb" % SysMgr.getTracefsPath()
 
         try:
             f = open(bufFile, "r")
@@ -60673,7 +60695,7 @@ Copyright:
                 pd.close()
 
                 # read the remaining data under 4k from log buffer #
-                tpath = os.path.join(SysMgr.mountPath, "../trace")
+                tpath = "%s/trace" % SysMgr.getTracefsPath()
                 with open(tpath, "r") as fr:
                     fd.write(fr.read())
 
@@ -60705,9 +60727,12 @@ Copyright:
                 return
 
     @staticmethod
-    def getDebugfsPath():
+    def getFsPath(fs):
         if not SysMgr.isLinux:
             return None
+
+        if not type(fs) is list:
+            fs = [fs]
 
         try:
             lines = SysMgr.procReadlines("mounts")
@@ -60722,10 +60747,56 @@ Copyright:
                 continue
 
             d = m.groupdict()
-            if d["fs"] == "debugfs":
-                ret = "%s/tracing/events/" % d["dir"]
+            if d["fs"] in fs:
+                return d["dir"]
 
-        return ret
+        SysMgr.printWarn("failed to get %s info from mount list" % fs)
+        return None
+
+    @staticmethod
+    def getTraceEventPath():
+        if SysMgr.traceEventPath:
+            return SysMgr.traceEventPath
+
+        # get tracefs path #
+        tracefsPath = SysMgr.getTracefsPath()
+        if tracefsPath:
+            SysMgr.traceEventPath = "%s/events" % tracefsPath
+        else:
+            debugfsPath = SysMgr.getDebugfsPath()
+            if not debugfsPath:
+                return None
+            SysMgr.traceEventPath = "%s/tracing/events" % debugfsPath
+
+        return SysMgr.traceEventPath
+
+    @staticmethod
+    def getTracefsPath(mount=True):
+        if SysMgr.tracefsPath:
+            return SysMgr.tracefsPath
+
+        for idx in range(2):
+            SysMgr.tracefsPath = SysMgr.getFsPath("tracefs")
+            if SysMgr.tracefsPath:
+                return SysMgr.tracefsPath
+            if mount and idx == 0:
+                SysMgr.mountTracefs()
+
+        return None
+
+    @staticmethod
+    def getDebugfsPath(mount=True):
+        if SysMgr.debugfsPath:
+            return SysMgr.debugfsPath
+
+        for idx in range(2):
+            SysMgr.debugfsPath = SysMgr.getFsPath("debugfs")
+            if SysMgr.debugfsPath:
+                return SysMgr.debugfsPath
+            if mount and idx == 0:
+                SysMgr.mountDebugfs()
+
+        return None
 
     @staticmethod
     def getRootDevice():
@@ -61322,13 +61393,10 @@ Copyright:
         # check root permission #
         SysMgr.checkRootPerm(msg="trace system")
 
-        # mount debugfs #
-        SysMgr.mountPath = SysMgr.getDebugfsPath()
-        if not SysMgr.mountPath:
-            SysMgr.mountDebugfs()
+        # update event path #
+        SysMgr.getTraceEventPath()
 
-        # check permission #
-        if not os.path.isdir(SysMgr.mountPath):
+        if not os.path.isdir(SysMgr.traceEventPath):
             cmd = "/boot/config-$(uname -r)"
             SysMgr.printErr(
                 (
@@ -87820,6 +87888,10 @@ class ElfAnalyzer(object):
         if not SysMgr.demangleEnable:
             return symbol
 
+        # remove android specific prefix #
+        if SysMgr.isAndroid:
+            symbol = UtilMgr.lstrip(symbol, "__dl_")
+
         # check mangling #
         if not symbol.startswith("_Z"):
             return symbol
@@ -114052,48 +114124,73 @@ class TaskAnalyzer(object):
         buf = ""
         fpath = "%s/%s" % (path, "smaps")
 
-        try:
+        # get both PSS and SHARED #
+        if retPss and retShr:
             with open(fpath, "r") as fd:
                 buf = fd.readlines()
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenWarn(fpath)
+                if not buf:
+                    return 0, 0
+
+            pss = shared = 0
+            for line in buf:
+                try:
+                    if retPss and line.startswith("Pss:"):
+                        val = line.split()[1]
+                        if val != "0":
+                            pss += long(val)
+                    elif retShr and (
+                        line.startswith("Shared_Clean:")
+                        or line.startswith("Shared_Dirty:")
+                    ):
+                        val = line.split()[1]
+                        if val != "0":
+                            shared += long(val)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        (
+                            "failed to get memory stats "
+                            "for the task having TID %s"
+                        )
+                        % tid,
+                        reason=True,
+                    )
+
+            return pss, shared
+
+        # set re string #
+        if retPss:
+            restr = "\nPss:\s+"
+        elif retShr:
+            restr = "\nShared_Clean:\s+|\nShared_Dirty:\s+"
+        else:
             return 0, 0
 
-        # check buf #
-        if not buf:
-            return 0, 0
+        # read maps data #
+        target = 0
+        with open(fpath, "r") as fd:
+            buf = fd.read()
+            if not buf:
+                return 0, 0
 
-        # get PSS #
-        pss = 0
-        shared = 0
-        for line in buf:
+        # parse target sizes #
+        for line in re.split(restr, buf):
+            if line.startswith("0"):
+                continue
+
             try:
-                if retPss and line.startswith("Pss:"):
-                    val = line.split()[1]
-                    if val != "0":
-                        pss += long(val)
-                elif retShr and (
-                    line.startswith("Shared_Clean:")
-                    or line.startswith("Shared_Dirty:")
-                ):
-                    val = line.split()[1]
-                    if val != "0":
-                        shared += long(val)
+                target += long(line.split()[0])
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn(
-                    (
-                        "failed to get memory stats "
-                        "for the task having TID %s"
-                    )
-                    % tid,
-                    reason=True,
-                )
+                pass
 
-        return pss, shared
+        # return stat #
+        if retPss:
+            return target, 0
+        else:
+            return 0, target
 
     @staticmethod
     def saveProcSmapsData(path, tid, mini=False):
