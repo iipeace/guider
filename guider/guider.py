@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230112"
+__revision__ = "230113"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -140,11 +140,16 @@ class ConfigMgr(object):
         "cpu.rt_period_us",
         "cpu.rt_runtime_us",
         "cpu.stat",
+        "cpu.uclamp.min",
+        "cpu.uclamp.max",
+        "cpu.uclamp.latency_sensitive",
         "cpuacct.usage",
         "cpuset.cpus",
+        "cpus",
         "memory.limit_in_bytes",
         "memory.memsw.limit_in_bytes",
         "blkio.weight",
+        "blkio.bfq.weight",
         "blkio.weight_device",
         "blkio.io_wait_time",
         "blkio.throttle.io_service_bytes",
@@ -21769,8 +21774,20 @@ class FileAnalyzer(object):
 
         # remove non-executable files #
         if onlyExec:
+            # check non-executable files having discontiguous segments #
+            exeFileMap = {}
+            for fname in fileMap:
+                if not fname.startswith("/") or not fileMap[fname]["exec"]:
+                    continue
+                exeFileMap[fname.split(SysMgr.magicStr, 1)[0]] = True
+
+            # exclude non-executable files #
             for fname in list(fileMap):
-                if fname != "stack" and not fileMap[fname]["exec"]:
+                if (
+                    fname != "stack"
+                    and not fileMap[fname]["exec"]
+                    and not fname.split(SysMgr.magicStr, 1)[0] in exeFileMap
+                ):
                     fileMap.pop(fname, None)
 
         # save map cache #
@@ -64022,7 +64039,7 @@ Copyright:
             convColor = UtilMgr.convColor
 
             # init shared values #
-            variables = set(["cpu.shares", "blkio.weight"])
+            variables = set(["cpu.shares", "blkio.weight", "blkio.bfq.weight"])
             for item in variables:
                 totals.setdefault(item, 0)
 
@@ -64097,7 +64114,7 @@ Copyright:
                         num = long(subdir[val].replace(",", ""))
                         per = "%.1f" % (num / float(totals[val]) * 100)
                         if num > 0:
-                            per = convColor(per, "RED")
+                            per = convColor(per, "YELLOW")
                         value = "%s/%s%%" % (subdir[val], per)
                     # runtime, period #
                     elif val.endswith("_us"):
@@ -64121,6 +64138,17 @@ Copyright:
                         per = long(long(num) / 10000000)
                         value = UtilMgr.convNum(per) + "%"
                         value = convColor(value, "YELLOW")
+                    # uclamp #
+                    elif val in (
+                        "cpu.uclamp.min",
+                        "cpu.uclamp.max",
+                        "cpu.uclamp.latency_sensitive",
+                    ):
+                        value = subdir[val]
+                        if value.startswith("0") or value == "max":
+                            value = ""
+                        else:
+                            value = convColor(str(float(value)), "RED")
                     # memory limit #
                     elif val.endswith("limit_in_bytes"):
                         num = long(subdir[val].replace(",", ""))
@@ -64150,6 +64178,10 @@ Copyright:
                             sys.exit(0)
                         except:
                             value = ""
+                    # cpus #
+                    elif val == "cpus":
+                        cname = "cpus"
+                        value = subdir[val]
                     # block usage #
                     elif val == "blkio.throttle.io_service_bytes":
                         try:
@@ -64250,8 +64282,12 @@ Copyright:
                             value = totalstr
                             if value:
                                 cname = convColor(val, "PINK")
+                        except SystemExit:
+                            sys.exit(0)
                         except:
-                            print(SysMgr.getErrMsg())
+                            SysMgr.printWarn(
+                                "failed to handle memory pressure", reason=True
+                            )
                             value = ""
                     # data #
                     else:
@@ -78273,11 +78309,15 @@ typedef struct {
 
         # walk to previous segments #
         while 1:
+            # update prev path #
             if not prevPath:
                 if number > 0:
                     prevPath = "%s%s%s" % (origPath, magicstr, number - 1)
                 else:
-                    prevPath = origPath
+                    if origPath in fileList:
+                        prevPath = origPath
+                    else:
+                        prevPath = "%s%s" % (origPath, magicstr)
             else:
                 prevPath = curPath
 
