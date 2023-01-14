@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230113"
+__revision__ = "230114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23946,7 +23946,7 @@ class SysMgr(object):
     procPath = "/proc"
     imagePath = None
     mountCmd = None
-    cgroupPath = None
+    cgroupPath = {}
     drawFormat = "svg"
     traceEventPath = None
     tracefsPath = None
@@ -26584,15 +26584,19 @@ Commands:
                 raise Exception("access to cgroup filesystem failed")
 
             # check and get root path #
-            if path.startswith(cgroupPath):
-                root = UtilMgr.lstrip(path, cgroupPath).split("/")
+            found = False
+            for item in cgroupPath:
+                if not path.startswith(item):
+                    continue
+
+                found = True
+                item = item[: item.rfind("/", 1)]
+                root = UtilMgr.lstrip(path, item).split("/")
                 root = UtilMgr.cleanItem(root)
-                rootPath = os.path.join(cgroupPath, root[0], "tasks")
-            elif os.path.exists(os.path.join(cgroupPath, path)):
-                root = UtilMgr.cleanItem(path.split("/"))
-                path = os.path.join(cgroupPath, path)
-                rootPath = os.path.join(cgroupPath, root[0], "tasks")
-            else:
+                rootPath = os.path.join(item, root[0], "tasks")
+                break
+
+            if not found:
                 raise Exception("wrong directory path")
 
             # find all tasks files #
@@ -27219,14 +27223,13 @@ Commands:
             tasks = sorted(list(map(long, tasks)))
 
             # print tasks #
-            for idx, tid in enumerate(tasks):
-                if not verb:
-                    continue
-
-                SysMgr.printPipe(
-                    "[%s] %s(%s)" % (convNum(idx), SysMgr.getComm(tid), tid),
-                    pager=False,
-                )
+            if verb:
+                for idx, tid in enumerate(tasks):
+                    SysMgr.printPipe(
+                        "[%s] %s(%s)"
+                        % (convNum(idx), SysMgr.getComm(tid), tid),
+                        pager=False,
+                    )
 
     @staticmethod
     def getCgroupSubPath(sub, exception=True):
@@ -27244,17 +27247,15 @@ Commands:
                 return None
 
         # check subsystem #
-        cgroupPath = os.path.join(cgroupPath, sub)
-        if not os.path.exists(cgroupPath):
-            if exception:
-                raise Exception("access to %s cgroup subsystem failed" % sub)
-            else:
-                SysMgr.printErr(
-                    "failed to access to %s cgroup subsystem" % sub
-                )
-                return None
+        for path in cgroupPath:
+            if sub in path.rsplit("/", 1)[1].split(","):
+                return path
 
-        return cgroupPath
+        if exception:
+            raise Exception("access to %s cgroup subsystem failed" % sub)
+        else:
+            SysMgr.printErr("failed to access to %s cgroup subsystem" % sub)
+            return None
 
     @staticmethod
     def getCgroup(sub, name=None, make=False, remove=False):
@@ -45365,7 +45366,11 @@ Copyright:
             pids = SysMgr.applyLimitVars(limitList)
 
             # start monitoring #
-            SysMgr.runTaskMonitor(pids, wait=True)
+            if "TASKMON" in SysMgr.environList:
+                SysMgr.runTaskMonitor(pids, wait=True)
+            else:
+                # wait for events #
+                SysMgr.waitEvent()
 
         # PSTREE MODE #
         elif SysMgr.checkMode("pstree"):
@@ -63862,6 +63867,8 @@ Copyright:
         if not self.mountData:
             return None
 
+        pathList = {}
+
         # search cgroup mount point #
         for mount in self.mountData:
             mountList = mount.split(" - ")
@@ -63869,14 +63876,12 @@ Copyright:
             if not mountList[1].startswith("cgroup"):
                 continue
 
-            mountpath = mountList[0].split()[4]
+            # add cgroup mount point #
+            path = mountList[0].split()[4]
+            pathList.setdefault(path, None)
 
-            # return cgroup mount point #
-            path = mountpath[: mountpath.rfind("/")]
-            SysMgr.cgroupPath = path
-            return path
-
-        return None
+        SysMgr.cgroupPath = pathList
+        return pathList
 
     def getCgroupTree(self):
         def _updateValues(dirpath, subfiles, item):
@@ -63935,7 +63940,8 @@ Copyright:
 
         # get full path list #
         dirList = {}
-        _getPaths(dirList, os.walk(cgroupPath))
+        for path in cgroupPath:
+            _getPaths(dirList, os.walk(path))
 
         # split a path to multiple tokens #
         dirDict = {}
@@ -63944,13 +63950,21 @@ Copyright:
             if os.path.islink(item):
                 continue
 
-            p = dirDict
-            tokList = item[len(cgroupPath) :].split("/")[1:]
-            for x in tokList:
-                p = p.setdefault(x, {})
+            for path in cgroupPath:
+                if not item.startswith(path):
+                    continue
 
-            # merge with a value #
-            p.update(val)
+                # add items #
+                path = path[: path.rfind("/")]
+                p = dirDict
+                tokList = item[len(path) :].split("/")[1:]
+                for x in tokList:
+                    p = p.setdefault(x, {})
+
+                # merge with a value #
+                p.update(val)
+
+                break
 
         return dirDict
 
@@ -64158,26 +64172,41 @@ Copyright:
                     # CPU throttled_time, block wait #
                     elif val in ("cpu.stat", "blkio.io_wait_time"):
                         try:
+                            value = ""
                             for item in reversed(subdir[val].split("\n")):
                                 if item.startswith("Total"):
-                                    pass
+                                    unit = 1000000000.0
                                 elif item.startswith("throttled_time"):
                                     cname = "throttled_time"
+                                    unit = 1000000000.0
+                                elif "_usec" in item:
+                                    cname = "cpu." + item.split("_", 1)[0]
+                                    unit = 1000000.0
                                 else:
                                     continue
 
-                                # get time in sec from ns #
-                                num = long(item.split()[1]) / 1000000000.0
+                                # get time in sec from us #
+                                num = long(item.split()[1]) / unit
                                 if num == 0:
                                     raise Exception("zero")
 
-                                value = UtilMgr.convNum(num, True, 3) + "sec"
-                                value = convColor(value, "RED")
-                                break
+                                if unit == 1000000000.0:
+                                    value = (
+                                        UtilMgr.convNum(num, True, 3) + "sec"
+                                    )
+                                    value = convColor(value, "RED")
+                                    break
+
+                                num = UtilMgr.convNum(num, True, 3) + "sec"
+                                num = convColor(num, "YELLOW")
+                                value += "%s:%s, " % (cname, num)
+                                cname = " "
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            value = ""
+                            pass
+
+                        value = value.rstrip(" ,")
                     # cpus #
                     elif val == "cpus":
                         cname = "cpus"
@@ -64294,12 +64323,16 @@ Copyright:
                         value = subdir[val]
 
                     # set item name #
-                    if not cname:
-                        cname = ".".join(val.split(".")[1:])
+                    if cname:
+                        cname = cname.strip()
+                        if cname:
+                            cname += ":"
+                    else:
+                        cname = ".".join(val.split(".")[1:]) + ":"
 
                     # append item #
                     if value:
-                        cstr = "%s%s:%s, " % (cstr, cname, value)
+                        cstr = "%s%s%s, " % (cstr, cname, value)
 
                     # remove item from tree #
                     tempSubdir.pop(val, None)
@@ -94432,6 +94465,7 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printErr("failed to monitor cgroup", reason=True)
+                    sys.exit(-1)
             # others #
             else:
                 # set network config #
@@ -94839,7 +94873,7 @@ class TaskAnalyzer(object):
     def runCgTop(self):
         # check cgroup path #
         cgroupPath = SysMgr.sysInstance.getCgroupPath()
-        if not cgroupPath or not os.path.isdir(cgroupPath):
+        if not cgroupPath:
             SysMgr.printErr("failed to access cgroup filesystem")
             sys.exit(-1)
 
@@ -113270,7 +113304,6 @@ class TaskAnalyzer(object):
 
             # register subsystem #
             root.setdefault(sub, {})
-            cgroupPath = SysMgr.cgroupPath
 
             for dirpath, subdirs, subfiles in path:
                 # update subfiles #
@@ -113282,10 +113315,11 @@ class TaskAnalyzer(object):
                     # save stat #
                     try:
                         # convert name #
-                        stripLen = len(os.path.join(cgroupPath, origSub))
-                        dpath = dirpath[stripLen:]
-                        if dpath:
-                            dpath = dpath[1:]
+                        dpath = dirpath
+                        for cpath in SysMgr.cgroupPath:
+                            dpath = UtilMgr.lstrip(dpath, cpath)
+                            if dpath != dirpath:
+                                break
 
                         # check depth #
                         if (
@@ -113317,17 +113351,8 @@ class TaskAnalyzer(object):
         # reset and save cgroup instance #
         self.saveCgroupInstance()
 
-        # get cgroup list #
-        try:
-            systems = os.listdir(SysMgr.cgroupPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(SysMgr.cgroupPath)
-            sys.exit(-1)
-
         # save stats #
-        for sub in systems:
+        for sub in SysMgr.cgroupPath:
             # check subsystem #
             if sub in self.cgroupData:
                 continue
@@ -113336,11 +113361,10 @@ class TaskAnalyzer(object):
             else:
                 continue
 
-            # build path #
-            path = os.path.join(SysMgr.cgroupPath, sub)
-
             # gather stats #
-            _getStats(self.cgroupData, os.walk(path), sub)
+            _getStats(
+                self.cgroupData, os.walk(sub), sub[sub.rfind("/", 1) + 1 :]
+            )
 
     def saveFileData(self):
         if not "RECFILE" in SysMgr.environList:
@@ -118551,6 +118575,20 @@ class TaskAnalyzer(object):
             reverse=True,
         ):
 
+            # Task #
+            try:
+                proc = value["cgroup.procs"]
+                task = value["tasks"]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                proc = 0
+                task = 0
+
+            # check skip condition #
+            if not SysMgr.showAll and not task:
+                continue
+
             # CPU Usage #
             try:
                 usage = value["cpuacct.usage"] / 10000000
@@ -118583,16 +118621,6 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 mem = 0
-
-            # Task #
-            try:
-                proc = value["cgroup.procs"]
-                task = value["tasks"]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                proc = 0
-                task = 0
 
             # I/O #
             try:
