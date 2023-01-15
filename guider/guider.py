@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230114"
+__revision__ = "230115"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23946,7 +23946,7 @@ class SysMgr(object):
     procPath = "/proc"
     imagePath = None
     mountCmd = None
-    cgroupPath = {}
+    cgroupPathList = {}
     drawFormat = "svg"
     traceEventPath = None
     tracefsPath = None
@@ -24143,6 +24143,7 @@ class SysMgr(object):
     batteryFd = None
     cmdFd = None
     diskStatsFd = None
+    cgroupFd = None
     eventLogFd = None
     irqFd = None
     kmsgFd = None
@@ -26924,6 +26925,9 @@ Commands:
             SysMgr.printErr("failed to get commands for cgroup")
             sys.exit(-1)
 
+        # get cgroup list #
+        cgroupList = SysMgr.getCgroupList()
+
         # verify and convert command strings #
         cmds = []
         for item in value:
@@ -26964,6 +26968,13 @@ Commands:
         for clist in cmds:
             # get command info #
             cmd, sub, name, target = clist
+
+            # check subsystem #
+            rsub = sub.split("/", 1)[0]
+            if not rsub in cgroupList:
+                SysMgr.printWarn("no support '%s' subsystem" % rsub, True)
+            elif cgroupList[rsub]["enable"] == "0":
+                SysMgr.printWarn("'%s' subsystem is disabled" % rsub, True)
 
             # check command #
             if not cmd in (
@@ -27256,6 +27267,74 @@ Commands:
         else:
             SysMgr.printErr("failed to access to %s cgroup subsystem" % sub)
             return None
+
+    @staticmethod
+    def printCgroupList():
+        cgroupList = SysMgr.getCgroupList()
+        if not cgroupList:
+            SysMgr.printErr("no cgroup mount point")
+            return
+
+        # get cgroup path list #
+        cgroupPath = SysMgr(onlyInstance=True).sysInstance.getCgroupPath()
+
+        SysMgr.printPipe(
+            "\n{5:1}\n{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}\n{5:1}".format(
+                "subsystem", "hierarchy", "number", "enabled", "mount", twoLine
+            )
+        )
+
+        for subsystem, values in sorted(
+            cgroupList.items(), key=lambda x: long(x[1]["hierarchy"])
+        ):
+            try:
+                # get mount info #
+                mountinfo = ""
+                for path in cgroupPath:
+                    if path.rsplit("/", 1)[1] == subsystem:
+                        mountinfo = "%s (%s)" % (path, cgroupPath[path])
+                        break
+
+                SysMgr.printPipe(
+                    "{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}".format(
+                        subsystem,
+                        values["hierarchy"],
+                        values["num"],
+                        values["enable"],
+                        mountinfo,
+                    )
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("failed to print cgroup info", reason=True)
+
+        SysMgr.printPipe(oneLine)
+
+    @staticmethod
+    def getCgroupList():
+        # read cgroup list #
+        cgroups = SysMgr.readProcStat(
+            SysMgr.cgroupFd, "cgroups", SysMgr, "cgroupFd"
+        )
+        if not cgroups:
+            return {}
+
+        cgroupList = {}
+        for line in cgroups[1:]:
+            try:
+                sub, hierarchy, num, enable = line.strip().split("\t")
+                cgroupList[sub] = {
+                    "hierarchy": hierarchy,
+                    "num": num,
+                    "enable": enable,
+                }
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("failed to get cgroup items", reason=True)
+
+        return cgroupList
 
     @staticmethod
     def getCgroup(sub, name=None, make=False, remove=False):
@@ -33571,6 +33650,7 @@ Description:
 Options:
     -e  <CHARACTER>             enable options
           [ t:thread | e:encode ]
+    -l                          print cgroup list
     -P                          group threads in a same process
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
@@ -33588,6 +33668,9 @@ Commands:
 
                     helpStr += """
 Examples:
+    - Print cgroup info
+        # {0:1} {1:1} -l
+
     - Make a new cpu group
         # {0:1} {1:1} CREATE:cpu:test1:
         # {0:1} {1:1} CREATE:cpu:test1:"*"
@@ -33603,7 +33686,7 @@ Examples:
         # {0:1} {1:1} MOVE:cpu/test1:cpu/test2:"*a.out*"
 
     - Remove specific processes from a cpu group
-        # {0:1} {1:1} REMOVE:cpu/test1:"*a.out*"
+        # {0:1} {1:1} REMOVE:cpu:test1:"*a.out*"
 
     - Delete a cpu group
         # {0:1} {1:1} DELETE:cpu:test1:"*"
@@ -36274,7 +36357,7 @@ Examples:
                         value = "20M"
                         addinfo = ""
                     elif SysMgr.checkMode("limitpid"):
-                        res = "the number of tasks"
+                        res = "the total number"
                         value = "10"
                         addinfo = ""
                     else:
@@ -45197,6 +45280,7 @@ Copyright:
         # PRINTCGROUP MODE #
         elif SysMgr.checkMode("printcg"):
             SysMgr.cgroupEnable = True
+            SysMgr.printCgroupList()
             SysMgr().printCgroupInfo(printTitle=False, progress=True)
             SysMgr.printInfoBuffer()
 
@@ -45618,7 +45702,11 @@ Copyright:
             # set console info #
             SysMgr.setStream()
 
-            SysMgr.doCgroup()
+            # just print cgroup list #
+            if SysMgr.findOption("l"):
+                SysMgr.printCgroupList()
+            else:
+                SysMgr.doCgroup()
 
         # FREEZE MODE #
         elif SysMgr.checkMode("freeze"):
@@ -63856,8 +63944,8 @@ Copyright:
         return storageData
 
     def getCgroupPath(self):
-        if SysMgr.cgroupPath:
-            return SysMgr.cgroupPath
+        if SysMgr.cgroupPathList:
+            return SysMgr.cgroupPathList
 
         if not self.mountData:
             # update mount data #
@@ -63873,14 +63961,16 @@ Copyright:
         for mount in self.mountData:
             mountList = mount.split(" - ")
 
+            # skip other fs #
             if not mountList[1].startswith("cgroup"):
                 continue
 
             # add cgroup mount point #
-            path = mountList[0].split()[4]
-            pathList.setdefault(path, None)
+            mountInfo = mountList[0].split()
+            path = mountInfo[4]
+            pathList.setdefault(path, " ".join(mountInfo[5:]))
 
-        SysMgr.cgroupPath = pathList
+        SysMgr.cgroupPathList = pathList
         return pathList
 
     def getCgroupTree(self):
@@ -113316,10 +113406,13 @@ class TaskAnalyzer(object):
                     try:
                         # convert name #
                         dpath = dirpath
-                        for cpath in SysMgr.cgroupPath:
-                            dpath = UtilMgr.lstrip(dpath, cpath)
-                            if dpath != dirpath:
-                                break
+                        if dpath in SysMgr.cgroupPathList:
+                            dpath = ""
+                        else:
+                            for cpath in SysMgr.cgroupPathList:
+                                dpath = UtilMgr.lstrip(dpath, cpath)
+                                if dpath != dirpath:
+                                    break
 
                         # check depth #
                         if (
@@ -113352,7 +113445,7 @@ class TaskAnalyzer(object):
         self.saveCgroupInstance()
 
         # save stats #
-        for sub in SysMgr.cgroupPath:
+        for sub in SysMgr.cgroupPathList:
             # check subsystem #
             if sub in self.cgroupData:
                 continue
