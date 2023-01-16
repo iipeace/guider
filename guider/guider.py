@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230115"
+__revision__ = "230116"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -367,6 +367,7 @@ class ConfigMgr(object):
         0x800: "AT_NO_AUTOMOUNT",
         0x1000: "AT_EMPTY_PATH",
     }
+    FAT_TYPE_REVERSE = {}
 
     # mmap prot type #
     PROT_TYPE = {
@@ -611,6 +612,7 @@ class ConfigMgr(object):
         0x40000000: "FAN_ONDIR",  # event occurred against dir #
         0x08000000: "FAN_EVENT_ON_CHILD",  # interested in child events #
     }
+    FAN_EVENT_TYPE_REVERSE = {}
 
     FAN_INIT_TYPE = {
         0x00000000: "FAN_CLASS_NOTIF",
@@ -623,7 +625,15 @@ class ConfigMgr(object):
         0x00000040: "FAN_ENABLE_AUDIT",
         0x00000100: "FAN_REPORT_TID",
         0x00000200: "FAN_REPORT_FID",
+        0x00000800: "FAN_REPORT_NAME",
+        0x00001000: "FAN_REPORT_TARGET_FID",
     }
+    FAN_INIT_TYPE_REVERSE = {}
+    """
+    FAN_REPORT_DFID_NAME = FAN_REPORT_NAME | FAN_REPORT_DIR_FID
+    FAN_REPORT_DFID_NAME_TARGET = \
+        FAN_REPORT_DFID_NAME | FAN_REPORT_FID | FAN_REPORT_TARGETFID
+    """
 
     FAN_MARK_TYPE = {
         0x00000000: "FAN_MARK_INODE",
@@ -27290,8 +27300,10 @@ Commands:
             try:
                 # get mount info #
                 mountinfo = ""
-                for path in cgroupPath:
-                    if path.rsplit("/", 1)[1] == subsystem:
+                for path, option in cgroupPath.items():
+                    if subsystem in option.split()[2].split(
+                        ","
+                    ) or subsystem in path.rsplit("/", 1)[1].split(","):
                         mountinfo = "%s (%s)" % (path, cgroupPath[path])
                         break
 
@@ -35225,27 +35237,31 @@ Examples:
     - Watch the current directory and print summary to specific file {2:1}
         # {0:1} {1:1} -o watch.out
         # {0:1} {1:1} -o watch.out -f
+        # {0:1} {1:1} -o watch.out -q TARGETEVT:IN_OPEN
 
-    - Watch the current directory with process info {2:1}
+    - Watch the current directory with process info {3:1} {2:1}
         # {0:1} {1:1} -q PROCINFO
         # {0:1} {1:1} -q PROCINFO, LARGEFILE
         # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q PROCINFO, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
         # {0:1} {1:1} -q PROCINFO, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
 
-    - Watch the current mount point with process info {2:1}
+    - Watch the current directory with thread info {3:1} {2:1}
+        # {0:1} {1:1} -q PROCINFO, REPORTTID
+
+    - Watch the current mount point with process info {3:1} {2:1}
         # {0:1} {1:1} -q INMOUNT
         # {0:1} {1:1} -q INMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q INMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
-    - Watch all mount points with process info {2:1}
+    - Watch all mount points with process info {3:1} {2:1}
         # {0:1} {1:1} -q ALLMOUNT
         # {0:1} {1:1} -q ALLMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q ALLMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
         # {0:1} {1:1} -q ALLMOUNT, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
         # {0:1} {1:1} -q ALLMOUNT, TARGETPATH:"/media*", EXCEPTPATH:"/proc*"
 
-    - Watch specific events for all mount points with process info {2:1}
+    - Watch specific events for all mount points with process info {3:1} {2:1}
         # {0:1} {1:1} -q ALLMOUNT, TARGETEVT:FAN_MODIFY, TARGETEVT:FAN_CLOSE_WRITE
 
     - Watch specific files to be created and terminate after all them created {2:1}
@@ -35280,7 +35296,10 @@ Examples:
         # {0:1} {1:1} ".::a.out:ls -lha a.out"
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:GUIDER event"
                     """.format(
-                        cmd, mode, addStr
+                        cmd,
+                        mode,
+                        addStr,
+                        "except for CREATE, DELETE, MOVE events",
                     )
 
                 # addr2sym #
@@ -37650,13 +37669,40 @@ Copyright:
                 ("fsid", c_int * 2),  # __kernel_fsid_t
                 ("file_handle", c_char * 1),
             )
+
+        class fanotify_response(Structure):
+            _fields_ = (
+                ("fd", c_int32),
+                ("response", c_uint32),
+            )
         """
+
+        reportTid = "REPORTTID" in SysMgr.environList
 
         if not fd:
             # make init flags #
             if not flags:
                 flags = ["FAN_CLOEXEC", "FAN_CLASS_NOTIF"]
-            flagList = {v: k for k, v in ConfigMgr.FAN_INIT_TYPE.items()}
+
+            if reportTid:
+                kernelVersion = SysMgr.getKernelVersion(number=True)
+                if kernelVersion < (4, 2):
+                    SysMgr.printErr(
+                        (
+                            "failed to report TID "
+                            "because kernel version %s is lesser than 4.2"
+                        )
+                        % ".".join(list(map(str, kernelVersion)))
+                    )
+                    sys.exit(-1)
+                else:
+                    flags.append("FAN_REPORT_TID")
+                    reportTid = True
+
+            UtilMgr.makeReverseDict(
+                ConfigMgr.FAN_INIT_TYPE, ConfigMgr.FAN_INIT_TYPE_REVERSE
+            )
+            flagList = ConfigMgr.FAN_INIT_TYPE_REVERSE
             flagBits = 0
             for flag in flags:
                 try:
@@ -37724,7 +37770,12 @@ Copyright:
                     )
                     sys.exit(0)
 
-            eflagList = {v: k for k, v in ConfigMgr.FAN_EVENT_TYPE.items()}
+            # make reverse table #
+            UtilMgr.makeReverseDict(
+                ConfigMgr.FAN_EVENT_TYPE, ConfigMgr.FAN_EVENT_TYPE_REVERSE
+            )
+
+            eflagList = ConfigMgr.FAN_EVENT_TYPE_REVERSE
             eflagBits = 0
             for flag in mask:
                 try:
@@ -37781,7 +37832,10 @@ Copyright:
 
             # get dirfd option #
             try:
-                dirfd = {v: k for k, v in ConfigMgr.FAT_TYPE.items()}[dirfd]
+                UtilMgr.makeReverseDict(
+                    ConfigMgr.FAT_TYPE, ConfigMgr.FAT_TYPE_REVERSE
+                )
+                dirfd = ConfigMgr.FAT_TYPE_REVERSE[dirfd]
             except SystemExit:
                 sys.exit(0)
             except:
@@ -37907,12 +37961,21 @@ Copyright:
                 events = UtilMgr.getFlagString(emask, ConfigMgr.FAN_EVENT_TYPE)
 
                 # check target event #
-                if targetEvt and not UtilMgr.isValidStr(events, targetEvt):
+                if targetEvt and not UtilMgr.isValidStr(
+                    events, targetEvt, inc=True
+                ):
                     i += size
                     continue
 
+                if reportTid:
+                    ppid = SysMgr.getTgid(epid)
+                    pcomm = SysMgr.getComm(ppid)
+                    parentInfo = [ppid, pcomm]
+                else:
+                    parentInfo = []
+
                 # add items to return list #
-                revents.append([epath, events, epid, ecomm])
+                revents.append([epath, events, epid, ecomm] + parentInfo)
 
                 # print event info #
                 if not retlist:
@@ -38105,6 +38168,12 @@ Copyright:
         else:
             exceptFile = []
 
+        # get event list #
+        if "TARGETEVT" in SysMgr.environList:
+            targetEvt = SysMgr.environList["TARGETEVT"]
+        else:
+            targetEvt = []
+
         # get command list #
         if "EVENTCMD" in SysMgr.environList:
             targetCmd = SysMgr.environList["EVENTCMD"]
@@ -38136,7 +38205,7 @@ Copyright:
                     )
                     fname = fname.decode().rstrip("\0")
                 else:
-                    fname = "N/A"
+                    fname = ""
 
                 # check skip conditions #
                 if (targetFile and not isValidStr(fname, targetFile)) or (
@@ -38148,6 +38217,14 @@ Copyright:
                 # get events #
                 try:
                     rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
+
+                    # check target event #
+                    if targetEvt and not UtilMgr.isValidStr(
+                        rtypes, targetEvt, inc=True
+                    ):
+                        i += size
+                        continue
+
                     revents.append([wlist[wd], rtypes, fname])
                 except SystemExit:
                     sys.exit(0)
@@ -45647,10 +45724,11 @@ Copyright:
                     or "INMOUNT" in SysMgr.environList
                     or "ALLMOUNT" in SysMgr.environList
                 ):
-                    FAN_EVENT_TYPE_REVERSE = {}
-                    for name, value in ConfigMgr.FAN_EVENT_TYPE.items():
-                        FAN_EVENT_TYPE_REVERSE[value] = name
-                    SysMgr.printList(FAN_EVENT_TYPE_REVERSE)
+                    UtilMgr.makeReverseDict(
+                        ConfigMgr.FAN_EVENT_TYPE,
+                        ConfigMgr.FAN_EVENT_TYPE_REVERSE,
+                    )
+                    SysMgr.printList(ConfigMgr.FAN_EVENT_TYPE_REVERSE)
                 else:
                     SysMgr.printList(ConfigMgr.INOTIFY_TYPE)
                 sys.exit(0)
@@ -52904,8 +52982,13 @@ Copyright:
                                 else:
                                     SysMgr.printPipe(outStr)
                     # fanotify #
-                    elif len(item) == 4:
-                        epath, events, epid, ecomm = item
+                    elif len(item) in (4, 6):
+                        epath, events, epid, ecomm = item[:4]
+
+                        if len(item) == 6:
+                            ppid, pcomm = item[4:6]
+                        else:
+                            ppid = pcomm = None
 
                         # check file condition #
                         if targetInfo:
@@ -52927,6 +53010,8 @@ Copyright:
                                 "path": epath,
                                 "pid": epid,
                                 "comm": ecomm,
+                                "ppid": ppid,
+                                "pcomm": pcomm,
                             }
 
                             SysMgr.printPipe(
@@ -52936,6 +53021,8 @@ Copyright:
                             )
                         else:
                             procInfo = "%s(%s)" % (ecomm, epid)
+                            if ppid:
+                                procInfo += " in %s(%s)" % (pcomm, ppid)
 
                             if top or SysMgr.outPath:
                                 # get event list #
@@ -63968,7 +64055,8 @@ Copyright:
             # add cgroup mount point #
             mountInfo = mountList[0].split()
             path = mountInfo[4]
-            pathList.setdefault(path, " ".join(mountInfo[5:]))
+            options = mountList[1].strip()
+            pathList.setdefault(path, options)
 
         SysMgr.cgroupPathList = pathList
         return pathList
