@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230116"
+__revision__ = "230117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5752,6 +5752,14 @@ class ConfigMgr(object):
         "PERF_SAMPLE_DATA_PAGE_SIZE": 1 << 22,
         "PERF_SAMPLE_CODE_PAGE_SIZE": 1 << 23,
         "PERF_SAMPLE_WEIGHT_STRUCT": 1 << 24,
+    }
+    PERF_EVENT_READ_FORMAT = {
+        "PERF_FORMAT_TOTAL_TIME_ENABLED": 1 << 0,
+        "PERF_FORMAT_TOTAL_TIME_RUNNING": 1 << 1,
+        "PERF_FORMAT_ID": 1 << 2,
+        "PERF_FORMAT_GROUP": 1 << 3,
+        "PERF_FORMAT_LOST": 1 << 4,
+        "PERF_FORMAT_MAX": 1 << 5,
     }
     PERF_BRANCH_SAMPLE_SHIFT = [
         "PERF_SAMPLE_BRANCH_USER_SHIFT",  # user branches #
@@ -38713,7 +38721,11 @@ Copyright:
             ("aux_output", c_uint64, 1),
             ("cgroup", c_uint64, 1),
             ("text_poke", c_uint64, 1),
-            ("__reserved_1", c_uint64, 30),
+            ("build_id", c_uint64, 1),
+            ("inherit_thread", c_uint64, 1),
+            ("remove_on_exec", c_uint64, 1),
+            ("sigtrap", c_uint64, 1),
+            ("__reserved_1", c_uint64, 26),
             ("unnamed_2", union_anon_6),
             ("bp_type", c_uint32),
             ("unnamed_3", union_anon_7),
@@ -38726,6 +38738,8 @@ Copyright:
             ("aux_watermark", c_uint32),
             ("sample_max_stack", c_uint16),
             ("__reserved_2", c_uint16),
+            ("aux_sample_size", c_uint32),
+            ("__reserved_3", c_uint32),
         ]
 
         # get perf event list #
@@ -38737,10 +38751,72 @@ Copyright:
         perf_attr.config = nrConfig
         perf_attr.size = sizeof(perf_attr)
         perf_attr.disabled = 1
-        # perf_attr.exclude_user = 1
-        # perf_attr.exclude_kernel = 1
-        # perf_attr.exclude_hv = 1
-        # perf_attr.exclude_idle = 1
+
+        # set struct perf_event_attr for function profiling #
+        if False:
+            EVENT_SAMPLE = ConfigMgr.PERF_EVENT_SAMPLE
+            perf_attr.type = perfEventList.index("PERF_TYPE_HARDWARE")
+            perf_attr.config = ConfigMgr.PERF_HW_EVENT_TYPE.index(
+                "PERF_COUNT_HW_CPU_CYCLES"
+            )
+            perf_attr.size = sizeof(perf_attr)
+            perf_attr.sample_freq = 600
+            perf_attr.sample_type = (
+                EVENT_SAMPLE["PERF_SAMPLE_IP"]
+                | EVENT_SAMPLE["PERF_SAMPLE_TID"]
+                | EVENT_SAMPLE["PERF_SAMPLE_TIME"]
+                | EVENT_SAMPLE["PERF_SAMPLE_ID"]
+                | EVENT_SAMPLE["PERF_SAMPLE_PERIOD"]
+            )
+            perf_attr.read_format = ConfigMgr.PERF_EVENT_READ_FORMAT[
+                "PERF_FORMAT_ID"
+            ]
+            perf_attr.disabled = 1
+            perf_attr.inherit = 1
+            perf_attr.pinned = 0
+            perf_attr.exclusive = 0
+            perf_attr.exclude_user = 0
+            perf_attr.exclude_kernel = 0
+            perf_attr.exclude_hv = 0
+            perf_attr.exclude_idle = 0
+            perf_attr.mmap = 1
+            perf_attr.comm = 1
+            perf_attr.freq = 1
+            perf_attr.inherit_stat = 0
+            perf_attr.enable_on_exec = 0
+            perf_attr.task = 1
+            perf_attr.watermark = 0
+            perf_attr.precise_ip = 0
+            perf_attr.mmap_data = 0
+            perf_attr.sample_id_all = 1
+            perf_attr.exclude_host = 0
+            perf_attr.exclude_guest = 1
+            perf_attr.exclude_callchain_kernel = 0
+            perf_attr.exclude_callchain_user = 0
+            perf_attr.mmap2 = 1
+            perf_attr.comm_exec = 1
+            perf_attr.use_clockid = 0
+            perf_attr.context_switch = 0
+            perf_attr.write_backward = 0
+            perf_attr.namespaces = 0
+            perf_attr.ksymbol = 1
+            perf_attr.bpf_event = 1
+            perf_attr.aux_output = 0
+            perf_attr.cgroup = 0
+            perf_attr.text_poke = 0
+            perf_attr.build_id = 0
+            perf_attr.inherit_thread = 0
+            perf_attr.remove_on_exec = 0
+            perf_attr.sigtrap = 0
+            perf_attr.wakeup_events = 0
+            perf_attr.config1 = 0
+            perf_attr.config2 = 0
+            perf_attr.sample_regs_user = 0
+            perf_attr.sample_regs_intr = 0
+            perf_attr.aux_watermark = 0
+            perf_attr.sample_maxstack = 0
+            perf_attr.aux_sample_size = 0
+            perf_attr.sig_data = 0
 
         # call a perf_event_open syscall #
         """
@@ -62093,6 +62169,8 @@ Copyright:
 
         self.printBlockInfo()
 
+        self.printSwapInfo()
+
         self.printNetworkInfo()
 
         self.printGpuInfo()
@@ -62295,7 +62373,7 @@ Copyright:
     def printSchedInfo(self):
         SysMgr.infoBufferPrint("\n[Sched Factor Info]")
         SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^30} | {1:^15}".format("Factor", "Value"))
+        SysMgr.infoBufferPrint("{0:^30} | {1:^18}".format("Factor", "Value"))
         SysMgr.infoBufferPrint(twoLine)
 
         try:
@@ -62310,7 +62388,7 @@ Copyright:
                     continue
 
                 value = UtilMgr.convNum(SysMgr.readFile(fpath))
-                SysMgr.infoBufferPrint("{0:<30} | {1:>15}".format(item, value))
+                SysMgr.infoBufferPrint("{0:<36} | {1:>18}".format(item, value))
 
             SysMgr.infoBufferPrint(twoLine)
         except SystemExit:
@@ -65372,6 +65450,65 @@ Copyright:
             )
 
         SysMgr.infoBufferPrint("%s" % twoLine)
+
+    def printSwapInfo(self):
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("general", {})
+            SysMgr.jsonData["general"].setdefault("swap", {})
+        else:
+            # print block info #
+            SysMgr.infoBufferPrint("\n[System Swap Info]")
+            SysMgr.infoBufferPrint(twoLine)
+            SysMgr.infoBufferPrint(
+                "{0:>12} {1:>12} {2:>12}({3:>4}) {4:>12}   {5:1}\n{6:1}".format(
+                    "Type", "Size", "Used", "Per", "Prio", "Path", twoLine
+                )
+            )
+
+        # read swap info #
+        swapBuf = SysMgr.readProcStat(SysMgr.swapFd, "swaps", SysMgr, "swapFd")
+        if not swapBuf or len(swapBuf) == 1:
+            if not SysMgr.jsonEnable:
+                SysMgr.infoBufferPrint("\tNone\n%s" % oneLine)
+                return
+
+        # remove title line #
+        swapBuf = swapBuf[1:]
+
+        for line in swapBuf:
+            try:
+                path, stype, size, used, prio = line.split()
+                size = long(size) << 10
+                used = long(used) << 10
+                per = long(used / float(size) * 100)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
+
+            # add JSON stats #
+            if SysMgr.jsonEnable:
+                SysMgr.jsonData["general"]["swap"][path] = {
+                    "type": stype,
+                    "size": size,
+                    "used": used,
+                    "per": per,
+                    "prio": prio,
+                }
+                continue
+
+            SysMgr.infoBufferPrint(
+                "{0:>12} {1:>12} {2:>12}({3:>3}%) {4:>12}   {5:1}\n{6:1}".format(
+                    stype,
+                    UtilMgr.convSize2Unit(size, isInt=True, unit="M"),
+                    UtilMgr.convSize2Unit(used, isInt=True, unit="M"),
+                    per,
+                    prio,
+                    path,
+                    oneLine,
+                )
+            )
 
     def printBlockInfo(self):
         # add JSON stats #
