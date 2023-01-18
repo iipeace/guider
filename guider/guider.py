@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230117"
+__revision__ = "230118"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5760,6 +5760,12 @@ class ConfigMgr(object):
         "PERF_FORMAT_GROUP": 1 << 3,
         "PERF_FORMAT_LOST": 1 << 4,
         "PERF_FORMAT_MAX": 1 << 5,
+    }
+    PERF_FLAG = {
+        "PERF_FLAG_FD_NO_GROUP": 1 << 0,
+        "PERF_FLAG_FD_OUTPUT": 1 << 1,
+        "PERF_FLAG_PID_CGROUP": 1 << 2,
+        "PERF_FLAG_FD_CLOEXEC": 1 << 3,
     }
     PERF_BRANCH_SAMPLE_SHIFT = [
         "PERF_SAMPLE_BRANCH_USER_SHIFT",  # user branches #
@@ -33877,9 +33883,6 @@ Examples:
     - {4:1} from a specific binary without strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
-    - {4:1} {5:1} with fixing wrong context automatically
-        # {0:1} {1:1} -g a.out -t read -q FIXCTX
-
     - {4:1} with colorful elapsed time exceeds 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
@@ -35191,6 +35194,8 @@ Examples:
 
     - {2:1} with page contents
         # {0:1} {1:1} "a.out, java" -a
+        # {0:1} {1:1} "a.out, java" -a -q BT:555
+        # {0:1} {1:1} "a.out, java" -a -q LT:1000
 
     - Check all duplicated page frames of all user processes
         # {0:1} {1:1} "a.out, java" -q ONLYUSER
@@ -38309,6 +38314,8 @@ Copyright:
             # check syscall #
             if UtilMgr.isNumber(syscall):
                 nrSyscall = long(syscall)
+                if nrSyscall >= len(ConfigMgr.sysList):
+                    raise Exception("wrong syscall number")
                 nmSyscall = ConfigMgr.sysList[nrSyscall]
             elif UtilMgr.isString(syscall):
                 val = syscall.lower()
@@ -38766,6 +38773,7 @@ Copyright:
                 | EVENT_SAMPLE["PERF_SAMPLE_TID"]
                 | EVENT_SAMPLE["PERF_SAMPLE_TIME"]
                 | EVENT_SAMPLE["PERF_SAMPLE_ID"]
+                | EVENT_SAMPLE["PERF_SAMPLE_CPU"]
                 | EVENT_SAMPLE["PERF_SAMPLE_PERIOD"]
             )
             perf_attr.read_format = ConfigMgr.PERF_EVENT_READ_FORMAT[
@@ -52563,6 +52571,16 @@ Copyright:
 
         # print contents #
         if SysMgr.showAll:
+            if "BT" in SysMgr.environList:
+                condBig = UtilMgr.getEnvironNum("BT", default=0, isInt=True)
+            else:
+                condBig = 0
+
+            if "LT" in SysMgr.environList:
+                condLess = UtilMgr.getEnvironNum("LT", default=0, isInt=True)
+            else:
+                condLess = 0
+
             SysMgr.printPipe(
                 "{3:1}\n{2:1}\n{0:>12} {1:1}\n{2:1}".format(
                     "DupPages",
@@ -52571,15 +52589,28 @@ Copyright:
                     "[Page Info]",
                 )
             )
+
+            printCnt = 0
             for page, cnt in sorted(
                 mergeTable.items(), key=lambda x: long(x[1]), reverse=True
             ):
+                if condBig and cnt < condBig:
+                    break
+                elif condLess and cnt > condLess:
+                    continue
+
                 SysMgr.printPipe(
                     "{0:>12} {1:1}".format(
                         convNum(cnt),
                         repr(page).replace("\\x", "").lstrip("b'"),
                     )
                 )
+
+                printCnt += 1
+
+            if printCnt == 0:
+                SysMgr.printPipe("\tNone")
+
             SysMgr.printPipe(oneLine)
 
     @staticmethod
@@ -82273,8 +82304,8 @@ typedef struct {
         else:
             SysMgr.printWarn("failed to get prototype for %s" % self.syscall)
 
-            self.values = []
-            formats = []
+            self.values = list(self.readArgs())
+            formats = [("unsigned long", "value")] * len(self.values)
 
         argset = {}
         seq = 0
@@ -82675,7 +82706,9 @@ typedef struct {
         if SysMgr.syscallList and not nrSyscall in SysMgr.syscallList:
             # self.cmd = self.sysemuCmd
             self.status = "skip"
-            return
+            if Debugger.dbusEnable:
+                return
+            SysMgr.printWarn("no support for syscall number %s" % nrSyscall)
         elif (
             SysMgr.syscallExceptList and nrSyscall in SysMgr.syscallExceptList
         ):
@@ -82689,7 +82722,10 @@ typedef struct {
         except SystemExit:
             sys.exit(0)
         except:
-            return
+            if Debugger.dbusEnable:
+                return
+            SysMgr.printWarn("no support for syscall number %s" % nrSyscall)
+            self.syscall = name = "syscall<%s>" % nrSyscall
 
         # get diff time #
         diff = self.vdiff
@@ -82832,16 +82868,10 @@ typedef struct {
                 elif Debugger.envFlags["ONLYFAIL"]:
                     callString = "\n%s " % self.bufferedStr
 
+                # get error string #
                 try:
                     retstr = -1
                     errtype = ConfigMgr.ERR_TYPE[abs(retval + 1)]
-
-                    # correct wrong context between sys_enter and sys_exit #
-                    # TODO: distinguish between wrong context and error return #
-                    if errtype == "ENOSYS" and "FIXCTX" in SysMgr.environList:
-                        self.status = "exit"
-                        return
-
                     err = "%s (%s)" % (errtype, os.strerror(abs(retval)))
                     self.addSample(name, "??", err=retval)
                 except SystemExit:
@@ -83481,7 +83511,7 @@ typedef struct {
 
         return pid
 
-    def restartTrace(self):
+    def restartTrace(self, initStatus=None):
         # print exec event info #
         cmdline = SysMgr.getCmdline(self.pid)
         SysMgr.printInfo(
@@ -83534,7 +83564,7 @@ typedef struct {
                 sys.exit(-1)
 
         # start new tracing #
-        dobj.trace(mode=self.mode, multi=self.multi)
+        dobj.trace(mode=self.mode, multi=self.multi, initStatus=initStatus)
 
     def initValues(self, fork=True):
         # stat variables #
@@ -83850,7 +83880,7 @@ typedef struct {
             SysMgr.printErr(msg)
             sys.exit(0)
 
-    def runEventLoop(self):
+    def runEventLoop(self, initStatus=None):
         # set mode #
         sampleMode = pycallMode = signalMode = syscallMode = instMode = False
         if self.mode == "sample":
@@ -83883,6 +83913,10 @@ typedef struct {
 
         # define trap flag for syscall #
         syscallTrapFlag = signal.SIGTRAP | 0x80
+
+        # set initial status #
+        if initStatus:
+            self.status = initStatus
 
         # enter trace loop #
         while 1:
@@ -83948,6 +83982,8 @@ typedef struct {
                     else:
                         forked = False
 
+                    origPid = self.pid
+
                     # handle clone event #
                     ret = self.handoverNewTarget(fork=forked)
                     # failure for handling clone #
@@ -83957,13 +83993,25 @@ typedef struct {
                     elif not SysMgr.cloneEnable:
                         SysMgr.printEnable = False
 
+                    # handle args and return values of the syscall #
+                    if (
+                        syscallMode
+                        and SysMgr.isTraceMode()
+                        and origPid == self.pid
+                    ):
+                        if self.isDeferCall(self.syscall):
+                            self.status = "defer"
+                            self.handleSyscall()
+                            self.status = "stop"
+
                     # continue to exit event for clone syscall #
                     if not syscallMode:
                         continue
                 # handle exec event #
                 elif self.isExeced(ostat):
                     if self.execEnable:
-                        self.restartTrace()
+                        self.restartTrace("exit" if syscallMode else None)
+                        sys.exit(0)
                     else:
                         SysMgr.printErr(
                             "terminated tracing %s(%s) because of exec"
@@ -84160,6 +84208,7 @@ typedef struct {
         targetBpList={},
         targetBpFileList={},
         exceptBpFileList={},
+        initStatus=None,
     ):
 
         # initialize variables #
@@ -84384,7 +84433,7 @@ typedef struct {
             signal.alarm(SysMgr.intervalEnable)
 
         # run loop #
-        self.runEventLoop()
+        self.runEventLoop(initStatus)
 
     @staticmethod
     def destroyDebugger(instance):
