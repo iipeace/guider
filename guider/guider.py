@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230118"
+__revision__ = "230119"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8442,11 +8442,12 @@ class NetworkMgr(object):
         mode,
         ip,
         port,
-        blocking=True,
         tcp=False,
+        uds=False,
+        netlink=False,
+        blocking=True,
         anyPort=False,
         bind=True,
-        netlink=False,
         reuse=True,
     ):
 
@@ -8491,10 +8492,13 @@ class NetworkMgr(object):
             # set socket type #
             if tcp:
                 self.socket = socket(AF_INET, SOCK_STREAM)
+            elif uds:
+                from socket import AF_UNIX  # pylint: disable=no-name-in-module
+
+                self.socket = socket(AF_UNIX, SOCK_STREAM)
             elif netlink:
                 try:
                     from socket import (
-                        socket,
                         AF_NETLINK,
                     )  # pylint: disable=no-name-in-module
 
@@ -8543,6 +8547,9 @@ class NetworkMgr(object):
             timeval = struct.pack('ll', sec, usec)
             self.socket.setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeval)
             """
+
+            if uds:
+                return None
 
             # convert IP #
             if ip == "*":
@@ -9825,11 +9832,23 @@ class NetworkMgr(object):
 
         # create a new server setting #
         networkObject = NetworkMgr(
-            "server", ip, port, blocking, tcp, anyPort, reuse=reuse
+            "server",
+            ip,
+            port,
+            tcp=tcp,
+            blocking=blocking,
+            anyPort=anyPort,
+            reuse=reuse,
         )
         if not networkObject.ip and weakPort:
             networkObject = NetworkMgr(
-                "server", ip, port, blocking, tcp, True, reuse=reuse
+                "server",
+                ip,
+                port,
+                tcp=tcp,
+                blocking=blocking,
+                anyPort=True,
+                reuse=reuse,
             )
         if not networkObject.ip:
             SysMgr.printWarn("failed to set server IP", verb)
@@ -18975,6 +18994,7 @@ class FunctionAnalyzer(object):
                 "el1_irq",
                 "gic_handle_irq",
                 "apic_timer_interrupt",
+                "asm_sysvec_hyperv_stimer0",
             ):
                 exceptList.setdefault(pos, {})
 
@@ -25672,7 +25692,7 @@ Commands:
             return
 
         SysMgr.printInfo("start monitoring tasks to get target ID...\n")
-        netObj = NetworkMgr("server", ip=None, port=0)
+        netObj = NetworkMgr("server", None, 0)
 
         # run monitor #
         cid = SysMgr.runTaskMonitor(
@@ -26534,7 +26554,7 @@ Commands:
             SysMgr.printErr("no input for PATH")
             sys.exit(-1)
 
-        SysMgr.setStream()
+        # SysMgr.setStream(cut=False)
 
         # get file size #
         if os.path.exists(inputParam):
@@ -33491,6 +33511,9 @@ Examples:
     - {2:1} including BEGIN messages such like org.freedesktop.DBus.Hello
         # {0:1} {1:1} -a
 
+    - {2:1} including incoming messages
+        # {0:1} {1:1} -a -q INCINMSG
+
     - {2:1} including D-Bus interfaces
         # {0:1} {1:1} -g dbus-daemon
 
@@ -33642,6 +33665,7 @@ Options:
     -g  <WORD>                  set filter
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -Q                          print all rows in a stream
     -v                          verbose
                     """
 
@@ -33650,6 +33674,9 @@ Examples:
     - Print printable characters in a specific file
         # {0:1} {1:1} a.out
         # {0:1} {1:1} -I a.out
+
+    - Print printable characters in a specific file without pager
+        # {0:1} {1:1} a.out -Q
 
     - Print the sequences of printable characters in a specific file
         # {0:1} {1:1} -I a.out -a
@@ -38774,6 +38801,7 @@ Copyright:
                 | EVENT_SAMPLE["PERF_SAMPLE_TIME"]
                 | EVENT_SAMPLE["PERF_SAMPLE_ID"]
                 | EVENT_SAMPLE["PERF_SAMPLE_CPU"]
+                | EVENT_SAMPLE["PERF_SAMPLE_CALLCHAIN"]
                 | EVENT_SAMPLE["PERF_SAMPLE_PERIOD"]
             )
             perf_attr.read_format = ConfigMgr.PERF_EVENT_READ_FORMAT[
@@ -42609,6 +42637,7 @@ Copyright:
                         # set signals to prevent abnormal terminal status #
                         SysMgr.setDefaultSignal()
                     elif UtilMgr.which("more"):
+                        # run more as pager #
                         SysMgr.pipeForPager = os.popen("more", "w")
                 elif sys.platform.startswith("win"):
                     try:
@@ -45655,8 +45684,6 @@ Copyright:
 
         # CPUTEST MODE #
         elif SysMgr.checkMode("cputest"):
-            SysMgr.setStream()
-
             SysMgr.doCpuTest()
 
         # IOTEST MODE #
@@ -45671,8 +45698,6 @@ Copyright:
         elif SysMgr.checkMode("memtest"):
             # remove option args #
             SysMgr.removeOptionArgs()
-
-            SysMgr.setStream(cut=False)
 
             SysMgr.doMemTest()
 
@@ -45716,8 +45741,6 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
-            SysMgr.setStream()
-
             SysMgr.doSetCpu()
 
         # SETSCHED MODE #
@@ -45746,8 +45769,6 @@ Copyright:
 
         # STRINGS MODE #
         elif SysMgr.checkMode("strings"):
-            SysMgr.setStream(cut=False)
-
             SysMgr.doStrings()
 
         # PRINT MODE #
@@ -45861,7 +45882,6 @@ Copyright:
 
         # CGROUP MODE #
         elif SysMgr.checkMode("cgroup"):
-            # set console info #
             SysMgr.setStream()
 
             # just print cgroup list #
@@ -45877,6 +45897,7 @@ Copyright:
         # PING MODE #
         elif SysMgr.checkMode("ping"):
             SysMgr.setStream()
+
             SysMgr.ping()
 
         # EVENT MODE #
@@ -50213,7 +50234,7 @@ Copyright:
                 netObj = SysMgr.remoteServObj
             # use address from args #
             else:
-                netObj = NetworkMgr("client", ip=ip, port=port)
+                netObj = NetworkMgr("client", ip, port)
 
             # set IP and PORT #
             ip = netObj.ip
@@ -51012,6 +51033,8 @@ Copyright:
             SysMgr.printErr("failed to find CPU node for governor")
             sys.exit(-1)
 
+        SysMgr.setStream()
+
         # get list option #
         printList = SysMgr.findOption("l")
 
@@ -51769,7 +51792,7 @@ Copyright:
 
         # create netlink socket #
         sockObj = SysMgr.netlinkObj = NetworkMgr(
-            "server", ip=0, port=0, anyPort=True, netlink=True, blocking=False
+            "server", 0, 0, netlink=True, blocking=False, anyPort=True
         )
 
         NLM_F_REQUEST = 1
@@ -56074,9 +56097,7 @@ Copyright:
                 sys.exit(-1)
 
             gObj = SysMgr.localServObj
-            networkObject = NetworkMgr(
-                "client", ip=gObj.ip, port=gObj.port, tcp=tcp
-            )
+            networkObject = NetworkMgr("client", gObj.ip, gObj.port, tcp=tcp)
 
             # set repeat count #
             repeat = SysMgr.repeatInterval
@@ -58250,6 +58271,8 @@ Copyright:
                         % (UtilMgr.convNum(idx), SysMgr.comm, tid, elapsed)
                     )
 
+        SysMgr.setStream()
+
         # get the number of task and load #
         try:
             if SysMgr.hasMainArg():
@@ -58682,6 +58705,8 @@ Copyright:
                 % (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr),
                 pager=False,
             )
+
+        SysMgr.setStream(cut=False)
 
         # convert time #
         try:
@@ -69044,7 +69069,7 @@ class DbusMgr(object):
                     hsize = gioObj.g_dbus_message_bytes_needed(
                         buf, c_ulong(len(call)), byref(errp)
                     )
-                    if direction == "OUT" and errp:
+                    if errp:
                         SysMgr.printWarn(
                             (
                                 "failed to get the length of %s D-Bus message"
@@ -69061,16 +69086,13 @@ class DbusMgr(object):
                         )
                         gioObj.g_error_free(byref(errp.contents))
                         TaskAnalyzer.dbusData["totalErr"] += 1
+                        DbusMgr.prevData[tid][ctype] = ""
                         continue
-                    elif direction == "OUT" and hsize > len(call):
+                    elif hsize > len(call):
                         continue
-
                     # handle incoming data #
-                    if direction == "IN":
-                        if hsize > len(call):
-                            continue
-                        else:
-                            DbusMgr.prevData[tid][ctype] = ""
+                    elif direction == "IN":
+                        DbusMgr.prevData[tid][ctype] = ""
 
                     # free gdbus message object #
                     if gdmsg != 0:
@@ -69081,7 +69103,6 @@ class DbusMgr(object):
                     gdmsg = gioObj.g_dbus_message_new_from_blob(
                         buf, c_ulong(len(call)), 0, byref(errp)
                     )
-
                     # check error #
                     if not gdmsg and errp:
                         SysMgr.printWarn(
@@ -69597,6 +69618,13 @@ class DbusMgr(object):
             if onlyDaemon:
                 if SysMgr.showAll:
                     SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_read"))
+                if "INCINMSG" in SysMgr.environList:
+                    SysMgr.syscallList.append(
+                        SysMgr.getNrSyscall("sys_recvmsg")
+                    )
+                    SysMgr.syscallList.append(
+                        SysMgr.getNrSyscall("sys_recvmmsg")
+                    )
             else:
                 SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmsg"))
                 SysMgr.syscallList.append(SysMgr.getNrSyscall("sys_recvmmsg"))
@@ -79441,11 +79469,9 @@ typedef struct {
 
     def startSamplingKernel(self):
         while 1:
-            # wait for sampling time #
-            if self.runStatus:
-                time.sleep(self.sampleTime)
-            else:
-                time.sleep(self.sampleTime * 2)
+            # update sample time and wait #
+            self.updateSampleTime()
+            time.sleep(self.sampleTime)
 
             try:
                 self.stackFd.seek(0)
@@ -79495,13 +79521,7 @@ typedef struct {
 
         sys.exit(0)
 
-    def checkInterval(self):
-        # continue target thread #
-        if self.cont(check=True) < 0:
-            sys.exit(-1)
-
-        self.traceStatus = False
-
+    def updateSampleTime(self):
         # wait for sampling time #
         if self.runStatus:
             self.sampleTime = self.sampleTimeOrig
@@ -79514,6 +79534,16 @@ typedef struct {
             # limit the maximum wait time #
             else:
                 self.sampleTime = self.sampleTimeMax
+
+    def checkInterval(self):
+        # continue target thread #
+        if self.cont(check=True) < 0:
+            sys.exit(-1)
+
+        self.traceStatus = False
+
+        # update sample time and wait #
+        self.updateSampleTime()
         time.sleep(self.sampleTime)
 
         # update run status #
@@ -82703,12 +82733,16 @@ typedef struct {
         nrSyscall = self.getNrSyscall()
 
         # check syscall condition #
-        if SysMgr.syscallList and not nrSyscall in SysMgr.syscallList:
+        if nrSyscall >= len(ConfigMgr.sysList):
+            if not Debugger.dbusEnable:
+                SysMgr.printWarn(
+                    "no support for syscall number %s" % nrSyscall
+                )
+            return
+        elif SysMgr.syscallList and not nrSyscall in SysMgr.syscallList:
             # self.cmd = self.sysemuCmd
             self.status = "skip"
-            if Debugger.dbusEnable:
-                return
-            SysMgr.printWarn("no support for syscall number %s" % nrSyscall)
+            return
         elif (
             SysMgr.syscallExceptList and nrSyscall in SysMgr.syscallExceptList
         ):
