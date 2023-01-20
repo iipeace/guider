@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230119"
+__revision__ = "230120"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30217,6 +30217,12 @@ Commands:
         return True
 
     @staticmethod
+    def readAppArmorInfo():
+        return SysMgr.readFile(
+            "/sys/kernel/security/apparmor/profiles", verb=False
+        )
+
+    @staticmethod
     def readBuddyInfo():
         try:
             res = {}
@@ -31148,7 +31154,29 @@ Examples:
     - {3:1} {2:1} and {5:1} with memo {4:1}
         # {0:1} {1:1} -o . -q MEMO:"monitoring result for server peak time"
 
-    - {3:1} {2:1} and {5:1} without USB info
+    - {3:1} {2:1} and {5:1} except for specific info
+        # {0:1} {1:1} -o . -q NOSYSINFO
+        # {0:1} {1:1} -o . -q NOOSINFO
+        # {0:1} {1:1} -o . -q NOCPUINFO
+        # {0:1} {1:1} -o . -q NOCPUCACHEINFO
+        # {0:1} {1:1} -o . -q NOMEMINFO
+        # {0:1} {1:1} -o . -q NOSTORAGEINFO
+        # {0:1} {1:1} -o . -q NOBLOCKINFO
+        # {0:1} {1:1} -o . -q NOSWAPINFO
+        # {0:1} {1:1} -o . -q NONETWORKINFO
+        # {0:1} {1:1} -o . -q NOGPUINFO
+        # {0:1} {1:1} -o . -q NOGPUMEMINFO
+        # {0:1} {1:1} -o . -q NOIPCINFO
+        # {0:1} {1:1} -o . -q NOCGINFO
+        # {0:1} {1:1} -o . -q NOLIMITINFO
+        # {0:1} {1:1} -o . -q NOSCHEDINFO
+        # {0:1} {1:1} -o . -q NOSCHEDFEATINFO
+        # {0:1} {1:1} -o . -q NOVMSTATINFO
+        # {0:1} {1:1} -o . -q NOBUDDYINFO
+        # {0:1} {1:1} -o . -q NOHUGEPAGEINFO
+        # {0:1} {1:1} -o . -q NOKSMINFO
+        # {0:1} {1:1} -o . -q NOMMAPINFO
+        # {0:1} {1:1} -o . -q NOMAPPARMORINFO
         # {0:1} {1:1} -o . -q NOUSBINFO
 
     - {3:1} {2:1} and {5:1} with limited memory buffer 50MB {4:1}
@@ -34986,6 +35014,9 @@ Examples:
                         helpStr += """
     - {2:1} with detailed information in real-time
         # {0:1} {1:1} -a
+
+    - {2:1} including incoming messages
+        # {0:1} {1:1} -q INCINMSG
 
     - {2:1} including specific word in real-time
         # {0:1} {1:1} -c test
@@ -52655,6 +52686,8 @@ Copyright:
         # define summary function #
         def _printSummary(fileSummary={}, procSummary={}, final=False):
             isTopMode = SysMgr.isTopMode()
+            convNum = UtilMgr.convNum
+            convColor = UtilMgr.convColor
 
             # update uptime #
             SysMgr.updateUptime()
@@ -52681,7 +52714,7 @@ Copyright:
                 stime = cpuUsage[2] / diff
                 mcpu = "%d%%" % ttime
                 if ttime:
-                    mcpu = UtilMgr.convColor(mcpu, "YELLOW")
+                    mcpu = convColor(mcpu, "YELLOW")
                 cpuStr = " [%s(%s): %s(U%d%%+S%d%%)]" % (
                     SysMgr.comm,
                     SysMgr.pid,
@@ -52713,12 +52746,12 @@ Copyright:
                         tmpObj.vmData["pgpgin"] - tmpObj.prevVmData["pgpgin"]
                     ) >> 10
                     if pgInDiff:
-                        pgInDiff = UtilMgr.convColor("%sM" % pgInDiff, "RED")
+                        pgInDiff = convColor("%sM" % pgInDiff, "RED")
                     pgOutDiff = (
                         tmpObj.vmData["pgpgout"] - tmpObj.prevVmData["pgpgout"]
                     ) >> 10
                     if pgOutDiff:
-                        pgOutDiff = UtilMgr.convColor("%sM" % pgOutDiff, "RED")
+                        pgOutDiff = convColor("%sM" % pgOutDiff, "RED")
                     ioStr = " [I/O: %s/%s]" % (pgInDiff, pgOutDiff)
                 except SystemExit:
                     sys.exit(0)
@@ -52737,8 +52770,8 @@ Copyright:
                 SysMgr.uptime,
                 timename,
                 runtime,
-                UtilMgr.convNum(len(fileSummary)),
-                " [nrProc: %s]" % UtilMgr.convNum(len(procSummary))
+                convNum(len(fileSummary)),
+                " [nrProc: %s]" % convNum(len(procSummary))
                 if procSummary
                 else "",
                 cpuStr,
@@ -52763,7 +52796,10 @@ Copyright:
                     for attr, cnt in sorted(
                         subvals.items(), key=lambda e: e[1], reverse=True
                     ):
-                        evtList.append("%s(%s)" % (attr, UtilMgr.convNum(cnt)))
+                        evtList.append(
+                            "%s(%s)"
+                            % (attr, convColor(convNum(cnt), "YELLOW"))
+                        )
 
                         # check skip condition for event merge #
                         if final or not isTopMode or not SysMgr.outPath:
@@ -52830,7 +52866,7 @@ Copyright:
                     SysMgr.uptime,
                     timename,
                     runtime,
-                    UtilMgr.convNum(len(procSummary)),
+                    convNum(len(procSummary)),
                     twoLine,
                 )
             )
@@ -52853,7 +52889,7 @@ Copyright:
                     for attr, cnt in sorted(
                         subvals.items(), key=lambda e: e[1], reverse=True
                     ):
-                        evtList.append("%s(%s)" % (attr, UtilMgr.convNum(cnt)))
+                        evtList.append("%s(%s)" % (attr, convNum(cnt)))
 
                     evtStr = "|".join(evtList)
                     outStr += " [%s]\n" % evtStr
@@ -62253,6 +62289,8 @@ Copyright:
 
         self.printMmapInfo()
 
+        self.printAppArmorInfo()
+
         self.printUSBInfo()
 
         if not tree:
@@ -62270,6 +62308,9 @@ Copyright:
 
     def printOSInfo(self):
         if not self.osData and not self.devData:
+            return
+
+        if "NOOSINFO" in SysMgr.environList:
             return
 
         # add JSON stats #
@@ -62359,7 +62400,31 @@ Copyright:
 
         SysMgr.infoBufferPrint(twoLine)
 
+    def printAppArmorInfo(self):
+        if "NOAPPARMORINFO" in SysMgr.environList:
+            return
+
+        info = SysMgr.readAppArmorInfo()
+        if not info:
+            return
+
+        SysMgr.infoBufferPrint("\n[AppArmor Info]\n%s" % twoLine)
+
+        current = ""
+        lenLine = len(oneLine) - 3
+        for line in info.split("\n"):
+            if len(current) + len(line) > lenLine:
+                SysMgr.infoBufferPrint(current)
+                current = ""
+            if current:
+                current += " | "
+            current += line
+        SysMgr.infoBufferPrint(current + "\n" + oneLine)
+
     def printBuddyInfo(self):
+        if "NOVBUDDYINFO" in SysMgr.environList:
+            return
+
         PAGE = SysMgr.PAGESIZE
         convSize = UtilMgr.convSize2Unit
 
@@ -62401,6 +62466,9 @@ Copyright:
             SysMgr.infoBufferPrint(oneLine)
 
     def printMmapInfo(self):
+        if "NOMMAPINFO" in SysMgr.environList:
+            return
+
         SysMgr.infoBufferPrint("\n[Memory Map Info]\n%s" % twoLine)
         SysMgr.infoBufferPrint(
             "{0:^35} | {1:^32} | {2:<1}\n{3:1}".format(
@@ -62427,6 +62495,9 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
     def printSchedInfo(self):
+        if "NOSCHEDINFO" in SysMgr.environList:
+            return
+
         SysMgr.infoBufferPrint("\n[Sched Factor Info]")
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint("{0:^30} | {1:^18}".format("Factor", "Value"))
@@ -62453,6 +62524,9 @@ Copyright:
             SysMgr.printErr("failed to get sched factors", True)
 
     def printHugePageInfo(self):
+        if "NOHUGEPAGEINFO" in SysMgr.environList:
+            return
+
         dpath = "/sys/kernel/mm/hugepages"
         if not os.path.exists(dpath):
             return
@@ -62485,6 +62559,9 @@ Copyright:
             SysMgr.printErr("failed to get HugePage stats", True)
 
     def printVmstatInfo(self):
+        if "NOVMSTATINFO" in SysMgr.environList:
+            return
+
         dpath = "/proc/sys/vm"
         if not os.path.exists(dpath):
             return
@@ -62517,6 +62594,9 @@ Copyright:
             SysMgr.printErr("failed to get VM stats", True)
 
     def printKsmInfo(self):
+        if "NOKSMINFO" in SysMgr.environList:
+            return
+
         dpath = "/sys/kernel/mm/ksm"
         if not os.path.exists(dpath):
             return
@@ -62543,6 +62623,9 @@ Copyright:
             SysMgr.printErr("failed to get KSM stats", True)
 
     def printSchedFeatInfo(self):
+        if "NOSCHEDFEATINFO" in SysMgr.environList:
+            return
+
         def _printItems(status, items):
             indentStr = " " * 11
             enableStr = "{0:^10} ".format(status)
@@ -62595,6 +62678,9 @@ Copyright:
         if not self.limitData:
             return
 
+        if "NOLIMITINFO" in SysMgr.environList:
+            return
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
@@ -62631,6 +62717,9 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
     def printSystemInfo(self):
+        if "NOSYSINFO" in SysMgr.environList:
+            return
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
@@ -63016,6 +63105,9 @@ Copyright:
         if not self.cpuCacheInfo:
             return
 
+        if "NOCPUINFO" in SysMgr.environList:
+            return
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
@@ -63052,6 +63144,9 @@ Copyright:
 
     def printCpuInfo(self):
         if not self.cpuData:
+            return
+
+        if "NOCPUINFO" in SysMgr.environList:
             return
 
         # parse data #
@@ -64285,6 +64380,9 @@ Copyright:
         if not SysMgr.cgroupEnable:
             return
 
+        if "NOCGINFO" in SysMgr.environList:
+            return
+
         # get cgroup list #
         try:
             cgroupTree = self.getCgroupTree()
@@ -65011,6 +65109,9 @@ Copyright:
             SysMgr.jsonData["general"]["cgroup"] = cgroupTree
 
     def printIPCInfo(self):
+        if "NOIPCINFO" in SysMgr.environList:
+            return
+
         self.printShmInfo()
         self.printMsgqInfo()
         self.printSemInfo()
@@ -65189,6 +65290,9 @@ Copyright:
         pass
 
     def printGpuInfo(self):
+        if "NOGPUINFO" in SysMgr.environList:
+            return
+
         try:
             gpuInfo = SysMgr.getGpuInfo()
             if not gpuInfo:
@@ -65233,6 +65337,9 @@ Copyright:
             SysMgr.infoBufferPrint(oneLine)
 
     def printGpuMemInfo(self):
+        if "NOGPUMEMINFO" in SysMgr.environList:
+            return
+
         # get per-process GPU memory info #
         gpuInfo, procInfo = SysMgr.getGpuMem(incAll=True)
         if not gpuInfo:
@@ -65296,6 +65403,9 @@ Copyright:
         SysMgr.infoBufferPrint(oneLine)
 
     def printNetworkInfo(self):
+        if "NONETWORKINFO" in SysMgr.environList:
+            return
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
@@ -65508,6 +65618,9 @@ Copyright:
         SysMgr.infoBufferPrint("%s" % twoLine)
 
     def printSwapInfo(self):
+        if "NOSWAPINFO" in SysMgr.environList:
+            return
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
@@ -65567,6 +65680,9 @@ Copyright:
             )
 
     def printBlockInfo(self):
+        if "NOBLOCKINFO" in SysMgr.environList:
+            return
+
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
@@ -65902,6 +66018,9 @@ Copyright:
 
     def printMemInfo(self):
         if len(self.memData) != 2:
+            return
+
+        if "NOMEMINFO" in SysMgr.environList:
             return
 
         # parse previous data #
@@ -107529,6 +107648,9 @@ class TaskAnalyzer(object):
     def printStorageInterval():
         # check skip flag #
         if "NOSTORAGESUMMARY" in SysMgr.environList:
+            return
+
+        if "NOSTORAGEINFO" in SysMgr.environList:
             return
 
         TA = TaskAnalyzer
