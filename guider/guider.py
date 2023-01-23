@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230120"
+__revision__ = "230123"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6498,7 +6498,12 @@ class UtilMgr(object):
 
     @staticmethod
     def getInodes(
-        path, inodeFilter=[], nameFilter=[], fileAttr=None, verb=True
+        path,
+        inodeFilter=[],
+        nameFilter=[],
+        exceptFilter=[],
+        fileAttr=None,
+        verb=True,
     ):
 
         inodeList = {}
@@ -6518,6 +6523,8 @@ class UtilMgr(object):
 
                 # check name filter #
                 if nameFilter and not UtilMgr.isValidStr(name, nameFilter):
+                    continue
+                elif exceptFilter and UtilMgr.isValidStr(fpath, exceptFilter):
                     continue
 
                 # check inode filter #
@@ -7113,9 +7120,14 @@ class UtilMgr(object):
             glob(value, key=os.path.getsize)
             """
 
-            # check recursive path for specific version(>=python 3.5) #
-            if "**" in value and sys.version_info >= (3, 5):
-                res = glob.glob(value, recursive=True)
+            # check recursive path #
+            if "**" in value:
+                if sys.version_info >= (3, 11):
+                    res = glob.glob(value, recursive=True, include_hidden=True)
+                elif sys.version_info >= (3, 5):
+                    res = glob.glob(value, recursive=True)
+                else:
+                    res = glob.glob(value)
             else:
                 res = glob.glob(value)
 
@@ -7125,10 +7137,16 @@ class UtilMgr(object):
 
             # str #
             if retStr:
-                return sorted(separator.join(res))
+                if res:
+                    return sorted(separator.join(res))
+                else:
+                    return ""
             # list #
             else:
-                return sorted(res)
+                if res:
+                    return sorted(res)
+                else:
+                    return []
         elif warn:
             if "*" in value:
                 SysMgr.printWarn(
@@ -32342,6 +32360,7 @@ Examples:
 
     - {2:1} of on-memory files for all processes to guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
+        # {0:1} {1:1} -c "/**" -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
@@ -32425,6 +32444,7 @@ Examples:
         # {0:1} {1:1} -o . -q RALIST
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, CONVINODE:/data
+        # {0:1} {1:1} -o . -q RALIST, EXCEPTFILE:"/mnt*"
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
         # {0:1} {1:1} -o . -q RALIST, TRIM:2:
@@ -35458,28 +35478,28 @@ Options:
          :TID|COMM>
     -v                          verbose
 
-Spec:
-    - The format for readahead list
-        1. The size for file name list: 4 Bytes
-        2. The string for File name list: SIZE bytes
-            - File names are split by '#'
-        3. Data for readahead chunk: IDX|OFFSET|SIZE
-            - IDX for file index in file name list: 2 Bytes
-            - OFFSET for file offset: 8 Bytes
-            - SIZE for readahead size: 4 Bytes
+Specification:
+    - Format of the readahead list
+        1. SIZE of the file name list: 4 Bytes
+        2. STRING of the file name list: SIZE bytes
+            - File names are seperated by '#'
+        3. CHUNKS
+            - IDX (file index in file name list): 2 Bytes
+            - OFFSET (offset in the file): 8 Bytes
+            - SIZE (readahead size): 4 Bytes
 
-    - The format for filter list
-        1. the entire file
+    - Format of the filter list
+        1. File path
             - /data/test
             - /data/test*
             - /data/*test*
-        2. the specific area for the file
+        2. File range
             - /data/test:4096:100M
             - /data/test:4096:4096
 
     - CAUTION
-        - The valid size for a readahead syscall is maximum about 1MB
-        - Readahead chunks larger than 1MB are split into multiple chunks in Guider automatically
+        - The maximum size of a valid size readahead syscall is about 1MB
+        - Readahead chunks larger than 1MB are automatically split into multiple chunks by Guider
                         """.format(
                         cmd, mode
                     )
@@ -35837,8 +35857,9 @@ Examples:
     - {2:1} with files lesser than 1MB from / dir
         # {0:1} {1:1} -I / -a -q SIZECOND:LT:1M
 
-    - Print specific directories and files from / dir and apply command
-        # {0:1} {1:1} -I / -a -g test -c "rm -rf TARGET"
+    - Print specific directories or files from a specific directory and apply specific commands
+        # {0:1} {1:1} -I / -a -g test -q ONLYDIR -c "rm -rf TARGET"
+        # {0:1} {1:1} -I /usr -a -q ONLYFILE -c "cat TARGET > /dev/null"
                     """.format(
                         cmd, mode, "Print directory structure"
                     )
@@ -48972,7 +48993,8 @@ Copyright:
                     except:
                         SysMgr.printErr(
                             "failed to create a new process to execute '%s'"
-                            % cmd
+                            % cmd,
+                            True,
                         )
 
                     # wait for worker process #
@@ -54090,11 +54112,39 @@ Copyright:
             for cmd in SysMgr.customCmd:
                 command = cmd.replace("TARGET", path)
                 SysMgr.printInfo("execute '%s'" % command)
-                pid = SysMgr.createProcess(command)
-                if pid > 0:
-                    os.waitpid(pid, 0)
-                elif pid == 0:
+
+                # launch a command #
+                try:
+                    procObj = None
+
+                    # create a new worker process #
+                    procObj = SysMgr.getPkg("subprocess").Popen(
+                        command,
+                        shell=True,
+                        bufsize=0,
+                    )
+                except SystemExit:
                     sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to create a new process to execute '%s'" % cmd,
+                        True,
+                    )
+
+                # wait for worker process #
+                try:
+                    if procObj:
+                        procObj.wait()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to wait termination for '%s'" % cmd, True
+                    )
+                finally:
+                    # kill subprocess group #
+                    if procObj:
+                        SysMgr.killProcGroup(procObj.pid)
 
         def _isValidSize(condop, condval, size):
             if not condop:
@@ -54198,7 +54248,8 @@ Copyright:
 
                     # apply command #
                     if isTarget and SysMgr.customCmd:
-                        _executeCmd(fullPath)
+                        if not "ONLYFILE" in SysMgr.environList:
+                            _executeCmd(fullPath)
 
                     # update prefix #
                     tmpPrefix = prefix + "|  "
@@ -54284,7 +54335,8 @@ Copyright:
 
                         # apply command #
                         if SysMgr.customCmd:
-                            _executeCmd(fullPath)
+                            if not "ONLYDIR" in SysMgr.environList:
+                                _executeCmd(fullPath)
 
                     totalFile += 1
 
@@ -54319,7 +54371,8 @@ Copyright:
 
                     # apply command #
                     if SysMgr.customCmd:
-                        _executeCmd(fullPath)
+                        if not "ONLYDIR" in SysMgr.environList:
+                            _executeCmd(fullPath)
 
                     # convert size to string #
                     try:
@@ -95391,6 +95444,7 @@ class TaskAnalyzer(object):
         # check cgroup path #
         cgroupPath = SysMgr.sysInstance.getCgroupPath()
         if not cgroupPath:
+            SysMgr.printCgroupList()
             SysMgr.printErr("failed to access cgroup filesystem")
             sys.exit(-1)
 
@@ -104440,9 +104494,17 @@ class TaskAnalyzer(object):
                 r"start traversing inodes from '%s'..." % targetDir
             )
 
+            if "EXCEPTFILE" in SysMgr.environList:
+                exceptFilter = SysMgr.environList["EXCEPTFILE"]
+            else:
+                exceptFilter = []
+
             # get inode info #
             inodeInfo = UtilMgr.getInodes(
-                targetDir, inodeFilter=inodeFilter, fileAttr=fileInfo
+                targetDir,
+                inodeFilter=inodeFilter,
+                exceptFilter=exceptFilter,
+                fileAttr=fileInfo,
             )
 
         # TOTAL #
@@ -119098,7 +119160,7 @@ class TaskAnalyzer(object):
             reverse=True,
         ):
 
-            # Task #
+            # task #
             try:
                 proc = value["cgroup.procs"]
                 task = value["tasks"]
