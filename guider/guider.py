@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230123"
+__revision__ = "230124"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7107,9 +7107,38 @@ class UtilMgr(object):
 
     @staticmethod
     def convPath(value, retStr=False, isExit=False, separator=" ", warn=True):
+        def _convType(retStr, res):
+            # str #
+            if retStr:
+                if res:
+                    return sorted(separator.join(res))
+                else:
+                    return ""
+            # list #
+            else:
+                if res:
+                    return sorted(res)
+                else:
+                    return []
+
         # strip path #
         value = value.strip()
 
+        # all files including hidden files from specific directory recursively #
+        if value.endswith("/**"):
+            glob = None
+            value = UtilMgr.rstrip(value, "/**")
+
+            res = []
+            for r, d, f in os.walk(value):
+                r = os.path.realpath(r)
+                res.append(r)
+                for item in f:
+                    res.append(os.path.join(r, item))
+
+            return _convType(retStr, res)
+
+        # all files including hidden files from specific directory recursively #
         glob = SysMgr.getPkg("glob", False)
         if glob:
             """
@@ -7135,18 +7164,7 @@ class UtilMgr(object):
                 SysMgr.printErr("failed to find a file matching '%s'" % value)
                 sys.exit(-1)
 
-            # str #
-            if retStr:
-                if res:
-                    return sorted(separator.join(res))
-                else:
-                    return ""
-            # list #
-            else:
-                if res:
-                    return sorted(res)
-                else:
-                    return []
+            return _convType(retStr, res)
         elif warn:
             if "*" in value:
                 SysMgr.printWarn(
@@ -21273,8 +21291,8 @@ class FileAnalyzer(object):
                     sys.exit(-1)
 
         # add file filters #
-        if "FILTER" in SysMgr.environList:
-            targetFiles += SysMgr.environList["FILTER"]
+        if "TARGETFILE" in SysMgr.environList:
+            targetFiles += SysMgr.environList["TARGETFILE"]
 
         # remove redundant filters #
         targetFiles = set(targetFiles)
@@ -21321,13 +21339,20 @@ class FileAnalyzer(object):
                 SysMgr.printStat("start collecting all files on memory...")
 
             targetFiles = targetFiles if targetFiles else [""]
+            exceptFiles = (
+                SysMgr.environList["EXCEPTFILE"]
+                if "EXCEPTFILE" in SysMgr.environList
+                else None
+            )
 
             # scan proc directory and save map information of processes #
-            self.scanProcs(filterList=targetFiles)
+            self.scanProcs(targetFilter=targetFiles, exceptFilter=exceptFiles)
 
             # merge maps of processes into a integrated file map #
             SysMgr.printStat("start merging file info...")
-            self.mergeFileMapInfo(filterList=targetFiles)
+            self.mergeFileMapInfo(
+                targetFilter=targetFiles, exceptFilter=exceptFiles
+            )
 
             # get file map info on memory #
             self.getFilePageMaps()
@@ -22489,7 +22514,7 @@ class FileAnalyzer(object):
 
         SysMgr.printPipe("\n\n\n")
 
-    def scanProcs(self, filterList=None):
+    def scanProcs(self, targetFilter=None, exceptFilter=None):
         # get process list in proc filesystem #
         pids = SysMgr.getPidList()
 
@@ -22600,8 +22625,12 @@ class FileAnalyzer(object):
                                 and fname in self.procData[pid]["procMap"]
                             ):
                                 continue
-                            elif filterList != [""] and not UtilMgr.isValidStr(
-                                fname, filterList
+                            elif targetFilter != [
+                                ""
+                            ] and not UtilMgr.isValidStr(fname, targetFilter):
+                                continue
+                            elif exceptFilter and UtilMgr.isValidStr(
+                                fname, exceptFilter
                             ):
                                 continue
 
@@ -22663,13 +22692,17 @@ class FileAnalyzer(object):
                 mapInfo["pageCnt"] = mapInfo["fileMap"].count(1)
                 val["pageCnt"] += mapInfo["pageCnt"]
 
-    def mergeFileMapInfo(self, filterList=[]):
+    def mergeFileMapInfo(self, targetFilter=[], exceptFilter=None):
         myPid = str(SysMgr.pid)
         for pid, val in self.procData.items():
             for fileName, scope in val["procMap"].items():
                 # check file filter #
-                if filterList != [""] and not UtilMgr.isValidStr(
-                    fileName, filterList
+                if targetFilter != [""] and not UtilMgr.isValidStr(
+                    fileName, targetFilter
+                ):
+                    continue
+                elif exceptFilter and UtilMgr.isValidStr(
+                    fileName, exceptFilter
                 ):
                     continue
 
@@ -32349,8 +32382,9 @@ Examples:
     - {2:1} of specific on-memory files
         # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
         # {0:1} {1:1} -c "/home/test/*"
-        # {0:1} {1:1} -q FILTER:"*libc*"
-        # {0:1} {1:1} -c "/home/test/*", -q FILTER:"*libc*"
+        # {0:1} {1:1} -q TARGETFILE:"*libc*"
+        # {0:1} {1:1} -q EXCEPTFILE:"/usr*"
+        # {0:1} {1:1} -c "/home/test/*", -q TARGETFILE:"*libc*"
 
     - {2:1} of specific on-memory files from specific directories recursively
         # {0:1} {1:1} -c "/usr/share" -r
@@ -32360,7 +32394,8 @@ Examples:
 
     - {2:1} of on-memory files for all processes to guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
-        # {0:1} {1:1} -c "/**" -o . -q RALIST
+        # {0:1} {1:1} -c "/**" -o . -q RALIST, TARGETFILE:"*.so*"
+        # {0:1} {1:1} -c "/**" -o . -q RALIST, EXCEPTFILE:"*.pid"
         # {0:1} {1:1} -o . -q RALIST:/data/readahead2.list
         # {0:1} {1:1} -o . -q RALIST, RAMIN:4096
         # {0:1} {1:1} -o . -q RALIST, RAMERGE
