@@ -35263,7 +35263,14 @@ Examples:
     - {2:1} in JSON format
         # {0:1} {1:1} -J
         # {0:1} {1:1} -J -Q
+                    """.format(
+                        cmd,
+                        mode,
+                        msg,
+                    )
 
+                    if ocmd == "printsdinfo":
+                        helpStr += """
     - {2:1} only for boot time
         # {0:1} {1:1} -q ONLYBOOT
         # {0:1} {1:1} -q ONLYBOOT, SORTBYSTART
@@ -35272,11 +35279,14 @@ Examples:
         # {0:1} {1:1} -q SDFILTER:ActiveState:"active\,inactive"
         # {0:1} {1:1} -q SDEXFILTER:ActiveState:"active"
         # {0:1} {1:1} -q SDITEM:"Active*"
+
+    - {2:1} and execute commands with specific filters
+        # {0:1} {1:1} -q SDFILTER:Id:"*service.service", SDITEM:Id, CMD:"systemctl stop @Id", MUTE
                     """.format(
-                        cmd,
-                        mode,
-                        msg,
-                    )
+                            cmd,
+                            mode,
+                            msg,
+                        )
 
                 # checkdup#
                 elif SysMgr.checkMode("checkdup"):
@@ -47782,7 +47792,9 @@ Copyright:
             pass
 
     @staticmethod
-    def executeCommand(cmds=None, pid=None, comm=None):
+    def executeCommand(
+        cmds=None, pid=None, comm=None, uptime=True, params=None
+    ):
         if not cmds:
             cmds = SysMgr.customCmd
 
@@ -47797,7 +47809,14 @@ Copyright:
                 cmd = cmd.replace("COMM", comm)
 
             # convert TIME #
-            cmd = cmd.replace("TIME", str(SysMgr.uptime))
+            if uptime:
+                cmd = cmd.replace("TIME", str(SysMgr.uptime))
+
+            if params:
+                for item in params:
+                    tcmd = "@" + item
+                    if tcmd in cmd:
+                        cmd = cmd.replace(tcmd, params[item])
 
             SysMgr.printInfo("executed '%s'" % cmd)
 
@@ -68072,6 +68091,13 @@ class DbusMgr(object):
         # get only boot option #
         onlyBoot = "ONLYBOOT" in SysMgr.environList
 
+        # set print attribute #
+        if "CMD" in SysMgr.environList:
+            SysMgr.streamEnable = True
+
+        # get mute option #
+        mute = "MUTE" in SysMgr.environList
+
         # make lists #
         unitDict = {
             item[6]: item
@@ -68103,15 +68129,16 @@ class DbusMgr(object):
                 continue
 
             if cpath == "/org/freedesktop/systemd1":
-                # print boot info #
-                res = DbusMgr.printSystemBootInfo(ret, retList)
-                if res:
-                    resList["systemd"] = res
-                    continue
+                if not mute:
+                    # print boot info #
+                    res = DbusMgr.printSystemBootInfo(ret, retList)
+                    if res:
+                        resList["systemd"] = res
+                        continue
 
-                # print systemd info #
-                if not onlyBoot:
-                    DbusMgr.printUnitStatInfo("systemd", ret, bus, procStr)
+                    # print systemd info #
+                    if not onlyBoot:
+                        DbusMgr.printUnitStatInfo("systemd", ret, bus, procStr)
             else:
                 bootInfo = DbusMgr.getUnitBootInfo(ret)
 
@@ -68213,6 +68240,16 @@ class DbusMgr(object):
                     comm = SysMgr.getComm(stats["MainPID"])
                     if comm:
                         stats["MainCOMM"] = comm
+
+                # execute commands #
+                if "CMD" in SysMgr.environList:
+                    SysMgr.executeCommand(
+                        SysMgr.environList["CMD"], uptime=False, params=stats
+                    )
+                    continue
+
+                if mute:
+                    continue
 
                 # print info #
                 DbusMgr.printUnitStatInfo(unit, stats, bus, procStr)
