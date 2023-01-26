@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230125"
+__revision__ = "230126"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21259,6 +21259,7 @@ class FileAnalyzer(object):
 
         # set specific file #
         targetFiles = []
+        targetFilter = []
 
         # convert target path to abspath #
         for item in SysMgr.customCmd:
@@ -21293,12 +21294,12 @@ class FileAnalyzer(object):
                     SysMgr.printErr("failed to open '%s'" % fname, reason=True)
                     sys.exit(-1)
 
-        # add file filters #
-        if "TARGETFILE" in SysMgr.environList:
-            targetFiles += SysMgr.environList["TARGETFILE"]
-
         # remove redundant filters #
         targetFiles = set(targetFiles)
+
+        # add file filters #
+        if "TARGETFILE" in SysMgr.environList:
+            targetFilter = SysMgr.environList["TARGETFILE"]
 
         # handle no target case #
         if SysMgr.filterGroup:
@@ -21331,6 +21332,15 @@ class FileAnalyzer(object):
             ]
             SysMgr.libcObj.mincore.restype = c_int
 
+        # set filter list #
+        targetFiles = targetFiles if targetFiles else [""]
+        exceptFiles = (
+            SysMgr.environList["EXCEPTFILE"]
+            if "EXCEPTFILE" in SysMgr.environList
+            else None
+        )
+        onlyTarget = "ONLYTARGET" in SysMgr.environList
+
         while 1:
             # print plan #
             if targetFiles:
@@ -21341,20 +21351,19 @@ class FileAnalyzer(object):
             else:
                 SysMgr.printStat("start collecting all files on memory...")
 
-            targetFiles = targetFiles if targetFiles else [""]
-            exceptFiles = (
-                SysMgr.environList["EXCEPTFILE"]
-                if "EXCEPTFILE" in SysMgr.environList
-                else None
+            # scan proc directory and save map information of processes #
+            self.scanProcs(
+                targetFilter=targetFilter,
+                targetFile=targetFiles,
+                exceptFilter=exceptFiles,
             )
 
-            # scan proc directory and save map information of processes #
-            self.scanProcs(targetFilter=targetFiles, exceptFilter=exceptFiles)
-
             # merge maps of processes into a integrated file map #
-            SysMgr.printStat("start merging file info...")
             self.mergeFileMapInfo(
-                targetFilter=targetFiles, exceptFilter=exceptFiles
+                targetFilter=targetFilter,
+                targetFile=targetFiles,
+                exceptFilter=exceptFiles,
+                onlyTarget=onlyTarget,
             )
 
             # get file map info on memory #
@@ -21836,10 +21845,15 @@ class FileAnalyzer(object):
     @staticmethod
     def getProcMapInfo(pid, fd=None, onlyExec=False, saveAll=False):
         # set file descriptor #
-        if fd:
-            fd.seek(0, 0)
-        else:
-            fd = FileAnalyzer.getProcMapFd(pid)
+        try:
+            if fd:
+                fd.seek(0, 0)
+            else:
+                fd = FileAnalyzer.getProcMapFd(pid)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return {}
 
         # read maps #
         mapBuf = fd.readlines()
@@ -22500,16 +22514,17 @@ class FileAnalyzer(object):
                         SysMgr.printPipe((" " * ilength) + "| -> " + fileLink)
 
             # print process list #
-            for pid, comm in val["pids"].items():
-                if linePos > lineLength:
-                    linePos = ilength + pidLength
-                    pidInfo += "\n" + (" " * ilength) + "|"
+            if not "NOTASKINFO" in SysMgr.environList:
+                for pid, comm in val["pids"].items():
+                    if linePos > lineLength:
+                        linePos = ilength + pidLength
+                        pidInfo += "\n" + (" " * ilength) + "|"
 
-                pidInfo += " %16s (%7s) |" % (comm[: SysMgr.commLen], pid)
+                    pidInfo += " %16s (%7s) |" % (comm[: SysMgr.commLen], pid)
 
-                linePos += pidLength
+                    linePos += pidLength
+                SysMgr.printPipe((" " * ilength) + "|" + pidInfo)
 
-            SysMgr.printPipe((" " * ilength) + "|" + pidInfo)
             SysMgr.printPipe(oneLine)
 
         if self.readaheadStr:
@@ -22517,7 +22532,7 @@ class FileAnalyzer(object):
 
         SysMgr.printPipe("\n\n\n")
 
-    def scanProcs(self, targetFilter=None, exceptFilter=None):
+    def scanProcs(self, targetFilter=None, targetFile=None, exceptFilter=None):
         # get process list in proc filesystem #
         pids = SysMgr.getPidList()
 
@@ -22525,15 +22540,20 @@ class FileAnalyzer(object):
         procObj = TaskAnalyzer(onlyInstance=True)
 
         # scan tasks #
-        for pid in pids:
+        for idx, pid in enumerate(pids):
             try:
+                nrPid = long(pid)
+
                 # skip myself #
-                if SysMgr.pid == long(pid) and not SysMgr.customCmd:
+                if SysMgr.pid == nrPid and not targetFile:
                     continue
             except SystemExit:
                 sys.exit(0)
             except:
                 continue
+
+            # print progress #
+            UtilMgr.printProgress(idx, len(pids))
 
             # make process path #
             procPath = "%s/%s" % (SysMgr.procPath, pid)
@@ -22613,9 +22633,21 @@ class FileAnalyzer(object):
                     except:
                         SysMgr.printOpenWarn(fdlistPath)
 
+                    if SysMgr.pid == nrPid:
+                        SysMgr.printStat(
+                            "start collecting custom files on memory..."
+                        )
+                        isMe = True
+                    else:
+                        isMe = False
+
                     # scan file descriptors #
-                    for fd in fdlist:
+                    for gidx, fd in enumerate(fdlist):
                         try:
+                            # print progress #
+                            if isMe:
+                                UtilMgr.printProgress(gidx, len(fdlist))
+
                             # get real path #
                             fdPath = "%s/%s" % (fdlistPath, long(fd))
                             fname = os.readlink(fdPath)
@@ -22628,9 +22660,13 @@ class FileAnalyzer(object):
                                 and fname in self.procData[pid]["procMap"]
                             ):
                                 continue
-                            elif targetFilter != [
-                                ""
-                            ] and not UtilMgr.isValidStr(fname, targetFilter):
+                            elif targetFile != [""] and not UtilMgr.isValidStr(
+                                fname, targetFile
+                            ):
+                                continue
+                            elif targetFilter and not UtilMgr.isValidStr(
+                                fname, targetFilter
+                            ):
                                 continue
                             elif exceptFilter and UtilMgr.isValidStr(
                                 fname, exceptFilter
@@ -22650,6 +22686,10 @@ class FileAnalyzer(object):
                         except:
                             pass
 
+                # print progress #
+                if isMe:
+                    UtilMgr.deleteProgress()
+
                 # check thread list #
                 if tid in self.procData[pid]["tids"]:
                     continue
@@ -22667,6 +22707,9 @@ class FileAnalyzer(object):
                     self.procData[pid]["tids"][ttid]["comm"] = SysMgr.getComm(
                         ttid
                     )
+
+        # remove progress #
+        UtilMgr.deleteProgress()
 
     def fillFileMaps(self):
         self.profPageCnt = 0
@@ -22695,12 +22738,29 @@ class FileAnalyzer(object):
                 mapInfo["pageCnt"] = mapInfo["fileMap"].count(1)
                 val["pageCnt"] += mapInfo["pageCnt"]
 
-    def mergeFileMapInfo(self, targetFilter=[], exceptFilter=None):
+    def mergeFileMapInfo(
+        self,
+        targetFilter=None,
+        targetFile=None,
+        exceptFilter=None,
+        onlyTarget=False,
+    ):
+        SysMgr.printStat("start merging file info...")
+
+        pos = 0
         myPid = str(SysMgr.pid)
         for pid, val in self.procData.items():
             for fileName, scope in val["procMap"].items():
+                UtilMgr.printProgress(pos, len(self.procData))
+
                 # check file filter #
-                if targetFilter != [""] and not UtilMgr.isValidStr(
+                if (
+                    targetFile != [""]
+                    and onlyTarget
+                    and not UtilMgr.isValidStr(fileName, targetFile)
+                ):
+                    continue
+                elif targetFilter and not UtilMgr.isValidStr(
                     fileName, targetFilter
                 ):
                     continue
@@ -22730,6 +22790,8 @@ class FileAnalyzer(object):
                     self.fileData[fileName]["pids"] = {}
                 if not pid in self.fileData[fileName]["pids"] and pid != myPid:
                     self.fileData[fileName]["pids"][pid] = val["comm"]
+
+        UtilMgr.deleteProgress()
 
     def getFilePageMaps(self):
         # pylint: disable=no-member
@@ -26853,9 +26915,7 @@ Commands:
         SysMgr.checkRootPerm(msg="limit cpu usage using cgroup")
 
         # check subsystem #
-        if not SysMgr.getCgroupSubPath(
-            "cpu", False
-        ) and not SysMgr.getCgroupSubPath("cpu,cpuacct", False):
+        if not SysMgr.getCgroupSubPath("cpu", False):
             return
 
         name = str(time.time()).replace(".", "")
@@ -27126,25 +27186,42 @@ Commands:
                     )
                     continue
 
-                # get target path #
-                targetFile = os.path.join(targetDir, name)
-                if not _checkFile(targetFile):
-                    continue
+                # convert dir list #
+                targetDir = (
+                    UtilMgr.convPath(targetDir)
+                    if "*" in targetDir
+                    else [targetDir]
+                )
 
-                # reda value #
-                if cmd == "READ":
-                    ret = SysMgr.readFile(targetFile)
+                for item in targetDir:
+                    # get target path #
+                    targetFiles = os.path.join(item, name)
+                    targetFiles = (
+                        UtilMgr.convPath(targetFiles)
+                        if "*" in targetFiles
+                        else [targetFiles]
+                    )
 
-                    # print result #
-                    SysMgr.printInfo("read '%s' from '%s'" % (ret, targetFile))
-                # write value #
-                else:
-                    ret = SysMgr.writeFile(targetFile, value)
-                    if ret:
-                        # print result #
-                        SysMgr.printInfo(
-                            "wrote '%s' to '%s'" % (value, targetFile)
-                        )
+                    for targetFile in targetFiles:
+                        if not _checkFile(targetFile):
+                            continue
+
+                        # read value #
+                        if cmd == "READ":
+                            ret = [SysMgr.readFile(targetFile)]
+
+                            # print result #
+                            SysMgr.printInfo(
+                                "read '%s' from '%s'" % (ret, targetFile)
+                            )
+                        # write value #
+                        else:
+                            ret = SysMgr.writeFile(targetFile, value)
+                            if ret:
+                                # print result #
+                                SysMgr.printInfo(
+                                    "wrote '%s' to '%s'" % (value, targetFile)
+                                )
 
                 continue
             # handle list command #
@@ -27154,37 +27231,49 @@ Commands:
                 if not targetDir:
                     continue
 
-                targetFile = os.path.join(targetDir, taskNode)
-                if not _checkFile(targetFile):
-                    continue
-
-                # print target tasks #
-                tasks = SysMgr.readFile(targetFile)
-                if tasks:
-                    tasks = tasks.split("\n")
-                else:
-                    SysMgr.printInfo("no %s in '%s'" % (taskType, targetFile))
-                    continue
-
-                # apply filter #
-                tasks = list(map(long, list(set(tasks) & set(targetTasks))))
-
-                # print message #
-                SysMgr.printInfo(
-                    "print %s %s from '%s'"
-                    % (convNum(len(tasks)), taskType, targetFile)
+                # convert dir list #
+                targetDir = (
+                    UtilMgr.convPath(targetDir)
+                    if "*" in targetDir
+                    else [targetDir]
                 )
 
-                # print tasks #
-                for idx, tid in enumerate(sorted(tasks)):
-                    if not verb:
+                for item in targetDir:
+                    targetFile = os.path.join(item, taskNode)
+                    if not _checkFile(targetFile):
                         continue
 
-                    SysMgr.printPipe(
-                        "[%s] %s(%s)"
-                        % (convNum(idx), SysMgr.getComm(tid), tid),
-                        pager=False,
+                    # print target tasks #
+                    tasks = SysMgr.readFile(targetFile)
+                    if tasks:
+                        tasks = tasks.split("\n")
+                    else:
+                        SysMgr.printInfo(
+                            "no %s in '%s'" % (taskType, targetFile)
+                        )
+                        continue
+
+                    # apply filter #
+                    tasks = list(
+                        map(long, list(set(tasks) & set(targetTasks)))
                     )
+
+                    # print message #
+                    SysMgr.printInfo(
+                        "print %s %s from '%s'"
+                        % (convNum(len(tasks)), taskType, targetFile)
+                    )
+
+                    # print tasks #
+                    for idx, tid in enumerate(sorted(tasks)):
+                        if not verb:
+                            continue
+
+                        SysMgr.printPipe(
+                            "[%s] %s(%s)"
+                            % (convNum(idx), SysMgr.getComm(tid), tid),
+                            pager=False,
+                        )
 
                 continue
             # handle move command #
@@ -27276,98 +27365,121 @@ Commands:
                         "failed to get target cgroup '%s/%s'" % (sub, name)
                     )
                 continue
-            elif cmd == "DELETE":
-                SysMgr.removeCgroup(targetDir)
-                SysMgr.printInfo("deleted '%s' cgroup" % targetDir)
-                continue
-            elif cmd == "CREATE" and targetTasks is None:
-                SysMgr.printInfo("created '%s' cgroup" % targetDir)
-                continue
 
-            # register tasks to cgroup node #
-            targetFile = os.path.join(targetDir, taskNode)
-            if not _checkFile(targetFile):
-                continue
+            # convert dir list #
+            targetDir = (
+                UtilMgr.convPath(targetDir)
+                if "*" in targetDir
+                else [targetDir]
+            )
 
-            # ADD #
-            if cmd in ("CREATE", "ADD"):
-                # move tasks #
-                SysMgr.writeFile(targetFile, targetTasks)
-
-                # print message #
-                SysMgr.printInfo(
-                    "added %s %s in total to '%s' cgroup"
-                    % (convNum(len(targetTasks)), taskType, targetDir)
-                )
-
-                SysMgr.printWarn(SysMgr.getCommList(targetTasks))
-
-                tasks = targetTasks
-            # REMOVE #
-            else:
-                # get target file #
-                desFile = os.path.join(
-                    os.path.dirname(targetFile), "..", taskNode
-                )
-                if not _checkFile(desFile):
+            for item in targetDir:
+                if cmd == "DELETE":
+                    SysMgr.removeCgroup(item)
+                    SysMgr.printInfo("deleted '%s' cgroup" % item)
+                    continue
+                elif cmd == "CREATE" and targetTasks is None:
+                    SysMgr.printInfo("created '%s' cgroup" % item)
                     continue
 
-                # move tasks #
-                tasks = _moveTasks(targetFile, desFile, targetTasks)
-                if not tasks:
-                    SysMgr.printErr(
-                        "no %s to be removed from '%s'" % (taskType, targetDir)
-                    )
+                # register tasks to cgroup node #
+                targetFile = os.path.join(item, taskNode)
+                if not _checkFile(targetFile):
                     continue
 
-                # print message #
-                SysMgr.printInfo(
-                    "removed %s %s from '%s' cgroup"
-                    % (convNum(len(tasks)), taskType, targetDir)
-                )
+                # ADD #
+                if cmd in ("CREATE", "ADD"):
+                    # move tasks #
+                    SysMgr.writeFile(targetFile, targetTasks)
 
-                SysMgr.printWarn(SysMgr.getCommList(tasks))
-
-            # sort targets #
-            tasks = sorted(list(map(long, tasks)))
-
-            # print tasks #
-            if verb:
-                for idx, tid in enumerate(tasks):
-                    SysMgr.printPipe(
-                        "[%s] %s(%s)"
-                        % (convNum(idx), SysMgr.getComm(tid), tid),
-                        pager=False,
+                    # print message #
+                    SysMgr.printInfo(
+                        "added %s %s in total to '%s' cgroup"
+                        % (convNum(len(targetTasks)), taskType, item)
                     )
+
+                    SysMgr.printWarn(SysMgr.getCommList(targetTasks))
+
+                    tasks = targetTasks
+                # REMOVE #
+                else:
+                    # get target file #
+                    desFile = os.path.join(
+                        os.path.dirname(targetFile), "..", taskNode
+                    )
+                    if not _checkFile(desFile):
+                        continue
+
+                    # move tasks #
+                    tasks = _moveTasks(targetFile, desFile, targetTasks)
+                    if not tasks:
+                        SysMgr.printErr(
+                            "no %s to be removed from '%s'" % (taskType, item)
+                        )
+                        continue
+
+                    # print message #
+                    SysMgr.printInfo(
+                        "removed %s %s from '%s' cgroup"
+                        % (convNum(len(tasks)), taskType, item)
+                    )
+
+                    SysMgr.printWarn(SysMgr.getCommList(tasks))
+
+                # sort targets #
+                tasks = sorted(list(map(long, tasks)))
+
+                # print tasks #
+                if verb:
+                    for idx, tid in enumerate(tasks):
+                        SysMgr.printPipe(
+                            "[%s] %s(%s)"
+                            % (convNum(idx), SysMgr.getComm(tid), tid),
+                            pager=False,
+                        )
 
     @staticmethod
     def getCgroupSubPath(sub, exception=True):
-        # init system context #
-        if not SysMgr.sysInstance:
-            SysMgr.initSystemContext()
+        cgroupInfo = SysMgr.printCgroupList(json=True, ret=True)
 
-        # get cgroup path #
-        cgroupPath = SysMgr.sysInstance.getCgroupPath()
-        if not cgroupPath:
-            if exception:
-                raise Exception("access to cgroup filesystem failed")
-            else:
-                SysMgr.printErr("failed to access to cgroup filesystem")
-                return None
-
-        # check subsystem #
-        for path in cgroupPath:
-            if sub in path.rsplit("/", 1)[1].split(","):
-                return path
-
-        if exception:
+        if sub in cgroupInfo:
+            return cgroupInfo[sub]["mount"].split("(", 1)[0].strip()
+        elif exception:
             raise Exception("access to %s cgroup subsystem failed" % sub)
         else:
             SysMgr.printErr("failed to access to %s cgroup subsystem" % sub)
             return None
 
     @staticmethod
-    def printCgroupList():
+    def clearCgroupPath():
+        SysMgr.cgroupPathList = {}
+
+    @staticmethod
+    def mountCgroups(subs=[]):
+        defPath = "/sys/fs/cgroup"
+        if not os.path.exists(defPath):
+            SysMgr.printErr("no default cgroup path '%s'" % defPath)
+            sys.exit(-1)
+
+        cgroupInfo = SysMgr.printCgroupList(json=True, ret=True)
+        for sub, values in cgroupInfo.items():
+            if values["mount"]:
+                continue
+            elif subs and not sub in subs:
+                continue
+
+            # make a new directory #
+            desDir = defPath + "/" + sub
+            if not os.path.exists(desDir):
+                os.makedirs(desDir)
+
+            # mount a cgroup subsystem #
+            SysMgr.mountCgroup(sub, desDir)
+
+        SysMgr.clearCgroupPath()
+
+    @staticmethod
+    def printCgroupList(json=False, ret=False):
         cgroupList = SysMgr.getCgroupList()
         if not cgroupList:
             SysMgr.printErr("no cgroup mount point")
@@ -27376,40 +27488,60 @@ Commands:
         # get cgroup path list #
         cgroupPath = SysMgr(onlyInstance=True).sysInstance.getCgroupPath()
 
-        SysMgr.printPipe(
-            "\n{5:1}\n{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}\n{5:1}".format(
-                "subsystem", "hierarchy", "number", "enabled", "mount", twoLine
+        if json:
+            cgDict = {}
+        else:
+            SysMgr.printPipe(
+                "\n{5:1}\n{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}\n{5:1}".format(
+                    "subsystem",
+                    "hierarchy",
+                    "number",
+                    "enabled",
+                    "mount",
+                    twoLine,
+                )
             )
-        )
 
-        for subsystem, values in sorted(
+        for sub, values in sorted(
             cgroupList.items(), key=lambda x: long(x[1]["hierarchy"])
         ):
             try:
                 # get mount info #
                 mountinfo = ""
                 for path, option in cgroupPath.items():
-                    if subsystem in option.split()[2].split(
+                    if sub in option.split()[2].split(
                         ","
-                    ) or subsystem in path.rsplit("/", 1)[1].split(","):
+                    ) or sub in path.rsplit("/", 1)[1].split(","):
                         mountinfo = "%s (%s)" % (path, cgroupPath[path])
                         break
 
-                SysMgr.printPipe(
-                    "{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}".format(
-                        subsystem,
-                        values["hierarchy"],
-                        values["num"],
-                        values["enable"],
-                        mountinfo,
+                if json:
+                    cgDict[sub] = values
+                    cgDict[sub]["mount"] = mountinfo
+                else:
+                    SysMgr.printPipe(
+                        "{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}".format(
+                            sub,
+                            values["hierarchy"],
+                            values["num"],
+                            values["enable"],
+                            mountinfo,
+                        )
                     )
-                )
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printWarn("failed to print cgroup info", reason=True)
 
-        SysMgr.printPipe(oneLine)
+        if json:
+            if ret:
+                return cgDict
+
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(cgDict, pretty=not SysMgr.streamEnable)
+            )
+        else:
+            SysMgr.printPipe(oneLine)
 
     @staticmethod
     def getCgroupList():
@@ -32376,18 +32508,27 @@ Options:
 
                     helpStr += """
 Examples:
-    - {2:1} of on-memory files for all processes to guider.out
+    - {2:1} of on-memory-mapped files for all processes to guider.out
         # {0:1} {1:1} -o . -a
 
-    - {2:1} of on-memory files for specific threads
+    - {2:1} of on-memory-mapped files for specific threads
         # {0:1} {1:1} -g a.out
 
-    - {2:1} of specific on-memory files
-        # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
-        # {0:1} {1:1} -c "/home/test/*"
+    - {2:1} of on-memory-mapped files without task info
+        # {0:1} {1:1} -q NOTASKINFO
+
+    - {2:1} of specific on-memory-mapped files for all processes
         # {0:1} {1:1} -q TARGETFILE:"*libc*"
         # {0:1} {1:1} -q EXCEPTFILE:"/usr*"
+
+    - {2:1} of specific on-memory-mapped files for all processes and specific on-memory files
+        # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
+        # {0:1} {1:1} -c "/home/test/*"
+        # {0:1} {1:1} -c "/home/test/**"
         # {0:1} {1:1} -c "/home/test/*", -q TARGETFILE:"*libc*"
+
+    - {2:1} of specific on-memory files only excluding on-memory-mapped files
+        # {0:1} {1:1} -c "/home/test/BIN", -q ONLYTARGET
 
     - {2:1} of specific on-memory files from specific directories recursively
         # {0:1} {1:1} -c "/usr/share" -r
@@ -32855,6 +32996,13 @@ Description:
                     )
 
                     helpStr += topSubStr + topCommonStr + topExamStr
+
+                    helpStr += """
+    - Monitor the status of cgroup on the system after mounting all cgroup subsystems
+        # {0:1} {1:1} -q MOUNTCG
+                        """.format(
+                        cmd, mode
+                    )
 
                 # vmalloc top #
                 elif SysMgr.checkMode("vtop"):
@@ -33791,6 +33939,7 @@ Options:
           [ t:thread | e:encode ]
     -l                          print cgroup list
     -P                          group threads in a same process
+    -J                          print in JSON format
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
 
@@ -33809,6 +33958,10 @@ Commands:
 Examples:
     - Print cgroup info
         # {0:1} {1:1} -l
+        # {0:1} {1:1} -l -J
+
+    - Print cgroup info after mounting all cgroup subsystems
+        # {0:1} {1:1} -l -q MOUNTCG
 
     - Make a new cpu group
         # {0:1} {1:1} CREATE:cpu:test1:
@@ -33828,17 +33981,24 @@ Examples:
         # {0:1} {1:1} REMOVE:cpu:test1:"*a.out*"
 
     - Delete a cpu group
-        # {0:1} {1:1} DELETE:cpu:test1:"*"
+        # {0:1} {1:1} DELETE:cpu:test1:
+        # {0:1} {1:1} DELETE:cpu:"test*":
 
     - Read value from the specific file
         # {0:1} {1:1} READ:memory:test2:memory.limit_in_bytes
+        # {0:1} {1:1} READ:memory:test2:"memory.*"
+        # {0:1} {1:1} READ:memory:"test*":tasks
 
     - Write value to the specific file
         # {0:1} {1:1} WRITE:memory:test2:100000@memory.limit_in_bytes
+        # {0:1} {1:1} WRITE:memory:test2:100000@"memory.*"
+        # {0:1} {1:1} WRITE:memory:"test*":100000@memory.limit_in_bytes
 
     - Print all processes in a cpu group
         # {0:1} {1:1} LIST:cpu:/:"*"
+        # {0:1} {1:1} LIST:cpu:/:"*" -e t
         # {0:1} {1:1} LIST:cpu:test1:"*"
+        # {0:1} {1:1} LIST:cpu:"test*":"*"
                     """.format(
                         cmd, mode
                     )
@@ -35280,12 +35440,14 @@ Examples:
 
     - {2:1} with specific filters
         # {0:1} {1:1} -q SDFILTER:ActiveState:"active\,inactive"
+        # {0:1} {1:1} -q SDFILTER:+ActiveState:active, SDFILTER:+Id:"daily*"
         # {0:1} {1:1} -q SDEXFILTER:ActiveState:"active"
         # {0:1} {1:1} -q SDITEM:"Active*"
 
     - {2:1} and execute commands with specific filters
         # {0:1} {1:1} -q CMD:sh -c \\"echo @Id >> out\\"", MUTE
         # {0:1} {1:1} -q SDFILTER:Id:"*service.service", CMD:"systemctl stop @Id", MUTE
+        # {0:1} {1:1} -q SDFILTER:+Id:"*service.service", SDFILTER:+ActiveState:active, CMD:"systemctl stop @Id", MUTE
                     """.format(
                             cmd,
                             mode,
@@ -35651,6 +35813,9 @@ Examples:
         # {0:1} {1:1} cpu
         # {0:1} {1:1} "cpu*"
         # {0:1} {1:1} "cpu memory blkio"
+
+    - {2:1} after mounting all cgroup subsystems
+        # {0:1} {1:1} -q MOUNTCG
 
     - {2:1} with tasks
         # {0:1} {1:1} -a
@@ -36549,6 +36714,9 @@ Examples:
         # {0:1} {1:1} yes:{3:1}
         # {0:1} {1:1} "yes|a.out":{3:1}
         # {0:1} {1:1} -g yes:{3:1}, a.out:{3:1}%s
+
+    - {2:1} for specific threads after mounting all cgroup subsystems
+        # {0:1} {1:1} yes:{3:1} -q MOUNTCG
 
     - {2:1} for specific threads with monitoring
         # {0:1} {1:1} yes:{3:1} -q TASKMON
@@ -43559,6 +43727,33 @@ Copyright:
             pass
 
     @staticmethod
+    def checkCgroup(manList=()):
+        if not manList:
+            manList = ("cpu", "cpuacct", "memory", "blkio")
+        elif UtilMgr.isString(manList):
+            manList = set(
+                [
+                    manList,
+                ]
+            )
+
+        cgroupInfo = SysMgr.printCgroupList(json=True, ret=True)
+        subList = list(set(manList) - set(list(cgroupInfo)))
+        if subList:
+            SysMgr.printWarn(
+                "no subsystem support for [%s]" % ", ".join(subList), True
+            )
+
+        ret = True
+        for sub, values in cgroupInfo.items():
+            if sub in subList or not sub in manList:
+                continue
+            elif not values["mount"]:
+                SysMgr.printWarn("no mount subsystem for [%s]" % sub, True)
+                ret = False
+        return ret
+
+    @staticmethod
     def applyCgroupVars(varList=[]):
         try:
             if not varList:
@@ -43635,6 +43830,10 @@ Copyright:
                     default = "max"
                     func = SysMgr.limitPid
                 else:
+                    continue
+
+                # check mandatory subsystem #
+                if not SysMgr.checkCgroup(res):
                     continue
 
                 for limits in varList[item]:
@@ -44015,6 +44214,10 @@ Copyright:
         # set specific namespace type #
         if "NSTYPE" in SysMgr.environList:
             SysMgr.nsType = SysMgr.environList["NSTYPE"][0].lower()
+
+        # mount all cgroup subsystems #
+        if "MOUNTCG" in SysMgr.environList:
+            SysMgr.mountCgroups()
 
     @staticmethod
     def checkOptVal(option, value):
@@ -45987,7 +46190,7 @@ Copyright:
 
             # just print cgroup list #
             if SysMgr.findOption("l"):
-                SysMgr.printCgroupList()
+                SysMgr.printCgroupList(json=SysMgr.jsonEnable)
             else:
                 SysMgr.doCgroup()
 
@@ -46276,6 +46479,20 @@ Copyright:
         SysMgr.ipAddrCache[addr] = retval
 
         return retval
+
+    @staticmethod
+    def mountCgroup(sub, path):
+        ret = SysMgr.mount(
+            sub, path, "cgroup", ConfigMgr.MOUNT_TYPE["MS_SILENT"], sub
+        )
+        if ret == 0:
+            SysMgr.printInfo("mounted cgroup '%s' on '%s'" % (sub, path))
+            return True
+        else:
+            SysMgr.printWarn(
+                "failed to mount cgroup '%s' on '%s'" % (sub, path), True
+            )
+            return False
 
     @staticmethod
     def mountFsCmd(fs, path):
@@ -47013,6 +47230,9 @@ Copyright:
                 fsp = c_char_p(fs.encode())
             else:
                 fsp = 0
+
+            if data:
+                data = c_char_p(data.encode())
 
             # call mount syscall #
             ret = SysMgr.syscall("mount", sourcep, pathp, fsp, flags, data)
@@ -68165,29 +68385,19 @@ class DbusMgr(object):
                 "\n[Systemd Boot Info] (Bus: %s) \n%s" % (bus, twoLine)
             )
 
-        # get inclusive filters #
-        if "SDFILTER" in SysMgr.environList:
-            incCond = {}
-            for item in SysMgr.environList["SDFILTER"]:
-                items = item.split(":", 1)
-                if len(items) == 1:
-                    incCond[items[0]] = None
-                else:
-                    incCond[items[0]] = items[1].split(",")
-        else:
-            incCond = {}
+        # get filters #
+        incCond = {}
+        exCond = {}
+        for cond, condDict in (("SDFILTER", incCond), ("SDEXFILTER", exCond)):
+            if not cond in SysMgr.environList:
+                continue
 
-        # get exclusive filters #
-        if "SDEXFILTER" in SysMgr.environList:
-            exCond = {}
-            for item in SysMgr.environList["SDEXFILTER"]:
+            for item in SysMgr.environList[cond]:
                 items = item.split(":", 1)
                 if len(items) == 1:
-                    exCond[items[0]] = None
+                    condDict[items[0]] = None
                 else:
-                    exCond[items[0]] = items[1].split(",")
-        else:
-            exCond = {}
+                    condDict[items[0]] = items[1].split(",")
 
         # print stats #
         cnt = 0
@@ -68219,13 +68429,22 @@ class DbusMgr(object):
                 # check inclusive condition #
                 skip = False
                 for f, v in incCond.items():
-                    if f not in stats:
+                    if f.startswith("+"):
+                        andCond = True
+                        f = UtilMgr.lstrip(f, "+")
+                    else:
+                        andCond = False
+
+                    if f not in stats or not UtilMgr.isValidStr(
+                        str(stats[f]), v
+                    ):
                         skip = True
-                    elif not UtilMgr.isValidStr(str(stats[f]), v):
-                        skip = True
+                        if andCond:
+                            break
                     else:
                         skip = False
-                        break
+                        if not andCond:
+                            break
                 if skip:
                     continue
 
@@ -95523,6 +95742,9 @@ class TaskAnalyzer(object):
             SysMgr.printErr("failed to access cgroup filesystem")
             sys.exit(-1)
 
+        # check mandatory subsystem #
+        SysMgr.checkCgroup()
+
         # run loop #
         while 1:
             # collect system stats as soon as possible #
@@ -119178,7 +119400,7 @@ class TaskAnalyzer(object):
                             stat = long(value.rstrip())
 
                         # calculate usage #
-                        if system == "cpuacct":
+                        if "cpuacct" in system:
                             try:
                                 if SysMgr.totalEnable:
                                     prevStat = 0
