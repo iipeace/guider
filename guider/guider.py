@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230126"
+__revision__ = "230127"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27492,7 +27492,10 @@ Commands:
             cgDict = {}
         else:
             SysMgr.printPipe(
-                "\n{5:1}\n{0:>16} {1:>10} {2:>8} {3:>8}  {4:1}\n{5:1}".format(
+                (
+                    "\n[Cgroup Info]\n{5:1}\n{0:>16} {1:>10} "
+                    "{2:>8} {3:>8}  {4:1}\n{5:1}"
+                ).format(
                     "subsystem",
                     "hierarchy",
                     "number",
@@ -64703,6 +64706,15 @@ Copyright:
 
                 break
 
+        # convert subsystem name #
+        cgroupInfo = SysMgr.printCgroupList(json=True, ret=True)
+        for path in list(dirDict.keys()):
+            for sub, val in cgroupInfo.items():
+                name = val["mount"].split("(", 1)[0].rsplit("/", 1)[1].strip()
+                if path == val:
+                    dirDict[sub] = dirDict.pop(path)
+                    break
+
         return dirDict
 
     def printCgroupInfo(self, printTitle=True, progress=False):
@@ -65232,11 +65244,13 @@ Copyright:
 
                             # get memory usage #
                             conv = UtilMgr.convSize2Unit
-                            mstat = "[%s]" % TaskAnalyzer.getMemStr(
+                            mstat = TaskAnalyzer.getMemStr(
                                 taskMgr, tgid, verb=False, color="YELLOW"
                             )
                             if not mstat:
                                 return mstat
+
+                            mstat = "[%s]" % mstat
 
                             # save cache #
                             memCaches[tgid] = mstat
@@ -108784,15 +108798,9 @@ class TaskAnalyzer(object):
             else:
                 obj.saveSystemStatGen()
 
-        # check kernel thread #
-        if "2" in pids:
-            kernel = True
-        else:
-            kernel = False
-
         # get task tree #
         try:
-            procTree = TaskAnalyzer.getProcTreeFromList(obj.procData, kernel)
+            procTree = TaskAnalyzer.getProcTreeFromList(obj.procData)
         except SystemExit:
             sys.exit(0)
         except:
@@ -114241,16 +114249,18 @@ class TaskAnalyzer(object):
         self.saveCgroupInstance()
 
         # save stats #
-        for sub in SysMgr.cgroupPathList:
+        for sub, val in SysMgr.cgroupPathList.items():
             # check subsystem #
             if sub in self.cgroupData:
                 continue
-            elif "cpu" in sub or "memory" in sub or "blkio" in sub:
-                pass
-            else:
-                continue
 
             # gather stats #
+            target = set(["cpu", "cpuacct", "memory", "blkio"]) & set(
+                val.split(",")
+            )
+            if not target:
+                continue
+
             _getStats(
                 self.cgroupData, os.walk(sub), sub[sub.rfind("/", 1) + 1 :]
             )
@@ -114989,7 +114999,7 @@ class TaskAnalyzer(object):
                     pass
 
     @staticmethod
-    def getProcTreeFromList(procInstance, kernel=True):
+    def getProcTreeFromList(procInstance, incKernel=True):
         procTree = {}
         ppidIdx = ConfigMgr.STAT_ATTR.index("PPID")
 
@@ -115035,17 +115045,20 @@ class TaskAnalyzer(object):
 
         # make dictionary for tree #
         if SysMgr.isLinux:
+            vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
             startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+
             for pid, item in sorted(
                 procInstance.items(),
                 key=lambda e: long(e[1]["stat"][startIdx]),
             ):
+                # check kernel thread #
+                if not incKernel:
+                    if procInstance[pid]["stat"][vssIdx] == "0":
+                        continue
+
                 # get parent ID #
                 ppid = procInstance[pid]["stat"][ppidIdx]
-
-                # check kernel thread #
-                if not kernel and ppid == "2":
-                    continue
 
                 # add task #
                 if ppid == "0":
@@ -115499,8 +115512,7 @@ class TaskAnalyzer(object):
             return
 
     def isKernelThread(self, tid):
-        ppid = self.procData[tid]["stat"][self.ppidIdx]
-        if "2" in (ppid, tid):
+        if self.procData[tid]["stat"][self.vssIdx] == "0":
             return True
         else:
             return False
@@ -123220,7 +123232,7 @@ class TaskAnalyzer(object):
         try:
             mstat = ""
             ret = TaskAnalyzer.getMemStats(tobj, pid)
-            if not ret:
+            if not ret or ret["vss"] == 0:
                 return mstat
 
             if not stats:
