@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230127"
+__revision__ = "230128"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -64863,10 +64863,12 @@ Copyright:
                 for val in sorted(list(subdir), reverse=True):
                     cname = ""
 
+                    # check target value #
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
+
                     # thread #
-                    elif val == "tasks":
+                    if val == "tasks":
                         nrTasks = subdir[val]
                         tempSubdir.pop(val, None)
                         continue
@@ -64940,7 +64942,9 @@ Copyright:
                                 # get time in sec from us #
                                 num = long(item.split()[1]) / unit
                                 if num == 0:
-                                    raise Exception("zero")
+                                    value += "%s:0, " % cname
+                                    cname = " "
+                                    continue
 
                                 if unit == 1000000000.0:
                                     value = (
@@ -64956,7 +64960,9 @@ Copyright:
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            pass
+                            SysMgr.printWarn(
+                                "failed to get %s value" % val, reason=True
+                            )
 
                         value = value.rstrip(" ,")
                     # cpus #
@@ -65010,6 +65016,9 @@ Copyright:
                         except SystemExit:
                             sys.exit(0)
                         except:
+                            SysMgr.printWarn(
+                                "failed to get %s value" % val, reason=True
+                            )
                             value = ""
                     # skip weight_device #
                     elif (
