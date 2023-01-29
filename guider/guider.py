@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230128"
+__revision__ = "230129"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -95768,17 +95768,41 @@ class TaskAnalyzer(object):
         # check mandatory subsystem #
         SysMgr.checkCgroup()
 
+        # set target subsystems #
+        disOpt = SysMgr.getOption("d")
+        if not disOpt:
+            disOpt = ""
+        targetGroup = [
+            "cpu" if not "c" in disOpt else None,
+            "cpuacct" if not "c" in disOpt else None,
+            "memory" if not "m" in disOpt else None,
+            "blkio" if not "b" in disOpt else None,
+        ]
+
+        # remove None items #
+        targetGroup = list(set(targetGroup))
+        if None in targetGroup:
+            targetGroup.remove(None)
+
+        SysMgr.printInfo(
+            "enabled cgroup subsystems [ %s ]"
+            % (", ".join(targetGroup) if targetGroup else None)
+        )
+
         # run loop #
         while 1:
             # collect system stats as soon as possible #
-            self.saveSystemStat(target="cgroup")
+            self.saveSystemStat(saveProc=False)
+
+            # save cgroup stats #
+            self.saveCgroupStat(targetGroup)
 
             # save timestamp #
             prevTime = time.time()
 
             if self.prevCpuData:
                 # print system status #
-                self.printSystemStat(idIndex=True, target="cgroup")
+                self.printSystemStat(idIndex=True, targetList=["cgroup"])
 
             # check repeat count #
             SysMgr.checkProgress()
@@ -106785,7 +106809,7 @@ class TaskAnalyzer(object):
                     if target == "cgroup.cpu":
                         usage = float(cpu)
                     else:
-                        usage = float(thr)
+                        usage = long(thr)
                 except:
                     return
 
@@ -114203,7 +114227,7 @@ class TaskAnalyzer(object):
             except:
                 pass
 
-    def saveCgroupStat(self):
+    def saveCgroupStat(self, targetGroup=[]):
         def _getStats(root, path, sub):
             # register subsystem #
             root.setdefault(sub, {})
@@ -114264,9 +114288,7 @@ class TaskAnalyzer(object):
                 continue
 
             # gather stats #
-            target = set(["cpu", "cpuacct", "memory", "blkio"]) & set(
-                val.split(",")
-            )
+            target = set(targetGroup) & set(val.split(","))
             if not target:
                 continue
 
@@ -114817,7 +114839,7 @@ class TaskAnalyzer(object):
                 vmList = line.split()
                 self.vmData[vmList[0]] = long(vmList[1])
 
-    def saveSystemStat(self, target="task"):
+    def saveSystemStat(self, saveProc=True):
         # update uptime #
         SysMgr.updateUptime()
 
@@ -114976,14 +114998,9 @@ class TaskAnalyzer(object):
         if not SysMgr.taskEnable:
             return
 
-        # save proc stats #
-        if target == "task":
+        # save task stats #
+        if saveProc:
             self.saveProcStat()
-        elif target == "cgroup":
-            self.saveCgroupStat()
-        else:
-            SysMgr.printErr("wrong monitor target for '%s'" % target)
-            sys.exit(-1)
 
         # save namespace leader tasks #
         for ns, data in self.nsData.items():
@@ -119326,6 +119343,9 @@ class TaskAnalyzer(object):
         return sortedProcData
 
     def getCgroupUsage(self):
+        if not self.cgroupData:
+            return {}
+
         interval = SysMgr.uptimeDiff
         if interval == 0:
             interval = 0.1
@@ -119347,10 +119367,10 @@ class TaskAnalyzer(object):
                     if name in ("tasks", "cgroup.procs"):
                         stat = value.count("\n")
                     elif name == "cpu.stat":
-                        if value.startswith(cpuStatStr):
-                            continue
-
                         try:
+                            if value.startswith(cpuStatStr):
+                                raise Exception("no usage")
+
                             # throttled_time #
                             stat = long(value.split("\n")[2].split()[1])
                             if SysMgr.totalEnable:
@@ -119365,74 +119385,70 @@ class TaskAnalyzer(object):
                             sys.exit(0)
                         except:
                             stat = 0
-                    else:
-                        if system == "blkio":
-
-                            def _getIOStats(value):
-                                rd = wr = 0
-                                for line in value.split("\n"):
-                                    items = line.split()
-                                    if len(items) != 3:
-                                        continue
-                                    elif not items[1] in ("Read", "Write"):
-                                        continue
-
-                                    # sum I/O stats for all devices #
-                                    # TODO: remove redundant stats for same device #
-                                    op = items[1]
-                                    if op == "Read":
-                                        rd += long(items[2].rstrip())
-                                    else:
-                                        wr += long(items[2].rstrip())
-
-                                return rd, wr
-
-                            # get read and write stats for current #
-                            rd, wr = _getIOStats(value)
-
-                            # save stat #
-                            try:
-                                if SysMgr.totalEnable:
-                                    stats[group][name] = [rd, wr]
-                                else:
-                                    if (
-                                        type(prevData[system][group][name])
-                                        is list
-                                    ):
-                                        prevRd, prevWr = prevData[system][
-                                            group
-                                        ][name]
-                                    else:
-                                        prevRd, prevWr = _getIOStats(
-                                            prevData[system][group][name]
-                                        )
-                                    stats[group][name] = [
-                                        rd - prevRd,
-                                        wr - prevWr,
-                                    ]
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                pass
-
-                            continue
-
-                        else:
+                    elif "cpuacct" in system:
+                        try:
                             stat = long(value.rstrip())
 
-                        # calculate usage #
-                        if "cpuacct" in system:
-                            try:
-                                if SysMgr.totalEnable:
-                                    prevStat = 0
+                            if SysMgr.totalEnable:
+                                prevStat = 0
+                            else:
+                                prevStat = prevData[system][group][name]
+                                prevStat = long(prevStat.rstrip())
+                            stat = (stat - prevStat) / interval
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
+                    elif system == "blkio":
+
+                        def _getIOStats(value):
+                            rd = wr = 0
+                            for line in value.split("\n"):
+                                items = line.split()
+                                if len(items) != 3:
+                                    continue
+                                elif not items[1] in ("Read", "Write"):
+                                    continue
+
+                                # sum I/O stats for all devices #
+                                # TODO: remove redundant stats for same device #
+                                op = items[1]
+                                if op == "Read":
+                                    rd += long(items[2].rstrip())
                                 else:
-                                    prevStat = prevData[system][group][name]
-                                    prevStat = long(prevStat.rstrip())
-                                stat = (stat - prevStat) / interval
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                pass
+                                    wr += long(items[2].rstrip())
+
+                            return rd, wr
+
+                        # get read and write stats for current #
+                        rd, wr = _getIOStats(value)
+
+                        # save stat #
+                        try:
+                            if SysMgr.totalEnable:
+                                stats[group][name] = [rd, wr]
+                            else:
+                                if type(prevData[system][group][name]) is list:
+                                    prevRd, prevWr = prevData[system][group][
+                                        name
+                                    ]
+                                else:
+                                    prevRd, prevWr = _getIOStats(
+                                        prevData[system][group][name]
+                                    )
+                                stats[group][name] = [
+                                    rd - prevRd,
+                                    wr - prevWr,
+                                ]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
+
+                        continue
+
+                    else:
+                        stat = long(value.rstrip())
 
                     # save stat #
                     stats[group].setdefault(name, stat)
@@ -119446,8 +119462,9 @@ class TaskAnalyzer(object):
         if SysMgr.uptimeDiff == 0 or SysMgr.checkCutCond():
             return
         elif not self.cgroupData:
-            SysMgr.addPrint(twoLine)
-            return
+            if not SysMgr.jsonEnable:
+                SysMgr.addPrint(twoLine)
+                return
 
         # calculate resource usage of cgroup #
         stats = self.getCgroupUsage()
@@ -119519,17 +119536,17 @@ class TaskAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                cpu = 0
+                cpu = "-"
 
             # CPU Throttle #
             try:
                 throttle = long(value["cpu.stat"] / 10000000)
-                if not SysMgr.jsonEnable:
+                if SysMgr.jsonEnable or not throttle in ("-", 0):
                     throttle = UtilMgr.convColor(throttle, "RED", 3, "right")
             except SystemExit:
                 sys.exit(0)
             except:
-                throttle = 0
+                throttle = "-"
 
             # Memory #
             try:
@@ -119541,7 +119558,7 @@ class TaskAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                mem = 0
+                mem = "-"
 
             # I/O #
             try:
@@ -124491,7 +124508,7 @@ class TaskAnalyzer(object):
                     )
                     sys.exit(0)
 
-    def printSystemStat(self, idIndex=False, target="task"):
+    def printSystemStat(self, idIndex=False, targetList=["task"]):
         title = "[Top Info]"
         nrIndent = len(title)
 
@@ -124538,14 +124555,15 @@ class TaskAnalyzer(object):
             # print network stat #
             self.printNetworkUsage()
 
-        # print process stat #
-        if target == "task":
-            self.printTaskUsage(idIndex=idIndex)
-        elif target == "cgroup":
-            self.printCgroupUsage()
-        else:
-            SysMgr.printErr("wrong monitor target for '%s'" % target)
-            sys.exit(-1)
+        # print stats #
+        for item in targetList:
+            if "cgroup" == item:
+                self.printCgroupUsage()
+            elif "task" == item:
+                self.printTaskUsage(idIndex=idIndex)
+            else:
+                SysMgr.printErr("wrong monitor target for '%s'" % item)
+                sys.exit(-1)
 
         # update session #
         SysMgr.updateSession()
