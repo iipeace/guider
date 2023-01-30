@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230129"
+__revision__ = "230130"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5861,6 +5861,63 @@ class UtilMgr(object):
     @staticmethod
     def saveTime():
         UtilMgr.printTime(update=True, verb=False)
+
+    @staticmethod
+    def getSizeFilterFunc(var="SIZEFILTER"):
+        # define size filter function #
+        def _sizeChecker(val):
+            return True
+
+        # check size filter #
+        if not var in SysMgr.environList:
+            return _sizeChecker
+
+        # get filter values #
+        try:
+            filters = SysMgr.environList[var][0]
+            filterCode = filters[0]
+            filterValue = UtilMgr.convUnit2Size(filters[1:])
+
+            SysMgr.printInfo("applied %s '%s'" % (var, filters))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to apply %s '%s'" % (var, filters), True)
+            sys.exit(-1)
+
+        # return function #
+        if filterCode == "<":
+
+            def _sizeChecker(val):
+                if val < filterValue:
+                    return True
+                else:
+                    return False
+
+        elif filterCode == ">":
+
+            def _sizeChecker(val):
+                if val > filterValue:
+                    return True
+                else:
+                    return False
+
+        elif filterCode == "=":
+
+            def _sizeChecker(val):
+                if val == filterValue:
+                    return True
+                else:
+                    return False
+
+        else:
+            SysMgr.printErr(
+                "failed to apply %s '%s' because wrong operation"
+                % (var, filters)
+            )
+            sys.exit(-1)
+
+        return _sizeChecker
 
     @staticmethod
     def deepcopy(data):
@@ -20581,8 +20638,6 @@ class LeakAnalyzer(object):
     stopSig = 12  # SIGUSR2
     markedIdlePages = False
     idlePageList = []
-    filterCode = None
-    filterValue = 0
     repeatCnt = 0
 
     def __init__(self, file=None, pid=None):
@@ -21025,37 +21080,11 @@ class LeakAnalyzer(object):
             else:
                 LeakAnalyzer.markedIdlePages = False
 
-        # define size filter function #
-        def _sizeChecker(val):
-            return True
-
-        if LeakAnalyzer.filterCode:
-            if LeakAnalyzer.filterCode == "<":
-
-                def _sizeChecker(val):
-                    if val < LeakAnalyzer.filterValue:
-                        return True
-                    else:
-                        return False
-
-            elif LeakAnalyzer.filterCode == ">":
-
-                def _sizeChecker(val):
-                    if val > LeakAnalyzer.filterValue:
-                        return True
-                    else:
-                        return False
-
-            elif LeakAnalyzer.filterCode == "=":
-
-                def _sizeChecker(val):
-                    if val == LeakAnalyzer.filterValue:
-                        return True
-                    else:
-                        return False
-
         # define stack cache #
         stackCache = {}
+
+        # get size check function #
+        _sizeChecker = UtilMgr.getSizeFilterFunc()
 
         while 1:
             try:
@@ -21343,13 +21372,14 @@ class FileAnalyzer(object):
 
         while 1:
             # print plan #
-            if targetFiles:
+            realTargets = set(targetFiles) - set([""])
+            if realTargets:
                 SysMgr.printStat(
                     "start collecting a total of %s files..."
-                    % UtilMgr.convNum(len(targetFiles))
+                    % UtilMgr.convNum(len(realTargets))
                 )
-            else:
-                SysMgr.printStat("start collecting all files on memory...")
+
+            SysMgr.printStat("start collecting all files on memory...")
 
             # scan proc directory and save map information of processes #
             self.scanProcs(
@@ -22108,14 +22138,21 @@ class FileAnalyzer(object):
                     pathConvList.items(), key=lambda e: e[1][1]
                 )
             ]
-            fileStr = "#".join(fileList)
-            fileStr = fileStr.encode()
 
-            # write file list size #
-            raFd.write(struct.pack("I", len(fileStr)))
+            if SysMgr.jsonEnable:
+                raDict = {
+                    "fileList": fileList,
+                    "readaheadList": [],
+                }
+            else:
+                fileStr = "#".join(fileList)
+                fileStr = fileStr.encode()
 
-            # write file list #
-            raFd.write(fileStr)
+                # write file list size #
+                raFd.write(struct.pack("I", len(fileStr)))
+
+                # write file list #
+                raFd.write(fileStr)
 
             # write readahead chunks #
             for chunk in readaheadList:
@@ -22126,7 +22163,10 @@ class FileAnalyzer(object):
                 fid, offset, size = chunk
 
                 # write chunks #
-                raFd.write(struct.pack("HQI", fid, offset, size))
+                if SysMgr.jsonEnable:
+                    raDict["readaheadList"].append(chunk)
+                else:
+                    raFd.write(struct.pack("HQI", fid, offset, size))
 
                 # save readahead stat #
                 fname = fileList[fid]
@@ -22134,6 +22174,10 @@ class FileAnalyzer(object):
                 raSummary[fname]["count"] += 1
                 raSummary[fname]["size"] += size
 
+            if SysMgr.jsonEnable:
+                raFd.write(UtilMgr.convDict2Str(raDict).encode())
+
+            # close output file #
             raFd.close()
 
             # print file size #
@@ -22423,6 +22467,12 @@ class FileAnalyzer(object):
         # print process list #
         self.printProcUsage()
 
+        # get res check function #
+        _resChecker = UtilMgr.getSizeFilterFunc("RESFILTER")
+
+        # get pss check function #
+        _pssChecker = UtilMgr.getSizeFilterFunc("PSSFILTER")
+
         # Print file list #
         SysMgr.printPipe(
             (
@@ -22463,10 +22513,18 @@ class FileAnalyzer(object):
 
             try:
                 pss = long(memSize / len(val["pids"]))
-                if pss > 0:
+                if not _pssChecker(pss):
+                    continue
+                elif pss > 0:
                     pss = convColor(convert(pss), "GREEN", 7)
             except:
                 pss = 0
+                if not _pssChecker(pss):
+                    continue
+
+            # check resident size #
+            if not _resChecker(memSize):
+                continue
 
             if memSize > 0:
                 memSize = convColor(convert(memSize), "YELLOW", 7)
@@ -22539,13 +22597,16 @@ class FileAnalyzer(object):
         # initialize proc object #
         procObj = TaskAnalyzer(onlyInstance=True)
 
+        # get size check function #
+        _sizeChecker = UtilMgr.getSizeFilterFunc()
+
         # scan tasks #
         for idx, pid in enumerate(pids):
             try:
                 nrPid = long(pid)
 
                 # skip myself #
-                if SysMgr.pid == nrPid and not targetFile:
+                if SysMgr.pid == nrPid and targetFile == [""]:
                     continue
             except SystemExit:
                 sys.exit(0)
@@ -22675,8 +22736,9 @@ class FileAnalyzer(object):
 
                             # init file info #
                             size = os.stat(fname).st_size
-                            if size == 0:
+                            if size == 0 or not _sizeChecker(size):
                                 continue
+
                             procMap = self.procData[pid]["procMap"]
                             procMap[fname] = dict(FileAnalyzer.init_mapData)
                             procMap[fname]["size"] = size
@@ -22747,6 +22809,9 @@ class FileAnalyzer(object):
     ):
         SysMgr.printStat("start merging file info...")
 
+        # get size check function #
+        _sizeChecker = UtilMgr.getSizeFilterFunc()
+
         pos = 0
         myPid = str(SysMgr.pid)
         for pid, val in self.procData.items():
@@ -22767,6 +22832,8 @@ class FileAnalyzer(object):
                 elif exceptFilter and UtilMgr.isValidStr(
                     fileName, exceptFilter
                 ):
+                    continue
+                elif not _sizeChecker(scope["size"]):
                     continue
 
                 newOffset = scope["offset"]
@@ -31157,19 +31224,6 @@ Examples:
         # {0:1} {1:1} -g "kworker*"
         # {0:1} {1:1} -g "*kworker"
 
-    - {3:1} {2:1} with cmdline
-        # {0:1} {1:1} -e L
-        # {0:1} {1:1} -e L -g apps
-
-    - {3:1} {2:1} with D-Bus unit
-        # {0:1} {1:1} -e U
-
-    - {3:1} {2:1} with namespace
-        # {0:1} {1:1} -e N
-        # {0:1} {1:1} -e N -q NSTYPE:net
-        # {0:1} {1:1} -e N -q NSTYPE:mnt
-        # {0:1} {1:1} -e N -q PRINTNS
-
     - {3:1} {2:1} except the one having COMM test
         # {0:1} {1:1} -g ^test
 
@@ -31185,8 +31239,26 @@ Examples:
     - {3:1} maximum top 20 {2:1}
         # {0:1} {1:1} -a -q NRTOPRANK:20
 
+    - {3:1} {2:1} with cgroup usage
+        # {0:1} {1:1} -q PRINTCG
+        # {0:1} {1:1} -q PRINTCG:"cpu+cpuacct+memory+blkio"
+        # {0:1} {1:1} -q PRINTCG, MAXCGROWS:5
+
     - {3:1} all {2:1} with specific cores
         # {0:1} {1:1} -e c -O 0:4, 10, 12
+
+    - {3:1} {2:1} with cmdline
+        # {0:1} {1:1} -e L
+        # {0:1} {1:1} -e L -g apps
+
+    - {3:1} {2:1} with D-Bus unit
+        # {0:1} {1:1} -e U
+
+    - {3:1} {2:1} with namespace
+        # {0:1} {1:1} -e N
+        # {0:1} {1:1} -e N -q NSTYPE:net
+        # {0:1} {1:1} -e N -q NSTYPE:mnt
+        # {0:1} {1:1} -e N -q PRINTNS
 
     - {3:1} {2:1} using total CPU usage by applying the multiplication of the number of CPUs
         # {0:1} {1:1} -d A
@@ -32538,6 +32610,11 @@ Examples:
 
     - {2:1} on each intervals of on-memory files for all processes to guider.out
         # {0:1} {1:1} -o . -i
+
+    - {2:1} of on-memory-mapped files for all processes to guider.out using size filters
+        # {0:1} {1:1} -o . -q SIZEFILTER:">100k"
+        # {0:1} {1:1} -o . -q RESFILTER:">100m"
+        # {0:1} {1:1} -o . -q PSSFILTER:"=4096"
 
     - {2:1} of on-memory files for all processes to guider.out and make the readahead list to readahead.list
         # {0:1} {1:1} -o . -q RALIST
@@ -55746,19 +55823,6 @@ Copyright:
             waitSignal = True
         else:
             waitSignal = False
-
-        # check size filter #
-        if "SIZEFILTER" in SysMgr.environList:
-            try:
-                filters = SysMgr.environList["SIZEFILTER"][0]
-                LeakAnalyzer.filterCode = filters[0]
-                LeakAnalyzer.filterValue = UtilMgr.convUnit2Size(filters[1:])
-                SysMgr.printInfo("applied the size filter '%s'" % filters)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr("failed to apply filter '%s'" % filters, True)
-                sys.exit(-1)
 
         # execute before commands #
         SysMgr.runProfCmd("BEFORE")
@@ -96039,6 +96103,33 @@ class TaskAnalyzer(object):
         else:
             printFlag = False
 
+        # get printcg flag #
+        if "PRINTCG" in SysMgr.environList:
+            # check cgroup path #
+            cgroupPath = SysMgr.sysInstance.getCgroupPath()
+            if not cgroupPath:
+                SysMgr.printCgroupList()
+                SysMgr.printErr("failed to access cgroup filesystem")
+                sys.exit(-1)
+
+            # check mandatory subsystem #
+            SysMgr.checkCgroup()
+
+            # set target subsystems #
+            targetGroup = SysMgr.environList["PRINTCG"][0]
+            if targetGroup == "SET":
+                targetGroup = ["cpu", "cpuacct"]
+            else:
+                targetGroup = UtilMgr.cleanItem(targetGroup.split("+"))
+
+            targetList = ["task", "cgroup"]
+
+            printCg = True
+        else:
+            targetList = ["task"]
+
+            printCg = False
+
         # get D-Bus unit list #
         if SysMgr.dbusUnitEnable:
             DbusMgr.pidUnitList = DbusMgr.runDbusSnooper(mode="getpidlist")
@@ -96061,6 +96152,12 @@ class TaskAnalyzer(object):
             if printFlag:
                 UtilMgr.printTime("saveSystemStat")
 
+            # save cgroup stats #
+            if printCg:
+                self.saveCgroupStat(targetGroup)
+                if printFlag:
+                    UtilMgr.printTime("saveCgroupStat")
+
             # save timestamp #
             prevTime = time.time()
 
@@ -96077,7 +96174,7 @@ class TaskAnalyzer(object):
                     UtilMgr.saveTime()
 
                 # print system status #
-                self.printSystemStat(idIndex=True)
+                self.printSystemStat(idIndex=True, targetList=targetList)
 
                 # check termination condition #
                 self.checkTermCond()
@@ -117595,11 +117692,10 @@ class TaskAnalyzer(object):
 
             prevStorageData = SysMgr.sysInstance.prevStorageData
 
+            monItems = ("usagePer", "free", "favail", "readtime", "writetime")
+
             # calculate diff of read /write on each devices #
             for dev, value in sorted(self.reportData["storage"].items()):
-                # add storage device interval #
-                self.addSysInterval("storage", dev, value["usagePer"])
-
                 # get read size on this interval #
                 try:
                     value["read"] -= prevStorageData[dev]["read"]
@@ -117655,6 +117751,13 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     value["avq"] = 0
+
+                # add storage device interval #
+                for mon in monItems:
+                    if mon in value:
+                        self.addSysInterval(
+                            "storage", dev + ":" + mon, value[mon]
+                        )
         else:
             self.reportData["storage"] = {}
 
@@ -119457,7 +119560,7 @@ class TaskAnalyzer(object):
 
         return stats
 
-    def printCgroupUsage(self):
+    def printCgroupUsage(self, alone=True):
         # check return condition #
         if SysMgr.uptimeDiff == 0 or SysMgr.checkCutCond():
             return
@@ -119500,7 +119603,11 @@ class TaskAnalyzer(object):
         else:
             item = "cpuacct.usage"
 
+        # get max row value #
+        maxRow = UtilMgr.getEnvironNum("MAXCGROWS", False, 0, False, True)
+
         # iterate stats #
+        nrLine = 0
         for system, value in sorted(
             stats.items(),
             key=lambda e: e[1][item] if item in e[1] else 0,
@@ -119523,7 +119630,11 @@ class TaskAnalyzer(object):
 
             # CPU Usage #
             try:
-                usage = value["cpuacct.usage"] / 10000000
+                usage = value["cpuacct.usage"]
+                if not usage and item == "cpuacct.usage":
+                    break
+
+                usage = usage / 10000000
                 cpu = "%6.1f" % usage
 
                 # convert color for CPU usage #
@@ -119536,6 +119647,8 @@ class TaskAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
+                if item == "cpuacct.usage":
+                    break
                 cpu = "-"
 
             # CPU Throttle #
@@ -119596,13 +119709,19 @@ class TaskAnalyzer(object):
                 if not ret:
                     return -1
 
+            if maxRow and nrLine >= maxRow:
+                break
+
+            nrLine += 1
+
         if SysMgr.jsonEnable:
             return
 
         if not stats:
             SysMgr.addPrint("\tNone\n")
 
-        SysMgr.addPrint("%s\n" % oneLine)
+        if alone:
+            SysMgr.addPrint("%s\n" % oneLine)
 
     def getReorderedList(self, sortedProcData):
         newProcData = []
@@ -122694,21 +122813,17 @@ class TaskAnalyzer(object):
                 dinfo.update({"dev": dev})
 
                 try:
-                    # all devices #
-                    self.checkThreshold(
-                        "gpu",
-                        "total",
-                        "GPU",
-                        "big",
-                        target,
-                        "DEVICE",
-                        addval=dinfo,
-                    )
-
-                    # a specific device #
-                    self.checkThreshold(
-                        "gpu", "total", "GPU", "big", target, dev, addval=dinfo
-                    )
+                    for one in ("DEVICE", dev):
+                        # all devices and sepcific device #
+                        self.checkThreshold(
+                            "gpu",
+                            "total",
+                            "GPU",
+                            "big",
+                            target,
+                            one,
+                            addval=dinfo,
+                        )
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -122720,6 +122835,7 @@ class TaskAnalyzer(object):
 
         # check memory #
         try:
+            # check activation #
             if not "mem" in SysMgr.thresholdTarget:
                 raise Exception()
 
@@ -122781,52 +122897,61 @@ class TaskAnalyzer(object):
             if not "storage" in SysMgr.thresholdTarget:
                 raise Exception()
 
-            # total #
-            vals = self.reportData["storage"]["total"]
-            target = self.reportData["storage"]["total"]["usagePer"]
-            self.checkThreshold(
-                "storage", "usagePer", "STORAGE", "big", target, addval=vals
+            items = (
+                ("usagePer", "big"),
+                ("free", "less"),
+                ("favail", "less"),
+                ("readtime", "big"),
+                ("writetime", "big"),
             )
 
-            # each devices #
-            for dev, vals in self.reportData["storage"].items():
-                if dev == "total":
-                    continue
+            for item, op in items:
+                # total #
+                vals = self.reportData["storage"]["total"]
+                target = self.reportData["storage"]["total"][item]
 
-                # usage percent #
-                target = vals["usagePer"]
-                vals.update({"dev": dev})
+                # get total interval #
+                intval = _getIntval("total:" + item)
 
-                intval = _getIntval(dev)
+                self.checkThreshold(
+                    "storage",
+                    item,
+                    "STORAGE",
+                    op,
+                    target,
+                    intval=intval,
+                    addval=vals,
+                )
 
-                try:
-                    # all devices #
-                    self.checkThreshold(
-                        "storage",
-                        "usagePer",
-                        "STORAGE",
-                        "big",
-                        target,
-                        "DEVICE",
-                        intval=intval,
-                        addval=vals,
-                    )
+                # each devices #
+                for dev, vals in self.reportData["storage"].items():
+                    if dev == "total":
+                        continue
 
-                    # a specific device #
-                    self.checkThreshold(
-                        "storage",
-                        "usagePer",
-                        "STORAGE",
-                        "big",
-                        target,
-                        dev,
-                        intval=intval,
-                        addval=vals,
-                    )
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    continue
+                    # usage percent #
+                    target = vals[item]
+                    vals.update({"dev": dev})
+
+                    # get dev interval #
+                    intval = _getIntval(dev + ":" + item)
+
+                    try:
+                        for one in ("DEVICE", dev):
+                            # all devices and specific device #
+                            self.checkThreshold(
+                                "storage",
+                                item,
+                                "STORAGE",
+                                op,
+                                target,
+                                one,
+                                intval=intval,
+                                addval=vals,
+                            )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        continue
         except SystemExit:
             sys.exit(0)
         except:
@@ -124556,9 +124681,9 @@ class TaskAnalyzer(object):
             self.printNetworkUsage()
 
         # print stats #
-        for item in targetList:
+        for item in sorted(targetList):
             if "cgroup" == item:
-                self.printCgroupUsage()
+                self.printCgroupUsage(alone=len(targetList) == 1)
             elif "task" == item:
                 self.printTaskUsage(idIndex=idIndex)
             else:
