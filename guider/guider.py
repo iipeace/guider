@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230130"
+__revision__ = "230131"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28221,6 +28221,24 @@ Commands:
 
             return maxVal
 
+        def _checkAttr(item, attr, lev=0):
+            if type(item) is dict and attr in item:
+                return True
+
+            # check type #
+            if type(item) is list:
+                for value in item:
+                    if _checkAttr(value, attr, lev + 1):
+                        return True
+            elif type(item) is dict:
+                for key, value in item.items():
+                    if lev == 0 and key == "SYSTEM":
+                        continue
+                    if _checkAttr(value, attr, lev + 1):
+                        return True
+
+            return False
+
         def _checkResTask(item, lev=0):
             if (
                 type(item) is dict
@@ -28312,7 +28330,16 @@ Commands:
                 if res.upper() == "COMMAND":
                     continue
                 # no support resources for task monitoring #
-                elif res in ("storage", "net", "log", "func"):
+                elif res in (
+                    "storage",
+                    "net",
+                    "load",
+                    "file",
+                    "log",
+                    "func",
+                    "psi",
+                    "cgroup",
+                ):
                     continue
 
                 if _checkValues(cond, None):
@@ -28412,6 +28439,7 @@ Commands:
             "sock",
             "task",
             "psi",
+            "cgroup",
         ]
 
         # check resources for activation #
@@ -28467,6 +28495,25 @@ Commands:
         # check func #
         if "func" in SysMgr.thresholdData:
             SysMgr.initFuncWatcher(SysMgr.thresholdData["func"])
+
+        # check cgroup #
+        if "cgroup" in SysMgr.thresholdTarget:
+            enableList = []
+            for item in ("cpu", "throttle", "memory", "read", "write"):
+                if _checkAttr(confData["cgroup"], item):
+                    if item in ("read", "write"):
+                        enableList.append("blkio")
+                    elif item == "cpu":
+                        enableList += ["cpu", "cpuacct"]
+                    else:
+                        enableList.append(item)
+            if enableList:
+                enableStr = "+".join(list(set(enableList)))
+                SysMgr.addEnvironVar("PRINTCG", enableStr)
+
+                # remove save limitation by sort #
+                if not enableStr == "cpu":
+                    SysMgr.sort = False
 
         # check task monitoring condition #
         try:
@@ -96121,6 +96168,11 @@ class TaskAnalyzer(object):
                 targetGroup = ["cpu", "cpuacct"]
             else:
                 targetGroup = UtilMgr.cleanItem(targetGroup.split("+"))
+                targetGroup = list(set(targetGroup))
+
+            # remove sort option #
+            if not SysMgr.sort and not "cpu" in targetGroup:
+                SysMgr.sort = False
 
             targetList = ["task", "cgroup"]
 
@@ -96965,7 +97017,7 @@ class TaskAnalyzer(object):
                     networkUsage[sname]["tran"] = tranList
                     intervalList = None
 
-            # Meory Details #
+            # Meory #
             elif context == "Memory":
                 if slen != 13:
                     continue
@@ -96992,12 +97044,23 @@ class TaskAnalyzer(object):
                     except:
                         pass
 
-            # Cgroup.cpu Details #
-            elif context in ("Cgroup.CPU", "Cgroup.Throttle"):
+            # Cgroup.cpu #
+            elif context in (
+                "Cgroup.CPU",
+                "Cgroup.Throttle",
+                "Cgroup.Mem",
+                "Cgroup.Blk",
+            ):
                 if context == "Cgroup.CPU":
                     targetDict = cpuProcUsage
-                else:
+                elif context == "Cgroup.Throttle":
                     targetDict = cpuProcDelay
+                elif context == "Cgroup.Mem":
+                    targetDict = memProcUsage
+                else:
+                    targetDict = blkProcUsage
+                    # TODO: implement blkio parser #
+                    continue
 
                 pid = 0
 
@@ -97027,25 +97090,45 @@ class TaskAnalyzer(object):
 
                     # get lifecycle info #
                     intervalList = intervalList.split()
-                    cpuList = list(map(float, intervalList))
-                    cpuList = list(map(long, cpuList))
-                    intervalList = list(map(str, cpuList))
-                    intervalList = " ".join(intervalList)
 
-                    targetDict[pname]["usage"] = intervalList
+                    if context in ("Cgroup.CPU", "Cgroup.Throttle"):
+                        rlist = list(map(float, intervalList))
+                        rlist = list(map(long, rlist))
+
+                        statNames = {
+                            "min": "minimum",
+                            "avg": "average",
+                            "max": "maximum",
+                            "usage": "usage",
+                        }
+                    elif context == "Cgroup.Mem":
+                        rlist = list(map(UtilMgr.convUnit2Size, intervalList))
+                        rlist = list(map(lambda v: long(v) >> 20, rlist))
+
+                        statNames = {
+                            "min": "minRss",
+                            "avg": "avgRss",
+                            "max": "maxRss",
+                            "usage": "rssUsage",
+                        }
+                    else:
+                        pass
+
+                    intervalList = list(map(str, rlist))
+                    intervalList = " ".join(intervalList)
+                    targetDict[pname][statNames["usage"]] = intervalList
                     intervalList = None
 
                     # update statistics #
-                    if not cpuList:
-                        targetDict[pname]["minimum"] = 0
-                        targetDict[pname]["average"] = 0
-                        targetDict[pname]["maximum"] = 0
+                    tdict = targetDict[pname]
+                    if not rlist:
+                        tdict[statNames["min"]] = 0
+                        tdict[statNames["avg"]] = 0
+                        tdict[statNames["max"]] = 0
                     else:
-                        targetDict[pname]["minimum"] = min(cpuList)
-                        targetDict[pname]["average"] = sum(cpuList) / len(
-                            cpuList
-                        )
-                        targetDict[pname]["maximum"] = max(cpuList)
+                        tdict[statNames["min"]] = min(rlist)
+                        tdict[statNames["avg"]] = sum(rlist) / len(rlist)
+                        tdict[statNames["max"]] = max(rlist)
 
             # Event #
             elif context == "Event":
@@ -106900,21 +106983,54 @@ class TaskAnalyzer(object):
             except:
                 return
 
-            # CPU & Throttle #
-            for target in ("cgroup.cpu", "cgroup.throttle"):
+            # cpu, throttle, memory, read, write #
+            for target in (
+                "cgroup.cpu",
+                "cgroup.throttle",
+                "cgroup.mem",
+                "cgroup.read",
+                "cgroup.write",
+            ):
+                # set usage #
                 try:
                     if target == "cgroup.cpu":
-                        usage = float(cpu)
+                        if cpu == "-":
+                            usage = 0
+                        else:
+                            usage = float(cpu)
+                    elif target in (
+                        "cgroup.mem",
+                        "cgroup.read",
+                        "cgroup.write",
+                    ):
+                        if target == "cgroup.mem":
+                            res = mem
+                        elif target == "cgroup.read":
+                            res = read
+                        else:
+                            res = write
+
+                        if res == "-":
+                            usage = 0
+                        else:
+                            usage = UtilMgr.convUnit2Size(res)
                     else:
-                        usage = long(thr)
+                        if thr == "-":
+                            usage = 0
+                        else:
+                            usage = long(thr)
                 except:
                     return
 
                 TA.procTotData["total"].setdefault(target, {})
                 totalData = TA.procTotData["total"][target]
 
+                # set stats #
                 try:
-                    totalData[system]["usage"] += usage
+                    if system == "memory":
+                        totalData[system]["usage"] = usage
+                    else:
+                        totalData[system]["usage"] += usage
 
                     if totalData[system]["min"] > usage:
                         totalData[system]["min"] = usage
@@ -106931,36 +107047,6 @@ class TaskAnalyzer(object):
                     procIndexData["total"][target][system] = usage
                 except:
                     pass
-
-            # Memory #
-            target = "cgroup.mem"
-
-            try:
-                usage = UtilMgr.convUnit2Size(mem)
-            except:
-                return
-
-            TA.procTotData["total"].setdefault(target, {})
-            totalData = TA.procTotData["total"][target]
-
-            try:
-                totalData[system]["usage"] = usage
-
-                if totalData[system]["min"] > usage:
-                    totalData[system]["min"] = usage
-                elif totalData[system]["max"] < usage:
-                    totalData[system]["max"] = usage
-            except:
-                totalData[system] = {}
-                totalData[system]["usage"] = usage
-                totalData[system]["min"] = usage
-                totalData[system]["max"] = usage
-
-            try:
-                procIndexData["total"].setdefault(target, {})
-                procIndexData["total"][target][system] = usage
-            except:
-                pass
 
             return
 
@@ -108129,17 +108215,14 @@ class TaskAnalyzer(object):
                     lineLen = len(procInfo)
 
                 if pid in TA.procIntData[idx]:
-                    target = TA.procIntData[idx][pid]
+                    res = TA.procIntData[idx][pid]
                     if SysMgr.blockEnable:
-                        if target["blkrd"] or target["blkwr"]:
-                            usage = "%s/%s" % (
-                                target["blkrd"],
-                                target["blkwr"],
-                            )
+                        if res["blkrd"] or res["blkwr"]:
+                            usage = "%s/%s" % (res["blkrd"], res["blkwr"])
                         else:
                             usage = 0
                     else:
-                        usage = target["blk"]
+                        usage = res["blk"]
                 else:
                     usage = 0
 
@@ -108366,6 +108449,7 @@ class TaskAnalyzer(object):
             return
 
         # Print CPU usage #
+        nrPrint = 0
         for group, val in sorted(
             TA.procTotData["total"][name].items(),
             key=lambda e: e[1]["usage"],
@@ -108374,6 +108458,9 @@ class TaskAnalyzer(object):
             total = long(val["usage"])
             minval = long(val["min"])
             maxval = long(val["max"])
+
+            if total == 0:
+                continue
 
             try:
                 avg = total / len(TaskAnalyzer.procIntData)
@@ -108404,6 +108491,11 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(
                 ("{0:1} {1:1}\n{2:1}\n").format(cgroupInfo, timeLine, oneLine)
             )
+
+            nrPrint += 1
+
+        if nrPrint == 0:
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
 
     @staticmethod
     def printFileInterval():
@@ -108541,6 +108633,84 @@ class TaskAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
     @staticmethod
+    def printCgBlkInterval():
+        # check skip flag #
+        if "NOCGBLKSUMMARY" in SysMgr.environList:
+            return
+
+        TA = TaskAnalyzer
+
+        convSize2Unit = UtilMgr.convSize2Unit
+
+        SysMgr.printPipe(
+            "\n[Top Cgroup.Blk Info] (Unit: Byte)\n%s\n" % twoLine
+        )
+
+        # Print menu #
+        blkInfo = "{0:<48} | {1:^15} |".format("Cgroup", "Read/Write")
+        blkInfoLen = len(blkInfo)
+        margin = 12
+
+        # Print timeline #
+        TA.printTimelineInterval(margin, blkInfoLen, blkInfo, 1)
+
+        totalData = TA.procTotData["total"]
+
+        # Check blkio data #
+        if "cgroup.read" not in totalData:
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
+            return
+
+        # Print blkio usage #
+        nrPrint = 0
+        for group, val in sorted(
+            totalData["cgroup.read"].items(),
+            key=lambda e: e[1]["max"],
+            reverse=True,
+        ):
+            rdTotal = val["usage"]
+            wrTotal = totalData["cgroup.write"][group]["usage"]
+            if rdTotal == wrTotal == 0:
+                continue
+
+            rdTotal = convSize2Unit(rdTotal)
+            wrTotal = convSize2Unit(wrTotal)
+
+            usagestr = "%s/%s" % (rdTotal, wrTotal)
+
+            cgroupInfo = "{0:<48} | {1:^15} |".format(group, usagestr)
+            cgroupInfoLen = len(cgroupInfo)
+            maxLineLen = SysMgr.lineLength
+
+            timeLine = ""
+            lineLen = len(cgroupInfo)
+            for idx in xrange(len(TA.procIntData)):
+                if lineLen + margin > maxLineLen:
+                    timeLine += "\n" + (" " * (cgroupInfoLen - 1)) + "| "
+                    lineLen = len(cgroupInfo)
+
+                try:
+                    rd = TA.procIntData[idx]["total"]["cgroup.read"][group]
+                    rd = convSize2Unit(rd)
+                    wr = TA.procIntData[idx]["total"]["cgroup.write"][group]
+                    wr = convSize2Unit(wr)
+                    usage = "%s/%s" % (rd, wr)
+                except:
+                    usage = "0/0"
+
+                timeLine += "{0:>13} ".format(usage)
+                lineLen += margin + 2
+
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n{2:1}\n").format(cgroupInfo, timeLine, oneLine)
+            )
+
+            nrPrint += 1
+
+        if nrPrint == 0:
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
+
+    @staticmethod
     def printCgMemInterval():
         # check skip flag #
         if "NOCGMEMSUMMARY" in SysMgr.environList:
@@ -108568,11 +108738,15 @@ class TaskAnalyzer(object):
             return
 
         # Print Memory usage #
+        nrPrint = 0
         for group, val in sorted(
             TA.procTotData["total"]["cgroup.mem"].items(),
             key=lambda e: e[1]["max"],
             reverse=True,
         ):
+            if val["max"] == 0:
+                continue
+
             minval = convSize2Unit(val["min"])
             maxval = convSize2Unit(val["max"])
 
@@ -108601,6 +108775,11 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(
                 ("{0:1} {1:1}\n{2:1}\n").format(cgroupInfo, timeLine, oneLine)
             )
+
+            nrPrint += 1
+
+        if nrPrint == 0:
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
 
     @staticmethod
     def printIntervalUsage(onlyTotal=False, onlySummary=False, current=True):
@@ -108654,6 +108833,7 @@ class TaskAnalyzer(object):
                 TaskAnalyzer.printCgCpuInterval()
                 TaskAnalyzer.printCgCpuInterval("Throttle")
                 TaskAnalyzer.printCgMemInterval()
+                TaskAnalyzer.printCgBlkInterval()
                 TaskAnalyzer.printLifeHistory()
                 TaskAnalyzer.printFileInterval()
 
@@ -114362,8 +114542,13 @@ class TaskAnalyzer(object):
 
                         # read stat #
                         fd = SysMgr.getFd(subfile, "r")
-                        fd.seek(0)
-                        stat = fd.read()
+                        try:
+                            fd.seek(0)
+                            stat = fd.read()
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            continue
 
                         # save stat #
                         root[sub].setdefault(dpath, {})
@@ -119551,7 +119736,12 @@ class TaskAnalyzer(object):
                         continue
 
                     else:
-                        stat = long(value.rstrip())
+                        try:
+                            stat = long(value.rstrip())
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            stat = 0
 
                     # save stat #
                     stats[group].setdefault(name, stat)
@@ -119572,11 +119762,15 @@ class TaskAnalyzer(object):
         # calculate resource usage of cgroup #
         stats = self.getCgroupUsage()
 
+        # check report status #
+        isReport = SysMgr.reportEnable or SysMgr.jsonEnable
+
         # add JSON stats #
-        if SysMgr.jsonEnable:
+        if isReport:
             SysMgr.jsonData.setdefault("cgroup", {})
             jsonData = SysMgr.jsonData["cgroup"]
-        else:
+
+        if not SysMgr.jsonEnable:
             # print menu #
             ret = SysMgr.addPrint(
                 (
@@ -119599,18 +119793,20 @@ class TaskAnalyzer(object):
 
         # set sort value #
         if SysMgr.sort == "m":
-            item = "memory.usage_in_bytes"
+            sortCond = "memory.usage_in_bytes"
+        elif SysMgr.sort is False:
+            sortCond = None
         else:
-            item = "cpuacct.usage"
+            sortCond = "cpuacct.usage"
 
         # get max row value #
         maxRow = UtilMgr.getEnvironNum("MAXCGROWS", False, 0, False, True)
 
         # iterate stats #
         nrLine = 0
-        for system, value in sorted(
+        for grp, value in sorted(
             stats.items(),
-            key=lambda e: e[1][item] if item in e[1] else 0,
+            key=lambda e: e[1][sortCond] if sortCond in e[1] else 0,
             reverse=True,
         ):
 
@@ -119631,79 +119827,86 @@ class TaskAnalyzer(object):
             # CPU Usage #
             try:
                 usage = value["cpuacct.usage"]
-                if not usage and item == "cpuacct.usage":
+                if not usage and sortCond == "cpuacct.usage":
                     break
 
-                usage = usage / 10000000
+                reportCpu = usage = usage / 10000000
                 cpu = "%6.1f" % usage
 
                 # convert color for CPU usage #
-                if usage < SysMgr.cpuPerLowThreshold:
-                    pass
-                elif SysMgr.jsonEnable:
-                    pass
-                else:
+                if not isReport and usage >= SysMgr.cpuPerLowThreshold:
                     cpu = UtilMgr.convCpuColor(usage, cpu)
             except SystemExit:
                 sys.exit(0)
             except:
-                if item == "cpuacct.usage":
+                if sortCond == "cpuacct.usage":
                     break
-                cpu = "-"
+                reportCpu = cpu = "-"
 
             # CPU Throttle #
             try:
-                throttle = long(value["cpu.stat"] / 10000000)
-                if SysMgr.jsonEnable or not throttle in ("-", 0):
+                reportThrottle = throttle = long(value["cpu.stat"] / 10000000)
+                if not isReport or not throttle in ("-", 0):
                     throttle = UtilMgr.convColor(throttle, "RED", 3, "right")
             except SystemExit:
                 sys.exit(0)
             except:
-                throttle = "-"
+                reportThrottle = throttle = "-"
 
             # Memory #
             try:
                 mem = value["memory.usage_in_bytes"]
+                reportMem = mem >> 20
+
                 if SysMgr.jsonEnable:
-                    mem = mem >> 20
+                    mem = reportMem
                 else:
                     mem = UtilMgr.convSize2Unit(mem)
             except SystemExit:
                 sys.exit(0)
             except:
-                mem = "-"
+                reportMem = mem = "-"
 
             # I/O #
             try:
-                rd, wr = list(
-                    map(
-                        UtilMgr.convSize2Unit,
-                        value["blkio.throttle.io_service_bytes_recursive"],
-                    )
-                )
+                item = "blkio.throttle.io_service_bytes_recursive"
+                rd, wr = value[item]
+                reportRd = rd = rd >> 20
+                reportWr = wr = wr >> 20
+
+                if not SysMgr.jsonEnable:
+                    rd, wr = list(map(UtilMgr.convSize2Unit, value[item]))
             except SystemExit:
                 sys.exit(0)
             except:
-                rd = wr = "-"
+                reportRd = rd = reportWr = wr = "-"
 
-            if SysMgr.jsonEnable:
-                jsonData[system] = {
+            # save report data #
+            if isReport:
+                jsonData[grp] = {
                     "nrProc": proc,
                     "nrTask": task,
-                    "cpu": cpu,
-                    "throttle": throttle,
-                    "mem": mem,
-                    "read": rd,
-                    "write": wr,
+                    "cpu": reportCpu,
+                    "throttle": reportThrottle,
+                    "memory": reportMem,
+                    "read": reportRd,
+                    "write": reportWr,
                 }
-            else:
-                # print stats of a process #
+
+                # add intervals #
+                for res, stat in jsonData[grp].items():
+                    if res.startswith("nr"):
+                        continue
+                    self.addSysInterval("cgroup", "%s:%s" % (grp, res), stat)
+
+            # print stats of a process #
+            if not SysMgr.jsonEnable:
                 ret = SysMgr.addPrint(
                     (
                         "{0:<108}|{1:>4}|{2:>4}|"
                         "{3:>6}|{4:>3}|{5:>7}|{6:>7}|{7:>7}|\n"
                     ).format(
-                        system[-108:], proc, task, cpu, throttle, mem, rd, wr
+                        grp[-108:], proc, task, cpu, throttle, mem, rd, wr
                     )
                 )
                 if not ret:
@@ -119713,6 +119916,10 @@ class TaskAnalyzer(object):
                 break
 
             nrLine += 1
+
+        # save report data #
+        if isReport:
+            self.reportData["cgroup"] = jsonData
 
         if SysMgr.jsonEnable:
             return
@@ -121641,7 +121848,7 @@ class TaskAnalyzer(object):
                 user = "-"
 
             # print thread information #
-            SysMgr.addPrint(
+            ret = SysMgr.addPrint(
                 (
                     "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
                     "{5:>4}({6:>3}/{7:>3}/{8:>3})|"
@@ -121676,10 +121883,15 @@ class TaskAnalyzer(object):
                     pd=pd,
                 )
             )
+            if not ret:
+                return False
+
             procCnt += 1
 
         if procCnt > 0:
-            SysMgr.addPrint("%s\n" % oneLine)
+            ret = SysMgr.addPrint("%s\n" % oneLine)
+            if not ret:
+                return False
 
         return True
 
@@ -123128,6 +123340,41 @@ class TaskAnalyzer(object):
                         self.checkThreshold(
                             "psi", name, "psi", "big", target=target, attr=res
                         )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check cgroup #
+        try:
+            if not "cgroup" in SysMgr.thresholdTarget:
+                raise Exception()
+
+            def _check(attr, name, stat):
+                # skip number info for tasks #
+                if name.startswith("nr"):
+                    return
+
+                item = "%s:%s" % (attr, name)
+                intval = _getIntval(item)
+                intval = list(map(lambda x: 0 if x == "-" else x, intval))
+                self.checkThreshold(
+                    "cgroup",
+                    name,
+                    "CGROUP",
+                    "big",
+                    target=stat,
+                    attr=attr,
+                    intval=intval,
+                )
+
+            for attr, val in self.reportData["cgroup"].items():
+                if type(val) is not list:
+                    val = [val]
+
+                for val in val:
+                    for name, stat in val.items():
+                        _check(attr, name, stat)
         except SystemExit:
             sys.exit(0)
         except:
