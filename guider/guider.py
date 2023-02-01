@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230131"
+__revision__ = "230201"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35855,7 +35855,15 @@ Examples:
         # {0:1} {1:1} readahead.list -q RAMAX:1048576
         # {0:1} {1:1} readahead.list -q RAALLOWLIST:allow.list
         # {0:1} {1:1} readahead.list -q RADENYLIST:deny.list
+        # {0:1} {1:1} readahead.list -q RADENYITEM:"/run/*|/tmp/*"
         # {0:1} {1:1} readahead.list -q RAADDLIST:add.list
+        # {0:1} {1:1} readahead.list -q RAADDITEM:"/usr/lib/*|/etc/*"
+
+    - Initiate file readahead into page cache and wait for signals
+        # {0:1} {1:1} -q WAIT
+
+    - Check readahead results
+        # dmesg | grep guider
                     """.format(
                         cmd, mode
                     )
@@ -45863,7 +45871,7 @@ Copyright:
         elif SysMgr.checkMode("readahead"):
             # get list path #
             if SysMgr.hasMainArg():
-                path = SysMgr.getMainArg(path=True)
+                path = SysMgr.getMainArg()
             elif SysMgr.inputParam:
                 path = SysMgr.inputParam
             else:
@@ -47523,10 +47531,21 @@ Copyright:
                     True,
                 )
 
+        # add readahead files #
+        if "RAADDITEM" in SysMgr.environList:
+            for cond in SysMgr.environList["RAADDITEM"][0].split("|"):
+                res = UtilMgr.convPath(cond)
+                if res:
+                    raAddList += res
+
+        # add readahead deny files #
+        if "RADENYITEM" in SysMgr.environList:
+            raDenyList += SysMgr.environList["RADENYITEM"][0].split("|")
+
         # get absolute path #
         path = os.path.realpath(path)
         SysMgr.printInfo("start readahead from '%s'" % path)
-        startTime = time.time()
+        startTime = SysMgr.getUptime()
 
         # open list #
         try:
@@ -47661,7 +47680,7 @@ Copyright:
                 )
 
         # get elapsed time #
-        elapsed = time.time() - startTime
+        elapsed = SysMgr.getUptime() - startTime
 
         # get CPU usage #
         try:
@@ -47682,6 +47701,10 @@ Copyright:
         )
         SysMgr.printInfo(logStr)
         LogMgr.doLogKmsg(logStr)
+
+        # check wait option #
+        if "WAIT" in SysMgr.environList:
+            SysMgr.waitEvent(False, True)
 
     @staticmethod
     def getBgProcList(checkCmdline=False, isJson=False):
@@ -63823,6 +63846,14 @@ Copyright:
                 except:
                     continue
 
+                # check previous mount #
+                if rpath in self.mountInfo:
+                    SysMgr.printWarn(
+                        "'%s' is already mounted on '%s' but remounted on '%s'"
+                        % (rpath, self.mountInfo[rpath]["path"], path)
+                    )
+                    continue
+
                 # save mount info #
                 self.mountInfo[rpath] = {
                     "major": major,
@@ -66234,6 +66265,7 @@ Copyright:
         outputCnt = 0
         devInfo = {}
         totalInfo = {"total": 0, "free": 0, "favail": 0, "read": 0, "write": 0}
+        convSize = UtilMgr.convSize2Unit
 
         # create block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
@@ -66279,14 +66311,14 @@ Copyright:
                     long(afterInfo["sectorRead"])
                     - long(beforeInfo["sectorRead"])
                 ) << 9
-                readSize = UtilMgr.convSize2Unit(readSize)
+                readSize = convSize(readSize)
 
                 # write #
                 write = writeSize = (
                     long(afterInfo["sectorWrite"])
                     - long(beforeInfo["sectorWrite"])
                 ) << 9
-                writeSize = UtilMgr.convSize2Unit(writeSize)
+                writeSize = convSize(writeSize)
 
                 if val["fs"] != "tmpfs" and val["fs"] != "-":
                     totalInfo["read"] += read
@@ -66326,9 +66358,9 @@ Copyright:
                 except:
                     pass
 
-                total = UtilMgr.convSize2Unit(total)
-                free = UtilMgr.convSize2Unit(free)
-                avail = UtilMgr.convSize2Unit(avail)
+                total = convSize(total)
+                free = convSize(free)
+                avail = convSize(avail)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -66447,13 +66479,11 @@ Copyright:
                 except:
                     usage = 0
 
-                totalInfo["total"] = UtilMgr.convSize2Unit(totalInfo["total"])
-                totalInfo["free"] = UtilMgr.convSize2Unit(totalInfo["free"])
-                totalInfo["favail"] = UtilMgr.convSize2Unit(
-                    totalInfo["favail"]
-                )
-                totalInfo["read"] = UtilMgr.convSize2Unit(totalInfo["read"])
-                totalInfo["write"] = UtilMgr.convSize2Unit(totalInfo["write"])
+                totalInfo["total"] = convSize(totalInfo["total"])
+                totalInfo["free"] = convSize(totalInfo["free"])
+                totalInfo["favail"] = convSize(totalInfo["favail"])
+                totalInfo["read"] = convSize(totalInfo["read"])
+                totalInfo["write"] = convSize(totalInfo["write"])
                 totalInfo["use"] = "%d%%" % usage
             except SystemExit:
                 sys.exit(0)
@@ -97059,8 +97089,6 @@ class TaskAnalyzer(object):
                     targetDict = memProcUsage
                 else:
                     targetDict = blkProcUsage
-                    # TODO: implement blkio parser #
-                    continue
 
                 pid = 0
 
@@ -97091,18 +97119,25 @@ class TaskAnalyzer(object):
                     # get lifecycle info #
                     intervalList = intervalList.split()
 
+                    statNames = {
+                        "min": "minimum",
+                        "avg": "average",
+                        "max": "maximum",
+                        "usage": "usage",
+                    }
+
                     if context in ("Cgroup.CPU", "Cgroup.Throttle"):
                         rlist = list(map(float, intervalList))
                         rlist = list(map(long, rlist))
-
-                        statNames = {
-                            "min": "minimum",
-                            "avg": "average",
-                            "max": "maximum",
-                            "usage": "usage",
-                        }
+                    elif context == "Cgroup.Blk":
+                        for idx in range(len(intervalList)):
+                            rd, wr = intervalList[idx].split("/")
+                            rd = convSize(rd) >> 20
+                            wr = convSize(wr) >> 20
+                            intervalList[idx] = "%s/%s" % (rd, wr)
+                        rlist = intervalList
                     elif context == "Cgroup.Mem":
-                        rlist = list(map(UtilMgr.convUnit2Size, intervalList))
+                        rlist = list(map(convSize, intervalList))
                         rlist = list(map(lambda v: long(v) >> 20, rlist))
 
                         statNames = {
@@ -97111,13 +97146,14 @@ class TaskAnalyzer(object):
                             "max": "maxRss",
                             "usage": "rssUsage",
                         }
-                    else:
-                        pass
 
                     intervalList = list(map(str, rlist))
                     intervalList = " ".join(intervalList)
                     targetDict[pname][statNames["usage"]] = intervalList
                     intervalList = None
+
+                    if context == "Cgroup.Blk":
+                        continue
 
                     # update statistics #
                     tdict = targetDict[pname]
@@ -108649,7 +108685,7 @@ class TaskAnalyzer(object):
         # Print menu #
         blkInfo = "{0:<48} | {1:^15} |".format("Cgroup", "Read/Write")
         blkInfoLen = len(blkInfo)
-        margin = 12
+        margin = 14
 
         # Print timeline #
         TA.printTimelineInterval(margin, blkInfoLen, blkInfo, 1)
@@ -108675,7 +108711,6 @@ class TaskAnalyzer(object):
 
             rdTotal = convSize2Unit(rdTotal)
             wrTotal = convSize2Unit(wrTotal)
-
             usagestr = "%s/%s" % (rdTotal, wrTotal)
 
             cgroupInfo = "{0:<48} | {1:^15} |".format(group, usagestr)
@@ -108698,7 +108733,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = "0/0"
 
-                timeLine += "{0:>13} ".format(usage)
+                timeLine += "{0:>15} ".format(usage)
                 lineLen += margin + 2
 
             SysMgr.printPipe(
@@ -108727,7 +108762,7 @@ class TaskAnalyzer(object):
         # Print menu #
         memInfo = "{0:<48} | {1:^15} |".format("Cgroup", "Min/Max")
         memInfoLen = len(memInfo)
-        margin = 5
+        margin = 6
 
         # Print timeline #
         TA.printTimelineInterval(margin, memInfoLen, memInfo, 1)
@@ -108749,7 +108784,6 @@ class TaskAnalyzer(object):
 
             minval = convSize2Unit(val["min"])
             maxval = convSize2Unit(val["max"])
-
             usagestr = "%s/%s" % (minval, maxval)
 
             cgroupInfo = "{0:<48} | {1:^15} |".format(group, usagestr)
@@ -108769,7 +108803,7 @@ class TaskAnalyzer(object):
                 except:
                     usage = 0
 
-                timeLine += "{0:>6} ".format(usage)
+                timeLine += "{0:>7} ".format(usage)
                 lineLen += margin + 2
 
             SysMgr.printPipe(
@@ -116492,8 +116526,14 @@ class TaskAnalyzer(object):
 
         # fault #
         try:
-            nrMajFault = vmData["pgmajfault"] - self.prevVmData["pgmajfault"]
-            nrTotalFault = vmData["pgfault"] - self.prevVmData["pgfault"]
+            if SysMgr.totalEnable:
+                nrMajFault = vmData["pgmajfault"]
+                nrTotalFault = vmData["pgfault"]
+            else:
+                nrMajFault = (
+                    vmData["pgmajfault"] - self.prevVmData["pgmajfault"]
+                )
+                nrTotalFault = vmData["pgfault"] - self.prevVmData["pgfault"]
             nrMinFault = nrTotalFault - nrMajFault
         except SystemExit:
             sys.exit(0)
@@ -116939,6 +116979,11 @@ class TaskAnalyzer(object):
         if pgInMemDiff > 0 or pgOutMemDiff > 0:
             pgIOMemDiffStr = convColor(pgIOMemDiffStr, "RED")
 
+        # convert color for majfault stat #
+        nrMajFaultStr = r"%5s " % nrMajFault
+        if nrMajFault > 0:
+            nrMajFaultStr = convColor(nrMajFaultStr, "RED", 7)
+
         # convert color for network stats #
         if not netIO in ("-/-", "0/0"):
             netIO = r"{0:^12}".format(netIO)
@@ -116968,7 +117013,7 @@ class TaskAnalyzer(object):
             swapOutMem,
             pgRclmStr,
             pgIOMemDiffStr,
-            "%5s" % nrMajFault,
+            "%5s" % nrMajFaultStr,
             nrBlocked,
             "%6s" % nrSoftIrq,
             "%5s" % pgMlock,
@@ -119827,7 +119872,11 @@ class TaskAnalyzer(object):
             # CPU Usage #
             try:
                 usage = value["cpuacct.usage"]
-                if not usage and sortCond == "cpuacct.usage":
+                if (
+                    not usage
+                    and not SysMgr.showAll
+                    and sortCond == "cpuacct.usage"
+                ):
                     break
 
                 reportCpu = usage = usage / 10000000
@@ -119839,14 +119888,14 @@ class TaskAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                if sortCond == "cpuacct.usage":
+                if not SysMgr.showAll and sortCond == "cpuacct.usage":
                     break
                 reportCpu = cpu = "-"
 
             # CPU Throttle #
             try:
                 reportThrottle = throttle = long(value["cpu.stat"] / 10000000)
-                if not isReport or not throttle in ("-", 0):
+                if not isReport and not throttle in ("-", 0):
                     throttle = UtilMgr.convColor(throttle, "RED", 3, "right")
             except SystemExit:
                 sys.exit(0)
@@ -120967,7 +121016,7 @@ class TaskAnalyzer(object):
                     totalTime = value["ttime"] * (100 / execPer)
                     dtime = long(totalTime - value["ttime"])
 
-                if dtime > 0:
+                if dtime:
                     dtime = convColor("%3s" % dtime, "RED")
             except SystemExit:
                 sys.exit(0)
@@ -120977,11 +121026,11 @@ class TaskAnalyzer(object):
             # I/O size #
             try:
                 readSize = value["read"] >> memFactorMB
-                if readSize > 0:
+                if readSize:
                     readSize = convColor("%4s" % readSize, "RED")
 
                 writeSize = value["write"] >> memFactorMB
-                if writeSize > 0:
+                if writeSize:
                     writeSize = convColor("%4s" % writeSize, "RED")
             except SystemExit:
                 sys.exit(0)
@@ -121173,7 +121222,7 @@ class TaskAnalyzer(object):
                     memstr = convColor(mems, "YELLOW", 4)
 
             # convert color for BTIME #
-            if float(btime) > 0:
+            if float(btime):
                 btimestr = convColor(btime, "RED", 4)
             else:
                 btimestr = btime
@@ -121460,12 +121509,12 @@ class TaskAnalyzer(object):
                 "execTime" in value or "waitTime" in value
             ):
                 execTime = float(long(value["execTime"] / 1000000000))
-                if value["runtime"] > 0:
+                if value["runtime"]:
                     execPer = execTime / value["runtime"] * 100
                 else:
                     execPer = 0
                 waitTime = float(long(value["waitTime"] / 1000000000))
-                if value["runtime"] > 0:
+                if value["runtime"]:
                     waitPer = waitTime / value["runtime"] * 100
                 else:
                     waitPer = 0
@@ -121514,28 +121563,28 @@ class TaskAnalyzer(object):
         # check stream flag #
         if self.taskStreamEnable:
             return
-        elif procCnt > 0:
+        elif procCnt:
             # total CPU #
             totalTime = "%6.1f" % totalStats["ttime"]
             totalTime = convCpuColor(totalStats["ttime"], totalTime)
 
             # total BLOCK #
             totalBtime = totalStats["btime"]
-            if totalStats["btime"] > 0:
+            if totalStats["btime"]:
                 totalBtime = convColor(totalBtime, "RED", 4)
 
             # total READ #
             readsize = totalStats["read"]
             if readsize != "-":
                 readsize = readsize >> memFactorMB
-                if readsize > 0:
+                if readsize:
                     readsize = convColor(readsize, "RED", 4)
 
             # total WRITE #
             writesize = totalStats["write"]
             if writesize != "-":
                 writesize = writesize >> memFactorMB
-                if writesize > 0:
+                if writesize:
                     writesize = convColor(writesize, "RED", 4)
 
             # total MEM #
@@ -121545,7 +121594,7 @@ class TaskAnalyzer(object):
             # total SWAP #
             tswap = totalStats["swap"]
             try:
-                if tswap > 0:
+                if tswap:
                     tswap = convSize(totalStats["swap"] << 20, True)
                     tswap = convColor(tswap, "YELLOW", 5)
             except SystemExit:
@@ -121888,7 +121937,7 @@ class TaskAnalyzer(object):
 
             procCnt += 1
 
-        if procCnt > 0:
+        if procCnt:
             ret = SysMgr.addPrint("%s\n" % oneLine)
             if not ret:
                 return False
