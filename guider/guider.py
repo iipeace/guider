@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230201"
+__revision__ = "230203"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22495,9 +22495,19 @@ class FileAnalyzer(object):
             )
         )
 
+        # set sort value #
+        if SysMgr.sort == "s":
+            sortOpt = "totalSize"
+        elif SysMgr.sort == "p":
+            for path in self.fileData:
+                self.fileData[path]["path"] = path
+            sortOpt = "path"
+        else:
+            sortOpt = "pageCnt"
+
         for fileName, val in sorted(
             self.fileData.items(),
-            key=lambda e: long(e[1]["pageCnt"]),
+            key=lambda e: e[1][sortOpt] if type(e[1][sortOpt]) is str else long(e[1][sortOpt]),
             reverse=True,
         ):
 
@@ -31735,6 +31745,9 @@ Examples:
     - {2:1} except for labels of timeline segments lesser than 100ms
         # {0:1} {1:1} {3:1} -q LABELMIN:100
 
+    - {2:1} without cgroup stats
+        # {0:1} {1:1} {4:1} -q NOCGCPU, NOCGTHROTTLE, NOCGMEM, NOCGBLK
+
     - {2:1} with label setting
         # {0:1} {1:1} {3:1} -q LABEL
         # {0:1} {1:1} {3:1} -q NOLABEL
@@ -31850,11 +31863,9 @@ Examples:
     - {2:1} with minimum fixed-size for timeline segments
         # {0:1} {1:1} timeline.json -q DURATIONMIN:500
 
-    - {2:1} with stroke only for specific interval bigger than 3000 for timeline segments
+    - {2:1} with stroke only for specific interval / duration bigger than 3000 for timeline segments
         # {0:1} {1:1} {3:1} -q STROKEINTERVAL:3000
-
-    - {2:1} with stroke only for specific duration bigger than 5000 for timeline segments
-        # {0:1} {1:1} {3:1} -q STROKEDURATION:5000
+        # {0:1} {1:1} {3:1} -q STROKEDURATION:3000
                 """.format(
                     cmd, mode, "Draw items", "guider.dat", "guider.out"
                 )
@@ -32613,6 +32624,8 @@ Options:
     -d  <CHARACTER>             disable options
           [ e:encode | g:general ]
     -s  <DIR|FILE>              save trace data
+    -S  <CHARACTER>             sort by key
+          [ s:size / p:path ]
     -u                          run in the background
     -W  <SEC>                   wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
@@ -51756,7 +51769,7 @@ Copyright:
                             power = "ONLINE"
                         else:
                             fd.write("0")
-                            power = "ONLINE"
+                            power = "OFFLINE"
 
                     SysMgr.printInfo(
                         "changed CPU(%s) status to %s" % (core, power)
@@ -96431,6 +96444,12 @@ class TaskAnalyzer(object):
         totalRam = None
         startTime = 0
 
+        # get cgroup flags #
+        nocgcpu = "NOCGCPU" in SysMgr.environList
+        nocgthrottle = "NOCGTHROTTLE" in SysMgr.environList
+        nocgmem = "NOCGMEM" in SysMgr.environList
+        nocgblk = "NOCGBLK" in SysMgr.environList
+
         convSize = UtilMgr.convUnit2Size
 
         curSize = 0
@@ -97082,12 +97101,20 @@ class TaskAnalyzer(object):
                 "Cgroup.Blk",
             ):
                 if context == "Cgroup.CPU":
+                    if nocgcpu:
+                        continue
                     targetDict = cpuProcUsage
                 elif context == "Cgroup.Throttle":
+                    if nocgthrottle:
+                        continue
                     targetDict = cpuProcDelay
                 elif context == "Cgroup.Mem":
+                    if nocgmem:
+                        continue
                     targetDict = memProcUsage
                 else:
+                    if nocgblk:
+                        continue
                     targetDict = blkProcUsage
 
                 pid = 0

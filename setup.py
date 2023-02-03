@@ -3,7 +3,7 @@ import site, os, sys, shutil
 
 setup(
     name = 'guider',
-    version = '3.9.896',
+    version = '3.9.897',
     license = 'GPL2',
     description = 'Unified performance analyzer',
     author = 'Peace Lee',
@@ -13,7 +13,7 @@ setup(
     packages = find_packages(exclude = ['tests*']),
     keywords = ['guider', 'linux', 'analyzer', 'performance', 'profile', 'trace', 'kernel'],
     scripts = ['guider/guider'],
-    data_files = [("guider", ["guider/guider.conf"])],
+    data_files = [("share/guider", ["guider/guider.conf"]), ('share/man/man1', ['guider.1'])],
     zip_safe=False,
     install_requires = ['psutil; platform_system!="Linux"'],
     classifiers = [
@@ -40,7 +40,7 @@ build & install command
     # python3 setup.py build
     # python3 setup.py install
 pypi upload command
-    # sudo python3 -m pip install twine wheel
+    # sudo python3 -m pip install twine==1.11 wheel
     # rm dist/* -rf
     # sudo python3 setup.py sdist bdist_wheel
     # python3 -m twine upload --repository pypi dist/*

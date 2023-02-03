@@ -20,45 +20,22 @@ Table of contents
 
 Guider
 =======
-Guider is an integrated performance analyzer.    
-It provides most of the features needed to measure, analyze, test and verify system performance.   
-It is made to work on all platforms from very old to modern.
 
-The features of Guider are as follows.
-* Monitoring
-* Profiling
-* Tracing
-* Visualization
-* Control
-* Logging
-* Networking
-* Test
-* Util
+Guider is a comprehensive performance analysis tool designed to meet all your system performance needs.
+With features like monitoring, profiling, tracing, visualization, control, logging, networking, testing, and utilities,
+Guider provides you with everything you need to measure, analyze, and verify your system's performance.
 
-Guider pursues characteristics as below.
-1. Easy to use: just run without any setting and installation
-2. Measure accurately: count, time in from us, size in from byte
-3. Provide all features: various functions for analysis and experiment
-4. Submit the report in detail: show as much information as possible
-5. Visualize through the browser: visualization output in svg format
+Some of the key features of Guider include:
+1. Accurate measurements: Guider provides measurements in units of count, time (in microseconds), and size (in bytes) for precise results.
+2. Comprehensive functionality: Guider offers a range of functions for analysis and experimentation.
+3. Detailed reports: Guider provides in-depth reports with as much information as possible.
+4. Browser-based visualization: Guider outputs visualizations in SVG format for easy viewing in a browser.
+5. Easy to use: Guider is designed to be simple and straightforward, with no need for installation or setup.
 
-Guider supports almost all platforms based on the Linux kernel,
-Some other operating systems are limited.
-* distro (Ubuntu, CentOS, RHEL, MX, Mint, Arch, Manjaro, ...)
-* Android
-* ccOS (Connected Car Operating System)
-* webOS
-* Tizen
-* GENIVI Development Platform (GDP)
-* Automotive Grade Linux (AGL) Platform
-* Windows [Limited]
-* MacOS [Limited]
-
-Guider supports the following architectures.
-* x86
-* x64
-* ARM
-* AArch64
+Guider supports a wide range of platforms based on the Linux kernel,
+including distros like Ubuntu, CentOS, and RHEL, as well as Android, ccOS, webOS, Tizen, and AGL.
+Limited support is also available for Windows and MacOS.
+In terms of architecture, Guider can work on x86, x64, ARM, AArch64.
 
 Output
 =======
@@ -1243,22 +1220,22 @@ How to use
 =======
 
 ```
-Enter the following command to see all commands supported by the guider:
+To view a list of all commands supported by Guider, enter one of the following commands:
     $ python3 guider/guider.py --help
     $ python3 -m guider --help
     $ guider --help
 
-Enter the following command to start tracing for all threads:
+To start tracing for all threads, use the following command:
     # python3 guider/guider.py rec -a
 
-Enter the following command to start monitoring for all processes:
+To start tracing for all threads, use the following command:
     $ python3 guider/guider.py top -a
 
-Enter the command in the format shown bellow to see options and examples for each command:
+To view options and examples for each command, enter a command in the following format:
     $ python3 guider/guider.py rec -h
     $ python3 guider/guider.py top -h
 
-Visit the following link to see the output of guider:
+To view the output of Guider, visit the following link:
     - https://github.com/iipeace/guider/wiki
 ```
 
@@ -1267,24 +1244,23 @@ Build & Installation
 =======
 
 ```
-If you can run 'pip' on your system then just enter the following commands:
+To install Guider using pip, enter the following commands:
     # pip3 install guider
     # pip3 install guider --no-deps
     # pip3 install guider --force-reinstall
-and just run the following commands:
+
+After installation, run one of the following commands to start Guider:
     # python3 -m guider
     # guider
 
-Otherwise, download the source from https://github.com/iipeace/guider,
-and just run the following command:
+If you don't have pip on your system, you can download the source code from https://github.com/iipeace/guider, and then run the following command to start Guider:
     # python3 guider/guider.py
 
-If you want to run guider faster and lighter after downloading the source,
-then build and install it on your system as below.
+For faster and lighter operation, you can build and install Guider from the source code by running the following commands:
     # cd guider && make && make install
 ```
 
-Prebuilt versions can be found via https://repology.org/project/guider/versions
+Pre-built versions of Guider are available at https://repology.org/project/guider/versions.
 
 Kernel Configuration
 =======
@@ -1331,9 +1307,9 @@ Help
 
 ```
 Usage:
-    $ guider COMMAND [OPTIONS] [--help]
+    $ ./guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(132):
+COMMAND(136):
     [CONTROL]       freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
                     kill/tkill        <Signal>        (Linux/MacOS)
@@ -1422,6 +1398,7 @@ COMMAND(132):
                     decomp            <Decompress>    (Linux/MacOS/Windows)
                     dump              <Memory>        (Linux)
                     exec              <Command>       (Linux/MacOS/Windows)
+                    fadvise           <File>          (Linux)
                     flush             <Memory>        (Linux)
                     getafnt           <Affinity>      (Linux)
                     mkcache           <Cache>         (Linux/MacOS/Windows)
@@ -1440,9 +1417,11 @@ COMMAND(132):
                     printinfo         <System>        (Linux)
                     printkconf        <kernel>        (Linux)
                     printns           <Namespace>     (Linux)
+                    printsdfile       <Systemd>       (Linux)
+                    printsdinfo       <Systemd>       (Linux)
+                    printsdunit       <Systemd>       (Linux)
                     printsig          <Signal>        (Linux)
                     printslab         <Slab>          (Linux)
-                    printsvc          <systemd>       (Linux)
                     printvma          <Vmalloc>       (Linux)
                     pstree            <Process>       (Linux/MacOS/Windows)
                     readahead         <File>          (Linux)
@@ -1450,6 +1429,7 @@ COMMAND(132):
                     req               <URL>           (Linux/MacOS/Windows)
                     strings           <Text>          (Linux/MacOS/Windows)
                     sym2addr          <Address>       (Linux/MacOS/Windows)
+                    sync              <File>          (Linux)
                     systat            <Status>        (Linux)
                     topdiff           <Diff>          (Linux/MacOS/Windows)
                     topsum            <Summary>       (Linux/MacOS/Windows)
@@ -1480,6 +1460,6 @@ FILE:
     Report  file (e.g. guider.out)
 
 Options:
-    Check COMMAND with --help (e.g. guider top --help)
+    Check COMMAND with --help (e.g. ./guider top --help)
 
 ```
