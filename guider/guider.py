@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230203"
+__revision__ = "230204"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22507,7 +22507,9 @@ class FileAnalyzer(object):
 
         for fileName, val in sorted(
             self.fileData.items(),
-            key=lambda e: e[1][sortOpt] if type(e[1][sortOpt]) is str else long(e[1][sortOpt]),
+            key=lambda e: e[1][sortOpt]
+            if type(e[1][sortOpt]) is str
+            else long(e[1][sortOpt]),
             reverse=True,
         ):
 
@@ -32592,6 +32594,9 @@ Examples:
 
     - Record specific kernel function calls for all threads to guider.out
         # {0:1} {1:1} -e g -o . -c "mutex_*"
+
+    - Record kernel function calls except for specific functions for all threads to guider.out
+        # {0:1} {1:1} -e g -o . -q EXFUNCFILTER:"*_sys_*", EXFUNCFILTER:"mutex*"
 
     - {3:1} that took at least 100 us or longer for all threads to guider.out
         # {0:1} {1:1} -e g -o . -q ELAPSED:100
@@ -62214,6 +62219,23 @@ Copyright:
                     )
             else:
                 SysMgr.writeTraceCmd("../set_ftrace_filter", "")
+
+            # apply exclude function filter #
+            if "EXFUNCFILTER" in SysMgr.environList:
+                params = " ".join(SysMgr.environList["EXFUNCFILTER"])
+                SysMgr.printInfo(
+                    "start setting exclude function filter [ %s ]" % params
+                )
+                if SysMgr.writeTraceCmd("../set_ftrace_notrace", params) < 0:
+                    SysMgr.printErr("failed to set exclude function filter")
+                    sys.exit(-1)
+                else:
+                    SysMgr.printStat(
+                        "finished applying exclude function filter [ %s ]"
+                        % params
+                    )
+            else:
+                SysMgr.writeTraceCmd("../set_ftrace_notrace", "")
 
             # apply threshold (us) #
             if "ELAPSED" in SysMgr.environList:
