@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230204"
+__revision__ = "230205"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17025,7 +17025,7 @@ class FunctionAnalyzer(object):
                 "found %d addresses duplicated" % self.duplicatedPos
             )
 
-    def getCustomEventValue(self, func, args, cond):
+    def getCustomEventValue(self, args, cond):
         if not cond:
             return 1
 
@@ -17744,7 +17744,7 @@ class FunctionAnalyzer(object):
                     cond = self.customEventTable[func[:-1]]
 
                 # set event filter #
-                customCnt = self.getCustomEventValue(func, args, cond)
+                customCnt = self.getCustomEventValue(args, cond)
 
                 if customCnt > 0:
                     self.threadData[tid]["customTotal"] += customCnt
@@ -25297,6 +25297,69 @@ Commands:
             SysMgr.saveSysStats()
 
     @staticmethod
+    def getTrimVals(timeline):
+        imin = 0
+        imax = len(timeline)
+
+        if "TRIM" in SysMgr.environList:
+            trim = SysMgr.environList["TRIM"][0].split(":")
+        elif "TRIMIDX" in SysMgr.environList:
+            trim = SysMgr.environList["TRIMIDX"][0].split(":")
+        else:
+            return imin, imax
+
+        try:
+            if len(trim) == 1:
+                condMin = long(trim[0])
+                condMax = SysMgr.maxSize
+            elif len(trim) >= 2:
+                # first tick #
+                if trim[0].strip():
+                    condMin = long(trim[0])
+                else:
+                    condMin = 0
+
+                # last tick #
+                if trim[1].strip():
+                    condMax = long(trim[1])
+                else:
+                    condMax = long(SysMgr.maxSize)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to recognize '%s' as the START:END time"
+                % ":".join(trim)
+            )
+            sys.exit(-1)
+
+        if "TRIM" in SysMgr.environList:
+            # define default values #
+            imin = timeline[0]
+            imax = timeline[-1]
+
+            # get min index #
+            for itime in timeline:
+                if itime >= condMin:
+                    imin = itime
+                    break
+
+            # get max index #
+            for itime in timeline:
+                if itime >= condMax:
+                    imax = itime
+                    break
+
+            # convert index range #
+            imin = timeline.index(imin)
+            imax = timeline.index(imax)
+        elif "TRIMIDX" in SysMgr.environList:
+            imin = condMin
+            imax = condMax
+
+        return imin, imax
+
+    @staticmethod
     def applyCoreFilter(lines):
         newList = []
         filterList = set(map(str, SysMgr.perCoreList))
@@ -31688,6 +31751,12 @@ Examples:
     - {2:1} after concatenating specific files and converting unique physical memory (RSS - Text - Shm)
         # {0:1} {1:1} {4:1} -q CONCATENATE, EXCEPTSHM
 
+    - {2:1} except for specific files do not meet conditions
+        # {0:1} {1:1} "guider*.out" -q NOMERGE, TRIMIDX:-5:, CPUFILTER:">80", MEMFREEFILTER:"<100"
+        # {0:1} {1:1} "guider*.out" -q NOMERGE, MEMANONFILTER:">90000", MEMCACHEFILTER:"<100"
+        # {0:1} {1:1} "guider*.out" -q NOMERGE, SWAPFILTER:">1000", NETRDFILTER:">900", NETWRFILTER:">900"
+        # {0:1} {1:1} "guider*.out" -q NOMERGE, BLKWRFILTER:">1000", BLKRDFILTER:">900", NRCOREFILTER:"<4"
+
     - {2:1} except for specific resources after concatenating specific files
         # {0:1} {1:1} {4:1} -q CONCATENATE, NOCPUSUMMARY, NOGPUSUMMARY
         # {0:1} {1:1} {4:1} -q CONCATENATE, NODELAYSUMMARY
@@ -31696,8 +31765,6 @@ Examples:
         # {0:1} {1:1} {4:1} -q CONCATENATE, NOSTORAGESUMMARY, NONETSUMMARY
 
     - Draw specific items including the specific word
-        # {0:1} {1:1} timeline.json -q FILTER:"test*"
-        # {0:1} {1:1} timeline.json -q FILTER:"*test"
         # {0:1} {1:1} timeline.json -q FILTER:"*test*"
 
     - {2:1} for all events and tasks
@@ -94138,7 +94205,7 @@ class TaskAnalyzer(object):
 
         # reverse sequence #
         if reverse:
-            SysMgr.procBuffer = list(reversed(SysMgr.procBuffer))
+            SysMgr.procBuffer.reverse()
 
         if incHdr:
             return header, SysMgr.procBuffer
@@ -94206,7 +94273,7 @@ class TaskAnalyzer(object):
         # merge files #
         fdata = []
         if "REVERSEFILE" in SysMgr.environList:
-            flist = reversed(flist)
+            flist.reverse()
         else:
             flist = sorted(flist)
 
@@ -97332,59 +97399,7 @@ class TaskAnalyzer(object):
 
         # get indexes for trim #
         if set(["TRIM", "TRIMIDX"]) & set(SysMgr.environList):
-            if "TRIM" in SysMgr.environList:
-                trim = SysMgr.environList["TRIM"][0].split(":")
-            elif "TRIMIDX" in SysMgr.environList:
-                trim = SysMgr.environList["TRIMIDX"][0].split(":")
-
-            try:
-                if len(trim) == 1:
-                    condMin = long(trim[0])
-                    condMax = SysMgr.maxSize
-                elif len(trim) >= 2:
-                    # first tick #
-                    if trim[0].strip():
-                        condMin = long(trim[0])
-                    else:
-                        condMin = 0
-
-                    # last tick #
-                    if trim[1].strip():
-                        condMax = long(trim[1])
-                    else:
-                        condMax = long(SysMgr.maxSize)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to recognize '%s' as the START:END time"
-                    % ":".join(trim)
-                )
-                sys.exit(-1)
-
-            if "TRIM" in SysMgr.environList:
-                # define default values #
-                imin = timeline[0]
-                imax = timeline[-1]
-
-                # get min index #
-                for itime in timeline:
-                    if itime >= condMin:
-                        imin = itime
-                        break
-
-                # get max index #
-                for itime in timeline:
-                    if itime >= condMax:
-                        imax = itime
-                        break
-
-                # convert index range #
-                imin = timeline.index(imin)
-                imax = timeline.index(imax)
-            elif "TRIMIDX" in SysMgr.environList:
-                imin = condMin
-                imax = condMax
+            imin, imax = SysMgr.getTrimVals(timeline)
 
             # trim intervals #
             for name, value in cpuProcUsage.items():
@@ -98100,6 +98115,67 @@ class TaskAnalyzer(object):
 
         # get log events #
         logEvents = SysMgr.getLogEvents()
+
+        # apply resource usage filter #
+        for filterName, field in (
+            ("CPUFILTER", "cpuUsage"),
+            ("MEMFREEFILTER", "memFree"),
+            ("MEMANONFILTER", "memAnon"),
+            ("MEMCACHEFILTER", "memCache"),
+            ("SWAPFILTER", "swapUsage"),
+            ("NETRDFILTER", "netRead"),
+            ("NETWRFILTER", "netWrite"),
+            ("BLKRDFILTER", "blkRead"),
+            ("BLKWRFILTER", "blkWrite"),
+            ("NRCOREFILTER", "nrCore"),
+        ):
+
+            if not filterName in SysMgr.environList:
+                continue
+
+            _cpuChecker = UtilMgr.getSizeFilterFunc(filterName)
+            removeItems = []
+            for name in list(graphStats):
+                if not name.endswith(field):
+                    continue
+
+                # check resource average #
+                target = graphStats[name]
+                if type(target) is list:
+                    avg = sum(target) / len(target)
+                    if _cpuChecker(avg):
+                        continue
+                elif type(target) is dict:
+                    res = True
+                    for subname, subtarget in target.items():
+                        avg = sum(subtarget) / len(subtarget)
+                        if not _cpuChecker(avg):
+                            res = False
+                            break
+                    if not res:
+                        continue
+                else:
+                    continue
+
+                # skip drawing #
+                filterInfo = SysMgr.environList[filterName][0]
+                SysMgr.printWarn(
+                    "skip drawing because of %s %s(%s)"
+                    % (long(avg), filterName, filterInfo),
+                    True,
+                )
+                return
+
+                # remove item #
+                graphStats.pop(name, None)
+                if name != field:
+                    removeItems.append(UtilMgr.rstrip(name, field))
+
+        # remove redundant items by filter #
+        if removeItems:
+            for name in list(graphStats):
+                for item in removeItems:
+                    graphStats.pop(name, None)
 
         # draw graphs #
         try:
