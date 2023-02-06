@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230205"
+__revision__ = "230206"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24363,6 +24363,7 @@ class SysMgr(object):
     jsonData = {}
     nrTopRank = 10
     layout = None
+    reportReason = None
 
     showAll = False
     disableAll = False
@@ -25306,7 +25307,7 @@ Commands:
         elif "TRIMIDX" in SysMgr.environList:
             trim = SysMgr.environList["TRIMIDX"][0].split(":")
         else:
-            return imin, imax
+            return timeline
 
         try:
             if len(trim) == 1:
@@ -25357,7 +25358,7 @@ Commands:
             imin = condMin
             imax = condMax
 
-        return imin, imax
+        return timeline[imin:imax]
 
     @staticmethod
     def applyCoreFilter(lines):
@@ -31274,7 +31275,7 @@ Options:
             x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:Average | b:buffer
-            B:bar | c:cpu | C:clone | D:DWARF
+            B:bar | c:cpu | C:clone | d:demangle | D:DWARF
             e:encode | E:exec | g:general | G:gpu
             L:log | m:gpuMem | O:color | p:print
             P:PSI | t:truncate | T:task | x:event ]
@@ -34420,7 +34421,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | e:encode | D:DWARF | E:exec | g:general ]
+          [ C:clone | e:encode | d:demangle | D:DWARF | E:exec | g:general ]
     -u                          run in the background
     -a                          show all stats with registers
     -g  <COMM|TID{:FILE}>       set task filter
@@ -34490,7 +34491,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
+          [ C:clone | d:demangle | D:DWARF | e:encode | E:exec | g:general ]
     -u                          run in the background
     -f                          force execution
     -a                          show all stats with registers
@@ -34565,7 +34566,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
+          [ C:clone | d:demangle | D:DWARF | e:encode | E:exec | g:general ]
     -u                          run in the background
     -a                          show all stats with registers
     -T  <FILE>                  set target file
@@ -35241,6 +35242,10 @@ Examples:
         # {0:1} {1:1} "report1.out, report2.out.gz" -q NOMERGE
         # {0:1} {1:1} "output*.out" -q NOMERGE
 
+    - {2:1} for each file after trimming specific ticks
+        # {0:1} {1:1} "output*.out" -q NOMERGE, TRIMIDX::5
+        # {0:1} {1:1} "output*.out" -q NOMERGE, TRIMIDX:-3:
+
     - {2:1} after applying task filter
         # {0:1} {1:1} output.out -g "a.out*"
         # {0:1} {1:1} "output*.out" -g "*a.out*"
@@ -35251,14 +35256,14 @@ Examples:
     - {2:1} in reversed sample order
         # {0:1} {1:1} "report*.out" -q REVERSESAMPLE
 
+    - {2:1} without header info
+        # {0:1} {1:1} "report*.out" -q NOHEADER
+
     - {2:1} without process info
         # {0:1} {1:1} "report*.out" -q ONLYTOTAL
 
     - {2:1} without detailed info
         # {0:1} {1:1} "report*.out" -q ONLYSUMMARY
-
-    - {2:1} without header info
-        # {0:1} {1:1} "report*.out" -q NOHEADER
 
     - {2:1} after converting unique physical memory (RSS - Text - Shm)
         # {0:1} {1:1} "report*.out" -q EXCEPTSHM
@@ -35266,7 +35271,7 @@ Examples:
     - {2:1} into guider.out
         # {0:1} {1:1} output.out.gz -o guider.out
                     """.format(
-                        cmd, mode, "Summarize raw data files in the top report"
+                        cmd, mode, "Summarize raw data of the top report files"
                     )
 
                 # kill / send #
@@ -35391,7 +35396,7 @@ Description:
 
 Options:
         -e  <CHARACTER>             enable options
-              [ p:pipe | D:DWARF | e:encode ]
+              [ p:pipe | d:demangle | D:DWARF | e:encode ]
         -I  <FILE>                  set input path
         -g  <ADDR|SYMBOL>           set function filter
         -q  <NAME{{:VALUE}}>          set environment variables
@@ -44650,6 +44655,9 @@ Copyright:
 
                 if "g" in options:
                     SysMgr.generalEnable = False
+
+                if "d" in options:
+                    SysMgr.demangleEnable = False
 
                 if "D" in options:
                     SysMgr.dwarfEnable = False
@@ -63667,6 +63675,15 @@ Copyright:
                 jsonData["memo"] = memo
         except:
             pass
+
+        # report reason #
+        if SysMgr.reportReason:
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format("ReportReason", SysMgr.reportReason)
+            )
+
+            if SysMgr.jsonEnable:
+                jsonData["reportReason"] = SysMgr.reportReason
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -94207,6 +94224,18 @@ class TaskAnalyzer(object):
         if reverse:
             SysMgr.procBuffer.reverse()
 
+        # trim interval data #
+        if "TRIMIDX" in SysMgr.environList:
+            try:
+                SysMgr.procBuffer = SysMgr.getTrimVals(SysMgr.procBuffer)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to trim interval data from '%s'" % fname, True
+                )
+                sys.exit(0)
+
         if incHdr:
             return header, SysMgr.procBuffer
         else:
@@ -94295,6 +94324,7 @@ class TaskAnalyzer(object):
             else:
                 header = None
                 data = ret
+                SysMgr.printPipe("\nFileName: %s" % fname)
 
             if not "REVERSESAMPLE" in SysMgr.environList:
                 data.reverse()
@@ -108946,6 +108976,17 @@ class TaskAnalyzer(object):
             stars = "*" * long((long(SysMgr.lineLength) - len(title)) / 2)
             SysMgr.printPipe("\n\n\n\n%s%s%s\n\n" % (stars, title, stars))
 
+        def _initData():
+            # initialize parse buffer #
+            TaskAnalyzer.lifeIntData = {}
+            TaskAnalyzer.lifeProcData = {}
+            TaskAnalyzer.lifecycleData = {}
+            TaskAnalyzer.procTotData = {}
+            TaskAnalyzer.procIntData = []
+
+            # shrink heap #
+            SysMgr.shrinkHeap()
+
         # check skip condition #
         try:
             if SysMgr.printFd:
@@ -108998,7 +109039,7 @@ class TaskAnalyzer(object):
 
         # print only summary #
         if onlySummary:
-            # print detail for only one tick #
+            # print only last detailed statistic #
             _printMenu(" Detailed Statistics ")
             SysMgr.printPipe(SysMgr.procBuffer[:1])
 
@@ -109009,6 +109050,9 @@ class TaskAnalyzer(object):
                 msg = " Thread Lifecycle "
             _printMenu(msg)
             TaskAnalyzer.printProcLifecycle()
+
+            # initialize global data #
+            _initData()
 
             # quit #
             return
@@ -109053,15 +109097,8 @@ class TaskAnalyzer(object):
         except:
             SysMgr.printWarn("failed to save kernel message", reason=True)
 
-        # initialize parse buffer #
-        TaskAnalyzer.lifeIntData = {}
-        TaskAnalyzer.lifeProcData = {}
-        TaskAnalyzer.lifecycleData = {}
-        TaskAnalyzer.procTotData = {}
-        TaskAnalyzer.procIntData = []
-
-        # shrink heap #
-        SysMgr.shrinkHeap()
+        # initialize global data #
+        _initData()
 
     @staticmethod
     def printLeakHint():
