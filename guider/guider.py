@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230206"
+__revision__ = "230207"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14350,7 +14350,7 @@ class PageAnalyzer(object):
         convNum = UtilMgr.convNum
         convSize = UtilMgr.convSize2Unit
         errMsg = (
-            "failed to recognize addresses, "
+            "failed to recognize addresses %s, "
             "input the address such as 102400 or 0x1234a-0x123ff"
         )
 
@@ -14423,7 +14423,7 @@ class PageAnalyzer(object):
 
                 # check input count #
                 if rangeCnt > 2:
-                    SysMgr.printErr(errMsg, True)
+                    SysMgr.printErr(errMsg % vrange, True)
                     sys.exit(-1)
 
                 # check input format #
@@ -14433,7 +14433,7 @@ class PageAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr(errMsg, True)
+                    SysMgr.printErr(errMsg % vrange, True)
                     sys.exit(-1)
 
                 try:
@@ -14464,7 +14464,7 @@ class PageAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr(errMsg, True)
+                    SysMgr.printErr(errMsg % vrange, True)
                     sys.exit(-1)
 
                 _printPipe(
@@ -21687,7 +21687,7 @@ class FileAnalyzer(object):
                 return None
 
         addrList = []
-        allAnon = allFile = allPages = noPerm = something = False
+        allAnon = allFile = allPages = noPerm = fileAnon = something = False
 
         # check anon #
         if fname == "anon":
@@ -21695,6 +21695,8 @@ class FileAnalyzer(object):
         # check file #
         elif fname == "file":
             allFile = True
+        elif fname == "fileanon":
+            fileAnon = True
         # check all #
         elif fname == "all":
             allPages = True
@@ -21722,7 +21724,15 @@ class FileAnalyzer(object):
                     continue
             # anons #
             elif allAnon:
-                if mdict["inode"] != "0":
+                # include file-mapped anon pages #
+                if mdict["inode"] != "0" and not mdict["perm"].startswith(
+                    "rw"
+                ):
+                    continue
+            # file-mapped anons #
+            elif fileAnon:
+                # check file-mapped anon pages #
+                if mdict["inode"] == "0" or not mdict["perm"].startswith("rw"):
                     continue
             # files #
             else:
@@ -21969,13 +21979,13 @@ class FileAnalyzer(object):
         if needName:
             matchStr = (
                 r"^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) "
-                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+)"
+                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>[0-9]+)"
                 r".\s*(?P<binName>.+)"
             )
         else:
             matchStr = (
                 r"^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) "
-                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+)"
+                r"(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>[0-9]+)"
             )
 
         m = re.match(matchStr, string)
@@ -34878,6 +34888,7 @@ Examples:
         # {0:1} {1:1} a.out -I heap, stack
         # {0:1} {1:1} a.out -I anon
         # {0:1} {1:1} a.out -I file
+        # {0:1} {1:1} a.out -I fileanon
         # {0:1} {1:1} a.out -I noperm
         # {0:1} {1:1} a.out -I all
         # {0:1} {1:1} a.out -I 0x8000-0x9000, 0x12345678
@@ -35633,6 +35644,7 @@ Examples:
         # {0:1} {1:1} -c cloud-config.service
         # {0:1} {1:1} -c /org/freedesktop/systemd1/unit/_2d_2eslice
         # {0:1} {1:1} -c "*service"
+        # {0:1} {1:1} -c "*service" -a
 
     - {2:1} for all
         # {0:1} {1:1} -a
@@ -35656,13 +35668,14 @@ Examples:
         # {0:1} {1:1} -q ONLYBOOT, SORTBYSTART
 
     - {2:1} with specific filters
+        # {0:1} {1:1} -c "*Enable*" -q ALLFILTER
         # {0:1} {1:1} -q SDFILTER:ActiveState:"active\,inactive"
         # {0:1} {1:1} -q SDFILTER:+ActiveState:active, SDFILTER:+Id:"daily*"
         # {0:1} {1:1} -q SDEXFILTER:ActiveState:"active"
         # {0:1} {1:1} -q SDITEM:"Active*"
 
     - {2:1} and execute commands with specific filters
-        # {0:1} {1:1} -q CMD:sh -c \\"echo @Id >> out\\"", MUTE
+        # {0:1} {1:1} -q CMD:"sh -c \\"echo @Id >> out\\"", MUTE
         # {0:1} {1:1} -q SDFILTER:Id:"*service.service", CMD:"systemctl stop @Id", MUTE
         # {0:1} {1:1} -q SDFILTER:+Id:"*service.service", SDFILTER:+ActiveState:active, CMD:"systemctl stop @Id", MUTE
                     """.format(
@@ -35716,6 +35729,7 @@ Examples:
     - Check specific duplicated page frames of specific processes
         # {0:1} {1:1} "a.out, java" -q ONLYHEAP
         # {0:1} {1:1} "a.out, java" -q ONLYSTACK
+        # {0:1} {1:1} "a.out" -q MEMAREA:"0x556370ef0000-0x556371afc000"
 
     - {2:1} and execute specific remote commands for each memory segments
         # {0:1} {1:1} "a.out, java" -c madvise:START:SIZE:DONTNEED
@@ -52980,6 +52994,12 @@ Copyright:
                 "'%s' will be executed" % ("|".join(SysMgr.customCmd))
             )
 
+        # get memroy area option #
+        mems = []
+        if "MEMAREA" in SysMgr.environList:
+            for item in SysMgr.environList["MEMAREA"]:
+                mems.append(item.split("-"))
+
         # get page info #
         for pid in pids:
             # check task #
@@ -53003,7 +53023,9 @@ Copyright:
                 mstat = ""
 
             # read segments from memory map #
-            if SysMgr.inputParam:
+            if mems:
+                pass
+            elif SysMgr.inputParam:
                 mems = memsProc[pid]
             else:
                 mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
@@ -53102,7 +53124,7 @@ Copyright:
                         # execute remote commands #
                         dbgObj.executeCmd(cmds, force=True)
 
-                UtilMgr.deleteProgress()
+            UtilMgr.deleteProgress()
 
             # destroy debugger object #
             del dbgObj
@@ -53127,16 +53149,19 @@ Copyright:
             else:
                 table[cnt] = 1
 
-        summary = "%s/%s[%.1f%%]" % (
+        # build summary string #
+        summary = "%s/%s" % (
             convSize(dupSize, unit="M" if dupSize > sizeMB else None),
             convSize(totalSize, unit="M" if totalSize > sizeMB else None),
-            dupSize / float(totalSize) * 100,
+        )
+        summary = UtilMgr.convColor(summary, "YELLOW")
+        summary += UtilMgr.convColor(
+            "[%.1f%%]" % (dupSize / float(totalSize) * 100), "RED"
         )
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] (Dup: %s) (Proc: %s)"
-            % (UtilMgr.convColor(summary, "RED"), commList)
+            "\n[Dup Info] (Dup: %s) (Proc: %s)" % (summary, commList)
         )
 
         # print details #
@@ -54747,7 +54772,6 @@ Copyright:
                 # check dir #
                 if os.path.isdir(fullPath):
                     totalDir += 1
-                    totalSize += blockSize
                     isTarget = False
 
                     # apply filter #
@@ -54758,6 +54782,7 @@ Copyright:
                                 "[%s]" % convColor(fullPath, "GREEN")
                             )
                     else:
+                        totalSize += blockSize
                         isTarget = True
                         string = "%s%s[%s]" % (
                             prefix,
@@ -68604,13 +68629,22 @@ class DbusMgr(object):
         # get mute option #
         mute = "MUTE" in SysMgr.environList
 
+        # get all filter flag #
+        if "ALLFILTER" in SysMgr.environList and SysMgr.customCmd:
+            allFilter = True
+        else:
+            allFilter = False
+
         # make lists #
-        unitDict = {
-            item[6]: item
-            for item in ret
-            if not SysMgr.customCmd
-            or UtilMgr.isValidStr(item[0], SysMgr.customCmd)
-        }
+        if allFilter:
+            unitDict = {item[6]: item for item in ret}
+        else:
+            unitDict = {
+                item[6]: item
+                for item in ret
+                if not SysMgr.customCmd
+                or UtilMgr.isValidStr(item[0], SysMgr.customCmd)
+            }
         units = list(unitDict)
         units.sort()
         units.insert(0, "/org/freedesktop/systemd1")
@@ -68635,16 +68669,19 @@ class DbusMgr(object):
                 continue
 
             if cpath == "/org/freedesktop/systemd1":
-                if not mute:
-                    # print boot info #
-                    res = DbusMgr.printSystemBootInfo(ret, retList)
-                    if res:
-                        resList["systemd"] = res
-                        continue
+                # check skip condition #
+                if mute or (SysMgr.customCmd and not SysMgr.showAll):
+                    continue
 
-                    # print systemd info #
-                    if not onlyBoot:
-                        DbusMgr.printUnitStatInfo("systemd", ret, bus, procStr)
+                # print boot info #
+                res = DbusMgr.printSystemBootInfo(ret, retList)
+                if res:
+                    resList["systemd"] = res
+                    continue
+
+                # print systemd info #
+                if not onlyBoot:
+                    DbusMgr.printUnitStatInfo("systemd", ret, bus, procStr)
             else:
                 bootInfo = DbusMgr.getUnitBootInfo(ret)
 
@@ -68805,12 +68842,18 @@ class DbusMgr(object):
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
                 return
 
+        # get all filter flag #
+        if "ALLFILTER" in SysMgr.environList and SysMgr.customCmd:
+            allFilter = True
+        else:
+            allFilter = False
+
         # print units #
         for items in sorted(unitList, key=lambda i: i[0].lower()):
             # check filter #
-            if SysMgr.customCmd:
+            if allFilter:
                 if not UtilMgr.isValidStr(
-                    " ".join(list(map(str, items))), SysMgr.customCmd, inc=True
+                    " ".join(list(map(str, items))), SysMgr.customCmd
                 ):
                     continue
 
@@ -94318,13 +94361,14 @@ class TaskAnalyzer(object):
             # summarize data #
             ret = TaskAnalyzer.getSummaryData(fname, incHdr)
 
+            SysMgr.printPipe("\nFileName: %s" % fname)
+
             # get header and data #
             if incHdr:
                 header, data = ret
             else:
                 header = None
                 data = ret
-                SysMgr.printPipe("\nFileName: %s" % fname)
 
             if not "REVERSESAMPLE" in SysMgr.environList:
                 data.reverse()
@@ -115639,8 +115683,13 @@ class TaskAnalyzer(object):
 
         # read maps data #
         target = 0
-        with open(fpath, "r") as fd:
-            buf = fd.read()
+        try:
+            buf = None
+            with open(fpath, "r") as fd:
+                buf = fd.read()
+        except SystemExit:
+            sys.exit(0)
+        except:
             if not buf:
                 return 0, 0
 
