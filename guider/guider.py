@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230207"
+__revision__ = "230208"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5863,6 +5863,18 @@ class UtilMgr(object):
         UtilMgr.printTime(update=True, verb=False)
 
     @staticmethod
+    def convStackStr(stack, indent, maxLen):
+        newStack = ""
+        nowLen = indent
+        for call in stack.split(" <- "):
+            if newStack and nowLen + len(call) + 4 > maxLen:
+                newStack += "\n" + " " * indent
+                nowLen = indent
+            newStack += " <- " + call
+            nowLen += 4 + len(call)
+        return newStack
+
+    @staticmethod
     def getSizeFilterFunc(var="SIZEFILTER"):
         # define size filter function #
         def _sizeChecker(val):
@@ -6466,6 +6478,9 @@ class UtilMgr(object):
 
     @staticmethod
     def isValidStr(string, key=None, inc=False, ignCap=False):
+        if not string:
+            return False
+
         if not key:
             if not SysMgr.filterGroup:
                 return True
@@ -20858,7 +20873,10 @@ class LeakAnalyzer(object):
 
             SysMgr.printPipe(
                 "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(
-                    convSize(size), convSize(count), convSize(avg), fpath
+                    convSize(size),
+                    convSize(count),
+                    convSize(avg),
+                    fpath if fpath else "",
                 )
             )
 
@@ -21706,6 +21724,17 @@ class FileAnalyzer(object):
         else:
             something = True
 
+        # get anon area #
+        if not allPages and not noPerm:
+            anonMap = TaskAnalyzer.getProcAnonMap(pid)
+        else:
+            anonMap = None
+
+        # check condition #
+        if fileAnon and not anonMap:
+            SysMgr.printErr("no smaps info")
+            sys.exit(0)
+
         # read maps #
         fd.seek(0, 0)
         for item in fd.readlines():
@@ -21725,15 +21754,23 @@ class FileAnalyzer(object):
             # anons #
             elif allAnon:
                 # include file-mapped anon pages #
-                if mdict["inode"] != "0" and not mdict["perm"].startswith(
+                if anonMap:
+                    area = item.split(" ", 1)[0]
+                    if area in anonMap and anonMap[area]["size"] == 0:
+                        continue
+                elif mdict["inode"] != "0" and not mdict["perm"].startswith(
                     "rw"
                 ):
                     continue
             # file-mapped anons #
             elif fileAnon:
                 # check file-mapped anon pages #
-                if mdict["inode"] == "0" or not mdict["perm"].startswith("rw"):
+                if mdict["inode"] == "0":
                     continue
+                elif anonMap:
+                    area = item.split(" ", 1)[0]
+                    if area in anonMap and anonMap[area]["size"] == 0:
+                        continue
             # files #
             else:
                 if not "binName" in mdict or not mdict["binName"]:
@@ -35725,6 +35762,9 @@ Examples:
         # {0:1} {1:1} -I "guider.out, guider2.out" -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I "guider*.out" -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I guider.out -q EXCEPTSYM:"*verifyFile*"
+
+    - Print callstack-based memory contents from the leakage report
+        # {0:1} {1:1} -I guider.out -q SHOWMEM
 
     - Check specific duplicated page frames of specific processes
         # {0:1} {1:1} "a.out, java" -q ONLYHEAP
@@ -52913,6 +52953,7 @@ Copyright:
                                 [
                                     long(items[1].strip(), 16),
                                     long(items[2].strip()),
+                                    sym,
                                 ]
                             )
                         except SystemExit:
@@ -52923,6 +52964,59 @@ Copyright:
                 if pos:
                     UtilMgr.deleteProgress()
 
+                # print callstack-basis memory contents #
+                if "SHOWMEM" in SysMgr.environList:
+                    # print summary #
+                    SysMgr.printPipe(
+                        "\n[Mem Info] (Proc: %s)" % SysMgr.getCommList([pid])
+                    )
+
+                    # print menu #
+                    SysMgr.printPipe(
+                        "{0:1}\n{1:>20} {2:>12} {3:1}\n{0:1}".format(
+                            twoLine, "Address", "Size", "Stack"
+                        )
+                    )
+
+                    # create a debugger object #
+                    dbgObj = Debugger(pid)
+                    dbgObj.initValues()
+
+                    for item in callList:
+                        pos, size, sym = item
+
+                        # read segment #
+                        mem = dbgObj.readMem(
+                            pos, size, verb=False, onlyBulk=True
+                        )
+                        if not mem:
+                            continue
+
+                        # rebuild callstack #
+                        if sym:
+                            sym = UtilMgr.convStackStr(sym, 34, len(oneLine))
+                        else:
+                            sym = ""
+
+                        # print contents by 4K size #
+                        SysMgr.printPipe(
+                            "{0:>20} {1:>12} {2:1}".format(
+                                hex(pos), UtilMgr.convNum(size), sym
+                            )
+                        )
+
+                        for idx in xrange(0, len(mem), 4096):
+                            SysMgr.printPipe(repr(mem[idx : idx + 4096]))
+
+                        SysMgr.printPipe(oneLine)
+
+                    # destroy debugger object #
+                    dbgObj.detach()
+                    del dbgObj
+
+                    # terminate #
+                    sys.exit(0)
+
                 # sort calls by address #
                 callList.sort(key=lambda e: e[0])
 
@@ -52931,7 +53025,7 @@ Copyright:
                 chunk = None
                 for call in callList:
                     # convert to page-aligned number #
-                    addr, size = call
+                    addr, size = call[:2]
                     addr = long(addr / PAGESIZE) * PAGESIZE
                     size = long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
 
@@ -52940,9 +53034,9 @@ Copyright:
                         continue
 
                     # contiguous #
-                    last = chunk[0] + chunk[1]
-                    if last >= addr:
-                        chunk[1] += addr - last + size
+                    prev = chunk[0] + chunk[1]
+                    if prev >= addr:
+                        chunk[1] += addr - prev + size
                     # distant #
                     else:
                         memsProc.setdefault(pid, [])
@@ -52994,7 +53088,7 @@ Copyright:
                 "'%s' will be executed" % ("|".join(SysMgr.customCmd))
             )
 
-        # get memroy area option #
+        # get memory area option #
         mems = []
         if "MEMAREA" in SysMgr.environList:
             for item in SysMgr.environList["MEMAREA"]:
@@ -53127,6 +53221,7 @@ Copyright:
             UtilMgr.deleteProgress()
 
             # destroy debugger object #
+            dbgObj.detach()
             del dbgObj
 
         # check result #
@@ -53161,7 +53256,7 @@ Copyright:
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] (Dup: %s) (Proc: %s)" % (summary, commList)
+            "\n[Dup Info] (Dup: %s) (Proc: %s)%s" % (summary, commList, mstat)
         )
 
         # print details #
@@ -63102,7 +63197,7 @@ Copyright:
 
         SysMgr.infoBufferPrint("\n[Sched Factor Info]")
         SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^30} | {1:^18}".format("Factor", "Value"))
+        SysMgr.infoBufferPrint("{0:^36} | {1:^18}".format("Factor", "Value"))
         SysMgr.infoBufferPrint(twoLine)
 
         try:
@@ -115710,6 +115805,54 @@ class TaskAnalyzer(object):
             return target, 0
         else:
             return 0, target
+
+    @staticmethod
+    def getProcAnonMap(tid):
+        # check root permission #
+        if not SysMgr.isRoot():
+            return
+
+        # make path #
+        fpath = "%s/%s/smaps" % (SysMgr.procPath, tid)
+
+        try:
+            with open(fpath, "r") as fd:
+                buf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(fpath)
+            return
+
+        # check buf #
+        if not buf:
+            return
+
+        maps = {}
+        current = {}
+
+        for line in buf:
+            try:
+                # attr #
+                if line[0].isupper():
+                    if not current or not line.startswith("Anon"):
+                        continue
+                    current["size"] += long(line.split()[1])
+                # map #
+                else:
+                    tmplist = line.split(" ", 1)
+                    current = maps[tmplist[0]] = {
+                        "attr": tmplist[1],
+                        "size": 0,
+                    }
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to parse map '%s'" % line, reason=True
+                )
+
+        return maps
 
     @staticmethod
     def saveProcSmapsData(path, tid, mini=False):
