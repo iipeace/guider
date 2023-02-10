@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230208"
+__revision__ = "230210"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24317,6 +24317,7 @@ class SysMgr(object):
     limitDirList = {}
     fixedTaskList = []
     overlayfsCache = {}
+    vmflagList = []
 
     # threshold #
     thresholdData = {}
@@ -26724,6 +26725,69 @@ Commands:
         return SysMgr.readProcStat(
             SysMgr.memFd, "meminfo", SysMgr, "memFd", True
         )
+
+    @staticmethod
+    def getVmFlags(flags=None, retList=False, retStr=False):
+        vmList = {
+            "READ": "rd",  # readable
+            "WRITE": "wr",  # writable
+            "EXE": "ex",  # executable
+            "SHARED": "sh",  # shared
+            "MAYRD": "mr",  # may read
+            "MAYWR": "mw",  # may write
+            "MAYEXE": "me",  # may execute
+            "MAYSHARE": "ms",  # may share
+            "STACKDOWN": "gd",  # stack segment grows down
+            "PFNRANGE": "pf",  # pure PFN range
+            "DISABLEWR": "dw",  # disabled write to the mapped file
+            "LOCKED": "lo",  # pages are locked in memory
+            "IO": "io",  # memory mapped I/O area
+            "SEQRD": "sr",  # sequential read advise provided
+            "RANDRD": "rr",  # random read advise provided
+            "DONTCOPY": "dc",  # do not copy area on fork
+            "DONTREMAP": "de",  # do not expand area on remapping
+            "ACCOUNT": "ac",  # area is accountable
+            "NOSWAP": "nr",  # swap space is not reserved for the area
+            "HUGETLB": "ht",  # area uses huge tlb pages
+            "SYNCFAULT": "sf",  # perform synchronous page faults (since Linux 4.15)
+            "NOLINEAR": "nl",  # non-linear mapping (removed in Linux 4.0)
+            "ARCH": "ar",  # architecture specific flag
+            "WIPEONFORK": "wf",  # wipe on fork (since Linux 4.14)
+            "DONTDUMP": "dd",  # do not include area into core dump
+            "SOFTDIRTY": "sd",  # soft-dirty flag (since Linux 3.13)
+            "MIXMAP": "mm",  # mixed map area
+            "HUGEPAGE": "hg",  # huge page advise flag
+            "NOHUGEPAGE": "nh",  # no-huge page advise flag
+            "MERGE": "mg",  # mergeable advise flag
+            "MISSING": "um",  # userfaultfd missing pages tracking (since Linux 4.3)
+            "WPROTECT": "uw",  # userfaultfd wprotect pages tracking (since Linux 4.3)
+        }
+
+        # check vmflag list #
+        if retList:
+            return vmList
+        elif retStr:
+            return " ".join(vmList)
+
+        # check type #
+        if type(flags) is not list:
+            SysMgr.printErr(
+                "failed to convert '%s' to vmflags because it is not list"
+                % flags
+            )
+            sys.exit(0)
+
+        flagList = []
+        for item in flags:
+            try:
+                flagList.append(vmList[item.upper()])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to convert '%s' to vmflag" % item)
+                sys.exit(0)
+
+        return flagList
 
     @staticmethod
     def madvise(addr, length, advise):
@@ -33763,6 +33827,13 @@ Description:
                         cmd, mode
                     )
 
+                    vmflagStr = """
+Vmflags:
+    {0:1}
+                    """.format(
+                        SysMgr.getVmFlags(retStr=True)
+                    )
+
                     examStr = """
 Examples:
     - {2:1} for specific processes
@@ -33777,12 +33848,17 @@ Examples:
     - {2:1} including total slabs for specific processes
         # {0:1} {1:1} -g chrome -q TOTALSLAB
 
+    - {2:1} with specific vmflags (refer to FLAG line)
+        # {0:1} {1:1} -g chrome -q VMFLAG:MERGE
+        # {0:1} {1:1} -g chrome -q VMFLAG:MERGE, ONLYVMFLAG
+        # {0:1} {1:1} -g chrome -q VMFLAG:"HUGETLB+HUGEPAGE"
+
     See the top COMMAND help for more examples.
                     """.format(
                         cmd, mode, "Monitor memory details"
                     )
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += topSubStr + topCommonStr + vmflagStr + examStr
 
                 # wss top #
                 elif SysMgr.checkMode("wtop"):
@@ -35765,6 +35841,7 @@ Examples:
 
     - Print callstack-based memory contents from the leakage report
         # {0:1} {1:1} -I guider.out -q SHOWMEM
+        # {0:1} {1:1} -I guider.out -q SHOWMEM, TARGETSYM:"*testFile*"
 
     - Check specific duplicated page frames of specific processes
         # {0:1} {1:1} "a.out, java" -q ONLYHEAP
@@ -36706,6 +36783,9 @@ Options:
 Examples:
     - Print system info
         # {0:1} {1:1}
+
+    - Print system info with system mergeable memory size
+        # {0:1} {1:1} -q PRINTMERGE
                     """.format(
                         cmd, mode
                     )
@@ -44497,6 +44577,11 @@ Copyright:
         # mount all cgroup subsystems #
         if "MOUNTCG" in SysMgr.environList:
             SysMgr.mountCgroups()
+
+        # save vmflags #
+        if "VMFLAG" in SysMgr.environList:
+            flags = SysMgr.environList["VMFLAG"][0].split("+")
+            SysMgr.vmflagList = SysMgr.getVmFlags(flags)
 
     @staticmethod
     def checkOptVal(option, value):
@@ -52968,7 +53053,11 @@ Copyright:
                 if "SHOWMEM" in SysMgr.environList:
                     # print summary #
                     SysMgr.printPipe(
-                        "\n[Mem Info] (Proc: %s)" % SysMgr.getCommList([pid])
+                        "\n[Mem Info] (Proc: %s) (Call: %s)"
+                        % (
+                            SysMgr.getCommList([pid]),
+                            UtilMgr.convNum(len(callList)),
+                        )
                     )
 
                     # print menu #
@@ -52982,6 +53071,7 @@ Copyright:
                     dbgObj = Debugger(pid)
                     dbgObj.initValues()
 
+                    nrPrint = 0
                     for item in callList:
                         pos, size, sym = item
 
@@ -53008,11 +53098,16 @@ Copyright:
                         for idx in xrange(0, len(mem), 4096):
                             SysMgr.printPipe(repr(mem[idx : idx + 4096]))
 
+                        nrPrint += 1
+
                         SysMgr.printPipe(oneLine)
 
                     # destroy debugger object #
                     dbgObj.detach()
                     del dbgObj
+
+                    if not nrPrint:
+                        SysMgr.printPipe("\tNone\n" + oneLine)
 
                     # terminate #
                     sys.exit(0)
@@ -53107,9 +53202,33 @@ Copyright:
 
             # get memory usage #
             try:
-                tobj = SysMgr.initTaskMon(pid)
+                tobj = SysMgr.initTaskMon(pid, update=False)
+                TaskAnalyzer.saveProcSmapsData(
+                    None, pid, True, ["mg"], tobj.procData
+                )
+
+                # get mergeable size by MADV_MERGEABLE #
+                try:
+                    rss = tobj.procData[pid]["maps"]["FLAG"]["Rss:"]
+                    pss = tobj.procData[pid]["maps"]["FLAG"]["Pss:"]
+                    rate = long((rss - pss) / float(rss) * 100)
+
+                    rss = UtilMgr.convSize2Unit(long(rss) << 10)
+                    rss = UtilMgr.convColor(rss, "YELLOW")
+                    pss = UtilMgr.convSize2Unit(long(pss) << 10)
+                    pss = UtilMgr.convColor(pss, "YELLOW")
+                    rate = UtilMgr.convColor("%d%%" % rate, "RED")
+
+                    mgstr = "<MergeableTotal: %s> " % rss
+                    mgstr += "<MergeablePSS: %s> " % pss
+                    mgstr += "<MergedRate: %s>" % rate
+                except:
+                    mgstr = ""
+
+                tobj.saveProcInstance()
                 mstat = TaskAnalyzer.getMemStr(tobj, pid)
-                mstat = " <%s>" % mstat
+
+                mstat = " <%s> %s" % (mstat, mgstr)
                 del tobj
             except SystemExit:
                 sys.exit(0)
@@ -53256,7 +53375,7 @@ Copyright:
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] (Dup: %s) (Proc: %s)%s" % (summary, commList, mstat)
+            "\n[Dup Info] (Proc: %s) (Dup: %s)%s" % (commList, summary, mstat)
         )
 
         # print details #
@@ -63197,7 +63316,7 @@ Copyright:
 
         SysMgr.infoBufferPrint("\n[Sched Factor Info]")
         SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^36} | {1:^18}".format("Factor", "Value"))
+        SysMgr.infoBufferPrint("{0:^36} | {1:^18} |".format("Factor", "Value"))
         SysMgr.infoBufferPrint(twoLine)
 
         try:
@@ -63212,7 +63331,9 @@ Copyright:
                     continue
 
                 value = UtilMgr.convNum(SysMgr.readFile(fpath))
-                SysMgr.infoBufferPrint("{0:<36} | {1:>18}".format(item, value))
+                SysMgr.infoBufferPrint(
+                    "{0:<36} | {1:>18} |".format(item, value)
+                )
 
             SysMgr.infoBufferPrint(twoLine)
         except SystemExit:
@@ -63231,7 +63352,7 @@ Copyright:
         SysMgr.infoBufferPrint("\n[HugePage Info]")
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^10} | {1:^30} | {2:^15}".format("Size", "Stat", "Value")
+            "{0:^10} | {1:^30} | {2:^15} |".format("Size", "Stat", "Value")
         )
         SysMgr.infoBufferPrint(twoLine)
 
@@ -63246,7 +63367,9 @@ Copyright:
 
                     value = UtilMgr.convNum(SysMgr.readFile(fpath))
                     SysMgr.infoBufferPrint(
-                        "{0:>10} | {1:<30} | {2:>15}".format(size, stat, value)
+                        "{0:>10} | {1:<30} | {2:>15} |".format(
+                            size, stat, value
+                        )
                     )
                     size = ""
                 SysMgr.infoBufferPrint(oneLine)
@@ -63265,7 +63388,7 @@ Copyright:
 
         SysMgr.infoBufferPrint("\n[VM Info]")
         SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^40} | {1:^16}".format("Stat", "Value"))
+        SysMgr.infoBufferPrint("{0:^40} | {1:^16} |".format("Stat", "Value"))
         SysMgr.infoBufferPrint(twoLine)
 
         try:
@@ -63281,7 +63404,9 @@ Copyright:
                     continue
 
                 SysMgr.infoBufferPrint(
-                    "{0:<40} | {1:>16}".format(item, value.replace("\t", " "))
+                    "{0:<40} | {1:>16} |".format(
+                        item, value.replace("\t", " ")
+                    )
                 )
 
             SysMgr.infoBufferPrint(twoLine)
@@ -63298,9 +63423,53 @@ Copyright:
         if not os.path.exists(dpath):
             return
 
-        SysMgr.infoBufferPrint("\n[KSM Info] (Path: /sys/kernel/mm/ksm)")
+        # check and get total MERGEABLE size #
+        totalMergeStr = ""
+        if "PRINTMERGE" in SysMgr.environList:
+            # check root permission #
+            SysMgr.checkRootPerm()
+
+            totalRss = totalPss = 0
+            for pid in SysMgr.getPidList():
+                if not pid.isdigit():
+                    continue
+
+                tobj = SysMgr.initTaskMon(pid, update=False)
+                TaskAnalyzer.saveProcSmapsData(
+                    None, pid, True, ["mg"], tobj.procData
+                )
+                maps = tobj.procData[pid]["maps"]
+                if not maps or not maps["FLAG"]:
+                    continue
+
+                try:
+                    totalRss += long(
+                        tobj.procData[pid]["maps"]["FLAG"]["Rss:"]
+                    )
+                    totalPss += long(
+                        tobj.procData[pid]["maps"]["FLAG"]["Pss:"]
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+            totalMergeStr = (
+                " (MergeableTotal: %s) (MergedPSS: %s) (MergedRate: %d%%)"
+                % (
+                    UtilMgr.convSize2Unit(totalRss << 10),
+                    UtilMgr.convSize2Unit(totalPss << 10),
+                    long((totalRss - totalPss) / float(totalRss) * 100),
+                )
+            )
+
+        SysMgr.infoBufferPrint(
+            "\n[KSM Info] (Path: /sys/kernel/mm/ksm)%s" % totalMergeStr
+        )
         SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^40} | {1:^15}".format("Stat", "Value"))
+        SysMgr.infoBufferPrint(
+            "{0:^40} | {1:^15} | {2:^8} |".format("Stat", "Value", "Size")
+        )
         SysMgr.infoBufferPrint(twoLine)
 
         try:
@@ -63310,8 +63479,19 @@ Copyright:
                 if os.path.isdir(fpath):
                     continue
 
-                value = UtilMgr.convNum(SysMgr.readFile(fpath))
-                SysMgr.infoBufferPrint("{0:<40} | {1:>15}".format(item, value))
+                # get value #
+                data = SysMgr.readFile(fpath)
+                value = UtilMgr.convNum(data)
+
+                # get size #
+                if item.startswith("pages_"):
+                    size = UtilMgr.convSize2Unit(long(data) * SysMgr.PAGESIZE)
+                else:
+                    size = ""
+
+                SysMgr.infoBufferPrint(
+                    "{0:<40} | {1:>15} | {2:>8} |".format(item, value, size)
+                )
 
             SysMgr.infoBufferPrint(twoLine)
         except SystemExit:
@@ -76459,7 +76639,7 @@ typedef struct {
                 "failed to call madvise(%s, %s, %s) for %s(%s)"
                 % (hex(addr), length, advise, self.comm, self.pid)
             )
-            return None
+            return ret
 
         return ret
 
@@ -115855,7 +116035,7 @@ class TaskAnalyzer(object):
         return maps
 
     @staticmethod
-    def saveProcSmapsData(path, tid, mini=False):
+    def saveProcSmapsData(path, tid, mini=False, vmflags=[], procData=None):
         # check root permission #
         if not SysMgr.isRoot():
             return
@@ -115870,31 +116050,36 @@ class TaskAnalyzer(object):
         ftable = {}
         isInaccessible = False
         fpath = "%s/%s" % (path, "smaps")
-        ptable = {"ANON": {}, "FILE": {}, "STACK": {}, "ETC": {}, "SHM": {}}
+        ptable = {
+            "ANON": {},
+            "FILE": {},
+            "STACK": {},
+            "ETC": {},
+            "SHM": {},
+            "FLAG": {},
+        }
 
-        if mini:
-            checklist = (
-                "Size:",
-                "Rss:",
-                "Pss:",
-                "Shared_Clean:",
-                "Shared_Dirty:",
-            )
-        else:
-            checklist = (
-                "Size:",
-                "Rss:",
-                "Pss:",
-                "Shared_Clean:",
-                "Shared_Dirty:",
+        checklist = (
+            "Size:",
+            "Rss:",
+            "Pss:",
+            "Shared_Clean:",
+            "Shared_Dirty:",
+        )
+        if not mini:
+            checklist += (
                 "Private_Dirty:",
                 "Referenced:",
                 "AnonHugePages:",
                 "Swap:",
                 "Locked:",
             )
+        if vmflags:
+            checklist += ("VmFlags:",)
 
-        procData = SysMgr.procInstance
+        # get global procData #
+        if not procData:
+            procData = SysMgr.procInstance
 
         # share the map table for main thread #
         try:
@@ -115928,6 +116113,8 @@ class TaskAnalyzer(object):
         # check buf #
         if not buf:
             return
+
+        lastDict = {}
 
         for line in buf:
             tmplist = line.split()
@@ -115978,6 +116165,26 @@ class TaskAnalyzer(object):
                     ptable[mtype]["count"] = 1
             # memory detail info #
             else:
+                # handle vmflags #
+                if vmflags:
+                    if tmplist[0] == "VmFlags:":
+                        if not set(vmflags) & set(tmplist[1:]):
+                            continue
+
+                        for item in ("Rss:", "Pss:", "Size:"):
+                            if not item in lastDict:
+                                continue
+
+                            # save size #
+                            ptable["FLAG"].setdefault(item, 0)
+                            ptable["FLAG"].setdefault("count", 0)
+                            ptable["FLAG"]["count"] += 1
+                            ptable["FLAG"][item] += long(lastDict[item])
+
+                        continue
+                    else:
+                        lastDict[tmplist[0]] = tmplist[1]
+
                 # skip 0 size attributes #
                 if tmplist[-2] == "0":
                     continue
@@ -115989,6 +116196,7 @@ class TaskAnalyzer(object):
 
                 try:
                     val = long(tmplist[1])
+
                     try:
                         ptable[mtype][prop] += val
                     except:
@@ -121112,6 +121320,12 @@ class TaskAnalyzer(object):
         else:
             smapsEnable = True
 
+        # get only vmflag option #
+        if "ONLYVMFLAG" in SysMgr.environList:
+            onlyVmflag = True
+        else:
+            onlyVmflag = False
+
         # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
@@ -121222,7 +121436,10 @@ class TaskAnalyzer(object):
                 smapsEnable or SysMgr.pssEnable or SysMgr.ussEnable
             ):
                 TaskAnalyzer.saveProcSmapsData(
-                    value["taskPath"], idx, mini=not SysMgr.wssEnable
+                    value["taskPath"],
+                    idx,
+                    mini=not SysMgr.wssEnable,
+                    vmflags=SysMgr.vmflagList,
                 )
 
             # swap #
@@ -121496,6 +121713,11 @@ class TaskAnalyzer(object):
                 memBuf, nrss, pss, uss = self.getMemDetails(
                     idx, value["maps"], vss=vss << 10
                 )
+
+                if onlyVmflag:
+                    if not [True for res in memBuf if res[0] == "FLAG"]:
+                        continue
+
                 value["pss"] = pss >> memFactorKB
                 value["uss"] = uss >> memFactorKB
 
@@ -121788,7 +122010,7 @@ class TaskAnalyzer(object):
                     return
 
             # print memory summary #
-            if memBuf:
+            if not onlyVmflag and memBuf:
                 vmlist = [
                     "VmPeak",
                     "VmHWM",
