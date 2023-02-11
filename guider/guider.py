@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230210"
+__revision__ = "230211"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26580,13 +26580,25 @@ Commands:
                         )
                     continue
 
+                # convert resource type #
+                rtype = rtype.upper()
+                if not rtype in ConfigMgr.RLIMIT_TYPE:
+                    candidate = "RLIMIT_" + rtype
+                    if not candidate in ConfigMgr.RLIMIT_TYPE:
+                        SysMgr.printErr(
+                            "failed to change rlimit for %s because wrong resource"
+                            % rtype
+                        )
+                        return False
+                    rtype = candidate
+
                 # change resource limit #
                 ret = SysMgr.chRlimit(long(tid), rtype, slim, hlim)
                 if ret:
                     SysMgr.printInfo(
                         "changed %s to %s/%s for %s(%s)"
                         % (
-                            conf[1],
+                            rtype,
                             UtilMgr.convNum(ret[0]),
                             UtilMgr.convNum(ret[1]),
                             comm,
@@ -26597,7 +26609,7 @@ Commands:
                     SysMgr.printErr(
                         "failed to change %s to %s/%s for %s(%s)"
                         % (
-                            conf[1],
+                            rtype,
                             UtilMgr.convNum(slim),
                             UtilMgr.convNum(hlim),
                             comm,
@@ -26822,13 +26834,6 @@ Commands:
 
     @staticmethod
     def chRlimit(pid, rtype, slim, hlim):
-        rtype = rtype.upper()
-        if not rtype in ConfigMgr.RLIMIT_TYPE:
-            SysMgr.printErr(
-                "failed to change rlimit for %s because wrong resource" % rtype
-            )
-            return False
-
         rindex = ConfigMgr.RLIMIT_TYPE.index(rtype)
 
         # resource package #
@@ -30630,6 +30635,11 @@ Commands:
 
     @staticmethod
     def setSortValue(values):
+        # check skip mode #
+        if SysMgr.checkMode("printslab") or SysMgr.checkMode("checkdup"):
+            SysMgr.sort = values
+            return True
+
         if not values:
             value = cond = None
         else:
@@ -30687,8 +30697,6 @@ Commands:
             SysMgr.printInfo("sorted by CONTEXTSWITCH")
         elif not value:
             value = None
-        elif SysMgr.checkMode("printslab"):
-            pass
         else:
             SysMgr.printErr("wrong option value '%s' for sort" % value)
             return False
@@ -35812,6 +35820,8 @@ Options:
     -o  <DIR|FILE>              set output path
     -g  <PID|COMM>              set task filter
     -q  <NAME{{:VALUE}}>          set environment variables
+    -S  <CHARACTER{:VALUE}>     sort by key
+          [ a:address / s:size / f:function ]
     -J                          print in JSON format
     -v                          verbose
                         """.format(
@@ -35842,6 +35852,7 @@ Examples:
     - Print callstack-based memory contents from the leakage report
         # {0:1} {1:1} -I guider.out -q SHOWMEM
         # {0:1} {1:1} -I guider.out -q SHOWMEM, TARGETSYM:"*testFile*"
+        # {0:1} {1:1} -I guider.out -q SHOWMEM -S s
 
     - Check specific duplicated page frames of specific processes
         # {0:1} {1:1} "a.out, java" -q ONLYHEAP
@@ -52294,6 +52305,11 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
+        # check slab file #
+        if not os.path.exists("/proc/slabinfo"):
+            SysMgr.printErr("enable CONFIG_SLAB kernel option")
+            sys.exit(-1)
+
         # get argument #
         if SysMgr.hasMainArg():
             target = SysMgr.getMainArgs()
@@ -53049,6 +53065,22 @@ Copyright:
                 if pos:
                     UtilMgr.deleteProgress()
 
+                # no sort #
+                if not SysMgr.sort:
+                    pass
+                # sort by address #
+                elif SysMgr.sort == "a":
+                    SysMgr.printInfo("sorted by address")
+                    callList.sort(key=lambda e: e[0])
+                # sort by size #
+                elif SysMgr.sort == "s":
+                    SysMgr.printInfo("sorted by size")
+                    callList.sort(key=lambda e: e[1])
+                # sort by function #
+                elif SysMgr.sort == "f":
+                    SysMgr.printInfo("sorted by function")
+                    callList.sort(key=lambda e: e[2])
+
                 # print callstack-basis memory contents #
                 if "SHOWMEM" in SysMgr.environList:
                     # print summary #
@@ -53113,7 +53145,8 @@ Copyright:
                     sys.exit(0)
 
                 # sort calls by address #
-                callList.sort(key=lambda e: e[0])
+                if not SysMgr.sort:
+                    callList.sort(key=lambda e: e[0])
 
                 # merge calls in page unit #
                 PAGESIZE = SysMgr.PAGESIZE
@@ -114804,7 +114837,7 @@ class TaskAnalyzer(object):
             SysMgr.slabFd, "slabinfo", SysMgr, "slabFd"
         )
         if not slabBuf:
-            return
+            return False
 
         # parse slab items #
         for line in slabBuf[2:]:
@@ -114828,6 +114861,8 @@ class TaskAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn("failed to parse slab info", reason=True)
+
+        return True
 
     def saveVmInfo(self):
         # read swappiness #
