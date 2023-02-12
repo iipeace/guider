@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230211"
+__revision__ = "230212"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42099,7 +42099,7 @@ Copyright:
             else:
                 print(logo)
         else:
-            title = "/ G.u.i.d.e.r \tver.%s /" % __version__
+            title = "/ G.u.i.d.e.r \tver.%s_%s /" % (__version__, __revision__)
             underline = "_" * (len(title))
             overline = "-" * (len(title))
             SysMgr.printPipe(" %s\n%s\n%s" % (underline, title, overline))
@@ -47935,6 +47935,11 @@ Copyright:
             sys.exit(0)
         except:
             cpu = ""
+
+        # check error condition #
+        if not totalSize:
+            SysMgr.printErr("failed to readahead from '%s'" % path)
+            sys.exit(-1)
 
         # print results #
         logStr = "finished readahead a total of %s data %sfor %.3f sec" % (
