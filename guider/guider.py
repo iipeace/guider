@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230212"
+__revision__ = "230213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21744,6 +21744,8 @@ class FileAnalyzer(object):
             if not mdict:
                 continue
 
+            area = item.split(" ", 1)[0]
+
             # all #
             if allPages:
                 pass
@@ -21755,7 +21757,6 @@ class FileAnalyzer(object):
             elif allAnon:
                 # include file-mapped anon pages #
                 if anonMap:
-                    area = item.split(" ", 1)[0]
                     if area in anonMap and anonMap[area]["size"] == 0:
                         continue
                 elif mdict["inode"] != "0" and not mdict["perm"].startswith(
@@ -21768,7 +21769,6 @@ class FileAnalyzer(object):
                 if mdict["inode"] == "0":
                     continue
                 elif anonMap:
-                    area = item.split(" ", 1)[0]
                     if area in anonMap and anonMap[area]["size"] == 0:
                         continue
             # files #
@@ -21776,6 +21776,8 @@ class FileAnalyzer(object):
                 if not "binName" in mdict or not mdict["binName"]:
                     continue
                 # all files #
+                elif allFile and area in anonMap and anonMap[area]["size"]:
+                    continue
                 elif (
                     allFile
                     and mdict["binName"].startswith("/")
@@ -29913,7 +29915,7 @@ Commands:
         return (
             False
             if SysMgr.readFile(
-                os.path.join(SysMgr.procPath, str(pid), "maps"), 1
+                os.path.join(SysMgr.procPath, str(pid), "cmdline"), 1
             )
             else True
         )
@@ -32359,6 +32361,9 @@ Examples:
 
     - {5:1} from a specific binary
         # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
+
+    - {5:1} after removing default breakpoints to improve tracing performance
+        # {0:1} {1:1} -g a.out -c "_Exit|stop" -q FIXEDBP
 
     - {5:1} including specific word in a hidden state
         # {0:1} {1:1} -g a.out -c "*printPeace|hidden"
@@ -35820,7 +35825,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -g  <PID|COMM>              set task filter
     -q  <NAME{{:VALUE}}>          set environment variables
-    -S  <CHARACTER{:VALUE}>     sort by key
+    -S  <CHARACTER{{:VALUE}}>     sort by key
           [ a:address / s:size / f:function ]
     -J                          print in JSON format
     -v                          verbose
@@ -47502,15 +47507,15 @@ Copyright:
 
         # check only kernel task option #
         if "ONLYKERNEL" in SysMgr.environList:
-            onlyKernelTask = True
+            onlyKernel = True
         else:
-            onlyKernelTask = False
+            onlyKernel = False
 
         # check only user task option #
         if "ONLYUSER" in SysMgr.environList:
-            onlyUserTask = True
+            onlyUser = True
         else:
-            onlyUserTask = False
+            onlyUser = False
 
         while 1:
             # set check list #
@@ -47524,9 +47529,9 @@ Copyright:
                     continue
 
                 # check task type #
-                if onlyKernelTask and not SysMgr.isKernelTask(pid):
+                if onlyKernel and not SysMgr.isKernelTask(pid):
                     continue
-                elif onlyUserTask and SysMgr.isKernelTask(pid):
+                elif onlyUser and SysMgr.isKernelTask(pid):
                     continue
 
                 # process #
@@ -53215,6 +53220,7 @@ Copyright:
         SysMgr.ussEnable = True
         convSize = UtilMgr.convSize2Unit
         convNum = UtilMgr.convNum
+        convColor = UtilMgr.convColor
 
         if SysMgr.customCmd:
             SysMgr.printInfo(
@@ -53222,13 +53228,16 @@ Copyright:
             )
 
         # get memory area option #
-        mems = []
+        addMems = []
         if "MEMAREA" in SysMgr.environList:
             for item in SysMgr.environList["MEMAREA"]:
-                mems.append(item.split("-"))
+                addMems.append(item.split("-"))
 
         # get page info #
+        totalRss = totalPss = 0
         for pid in pids:
+            mems = [] + addMems
+
             # check task #
             if not SysMgr.isAlive(pid):
                 SysMgr.printErr("no PID " + pid)
@@ -53247,21 +53256,26 @@ Copyright:
 
                 # get mergeable size by MADV_MERGEABLE #
                 try:
-                    rss = tobj.procData[pid]["maps"]["FLAG"]["Rss:"]
-                    pss = tobj.procData[pid]["maps"]["FLAG"]["Pss:"]
-                    rate = long((rss - pss) / float(rss) * 100)
+                    mergeStat = tobj.procData[pid]["maps"]["FLAG"]
+                    if not mergeStat:
+                        raise Exception("no stat")
 
-                    rss = UtilMgr.convSize2Unit(long(rss) << 10)
-                    rss = UtilMgr.convColor(rss, "YELLOW")
-                    pss = UtilMgr.convSize2Unit(long(pss) << 10)
-                    pss = UtilMgr.convColor(pss, "YELLOW")
-                    rate = UtilMgr.convColor("%d%%" % rate, "RED")
+                    rss = mergeStat["Rss:"]
+                    pss = mergeStat["Pss:"]
+                    rate = pss / float(rss) * 100
 
-                    mgstr = "<MergeableTotal: %s> " % rss
-                    mgstr += "<MergeablePSS: %s> " % pss
-                    mgstr += "<MergedRate: %s>" % rate
+                    totalRss += rss
+                    totalPss += pss
+
+                    rss = convSize(long(rss) << 10)
+                    rss = convColor(rss, "YELLOW")
+                    pss = convSize(long(pss) << 10)
+                    pss = convColor(pss, "YELLOW")
+                    rate = convColor("%.1f%%" % rate, "RED")
+
+                    mgstr = "<Unique(%s)/Marked(%s)[%s]> " % (pss, rss, rate)
                 except:
-                    mgstr = ""
+                    mgstr = " <No Mergeable Area>"
 
                 tobj.saveProcInstance()
                 mstat = TaskAnalyzer.getMemStr(tobj, pid)
@@ -53351,6 +53365,7 @@ Copyright:
                         if pos + PAGESIZE > len(mem):
                             break
 
+                        # split to page size #
                         frame = mem[pos : pos + PAGESIZE]
 
                         try:
@@ -53367,13 +53382,13 @@ Copyright:
                         cmds = []
                         # convert START and SIZE values #
                         for item in SysMgr.customCmd:
-                            item = item.replace("START", str(start)).replace(
-                                "SIZE", str(size)
-                            )
+                            item = item.replace("START", str(start))
+                            item = item.replace("SIZE", str(size))
                             cmds.append(item)
 
                         # execute remote commands #
                         dbgObj.executeCmd(cmds, force=True)
+                        SysMgr.printPipe()
 
             UtilMgr.deleteProgress()
 
@@ -53406,32 +53421,61 @@ Copyright:
             convSize(dupSize, unit="M" if dupSize > sizeMB else None),
             convSize(totalSize, unit="M" if totalSize > sizeMB else None),
         )
-        summary = UtilMgr.convColor(summary, "YELLOW")
-        summary += UtilMgr.convColor(
-            "[%.1f%%]" % (dupSize / float(totalSize) * 100), "RED"
+        summary = convColor(summary, "YELLOW")
+        summary += "[%s]" % convColor(
+            "%.1f%%" % (dupSize / float(totalSize) * 100), "RED"
         )
+
+        # build mergeable string #
+        try:
+            rate = totalPss / float(totalRss) * 100
+            totalRss = convSize(long(totalRss) << 10)
+            totalRss = convColor(totalRss, "YELLOW")
+            totalPss = convSize(long(totalPss) << 10)
+            totalPss = convColor(totalPss, "YELLOW")
+            rate = convColor("%.1f%%" % rate, "RED")
+
+            mgstr = " <Unique(%s)/Marked(%s)[%s]>" % (totalPss, totalRss, rate)
+        except:
+            mgstr = " <No Mergeable Area>"
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] (Proc: %s) (Dup: %s)%s" % (commList, summary, mstat)
+            "\n[Dup Info] <Dup: %s>%s (Proc: %s)" % (summary, mgstr, commList)
         )
 
         # print details #
+        MB = 1 << 20
         SysMgr.printPipe(
-            "{5:1}\n{0:>12} ({1:>12}) {2:>12} ({3:>4}) {4:>12}\n{5:1}".format(
-                "DupPages", "Size", "Count", "%", "Total", twoLine
+            (
+                "{6:1}\n{0:>12} ({1:>12}) {2:>12} ({3:>4}) "
+                "{4:>12} {5:>12}\n{6:1}"
+            ).format(
+                "DupPages", "Size", "Count", "%", "Total", "Mergeable", twoLine
             )
         )
         for dupCnt, num in sorted(
             table.items(), key=lambda x: long(x[0]), reverse=True
         ):
+            # get total size #
+            totalSize = dupCnt * PAGESIZE * num
+            totalStr = convSize(totalSize)
+            if totalSize > MB:
+                totalStr = convColor(totalStr, "YELLOW", 12)
+
+            mgSize = (dupCnt - 1) * num * PAGESIZE
+            mgStr = convSize(mgSize)
+            if mgSize > MB:
+                mgStr = convColor(mgStr, "YELLOW", 12)
+
             SysMgr.printPipe(
-                "{0:>12} ({1:>12}) {2:>12} ({3:>3}%) {4:>12}".format(
+                "{0:>12} ({1:>12}) {2:>12} ({3:>3}%) {4:>12} {5:>12}".format(
                     convNum(dupCnt),
                     convNum(dupCnt * PAGESIZE),
                     convNum(num),
                     long(num / len(counts) * 100),
-                    convSize(dupCnt * PAGESIZE * num),
+                    totalStr,
+                    mgStr,
                 )
             )
         if not table:
@@ -53440,7 +53484,7 @@ Copyright:
 
         # print histo stats for size #
         dupStats = UtilMgr.convList2Histo(list(counts))
-        UtilMgr.printHist(dupStats, "Dup", "nrPage")
+        UtilMgr.printHist(dupStats, "Dup", "Page")
 
         # print contents #
         if SysMgr.showAll:
@@ -53464,6 +53508,8 @@ Copyright:
             )
 
             printCnt = 0
+            foundZero = False
+            zeroPage = b"\x00" * 4096
             for page, cnt in sorted(
                 mergeTable.items(), key=lambda x: long(x[1]), reverse=True
             ):
@@ -53472,10 +53518,15 @@ Copyright:
                 elif condLess and cnt > condLess:
                     continue
 
+                # check zero page #
+                if not foundZero and page == zeroPage:
+                    page = "ZERO"
+                    foundZero = True
+
                 SysMgr.printPipe(
                     "{0:>12} {1:1}".format(
                         convNum(cnt),
-                        repr(page).replace("\\x", "").lstrip("b'"),
+                        repr(page).replace("\\x", "").strip("b'"),
                     )
                 )
 
@@ -72793,6 +72844,7 @@ class Debugger(object):
         "CONVARG": False,
         "EXCEPTLD": False,
         "EXCEPTWAIT": False,
+        "FIXEDBP": False,
         "HIDESYM": False,
         "INCNATIVE": False,
         "INCOVERHEAD": False,
@@ -76128,6 +76180,10 @@ typedef struct {
                 )
             )
 
+        # check fixed bp option #
+        if addrList and Debugger.envFlags["FIXEDBP"]:
+            self.removeAllBp()
+
         # add new breakpoints #
         for idx, item in enumerate(addrList):
             UtilMgr.printProgress(idx, len(addrList))
@@ -76150,7 +76206,8 @@ typedef struct {
         UtilMgr.deleteProgress()
 
         # inject default breakpoints #
-        self.injectDefaultBp()
+        if not Debugger.envFlags["FIXEDBP"]:
+            self.injectDefaultBp()
 
         return True
 
@@ -76560,62 +76617,13 @@ typedef struct {
             )
             return -1
 
-        # attach to the thread #
         plist = ConfigMgr.PTRACE_TYPE
         doExit = False
 
         while 1:
+            # attach to the thread #
             ret = self.ptrace(self.attachCmd)
-            if ret != 0:
-                tracer = SysMgr.getTracerId(pid)
-                if tracer > 0:
-                    reason = " because it is being traced by %s(%s)" % (
-                        SysMgr.getComm(tracer),
-                        tracer,
-                    )
-                elif not SysMgr.isRoot():
-                    reason = " because of no root permission"
-                    doExit = True
-                else:
-                    reason = " because %s" % self.errmsg
-
-                    # check exit condition #
-                    if not self.isAlive():
-                        doExit = True
-
-                # print error message #
-                warnMsg = "failed to attach %s(%s) to guider(%s)%s" % (
-                    self.comm,
-                    pid,
-                    SysMgr.pid,
-                    reason,
-                )
-
-                # get alive status #
-                isAlive = self.isAlive()
-
-                # add solution for docker to error message #
-                if tracer == 0 and isAlive:
-                    warnMsg += (
-                        "\n\tif you use docker then attach "
-                        "'--cap-add=SYS_PTRACE --security-opt "
-                        "seccomp=unconfined' option to the run command"
-                    )
-
-                # print error message #
-                SysMgr.printWarn(warnMsg, verb)
-
-                # check return #
-                if doExit:
-                    sys.exit(-1)
-                elif not cont:
-                    return -1
-                elif isAlive:
-                    time.sleep(SysMgr.waitDelay)
-                    continue
-                else:
-                    sys.exit(-1)
-            else:
+            if ret == 0:
                 self.attached = True
 
                 SysMgr.printWarn(
@@ -76624,6 +76632,58 @@ typedef struct {
                 )
 
                 return 0
+
+            # handle error #
+            tracer = SysMgr.getTracerId(pid)
+            if tracer > 0:
+                reason = " because it is being traced by %s(%s)" % (
+                    SysMgr.getComm(tracer),
+                    tracer,
+                )
+            elif not SysMgr.isRoot():
+                reason = " because of no root permission"
+                doExit = True
+            else:
+                reason = " because %s" % self.errmsg
+
+                # check exit condition #
+                if not self.isAlive():
+                    doExit = True
+
+            # print error message #
+            warnMsg = "failed to attach %s(%s) to guider(%s)%s" % (
+                self.comm,
+                pid,
+                SysMgr.pid,
+                reason,
+            )
+
+            # get alive status #
+            isAlive = self.isAlive()
+
+            # add solution for docker to error message #
+            if isAlive and SysMgr.isKernelTask(self.pid):
+                warnMsg += ", It's kernel task"
+            elif tracer == 0 and isAlive:
+                warnMsg += (
+                    "\n\tif you use docker then attach "
+                    "'--cap-add=SYS_PTRACE --security-opt "
+                    "seccomp=unconfined' option to the run command"
+                )
+
+            # print error message #
+            SysMgr.printWarn(warnMsg, verb)
+
+            # check return #
+            if doExit:
+                sys.exit(-1)
+            elif not cont:
+                return -1
+            elif isAlive:
+                time.sleep(SysMgr.waitDelay)
+                continue
+            else:
+                sys.exit(-1)
 
     def stop(self, pid=None, thread=True, check=False):
         if not pid:
