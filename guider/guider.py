@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230213"
+__revision__ = "230214"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23238,6 +23238,8 @@ class LogMgr(object):
     SD_JOURNAL_OS_ROOT = 1 << 4
     SD_JOURNAL_SYSTEM_ONLY = SD_JOURNAL_SYSTEM
 
+    lockStat = {}
+
     def __init__(self, target="error"):
         self.errFd = None
 
@@ -23348,42 +23350,50 @@ class LogMgr(object):
         return getattr(self.terminal, attr)
 
     @staticmethod
-    def lock(fd):
+    def _lock(fd, lock=True):
         # pylint: disable=undefined-variable
         if not SysMgr.isLinux:
             return
 
+        if lock:
+            lname = "lock"
+        else:
+            lname = "unlock"
+
+        if fd in LogMgr.lockStat:
+            print(
+                UtilMgr.convColor(
+                    ("\n[ERROR] tried to %s %s again" % (lname, fd)), "RED"
+                )
+            )
+            return
+
+        # save lock status #
+        LogMgr.lockStat[fd] = True
+
         try:
-            SysMgr.importPkgItems("fcntl")
-            lockf(fd, LOCK_EX, 1, 0, 0)
+            if SysMgr.importPkgItems("fcntl", isExit=False):
+                lockf(fd, LOCK_EX if lock else LOCK_UN, 1, 0, 0)
         except SystemExit:
             sys.exit(0)
         except:
             name = fd.name if fd else "logger"
             reason = SysMgr.getErrMsg()
             print(
-                "\n[ERROR] failed to get lock for %s because %s"
-                % (name, reason)
+                "\n[ERROR] failed to %s for %s because %s"
+                % (lname, name, reason)
             )
+
+        # remove lock status #
+        LogMgr.lockStat.pop(fd, None)
+
+    @staticmethod
+    def lock(fd):
+        return LogMgr._lock(fd, lock=True)
 
     @staticmethod
     def unlock(fd):
-        # pylint: disable=undefined-variable
-        if not SysMgr.isLinux:
-            return
-
-        try:
-            SysMgr.importPkgItems("fcntl")
-            lockf(fd, LOCK_UN, 1, 0, 0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            name = fd.name if fd else "logger"
-            reason = SysMgr.getErrMsg()
-            print(
-                "\n[ERROR] failed to free lock for %s because %s"
-                % (name, reason)
-            )
+        return LogMgr._lock(fd, lock=False)
 
     @staticmethod
     def printSyslog(console=False):
@@ -25953,6 +25963,8 @@ Commands:
         if not SysMgr.libCache:
             SysMgr.loadLibCache()
 
+        libs = []
+
         for key, val in SysMgr.libCache.items():
             # convert for specific caches are only consist of absolute paths #
             if key.startswith("/"):
@@ -25980,9 +25992,10 @@ Commands:
                     % (", ".join(val), key)
                 )
 
-            return val
+            # add path to list #
+            libs += val
 
-        return None
+        return libs
 
     @staticmethod
     def convertTaskIdInput(taskList=[]):
@@ -35847,12 +35860,15 @@ Examples:
     - Check all duplicated page frames of all user processes
         # {0:1} {1:1} "a.out, java" -q ONLYUSER
 
-    - Check specific duplicated page frames from the leakage report
+    - Check duplicated page frames from the leakage report
         # {0:1} {1:1} -I guider.out
         # {0:1} {1:1} -I guider.out -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I "guider.out, guider2.out" -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I "guider*.out" -q TARGETSYM:"*testFile*"
         # {0:1} {1:1} -I guider.out -q EXCEPTSYM:"*verifyFile*"
+
+    - Check all duplicated chunks from the leakage report
+        # {0:1} {1:1} -I guider.out -a -q REALCHUNK
 
     - Print callstack-based memory contents from the leakage report
         # {0:1} {1:1} -I guider.out -q SHOWMEM
@@ -36485,6 +36501,8 @@ Description:
          standard libraries such as libstdc++ can't be traced
          if you injected libleaktracer.so to the target process dynamically.
          Because using dynamic injection just update PLTs in mapped binaries.
+       - Memory allocations using direct mmap() are not tracked
+         Because mmap() is not called using reallocation table.
 
 Options:
     -I  <DIR|FILE>              set input path
@@ -41089,6 +41107,8 @@ Copyright:
                 map(long, schedData.split()[:3])
             )
             execPer = (execTime / (execTime + waitTime)) * 100
+            if execPer == 0:
+                execPer = 100
 
             # get runtime #
             statData = SysMgr.readFile("%s/%s/stat" % (SysMgr.procPath, pid))
@@ -52994,6 +53014,9 @@ Copyright:
         pids = {}
         memsProc = {}
 
+        # get page-align option #
+        pageAlign = not "REALCHUNK" in SysMgr.environList
+
         # get target process #
         if SysMgr.inputParam:
             flist = UtilMgr.cleanItem(SysMgr.inputParam.split(","), False)
@@ -53159,31 +53182,38 @@ Copyright:
                     callList.sort(key=lambda e: e[0])
 
                 # merge calls in page unit #
-                PAGESIZE = SysMgr.PAGESIZE
-                chunk = None
-                for call in callList:
-                    # convert to page-aligned number #
-                    addr, size = call[:2]
-                    addr = long(addr / PAGESIZE) * PAGESIZE
-                    size = long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+                if pageAlign:
+                    PAGESIZE = SysMgr.PAGESIZE
+                    chunk = None
+                    for call in callList:
+                        # convert to page-aligned number #
+                        addr, size = call[:2]
+                        addr = long(addr / PAGESIZE) * PAGESIZE
+                        size = (
+                            long((size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+                        )
 
-                    if not chunk:
-                        chunk = [addr, size]
-                        continue
+                        if not chunk:
+                            chunk = [addr, size]
+                            continue
 
-                    # contiguous #
-                    prev = chunk[0] + chunk[1]
-                    if prev >= addr:
-                        chunk[1] += addr - prev + size
-                    # distant #
-                    else:
+                        # contiguous #
+                        prev = chunk[0] + chunk[1]
+                        if prev >= addr:
+                            chunk[1] += addr - prev + size
+                        # distant #
+                        else:
+                            memsProc.setdefault(pid, [])
+                            memsProc[pid].append(chunk)
+                            chunk = [addr, size]
+                    # add last chunk #
+                    if chunk:
                         memsProc.setdefault(pid, [])
                         memsProc[pid].append(chunk)
-                        chunk = [addr, size]
-                # add last chunk #
-                if chunk:
-                    memsProc.setdefault(pid, [])
-                    memsProc[pid].append(chunk)
+                else:
+                    for call in callList:
+                        memsProc.setdefault(pid, [])
+                        memsProc[pid].append(call[:2])
         elif SysMgr.hasMainArg():
             targetList = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
@@ -53307,49 +53337,55 @@ Copyright:
                 UtilMgr.printProgress(idx, len(mems))
 
                 # get addr and size #
-                try:
-                    start, end = long(segment[0], 16), long(segment[1], 16)
-                    size = end - start
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    start, size = segment
-                    end = start + size
-
-                # get pagemap #
-                pagemap = PageAnalyzer.getPagemap(pid, start, size)
-
-                # get a list for contiguous chunks #
-                idx = addr = chunkStart = 0
-                chunkList = []
-                for addr in xrange(start, end, PAGESIZE):
-                    # get page frame info #
+                if pageAlign:
                     try:
-                        entry = struct.unpack("Q", pagemap[idx : idx + 8])[0]
+                        start, end = long(segment[0], 16), long(segment[1], 16)
+                        size = end - start
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        entry = 0
-                    finally:
-                        idx += 8
+                        start, size = segment
+                        end = start + size
 
-                    # check page attribute #
-                    if not PageAnalyzer.isSwapped(
-                        entry
-                    ) and PageAnalyzer.isPresent(entry):
-                        if chunkStart == 0:
-                            chunkStart = addr
-                    elif chunkStart != 0:
-                        chunkList.append([chunkStart, addr - chunkStart])
-                        chunkStart = 0
-                # handle the last valid chunks #
-                if 0 < addr <= end and chunkStart != 0:
-                    if addr == chunkStart:
-                        csize = PAGESIZE
-                    else:
-                        csize = addr - chunkStart
-                    chunkList.append([chunkStart, csize])
+                    # get pagemap #
+                    pagemap = PageAnalyzer.getPagemap(pid, start, size)
 
+                    # get a list for contiguous chunks #
+                    idx = addr = chunkStart = 0
+                    chunkList = []
+                    for addr in xrange(start, end, PAGESIZE):
+                        # get page frame info #
+                        try:
+                            entry = struct.unpack("Q", pagemap[idx : idx + 8])[
+                                0
+                            ]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            entry = 0
+                        finally:
+                            idx += 8
+
+                        # check page attribute #
+                        if not PageAnalyzer.isSwapped(
+                            entry
+                        ) and PageAnalyzer.isPresent(entry):
+                            if chunkStart == 0:
+                                chunkStart = addr
+                        elif chunkStart != 0:
+                            chunkList.append([chunkStart, addr - chunkStart])
+                            chunkStart = 0
+                    # handle the last valid chunks #
+                    if 0 < addr <= end and chunkStart != 0:
+                        if addr == chunkStart:
+                            csize = PAGESIZE
+                        else:
+                            csize = addr - chunkStart
+                        chunkList.append([chunkStart, csize])
+                else:
+                    chunkList = [segment[:2]]
+
+                # read current data #
                 for which, length in chunkList:
                     # read segment #
                     mem = dbgObj.readMem(
@@ -53359,23 +53395,31 @@ Copyright:
                         continue
 
                     # merge pages #
-                    pos = 0
-                    while pos < len(mem):
-                        # check size #
-                        if pos + PAGESIZE > len(mem):
-                            break
+                    if pageAlign:
+                        pos = 0
+                        while pos < len(mem):
+                            # check size #
+                            if pos + PAGESIZE > len(mem):
+                                break
 
-                        # split to page size #
-                        frame = mem[pos : pos + PAGESIZE]
+                            # split to page size #
+                            frame = mem[pos : pos + PAGESIZE]
 
+                            try:
+                                mergeTable[frame] += 1
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                mergeTable[frame] = 1
+
+                            pos += PAGESIZE
+                    else:
                         try:
-                            mergeTable[frame] += 1
+                            mergeTable[mem] += 1
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            mergeTable[frame] = 1
-
-                        pos += PAGESIZE
+                            mergeTable[mem] = 1
 
                     # execute commands #
                     if SysMgr.customCmd:
@@ -53403,20 +53447,20 @@ Copyright:
 
         # calculate results #
         counts = mergeTable.values()
-        uniqSize = len(counts) * PAGESIZE
-        totalSize = sum(counts) * PAGESIZE
+        if pageAlign:
+            chunks = []
+            uniqSize = len(counts) * PAGESIZE
+            totalSize = sum(counts) * PAGESIZE
+        else:
+            chunks = mergeTable.keys()
+            uniqSize = totalSize = 0
+            for chunk, cnt in zip(chunks, counts):
+                uniqSize += len(chunk)
+                totalSize += len(chunk) * cnt
         dupSize = totalSize - uniqSize
-        sizeMB = 1048576
-
-        # print table #
-        table = {}
-        for cnt in counts:
-            if cnt in table:
-                table[cnt] += 1
-            else:
-                table[cnt] = 1
 
         # build summary string #
+        sizeMB = 1048576
         summary = "%s/%s" % (
             convSize(dupSize, unit="M" if dupSize > sizeMB else None),
             convSize(totalSize, unit="M" if totalSize > sizeMB else None),
@@ -53444,8 +53488,15 @@ Copyright:
             "\n[Dup Info] <Dup: %s>%s (Proc: %s)" % (summary, mgstr, commList)
         )
 
+        # make count table #
+        table = {}
+        for cnt in counts:
+            if cnt in table:
+                table[cnt] += 1
+            else:
+                table[cnt] = 1
+
         # print details #
-        MB = 1 << 20
         SysMgr.printPipe(
             (
                 "{6:1}\n{0:>12} ({1:>12}) {2:>12} ({3:>4}) "
@@ -53454,37 +53505,63 @@ Copyright:
                 "DupPages", "Size", "Count", "%", "Total", "Mergeable", twoLine
             )
         )
-        for dupCnt, num in sorted(
-            table.items(), key=lambda x: long(x[0]), reverse=True
-        ):
-            # get total size #
-            totalSize = dupCnt * PAGESIZE * num
-            totalStr = convSize(totalSize)
-            if totalSize > MB:
-                totalStr = convColor(totalStr, "YELLOW", 12)
+        if pageAlign:
+            for dupCnt, num in sorted(
+                table.items(), key=lambda x: long(x[0]), reverse=True
+            ):
+                # get total size #
+                totalSize = dupCnt * PAGESIZE * num
+                totalStr = convSize(totalSize)
+                if totalSize > sizeMB:
+                    totalStr = convColor(totalStr, "YELLOW", 12)
 
-            mgSize = (dupCnt - 1) * num * PAGESIZE
-            mgStr = convSize(mgSize)
-            if mgSize > MB:
-                mgStr = convColor(mgStr, "YELLOW", 12)
+                mgSize = (dupCnt - 1) * num * PAGESIZE
+                mgStr = convSize(mgSize)
+                if mgSize > sizeMB:
+                    mgStr = convColor(mgStr, "YELLOW", 12)
 
-            SysMgr.printPipe(
-                "{0:>12} ({1:>12}) {2:>12} ({3:>3}%) {4:>12} {5:>12}".format(
-                    convNum(dupCnt),
-                    convNum(dupCnt * PAGESIZE),
-                    convNum(num),
-                    long(num / len(counts) * 100),
-                    totalStr,
-                    mgStr,
+                SysMgr.printPipe(
+                    "{0:>12} ({1:>12}) {2:>12} ({3:>3}%) {4:>12} {5:>12}".format(
+                        convNum(dupCnt),
+                        convNum(dupCnt * PAGESIZE),
+                        convNum(num),
+                        long(num / len(counts) * 100),
+                        totalStr,
+                        mgStr,
+                    )
                 )
-            )
+        else:
+            for chunk, cnt in sorted(
+                mergeTable.items(), key=lambda x: long(x[1]), reverse=True
+            ):
+                length = len(chunk)
+
+                # get total size #
+                totalSize = length * cnt
+                totalStr = convSize(totalSize)
+
+                mgSize = length * (cnt - 1)
+                mgStr = convSize(mgSize)
+                if mgSize > sizeMB:
+                    mgStr = convColor(mgStr, "YELLOW", 12)
+
+                SysMgr.printPipe(
+                    "{0:>12} ({1:>12}) {2:>12} ({3:>3}%) {4:>12} {5:>12}".format(
+                        convNum(cnt),
+                        convNum(length),
+                        convNum(1),
+                        100,
+                        totalStr,
+                        mgStr,
+                    )
+                )
         if not table:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
 
         # print histo stats for size #
         dupStats = UtilMgr.convList2Histo(list(counts))
-        UtilMgr.printHist(dupStats, "Dup", "Page")
+        UtilMgr.printHist(dupStats, "Dup", "Page" if pageAlign else "Chunk")
 
         # print contents #
         if SysMgr.showAll:
@@ -53500,17 +53577,15 @@ Copyright:
 
             SysMgr.printPipe(
                 "{3:1}\n{2:1}\n{0:>12} {1:1}\n{2:1}".format(
-                    "DupPages",
+                    "DupPages" if pageAlign else "DupChunks",
                     "Content (2 Char In 1 Byte)",
                     twoLine,
-                    "[Page Info]",
+                    "\n[Chunk Info]",
                 )
             )
 
             printCnt = 0
-            foundZero = False
-            zeroPage = b"\x00" * 4096
-            for page, cnt in sorted(
+            for chunk, cnt in sorted(
                 mergeTable.items(), key=lambda x: long(x[1]), reverse=True
             ):
                 if condBig and cnt < condBig:
@@ -53518,17 +53593,19 @@ Copyright:
                 elif condLess and cnt > condLess:
                     continue
 
-                # check zero page #
-                if not foundZero and page == zeroPage:
-                    page = "ZERO"
-                    foundZero = True
+                origLen = len(chunk)
 
-                SysMgr.printPipe(
-                    "{0:>12} {1:1}".format(
-                        convNum(cnt),
-                        repr(page).replace("\\x", "").strip("b'"),
-                    )
-                )
+                # check zero chunk #
+                if len(set(chunk)) == 1:
+                    chunk = "(%s * %s)" % (chunk[0], convNum(len(chunk)))
+
+                # convert to string #
+                chunk = repr(chunk).replace("\\x", "").strip("b'")
+
+                if not pageAlign:
+                    chunk = "[%s] %s" % (convNum(origLen), chunk)
+
+                SysMgr.printPipe("{0:>12} {1:1}".format(convNum(cnt), chunk))
 
                 printCnt += 1
 
@@ -83900,9 +83977,7 @@ typedef struct {
         # check syscall condition #
         if nrSyscall >= len(ConfigMgr.sysList):
             if not Debugger.dbusEnable:
-                SysMgr.printWarn(
-                    "no support for syscall number %s" % nrSyscall
-                )
+                SysMgr.printWarn("no support for syscall(%s)" % nrSyscall)
             return
         elif SysMgr.syscallList and not nrSyscall in SysMgr.syscallList:
             # self.cmd = self.sysemuCmd
@@ -83923,7 +83998,7 @@ typedef struct {
         except:
             if Debugger.dbusEnable:
                 return
-            SysMgr.printWarn("no support for syscall number %s" % nrSyscall)
+            SysMgr.printWarn("no support for syscall(%s)" % nrSyscall)
             self.syscall = name = "syscall<%s>" % nrSyscall
 
         # get diff time #
@@ -112654,7 +112729,7 @@ class TaskAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printWarn("wrong syscall number %s" % nr)
+                    SysMgr.printWarn("wrong syscall(%s)" % nr)
                     return time
             else:
                 # start_delta = 0
