@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230214"
+__revision__ = "230215"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7310,7 +7310,9 @@ class UtilMgr(object):
     def convNum(number, isFloat=False, floatDigit=1):
         try:
             if isFloat:
-                return format(round(float(number), floatDigit), ",")
+                numstr = format(round(float(number), floatDigit), ",")
+                first, second = numstr.split(".", 1)
+                return first + "." + second[:floatDigit]
             else:
                 return format(long(number), ",")
         except SystemExit:
@@ -8715,10 +8717,7 @@ class NetworkMgr(object):
                 or SysMgr.checkMode("cli")
             ):
                 SysMgr.printErr(
-                    (
-                        "failed to create a socket for %s:%s as server "
-                        "because %s%s"
-                    )
+                    "failed to create a socket for %s:%s as server because %s%s"
                     % (self.ip, self.port, err, feedback)
                 )
 
@@ -9511,10 +9510,7 @@ class NetworkMgr(object):
                     continue
 
                 SysMgr.printWarn(
-                    (
-                        "failed to receive data from %s:%d as client"
-                        "because of %s"
-                    )
+                    "failed to receive data from %s:%d as client because of %s"
                     % (self.ip, self.port, "timeout")
                 )
                 return None
@@ -9805,8 +9801,7 @@ class NetworkMgr(object):
             SysMgr.printErr(
                 (
                     "wrong value for remote connection, "
-                    "local address and remote address are same "
-                    "(%s:%s)"
+                    "local address and remote address are same (%s:%s)"
                 )
                 % (ip, port)
             )
@@ -9819,10 +9814,7 @@ class NetworkMgr(object):
                 reqList += req + "|"
 
             SysMgr.printErr(
-                (
-                    "wrong input address, "
-                    "input [%s]@IP:PORT as remote address"
-                )
+                "wrong input address, input [%s]@IP:PORT as remote address"
                 % reqList[:-1]
             )
             sys.exit(-1)
@@ -9855,8 +9847,7 @@ class NetworkMgr(object):
             service = "PRINT"
 
         errMsg = (
-            "wrong value for remote server, "
-            "input in the format [%s]@IP:PORT"
+            "wrong value for remote server, input in the format [%s]@IP:PORT"
         ) % "|".join(TaskAnalyzer.requestType)
 
         if not ip or not SysMgr.isValidRequest(service):
@@ -12565,8 +12556,7 @@ class Ext4Analyzer(object):
 
             def __repr__(self):
                 return (
-                    "%s(byte_size = %s, block_map = %s, "
-                    "volume_uuid = %s)"
+                    "%s(byte_size = %s, block_map = %s, volume_uuid = %s)"
                     % (
                         type(self).__name__,
                         self.byte_size,
@@ -14300,6 +14290,7 @@ class PageAnalyzer(object):
         retList=False,
         verb=True,
         progress=False,
+        cmdset=[],
     ):
         try:
             if not pid:
@@ -14428,6 +14419,11 @@ class PageAnalyzer(object):
             procTotalFlags = 0
             pageTable = []
 
+            if cmdset:
+                # create a debugger object #
+                dbgObj = Debugger(pid)
+                dbgObj.initValues()
+
             # print page info in target address ranges #
             for vcnt, vrange in enumerate(targetList):
                 # print progress #
@@ -14482,6 +14478,8 @@ class PageAnalyzer(object):
                     SysMgr.printErr(errMsg % vrange, True)
                     sys.exit(-1)
 
+                size = addre - addrs
+
                 _printPipe(
                     "\n[Mem Info] [Proc: %s(%s)] [AREA: %s] [HELP: %s]"
                     % (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt")
@@ -14492,6 +14490,24 @@ class PageAnalyzer(object):
                     PageAnalyzer.printMemoryArea(
                         pid, addrs, addre, lastLine=True
                     )
+
+                # execute commands #
+                if cmdset:
+                    cmds = []
+                    # convert START and SIZE values #
+                    for item in cmdset:
+                        item = item.replace("START", str(addrs))
+                        item = item.replace("END", str(addre))
+                        item = item.replace("SIZE", str(size))
+                        cmds.append(item)
+
+                    # execute remote commands #
+                    dbgObj.executeCmd(cmds, force=True)
+                    SysMgr.printPipe("\n")
+
+                # check skip condition #
+                if "SKIPATTR" in SysMgr.environList:
+                    continue
 
                 # print menu #
                 _printPipe(
@@ -14688,6 +14704,15 @@ class PageAnalyzer(object):
 
             if progress:
                 UtilMgr.deleteProgress()
+
+            if cmdset:
+                # destroy debugger object #
+                dbgObj.detach()
+                del dbgObj
+
+            # check skip condition #
+            if "SKIPATTR" in SysMgr.environList:
+                continue
 
             # print process memory info #
             _printPipe(
@@ -22108,10 +22133,7 @@ class FileAnalyzer(object):
             fpath = os.path.realpath(item)
             if not os.path.exists(fpath):
                 SysMgr.printWarn(
-                    (
-                        "skipped adding '%s' to readahead list "
-                        "because not exists"
-                    )
+                    "skipped adding '%s' to readahead list because not exists"
                     % fpath,
                     True,
                 )
@@ -22273,10 +22295,7 @@ class FileAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    (
-                        "failed to set the minimum size to '%s'"
-                        "for readahead chunk"
-                    )
+                    "failed to set the minimum size to '%s' for readahead chunk"
                     % raMin,
                     True,
                 )
@@ -23282,10 +23301,7 @@ class LogMgr(object):
             except:
                 err = SysMgr.getErrMsg()
                 SysMgr.printWarn(
-                    (
-                        "failed to make %s directory because %s "
-                        "so that use /tmp dir"
-                    )
+                    "failed to make %s directory because %s so that use /tmp"
                     % (SysMgr.cacheDirPath, err),
                     True,
                 )
@@ -32138,8 +32154,11 @@ Common Examples:
         # {0:1} {1:1} -q TASKMON, TASKFILTER:"*a.out*" -e t -P
         # {0:1} {1:1} -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
 
-    - Print backtrace info
+    - Print including backtrace info
         # {0:1} {1:1} -g a.out -H
+
+    - Print if only backtrace including specific words
+        # {0:1} {1:1} -g a.out -H -q BTFILTER:"*_IO*"
 
     - Print python backtrace info
         # {0:1} {1:1} -g a.out -H -q PYSTACK
@@ -32485,7 +32504,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|save:VAR1|print:VAR1|save:VAR2:123"
         # {0:1} {1:1} -g a.out -c "write|save:ARG1:1:arg|print:VAR1"
 
-    - {5:1} and print call contexts if specific conditions are met {4:1} {7:1}
+    - {5:1} and print call contexts if only specific conditions are met {4:1} {7:1}
         # {0:1} {1:1} -g a.out -c "write|filter:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:EQ:HELLO"
@@ -33865,6 +33884,9 @@ Examples:
     - {2:1} for specific processes
         # {0:1} {1:1} -g chrome
 
+    - {2:1} without system memory info for all processes
+        # {0:1} {1:1} -q NOSYSMEM
+
     - {2:1} without smaps info for specific processes
         # {0:1} {1:1} -g chrome -q NOSMAPS
 
@@ -33877,6 +33899,7 @@ Examples:
     - {2:1} with specific vmflags (refer to FLAG line)
         # {0:1} {1:1} -g chrome -q VMFLAG:MERGE
         # {0:1} {1:1} -g chrome -q VMFLAG:MERGE, ONLYVMFLAG
+        # {0:1} {1:1} -g chrome -q VMFLAG:MERGE, ONLYVMFLAGTASK
         # {0:1} {1:1} -g chrome -q VMFLAG:"HUGETLB+HUGEPAGE"
 
     See the top COMMAND help for more examples.
@@ -34542,6 +34565,13 @@ Examples:
 
     - {3:1} and print memory that 2nd argument point to
         # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
+
+    - {3:1} and print call contexts if only specific conditions are met
+        # {0:1} {1:1} -I "ls -al" -c "write|filter:2:EQ:4096"
+        # {0:1} {1:1} -I "ls -al" -c "write|filter:2:BT:0x1000"
+        # {0:1} {1:1} -I "ls -al" -c "write|filter:*1:EQ:HELLO"
+        # {0:1} {1:1} -I "ls -al" -c "write|filter:*1:INC:HE"
+        # {0:1} {1:1} -I "ls -al" -c "write|filter:2:BT:1|filter:1:EQ:1"
                     """.format(
                             cmd,
                             mode,
@@ -35031,6 +35061,12 @@ Examples:
         # {0:1} {1:1} a.out -I noperm
         # {0:1} {1:1} a.out -I all
         # {0:1} {1:1} a.out -I 0x8000-0x9000, 0x12345678
+
+    - Print memory map info without attributes in specific area {3:1}
+        # {0:1} {1:1} a.out -I anon -q SKIPATTR
+
+    - Print memory map info without attributes in specific area {3:1} and execute specific commands
+        # {0:1} {1:1} a.out -I file -q SKIPATTR -c madvise:START:SIZE:DONTNEED
 
     - {2:1} in specific area {3:1}
         # {0:1} {1:1} a.out -I 0x0-0x4000 -a
@@ -35869,6 +35905,9 @@ Examples:
 
     - Check all duplicated chunks from the leakage report
         # {0:1} {1:1} -I guider.out -a -q REALCHUNK
+
+    - Print only stats without checking duplication
+        # {0:1} {1:1} -I guider.out -q SKIPDUP
 
     - Print callstack-based memory contents from the leakage report
         # {0:1} {1:1} -I guider.out -q SHOWMEM
@@ -39030,10 +39069,7 @@ Copyright:
             # check arguments #
             if len(args) != nrParams:
                 SysMgr.printErr(
-                    (
-                        "failed to get arguments for %s "
-                        "because of wrong parameters"
-                    )
+                    "failed to get arguments for %s because of wrong parameters"
                     % nmSyscall
                 )
                 raise Exception("wrong params")
@@ -42682,10 +42718,7 @@ Copyright:
     @staticmethod
     def printPipWarn(name, pkg):
         SysMgr.printWarn(
-            (
-                "failed to import python package: %s, "
-                "try to run 'pip%s install %s'"
-            )
+            "failed to import python package: %s, try to run 'pip%s install %s'"
             % (name, sys.version_info[0], pkg),
             True,
         )
@@ -44715,27 +44748,21 @@ Copyright:
                     SysMgr.intervalEnable = 1
                     continue
 
+                errStr = "wrong value '%s' for interval, " % value
+
                 try:
                     SysMgr.intervalEnable = long(value)
 
                     if SysMgr.intervalEnable <= 0:
                         SysMgr.printErr(
-                            (
-                                "wrong value '%s' for interval, "
-                                "input number bigger than 0"
-                            )
-                            % value
+                            "%sinput number bigger than 0" % errStr
                         )
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(
-                        (
-                            "wrong value '%s' for interval, "
-                            "input number in integer format"
-                        )
-                        % value
+                        "%sinput number in integer format" % errStr
                     )
                     sys.exit(-1)
 
@@ -46278,7 +46305,9 @@ Copyright:
             else:
                 target = SysMgr.filterGroup
 
-            PageAnalyzer.getPageInfo(target, SysMgr.inputParam)
+            PageAnalyzer.getPageInfo(
+                target, SysMgr.inputParam, cmdset=SysMgr.customCmd
+            )
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
@@ -47111,7 +47140,7 @@ Copyright:
             SysMgr.printBgProcs(cache=True)
         else:
             SysMgr.printWarn(
-                "failed to find the process with PID %s" % name, True
+                "failed to find %s process using PID" % name, True
             )
 
         return None
@@ -47791,10 +47820,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    (
-                        "failed to set the maximum size to '%s'"
-                        "for readahead chunk"
-                    )
+                    "failed to set the maximum size to '%s' for readahead chunk"
                     % raMax,
                     True,
                 )
@@ -50668,10 +50694,7 @@ Copyright:
                             SysMgr.executeProcess(cmd=pcmd, closeFd=False)
                     else:
                         SysMgr.printErr(
-                            (
-                                "no support piped command set bigger than 2 "
-                                "for '%s'"
-                            )
+                            "no support piped commands bigger than 2 for '%s'"
                             % cmd
                         )
 
@@ -53263,6 +53286,9 @@ Copyright:
             for item in SysMgr.environList["MEMAREA"]:
                 addMems.append(item.split("-"))
 
+        # get skip checkdup #
+        skipDup = "SKIPDUP" in SysMgr.environList
+
         # get page info #
         totalRss = totalPss = 0
         for pid in pids:
@@ -53331,6 +53357,10 @@ Copyright:
                 "start reading %s memory areas for %s(%s)%s..."
                 % (convNum(len(mems)), comm, pid, mstat)
             )
+
+            # skip checkdup #
+            if skipDup:
+                continue
 
             # check duplicated memory #
             for idx, segment in enumerate(mems):
@@ -63213,10 +63243,7 @@ Copyright:
                 try:
                     SysMgr.cmdFd.write(SysMgr.saveCmd)
                     SysMgr.cmdFd.write(
-                        (
-                            "echo '\n[Info] saved commands "
-                            "for tracing into %s\n'\n"
-                        )
+                        "echo '\n[Info] saved commands for tracing into %s\n'\n"
                         % outputPath
                     )
                     SysMgr.cmdFd.flush()
@@ -66212,8 +66239,7 @@ Copyright:
         SysMgr.infoBufferPrint(oneLine)
         SysMgr.infoBufferPrint(
             (
-                "{0:^26}   {1:^8}   {2:^26} | "
-                "{3:>6}   {4:>6}   {5:>6} | "
+                "{0:^26}   {1:^8}   {2:^26} | {3:>6}   {4:>6}   {5:>6} | "
                 "{6:>6}   {7:>6} | {8:>11}   {9:>11}   {10:>11}".format(
                     "OWNER",
                     "SHM",
@@ -66336,9 +66362,8 @@ Copyright:
             try:
                 SysMgr.infoBufferPrint(
                     (
-                        "{0:>37}   {1:>26}   {2:>6}   {3:>6}   "
-                        "{4:>6}   {5:>6}   {6:>6}   {7:>11}   {8:>11}   "
-                        "{9:>11}"
+                        "{0:>37}   {1:>26}   {2:>6}   {3:>6}   {4:>6}   "
+                        "{5:>6}   {6:>6}   {7:>11}   {8:>11}   {9:>11}"
                     ).format(
                         shmids,
                         access,
@@ -67565,10 +67590,7 @@ class DbusMgr(object):
                 if not msg or not reply:
                     if busType == DbusMgr.DBusBusType["DBUS_BUS_SESSION"]:
                         SysMgr.printWarn(
-                            (
-                                "check DBUS_SESSION_BUS_ADDRESS "
-                                "for %s bus for %s"
-                            )
+                            "check DBUS_SESSION_BUS_ADDRESS for %s bus for %s"
                             % (bus, procInfo),
                             True,
                         )
@@ -73260,6 +73282,7 @@ class Debugger(object):
         self.bpNewList = {}
         self.entryTime = {}
         self.entryContext = {}
+        self.filterList = {}
         self.retCmdList = {}
         self.retFilterList = {}
         self.exceptBpList = {}
@@ -73288,6 +73311,7 @@ class Debugger(object):
         self.btList = None
         self.btStr = None
         self.btArgList = []
+        self.btFilterStr = ""
         self.csBtList = None
         self.csBtSymList = None
         self.csContext = None
@@ -73723,6 +73747,10 @@ typedef struct {
         # set string size #
         if Debugger.strSize == -1 and "STRSIZE" in SysMgr.environList:
             Debugger.strSize = UtilMgr.getEnvironNum("STRSIZE", isInt=True)
+
+        # apply backtrace filter #
+        if "BTFILTER" in SysMgr.environList:
+            self.btFilterStr = SysMgr.environList["BTFILTER"]
 
     def getIovec(self, reg):
         return self.iovec(iov_base=addressof(reg), iov_len=sizeof(reg))
@@ -74589,10 +74617,7 @@ typedef struct {
                 ret = self.setRetBp(sym, fname, cmd)
                 if not ret:
                     SysMgr.printErr(
-                        (
-                            "failed to set breakpoint to "
-                            "return address for %s"
-                        )
+                        "failed to set breakpoint to return address for %s"
                         % sym
                     )
                     return repeat
@@ -74622,10 +74647,7 @@ typedef struct {
                     ret = self.setRetBp(sym, fname, cmd)
                     if not ret:
                         SysMgr.printErr(
-                            (
-                                "failed to set breakpoint to "
-                                "return address for %s"
-                            )
+                            "failed to set breakpoint to return address for %s"
                             % sym
                         )
                         return repeat
@@ -75329,10 +75351,7 @@ typedef struct {
                     ret = self.setRetBp(sym, fname)
                     if not ret:
                         SysMgr.printErr(
-                            (
-                                "failed to set breakpoint to "
-                                "return address for %s"
-                            )
+                            "failed to set breakpoint to return address for %s"
                             % sym
                         )
 
@@ -76338,15 +76357,13 @@ typedef struct {
 
                 # set return filter #
                 self.retFilterList[sym] = [memset, None, retcmd]
-                ret = self.setRetBp(sym, fname, cmd)
-                if not ret:
-                    SysMgr.printErr(
-                        (
-                            "failed to set breakpoint to "
-                            "return address for %s"
+                if self.isBreakMode:
+                    ret = self.setRetBp(sym, fname, cmd)
+                    if not ret:
+                        SysMgr.printErr(
+                            "failed to set breakpoint to return address for %s"
+                            % sym
                         )
-                        % sym
-                    )
 
                 # update filter result #
                 if len(filterCmd) == 1:
@@ -76685,10 +76702,7 @@ typedef struct {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(
-                (
-                    "failed to attach %s(%s) to guider(%s) "
-                    "because of wrong pid"
-                )
+                "failed to attach %s(%s) to guider(%s) because of wrong pid"
                 % (self.comm, pid, SysMgr.pid),
                 verb,
             )
@@ -77509,10 +77523,7 @@ typedef struct {
                     break
                 elif not self.isAlive():
                     SysMgr.printWarn(
-                        (
-                            "failed to continue %s(%s) "
-                            "because it is terminated"
-                        )
+                        "failed to continue %s(%s) because it is terminated"
                         % (self.comm, pid)
                     )
                     return -1
@@ -79822,10 +79833,7 @@ typedef struct {
                 sys.exit(0)
             except:
                 SysMgr.printWarn(
-                    (
-                        "failed to load JIT-compiled symbols "
-                        "from '%s' for %s(%s)"
-                    )
+                    "failed to load JIT-compiled symbols from '%s' for %s(%s)"
                     % (self.jmapPath, self.comm, self.pid),
                     reason=True,
                 )
@@ -81832,6 +81840,11 @@ typedef struct {
             symColor,
         ) = self.getBpContext(sym, addr, args, isRetBp)
 
+        # check backtrace filter #
+        if self.btFilterStr:
+            if not UtilMgr.isValidStr(btstr, self.btFilterStr):
+                return isRetBp
+
         # print return value #
         jsonData = {}
         elapsed = callString = retstr = ""
@@ -83750,6 +83763,14 @@ typedef struct {
             # convert list to string #
             bts = self.getBtStr(backtrace)
             if bts:
+                if self.btFilterStr:
+                    if not UtilMgr.isValidStr(bts, self.btFilterStr):
+                        if not defer:
+                            self.status = "skip"
+                        else:
+                            self.status = "enter"
+                        self.clearArgs()
+                        return False
                 bts = "\n%s%s " % (" " * 20, bts)
         else:
             backtrace = None
@@ -83915,7 +83936,7 @@ typedef struct {
             args = self.convSyscallArgs(retval)
 
         # print output #
-        self.handleSyscallOutput(args, defer=True)
+        return self.handleSyscallOutput(args, defer=True)
 
     def updateSyscallStat(self, name, diff):
         try:
@@ -83959,7 +83980,9 @@ typedef struct {
 
         # check defer #
         if self.status == "defer":
-            self.handleDefSyscall()
+            ret = self.handleDefSyscall()
+            if ret is False:
+                return
 
         # ignore return #
         if Debugger.dbusEnable and self.status == "exit":
@@ -84009,6 +84032,17 @@ typedef struct {
 
         # enter #
         if self.status == "enter":
+            # check filter #
+            for target in self.filterList:
+                if not UtilMgr.isValidStr(name, [target]):
+                    continue
+                if not self.checkFilterCond(
+                    self.filterList[target].split("|"), self.readArgs(), name
+                ):
+                    self.status = "skip"
+                    return
+                break
+
             # set next status #
             self.status = "exit"
 
@@ -84058,6 +84092,7 @@ typedef struct {
                         SysMgr.outPath
                         or Debugger.envFlags["ONLYOK"]
                         or Debugger.envFlags["ONLYFAIL"]
+                        or self.btFilterStr
                     ):
                         self.bufferedStr = callString
                     else:
@@ -85009,11 +85044,8 @@ typedef struct {
                     skip = True
             else:
                 SysMgr.printErr(
-                    (
-                        "failed to recognize '%s' in return filter "
-                        "for %s for %s(%s)"
-                    )
-                    % (op, origSym, self.comm, self.pid)
+                    "failed to recognize '%s' in return filter for %s for %s"
+                    % (op, origSym, "%s(%s)" % (self.comm, self.pid))
                 )
                 sys.exit(-1)
 
@@ -85645,6 +85677,22 @@ typedef struct {
         # select trap command #
         if self.mode == "syscall":
             self.cmd = self.syscallCmd
+
+            # get filter commands #
+            newCustomCmd = []
+            for item in SysMgr.customCmd:
+                try:
+                    syscall, value = item.split("|", 1)
+                    if value.startswith("filter:"):
+                        self.filterList[syscall] = value
+                    else:
+                        newCustomCmd.append(item)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("wrong syscall filter '%s'" % item)
+                    sys.exit(-1)
+            SysMgr.customCmd = newCustomCmd
         elif self.mode == "inst":
             self.cmd = self.singlestepCmd
             if self.arch == "arm":
@@ -86362,16 +86410,15 @@ typedef struct {
                 PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 """
                 perm = long(fd.readline()[:-1])
-                if perm == 3:
-                    SysMgr.printErr(
-                        (
-                            "failed to use ptrace because it is not allowed, "
-                            "check %s"
-                        )
-                        % filePath
-                    )
-                    return -1
-                return 0
+                if perm != 3:
+                    return 0
+
+                # error status #
+                SysMgr.printErr(
+                    "failed to use ptrace because it is not allowed, check %s"
+                    % filePath
+                )
+                return -1
         except:
             return 0
 
@@ -89616,8 +89663,7 @@ class ElfAnalyzer(object):
             SysMgr.printWarn(
                 (
                     "failed to import python package: ctypes "
-                    "to demangle symbol, so that "
-                    "disable demangle feature"
+                    "to demangle symbol, so that disable demangle feature"
                 ),
                 True,
             )
@@ -89653,8 +89699,7 @@ class ElfAnalyzer(object):
                 SysMgr.printWarn(
                     (
                         "failed to load demangle object: %s "
-                        "to demangle symbol, so that "
-                        "disable demangle feature"
+                        "to demangle symbol, so that disable demangle feature"
                     )
                     % SysMgr.libdemanglePath,
                     True,
@@ -89742,34 +89787,22 @@ class ElfAnalyzer(object):
                     dmSymbol = symbol
                     if origStat == -1:
                         SysMgr.printWarn(
-                            (
-                                "failed to allocate memory to "
-                                "demangle symbol %s"
-                            )
+                            "failed to allocate memory to demangle symbol %s"
                             % origSym
                         )
                     elif origStat == -2:
                         SysMgr.printWarn(
-                            (
-                                "failed to demangle %s because of "
-                                "invalid name"
-                            )
+                            "failed to demangle %s because of invalid name"
                             % origSym
                         )
                     elif origStat == -3:
                         SysMgr.printWarn(
-                            (
-                                "failed to demangle %s because of "
-                                "invalid args"
-                            )
+                            "failed to demangle %s because of invalid args"
                             % origSym
                         )
                     else:
                         SysMgr.printWarn(
-                            (
-                                "failed to demangle %s because of "
-                                "unknown status %d"
-                            )
+                            "failed to demangle %s because of unknown status %d"
                             % (origSym, origStat)
                         )
 
@@ -93056,10 +93089,7 @@ Section header string table index: %d
 
                         if not "fdeEncoding" in augdict:
                             SysMgr.printErr(
-                                (
-                                    "failed to find FDE encoding data "
-                                    "from CIE %x"
-                                )
+                                "failed to find FDE encoding data from CIE %x"
                                 % cie["id"]
                             )
                             sys.exit(-1)
@@ -94482,10 +94512,7 @@ Section header string table index: %d
                     except:
                         error = True
                         SysMgr.printErr(
-                            (
-                                "failed to get %s(0x%x) attributes "
-                                "from debug_info"
-                            )
+                            "failed to get %s(0x%x) attributes from debug_info"
                             % (abbrevCode, abbrevCode),
                             True,
                         )
@@ -102801,8 +102828,7 @@ class TaskAnalyzer(object):
 
                 SysMgr.printPipe(
                     (
-                        "{0:<32} {1:>32}({2:>7}) {3:>10} "
-                        "{4:>10.6f} {5:>10.6f}"
+                        "{0:<32} {1:>32}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}"
                     ).format(
                         idx,
                         "TOTAL",
@@ -105518,8 +105544,7 @@ class TaskAnalyzer(object):
 
                 SysMgr.printPipe(
                     (
-                        "{0:>25} {1:>5} {2:>8} {3:>20} "
-                        "{4:>25} {5:^12} {6:1}"
+                        "{0:>25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:1}"
                     ).format(cid, opt, num, size, seqString, fs, dev)
                 )
 
@@ -105785,8 +105810,7 @@ class TaskAnalyzer(object):
 
                     # build final string #
                     inodeStr += (
-                        "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                        "{5:>12} {6:<1}\n"
+                        "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} {5:>12} {6:<1}\n"
                     ).format(" ", " ", " ", inode, size, " ", path)
 
                 opSize += totalSize
@@ -105871,8 +105895,7 @@ class TaskAnalyzer(object):
                     opSize += totalSize
 
                     devStr += (
-                        "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                        "{5:>12} {6:<1}\n"
+                        "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} {5:>12} {6:<1}\n"
                     ).format("", "", did, "", convSize(totalSize), fs, dev)
 
                     devStr += inodeStr
@@ -115876,7 +115899,7 @@ class TaskAnalyzer(object):
             self.saveIrqs()
 
         # save memory info #
-        if SysMgr.memEnable:
+        if SysMgr.memEnable and not "NOSYSMEM" in SysMgr.environList:
             self.saveBuddyInfo()
             self.saveKSMInfo()
             self.saveSlabInfo()
@@ -116113,10 +116136,7 @@ class TaskAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(
-                        (
-                            "failed to get memory stats "
-                            "for the task having TID %s"
-                        )
+                        "failed to get memory stats for the task having TID %s"
                         % tid,
                         reason=True,
                     )
@@ -119344,7 +119364,11 @@ class TaskAnalyzer(object):
                     pass
 
     def printMemoryUsage(self, nrIndent):
-        if not self.memData or not SysMgr.memEnable:
+        if (
+            not self.memData
+            or not SysMgr.memEnable
+            or "NOSYSMEM" in SysMgr.environList
+        ):
             return
 
         databuf = ""
@@ -119498,7 +119522,7 @@ class TaskAnalyzer(object):
         SysMgr.addPrint("%s\n" % databuf, newline=databuf.count("\n") + 1)
 
     def printVmInfo(self, nrIndent):
-        if not SysMgr.memEnable:
+        if not SysMgr.memEnable or "NOSYSMEM" in SysMgr.environList:
             return
 
         vmInfo = "%s [VM > " % (" " * nrIndent)
@@ -121501,6 +121525,12 @@ class TaskAnalyzer(object):
         else:
             onlyVmflag = False
 
+        # get only vmflagtask option #
+        if "ONLYVMFLAGTASK" in SysMgr.environList:
+            onlyVmflagTask = True
+        else:
+            onlyVmflagTask = False
+
         # print resource usage of tasks #
         procCnt = 0
         procData = self.procData
@@ -121889,7 +121919,7 @@ class TaskAnalyzer(object):
                     idx, value["maps"], vss=vss << 10
                 )
 
-                if onlyVmflag:
+                if onlyVmflag or onlyVmflagTask:
                     if not [True for res in memBuf if res[0] == "FLAG"]:
                         continue
 
@@ -122114,6 +122144,9 @@ class TaskAnalyzer(object):
             for memData in memBuf:
                 mprop = memData[0]
                 mval = memData[1]
+
+                if onlyVmflag and mprop != "FLAG":
+                    continue
 
                 ret = SysMgr.addPrint(mval)
                 if not ret:
@@ -122969,10 +123002,7 @@ class TaskAnalyzer(object):
 
             # print message #
             SysMgr.printInfo(
-                (
-                    "updated the task filter to %s by '%s' command "
-                    "for %s event"
-                )
+                "updated the task filter to %s by '%s' command for %s event"
                 % (value, cmd, name)
             )
         # NOTIFY #
@@ -123105,10 +123135,7 @@ class TaskAnalyzer(object):
 
             # print message #
             SysMgr.printInfo(
-                (
-                    "%s the monitoring resource '%s' by '%s' command "
-                    "for %s event"
-                )
+                "%s the monitoring resource '%s' by '%s' command for %s event"
                 % (act, res, cmd, name)
             )
         # CLEAR #
@@ -123118,10 +123145,7 @@ class TaskAnalyzer(object):
 
             # print message #
             SysMgr.printInfo(
-                (
-                    "cleared the monitoring results by '%s' command "
-                    "for %s event"
-                )
+                "cleared the monitoring results by '%s' command for %s event"
                 % (cmd, name)
             )
         # BUFFER #
@@ -123513,10 +123537,7 @@ class TaskAnalyzer(object):
 
         # print message #
         SysMgr.printInfo(
-            (
-                "start saving the monitoring results by '%s' command "
-                "for '%s' event"
-            )
+            "start saving the monitoring results by '%s' command for '%s' event"
             % (origCmd, event)
         )
 
@@ -123638,10 +123659,7 @@ class TaskAnalyzer(object):
                 continue
             elif not value["run"]:
                 SysMgr.printWarn(
-                    (
-                        "skipped event handling for '%s' "
-                        "because of oneshot flag"
-                    )
+                    "skipped event handling for '%s' because of oneshot flag"
                     % event,
                     True,
                 )
