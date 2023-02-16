@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230215"
+__revision__ = "230216"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26554,6 +26554,8 @@ Commands:
                     c_void_p,
                 ]
                 libcc.get_backtrace_symbols_ptrace.restype = None
+
+                SysMgr.printInfo("enabled libcorkscrew")
             else:
                 SysMgr.libcorkscrewObj = -1
 
@@ -32881,6 +32883,9 @@ Examples:
     - {2:1} of on-memory-mapped files without task info
         # {0:1} {1:1} -q NOTASKINFO
 
+    - {2:1} of on-memory-mapped files without header info
+        # {0:1} {1:1} -q NOHEADER
+
     - {2:1} of specific on-memory-mapped files for all processes
         # {0:1} {1:1} -q TARGETFILE:"*libc*"
         # {0:1} {1:1} -q EXCEPTFILE:"/usr*"
@@ -36150,6 +36155,9 @@ Examples:
         # {0:1} {1:1} readahead.list -q RADENYITEM:"/run/*|/tmp/*"
         # {0:1} {1:1} readahead.list -q RAADDLIST:add.list
         # {0:1} {1:1} readahead.list -q RAADDITEM:"/usr/lib/*|/etc/*"
+
+    - Initiate file readahead into page cache and print summary
+        # {0:1} {1:1} -q PRINTSUMMARY
 
     - Initiate file readahead into page cache and wait for signals
         # {0:1} {1:1} -q WAIT
@@ -47886,9 +47894,13 @@ Copyright:
                 elif raDenyList and UtilMgr.isValidStr(path, raDenyList):
                     raDenyIndexList.append(idx)
 
-        # do readahead #
+        # init variabels #
         totalSize = 0
         failFileList = {}
+        summaryList = {}
+        printSummary = "PRINTSUMMARY" in SysMgr.environList
+
+        # do readahead #
         while 1:
             try:
                 # check break condition #
@@ -47927,6 +47939,11 @@ Copyright:
                     failFileList[fid] = 0
                     continue
 
+                # add to summary #
+                if printSummary:
+                    summaryList.setdefault(fname, 0)
+                    summaryList[fname] += size
+
                 totalSize += size
             except SystemExit:
                 sys.exit(0)
@@ -47963,6 +47980,10 @@ Copyright:
 
                 # readahead a chunk #
                 ret = SysMgr.readahead(item, offset, size, raMax=raMax)
+                # add to summary #
+                if ret and printSummary:
+                    summaryList.setdefault(item, 0)
+                    summaryList[fname] += size
 
                 totalSize += size
             except SystemExit:
@@ -48000,6 +48021,31 @@ Copyright:
         )
         SysMgr.printInfo(logStr)
         LogMgr.doLogKmsg(logStr)
+
+        if printSummary:
+            SysMgr.printPipe(
+                "[Readahead Summary] (Size: %s) (Elapsed: %.3f sec) %s\n%s\n"
+                % (
+                    UtilMgr.convSize2Unit(totalSize),
+                    elapsed,
+                    "(%s)" % cpu.strip("using ") if cpu else "",
+                    twoLine,
+                )
+            )
+            SysMgr.printPipe(
+                "{0:>8} {1:1}\n{2:1}".format("SIZE", "FILE", twoLine)
+            )
+
+            for path, size in sorted(
+                summaryList.items(), key=lambda e: e[1], reverse=True
+            ):
+                SysMgr.printPipe(
+                    "{0:>8} {1:1}".format(UtilMgr.convSize2Unit(size), path)
+                )
+
+            if not summaryList:
+                SysMgr.printPipe("\tNone")
+            SysMgr.printPipe(oneLine)
 
         # check wait option #
         if "WAIT" in SysMgr.environList:
@@ -63253,7 +63299,7 @@ Copyright:
                     SysMgr.printErr("failed to write command", True)
 
     def printResourceInfo(self, tree=True):
-        if not SysMgr.generalEnable:
+        if not SysMgr.generalEnable or "NOHEADER" in SysMgr.environList:
             return
 
         self.printSystemInfo()
@@ -74458,7 +74504,9 @@ typedef struct {
             prevTime = time.time()
             prevCpu = self.getTotalCpuTick()
             prevMem = SysMgr.getMemStat(self.pid)
-            prevIo = SysMgr.readFile("%s/%s/io" % (SysMgr.procPath, self.pid))
+            prevIo = SysMgr.readFile(
+                "%s/%s/io" % (SysMgr.procPath, self.pid), verb=False
+            )
             return prevTime, prevCpu, prevMem, prevIo
 
         def _printDiff(prevTime, prevCpu, prevMem, prevIo):
@@ -98682,7 +98730,7 @@ class TaskAnalyzer(object):
             if not filterName in SysMgr.environList:
                 continue
 
-            _cpuChecker = UtilMgr.getSizeFilterFunc(filterName)
+            _resChecker = UtilMgr.getSizeFilterFunc(filterName)
             removeItems = []
             for name in list(graphStats):
                 if not name.endswith(field):
@@ -98692,13 +98740,13 @@ class TaskAnalyzer(object):
                 target = graphStats[name]
                 if type(target) is list:
                     avg = sum(target) / len(target)
-                    if _cpuChecker(avg):
+                    if _resChecker(avg):
                         continue
                 elif type(target) is dict:
                     res = True
                     for subname, subtarget in target.items():
                         avg = sum(subtarget) / len(subtarget)
-                        if not _cpuChecker(avg):
+                        if not _resChecker(avg):
                             res = False
                             break
                     if not res:
