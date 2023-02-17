@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230216"
+__revision__ = "230217"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27110,6 +27110,10 @@ Commands:
         # set device list for all #
         if not devices:
             blkPath = os.path.join(blkPath, "blkio.throttle.io_service_bytes")
+            if not os.path.exists(blkPath):
+                SysMgr.printErr("failed to find '%s'" % blkPath)
+                sys.exit(-1)
+
             blkPathList = SysMgr.readFile(blkPath)
             if blkPathList:
                 devices = {}
@@ -31248,6 +31252,7 @@ Commands:
                 "drawvssavg": ("VSS", "Linux/MacOS/Windows"),
             },
             "control": {
+                "cgroup": ("Cgroup", "Linux"),
                 "freeze": ("Thread", "Linux"),
                 "hook": ("Function", "Linux"),
                 "kill/tkill": ("Signal", "Linux/MacOS"),
@@ -31266,7 +31271,6 @@ Commands:
             },
             "util": {
                 "addr2sym": ("Symbol", "Linux/MacOS/Windows"),
-                "cgroup": ("Cgroup", "Linux"),
                 "checkdup": ("Page", "Linux"),
                 "comp": ("Compress", "Linux/MacOS/Windows"),
                 "decomp": ("Decompress", "Linux/MacOS/Windows"),
@@ -35935,8 +35939,10 @@ Examples:
                 # watch #
                 elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
                     if SysMgr.checkMode("fetop"):
+                        act = "Monitor"
                         addStr = "in real-time"
                     else:
+                        act = "Watch"
                         addStr = ""
 
                     helpStr = """
@@ -35944,80 +35950,80 @@ Usage:
     # {0:1} {1:1} <PATH> [OPTIONS] [--help]
 
 Description:
-    Watch specific files or directories {2:1}
+    {3:1} specific files or directories {2:1}
 
 Options:
     -g  <PATH:EVENT:FILE:CMD>   set condition
     -l                          print event list
     -v                          verbose
                         """.format(
-                        cmd, mode, addStr
+                        cmd, mode, addStr, act
                     )
 
                     helpStr += """
 Examples:
-    - Watch the current directory {2:1}
+    - {4:1} the current directory {2:1}
         # {0:1} {1:1}
         # {0:1} {1:1} -f
 
-    - Watch the current directory and print summary to specific file {2:1}
-        # {0:1} {1:1} -o watch.out
-        # {0:1} {1:1} -o watch.out -f
-        # {0:1} {1:1} -o watch.out -q TARGETEVT:IN_OPEN
+    - {4:1} the current directory and print summary to specific file {2:1}
+        # {0:1} {1:1} -o {4:1}.out
+        # {0:1} {1:1} -o {4:1}.out -f
+        # {0:1} {1:1} -o {4:1}.out -q TARGETEVT:IN_OPEN
 
-    - Watch the current directory with process info {3:1} {2:1}
+    - {4:1} the current directory with process info {3:1} {2:1}
         # {0:1} {1:1} -q PROCINFO
         # {0:1} {1:1} -q PROCINFO, LARGEFILE
         # {0:1} {1:1} -q PROCINFO, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q PROCINFO, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
         # {0:1} {1:1} -q PROCINFO, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
 
-    - Watch the current directory with thread info {3:1} {2:1}
+    - {4:1} the current directory with thread info {3:1} {2:1}
         # {0:1} {1:1} -q PROCINFO, REPORTTID
 
-    - Watch the current mount point with process info {3:1} {2:1}
+    - {4:1} the current mount point with process info {3:1} {2:1}
         # {0:1} {1:1} -q INMOUNT
         # {0:1} {1:1} -q INMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q INMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
 
-    - Watch all mount points with process info {3:1} {2:1}
+    - {4:1} all mount points with process info {3:1} {2:1}
         # {0:1} {1:1} -q ALLMOUNT
         # {0:1} {1:1} -q ALLMOUNT, TARGETCOMM:"kworker*", EXCEPTCOMM:"*1234"
         # {0:1} {1:1} -q ALLMOUNT, TARGETFILE:"*.data", EXCEPTFILE:"temp*"
         # {0:1} {1:1} -q ALLMOUNT, EVENTCMD:"ls -lha", EVENTCMD:"touch PATH&"
         # {0:1} {1:1} -q ALLMOUNT, TARGETPATH:"/media*", EXCEPTPATH:"/proc*"
 
-    - Watch specific events for all mount points with process info {3:1} {2:1}
+    - {4:1} specific events for all mount points with process info {3:1} {2:1}
         # {0:1} {1:1} -q ALLMOUNT, TARGETEVT:FAN_MODIFY, TARGETEVT:FAN_CLOSE_WRITE
 
-    - Watch specific files to be created and terminate after all them created {2:1}
+    - {4:1} specific files to be created and terminate after all them created {2:1}
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2"
 
-    - Watch specific files to be created and monitor them continually {2:1}
+    - {4:1} specific files to be created and monitor them continually {2:1}
         # {0:1} {1:1} "/home/iipeace/testFile1, /home/iipeace/testFile2" -q CONT
 
-    - Watch multiple directories {2:1}
+    - {4:1} multiple directories {2:1}
         # {0:1} {1:1} "/home/iipeace/test, /home/iipeace/test/sub"
 
-    - Watch all sub-directories of the current directory {2:1}
+    - {4:1} all sub-directories of the current directory {2:1}
         # {0:1} {1:1} -q INCSUBDIRS
 
     - Print event list
         # {0:1} {1:1} -l
 
-    - Watch specific events for specific files in the current directory {2:1}
+    - {4:1} specific events for specific files in the current directory {2:1}
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out"
 
-    - Watch specific events for specific files in the current directory and print the contents of the files {2:1}
+    - {4:1} specific events for specific files in the current directory and print the contents of the files {2:1}
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.*" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.out|b.out" -q PRINTFILE
         # {0:1} {1:1} ".:IN_MODIFY:a.out" -q PRINTFILE, TAIL:3
 
-    - Watch specific events in the current directory and terminate if the events occur {2:1}
+    - {4:1} specific events in the current directory and terminate if the events occur {2:1}
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:EXIT"
 
-    - Watch specific events in the current directory and execute specific commands if the events occur {2:1}
+    - {4:1} specific events in the current directory and execute specific commands if the events occur {2:1}
         # {0:1} {1:1} ".:::ls -lha"
         # {0:1} {1:1} ".::a.out:ls -lha a.out"
         # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:GUIDER event"
@@ -36026,6 +36032,7 @@ Examples:
                         mode,
                         addStr,
                         "except for CREATE, DELETE, MOVE events",
+                        act,
                     )
 
                 # addr2sym #
@@ -37998,9 +38005,12 @@ Examples:
     - {2:1} in background
         # {0:1} {1:1} -u
 
-    - {2:1} specific local address
+    - {2:1} with specific local address
         # {0:1} {1:1} -x 127.0.0.1:5556
         # {0:1} {1:1} -x 0 -q PUBLICIP
+
+    - {2:1} in parallel mode
+        # {0:1} {1:1} -q PARALLEL
 
     - Run file server and register to the agent as a service node
         # {0:1} {1:1} -X 127.0.0.1:3456
@@ -38008,27 +38018,24 @@ Examples:
         # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-12399
         # {0:1} {1:1} -X 127.0.0.1:3456 -q CLIPORT:12345-
 
-    - {2:1} configuration
+    - {2:1} with specific config file
         # {0:1} {1:1} -C
         # {0:1} {1:1} -C guider.conf
 
-    - {2:1} no timeout
+    - {2:1} without timeout
         # {0:1} {1:1} -q NOTIMEOUT
 
-    - {2:1} specific timeout
+    - {2:1} with specific timeout
         # {0:1} {1:1} -q TIMEOUT:1.5
 
-    - {2:1} specific read chunk size for command process
+    - {2:1} with specific read chunk size for command process
         # {0:1} {1:1} -q READCHUNK:4096
 
-    - {2:1} no output for remote request
+    - {2:1} without output for remote request
         # {0:1} {1:1} -q QUIET
 
-    - {2:1} in parallel mode
-        # {0:1} {1:1} -q PARALLEL
-
     - Request the performance image to HTTP server
-        # {0:1} req "http://127.0.0.1:12345/draw?ip=127.0.0.1&port=5555&type=cpu&drawlen:50"
+        # {0:1} req "http://127.0.0.1:12345/draw?ip=127.0.0.1&port=5555&interval=5&type=cpu&drawlen:50"
         # {0:1} req "http://127.0.0.1:12345/draw?filter=test*,guider&env=trimidx:-20:&all=true"
                     """.format(
                         cmd,
@@ -44242,27 +44249,29 @@ Copyright:
 
                 # set values #
                 if item == "LIMITCPU":
-                    res = "cpu"
+                    res = resName = "cpu"
                     default = ["cfs_quota_us", "rt_runtime_us"]
                     func = SysMgr.limitCpu
                 elif item == "LIMITCPUSET":
-                    res = "cpuset"
+                    res = resName = "cpuset"
                     default = "cpus"
                     func = SysMgr.limitCpuset
                 elif item == "LIMITMEM":
-                    res = "memory"
+                    res = resName = "memory"
                     default = "limit_in_bytes"
                     func = SysMgr.limitMemory
                 elif item == "LIMITREAD":
-                    res = "I/O read"
+                    res = "blkio"
+                    resName = "I/O read"
                     default = "read_bps_device"
                     func = SysMgr.limitBlock
                 elif item == "LIMITWRITE":
-                    res = "I/O write"
+                    res = "blkio"
+                    resName = "I/O write"
                     default = "write_bps_device"
                     func = SysMgr.limitBlock
                 elif item == "LIMITPID":
-                    res = "pids"
+                    res = resName = "pids"
                     default = "max"
                     func = SysMgr.limitPid
                 else:
@@ -44302,7 +44311,7 @@ Copyright:
                         else:
                             SysMgr.printErr(
                                 "failed to parse '%s' to limit %s"
-                                % (item, res)
+                                % (item, resName)
                             )
                             sys.exit(-1)
 
@@ -44330,7 +44339,7 @@ Copyright:
                         SysMgr.printInfo(
                             "limit %s(%s) to '%s'"
                             % (
-                                res,
+                                resName,
                                 ", ".join(name)
                                 if type(name) is list
                                 else name,
@@ -44364,7 +44373,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("failed to apply %s limit values" % res, True)
+            SysMgr.printErr("failed to apply %s limit values" % resName, True)
             sys.exit(-1)
 
     @staticmethod
@@ -49634,7 +49643,7 @@ Copyright:
 
         class requestHandler(handler):
             def do_GET(self):
-                ip = port = ctype = None
+                ip = port = ctype = interval = None
                 origFilter = SysMgr.filterGroup
                 origEnv = SysMgr.environList
                 origAll = SysMgr.showAll
@@ -49663,6 +49672,10 @@ Copyright:
                     # get TYPE #
                     if "type" in queryList:
                         ctype = queryList["type"][0]
+
+                    # get INTERVAL #
+                    if "interval" in queryList:
+                        interval = queryList["interval"][0]
 
                     # get FILTER #
                     if "filter" in queryList:
@@ -49699,8 +49712,8 @@ Copyright:
                 # print command #
                 print("COMMAND '%s' is executed..." % cmd)
 
-                # draw #
-                if cmd == "draw":
+                # graph #
+                if cmd == "graph":
                     # set header #
                     self.send_header("Content-type", "image/png")
                     self.end_headers()
@@ -49783,41 +49796,57 @@ Copyright:
                         # kill subprocess group #
                         if procObj:
                             SysMgr.killProcGroup(procObj.pid)
+                # draw #
+                elif cmd == "draw":
+                    # set header #
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+
+                    # make HTML string #
+                    html = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Guider Graph</title>
+  <meta http-equiv="refresh" content="{0:1}">
+  <style>
+    body {{
+      margin: 0{1:1}
+      padding: 0{1:1}
+    }}
+
+    img {{
+      max-width: 100%{1:1}
+      height: auto{1:1}
+    }}
+  </style>
+</head>
+<script>
+  const img = new Image(){1:1}
+  /*
+  let i = 0{1:1}
+  setInterval(() => {{
+     img.src = '/graph?ip=127.0.0.1&&port=5555'
+     document.body.appendChild(img){1:1}
+  }}, 1000){1:1}
+  */
+</script>
+<body>
+  <h2>Guider Graph</h2>
+  <img id="image" src="/graph?ip={2:1}&&port={3:1}" alt="image">
+</body>
+</html>
+                    """.format(
+                        interval if interval else 3, ";", ip, port
+                    )
+
+                    # write the HTML contents with UTF-8 #
+                    self.wfile.write(bytes(html, "utf8"))
 
                 # recover environment variables #
                 SysMgr.filterGroup = origFilter
                 SysMgr.environList = origEnv
                 SysMgr.showAll = origAll
-
-                return
-
-                # set header #
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-
-                # make HTML string #
-                html = """
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Hello, Guider!</title>
-  <style>
-    #rectangle {
-      height: 50px;
-      width: 100px;
-      background-color: #00f28f;
-    }
-  </style>
-</head>
-<body>
-  <h2>Hello, Guider!</h2>
-  <div id="rectangle"></div>
-</body>
-</html>
-		"""
-
-                # write the HTML contents with UTF-8 #
-                self.wfile.write(bytes(html, "utf8"))
 
                 return
 
@@ -98714,6 +98743,7 @@ class TaskAnalyzer(object):
         logEvents = SysMgr.getLogEvents()
 
         # apply resource usage filter #
+        removeItems = []
         for filterName, field in (
             ("CPUFILTER", "cpuUsage"),
             ("MEMFREEFILTER", "memFree"),
