@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230217"
+__revision__ = "230219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30039,10 +30039,12 @@ Commands:
                 advice = os.POSIX_FADV_DONTNEED
 
             # call fadvise #
-            os.posix_fadvise(fd, pos, size, advice)
+            ret = os.posix_fadvise(fd, pos, size, advice)
 
             if doClose:
                 f.close()
+
+            return ret
         except SystemExit:
             sys.exit(0)
         except:
@@ -34829,6 +34831,12 @@ Examples:
         # {0:1} {1:1} -g a.out -c "madvise:heap:4M:MERGEABLE"
         # {0:1} {1:1} -g a.out -c "madvise:heap::MERGEABLE"
 
+    - {2:1} call fadvise
+        # {0:1} {1:1} -g a.out -c "fadvise:0x1234:8092:3"
+        # {0:1} {1:1} -g a.out -c "fadvise:0x1234:2K:DONTNEED"
+        # {0:1} {1:1} -g a.out -c "fadvise:0x1234:0:DONTNEED"
+        # {0:1} {1:1} -g a.out -c "fadvise:0x1234:4K:WILLNEED"
+
     - {2:1} return from the current function with a specific value immediately
         # {0:1} {1:1} -g a.out -c "ret:3"
 
@@ -35076,6 +35084,7 @@ Examples:
 
     - Print memory map info without attributes in specific area {3:1} and execute specific commands
         # {0:1} {1:1} a.out -I file -q SKIPATTR -c madvise:START:SIZE:DONTNEED
+        # {0:1} {1:1} a.out -I file -q SKIPATTR -c fadvise:START:SIZE:DONTNEED -a
 
     - {2:1} in specific area {3:1}
         # {0:1} {1:1} a.out -I 0x0-0x4000 -a
@@ -74460,6 +74469,7 @@ typedef struct {
                 "event": "MESSAGE",
                 "exec": "COMMAND",
                 "exit": "",
+                "fadvise": "ADDR:LENGTH:ADVISE",
                 "getarg": "REG:REG",
                 "getenv": "VAR",
                 "getret": "CMD",
@@ -74838,6 +74848,80 @@ typedef struct {
 
                 _addPrint("\n[%s] EVENT_%s" % (cmdstr, name))
 
+            elif cmd == "fadvise":
+                if len(cmdset) == 1:
+                    _printCmdErr(cmdval, cmd)
+
+                argList = cmdset[1].split(":")
+
+                # convert args from variable list #
+                argList = self.convRetArgs(argList)
+
+                addr, length, advice = argList[:3]
+
+                # get addr #
+                if UtilMgr.isNumber(addr):
+                    addr = UtilMgr.convStr2Num(addr)
+                else:
+                    SysMgr.printErr("wrong address '%s' for fadvise" % addr)
+                    sys.exit(-1)
+
+                # get length #
+                length = UtilMgr.convUnit2Size(length)
+
+                # get advice #
+                if UtilMgr.isNumber(advice):
+                    advice = UtilMgr.convStr2Num(advice)
+                else:
+                    UtilMgr.makeReverseDict(
+                        ConfigMgr.FADV_TYPE, ConfigMgr.FADV_TYPE_REVERSE
+                    )
+
+                    # convert string to number #
+                    name = "FADV_" + advice.upper()
+                    if name in ConfigMgr.FADV_TYPE_REVERSE:
+                        advice = ConfigMgr.FADV_TYPE_REVERSE[name]
+
+                # check advice #
+                if UtilMgr.isString(advice):
+                    SysMgr.printErr(
+                        "failed to recognize '%s' as an advice" % advice
+                    )
+                    return repeat
+
+                # get file and offset info #
+                ret = self.getSymbolInfo(addr)
+                path, addr = ret[1:3]
+                addr = long(addr, 16)
+
+                # get file size #
+                if length == 0:
+                    length = UtilMgr.getFileSize(path, string=False)
+
+                # convert page-aligned size #
+                PAGESIZE = SysMgr.PAGESIZE
+                mod = addr % PAGESIZE
+                start = addr - mod
+                end = addr + length
+                addr = start
+                length = (
+                    long((end - start + PAGESIZE - 1) / PAGESIZE) * PAGESIZE
+                )
+
+                # call fadvise #
+                SysMgr.fadvise(path, pos=addr, size=length, advice=advice)
+
+                _addPrint(
+                    '\n[%s] fadvise("%s", %s, %s, %s)'
+                    % (
+                        cmdstr,
+                        path,
+                        hex(addr),
+                        length,
+                        ConfigMgr.FADV_TYPE[advice],
+                    )
+                )
+
             elif cmd == "madvise":
                 if len(cmdset) == 1:
                     _printCmdErr(cmdval, cmd)
@@ -74847,7 +74931,7 @@ typedef struct {
                 # convert args from variable list #
                 argList = self.convRetArgs(argList)
 
-                addr, length, advise = argList[:3]
+                addr, length, advice = argList[:3]
 
                 # get addr #
                 if UtilMgr.isNumber(addr):
@@ -74866,23 +74950,23 @@ typedef struct {
                 # get length #
                 length = UtilMgr.convUnit2Size(length)
 
-                # get advise #
-                if UtilMgr.isNumber(advise):
-                    advise = UtilMgr.convStr2Num(advise)
+                # get advice #
+                if UtilMgr.isNumber(advice):
+                    advice = UtilMgr.convStr2Num(advice)
                 else:
                     UtilMgr.makeReverseDict(
                         ConfigMgr.MADV_TYPE, ConfigMgr.MADV_TYPE_REVERSE
                     )
 
                     # convert string to number #
-                    name = "MADV_" + advise.upper()
+                    name = "MADV_" + advice.upper()
                     if name in ConfigMgr.MADV_TYPE_REVERSE:
-                        advise = ConfigMgr.MADV_TYPE_REVERSE[name]
+                        advice = ConfigMgr.MADV_TYPE_REVERSE[name]
 
-                # check advise #
-                if UtilMgr.isString(advise):
+                # check advice #
+                if UtilMgr.isString(advice):
                     SysMgr.printErr(
-                        "failed to recognize '%s' as an advise" % advise
+                        "failed to recognize '%s' as an advice" % advice
                     )
                     return repeat
 
@@ -74897,7 +74981,7 @@ typedef struct {
                 )
 
                 # call madvise #
-                ret = self.madvise(addr, length, advise)
+                ret = self.madvise(addr, length, advice)
 
                 _addPrint(
                     "\n[%s] %s = madvise(%s, %s, %s)"
@@ -74906,7 +74990,7 @@ typedef struct {
                         ret,
                         hex(addr),
                         length,
-                        ConfigMgr.MADV_TYPE[advise],
+                        ConfigMgr.MADV_TYPE[advice],
                     )
                 )
 
