@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230219"
+__revision__ = "230220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29603,7 +29603,7 @@ Commands:
             )
 
     @staticmethod
-    def getExeName(pid, verb=True):
+    def getExeName(pid, verb=True, cache=False):
         # use psutil #
         if not SysMgr.isLinux:
             try:
@@ -29635,7 +29635,7 @@ Commands:
         return os.path.realpath(__file__)
 
     @staticmethod
-    def getCmdline(pid, retList=False):
+    def getCmdline(pid, retList=False, cache=False):
         # use psutil #
         if not SysMgr.isLinux:
             try:
@@ -29771,13 +29771,13 @@ Commands:
         return mem
 
     @staticmethod
-    def getCommList(pidList, isList=False):
+    def getCommList(pidList, isList=False, tok=", "):
         while 1:
             try:
                 if isList:
                     return [SysMgr.getComm(pid) for pid in pidList]
                 else:
-                    return ", ".join(
+                    return tok.join(
                         [
                             "%s(%s)" % (SysMgr.getComm(pid), pid)
                             for pid in pidList
@@ -31281,6 +31281,7 @@ Commands:
                 "flush": ("Memory", "Linux"),
                 "fadvise": ("File", "Linux"),
                 "getafnt": ("Affinity", "Linux"),
+                "getpid": ("PID", "Linux"),
                 "mkcache": ("Cache", "Linux/MacOS/Windows"),
                 "mount": ("Mount", "Linux"),
                 "ping": ("ICMP", "Linux/MacOS/Windows"),
@@ -34276,6 +34277,53 @@ Examples:
                         cmd, mode
                     )
 
+                # getpid #
+                elif SysMgr.checkMode("getpid"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} -g KEYWORD [OPTIONS] [--help]
+
+Description:
+    Print task ID
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Options:
+    -e  <CHARACTER>             enable options
+          [ t:thread | e:encode ]
+    -g  <KEYWORD>               set keyword
+    -o  <DIR|FILE>              set output path
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -Q                          print all rows in a stream
+    -v                          verbose
+                    """
+
+                    helpStr += """
+Examples:
+    - Print IDs of specific processes having comm including specific keywords
+        # {0:1} {1:1} a.out
+        # {0:1} {1:1} "*chrome, *test*"
+
+    - Print IDs of specific threads having comm including specific keywords
+        # {0:1} {1:1} a.out -et
+        # {0:1} {1:1} "*chrome, *test*" -et
+
+    - Print IDs with comm of specific processes having comm including specific keywords
+        # {0:1} {1:1} a.out -q PRINTCOMM
+
+    - Print IDs of specific processes having exe path including specific keywords
+        # {0:1} {1:1} a.out -q TARGETEXE
+        # {0:1} {1:1} "*chrome, *test*" -q TARGETEXE
+
+    - Print IDs of specific processes having cmdline path including specific keywords
+        # {0:1} {1:1} a.out -q TARGETCMD
+        # {0:1} {1:1} "*chrome, *test*" -q TARGETCMD
+                    """.format(
+                        cmd, mode
+                    )
+
                 # strings #
                 elif SysMgr.checkMode("strings"):
                     helpStr = """
@@ -35905,6 +35953,8 @@ Examples:
     - {2:1}
         # {0:1} {1:1} "a.out, java"
         # {0:1} {1:1} -g a.out, java
+        # {0:1} {1:1} "*service" -q TARGETEXE
+        # {0:1} {1:1} "*service" -q TARGETCMD
 
     - {2:1} with page contents
         # {0:1} {1:1} "a.out, java" -a
@@ -46582,6 +46632,10 @@ Copyright:
         elif SysMgr.checkMode("checkdup"):
             SysMgr.doCheckDup()
 
+        # GETPID MODE #
+        elif SysMgr.checkMode("getpid"):
+            SysMgr.doGetpid()
+
         # WATCH/FETOP MODE #
         elif SysMgr.checkMode("watch") or SysMgr.checkMode("fetop"):
             # just print event list #
@@ -47592,6 +47646,14 @@ Copyright:
         else:
             onlyUser = False
 
+        # define getter #
+        if "TARGETEXE" in SysMgr.environList:
+            getter = SysMgr.getExeName
+        elif "TARGETCMD" in SysMgr.environList:
+            getter = SysMgr.getCmdline
+        else:
+            getter = SysMgr.getComm
+
         while 1:
             # set check list #
             targetList = SysMgr.getPidList()
@@ -47612,7 +47674,7 @@ Copyright:
                 # process #
                 if not isThread:
                     # get comm #
-                    comm = SysMgr.getComm(pid, cache)
+                    comm = getter(pid, cache)
                     if exceptList and UtilMgr.isValidStr(
                         comm, exceptList, inc=inc
                     ):
@@ -47635,7 +47697,7 @@ Copyright:
                         continue
 
                     # get comm #
-                    comm = SysMgr.getComm(tid, cache=cache)
+                    comm = getter(tid, cache=cache)
                     if exceptList and UtilMgr.isValidStr(
                         comm, exceptList, inc=inc
                     ):
@@ -48778,7 +48840,8 @@ Copyright:
         SysMgr.checkEnv()
 
         # print logo #
-        SysMgr.printLogo(big=True, pager=False)
+        if not SysMgr.isSilentCmd():
+            SysMgr.printLogo(big=True, pager=False)
 
         # print help #
         SysMgr.printHelp()
@@ -53117,6 +53180,51 @@ Copyright:
         sys.exit(0)
 
     @staticmethod
+    def isSilentCmd():
+        if SysMgr.checkMode("getpid"):
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def doGetpid():
+        # get keyword #
+        if SysMgr.hasMainArg():
+            targetList = SysMgr.getMainArg(False)
+        elif SysMgr.filterGroup:
+            targetList = ",".join(SysMgr.filterGroup)
+        else:
+            SysMgr.printErr("no target process info")
+            sys.exit(-1)
+
+        # get pids #
+        ret = SysMgr.getTids(
+            targetList,
+            isThread=not SysMgr.processEnable,
+            sibling=SysMgr.groupProcEnable,
+        )
+
+        # apply seperator #
+        if "SEP" in SysMgr.environList:
+            sep = SysMgr.environList["SEP"][0]
+        else:
+            sep = ","
+
+        # check output #
+        if not ret:
+            return
+
+        # print comm list #
+        if "PRINTCOMM" in SysMgr.environList:
+            ret = SysMgr.getCommList(ret)
+            print(ret)
+            return
+
+        # print output #
+        for res in sep.join(ret).split("\\n"):
+            print(res)
+
+    @staticmethod
     def doCheckDup():
         pids = {}
         memsProc = {}
@@ -53413,7 +53521,9 @@ Copyright:
                     pss = convColor(pss, "YELLOW")
                     rate = convColor("%.1f%%" % rate, "RED")
 
-                    mgstr = "<Unique(%s)/Marked(%s)[%s]> " % (pss, rss, rate)
+                    mgstr = "<Resident(%s)/Marked(%s)[%s]> " % (pss, rss, rate)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     mgstr = " <No Mergeable Area>"
 
@@ -53593,13 +53703,20 @@ Copyright:
             totalPss = convColor(totalPss, "YELLOW")
             rate = convColor("%.1f%%" % rate, "RED")
 
-            mgstr = " <Unique(%s)/Marked(%s)[%s]>" % (totalPss, totalRss, rate)
+            mgstr = " <Resident(%s)/Marked(%s)[%s]>" % (
+                totalPss,
+                totalRss,
+                rate,
+            )
+        except SystemExit:
+            sys.exit(0)
         except:
             mgstr = " <No Mergeable Area>"
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] <Dup: %s>%s (Proc: %s)" % (summary, mgstr, commList)
+            "\n[Dup Info] <Dup: %s>%s (nrProc: %s) (Proc: %s)"
+            % (summary, mgstr, convNum(len(commList)), commList)
         )
 
         # make count table #
