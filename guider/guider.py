@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230220"
+__revision__ = "230221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31412,10 +31412,9 @@ Usage:
     -G  <KEYWORD>               set ignore list
     -k  <COMM|TID:SIG{:CONT}>   set signal
     -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
-    -Y  <POLICY:PRIO|TIME       set sched
-         {:TID|COMM:CONT}>
-        <CLASS:{{WHICH:}}PRIO
-         :TID|COMM>
+    -Y  <VALUES>                set sched
+          [ POLICY:PRIO|TIME{:TID|COMM:CONT}
+            CLASS:{{WHICH:}}PRIO:TID|COMM ]
     -v                          verbose
                 """
 
@@ -32759,10 +32758,9 @@ Options:
     -H  <LEVEL>                 set function depth level
     -k  <COMM|TID:SIG{:CONT}>   set signal
     -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
-    -Y  <POLICY:PRIO|TIME       set sched
-         {:TID|COMM:CONT}>
-        <CLASS:{{WHICH:}}PRIO
-         :TID|COMM>
+    -Y  <VALUES>                set sched
+          [ POLICY:PRIO|TIME{:TID|COMM:CONT}
+            CLASS:{{WHICH:}}PRIO:TID|COMM ]
     -v                          verbose
                     """
 
@@ -33154,10 +33152,9 @@ Options:
     -E  <DIR>                   set cache dir path
     -k  <COMM|TID:SIG{:CONT}>   set signal
     -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
-    -Y  <POLICY:PRIO|TIME       set sched
-         {:TID|COMM:CONT}>
-        <CLASS:{{WHICH:}}PRIO
-         :TID|COMM>
+    -Y  <VALUES>                set sched
+          [ POLICY:PRIO|TIME{:TID|COMM:CONT}
+            CLASS:{{WHICH:}}PRIO:TID|COMM ]
     -v                          verbose
                     """
 
@@ -36173,10 +36170,9 @@ Description:
 Options:
     -I  <FILE>                  set input path
     -W  <SEC>                   wait for input
-    -Y  <POLICY:PRIO|TIME       set sched
-         {{:TID|COMM:CONT}}>
-        <CLASS:{{WHICH:}}PRIO
-         :TID|COMM>
+    -Y  <VALUES>                set sched
+          [ POLICY:PRIO|TIME{{:TID|COMM:CONT}}
+            CLASS:{{WHICH:}}PRIO:TID|COMM ]
     -v                          verbose
 
 Specification:
@@ -37635,8 +37631,8 @@ Description:
 
 Options:
     -R  <TIME>                  set timer
-    -Y  <POLICY:PRIO|TIME       set sched
-         {{:TID|COMM:CONT}}>
+    -Y  <VALUES>                set sched
+          [ POLICY:PRIO|TIME{{:TID|COMM:CONT}} ]
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -53457,8 +53453,10 @@ Copyright:
 
         SysMgr.printInfo("check duplicated memory areas for [ %s ]" % commList)
 
-        # define variables #
+        # set stream #
         SysMgr.setStream()
+
+        # define variables #
         mergeTable = {}
         PAGESIZE = SysMgr.PAGESIZE
         SysMgr.memEnable = True
@@ -53525,10 +53523,14 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    mgstr = " <No Mergeable Area>"
+                    mgstr = "<No Mergeable>"
 
+                # save memory stats #
                 tobj.saveProcInstance()
-                mstat = TaskAnalyzer.getMemStr(tobj, pid)
+                mstat = TaskAnalyzer.getMemStr(
+                    tobj, pid, stats=["rss", "pss", "uss"]
+                )
+                mstat = convColor(mstat, "GREEN")
 
                 mstat = " <%s> %s" % (mstat, mgstr)
                 del tobj
@@ -53546,10 +53548,12 @@ Copyright:
                 mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
 
             # print status #
-            comm = SysMgr.getComm(pid)
-            SysMgr.printInfo(
-                "start reading %s memory areas for %s(%s)%s..."
-                % (convNum(len(mems)), comm, pid, mstat)
+            procInfo = convColor(
+                "%s(%s)" % (SysMgr.getComm(pid), pid), "YELLOW"
+            )
+            SysMgr.printPipe(
+                "[INFO] start reading %s memory areas for %s%s..."
+                % (convNum(len(mems)), procInfo, mstat)
             )
 
             # skip checkdup #
@@ -53599,6 +53603,7 @@ Copyright:
                         elif chunkStart != 0:
                             chunkList.append([chunkStart, addr - chunkStart])
                             chunkStart = 0
+
                     # handle the last valid chunks #
                     if 0 < addr <= end and chunkStart != 0:
                         if addr == chunkStart:
@@ -53650,8 +53655,8 @@ Copyright:
                         cmds = []
                         # convert START and SIZE values #
                         for item in SysMgr.customCmd:
-                            item = item.replace("START", str(start))
-                            item = item.replace("SIZE", str(size))
+                            item = item.replace("START", str(which))
+                            item = item.replace("SIZE", str(length))
                             cmds.append(item)
 
                         # execute remote commands #
@@ -53711,12 +53716,12 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            mgstr = " <No Mergeable Area>"
+            mgstr = " <No Mergeable>"
 
         # print summary #
         SysMgr.printPipe(
-            "\n[Dup Info] <Dup: %s>%s (nrProc: %s) (Proc: %s)"
-            % (summary, mgstr, convNum(len(commList)), commList)
+            "\n[Dup Info] <Dup: %s>%s (nrProc: %s)"
+            % (summary, mgstr, convNum(len(commList)))
         )
 
         # make count table #
@@ -63817,8 +63822,11 @@ Copyright:
         if not os.path.exists(dpath):
             return
 
+        convSize = UtilMgr.convSize2Unit
+        convNum = UtilMgr.convNum
+
         # check and get total MERGEABLE size #
-        totalMergeStr = ""
+        mergeStr = ""
         if "PRINTMERGE" in SysMgr.environList:
             # check root permission #
             SysMgr.checkRootPerm()
@@ -63848,17 +63856,14 @@ Copyright:
                 except:
                     pass
 
-            totalMergeStr = (
-                " (MergeableTotal: %s) (MergedPSS: %s) (MergedRate: %d%%)"
-                % (
-                    UtilMgr.convSize2Unit(totalRss << 10),
-                    UtilMgr.convSize2Unit(totalPss << 10),
-                    long((totalRss - totalPss) / float(totalRss) * 100),
-                )
+            mergeStr = " (Total: %s) (Resident: %s(%.1f%%))" % (
+                convSize(totalRss << 10),
+                convSize(totalPss << 10),
+                totalPss / float(totalRss) * 100,
             )
 
         SysMgr.infoBufferPrint(
-            "\n[KSM Info] (Path: /sys/kernel/mm/ksm)%s" % totalMergeStr
+            "\n[KSM Info] (Path: /sys/kernel/mm/ksm)%s" % mergeStr
         )
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
@@ -63867,6 +63872,7 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
         try:
+            total = 0
             for item in sorted(os.listdir(dpath)):
                 # check type #
                 fpath = os.path.join(dpath, item)
@@ -63875,17 +63881,31 @@ Copyright:
 
                 # get value #
                 data = SysMgr.readFile(fpath)
-                value = UtilMgr.convNum(data)
+                value = convNum(data)
 
                 # get size #
                 if item.startswith("pages_"):
-                    size = UtilMgr.convSize2Unit(long(data) * SysMgr.PAGESIZE)
+                    size = convSize(long(data) * SysMgr.PAGESIZE)
                 else:
                     size = ""
 
                 SysMgr.infoBufferPrint(
                     "{0:<40} | {1:>15} | {2:>8} |".format(item, value, size)
                 )
+
+                # accumulate pages #
+                if item in ("pages_shared", "pages_sharing", "pages_unshared"):
+                    total += long(data)
+
+            # print total pages #
+            SysMgr.infoBufferPrint(
+                "{3:1}\n{0:<40} | {1:>15} | {2:>8} |".format(
+                    "total",
+                    convNum(total),
+                    convSize(total * SysMgr.PAGESIZE),
+                    oneLine,
+                )
+            )
 
             SysMgr.infoBufferPrint(twoLine)
         except SystemExit:
@@ -63995,6 +64015,10 @@ Copyright:
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault("general", {})
             jsonData = SysMgr.jsonData["general"]
+
+        convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
+        convTime = UtilMgr.convTime
 
         SysMgr.infoBufferPrint("\n\n[System General Info]")
         SysMgr.infoBufferPrint(twoLine)
@@ -64179,8 +64203,8 @@ Copyright:
         # starttime #
         try:
             startTimeNum = long(str(SysMgr.startTime).split(".")[0])
-            startTime = UtilMgr.convTime(startTimeNum)
-            startTimeSec = UtilMgr.convNum(startTimeNum)
+            startTime = convTime(startTimeNum)
+            startTimeSec = convNum(startTimeNum)
             startTimeStr = "%s (%s sec)" % (startTime, startTimeSec)
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<1}".format("Start", startTimeStr)
@@ -64193,8 +64217,8 @@ Copyright:
 
         # endtime #
         try:
-            endTime = UtilMgr.convTime(SysMgr.uptime)
-            endTimeSec = UtilMgr.convNum(SysMgr.uptime)
+            endTime = convTime(SysMgr.uptime)
+            endTimeSec = convNum(SysMgr.uptime)
             endTimeStr = "%s (%s sec)" % (endTime, endTimeSec)
             SysMgr.infoBufferPrint("{0:20} {1:<1}".format("End", endTimeStr))
 
@@ -64207,8 +64231,8 @@ Copyright:
         # runtime #
         try:
             runtime = SysMgr.getRuntime(sec=True)
-            runtimeSec = UtilMgr.convNum(runtime)
-            runtime = UtilMgr.convTime(runtime)
+            runtimeSec = convNum(runtime)
+            runtime = convTime(runtime)
             runtimeStr = "%s (%s sec)" % (runtime, runtimeSec)
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<1}".format("Runtime", runtimeStr)
@@ -64270,8 +64294,6 @@ Copyright:
 
         # task #
         try:
-            convNum = UtilMgr.convNum
-
             try:
                 maxThd = " / %s(max)" % convNum(self.nrMaxThread)
             except:
@@ -64326,7 +64348,7 @@ Copyright:
             if SysMgr.battery:
                 batStr = "%d%% / %s / %s" % (
                     SysMgr.battery[0],
-                    UtilMgr.convTime(SysMgr.battery[1]),
+                    convTime(SysMgr.battery[1]),
                     "+" if SysMgr.battery[2] else "-",
                 )
 
@@ -119310,6 +119332,9 @@ class TaskAnalyzer(object):
             if not item or item["count"] == 0:
                 continue
 
+            # set add flag #
+            add = key != "FLAG"
+
             try:
                 prop = "Size:"
                 val = item[prop]
@@ -119329,7 +119354,8 @@ class TaskAnalyzer(object):
                     prop.upper(),
                     convSize(val << 10),
                 )
-                rss += val
+                if add:
+                    rss += val
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
@@ -119341,7 +119367,8 @@ class TaskAnalyzer(object):
                     prop.upper(),
                     convSize(val << 10),
                 )
-                pss += val
+                if add:
+                    pss += val
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
@@ -119380,14 +119407,16 @@ class TaskAnalyzer(object):
 
             try:
                 prop = "Shared_Clean:"
-                sss += item[prop]
+                if add:
+                    sss += item[prop]
             except:
                 pass
 
             try:
                 prop = "Shared_Dirty:"
                 val = item[prop]
-                sss += val
+                if add:
+                    sss += val
                 tmpstr = "%s%s:%7s / " % (
                     tmpstr,
                     "SDRT",
@@ -119423,7 +119452,8 @@ class TaskAnalyzer(object):
                 # get current WSS size #
                 try:
                     wssNum = item["Referenced:"] << 10
-                    wssTotal += wssNum
+                    if add:
+                        wssTotal += wssNum
                     wss = convSize(wssNum, False)
                 except:
                     wss = 0
@@ -119727,17 +119757,29 @@ class TaskAnalyzer(object):
         curline = str(data)
         nrLine = 1
         rmColor = UtilMgr.removeColor
+        convColor = UtilMgr.convColor
+        convSize = UtilMgr.convSize2Unit
+        total = 0
 
         for name, value in sorted(self.ksmData.items()):
+            # accumulate pages #
+            if name in ("pages_shared", "pages_sharing", "pages_unshared"):
+                value = long(value)
+                total += value
+
             # convert value #
             if name.startswith("pages_") and not name.endswith("_scan"):
-                value = UtilMgr.convSize2Unit(long(value) << 12)
+                value = convSize(long(value) << 12)
             else:
                 value = UtilMgr.convNum(value)
 
             # apply color #
-            if name in ("pages_shared", "pages_sharing", "run", "full_scans"):
-                value = UtilMgr.convColor(value, "YELLOW")
+            if name in ("pages_shared", "pages_sharing"):
+                value = convColor(value, "GREEN")
+            elif name in ("max_page_sharing", "full_scans", "pages_unshared"):
+                value = convColor(value, "YELLOW")
+            elif name == "run":
+                value = convColor(value, "WARNING")
 
             # add stats in a line #
             item = "%s: %s" % (name, value)
@@ -119747,6 +119789,8 @@ class TaskAnalyzer(object):
                 nrLine += 1
 
             curline += "%s, " % item
+
+        curline += "total: %s," % convColor(convSize(total << 12), "YELLOW")
 
         # check last line #
         if curline != data:
@@ -123891,6 +123935,11 @@ class TaskAnalyzer(object):
                     raise Exception("no time")
 
                 sec = UtilMgr.convUnit2Time(timeunit)
+
+                # trim buffer #
+                if sec < 0:
+                    SysMgr.procBuffer = SysMgr.procBuffer[sec:]
+                    sec = timeunit = 0
             except SystemExit:
                 sys.exit(0)
             except:
