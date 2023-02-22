@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230221"
+__revision__ = "230222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6186,7 +6186,7 @@ class UtilMgr(object):
             % (title, unit, twoLine, newline)
         )
         printer(
-            "{0:^21}   {1:^17}\n{2:1}{3:1}".format(
+            "{0:^21} | {1:^18}|\n{2:1}{3:1}".format(
                 "Range", "Count", oneLine, newline
             )
         )
@@ -6200,7 +6200,7 @@ class UtilMgr(object):
                 erange = long((srange << 1) - 1)
 
             printer(
-                "{0:10}-{1:>10}   {2:>10}({3:5.1f}%){4:1}".format(
+                "{0:10}-{1:>10} | {2:>10}({3:5.1f}%)|{4:1}".format(
                     convNum(srange),
                     convNum(erange),
                     convNum(cnt),
@@ -6212,8 +6212,8 @@ class UtilMgr(object):
         try:
             printer(
                 (
-                    "{0:1}\n{1:^21}   {2:>17}\n{3:^21}   {4:>17}\n"
-                    "{5:^21}   {6:>17}\n{7:^21}   {8:>17}\n{0:1}\n"
+                    "{0:1}\n{1:^21} | {2:>18}|\n{3:^21} | {4:>18}|\n"
+                    "{5:^21} | {6:>18}|\n{7:^21} | {8:>18}|\n{0:1}\n"
                 ).format(
                     oneLine,
                     "Min",
@@ -21872,27 +21872,58 @@ class FileAnalyzer(object):
                 return addrs[0]
 
     @staticmethod
+    def getProcFiles(pid, incMap=True, incFd=True):
+        fileList = []
+
+        SysMgr.checkRootPerm()
+
+        if incMap:
+            files = FileAnalyzer.getProcMapInfo(pid, saveAll=True)
+            for f in files:
+                if FileAnalyzer.isValidFile(f):
+                    fileList.append(f)
+
+        if incFd:
+            try:
+                fdlistPath = "%s/%s/fd" % (SysMgr.procPath, pid)
+                for fd in os.listdir(fdlistPath):
+                    fdPath = "%s/%s" % (fdlistPath, fd)
+                    fname = os.readlink(fdPath)
+                    if FileAnalyzer.isValidFile(fname):
+                        fileList.append(fname)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "failed to get open file list for %s(%s)"
+                    % (SysMgr.getComm(pid), pid),
+                    True,
+                )
+
+        return fileList
+
+    @staticmethod
     def getProcMapFd(pid, verb=False):
         fd = FileAnalyzer.getMapFd(pid, verb)
         if fd:
             return fd
+
+        # get comm #
+        comm = SysMgr.getComm(pid)
+
+        # check alive #
+        if not SysMgr.isAlive(pid):
+            reason = " because it is terminated"
+        # check root #
+        elif not SysMgr.isRoot():
+            reason = " because of no root permission"
         else:
-            # get comm #
-            comm = SysMgr.getComm(pid)
+            reason = ""
 
-            # check alive #
-            if not SysMgr.isAlive(pid):
-                reason = " because it is terminated"
-            # check root #
-            elif not SysMgr.isRoot():
-                reason = " because of no root permission"
-            else:
-                reason = ""
-
-            SysMgr.printErr(
-                "failed to get memory map for %s(%s)%s" % (comm, pid, reason)
-            )
-            sys.exit(-1)
+        SysMgr.printErr(
+            "failed to get memory map for %s(%s)%s" % (comm, pid, reason)
+        )
+        sys.exit(-1)
 
     @staticmethod
     def getMapFd(pid, verb=False):
@@ -30032,7 +30063,7 @@ Commands:
 
             # get whole file size #
             if size == 0:
-                size = os.fstat(fd).st_size
+                size = 0
 
             # set advice #
             if not advice:
@@ -37823,6 +37854,7 @@ Description:
 
 Options:
     -i  <SEC>                   set interval
+    -I  <PID|COMM>              set input path
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -37838,6 +37870,10 @@ Examples:
 
     - Flush specific file pages for the file
         # {0:1} {1:1} ./TEST
+
+    - Flush all file caches mapped or opened on memory for specific processes
+        # {0:1} {1:1} -I "*systemd*"
+        # {0:1} {1:1} -I 1231
 
     - Flush specific file pages for the file every 3 seconds
         # {0:1} {1:1} ./TEST -i 3
@@ -39091,6 +39127,9 @@ Copyright:
     @staticmethod
     def getNrSyscall(name):
         try:
+            if not name.startswith("sys_"):
+                name = "sys_" + name
+
             return SysMgr.syscallCache[name]
         except SystemExit:
             sys.exit(0)
@@ -45542,19 +45581,21 @@ Copyright:
                 else:
                     exceptFlag = False
 
-                # convert syscall name #
-                if not val.lstrip("*").startswith("sys_"):
+                # add sys_ prefix #
+                if val.lstrip("*").startswith("sys_"):
                     if val.startswith("*"):
                         prefix = "*"
                     else:
                         prefix = ""
-                    val = prefix + "sys_" + val.lstrip("*")
+                    val = prefix + UtilMgr.lstrip(val.lstrip("*"), "sys_")
 
                 # get syscall index #
                 nrList = []
                 if "*" in val:
                     for idx, syscall in enumerate(ConfigMgr.sysList):
-                        if UtilMgr.isValidStr(syscall, [val]):
+                        if UtilMgr.isValidStr(
+                            UtilMgr.lstrip(syscall, "sys_"), [val]
+                        ):
                             nrList.append(idx)
                 else:
                     nrList = [SysMgr.getNrSyscall(val)]
@@ -53451,7 +53492,9 @@ Copyright:
         else:
             target = "anon"
 
-        SysMgr.printInfo("check duplicated memory areas for [ %s ]" % commList)
+        SysMgr.printInfo(
+            "check duplicated memory areas for [ %s ]\n" % commList
+        )
 
         # set stream #
         SysMgr.setStream()
@@ -53528,9 +53571,8 @@ Copyright:
                 # save memory stats #
                 tobj.saveProcInstance()
                 mstat = TaskAnalyzer.getMemStr(
-                    tobj, pid, stats=["rss", "pss", "uss"]
+                    tobj, pid, stats=["rss", "pss", "uss"], color="YELLOW"
                 )
-                mstat = convColor(mstat, "GREEN")
 
                 mstat = " <%s> %s" % (mstat, mgstr)
                 del tobj
@@ -53548,9 +53590,7 @@ Copyright:
                 mems = FileAnalyzer.getMapAddr(pid, target, retList=True)
 
             # print status #
-            procInfo = convColor(
-                "%s(%s)" % (SysMgr.getComm(pid), pid), "YELLOW"
-            )
+            procInfo = convColor("%s(%s)" % (SysMgr.getComm(pid), pid), "CYAN")
             SysMgr.printPipe(
                 "[INFO] start reading %s memory areas for %s%s..."
                 % (convNum(len(mems)), procInfo, mstat)
@@ -57648,7 +57688,28 @@ Copyright:
         while 1:
             # flush caches #
             if not cmd:
-                SysMgr.dropCaches("3", verb=True)
+                if SysMgr.inputParam:
+                    pids = SysMgr.getTids(
+                        SysMgr.inputParam,
+                        isThread=not SysMgr.processEnable,
+                        sibling=SysMgr.groupProcEnable,
+                    )
+                    files = list()
+                    for pid in pids:
+                        files += FileAnalyzer.getProcFiles(pid)
+
+                    # remove redundant files #
+                    files = set(files)
+
+                    # call fadvise for each file #
+                    for f in files:
+                        SysMgr.printInfo(
+                            "flush caches for '%s'..." % f, suffix=False
+                        )
+                        SysMgr.fadvise(path=f, advice=os.POSIX_FADV_DONTNEED)
+                    sys.stdout.write("\n")
+                else:
+                    SysMgr.dropCaches("3", verb=True)
             elif cmd in ("1", "2", "3"):
                 SysMgr.dropCaches(cmd, verb=True)
             else:
@@ -119761,12 +119822,16 @@ class TaskAnalyzer(object):
         convSize = UtilMgr.convSize2Unit
         total = 0
 
+        # get total pages #
         for name, value in sorted(self.ksmData.items()):
             # accumulate pages #
             if name in ("pages_shared", "pages_sharing", "pages_unshared"):
                 value = long(value)
                 total += value
 
+        self.ksmData["pages_total"] = total
+
+        for name, value in sorted(self.ksmData.items()):
             # convert value #
             if name.startswith("pages_") and not name.endswith("_scan"):
                 value = convSize(long(value) << 12)
@@ -119776,7 +119841,12 @@ class TaskAnalyzer(object):
             # apply color #
             if name in ("pages_shared", "pages_sharing"):
                 value = convColor(value, "GREEN")
-            elif name in ("max_page_sharing", "full_scans", "pages_unshared"):
+            elif name in (
+                "max_page_sharing",
+                "full_scans",
+                "pages_unshared",
+                "pages_total",
+            ):
                 value = convColor(value, "YELLOW")
             elif name == "run":
                 value = convColor(value, "WARNING")
@@ -119789,8 +119859,6 @@ class TaskAnalyzer(object):
                 nrLine += 1
 
             curline += "%s, " % item
-
-        curline += "total: %s," % convColor(convSize(total << 12), "YELLOW")
 
         # check last line #
         if curline != data:
