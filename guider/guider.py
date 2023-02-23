@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230222"
+__revision__ = "230223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5861,6 +5861,19 @@ class UtilMgr(object):
     @staticmethod
     def saveTime():
         UtilMgr.printTime(update=True, verb=False)
+
+    @staticmethod
+    def convLineStr(val, title, indent, maxLen, startIndent=True):
+        resList = [val[i : i + maxLen] for i in xrange(0, len(val), maxLen)]
+
+        res = ""
+        cur = indent if startIndent else 1
+        for string in resList:
+            res += "{0:{cur}} {1:<1}\n".format(title, string, cur=cur)
+            title = ""
+            cur = indent
+
+        return res.rstrip()
 
     @staticmethod
     def convStackStr(stack, indent, maxLen):
@@ -26004,6 +26017,67 @@ Commands:
         except:
             SysMgr.printWarn("failed to load library cache", reason=True)
             return False
+
+    @staticmethod
+    def readZramStats(dev, target=[]):
+        stats = {}
+        prefix = "/sys/block/" + dev + "/"
+        convNum = UtilMgr.convNum
+        convSize = UtilMgr.convSize2Unit
+        PAGESIZE = SysMgr.PAGESIZE
+
+        for item in os.listdir(prefix):
+            if not target or item in target:
+                res = SysMgr.readFile(prefix + item, verb=False)
+                if not res:
+                    continue
+
+                if item == "mm_stat":
+                    """
+                    orig_data_size   uncompressed size of data stored in this disk.
+                                     This excludes same-element-filled pages (same_pages) since
+                                     no memory is allocated for them.
+                                     Unit: bytes
+                    compr_data_size  compressed size of data stored in this disk
+                    mem_used_total   the amount of memory allocated for this disk. This
+                                     includes allocator fragmentation and metadata overhead,
+                                     allocated for this disk. So, allocator space efficiency
+                                     can be calculated using compr_data_size and this statistic.
+                                     Unit: bytes
+                    mem_limit        the maximum amount of memory ZRAM can use to store
+                                     the compressed data
+                    mem_used_max     the maximum amount of memory zram have consumed to
+                                     store the data
+                    same_pages       the number of same element filled pages written to this disk.
+                                     No memory is allocated for such pages.
+                    pages_compacted  the number of pages freed during compaction
+                    huge_pages	  the number of incompressible pages
+                    """
+                    res = list(map(long, res.split()[:8]))
+
+                    items = {
+                        "orig_data_size": convSize(res[0]),
+                        "compr_data_size": convSize(res[1]),
+                        "comp_rate": "%d%%" % (res[1] / float(res[0]) * 100),
+                        "mem_used_total": convSize(res[2]),
+                        "mem_limit": convSize(res[3]),
+                        "mem_used_max": convSize(res[4]),
+                        "same_pages": convSize(res[5] * PAGESIZE),
+                        "pages_compacted": convNum(res[6] * PAGESIZE),
+                        "huge_pages": convNum(res[7] * PAGESIZE),
+                    }
+
+                    # remove zero values #
+                    for name in list(items):
+                        if items[name] in ("0", 0):
+                            items.pop(name, None)
+
+                    # merge stats #
+                    stats.update(items)
+                else:
+                    stats[item] = res
+
+        return stats
 
     @staticmethod
     def findLib(lib, inc=False):
@@ -64425,14 +64499,14 @@ Copyright:
         # kernel args #
         try:
             title = "Cmdline"
-            splitLen = SysMgr.lineLength - 21
-            cmdlineList = [
-                self.cmdlineData[i : i + splitLen]
-                for i in xrange(0, len(self.cmdlineData), splitLen)
-            ]
-            for string in cmdlineList:
-                SysMgr.infoBufferPrint("{0:20} {1:<1}".format(title, string))
-                title = ""
+            cmdline = UtilMgr.convLineStr(
+                self.cmdlineData,
+                "",
+                20,
+                SysMgr.lineLength - 21,
+                startIndent=False,
+            ).lstrip()
+            SysMgr.infoBufferPrint("{0:20} {1:<1}".format(title, cmdline))
 
             if SysMgr.jsonEnable:
                 jsonData["cmdline"] = self.cmdlineData
@@ -67020,7 +67094,13 @@ Copyright:
             SysMgr.infoBufferPrint(twoLine)
             SysMgr.infoBufferPrint(
                 "{0:>12} {1:>12} {2:>12}({3:>4}) {4:>12}   {5:1}\n{6:1}".format(
-                    "Type", "Size", "Used", "Per", "Prio", "Path", twoLine
+                    "Type",
+                    "Size",
+                    "Used",
+                    "Per",
+                    "Prio",
+                    "Path(Stat)",
+                    twoLine,
                 )
             )
 
@@ -67034,16 +67114,39 @@ Copyright:
         # remove title line #
         swapBuf = swapBuf[1:]
 
+        totalSize = totalUsed = 0
+
         for line in swapBuf:
             try:
                 path, stype, size, used, prio = line.split()
                 size = long(size) << 10
+                totalSize += size
                 used = long(used) << 10
+                totalUsed += used
                 per = long(used / float(size) * 100)
             except SystemExit:
                 sys.exit(0)
             except:
                 continue
+
+            # get additional info #
+            try:
+                addInfo = ""
+                addDict = {}
+                indent = " " * 60
+                if path.startswith("/dev/zram"):
+                    target = ["comp_algorithm", "mm_stat"]
+                    addDict.update(
+                        SysMgr.readZramStats(path.split("/")[-1], target)
+                    )
+                    for item, val in addDict.items():
+                        addInfo += "\n{0:1}{1:20}: {2:1}".format(
+                            indent, "-" + item, val
+                        )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             # add JSON stats #
             if SysMgr.jsonEnable:
@@ -67053,6 +67156,7 @@ Copyright:
                     "used": used,
                     "per": per,
                     "prio": prio,
+                    "info": addDict,
                 }
                 continue
 
@@ -67063,10 +67167,21 @@ Copyright:
                     UtilMgr.convSize2Unit(used, isInt=True, unit="M"),
                     per,
                     prio,
-                    path,
+                    path + addInfo,
                     oneLine,
                 )
             )
+
+        # print total stat #
+        SysMgr.infoBufferPrint(
+            "{0:>12} {1:>12} {2:>12}({3:>3}%)\n{4:1}".format(
+                "TOTAL",
+                UtilMgr.convSize2Unit(totalSize, isInt=True, unit="M"),
+                UtilMgr.convSize2Unit(totalUsed, isInt=True, unit="M"),
+                long(totalUsed / float(totalSize) * 100),
+                oneLine,
+            )
+        )
 
     def printBlockInfo(self):
         if "NOBLOCKINFO" in SysMgr.environList:
