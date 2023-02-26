@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230223"
+__revision__ = "230226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -49871,6 +49871,7 @@ Copyright:
                             envs, cap=True
                         )
 
+                    # get all flag #
                     if "all" in queryList:
                         SysMgr.showAll = True
                 except SystemExit:
@@ -66705,15 +66706,31 @@ Copyright:
             except:
                 access = "? (%s)" % stats["lpid"]
 
-            # get time #
-            atime = now - time.mktime(time.gmtime(long(stats["atime"])))
-            if atime < 0:
+            # get access time #
+            atime = long(stats["atime"])
+            if atime:
+                atime = now - time.mktime(time.gmtime(atime))
+                if atime < 0:
+                    atime = "?"
+            else:
                 atime = "?"
-            dtime = now - time.mktime(time.gmtime(long(stats["dtime"])))
-            if dtime < 0:
+
+            # get modification time #
+            dtime = long(stats["dtime"])
+            if dtime:
+                dtime = now - time.mktime(time.gmtime(dtime))
+                if dtime < 0:
+                    dtime = "?"
+            else:
                 dtime = "?"
-            ctime = now - time.mktime(time.gmtime(long(stats["ctime"])))
-            if ctime < 0:
+
+            # get creation time #
+            ctime = long(stats["ctime"])
+            if ctime:
+                ctime = now - time.mktime(time.gmtime(ctime))
+                if ctime < 0:
+                    ctime = "?"
+            else:
                 ctime = "?"
 
             # print stats #
@@ -66730,9 +66747,9 @@ Copyright:
                         convertSizeFunc(stats["swap"], True),
                         stats["nattch"],
                         stats["perms"],
-                        convTimeFunc(atime)[:10],
-                        convTimeFunc(dtime)[:10],
-                        convTimeFunc(ctime)[:10],
+                        atime if atime == "?" else convTimeFunc(atime)[:10],
+                        dtime if dtime == "?" else convTimeFunc(dtime)[:10],
+                        ctime if ctime == "?" else convTimeFunc(ctime)[:10],
                     )
                 )
 
@@ -95312,7 +95329,7 @@ class TaskAnalyzer(object):
             # summarize data #
             ret = TaskAnalyzer.getSummaryData(fname, incHdr)
 
-            SysMgr.printPipe("\nFileName: %s" % fname)
+            SysMgr.printPipe("\nFileName: %s%s" % (fname, fsize))
 
             # get header and data #
             if incHdr:
