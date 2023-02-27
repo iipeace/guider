@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230226"
+__revision__ = "230227"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26058,7 +26058,7 @@ Commands:
                     items = {
                         "orig_data_size": convSize(res[0]),
                         "compr_data_size": convSize(res[1]),
-                        "comp_rate": "%d%%" % (res[1] / float(res[0]) * 100),
+                        "compr_rate": "%d%%" % (res[1] / float(res[0]) * 100),
                         "mem_used_total": convSize(res[2]),
                         "mem_limit": convSize(res[3]),
                         "mem_used_max": convSize(res[4]),
@@ -35586,6 +35586,21 @@ Description:
                     )
 
                     helpStr += """
+Options:
+    -e  <CHARACTER>             enable options
+          [ p:pipe | e:encode ]
+    -d  <CHARACTER>             disable options
+          [ C:clone | e:encode | E:exec | g:general ]
+    -a                          show all info
+    -g  <COMM|TID{:FILE}>       set task filter
+    -I  <FILE>                  set file path
+    -o  <DIR|FILE>              set output path
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -q  <NAME{{:VALUE}}>          set environment variables
+    -v                          verbose
+                    """
+
+                    helpStr += """
 Examples:
     - {2:1}
         # {0:1} {1:1} output.out
@@ -35615,6 +35630,10 @@ Examples:
 
     - {2:1} without process info
         # {0:1} {1:1} "report*.out" -q ONLYTOTAL
+
+    - {2:1} with specific resource info
+        # {0:1} {1:1} "report*.out" -q SUMMARYFILTER:CPU+RSS
+        # {0:1} {1:1} "report*.out" -q SUMMARYFILTER:CGCPU+CGBLOCK
 
     - {2:1} without detailed info
         # {0:1} {1:1} "report*.out" -q ONLYSUMMARY
@@ -36325,6 +36344,9 @@ Examples:
 
     - Initiate file readahead into page cache and print summary
         # {0:1} {1:1} -q PRINTSUMMARY
+
+    - Flush file caches on ram
+        # {0:1} {1:1} -q FLUSH
 
     - Initiate file readahead into page cache and wait for signals
         # {0:1} {1:1} -q WAIT
@@ -44837,6 +44859,13 @@ Copyright:
             flags = SysMgr.environList["VMFLAG"][0].split("+")
             SysMgr.vmflagList = SysMgr.getVmFlags(flags)
 
+        # split summaryfilter #
+        if "SUMMARYFILTER" in SysMgr.environList:
+            filters = []
+            for item in SysMgr.environList["SUMMARYFILTER"]:
+                filters += item.split("+")
+            SysMgr.environList["SUMMARYFILTER"] = filters
+
     @staticmethod
     def checkOptVal(option, value):
         if not value:
@@ -48035,9 +48064,17 @@ Copyright:
         if "RADENYITEM" in SysMgr.environList:
             raDenyList += SysMgr.environList["RADENYITEM"][0].split("|")
 
+        # set action #
+        if "FLUSH" in SysMgr.environList:
+            flushPages = True
+            action = "flush"
+        else:
+            flushPages = False
+            action = "readahead"
+
         # get absolute path #
         path = os.path.realpath(path)
-        SysMgr.printInfo("start readahead from '%s'" % path)
+        SysMgr.printInfo("start %s from '%s'" % (action, path))
         startTime = SysMgr.getUptime()
 
         # open list #
@@ -48121,11 +48158,15 @@ Copyright:
                 # print workload #
                 if SysMgr.warnEnable:
                     SysMgr.printWarn(
-                        "try to readahead %s|%s|%s" % (fname, offset, size)
+                        "try to %s %s|%s|%s" % (action, fname, offset, size)
                     )
 
                 # readahead a chunk #
-                ret = SysMgr.readahead(fname, offset, size, raMax=raMax)
+                if flushPages:
+                    ret = SysMgr.fadvise(fname, None, offset, size)
+                    ret = True
+                else:
+                    ret = SysMgr.readahead(fname, offset, size, raMax=raMax)
                 if not ret:
                     failFileList[fid] = 0
                     continue
@@ -48139,7 +48180,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn("failed to readahead", True, True)
+                SysMgr.printWarn("failed to %s" % action, True, True)
 
         # readahead from add list #
         for item in raAddList:
@@ -48166,11 +48207,14 @@ Copyright:
                 # print workload #
                 if SysMgr.warnEnable:
                     SysMgr.printWarn(
-                        "try to readahead %s|%s|%s" % (item, offset, size)
+                        "try to %s %s|%s|%s" % (action, item, offset, size)
                     )
 
                 # readahead a chunk #
-                ret = SysMgr.readahead(item, offset, size, raMax=raMax)
+                if flushPages:
+                    ret = SysMgr.fadvise(item, None, offset, size)
+                else:
+                    ret = SysMgr.readahead(item, offset, size, raMax=raMax)
                 # add to summary #
                 if ret and printSummary:
                     summaryList.setdefault(item, 0)
@@ -48182,7 +48226,7 @@ Copyright:
             except:
                 fname = SysMgr.environList["RAADDLIST"][0]
                 SysMgr.printErr(
-                    "failed to readahead '%s' from '%s'" % (item, fname), True
+                    "failed to %s '%s' from '%s'" % (action, item, fname), True
                 )
 
         # get elapsed time #
@@ -48201,11 +48245,12 @@ Copyright:
 
         # check error condition #
         if not totalSize:
-            SysMgr.printErr("failed to readahead from '%s'" % path)
+            SysMgr.printErr("failed to %s from '%s'" % (action, path))
             sys.exit(-1)
 
         # print results #
-        logStr = "finished readahead a total of %s data %sfor %.3f sec" % (
+        logStr = "finished %s a total of %s data %sfor %.3f sec" % (
+            action,
             UtilMgr.convSize2Unit(totalSize),
             cpu,
             elapsed,
@@ -95145,6 +95190,9 @@ class TaskAnalyzer(object):
         "cpuMin": -1,
         "cpuAvg": 0,
         "dly": 0,
+        "dlyMax": 0,
+        "dlyMin": -1,
+        "dlyAvg": 0,
         "initMem": 0,
         "lastMem": 0,
         "memDiff": 0,
@@ -95163,6 +95211,9 @@ class TaskAnalyzer(object):
         "cpuMin": -1,
         "cpuAvg": 0,
         "dly": 0,
+        "dlyMax": 0,
+        "dlyMin": -1,
+        "dlyAvg": 0,
         "mem": 0,
         "memDiff": 0,
         "blk": 0,
@@ -95329,7 +95380,7 @@ class TaskAnalyzer(object):
             # summarize data #
             ret = TaskAnalyzer.getSummaryData(fname, incHdr)
 
-            SysMgr.printPipe("\nFileName: %s%s" % (fname, fsize))
+            SysMgr.printPipe("\n-> File: %s%s" % (fname, fsize))
 
             # get header and data #
             if incHdr:
@@ -108443,19 +108494,21 @@ class TaskAnalyzer(object):
         TA.procTotData[pid]["nrThreads"] = d["nrThreads"]
         TA.procTotData[pid]["pri"] = d["pri"]
 
-        # save CPU usage of process #
-        TA.procTotData[pid]["cpu"] += cpu
-        TA.procTotData[pid]["dly"] += dly
+        # save CPU and delay time of process #
+        for res, name in ((cpu, "cpu"), (dly, "dly")):
+            TA.procTotData[pid][name] += res
 
-        if TA.procTotData[pid]["cpuMax"] < cpu:
-            TA.procTotData[pid]["cpuMax"] = cpu
+            nameMax = name + "Max"
+            if TA.procTotData[pid][nameMax] < res:
+                TA.procTotData[pid][nameMax] = res
 
-        if index > 0 and TA.procTotData[pid]["cpuMin"] < 0:
-            TA.procTotData[pid]["cpuMin"] = 0
-        elif TA.procTotData[pid]["cpuMin"] < 0:
-            TA.procTotData[pid]["cpuMin"] = cpu
-        elif TA.procTotData[pid]["cpuMin"] > cpu:
-            TA.procTotData[pid]["cpuMin"] = cpu
+            nameMin = name + "Min"
+            if index > 0 and TA.procTotData[pid][nameMin] < 0:
+                TA.procTotData[pid][nameMin] = 0
+            elif TA.procTotData[pid][nameMin] < 0:
+                TA.procTotData[pid][nameMin] = res
+            elif TA.procTotData[pid][nameMin] > res:
+                TA.procTotData[pid][nameMin] = res
 
         # save block usage of process #
         TA.procTotData[pid]["blk"] += blk
@@ -108535,6 +108588,7 @@ class TaskAnalyzer(object):
         # calculate final stat #
         for pid, val in TaskAnalyzer.procTotData.items():
             val["cpuAvg"] = round(val["cpu"] / float(idx), 1)
+            val["dlyAvg"] = round(val["dly"] / float(idx), 1)
             val["memDiff"] = val["lastMem"] - val["initMem"]
 
     @staticmethod
@@ -108672,8 +108726,19 @@ class TaskAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
     @staticmethod
+    def checkSummaryFilter(res):
+        if not "SUMMARYFILTER" in SysMgr.environList:
+            return True
+        elif res in SysMgr.environList["SUMMARYFILTER"]:
+            return True
+        else:
+            return False
+
+    @staticmethod
     def printEventInterval():
         if not TaskAnalyzer.procEventData:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter("EVENT"):
             return
 
         # remove invalid events #
@@ -108739,10 +108804,25 @@ class TaskAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
     @staticmethod
-    def printCpuInterval():
-        # check skip flag #
-        if "NOCPUSUMMARY" in SysMgr.environList:
-            return
+    def printCpuInterval(isCpu=True):
+        if isCpu:
+            # check skip flag #
+            if "NOCPUSUMMARY" in SysMgr.environList:
+                return
+            elif not TaskAnalyzer.checkSummaryFilter("CPU"):
+                return
+
+            res = "CPU"
+            name = "cpu"
+        else:
+            # check skip flag #
+            if "NODELAYSUMMARY" in SysMgr.environList:
+                return
+            elif not TaskAnalyzer.checkSummaryFilter("DELAY"):
+                return
+
+            res = "Delay"
+            name = "dly"
 
         TA = TaskAnalyzer
 
@@ -108751,7 +108831,8 @@ class TaskAnalyzer(object):
         cl = 26 - (pd * 2)
 
         SysMgr.printPipe(
-            "\n[Top CPU Info] (Unit: %%) (New: +) (Die: -)\n%s\n" % twoLine
+            "\n[Top %s Info] (Unit: %%) (New: +) (Die: -)\n%s\n"
+            % (res, twoLine)
         )
 
         if SysMgr.processEnable:
@@ -108789,7 +108870,7 @@ class TaskAnalyzer(object):
             value["cpu"],
         )
 
-        # Print total CPU usage #
+        # Print total usage #
         procInfo = (
             "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^17} |".format(
                 "[CPU/AVG]", "-", "-", "-", "-", cpuInfo, cl=cl, pd=pd
@@ -108817,19 +108898,19 @@ class TaskAnalyzer(object):
             ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
         )
 
-        # Print CPU usage of processes #
+        # Print usage of processes #
         for pid, value in sorted(
-            TA.procTotData.items(), key=lambda e: e[1]["cpu"], reverse=True
+            TA.procTotData.items(), key=lambda e: e[1][name], reverse=True
         ):
 
             if pid == "total":
                 continue
 
-            cpuInfo = "%d/%.1f/%d/%d" % (
-                value["cpuMin"] if value["cpuMin"] > 0 else 0,
-                value["cpuAvg"],
-                value["cpuMax"],
-                value["cpu"],
+            resInfo = "%d/%.1f/%d/%d" % (
+                value[name + "Min"] if value[name + "Min"] > 0 else 0,
+                value[name + "Avg"],
+                value[name + "Max"],
+                value[name],
             )
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^17} |".format(
@@ -108838,7 +108919,7 @@ class TaskAnalyzer(object):
                 value["ppid"],
                 value["nrThreads"],
                 value["pri"],
-                cpuInfo,
+                resInfo,
                 cl=cl,
                 pd=pd,
             )
@@ -108854,8 +108935,8 @@ class TaskAnalyzer(object):
                     lineLen = len(procInfo)
 
                 if pid in TA.procIntData[idx]:
-                    usage = TA.procIntData[idx][pid]["cpu"]
-                    total += TA.procIntData[idx][pid]["cpu"]
+                    usage = TA.procIntData[idx][pid][name]
+                    total += TA.procIntData[idx][pid][name]
                 else:
                     usage = 0
 
@@ -108873,7 +108954,7 @@ class TaskAnalyzer(object):
                 timeLine += "{0:>6} ".format(usage)
                 lineLen += margin + 2
 
-            # skip process used no CPU #
+            # skip process used no value #
             if total == 0:
                 continue
 
@@ -108883,98 +108964,14 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printDlyInterval():
-        # check skip flag #
-        if "NODELAYSUMMARY" in SysMgr.environList:
-            return
-
-        TA = TaskAnalyzer
-
-        # set comm and pid size #
-        pd = SysMgr.pidDigit
-        cl = 26 - (pd * 2)
-
-        SysMgr.printPipe(
-            "\n[Top Delay Info] (Unit: %%) (Target: THREAD)\n%s\n" % twoLine
-        )
-
-        if SysMgr.processEnable:
-            idName = "PID"
-            pidName = "PPID"
-        else:
-            idName = "TID"
-            pidName = "PID"
-
-        # Print menu #
-        procInfo = (
-            "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^5} |".format(
-                "COMM", idName, pidName, "Nr", "Pri", "Tot", cl=cl, pd=pd
-            )
-        )
-        procInfoLen = len(procInfo)
-        maxLineLen = SysMgr.lineLength
-        margin = 5
-
-        # Print timeline #
-        TA.printTimelineInterval(margin, procInfoLen, procInfo, 1)
-
-        # Print CPU delay for processes #
-        cnt = 0
-        for pid, value in sorted(
-            TA.procTotData.items(), key=lambda e: e[1]["dly"], reverse=True
-        ):
-
-            if pid == "total":
-                continue
-
-            dlyInfo = "%d" % value["dly"]
-
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^5} |".format(
-                value["comm"][:cl],
-                pid,
-                value["ppid"],
-                value["nrThreads"],
-                value["pri"],
-                dlyInfo,
-                cl=cl,
-                pd=pd,
-            )
-            procInfoLen = len(procInfo)
-            maxLineLen = SysMgr.lineLength
-
-            timeLine = ""
-            lineLen = len(procInfo)
-            total = 0
-            for idx in xrange(len(TA.procIntData)):
-                if lineLen + margin > maxLineLen:
-                    timeLine += "\n" + (" " * (procInfoLen - 1)) + "| "
-                    lineLen = len(procInfo)
-
-                if pid in TA.procIntData[idx]:
-                    usage = TA.procIntData[idx][pid]["dly"]
-                    total += TA.procIntData[idx][pid]["dly"]
-                else:
-                    usage = 0
-
-                timeLine += "{0:>6} ".format(usage)
-                lineLen += margin + 2
-
-            # skip no delayed procdss #
-            if total == 0:
-                continue
-
-            SysMgr.printPipe(
-                ("{0:1} {1:1}\n{2:1}\n").format(procInfo, timeLine, oneLine)
-            )
-
-            cnt += 1
-
-        if cnt == 0:
-            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
+        TaskAnalyzer.printCpuInterval(isCpu=False)
 
     @staticmethod
     def printGpuInterval():
         # check skip flag #
         if "NOGPUSUMMARY" in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter("GPU"):
             return
 
         TA = TaskAnalyzer
@@ -109039,6 +109036,8 @@ class TaskAnalyzer(object):
     def printRssInterval():
         # check skip flag #
         if "NORSSSUMMARY" in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter("RSS"):
             return
 
         TA = TaskAnalyzer
@@ -109197,6 +109196,8 @@ class TaskAnalyzer(object):
         # check skip flag #
         if "NOVSSSUMMARY" in SysMgr.environList:
             return
+        elif not TaskAnalyzer.checkSummaryFilter("VSS"):
+            return
 
         TA = TaskAnalyzer
 
@@ -109346,6 +109347,8 @@ class TaskAnalyzer(object):
         # check skip flag #
         if "NOBLOCKSUMMARY" in SysMgr.environList:
             return
+        elif not TaskAnalyzer.checkSummaryFilter("BLOCK"):
+            return
 
         TA = TaskAnalyzer
 
@@ -109442,6 +109445,8 @@ class TaskAnalyzer(object):
         # check skip flag #
         if "NOSTORAGESUMMARY" in SysMgr.environList:
             return
+        elif not TaskAnalyzer.checkSummaryFilter("STORAGE"):
+            return
 
         if "NOSTORAGEINFO" in SysMgr.environList:
             return
@@ -109529,6 +109534,8 @@ class TaskAnalyzer(object):
     def printNetworkInterval():
         # check skip flag #
         if "NONETSUMMARY" in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter("NETWORK"):
             return
 
         TA = TaskAnalyzer
@@ -109619,6 +109626,9 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printCgCpuInterval(attr="CPU"):
+        if not TaskAnalyzer.checkSummaryFilter("CGCPU"):
+            return
+
         # check skip flag #
         if attr == "CPU":
             if "NOCGCPUSUMMARY" in SysMgr.environList:
@@ -109704,6 +109714,8 @@ class TaskAnalyzer(object):
             return
         elif not TaskAnalyzer.fileIntData:
             return
+        elif not TaskAnalyzer.checkSummaryFilter("FILE"):
+            return
 
         TA = TaskAnalyzer
 
@@ -109731,6 +109743,8 @@ class TaskAnalyzer(object):
     def printLifeHistory():
         # check skip flag #
         if "NOLIFESUMMARY" in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter("LIFE"):
             return
 
         TA = TaskAnalyzer
@@ -109837,6 +109851,8 @@ class TaskAnalyzer(object):
         # check skip flag #
         if "NOCGBLKSUMMARY" in SysMgr.environList:
             return
+        elif not TaskAnalyzer.checkSummaryFilter("CGBLOCK"):
+            return
 
         TA = TaskAnalyzer
 
@@ -109913,6 +109929,8 @@ class TaskAnalyzer(object):
     def printCgMemInterval():
         # check skip flag #
         if "NOCGMEMSUMMARY" in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter("CGMEM"):
             return
 
         TA = TaskAnalyzer
