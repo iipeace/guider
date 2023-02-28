@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230227"
+__revision__ = "230228"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28616,22 +28616,24 @@ Commands:
             return False
 
         def _checkTask(item, threshold=False):
-            def _checkValues(subitem, initFlag):
+            def _checkValues(subitem, initFlag, taskMon):
                 if not type(subitem) is dict:
                     return False
 
                 for target, value in subitem.items():
                     # update system flag #
                     if initFlag is None:
-                        systemFlag = True if target == "SYSTEM" else False
+                        sysFlag = (
+                            True if taskMon and target == "SYSTEM" else False
+                        )
                     else:
-                        systemFlag = initFlag
+                        sysFlag = initFlag
 
                     # check apply in dict #
                     if target == "apply":
                         if value != "true":
                             return False
-                        elif not systemFlag:
+                        elif taskMon and not sysFlag:
                             return True
                     # check taskmon field #
                     elif (
@@ -28643,7 +28645,7 @@ Commands:
                     # check list value #
                     elif type(value) is list:
                         for subval in value:
-                            if _checkValues(subval, systemFlag):
+                            if _checkValues(subval, sysFlag, taskMon):
                                 return True
                     # check value type #
                     elif type(value) is not dict:
@@ -28652,7 +28654,7 @@ Commands:
                     elif "apply" in value:
                         if value["apply"] != "true":
                             continue
-                        elif not systemFlag:
+                        elif not sysFlag:
                             return True
                 return False
 
@@ -28661,22 +28663,27 @@ Commands:
 
             for res, cond in item.items():
                 # skip commands #
-                if res.upper() == "COMMAND":
+                if res.upper() in ("COMMAND",):
                     continue
-                # no support resources for task monitoring #
-                elif res in (
+
+                # check task monitoring feature #
+                if res in (
+                    "gpu",
                     "storage",
                     "net",
                     "load",
+                    "sock",
                     "file",
                     "log",
                     "func",
                     "psi",
                     "cgroup",
                 ):
-                    continue
+                    taskMon = False
+                else:
+                    taskMon = True
 
-                if _checkValues(cond, None):
+                if _checkValues(cond, None, taskMon):
                     return True
 
             return False
@@ -97393,6 +97400,8 @@ class TaskAnalyzer(object):
                 targetGroup = ["cpu", "cpuacct"]
             else:
                 targetGroup = UtilMgr.cleanItem(targetGroup.split("+"))
+                if "cpu" in targetGroup:
+                    targetGroup += ["cpuacct"]
                 targetGroup = list(set(targetGroup))
 
             # remove sort option #
@@ -97809,8 +97818,8 @@ class TaskAnalyzer(object):
                     netRead.append(0)
                     netWrite.append(0)
 
-            # CPU #
-            elif context == "CPU":
+            # CPU / DELAY #
+            elif context in ("CPU", "Delay"):
                 if slen == 3:
                     m = re.match(r"\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)", line)
                     if not m:
@@ -97836,9 +97845,14 @@ class TaskAnalyzer(object):
                     if intervalList:
                         intervalList += sline[1]
                 elif intervalList:
+                    if context == "CPU":
+                        statList = cpuProcUsage
+                    else:
+                        statList = cpuProcDelay
+
                     # save previous info #
-                    cpuProcUsage[pname] = {}
-                    cpuProcUsage[pname]["pid"] = pid
+                    statList[pname] = {}
+                    statList[pname]["pid"] = pid
 
                     # get lifecycle info #
                     start = -1
@@ -97858,174 +97872,53 @@ class TaskAnalyzer(object):
                     cpuList = list(map(long, intervalList))
                     intervalList = " ".join(intervalList)
 
-                    cpuProcUsage[pname]["usage"] = intervalList
+                    statList[pname]["usage"] = intervalList
                     intervalList = None
 
                     # calculate total usage of tasks filtered #
                     if TaskAnalyzer.checkFilter(comm, pid):
-                        if not "[ TOTAL ]" in cpuProcUsage:
-                            cpuProcUsage["[ TOTAL ]"] = {}
+                        tname = "[ TOTAL ]"
+                        if not tname in statList:
+                            statList[tname] = {}
 
-                            filterTotal = list(
-                                map(long, cpuProcUsage[pname]["usage"].split())
-                            )
+                            pstats = statList[pname]["usage"].split()
+                            ftotal = list(map(long, pstats))
 
-                            cpuProcUsage["[ TOTAL ]"]["usage"] = " ".join(
-                                list(map(str, filterTotal))
-                            )
-
-                            cpuProcUsage["[ TOTAL ]"]["count"] = 1
+                            statList[tname]["count"] = 1
                         else:
-                            filterTotal = list(
-                                map(
-                                    long,
-                                    cpuProcUsage["[ TOTAL ]"]["usage"].split(),
-                                )
-                            )
+                            tstats = statList[tname]["usage"].split()
+                            ftotal = list(map(long, tstats))
 
-                            for idx in xrange(len(filterTotal)):
-                                filterTotal[idx] += cpuList[idx]
+                            for idx in xrange(len(ftotal)):
+                                ftotal[idx] += cpuList[idx]
 
-                            cpuProcUsage["[ TOTAL ]"]["usage"] = " ".join(
-                                list(map(str, filterTotal))
-                            )
+                            statList[tname]["count"] += 1
 
-                            cpuProcUsage["[ TOTAL ]"]["count"] += 1
-
-                        cpuProcUsage["[ TOTAL ]"]["minimum"] = min(filterTotal)
-                        cpuProcUsage["[ TOTAL ]"]["average"] = sum(
-                            filterTotal
-                        ) / len(filterTotal)
-                        cpuProcUsage["[ TOTAL ]"]["maximum"] = max(filterTotal)
+                        usageList = " ".join(list(map(str, ftotal)))
+                        statList[tname]["usage"] = usageList
+                        statList[tname]["minimum"] = min(ftotal)
+                        statList[tname]["average"] = sum(ftotal) / len(ftotal)
+                        statList[tname]["maximum"] = max(ftotal)
 
                     # update statistics #
                     if not cpuList:
-                        cpuProcUsage[pname]["minimum"] = 0
-                        cpuProcUsage[pname]["average"] = 0
-                        cpuProcUsage[pname]["maximum"] = 0
+                        statList[pname]["minimum"] = 0
+                        statList[pname]["average"] = 0
+                        statList[pname]["maximum"] = 0
                     else:
-                        cpuProcUsage[pname]["minimum"] = min(cpuList)
-                        cpuProcUsage[pname]["average"] = sum(cpuList) / len(
+                        statList[pname]["minimum"] = min(cpuList)
+                        statList[pname]["average"] = sum(cpuList) / len(
                             cpuList
                         )
-                        cpuProcUsage[pname]["maximum"] = max(cpuList)
+                        statList[pname]["maximum"] = max(cpuList)
 
                     # update lifecycle #
                     if start > -1:
-                        cpuProcUsage[pname]["start"] = start
+                        statList[pname]["start"] = start
                     if finish > -1:
-                        cpuProcUsage[pname]["finish"] = finish
+                        statList[pname]["finish"] = finish
                     if zombie > -1:
-                        cpuProcUsage[pname]["zombie"] = zombie
-
-            # DELAY #
-            elif context == "Delay":
-                if slen == 3:
-                    m = re.match(r"\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)", line)
-                    if not m:
-                        continue
-
-                    d = m.groupdict()
-                    comm = d["comm"].strip()
-
-                    if SysMgr.filterGroup:
-                        if not TaskAnalyzer.checkFilter(comm, d["pid"]):
-                            intervalList = None
-                        else:
-                            pid = d["pid"]
-                            pname = "%s(%s)" % (comm, pid)
-
-                            intervalList = sline[2]
-                    else:
-                        pid = d["pid"]
-                        pname = "%s(%s)" % (comm, pid)
-
-                        intervalList = sline[2]
-                elif slen == 2:
-                    if intervalList:
-                        intervalList += sline[1]
-                elif intervalList:
-                    # save previous info #
-                    cpuProcDelay[pname] = {}
-                    cpuProcDelay[pname]["pid"] = pid
-
-                    # get lifecycle info #
-                    start = -1
-                    finish = -1
-                    zombie = -1
-                    intervalList = intervalList.split()
-                    for idx, item in enumerate(list(intervalList)):
-                        if item.startswith("+"):
-                            start = idx
-                            intervalList[idx] = item[1:]
-                        if item.startswith("-"):
-                            finish = idx
-                            intervalList[idx] = item[1:]
-                        if item.startswith("z"):
-                            zombie = idx
-                            intervalList[idx] = item[1:]
-                    cpuList = list(map(long, intervalList))
-                    intervalList = " ".join(intervalList)
-
-                    cpuProcDelay[pname]["usage"] = intervalList
-                    intervalList = None
-
-                    # calculate total usage of tasks filtered #
-                    if TaskAnalyzer.checkFilter(comm, pid):
-                        if not "[ TOTAL ]" in cpuProcDelay:
-                            cpuProcDelay["[ TOTAL ]"] = {}
-
-                            filterTotal = list(
-                                map(long, cpuProcDelay[pname]["usage"].split())
-                            )
-
-                            cpuProcDelay["[ TOTAL ]"]["usage"] = " ".join(
-                                list(map(str, filterTotal))
-                            )
-
-                            cpuProcDelay["[ TOTAL ]"]["count"] = 1
-                        else:
-                            filterTotal = list(
-                                map(
-                                    long,
-                                    cpuProcDelay["[ TOTAL ]"]["usage"].split(),
-                                )
-                            )
-
-                            for idx in xrange(len(filterTotal)):
-                                filterTotal[idx] += cpuList[idx]
-
-                            cpuProcDelay["[ TOTAL ]"]["usage"] = " ".join(
-                                list(map(str, filterTotal))
-                            )
-
-                            cpuProcDelay["[ TOTAL ]"]["count"] += 1
-
-                        cpuProcDelay["[ TOTAL ]"]["minimum"] = min(filterTotal)
-                        cpuProcDelay["[ TOTAL ]"]["average"] = sum(
-                            filterTotal
-                        ) / len(filterTotal)
-                        cpuProcDelay["[ TOTAL ]"]["maximum"] = max(filterTotal)
-
-                    # update statistics #
-                    if not cpuList:
-                        cpuProcDelay[pname]["minimum"] = 0
-                        cpuProcDelay[pname]["average"] = 0
-                        cpuProcDelay[pname]["maximum"] = 0
-                    else:
-                        cpuProcDelay[pname]["minimum"] = min(cpuList)
-                        cpuProcDelay[pname]["average"] = sum(cpuList) / len(
-                            cpuList
-                        )
-                        cpuProcDelay[pname]["maximum"] = max(cpuList)
-
-                    # update lifecycle #
-                    if start > -1:
-                        cpuProcDelay[pname]["start"] = start
-                    if finish > -1:
-                        cpuProcDelay[pname]["finish"] = finish
-                    if zombie > -1:
-                        cpuProcDelay[pname]["zombie"] = zombie
+                        statList[pname]["zombie"] = zombie
 
             # GPU #
             elif context == "GPU":
@@ -121178,6 +121071,7 @@ class TaskAnalyzer(object):
                     not usage
                     and not SysMgr.showAll
                     and sortCond == "cpuacct.usage"
+                    and nrLine > 0
                 ):
                     break
 
@@ -125205,11 +125099,17 @@ class TaskAnalyzer(object):
         td = SysMgr.thresholdData
 
         # check attribute #
-        if not resource in td or not attr in td[resource]:
+        if not resource in td or not UtilMgr.isValidStr(attr, td[resource]):
             return False
 
         # get threshold attributes #
-        comval = td[resource][attr]
+        if attr in td[resource]:
+            comval = td[resource][attr]
+        else:
+            for val in td[resource]:
+                if UtilMgr.isValidStr(attr, [val]):
+                    comval = td[resource][val]
+                    break
 
         # get previous usages #
         if intval:
@@ -125471,7 +125371,7 @@ class TaskAnalyzer(object):
                             )
 
                     # check a specific task #
-                    if comm in td[res]:
+                    if UtilMgr.isValidStr(comm, td[res]):
                         self.checkThreshold(
                             res,
                             cattr,
