@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230228"
+__revision__ = "230301"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28557,7 +28557,10 @@ Commands:
 
         def _checkAttr(item, attr, lev=0):
             if type(item) is dict and attr in item:
-                return True
+                if "apply" in item and item["apply"] == "true":
+                    return True
+                else:
+                    return False
 
             # check type #
             if type(item) is list:
@@ -28848,12 +28851,13 @@ Commands:
                         enableList += ["cpu", "cpuacct"]
                     else:
                         enableList.append(item)
+            enableList = set(enableList)
             if enableList:
-                enableStr = "+".join(list(set(enableList)))
+                enableStr = "+".join(enableList)
                 SysMgr.addEnvironVar("PRINTCG", enableStr)
 
-                # remove save limitation by sort #
-                if not enableStr == "cpu":
+                # remove print limitation by sort #
+                if enableList - set(["cpu", "cpuacct", "throttle"]):
                     SysMgr.sort = False
 
         # check task monitoring condition #
@@ -33488,10 +33492,16 @@ Description:
                     helpStr += topSubStr + topCommonStr + topExamStr
 
                     helpStr += """
-    - Monitor the status of cgroup on the system after mounting all cgroup subsystems
+    - {2:1} with maximum 3-depth
+        # {0:1} {1:1} -H 3
+
+    - {2:1} except for specific resources
+        # {0:1} {1:1} -d mb
+
+    - {2:1} after mounting all cgroup subsystems
         # {0:1} {1:1} -q MOUNTCG
                         """.format(
-                        cmd, mode
+                        cmd, mode, "Monitor the status of cgroup on the system"
                     )
 
                 # vmalloc top #
@@ -33888,6 +33898,14 @@ Examples:
     - {2:1} {3:1} and the fixed specific targets
         # {0:1} {1:1} -g a.out -q FIXTASK:"a.out"
         # {0:1} {1:1} -g a.out -q FIXTASK:"a.out|yes|systemd"
+
+    - {2:1} {3:1} and cgroup usage
+        # {0:1} {1:1} -q PRINTCG
+        # {0:1} {1:1} -q PRINTCG:"cpu+cpuacct+memory+blkio"
+        # {0:1} {1:1} -q PRINTCG, MAXCGROWS:5
+
+    - {2:1} {3:1} and cgroup usage in limited depth
+        # {0:1} {1:1} -q PRINTCG -H 2
 
     - {2:1} including normal tasks {3:1}
         # {0:1} {1:1} -j -q SAVEJSONSTAT
@@ -115623,11 +115641,17 @@ class TaskAnalyzer(object):
                 pass
 
     def saveCgroupStat(self, targetGroup=[]):
-        def _getStats(root, path, sub):
+        def _getStats(root, path, sub, dftDepth):
             # register subsystem #
             root.setdefault(sub, {})
 
             for dirpath, subdirs, subfiles in path:
+                # check depth #
+                if SysMgr.funcDepth > 0:
+                    depth = dirpath.count("/") - dftDepth
+                    if depth >= SysMgr.funcDepth:
+                        continue
+
                 # update subfiles #
                 for item in subfiles:
                     # check file #
@@ -115645,13 +115669,6 @@ class TaskAnalyzer(object):
                                 dpath = UtilMgr.lstrip(dpath, cpath)
                                 if dpath != dirpath:
                                     break
-
-                        # check depth #
-                        if (
-                            SysMgr.funcDepth > 0
-                            and dpath.count("/") >= SysMgr.funcDepth
-                        ):
-                            continue
 
                         if not dpath:
                             dpath = "/"
@@ -115692,8 +115709,14 @@ class TaskAnalyzer(object):
             if not target:
                 continue
 
+            # get default depth #
+            dftDepth = sub.count("/")
+
             _getStats(
-                self.cgroupData, os.walk(sub), sub[sub.rfind("/", 1) + 1 :]
+                self.cgroupData,
+                os.walk(sub),
+                sub[sub.rfind("/", 1) + 1 :],
+                dftDepth,
             )
 
     def saveFileData(self):
@@ -121061,7 +121084,7 @@ class TaskAnalyzer(object):
                 task = 0
 
             # check skip condition #
-            if not SysMgr.showAll and not task:
+            if not SysMgr.showAll and not task and not SysMgr.funcDepth:
                 continue
 
             # CPU Usage #
