@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230301"
+__revision__ = "230302"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25020,7 +25020,8 @@ Commands:
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                "failed to get the maximum file descriptor", reason=True
+                "failed to get the number of maximum file descriptor",
+                reason=True,
             )
 
     @staticmethod
@@ -25521,6 +25522,13 @@ Commands:
                         totalStat[item]["size"] += gpuStat[item]["size"]
                     else:
                         totalStat[item] = gpuStat[item]
+
+                # make total stat #
+                if not "0" in totalStat:
+                    totalMem = 0
+                    for stats in totalStat.values():
+                        totalMem += stats["size"]
+                    totalStat["0"] = {"comm": "TOTAL", "size": totalMem}
             else:
                 removeList.append(func)
 
@@ -25851,6 +25859,11 @@ Commands:
                 targetDir = SysMgr.outPath
             else:
                 targetDir = os.path.dirname(SysMgr.outPath)
+
+            # check output dir #
+            if not SysMgr.isWritable(targetDir):
+                SysMgr.printErr("wrong path '%s' for output" % targetDir)
+                sys.exit(-1)
 
             # remove SIGINT handler to ignore creating the report file #
             signal.signal(signal.SIGINT, SysMgr.exitHandler)
@@ -26842,8 +26855,8 @@ Commands:
         if not path or not os.path.isdir(path):
             SysMgr.printErr(
                 (
-                    "failed to update sequence number of execution ",
-                    "because wrong directory path '%s'",
+                    "failed to update sequence number of execution "
+                    "because wrong directory path '%s'"
                 )
                 % path
             )
@@ -124298,6 +124311,9 @@ class TaskAnalyzer(object):
             # check activation #
             if not "gpu" in SysMgr.thresholdTarget:
                 raise Exception()
+            elif not self.reportData["gpu"]:
+                SysMgr.printErr("failed to check GPU usage because no support")
+                sys.exit(-1)
 
             # each devices #
             dinfo = {}
@@ -124352,6 +124368,11 @@ class TaskAnalyzer(object):
         try:
             if not "gpumem" in SysMgr.thresholdTarget:
                 raise Exception()
+            elif not self.reportData["gpumem"]:
+                SysMgr.printErr(
+                    "failed to check GPUMEM usage because no support"
+                )
+                sys.exit(-1)
 
             self.checkThreshold("gpumem", "total", "GPUMEM", "big")
         except SystemExit:
@@ -124363,6 +124384,11 @@ class TaskAnalyzer(object):
         try:
             if not "swap" in SysMgr.thresholdTarget:
                 raise Exception()
+            elif self.reportData["swap"]["total"] == 0:
+                SysMgr.printErr(
+                    "failed to check SWAP usage because no swap device"
+                )
+                sys.exit(-1)
 
             intval = _getIntval("swap")
             self.checkThreshold(
@@ -124603,6 +124629,11 @@ class TaskAnalyzer(object):
         try:
             if not "psi" in SysMgr.thresholdTarget:
                 raise Exception()
+            elif not SysMgr.psiData:
+                SysMgr.printErr(
+                    "failed to use PSI, please check kernel config"
+                )
+                sys.exit(-1)
 
             resList = ["cpu", "memory", "io"]
             attrList = ["some", "full"]
@@ -124630,6 +124661,11 @@ class TaskAnalyzer(object):
         try:
             if not "cgroup" in SysMgr.thresholdTarget:
                 raise Exception()
+            elif not self.reportData["cgroup"]:
+                SysMgr.printErr(
+                    "failed to check CGROUP usage because no cgroup"
+                )
+                sys.exit(-1)
 
             def _check(attr, name, stat):
                 # skip number info for tasks #
@@ -124824,8 +124860,8 @@ class TaskAnalyzer(object):
         if item in comval:
             ename = "%s_%s" % (ename, thresholdVal)
 
-        # replace '/' with '_' for path by event name #
-        ename = ename.replace("/", "_")
+        # replace '/' with 'I' for path by event name #
+        ename = ename.replace("/", "I")
 
         # handle goneshot flag #
         if goneshot:
@@ -125737,9 +125773,8 @@ class TaskAnalyzer(object):
                 self.reportData["psi"].setdefault(res, {})
                 for attr, vals in data.items():
                     for stat, val in vals.items():
-                        self.reportData["psi"][res][
-                            "%s-%s" % (attr, stat)
-                        ] = val
+                        pstat = "%s-%s" % (attr, stat)
+                        self.reportData["psi"][res][pstat] = val
 
         # add file data #
         for path, data in TaskAnalyzer.fileIntData.items():
