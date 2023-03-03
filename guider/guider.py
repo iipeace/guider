@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230302"
+__revision__ = "230303"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import struct
     from copy import deepcopy
 
-    # from ctypes import * # for lint check
+    # from ctypes import *  # for lint check
 except ImportError:
     err = sys.exc_info()[1]
     sys.exit("[ERROR] failed to import essential package: %s" % err.args[0])
@@ -21936,7 +21936,12 @@ class FileAnalyzer(object):
         SysMgr.printErr(
             "failed to get memory map for %s(%s)%s" % (comm, pid, reason)
         )
-        sys.exit(-1)
+
+        # quit #
+        if SysMgr.forceEnable:
+            return
+        else:
+            sys.exit(-1)
 
     @staticmethod
     def getMapFd(pid, verb=False):
@@ -32485,6 +32490,10 @@ Examples:
         # {0:1} {1:1} -g 1234
         # {0:1} {1:1} -g a.out
 
+    - {3:1} {7:1} from specific runtime
+        # {0:1} {1:1} -g "*chrome, *test*" -q TARGETEXE
+        # {0:1} {1:1} -g "*chrome, *test*" -q TARGETCMD
+
     - {3:1} {8:1}
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
@@ -33770,6 +33779,10 @@ Examples:
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
 
+    - {3:1} {4:1} from specific runtime
+        # {0:1} {1:1} -g "*chrome, *test*" -q TARGETEXE
+        # {0:1} {1:1} -g "*chrome, *test*" -q TARGETCMD
+
     - Monitor native and JIT-compiled function calls {4:1}
 {2:1}
         # {0:1} {1:1} -g node -q JITSYM
@@ -34727,6 +34740,10 @@ Examples:
     - {4:1} from a specific binary
         # {0:1} {1:1} "ls -al" -t write
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - {3:1} {5:1} from specific runtime
+        # {0:1} {1:1} -g "*chrome, *test*" -q TARGETEXE
+        # {0:1} {1:1} -g "*chrome, *test*" -q TARGETCMD
 
     - Trace only successful syscalls {5:1}
         # {0:1} {1:1} -g a.out -q ONLYOK
@@ -37152,6 +37169,7 @@ Description:
 
 Options:
     -o  <FILE>                  set output path
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -37166,6 +37184,10 @@ Examples:
     - Compress multiple files
         # {0:1} {1:1} "guider.out, guider2.out"
         # {0:1} {1:1} "guider*.out"
+
+    - Encode a file in BASE64 format
+        # {0:1} {1:1} guider.out -q BASE64
+        # {0:1} {1:1} guider.out -o guider.out.gz -q BASE64
                     """.format(
                         cmd, mode
                     )
@@ -37181,6 +37203,7 @@ Description:
 
 Options:
     -o  <DIR>                   set output path
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         """.format(
                         cmd, mode
@@ -37195,6 +37218,10 @@ Examples:
     - Decompress multiple files
         # {0:1} {1:1} "guider.out.gz, guider2.out.gz"
         # {0:1} {1:1} "guider*.gz"
+
+    - Decode a file in BASE64 format
+        # {0:1} {1:1} guider.b64 -q BASE64
+        # {0:1} {1:1} guider.b64 -o guider.out -q BASE64
                     """.format(
                         cmd, mode
                     )
@@ -60331,8 +60358,15 @@ Copyright:
             SysMgr.printErr("no file for the path")
             sys.exit(-1)
 
-        # get compressor #
-        compressor = SysMgr.getPkg("gzip")
+        # get compressor type #
+        if "BASE64" in SysMgr.environList:
+            compType = "base64"
+            compressor = os
+            extent = ".b64"
+        else:
+            compType = "gzip"
+            compressor = SysMgr.getPkg("gzip")
+            extent = ".gz"
 
         for infile in infileList:
             # check file #
@@ -60346,9 +60380,9 @@ Copyright:
             if outfile:
                 # check dir #
                 if os.path.isdir(outfile):
-                    outfile = os.path.join(outfile, infile + ".gz")
+                    outfile = os.path.join(outfile, infile + extent)
             else:
-                outfile = "%s.gz" % infile
+                outfile = infile + extent
 
             # check final input and output path #
             if infile == outfile:
@@ -60375,26 +60409,36 @@ Copyright:
             fileSize = long(os.fstat(infd.fileno()).st_size)
             infileSizeStr = UtilMgr.convSize2Unit(fileSize)
 
-            # open output file #
-            outfd = compressor.open(outfile, "wb")
-            os.chmod(outfile, 0o777)
-
             SysMgr.printInfo(
                 "start compressing '%s' [%s] to '%s'"
                 % (infile, infileSizeStr, outfile),
                 prefix=newline,
             )
 
-            while 1:
-                chunk = infd.read(chunkSize)
-                if not chunk:
-                    outfd.flush()
-                    break
+            # BASE64 #
+            if compType == "base64":
+                # open output file #
+                outfd = open(outfile, "wb")
+                os.chmod(outfile, 0o777)
 
-                outfd.write(chunk)
+                buf = UtilMgr.encodeBase64(infd.read())
+                wroteSize = outfd.write(buf)
+            # GZIP #
+            else:
+                # open output file #
+                outfd = compressor.open(outfile, "wb")
+                os.chmod(outfile, 0o777)
 
-                wroteSize += len(chunk)
-                UtilMgr.printProgress(wroteSize, fileSize)
+                while 1:
+                    chunk = infd.read(chunkSize)
+                    if not chunk:
+                        outfd.flush()
+                        break
+
+                    outfd.write(chunk)
+
+                    wroteSize += len(chunk)
+                    UtilMgr.printProgress(wroteSize, fileSize)
 
             if wroteSize:
                 UtilMgr.deleteProgress()
@@ -60427,8 +60471,15 @@ Copyright:
             SysMgr.printErr("no file for the path")
             sys.exit(-1)
 
-        # get compressor #
-        compressor = SysMgr.getPkg("gzip")
+        # get compressor type #
+        if "BASE64" in SysMgr.environList:
+            compType = "base64"
+            compressor = os
+            extent = ".b64"
+        else:
+            compType = "gzip"
+            compressor = SysMgr.getPkg("gzip")
+            extent = ".gz"
 
         for infile in infileList:
             # check file #
@@ -60442,12 +60493,12 @@ Copyright:
             if outfile:
                 # check dir #
                 if os.path.isdir(outfile):
-                    outfile = os.path.join(outfile, infile.replace(".gz", ""))
+                    outfile = os.path.join(outfile, infile.replace(extent, ""))
             else:
-                if infile.endswith(".gz"):
-                    outfile = infile.replace(".gz", "")
+                if infile.endswith(extent):
+                    outfile = infile.replace(extent, "")
                 else:
-                    outfile = infile + ".decomp"
+                    outfile = infile + ".dec"
 
             # check final input and output path #
             if infile == outfile:
@@ -60467,7 +60518,10 @@ Copyright:
             chunkSize = 1 << 20
 
             # open input file #
-            infd = compressor.open(infile, "rb")
+            if compType == "base64":
+                infd = open(infile, "rb")
+            else:
+                infd = compressor.open(infile, "rb")
 
             # get total file size #
             wroteSize = 0
@@ -60484,19 +60538,25 @@ Copyright:
                 prefix=newline,
             )
 
-            while 1:
-                chunk = infd.read(chunkSize)
-                if not chunk:
-                    outfd.flush()
-                    break
+            # BASE64 #
+            if compType == "base64":
+                buf = UtilMgr.decodeBase64(infd.read())
+                wroteSize = outfd.write(buf)
+            # GZIP #
+            else:
+                while 1:
+                    chunk = infd.read(chunkSize)
+                    if not chunk:
+                        outfd.flush()
+                        break
 
-                outfd.write(chunk)
+                    outfd.write(chunk)
 
-                wroteSize += len(chunk)
-                UtilMgr.printProgress(wroteSize, fileSize)
+                    wroteSize += len(chunk)
+                    UtilMgr.printProgress(wroteSize, fileSize)
 
-            if wroteSize:
-                UtilMgr.deleteProgress()
+                if wroteSize:
+                    UtilMgr.deleteProgress()
 
             outfileSize = long(os.fstat(outfd.fileno()).st_size)
             outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
@@ -76812,7 +76872,12 @@ typedef struct {
 
             # no symbol #
             SysMgr.printErr("failed to find address for symbol '%s'" % value)
-            sys.exit(-1)
+
+            # quit #
+            if not SysMgr.forceEnable:
+                sys.exit(-1)
+
+            return addrList, cmdList
 
         return addrList, cmdList
 
@@ -119477,70 +119542,64 @@ class TaskAnalyzer(object):
 
             try:
                 prop = "Size:"
-                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     "VSS:",
-                    convSize(val << 10),
+                    convSize(item[prop] << 10),
                 )
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, "VSS:", 0)
 
             try:
                 prop = "Rss:"
-                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     prop.upper(),
-                    convSize(val << 10),
+                    convSize(item[prop] << 10),
                 )
                 if add:
-                    rss += val
+                    rss += item[prop]
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = "Pss:"
-                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     prop.upper(),
-                    convSize(val << 10),
+                    convSize(item[prop] << 10),
                 )
                 if add:
-                    pss += val
+                    pss += item[prop]
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = "Swap:"
-                val = item[prop]
                 tmpstr = "%s%s%7s / " % (
                     tmpstr,
                     prop.upper(),
-                    convSize(val << 10),
+                    convSize(item[prop] << 10),
                 )
             except:
                 tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
             try:
                 prop = "AnonHugePages:"
-                val = item[prop]
                 tmpstr = "%s%s:%5s / " % (
                     tmpstr,
                     "HUGE",
-                    convSize(val << 10, True),
+                    convSize(item[prop] << 10, True),
                 )
             except:
                 tmpstr = "%s%s:%5s / " % (tmpstr, "HUGE", 0)
 
             try:
                 prop = "Locked:"
-                val = item[prop]
                 tmpstr = "%s%s%6s / " % (
                     tmpstr,
                     "LOCK:",
-                    convSize(val << 10, True),
+                    convSize(item[prop] << 10, True),
                 )
             except:
                 tmpstr = "%s%s%6s / " % (tmpstr, "LOCK:", 0)
@@ -119554,24 +119613,22 @@ class TaskAnalyzer(object):
 
             try:
                 prop = "Shared_Dirty:"
-                val = item[prop]
                 if add:
-                    sss += val
+                    sss += item[prop]
                 tmpstr = "%s%s:%7s / " % (
                     tmpstr,
                     "SDRT",
-                    convSize(val << 10),
+                    convSize(item[prop] << 10),
                 )
             except:
                 tmpstr = "%s%s:%7s / " % (tmpstr, "SDRT", 0)
 
             try:
                 prop = "Private_Dirty:"
-                val = item[prop]
                 tmpstr = "%s%s:%7s" % (
                     tmpstr,
                     "PDRT",
-                    convSize(val << 10),
+                    convSize(item[prop] << 10),
                 )
             except:
                 tmpstr = "%s%s:%7s" % (tmpstr, "PDRT", 0)
@@ -122409,6 +122466,9 @@ class TaskAnalyzer(object):
                     value["taskPath"], idx, retPss=False, retShr=True
                 )[1]
                 value["uss"] = value["rss"] - (shared >> memFactorKB)
+                # fix wrong stats because RSS is inaccurate #
+                if value["uss"] < 0:
+                    value["uss"] = 0
 
             # get main memory usage #
             if SysMgr.pssEnable:
