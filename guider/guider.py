@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230303"
+__revision__ = "230305"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6194,13 +6194,14 @@ class UtilMgr(object):
         except:
             pass
 
+        lineLen = 43
         printer(
             "\n[%s Histogram] (unit:%s)\n%s%s"
-            % (title, unit, twoLine, newline)
+            % (title, unit, twoLine[:lineLen], newline[:lineLen])
         )
         printer(
             "{0:^21} | {1:^18}|\n{2:1}{3:1}".format(
-                "Range", "Count", oneLine, newline
+                "Range", "Count", oneLine[:lineLen], newline[:lineLen]
             )
         )
 
@@ -6218,7 +6219,7 @@ class UtilMgr(object):
                     convNum(erange),
                     convNum(cnt),
                     cnt / float(statcnt) * 100,
-                    newline,
+                    newline[:lineLen],
                 )
             )
 
@@ -6228,7 +6229,7 @@ class UtilMgr(object):
                     "{0:1}\n{1:^21} | {2:>18}|\n{3:^21} | {4:>18}|\n"
                     "{5:^21} | {6:>18}|\n{7:^21} | {8:>18}|\n{0:1}\n"
                 ).format(
-                    oneLine,
+                    oneLine[:lineLen],
                     "Min",
                     convNum(statmin),
                     "Max",
@@ -30892,6 +30893,75 @@ Commands:
         return SysMgr.readFile(
             "/sys/kernel/security/apparmor/profiles", verb=False
         )
+
+    @staticmethod
+    def readPageInfo():
+        try:
+            pageBlockOrder = 0
+            pagePerBlock = 0
+            freeTitle = False
+            blockTitle = False
+            freeInfo = {}
+            blockInfo = {}
+
+            # read page info #
+            lines = SysMgr.procReadlines("pagetypeinfo")
+
+            for item in lines:
+                if item == "\n":
+                    continue
+                elif not pageBlockOrder and item.startswith(
+                    "Page block order:"
+                ):
+                    pageBlockOrder = long(item.split(":")[1])
+                    continue
+                elif not pagePerBlock and item.startswith("Pages per block:"):
+                    pagePerBlock = long(item.split(":")[1])
+                    continue
+                elif not freeTitle and item.startswith("Free pages"):
+                    freeTitle = True
+                    continue
+                elif not blockTitle and item.startswith("Number of blocks"):
+                    blockTitle = UtilMgr.lstrip(
+                        item, "Number of blocks "
+                    ).split()[1:]
+                    continue
+                elif blockTitle:
+                    item = item.rstrip().split(",")[:2]
+
+                    node = item[0].split()[1]
+                    values = item[1].split()
+                    zone = values[1]
+                    blocks = list(map(long, values[2:]))
+
+                    blockInfo.setdefault(node, {})
+                    blockInfo[node].setdefault(zone, {})
+
+                    for ztype, block in zip(blockTitle, blocks):
+                        blockInfo[node][zone][ztype] = block
+                else:
+                    item = item.rstrip().split(",")[:3]
+
+                    node = item[0].split()[1]
+                    zone = item[1].split()[1]
+                    values = item[2].split()
+                    ztype = values[1]
+                    pages = list(map(long, values[2:]))
+
+                    freeInfo.setdefault(node, {})
+                    freeInfo[node].setdefault(zone, {})
+                    freeInfo[node][zone][ztype] = pages
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn("failed to read page info", reason=True)
+
+        return {
+            "pageBlockOrder": pageBlockOrder,
+            "pagePerBlock": pagePerBlock,
+            "freeInfo": freeInfo,
+            "blockInfo": blockInfo,
+        }
 
     @staticmethod
     def readBuddyInfo():
@@ -63777,6 +63847,8 @@ Copyright:
 
         self.printBuddyInfo()
 
+        self.printPageInfo()
+
         self.printHugePageInfo()
 
         self.printKsmInfo()
@@ -63915,6 +63987,65 @@ Copyright:
             current += line
         SysMgr.infoBufferPrint(current + "\n" + oneLine)
 
+    def printPageInfo(self):
+        if "NOVPAGEINFO" in SysMgr.environList:
+            return
+
+        PAGE = SysMgr.PAGESIZE
+        convSize = UtilMgr.convSize2Unit
+        lineLen = len(oneLine)
+
+        # get page info #
+        pageInfo = SysMgr.readPageInfo()
+        if not pageInfo or not pageInfo["freeInfo"]:
+            return
+
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("general", {})
+            SysMgr.jsonData["general"].setdefault("page", pageInfo)
+
+        SysMgr.infoBufferPrint(
+            "\n[FreePage Info] (PageBlockOrder: %s) (Pages per Block: %s)\n%s"
+            % (
+                pageInfo["pageBlockOrder"],
+                pageInfo["pagePerBlock"],
+                twoLine[:lineLen],
+            )
+        )
+        orders = [
+            "%9s"
+            % (str(order) + "(%s)" % convSize((2**order) * PAGE, isInt=True))
+            for order in range(0, 11)
+        ]
+        orders.append(" |%7s" % "TOTAL")
+        SysMgr.infoBufferPrint(
+            "{0:>5} | {1:<8} | {2:<11} | {3:<1} |\n{4:1}".format(
+                "NODE", "ZONE", "TYPE", " ".join(orders), twoLine[:lineLen]
+            )
+        )
+
+        # print page info #
+        for node, data in pageInfo["freeInfo"].items():
+            for zone, vals in data.items():
+                for ztype, orders in vals.items():
+                    orderSize = [
+                        (2**order) * PAGE * val
+                        for order, val in enumerate(orders)
+                    ]
+                    orders = [
+                        "%9s" % UtilMgr.convNum(order) if order else " " * 9
+                        for order in orders
+                    ]
+                    orders.append(" |%7s" % convSize(sum(orderSize)))
+                    SysMgr.infoBufferPrint(
+                        "{0:>5} | {1:<8} | {2:<11} | {3:1} |".format(
+                            node, zone, ztype, " ".join(orders)
+                        )
+                    )
+                    node = zone = ""
+                SysMgr.infoBufferPrint(oneLine[:lineLen])
+
     def printBuddyInfo(self):
         if "NOVBUDDYINFO" in SysMgr.environList:
             return
@@ -63922,16 +64053,17 @@ Copyright:
         PAGE = SysMgr.PAGESIZE
         convSize = UtilMgr.convSize2Unit
 
-        SysMgr.infoBufferPrint("\n[Buddy Info]\n%s" % twoLine)
+        lineLen = 140
+        SysMgr.infoBufferPrint("\n[Buddy Info]\n%s" % twoLine[:lineLen])
         orders = [
             "%9s"
             % (str(order) + "(%s)" % convSize((2**order) * PAGE, isInt=True))
             for order in range(0, 11)
         ]
-        orders.append("%9s" % "TOTAL")
+        orders.append(" |%7s" % "TOTAL")
         SysMgr.infoBufferPrint(
-            "{0:>5} | {1:<8} | {2:<1}\n{3:1}".format(
-                "NODE", "ZONE", " ".join(orders), twoLine
+            "{0:>5} | {1:<8} | {2:<1} |\n{3:1}".format(
+                "NODE", "ZONE", " ".join(orders), twoLine[:lineLen]
             )
         )
 
@@ -63939,7 +64071,7 @@ Copyright:
         buddy = SysMgr.readBuddyInfo()
         if not buddy:
             SysMgr.infoBufferPrint("\tNone")
-            SysMgr.infoBufferPrint(twoLine)
+            SysMgr.infoBufferPrint(twoLine[:lineLen])
             return
 
         # print buddy info #
@@ -63949,15 +64081,18 @@ Copyright:
                     (2**order) * PAGE * val
                     for order, val in enumerate(orders)
                 ]
-                orders = ["%9s" % UtilMgr.convNum(order) for order in orders]
-                orders.append("%9s" % convSize(sum(orderSize)))
+                orders = [
+                    "%9s" % UtilMgr.convNum(order) if order else " " * 9
+                    for order in orders
+                ]
+                orders.append(" |%7s" % convSize(sum(orderSize)))
                 SysMgr.infoBufferPrint(
-                    "{0:>5} | {1:<8} | {2:<1}".format(
+                    "{0:>5} | {1:<8} | {2:<1} |".format(
                         node, zone, " ".join(orders)
                     )
                 )
                 node = ""
-            SysMgr.infoBufferPrint(oneLine)
+            SysMgr.infoBufferPrint(oneLine[:lineLen])
 
     def printMmapInfo(self):
         if "NOMMAPINFO" in SysMgr.environList:
@@ -63992,10 +64127,17 @@ Copyright:
         if "NOSCHEDINFO" in SysMgr.environList:
             return
 
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("general", {})
+            SysMgr.jsonData["general"].setdefault("sched", {})
+            jsonData = SysMgr.jsonData["general"]["sched"]
+
+        lineLen = 59
         SysMgr.infoBufferPrint("\n[Sched Factor Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint("{0:^36} | {1:^18} |".format("Factor", "Value"))
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         try:
             dpath = "/proc/sys/kernel"
@@ -64013,7 +64155,10 @@ Copyright:
                     "{0:<36} | {1:>18} |".format(item, value)
                 )
 
-            SysMgr.infoBufferPrint(twoLine)
+                if SysMgr.jsonEnable:
+                    jsonData[item] = value
+
+            SysMgr.infoBufferPrint(twoLine[:lineLen])
         except SystemExit:
             sys.exit(0)
         except:
@@ -64027,12 +64172,13 @@ Copyright:
         if not os.path.exists(dpath):
             return
 
+        lineLen = 69
         SysMgr.infoBufferPrint("\n[HugePage Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint(
-            "{0:^10} | {1:^30} | {2:^15} |".format("Size", "Stat", "Value")
+            "{0:^16} | {1:^30} | {2:^15} |".format("Size", "Stat", "Value")
         )
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         try:
             for item in os.listdir(dpath):
@@ -64045,12 +64191,12 @@ Copyright:
 
                     value = UtilMgr.convNum(SysMgr.readFile(fpath))
                     SysMgr.infoBufferPrint(
-                        "{0:>10} | {1:<30} | {2:>15} |".format(
+                        "{0:>16} | {1:<30} | {2:>15} |".format(
                             size, stat, value
                         )
                     )
                     size = ""
-                SysMgr.infoBufferPrint(oneLine)
+                SysMgr.infoBufferPrint(oneLine[:lineLen])
         except SystemExit:
             sys.exit(0)
         except:
@@ -64064,10 +64210,17 @@ Copyright:
         if not os.path.exists(dpath):
             return
 
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("general", {})
+            SysMgr.jsonData["general"].setdefault("vm", {})
+            jsonData = SysMgr.jsonData["general"]["vm"]
+
+        lineLen = 61
         SysMgr.infoBufferPrint("\n[VM Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint("{0:^40} | {1:^16} |".format("Stat", "Value"))
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         try:
             for item in os.listdir(dpath):
@@ -64081,13 +64234,16 @@ Copyright:
                 if not value:
                     continue
 
+                value = value.replace("\t", " ")
+
                 SysMgr.infoBufferPrint(
-                    "{0:<40} | {1:>16} |".format(
-                        item, value.replace("\t", " ")
-                    )
+                    "{0:<40} | {1:>16} |".format(item, value)
                 )
 
-            SysMgr.infoBufferPrint(twoLine)
+                if SysMgr.jsonEnable:
+                    jsonData[item] = value
+
+            SysMgr.infoBufferPrint(twoLine[:lineLen])
         except SystemExit:
             sys.exit(0)
         except:
@@ -64103,6 +64259,12 @@ Copyright:
 
         convSize = UtilMgr.convSize2Unit
         convNum = UtilMgr.convNum
+
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault("general", {})
+            SysMgr.jsonData["general"].setdefault("ksm", {})
+            jsonData = SysMgr.jsonData["general"]["ksm"]
 
         # check and get total MERGEABLE size #
         mergeStr = ""
@@ -64141,14 +64303,15 @@ Copyright:
                 totalPss / float(totalRss) * 100,
             )
 
+        lineLen = 71
         SysMgr.infoBufferPrint(
             "\n[KSM Info] (Path: /sys/kernel/mm/ksm)%s" % mergeStr
         )
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint(
             "{0:^40} | {1:^15} | {2:^8} |".format("Stat", "Value", "Size")
         )
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         try:
             total = 0
@@ -64172,6 +64335,9 @@ Copyright:
                     "{0:<40} | {1:>15} | {2:>8} |".format(item, value, size)
                 )
 
+                if SysMgr.jsonEnable:
+                    jsonData[item] = value
+
                 # accumulate pages #
                 if item in ("pages_shared", "pages_sharing", "pages_unshared"):
                     total += long(data)
@@ -64182,11 +64348,11 @@ Copyright:
                     "total",
                     convNum(total),
                     convSize(total * SysMgr.PAGESIZE),
-                    oneLine,
+                    oneLine[:lineLen],
                 )
             )
 
-            SysMgr.infoBufferPrint(twoLine)
+            SysMgr.infoBufferPrint(twoLine[:lineLen])
         except SystemExit:
             sys.exit(0)
         except:
@@ -64260,14 +64426,15 @@ Copyright:
         limitData = self.limitData
         title = limitData.pop(0)
 
+        lineLen = 80
         SysMgr.infoBufferPrint("\n[Task Limit Info]")
-        SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint(title.rstrip())
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
+        SysMgr.infoBufferPrint("{0:<78} |".format(title.rstrip()))
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         for line in self.limitData[1:]:
             limit = line.rstrip()
-            SysMgr.infoBufferPrint(limit)
+            SysMgr.infoBufferPrint("{0:<78} |".format(limit))
 
             if not SysMgr.jsonEnable:
                 continue
@@ -64284,7 +64451,7 @@ Copyright:
             except:
                 pass
 
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
     def printSystemInfo(self):
         if "NOSYSINFO" in SysMgr.environList:
@@ -67036,23 +67203,24 @@ Copyright:
             jsonData = SysMgr.jsonData["general"]["network"]
 
         # print network info #
+        lineLen = 136
         SysMgr.infoBufferPrint("\n[System Network Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint(
-            "{0:^38} | {1:^45} | {2:^45}\n{3:1}".format(
-                "Network", "Receive", "Transfer", oneLine
+            "{0:^38} | {1:^45} | {2:^45} |\n{3:1}".format(
+                "Network", "Receive", "Transfer", oneLine[:lineLen]
             )
         )
         SysMgr.infoBufferPrint(
             (
                 "{0:^16} {1:^21} | "
                 "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9} | "
-                "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9}"
+                "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9} |"
             ).format(
                 "Dev", "TYPE", "Size", "Packet", "Error", "Drop", "Multicast"
             )
         )
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         convSize = UtilMgr.convSize2Unit
 
@@ -67098,7 +67266,7 @@ Copyright:
                     (
                         "{0:>16} {1:^21}   "
                         "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
-                        "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}"
+                        "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                     ).format(
                         dev[-16:],
                         "DIFF",
@@ -67135,7 +67303,7 @@ Copyright:
                     (
                         "{0:>16} {1:^21}   "
                         "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
-                        "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}"
+                        "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                     ).format(
                         " ",
                         "TOTAL",
@@ -67153,7 +67321,7 @@ Copyright:
                 )
 
                 if cnt < len(self.networkInfo):
-                    SysMgr.infoBufferPrint("{0:1}".format(oneLine))
+                    SysMgr.infoBufferPrint("{0:1}".format(oneLine[:lineLen]))
 
                 cnt += 1
 
@@ -67197,7 +67365,7 @@ Copyright:
                 (
                     "{12:1}\n{0:>16} {1:^21}   "
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
-                    "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}"
+                    "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                 ).format(
                     "[ TOTAL ]",
                     "DIFF",
@@ -67211,7 +67379,7 @@ Copyright:
                     convSize(tdiff[2]),
                     convSize(tdiff[3]),
                     convSize(tdiff[-1]),
-                    oneLine,
+                    oneLine[:lineLen],
                 )
             )
 
@@ -67221,7 +67389,7 @@ Copyright:
                 (
                     "{0:>16} {1:^21}   "
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
-                    "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}"
+                    "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                 ).format(
                     " ",
                     "TOTAL",
@@ -67238,7 +67406,7 @@ Copyright:
                 )
             )
 
-        SysMgr.infoBufferPrint("%s" % twoLine)
+        SysMgr.infoBufferPrint("%s" % twoLine[:lineLen])
 
     def printSwapInfo(self):
         if "NOSWAPINFO" in SysMgr.environList:
@@ -67736,12 +67904,13 @@ Copyright:
         convSize = UtilMgr.convSize2Unit
 
         # print memory info #
+        lineLen = len(oneLine)
         SysMgr.infoBufferPrint("\n[System Memory Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint(
             (
                 "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s "
-                "%10s %10s %10s %10s %10s"
+                "%10s %10s %10s %10s %10s  |"
             )
             % (
                 "DESC ",
@@ -67760,32 +67929,35 @@ Copyright:
                 "Mlocked",
             )
         )
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         SysMgr.infoBufferPrint(
-            "[ TOTAL] %10s %10s"
+            "[ TOTAL] %10s %10s %122s|"
             % (
                 convSize(long(before["MemTotal"]) << 10),
                 convSize(long(before["SwapTotal"]) << 10),
+                " ",
             )
         )
 
         SysMgr.infoBufferPrint(
-            "[ FREE ] %10s %10s"
+            "[ FREE ] %10s %10s %122s|"
             % (
                 convSize(long(before["MemFree"]) << 10),
                 convSize(long(before["SwapFree"]) << 10),
+                " ",
             )
         )
         if "MemAvailable" in before:
             SysMgr.infoBufferPrint(
-                "[ AVAIL] %10s %10s"
+                "[ AVAIL] %10s %10s %122s|"
                 % (
                     convSize(long(before["MemAvailable"]) << 10),
                     convSize(long(before["SwapFree"]) << 10),
+                    " ",
                 )
             )
-        SysMgr.infoBufferPrint(oneLine)
+        SysMgr.infoBufferPrint(oneLine[:lineLen])
 
         if "MemAvailable" in before:
             memBeforeUsage = long(before["MemTotal"]) - long(
@@ -67807,7 +67979,7 @@ Copyright:
         SysMgr.infoBufferPrint(
             (
                 "[ FIRST] %10s %10s %10s %10s %10s %10s %10s "
-                "%10s %10s %10s %10s %10s %10s"
+                "%10s %10s %10s %10s %10s %10s  |"
             )
             % (
                 convSize(memBeforeUsage << 10),
@@ -67829,7 +68001,7 @@ Copyright:
         SysMgr.infoBufferPrint(
             (
                 "[ LAST ] %10s %10s %10s %10s %10s %10s %10s "
-                "%10s %10s %10s %10s %10s %10s"
+                "%10s %10s %10s %10s %10s %10s  |"
             )
             % (
                 convSize(memAfterUsage << 10),
@@ -67848,7 +68020,7 @@ Copyright:
             )
         )
 
-        SysMgr.infoBufferPrint(oneLine)
+        SysMgr.infoBufferPrint(oneLine[:lineLen])
 
         def _diffItem(a, b, item):
             return (long(a[item]) - long(b[item])) << 10
@@ -67856,7 +68028,7 @@ Copyright:
         SysMgr.infoBufferPrint(
             (
                 "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s "
-                "%10s %10s %10s %10s %10s %10s"
+                "%10s %10s %10s %10s %10s %10s  |"
             )
             % (
                 convSize((memAfterUsage - memBeforeUsage) << 10),
@@ -67875,7 +68047,7 @@ Copyright:
             )
         )
 
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         # add JSON stats #
         if SysMgr.jsonEnable:
@@ -103060,13 +103232,14 @@ class TaskAnalyzer(object):
 
         # print signal traffic #
         if SysMgr.showAll and len(self.sigData) > 0:
+            lineLen = 130
             SysMgr.clearPrint()
             SysMgr.printPipe("\n[Thread Signal Info]")
-            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe(twoLine[:lineLen])
             SysMgr.printPipe(
                 (
                     "{0:^6} {1:>10} {2:>40}({3:>7}) {4:^10} "
-                    "{5:>40}({6:>7})\n{7:1}"
+                    "{5:>40}({6:>7}) |\n{7:1}"
                 ).format(
                     "TYPE",
                     "TIME",
@@ -103075,7 +103248,7 @@ class TaskAnalyzer(object):
                     "SIGNAL",
                     "RECEIVER",
                     "TID",
-                    twoLine,
+                    twoLine[:lineLen],
                 )
             )
 
@@ -103116,7 +103289,7 @@ class TaskAnalyzer(object):
                     SysMgr.printPipe(
                         (
                             "{0:^6} {1:>10.6f} {2:>40}({3:>7}) "
-                            "{4:^10} {5:>40}({6:>7})"
+                            "{4:^10} {5:>40}({6:>7}) |"
                         ).format(
                             stype, stime, scomm, stid, signal, rcomm, rtid
                         )
@@ -103127,14 +103300,14 @@ class TaskAnalyzer(object):
                     SysMgr.printPipe(
                         (
                             "{0:^6} {1:>10.6f} {2:>40} {3:>7}  "
-                            "{4:^10} {5:>40}({6:>7})"
+                            "{4:^10} {5:>40}({6:>7}) |"
                         ).format(stype, stime, " ", " ", signal, rcomm, rtid)
                     )
 
                     cnt += 1
             if cnt == 0:
                 SysMgr.printPipe("\tNone")
-            SysMgr.printPipe(oneLine)
+            SysMgr.printPipe(oneLine[:lineLen])
 
         # print workqueue information #
         if self.wqData:
@@ -105546,15 +105719,16 @@ class TaskAnalyzer(object):
 
         convNum = UtilMgr.convNum
 
+        lineLen = 141
         outputCnt = 0
         SysMgr.printPipe(
             "\n[Thread Syscall Info] [Elapsed: %.3f] (Unit: Sec/NR)\n%s"
-            % (float(self.totalTime), twoLine)
+            % (float(self.totalTime), twoLine[:lineLen])
         )
         SysMgr.printPipe(
             (
                 "{0:>16}({1:>7}) {2:>30}({3:>3}) {4:>12} {5:>12} "
-                "{6:>12} {7:>12} {8:>12} {9:>12}\n{10:1}"
+                "{6:>12} {7:>12} {8:>12} {9:>12} |\n{10:1}"
             ).format(
                 "Name",
                 "TID",
@@ -105566,7 +105740,7 @@ class TaskAnalyzer(object):
                 "Min",
                 "Max",
                 "Avg",
-                twoLine,
+                twoLine[:lineLen],
             )
         )
 
@@ -105615,7 +105789,7 @@ class TaskAnalyzer(object):
                     syscall = ConfigMgr.sysList[int(sysId)][4:]
                     syscallInfo = (
                         "{0:1} {1:>30}({2:>3}) {3:>12} "
-                        "{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n"
+                        "{4:>12} {5:>12} {6:>12} {7:>12} {8:>12} |\n"
                     ).format(
                         syscallInfo + (" " * len(threadInfo)),
                         syscall,
@@ -105669,13 +105843,15 @@ class TaskAnalyzer(object):
 
             if syscallInfo != "":
                 outputCnt += 1
-                SysMgr.addPrint("%s\n" % threadInfo)
-                SysMgr.addPrint("%s\n%s\n" % (syscallInfo, oneLine))
+                SysMgr.addPrint("{0:140}|\n".format(threadInfo))
+                SysMgr.addPrint("%s%s\n" % (syscallInfo, oneLine[:lineLen]))
 
         if outputCnt == 0:
-            SysMgr.printPipe("\tNone\n%s" % oneLine)
+            SysMgr.printPipe(
+                "{0:140}|\n{1:1}".format("    None", oneLine[:lineLen])
+            )
         else:
-            totalStrInfo = "{0:>25}".format("[ TOTAL ]")
+            totalStrInfo = "{0:>25}{1:115}|".format("[ TOTAL ]", " ")
             SysMgr.printPipe(totalStrInfo)
 
             # print total info #
@@ -105690,9 +105866,9 @@ class TaskAnalyzer(object):
 
                 syscallInfo = (
                     "{0:1} {1:>30}({2:>3}) {3:>12} "
-                    "{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}"
+                    "{4:>12} {5:>12} {6:>12} {7:>12} {8:>12} |"
                 ).format(
-                    " " * len(totalStrInfo),
+                    " " * 25,
                     syscall,
                     sysId,
                     "%.6f" % val["usage"],
@@ -105704,7 +105880,7 @@ class TaskAnalyzer(object):
                 )
 
                 SysMgr.printPipe(syscallInfo)
-            SysMgr.printPipe("\n%s" % oneLine)
+            SysMgr.printPipe("%s" % oneLine[:lineLen])
 
             # print thread info #
             SysMgr.doPrint(clear=True)
@@ -113047,7 +113223,8 @@ class TaskAnalyzer(object):
             # save syscall history #
             if SysMgr.syscallList:
                 try:
-                    idx = SysMgr.syscallList.index(nr)
+                    if not nr in SysMgr.syscallList:
+                        raise Exception()
 
                     self.syscallData.append(
                         ["ENT", time, thread, core, nrstr, args]
@@ -113289,6 +113466,9 @@ class TaskAnalyzer(object):
             # save syscall history #
             if SysMgr.syscallList:
                 try:
+                    if not long(nrstr) in SysMgr.syscallList:
+                        raise Exception()
+
                     self.syscallData.append(
                         ["RET", time, thread, core, nrstr, ret, diff]
                     )
