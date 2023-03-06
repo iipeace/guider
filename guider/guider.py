@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230305"
+__revision__ = "230306"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23462,6 +23462,123 @@ class LogMgr(object):
         return LogMgr._lock(fd, lock=False)
 
     @staticmethod
+    def printLogcat(console=False):
+        # check logcat #
+        logcatPath = UtilMgr.which("logcat")
+        if not logcatPath:
+            SysMgr.printErr("failed to find logcat")
+            sys.exit(-1)
+
+        # create pipe #
+        rd, wr = os.pipe()
+
+        # get stream option #
+        stream = SysMgr.findOption("Q")
+
+        # get item for log filter #
+        if "WATCHLOG" in SysMgr.environList:
+            watchcond = SysMgr.environList["WATCHLOG"][0].split("+")
+        else:
+            watchcond = None
+
+        SysMgr.printInfo("start printing syslog... [ STOP(Ctrl+c) ]")
+
+        # create a new process #
+        pid = SysMgr.createProcess()
+
+        # parent #
+        if pid > 0:
+            # set pipe #
+            os.close(wr)
+            rdPipe = os.fdopen(rd, "r")
+            SysMgr.setPipeSize(rdPipe)
+
+            # get length of pid #
+            pidlen = len(str(SysMgr.maxPid))
+
+            while 1:
+                log = rdPipe.readline()
+
+                if not log:
+                    if stream:
+                        break
+                    else:
+                        time.sleep(0.1)
+                elif not UtilMgr.isValidStr(log, inc=True):
+                    continue
+
+                try:
+                    meta, msg = log.split(": ", 1)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
+
+                # split items #
+                items = meta.split()
+
+                # local time #
+                ltime = items[0] + "T" + items[1]
+
+                # others #
+                pid, tid, lev = items[2:5]
+
+                # proc #
+                pcomm = " "
+                if pid != "0":
+                    pcomm = SysMgr.getComm(pid, cache=True, save=True)
+                    if not pcomm:
+                        pcomm = " "
+                proc = "{0:>16}({1:>{pidlen}})".format(
+                    pcomm, pid, pidlen=pidlen
+                )
+
+                # thread #
+                thread = ""
+                if not SysMgr.processEnable:
+                    if tid == "0":
+                        tcomm = " "
+                    else:
+                        tcomm = SysMgr.getComm(tid, cache=True, save=True)
+                        if not tcomm:
+                            tcomm = " "
+                    thread = "{0:>16}({1:>{pidlen}})".format(
+                        tcomm, tid, pidlen=pidlen
+                    )
+                    proc += "->" + thread
+
+                if len(items) > 5:
+                    msg = items[5] + ": " + msg
+
+                # build log line #
+                log = "%s %s %s %s" % (ltime, proc, lev, msg)
+
+                if SysMgr.outPath and console:
+                    print(log)
+
+                SysMgr.printPipe(log, newline=False)
+
+                # check log command #
+                SysMgr.checkLogCond(log, watchcond)
+
+        # child #
+        elif pid == 0:
+            # redirect stdout to pipe #
+            os.close(rd)
+            wrPipe = os.fdopen(wr, "w")
+            SysMgr.setPipeSize(wrPipe)
+            os.dup2(wr, 1)
+
+            # set SIGPIPE handler for termination of parent #
+            SysMgr.setPipeHandler()
+
+            SysMgr.executeProcess(
+                cmd=["logcat", "-v", "threadtime"], closeFd=False
+            )
+
+            sys.exit(0)
+
+    @staticmethod
     def printSyslog(console=False):
         # check root permission #
         SysMgr.checkRootPerm()
@@ -28232,8 +28349,9 @@ Commands:
 
         for logtype, logcmd in (
             ("DLTEVENT", "printdlt"),
-            ("KERNELEVENT", "printkmsg"),
             ("JOURNALEVENT", "printjrl"),
+            ("KERNELEVENT", "printkmsg"),
+            ("LOGCATEVENT", "printlogcat"),
             ("SYSLOGEVENT", "printsys"),
         ):
             if not logtype in SysMgr.environList:
@@ -28335,9 +28453,10 @@ Commands:
     @staticmethod
     def initLogWatcher(data):
         logList = {
-            "KERNEL": "printkmsg",
             "DLT": "printdlt",
             "JOURNAL": "printjrl",
+            "KERNEL": "printkmsg",
+            "LOGCAT": "printlogcat",
             "SYSLOG": "printsys",
         }
 
@@ -31529,6 +31648,7 @@ Commands:
                 "printdlt": ("DLT", "Linux/MacOS"),
                 "printjrl": ("Journal", "Linux"),
                 "printkmsg": ("Kernel", "Linux"),
+                "printlogcat": ("Android", "Linux"),
                 "printsys": ("Syslog", "Linux"),
             },
             "network": {
@@ -35926,9 +36046,9 @@ Examples:
                 # log #
                 elif (
                     SysMgr.checkMode("logdlt")
+                    or SysMgr.checkMode("logjrl")
                     or SysMgr.checkMode("logkmsg")
                     or SysMgr.checkMode("logsys")
-                    or SysMgr.checkMode("logjrl")
                 ):
                     helpStr = logCommonStr
 
@@ -35936,8 +36056,9 @@ Examples:
                 elif (
                     SysMgr.checkMode("printdlt")
                     or SysMgr.checkMode("printdbus")
-                    or SysMgr.checkMode("printkmsg")
                     or SysMgr.checkMode("printjrl")
+                    or SysMgr.checkMode("printkmsg")
+                    or SysMgr.checkMode("printlogcat")
                     or SysMgr.checkMode("printsys")
                 ):
                     helpStr = printCommonStr
@@ -35979,7 +36100,7 @@ Examples:
                         )
 
                     # printkmsg / printsys #
-                    if SysMgr.checkMode("printkmsg") or SysMgr.checkMode(
+                    elif SysMgr.checkMode("printkmsg") or SysMgr.checkMode(
                         "printsys"
                     ):
                         helpStr += """
@@ -35990,7 +36111,7 @@ Examples:
                         )
 
                     # printjrl #
-                    if SysMgr.checkMode("printjrl"):
+                    elif SysMgr.checkMode("printjrl"):
                         helpStr += """
     - {2:1} for all
         # {0:1} {1:1} -a
@@ -36008,7 +36129,7 @@ Examples:
                         )
 
                     # printdlt #
-                    if SysMgr.checkMode("printdlt"):
+                    elif SysMgr.checkMode("printdlt"):
                         helpStr += """
     - {2:1} from specific files
         # {0:1} {1:1} "./*.dlt"
@@ -36049,6 +36170,21 @@ Examples:
         # {0:1} {1:1} -q RETRYCONN:1000
                     """.format(
                             cmd, mode, "Print DLT messages"
+                        )
+
+                    # printlogcat #
+                    elif SysMgr.checkMode("printlogcat"):
+                        helpStr += """
+    - {2:1} for all
+        # {0:1} {1:1} -a
+
+    - {2:1} including specific words in real-time
+        # {0:1} {1:1} -g test
+
+    - {2:1} with thread info
+        # {0:1} {1:1} -e t
+                    """.format(
+                            cmd, mode, "Print logcat logs"
                         )
 
                 # printsig #
@@ -46623,21 +46759,25 @@ Copyright:
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            # PRINTSYSLOG MODE #
-            if SysMgr.checkMode("printsys"):
-                LogMgr.printSyslog(console)
-
-            # PRINTKMSG MODE #
-            elif SysMgr.checkMode("printkmsg"):
-                LogMgr.printKmsg(console)
+            # PRINTDLT MODE #
+            if SysMgr.checkMode("printdlt"):
+                DltAnalyzer.runDltReceiver(mode="print")
 
             # PRINTJRL MODE #
             elif SysMgr.checkMode("printjrl"):
                 LogMgr.printJournal(console)
 
-            # PRINTDLT MODE #
-            elif SysMgr.checkMode("printdlt"):
-                DltAnalyzer.runDltReceiver(mode="print")
+            # PRINTKMSG MODE #
+            elif SysMgr.checkMode("printkmsg"):
+                LogMgr.printKmsg(console)
+
+            # PRINTLOGCAT MODE #
+            elif SysMgr.checkMode("printlogcat"):
+                LogMgr.printLogcat(console)
+
+            # PRINTSYSLOG MODE #
+            elif SysMgr.checkMode("printsys"):
+                LogMgr.printSyslog(console)
 
         # PRINTSIG MODE #
         elif SysMgr.checkMode("printsig"):
@@ -47058,10 +47198,11 @@ Copyright:
     @staticmethod
     def isPrintLogMode():
         if len(sys.argv) > 1 and sys.argv[1] in (
-            "printsys",
-            "printkmsg",
-            "printjrl",
             "printdlt",
+            "printjrl",
+            "printkmsg",
+            "printlogcat",
+            "printsys",
         ):
             return True
         else:
@@ -64364,7 +64505,7 @@ Copyright:
 
         def _printItems(status, items):
             indentStr = " " * 11
-            enableStr = "{0:^10} ".format(status)
+            typeStr = "{0:^10} ".format(status)
 
             # set max length #
             if SysMgr.ttyCols < len(oneLine):
@@ -64373,11 +64514,11 @@ Copyright:
                 maxLen = len(oneLine)
 
             for item in items:
-                curLineLen = len(enableStr.split("\n")[-1]) + len(item) + 3
+                curLineLen = len(typeStr.split("\n")[-1]) + len(item) + 3
                 if curLineLen > maxLen:
-                    enableStr += "\n%s" % indentStr
-                enableStr += " | %s" % item
-            SysMgr.infoBufferPrint(enableStr)
+                    typeStr += "\n%s" % indentStr
+                typeStr += " | %s" % item
+            SysMgr.infoBufferPrint(typeStr)
 
         # get sched features #
         features = SysMgr.readSchedFeatures()
@@ -66901,7 +67042,7 @@ Copyright:
         SysMgr.infoBufferPrint("\n[System SHM Info]")
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^66} | {1:^24} | {2:^15} | {3:^36} ".format(
+            "{0:^66} | {1:^24} | {2:^15} | {3:^36}   |".format(
                 "ID", "Segment", "Attr", "Time"
             )
         )
@@ -66909,7 +67050,7 @@ Copyright:
         SysMgr.infoBufferPrint(
             (
                 "{0:^26}   {1:^8}   {2:^26} | {3:>6}   {4:>6}   {5:>6} | "
-                "{6:>6}   {7:>6} | {8:>11}   {9:>11}   {10:>11}".format(
+                "{6:>6}   {7:>6} | {8:>11}   {9:>11}   {10:>11}|".format(
                     "OWNER",
                     "SHM",
                     "USER",
@@ -66991,7 +67132,7 @@ Copyright:
                 space = 66 - len(owner) - len(totalStat)
                 totalStr = "%s%s%s" % (owner, " " * space, totalStat)
                 SysMgr.infoBufferPrint(
-                    "{0:>40}   {1:>6}   {2:>6}   {3:>6}   {4:>15}".format(
+                    "{0:>40}   {1:>6}   {2:>6}   {3:>6}   {4:>57}|".format(
                         totalStr,
                         convertSizeFunc(ownerData[pid]["size"], True),
                         convertSizeFunc(ownerData[pid]["rss"], True),
@@ -67048,7 +67189,7 @@ Copyright:
                 SysMgr.infoBufferPrint(
                     (
                         "{0:>37}   {1:>26}   {2:>6}   {3:>6}   {4:>6}   "
-                        "{5:>6}   {6:>6}   {7:>11}   {8:>11}   {9:>11}"
+                        "{5:>6}   {6:>6}   {7:>11}   {8:>11}   {9:>11}|"
                     ).format(
                         shmids,
                         access,
@@ -67097,11 +67238,12 @@ Copyright:
             jsonData = SysMgr.jsonData["general"]["gpu"]
 
         # print GPU info #
+        lineLen = 88
         SysMgr.infoBufferPrint("\n[System GPU Info]")
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
         SysMgr.infoBufferPrint(
             "{0:^32} | {1:^16} | {2:^32} |\n{3:1}".format(
-                "Name", "Stat", "Value", oneLine
+                "Name", "Stat", "Value", oneLine[:lineLen]
             )
         )
 
@@ -67124,7 +67266,7 @@ Copyright:
 
                 name = ""
 
-            SysMgr.infoBufferPrint(oneLine)
+            SysMgr.infoBufferPrint(oneLine[:lineLen])
 
     def printGpuMemInfo(self):
         if "NOGPUMEMINFO" in SysMgr.environList:
@@ -67153,6 +67295,10 @@ Copyright:
         title = "{0:^32} | {1:^16} |".format("Process", "TOTAL")
         for mtype in mtypes:
             title += " {0:^16} |".format(mtype)
+
+        remain = len(oneLine) - len(title)
+        if remain > 0:
+            title += "%s|" % (" " * (remain - 1))
 
         # print GPU Memory info #
         SysMgr.infoBufferPrint("\n[System GPU Memory Info]\n%s" % twoLine)
@@ -67188,6 +67334,8 @@ Copyright:
 
                 pstr += " {0:>16} |".format(size if size else " ")
 
+            if remain > 0:
+                pstr += "%s|" % (" " * (remain - 1))
             SysMgr.infoBufferPrint(pstr)
 
         SysMgr.infoBufferPrint(oneLine)
