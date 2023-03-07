@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230306"
+__revision__ = "230307"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -40511,7 +40511,7 @@ Copyright:
                 "wrong format for kernel command [NAME:FUNC|ADDR{:ARGS:RET}]"
             )
             sys.exit(-1)
-        elif not os.path.isfile(SysMgr.traceEventPath + "../kprobe_events"):
+        elif not os.path.isfile(SysMgr.traceEventPath + "/../kprobe_events"):
             SysMgr.printErr(
                 "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS kernel option"
             )
@@ -106890,12 +106890,11 @@ class TaskAnalyzer(object):
         timeLineLen = titleLineLen = len(titleLine)
         intervalEnable = SysMgr.intervalEnable
 
-        # custom event usage on timeline #
-        SysMgr.clearPrint()
-        if SysMgr.customEventList:
+        # define event printer #
+        def _printEvents(eventList, target, event):
             for idx, val in sorted(
-                self.customEventInfo.items(),
-                key=lambda e: e[1]["count"],
+                eventList.items(),
+                key=lambda e: e[1][target],
                 reverse=True,
             ):
 
@@ -106918,7 +106917,7 @@ class TaskAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intData[icount][key]["customEvent"]
+                            self.intData[icount][key][event]
                         except:
                             timeLine += "%3d " % 0
                             continue
@@ -106945,9 +106944,15 @@ class TaskAnalyzer(object):
                             newFlag = nowVal["new"]
                             dieFlag = nowVal["die"]
 
-                        cnt = str(nowVal["customEvent"][idx]["count"])
+                        if idx in nowVal[event]:
+                            res = str(nowVal[event][idx]["count"])
+                        else:
+                            SysMgr.printWarn(
+                                "no %s event in %s list" % (idx, event), True
+                            )
+                            res = "0"
 
-                        timeLine += "%4s" % (newFlag + cnt + dieFlag)
+                        timeLine += "%4s" % (newFlag + res + dieFlag)
 
                     if (
                         idx not in value or value[idx]["count"] == 0
@@ -106968,174 +106973,21 @@ class TaskAnalyzer(object):
                 SysMgr.printPipe("%s# %s\n" % ("", "%s(Cnt)" % idx))
                 SysMgr.doPrint(clear=True)
                 SysMgr.printPipe(oneLine)
+
+        # custom event usage on timeline #
+        SysMgr.clearPrint()
+        if SysMgr.customEventList:
+            _printEvents(self.customEventInfo, "count", "customEvent")
 
         # user event usage on timeline #
         SysMgr.clearPrint()
         if SysMgr.userEventList:
-            for idx, val in sorted(
-                self.userEventInfo.items(),
-                key=lambda e: e[1]["count"],
-                reverse=True,
-            ):
-
-                for key, value in sorted(
-                    self.userInfo.items(),
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]["usage"],
-                    reverse=True,
-                ):
-                    timeLine = ""
-                    timeLineLen = titleLineLen
-                    lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(lval):
-                        newFlag = " "
-                        dieFlag = " "
-
-                        if timeLineLen + 4 > maxLineLen:
-                            timeLine += "\n" + (" " * (titleLineLen + 1))
-                            timeLineLen = titleLineLen + 4
-                        else:
-                            timeLineLen += 4
-
-                        try:
-                            self.intData[icount][key]["userEvent"]
-                        except:
-                            timeLine += "%3d " % 0
-                            continue
-
-                        nowVal = self.intData[icount][key]
-
-                        try:
-                            prevVal = self.intData[icount - 1][key]
-                        except:
-                            prevVal = nowVal
-
-                        if icount > 0:
-                            try:
-                                if nowVal["new"] != prevVal["new"]:
-                                    newFlag = nowVal["new"]
-                            except:
-                                newFlag = nowVal["new"]
-                            try:
-                                if nowVal["die"] != prevVal["die"]:
-                                    dieFlag = nowVal["die"]
-                            except:
-                                dieFlag = nowVal["die"]
-                        else:
-                            newFlag = nowVal["new"]
-                            dieFlag = nowVal["die"]
-
-                        res = str(nowVal["userEvent"][idx]["count"])
-
-                        """
-                        res = str(nowVal['userEvent'][idx]['usage']) / \
-                            SysMgr.intervalEnable * 100
-                        """
-
-                        timeLine += "%4s" % (newFlag + res + dieFlag)
-
-                    if (
-                        idx not in value or value[idx]["count"] == 0
-                    ) and not SysMgr.showAll:
-                        break
-
-                    SysMgr.addPrint(
-                        "%16s(%7s/%7s): "
-                        % (
-                            self.threadData[key]["comm"],
-                            key,
-                            self.threadData[key]["tgid"],
-                        )
-                        + timeLine
-                        + "\n"
-                    )
-
-                SysMgr.printPipe("%s# %s\n" % ("", "%s(Cnt)" % idx))
-                SysMgr.doPrint(clear=True)
-                SysMgr.printPipe(oneLine)
+            _printEvents(self.userEventInfo, "usage", "userEvent")
 
         # kernel event usage on timeline #
         SysMgr.clearPrint()
         if SysMgr.kernelEventList:
-            for idx, val in sorted(
-                self.kernelEventInfo.items(),
-                key=lambda e: e[1]["count"],
-                reverse=True,
-            ):
-
-                for key, value in sorted(
-                    self.kernelInfo.items(),
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]["usage"],
-                    reverse=True,
-                ):
-                    timeLine = ""
-                    timeLineLen = titleLineLen
-                    lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(lval):
-                        newFlag = " "
-                        dieFlag = " "
-
-                        if timeLineLen + 4 > maxLineLen:
-                            timeLine += "\n" + (" " * (titleLineLen + 1))
-                            timeLineLen = titleLineLen + 4
-                        else:
-                            timeLineLen += 4
-
-                        try:
-                            self.intData[icount][key]["kernelEvent"]
-                        except:
-                            timeLine += "%3d " % 0
-                            continue
-
-                        nowVal = self.intData[icount][key]
-
-                        try:
-                            prevVal = self.intData[icount - 1][key]
-                        except:
-                            prevVal = nowVal
-
-                        if icount > 0:
-                            try:
-                                if nowVal["new"] != prevVal["new"]:
-                                    newFlag = nowVal["new"]
-                            except:
-                                newFlag = nowVal["new"]
-                            try:
-                                if nowVal["die"] != prevVal["die"]:
-                                    dieFlag = nowVal["die"]
-                            except:
-                                dieFlag = nowVal["die"]
-                        else:
-                            newFlag = nowVal["new"]
-                            dieFlag = nowVal["die"]
-
-                        res = str(nowVal["kernelEvent"][idx]["count"])
-
-                        """
-                        res = str(nowVal['kernelEvent'][idx]['usage']) / \
-                            SysMgr.intervalEnable * 100
-                        """
-
-                        timeLine += "%4s" % (newFlag + res + dieFlag)
-
-                    if (
-                        idx not in value or value[idx]["count"] == 0
-                    ) and not SysMgr.showAll:
-                        break
-
-                    SysMgr.addPrint(
-                        "%16s(%7s/%7s): "
-                        % (
-                            self.threadData[key]["comm"],
-                            key,
-                            self.threadData[key]["tgid"],
-                        )
-                        + timeLine
-                        + "\n"
-                    )
-
-                SysMgr.printPipe("%s# %s\n" % ("", "%s(Cnt)" % idx))
-                SysMgr.doPrint(clear=True)
-                SysMgr.printPipe(oneLine)
+            _printEvents(self.kernelEventInfo, "usage", "kernelEvent")
 
     def printIntervalInfo(self):
         # pylint: disable=undefined-variable
@@ -108248,6 +108100,7 @@ class TaskAnalyzer(object):
             m = re.match(
                 (
                     r".+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+"
+                    r"\[Inter:\s*(?P<inter>[0-9]+.[0-9]+)\].+"
                     r"\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+"
                     r"\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+"
                     r"\[Core:\s*(?P<nrCore>[0-9]+)\].+"
@@ -108259,6 +108112,7 @@ class TaskAnalyzer(object):
             if m:
                 d = m.groupdict()
                 procIndexData["time"] = d["time"]
+                procIndexData["inter"] = d["inter"]
                 procIndexData["nrCtxt"] = d["nrCtxt"]
                 procIndexData["nrIrq"] = d["nrIrq"]
                 procIndexData["nrCore"] = d["nrCore"]
@@ -108864,6 +108718,7 @@ class TaskAnalyzer(object):
             procIndexData[pid] = dict(TA.init_procIntData)
             procIndexData[pid]["cpu"] = cpu
             procIndexData[pid]["dly"] = dly
+            procIndexData[pid]["pri"] = d["pri"]
             procIndexData[pid]["vss"] = vss
             procIndexData[pid]["blk"] = blk
             procIndexData[pid]["blkrd"] = blkrd
@@ -108992,7 +108847,7 @@ class TaskAnalyzer(object):
         pCnt = 0
         for idx, val in list(enumerate(TaskAnalyzer.procIntData)):
             if idx == 0:
-                before = "START"
+                before = "%.3f" % (float(val["time"]) - float(val["inter"]))
             elif "time" in TaskAnalyzer.procIntData[idx - 1]:
                 before = TaskAnalyzer.procIntData[idx - 1]["time"]
             else:
@@ -109119,23 +108974,18 @@ class TaskAnalyzer(object):
     @staticmethod
     def printCpuInterval(isCpu=True):
         if isCpu:
-            # check skip flag #
-            if "NOCPUSUMMARY" in SysMgr.environList:
-                return
-            elif not TaskAnalyzer.checkSummaryFilter("CPU"):
-                return
-
             res = "CPU"
             name = "cpu"
         else:
-            # check skip flag #
-            if "NODELAYSUMMARY" in SysMgr.environList:
-                return
-            elif not TaskAnalyzer.checkSummaryFilter("DELAY"):
-                return
-
             res = "Delay"
             name = "dly"
+
+        # check skip flag #
+        uname = res.upper()
+        if ("NO%sSUMMARY" % uname) in SysMgr.environList:
+            return
+        elif not TaskAnalyzer.checkSummaryFilter(uname):
+            return
 
         TA = TaskAnalyzer
 
@@ -110377,6 +110227,9 @@ class TaskAnalyzer(object):
                 TaskAnalyzer.printLifeHistory()
                 TaskAnalyzer.printFileInterval()
 
+        # set target #
+        target = "Process" if SysMgr.processEnable else "Thread"
+
         # print only summary #
         if onlySummary:
             # print only last detailed statistic #
@@ -110384,10 +110237,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(SysMgr.procBuffer[:1])
 
             # print lifecycle info #
-            if SysMgr.processEnable:
-                msg = " Process Lifecycle "
-            else:
-                msg = " Thread Lifecycle "
+            msg = " %s Lifecycle " % target
             _printMenu(msg)
             TaskAnalyzer.printProcLifecycle()
 
@@ -110408,18 +110258,12 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(SysMgr.procBuffer)
 
         # print lifecycle info #
-        if SysMgr.processEnable:
-            msg = " Process Lifecycle "
-        else:
-            msg = " Thread Lifecycle "
+        msg = " %s Lifecycle " % target
         _printMenu(msg)
         TaskAnalyzer.printProcLifecycle()
 
         # print process tree #
-        if SysMgr.processEnable:
-            msg = " Process Tree "
-        else:
-            msg = " Thread Tree "
+        msg = " %s Tree " % target
         _printMenu(msg)
         TaskAnalyzer.printProcTree()
 
