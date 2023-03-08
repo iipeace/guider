@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230307"
+__revision__ = "230308"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26255,6 +26255,26 @@ Commands:
         return libs
 
     @staticmethod
+    def convSchedPrio(pri):
+        try:
+            policy = pri[0]
+            prio = long(pri[1:])
+
+            # convert priority to number(-101 ~ 39) #
+            if policy in ("C", "I", "B"):
+                prio += 20
+            elif policy in ("R", "F"):
+                prio = (-1) - prio
+            elif policy == "D":
+                prio = -101
+
+            return prio
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+    @staticmethod
     def convertTaskIdInput(taskList=[]):
         ret = SysMgr.selectTaskId()
         if ret:
@@ -28656,7 +28676,7 @@ Commands:
                     SysMgr.eventCommandList.setdefault(event, ret)
 
     @staticmethod
-    def applyThreshold():
+    def applyThreshold(update=False):
         def _getMaxInterval(node, maxVal=0, root=None):
             for key, item in node.items():
                 # set root resource #
@@ -28845,53 +28865,41 @@ Commands:
                 for key, value in item.items():
                     _checkPerm(value)
 
-        # check threshold #
-        if not "threshold" in ConfigMgr.confData:
-            return
-
-        # get threshold dict #
-        confData = SysMgr.getConfigItem("threshold")
-        if not confData or type(confData) is not dict:
-            return
-        # check active threshold #
-        elif not _checkResource(confData):
-            SysMgr.printWarn(
-                (
-                    "disabled the threshold monitoring "
-                    "because of no active threshold"
-                ),
-                True,
-            )
-            return
+        if update:
+            confData = SysMgr.thresholdData
         else:
-            SysMgr.thresholdData = confData
+            # check threshold #
+            if not "threshold" in ConfigMgr.confData:
+                return
+
+            # get threshold dict #
+            confData = SysMgr.getConfigItem("threshold")
+            if not confData or type(confData) is not dict:
+                return
+            # check active threshold #
+            elif not _checkResource(confData):
+                SysMgr.printWarn(
+                    (
+                        "disabled the threshold monitoring "
+                        "because of no active threshold"
+                    ),
+                    True,
+                )
+                return
+            else:
+                SysMgr.thresholdData = confData
+
+            # check permission #
+            _checkPerm(confData)
 
         # update threshold data #
         if "UPDATETHRESHOLD" in SysMgr.environList:
-            path = SysMgr.environList["UPDATETHRESHOLD"][0]
+            for path in SysMgr.environList["UPDATETHRESHOLD"]:
+                # update threshold #
+                SysMgr.updateThreshold(path)
 
-            # load data from the file #
-            try:
-                with open(path) as fd:
-                    body = fd.read()
-                    value = UtilMgr.convStr2Dict(body, True)
-                    if not value:
-                        return None
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(path, True)
-                sys.exit(-1)
-
-            # update threshold condition #
-            try:
-                SysMgr.thresholdData.update(value)
-            except:
-                SysMgr.printErr("failed to update threshold data", True)
-                sys.exit(-1)
-
-            # print message #
-            SysMgr.printInfo("updated the threshold data from '%s'" % path)
+                # print message #
+                SysMgr.printInfo("updated the threshold data from '%s'" % path)
 
         # set report table #
         SysMgr.reportEnable = True
@@ -28899,9 +28907,6 @@ Commands:
             SysMgr.rankProcEnable = True
         else:
             SysMgr.rankProcEnable = False
-
-        # check permission #
-        _checkPerm(confData)
 
         # reset activation list #
         SysMgr.thresholdTarget = {}
@@ -28927,11 +28932,11 @@ Commands:
         # check resources for activation #
         for item in resourceList:
             try:
-                if _checkResource(confData[item]):
-                    SysMgr.thresholdTarget[item] = True
-                    SysMgr.thresholdTarget[item] = _checkResTask(
-                        confData[item]
-                    )
+                if not _checkResource(confData[item]):
+                    raise Exception()
+
+                SysMgr.thresholdTarget[item] = True
+                SysMgr.thresholdTarget[item] = _checkResTask(confData[item])
             except SystemExit:
                 sys.exit(0)
             except:
@@ -29724,9 +29729,14 @@ Commands:
             netBuf
 
     @staticmethod
-    def getConfigItem(name, itype="dict"):
-        if name in ConfigMgr.confData:
-            confData = ConfigMgr.confData[name]
+    def getConfigItem(name, data=None, itype="dict"):
+        if data:
+            confData = data
+        else:
+            confData = ConfigMgr.confData
+
+        if name in confData:
+            confData = confData[name]
         else:
             return None
 
@@ -29750,6 +29760,36 @@ Commands:
                 return None
         else:
             return confData
+
+    @staticmethod
+    def updateThreshold(path):
+        # load data from the file #
+        try:
+            value = SysMgr.loadConfig(path, True, True)
+            if not value:
+                return None
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path, True, True)
+            return None
+
+        # get new threshold values #
+        value = SysMgr.getConfigItem("threshold", value)
+
+        # update threshold condition #
+        try:
+            SysMgr.thresholdData.update(value)
+        except:
+            SysMgr.printErr("failed to update threshold data", True)
+            return None
+
+        SysMgr.applyThreshold(update=True)
+
+        # print threshold data #
+        SysMgr.printWarn(
+            UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True)
+        )
 
     @staticmethod
     def updateConfigPath():
@@ -29776,8 +29816,14 @@ Commands:
             sys.exit(-1)
 
     @staticmethod
-    def loadConfig(fname, verb=True):
+    def loadConfig(fname, local=False, verb=True):
         try:
+            # set return dict #
+            if local:
+                confData = {}
+            else:
+                confData = ConfigMgr.confData
+            # get real path #
             fname = os.path.realpath(fname)
 
             targetList = []
@@ -29802,16 +29848,16 @@ Commands:
                     continue
                 elif line.startswith("<") and line.endswith(">"):
                     entry = line[1:-1]
-                    ConfigMgr.confData.setdefault(entry, [])
-                    targetList = ConfigMgr.confData[entry]
+                    confData.setdefault(entry, [])
+                    targetList = confData[entry]
                     continue
                 else:
                     targetList.append(line)
 
-            if ConfigMgr.confData:
+            if confData:
                 SysMgr.printInfo("loaded config from '%s'" % fname)
 
-            return ConfigMgr.confData
+            return confData
         except SystemExit:
             sys.exit(0)
         except:
@@ -34129,8 +34175,8 @@ Examples:
     - {2:1} without threshold condition until CMD_RELOAD event is received
         # {0:1} {1:1} -q NOTHRESHOLD
 
-    - {2:1} after updating original threshold data from the specific file
-        # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf
+    - {2:1} after updating original threshold data from specific files
+        # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf, UPDATETHRESHOLD:guider3.conf
 
     - {2:1} {3:1} with the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -q LIMITCPU:20
@@ -61956,7 +62002,7 @@ Copyright:
                 argPolicy = c_int(argPolicy)
 
             # set default priority #
-            if upolicy in ("I", "C", "B"):
+            if upolicy in ("C", "I", "B"):
                 argPriority = 0
             else:
                 argPriority = pri
@@ -97994,6 +98040,7 @@ class TaskAnalyzer(object):
         gpuUsage = {}
         cpuProcUsage = {}
         cpuProcDelay = {}
+        cpuProcPrio = {}
         memProcUsage = {}
         blkProcUsage = {}
         storageUsage = {}
@@ -98235,7 +98282,7 @@ class TaskAnalyzer(object):
                     netWrite.append(0)
 
             # CPU / DELAY #
-            elif context in ("CPU", "Delay"):
+            elif context in ("CPU", "Delay", "Prio"):
                 if slen == 3:
                     m = re.match(r"\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)", line)
                     if not m:
@@ -98263,8 +98310,16 @@ class TaskAnalyzer(object):
                 elif intervalList:
                     if context == "CPU":
                         statList = cpuProcUsage
-                    else:
+                        convFunc = long
+                        hasTotal = True
+                    elif context == "Delay":
                         statList = cpuProcDelay
+                        convFunc = long
+                        hasTotal = True
+                    else:
+                        statList = cpuProcPrio
+                        convFunc = lambda e: e
+                        hasTotal = False
 
                     # save previous info #
                     statList[pname] = {}
@@ -98278,18 +98333,34 @@ class TaskAnalyzer(object):
                     for idx, item in enumerate(list(intervalList)):
                         if item.startswith("+"):
                             start = idx
-                            intervalList[idx] = item[1:]
-                        if item.startswith("-"):
+                        elif item.startswith("-"):
                             finish = idx
-                            intervalList[idx] = item[1:]
-                        if item.startswith("z"):
+                        elif item.startswith("z"):
                             zombie = idx
-                            intervalList[idx] = item[1:]
-                    cpuList = list(map(long, intervalList))
+                        else:
+                            continue
+                        intervalList[idx] = item[1:]
+
+                    # convert interval list #
+                    cpuList = list(map(convFunc, intervalList))
                     intervalList = " ".join(intervalList)
 
+                    # save interval list #
                     statList[pname]["usage"] = intervalList
                     intervalList = None
+
+                    # update lifecycle #
+                    if start > -1:
+                        statList[pname]["start"] = start
+                    if finish > -1:
+                        statList[pname]["finish"] = finish
+                    if zombie > -1:
+                        statList[pname]["zombie"] = zombie
+
+                    # check total stat #
+                    if not hasTotal:
+                        statList[pname]["usage"] = cpuList
+                        continue
 
                     # calculate total usage of tasks filtered #
                     if TaskAnalyzer.checkFilter(comm, pid):
@@ -98327,14 +98398,6 @@ class TaskAnalyzer(object):
                             cpuList
                         )
                         statList[pname]["maximum"] = max(cpuList)
-
-                    # update lifecycle #
-                    if start > -1:
-                        statList[pname]["start"] = start
-                    if finish > -1:
-                        statList[pname]["finish"] = finish
-                    if zombie > -1:
-                        statList[pname]["zombie"] = zombie
 
             # GPU #
             elif context == "GPU":
@@ -98847,6 +98910,7 @@ class TaskAnalyzer(object):
             "cpuUsage": cpuUsage[imin:imax],
             "cpuProcUsage": cpuProcUsage,
             "cpuProcDelay": cpuProcDelay,
+            "cpuProcPrio": cpuProcPrio,
             "blkWait": blkWait[imin:imax],
             "blkProcUsage": blkProcUsage,
             "blkRead": blkRead[imin:imax],
@@ -108748,6 +108812,7 @@ class TaskAnalyzer(object):
             idx += 1
             UtilMgr.printProgress(idx, len(SysMgr.procBuffer))
 
+        # skip if no tick #
         if idx == 0:
             return
 
@@ -108972,13 +109037,31 @@ class TaskAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
     @staticmethod
-    def printCpuInterval(isCpu=True):
-        if isCpu:
+    def printCpuInterval(attr="cpu"):
+        def _conv(val):
+            return val
+
+        if attr == "cpu":
             res = "CPU"
-            name = "cpu"
-        else:
+            name = vname = "cpu"
+        elif attr == "dly":
             res = "Delay"
-            name = "dly"
+            name = vname = "dly"
+        elif attr == "pri":
+            res = "Prio"
+            name = "cpu"
+            vname = "pri"
+
+            def _conv(val):
+                try:
+                    return val.replace(" ", "")
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return val
+
+        else:
+            return
 
         # check skip flag #
         uname = res.upper()
@@ -109076,7 +109159,9 @@ class TaskAnalyzer(object):
                 value[name],
             )
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^17} |".format(
+            procInfo = (
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^17} |"
+            ).format(
                 value["comm"][:cl],
                 pid,
                 value["ppid"],
@@ -109098,7 +109183,12 @@ class TaskAnalyzer(object):
                     lineLen = len(procInfo)
 
                 if pid in TA.procIntData[idx]:
-                    usage = TA.procIntData[idx][pid][name]
+                    try:
+                        usage = _conv(TA.procIntData[idx][pid][vname])
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        usage = 0
                     total += TA.procIntData[idx][pid][name]
                 else:
                     usage = 0
@@ -109127,7 +109217,7 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def printDlyInterval():
-        TaskAnalyzer.printCpuInterval(isCpu=False)
+        TaskAnalyzer.printCpuInterval(attr="dly")
 
     @staticmethod
     def printGpuInterval():
@@ -109353,6 +109443,10 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(
                 "{0:1} {1:1}\n{2:1}\n".format(procInfo, timeLine, oneLine)
             )
+
+    @staticmethod
+    def printPrioInterval():
+        TaskAnalyzer.printCpuInterval(attr="pri")
 
     @staticmethod
     def printVssInterval():
@@ -110214,6 +110308,7 @@ class TaskAnalyzer(object):
                 TaskAnalyzer.printEventInterval()
                 TaskAnalyzer.printCpuInterval()
                 TaskAnalyzer.printDlyInterval()
+                TaskAnalyzer.printPrioInterval()
                 TaskAnalyzer.printGpuInterval()
                 TaskAnalyzer.printVssInterval()
                 TaskAnalyzer.printRssInterval()
@@ -122305,7 +122400,7 @@ class TaskAnalyzer(object):
             # sched priority #
             SCHED_POLICY = ConfigMgr.SCHED_POLICY
             nrPrio = long(stat[self.prioIdx])
-            if SCHED_POLICY[long(stat[self.policyIdx])] == "C":
+            if SCHED_POLICY[long(stat[self.policyIdx])] in ("C", "I", "B"):
                 schedValue = "%3d" % (nrPrio - 20)
             else:
                 schedValue = "%3d" % (abs(nrPrio + 1))
@@ -122538,9 +122633,8 @@ class TaskAnalyzer(object):
                     etc = "%s(%s)" % (procData[pgid]["comm"], pgid)
                 elif SysMgr.nsEnable:
                     ns = SysMgr.nsType
-                    nsid = os.readlink("%s/ns/%s" % (value["taskPath"], ns))[
-                        len(ns) + 2 : -1
-                    ]
+                    nsid = os.readlink("%s/ns/%s" % (value["taskPath"], ns))
+                    nsid = nsid[len(ns) + 2 : -1]
                     etc = self.nsProcData[ns][nsid]
                 else:
                     pgid = procData[idx]["stat"][self.ppidIdx]
@@ -123655,25 +123749,8 @@ class TaskAnalyzer(object):
             value = None
             path = UtilMgr.lstrip(cmd, "UPDATE:")
 
-            # load data from the file #
-            try:
-                with open(path) as fd:
-                    body = fd.read()
-                    value = UtilMgr.convStr2Dict(body, True)
-                    if not value:
-                        return None
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(path, True, True)
-                return None
-
-            # update threshold condition #
-            try:
-                SysMgr.thresholdData.update(value)
-            except:
-                SysMgr.printErr("failed to update threshold data", True)
-                return None
+            # update threshold #
+            SysMgr.updateThreshold(path)
 
             # print message #
             SysMgr.printInfo(
@@ -123682,11 +123759,6 @@ class TaskAnalyzer(object):
                     "for %s event"
                 )
                 % (path, cmd, name)
-            )
-
-            # print threshold data #
-            SysMgr.printWarn(
-                UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True)
             )
         # FILTER #
         elif ocmd == "FILTER":
