@@ -125171,28 +125171,29 @@ class TaskAnalyzer(object):
             if not "task" in SysMgr.thresholdTarget:
                 raise Exception()
 
+            taskData = self.reportData["task"]
+
             # context switch #
-            target = self.reportData["task"]["nrCtx"]
-            self.checkThreshold("task", "nrCtx", "CTXSWC", "big", target)
+            if "nrCtx" in taskData:
+                target = taskData["nrCtx"]
+                self.checkThreshold("task", "nrCtx", "CTXSWC", "big", target)
 
-            # new status #
-            if self.reportData["task"]["new"]:
-                newList = list(self.reportData["task"]["new"])
-                target = "_".join(newList)
-                self.checkThreshold("task", "new", "NEW", None, target)
+            for procStat, stat in (
+                ("newProcs", "new"),
+                ("dieProcs", "die"),
+                ("abnormalProcs", "abnormal"),
+            ):
+                if not taskData[procStat]:
+                    self.addSysInterval("task", stat, 0)
+                    continue
 
-            # die status #
-            if self.reportData["task"]["die"]:
-                dieList = list(self.reportData["task"]["die"])
-                target = "_".join(dieList)
-                self.checkThreshold("task", "die", "DIE", None, target)
-
-            # abnormal status #
-            if self.reportData["task"]["abnormal"]:
-                abnormalList = list(self.reportData["task"]["abnormal"])
-                target = "_".join(abnormalList)
+                taskList = list(taskData[procStat].values())
+                nrTask = len(taskList)
+                target = "_".join([v["comm"] for v in taskList])
+                self.addSysInterval("task", stat, nrTask)
+                intval = _getIntval(stat)
                 self.checkThreshold(
-                    "task", "abnormal", "ABNORMAL", None, target
+                    "task", stat, stat.upper(), "big", nrTask, intval=intval
                 )
         except SystemExit:
             sys.exit(0)
@@ -126061,14 +126062,14 @@ class TaskAnalyzer(object):
 
         convTime = UtilMgr.convTime
 
+        def _setDefaultInfo(data, pid, comm, runtime=None):
+            data["pid"] = long(pid)
+            data["comm"] = comm
+            if runtime:
+                data["runtime"] = runtime
+
         # add per-process stats #
         if SysMgr.rankProcEnable:
-
-            def _setDefaultInfo(data, pid, comm, runtime=None):
-                data["pid"] = long(pid)
-                data["comm"] = comm
-                if runtime:
-                    data["runtime"] = runtime
 
             # add CPU status #
             if "cpu" in self.reportData:
@@ -126326,44 +126327,44 @@ class TaskAnalyzer(object):
                 # update gpumem #
                 self.reportData["gpumem"] = {"total": total, "procs": procs}
 
-            # add task status #
-            if "task" in self.reportData:
-                items = ["abnormalProcs", "newProcs", "dieProcs"]
-                for item in items:
-                    self.reportData["task"][item] = {}
+        # add task status #
+        if "task" in self.reportData:
+            items = ["abnormalProcs", "newProcs", "dieProcs"]
+            for item in items:
+                self.reportData["task"][item] = {}
 
-                    # check item #
-                    if item == "abnormalProcs":
-                        tasks = set(self.abnormalTasks)
-                    elif item == "newProcs":
-                        tasks = set(self.procData) - set(self.prevProcData)
-                    elif item == "dieProcs":
-                        tasks = set(self.prevProcData) - set(self.procData)
+                # check item #
+                if item == "abnormalProcs":
+                    tasks = set(self.abnormalTasks)
+                elif item == "newProcs":
+                    tasks = set(self.procData) - set(self.prevProcData)
+                elif item == "dieProcs":
+                    tasks = set(self.prevProcData) - set(self.procData)
 
-                    # save status #
-                    rank = 1
-                    for pid in tasks:
-                        if item == "dieProcs":
-                            procData = self.prevProcData
-                        else:
-                            procData = self.procData
+                # save status #
+                rank = 1
+                for pid in tasks:
+                    if item == "dieProcs":
+                        procData = self.prevProcData
+                    else:
+                        procData = self.procData
 
-                        # check pid #
-                        if not pid in procData:
-                            continue
+                    # check pid #
+                    if not pid in procData:
+                        continue
 
-                        # set default #
-                        evtdata = self.reportData["task"][item]
-                        evtdata[rank] = {}
+                    # set default #
+                    evtdata = self.reportData["task"][item]
+                    evtdata[rank] = {}
 
-                        comm = procData[pid]["comm"]
-                        runtime = convTime(procData[pid]["runtime"])
-                        _setDefaultInfo(evtdata[rank], pid, comm, runtime)
+                    comm = procData[pid]["comm"]
+                    runtime = convTime(procData[pid]["runtime"])
+                    _setDefaultInfo(evtdata[rank], pid, comm, runtime)
 
-                        status = procData[pid]["stat"][self.statIdx]
-                        evtdata[rank]["status"] = status
+                    status = procData[pid]["stat"][self.statIdx]
+                    evtdata[rank]["status"] = status
 
-                        rank += 1
+                    rank += 1
 
         # add PSI data #
         if SysMgr.psiData:
