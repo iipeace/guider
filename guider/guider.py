@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230308"
+__revision__ = "230309"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25380,6 +25380,9 @@ Commands:
             # I/O #
             elif SysMgr.checkMode("drawio"):
                 SysMgr.layout = "IO"
+            # prio #
+            elif SysMgr.checkMode("drawpri"):
+                SysMgr.layout = "PRIO"
 
             # modify args for drawing multiple input files #
             sys.argv[1] = "top"
@@ -26255,20 +26258,36 @@ Commands:
         return libs
 
     @staticmethod
-    def convSchedPrio(pri):
+    def convSchedPrio(pri, fromNum=False):
         try:
-            policy = pri[0]
-            prio = long(pri[1:])
+            if fromNum:
+                # RT / DEADLINE #
+                if pri > 39:
+                    if pri == 140:
+                        policy = "D"
+                    else:
+                        policy = "R"
 
-            # convert priority to number(-101 ~ 39) #
-            if policy in ("C", "I", "B"):
-                prio += 20
-            elif policy in ("R", "F"):
-                prio = (-1) - prio
-            elif policy == "D":
-                prio = -101
+                    pri -= 40
+                # NORMAL #
+                else:
+                    policy = "N"
+                    pri = 19 - pri
 
-            return prio
+                return policy + str(pri)
+            else:
+                policy = pri[0]
+                prio = long(pri[1:])
+
+                # convert priority to number(-101 ~ 39) #
+                if policy in ("C", "I", "B"):
+                    prio += 20
+                elif policy in ("R", "F"):
+                    prio = (-1) - prio
+                elif policy == "D":
+                    prio = -101
+
+                return prio
         except SystemExit:
             sys.exit(0)
         except:
@@ -31615,6 +31634,7 @@ Commands:
                 "drawleak": ("Leak", "Linux/MacOS/Windows"),
                 "drawmem": ("Memory", "Linux/MacOS/Windows"),
                 "drawmemavg": ("Memory", "Linux/MacOS/Windows"),
+                "drawpri": ("Prio", "Linux/MacOS/Windows"),
                 "drawreq": ("URL", "Linux/MacOS/Windows"),
                 "drawrss": ("RSS", "Linux/MacOS/Windows"),
                 "drawrssavg": ("RSS", "Linux/MacOS/Windows"),
@@ -32306,6 +32326,10 @@ Examples:
         # {0:1} {1:1} {3:1} -q MAXCPUCOND:10
         # {0:1} {1:1} {3:1} -q AVGCPUCOND:10
         # {0:1} {1:1} {3:1} -q MINCPUCOND:10
+
+    - {2:1} except for specific prio plots having maximum value
+        # {0:1} {1:1} {3:1} -q MAXPRICOND:C-1
+        # {0:1} {1:1} {3:1} -q MINPRICOND:R1
 
     - {2:1} including system memory plots
         # {0:1} {1:1} {3:1} -q MEMSYSPLOT
@@ -35796,6 +35820,20 @@ Usage:
 
 Description:
     Draw system I/O graphs
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # prio draw #
+                elif SysMgr.checkMode("drawpri"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw task scheduling priority graphs
                         """.format(
                         cmd, mode
                     )
@@ -47223,16 +47261,17 @@ Copyright:
         elif sys.argv[1] == "draw" or orig:
             return True
         elif len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] in (
+            "drawbitmap",
             "drawcpu",
             "drawdelay",
             "drawflame",
-            "drawbitmap",
-            "drawmem",
-            "drawvss",
-            "drawrss",
-            "drawleak",
             "drawio",
+            "drawleak",
+            "drawmem",
+            "drawpri",
+            "drawrss",
             "drawtime",
+            "drawvss",
         ):
             return True
         elif SysMgr.isDrawAvgMode():
@@ -99144,7 +99183,7 @@ class TaskAnalyzer(object):
         )
 
     @staticmethod
-    def drawYticks(ax, ymax, fontsize=0, adjust=True):
+    def drawYticks(ax, ymax, fontsize=0, adjust=True, unit=10):
         # pylint: disable=undefined-variable
 
         # set font size #
@@ -99188,7 +99227,7 @@ class TaskAnalyzer(object):
 
             # adjust ticks #
             if adjust:
-                inc = long(ymax / 10)
+                inc = long(ymax / unit)
                 if inc == 0:
                     inc = 1
                 yticks(xrange(ymin, long(ymax + inc), inc), fontsize=fontsize)
@@ -99199,7 +99238,7 @@ class TaskAnalyzer(object):
                 ylist = ax.get_yticks().tolist()
                 ymax = long(max(ylist))
 
-            ymaxval = ymax + int(ymax / 10)
+            ymaxval = ymax + int(ymax / unit)
             if ymaxval > 0:
                 ylim([0, ymaxval])
 
@@ -99212,7 +99251,7 @@ class TaskAnalyzer(object):
 
             # adjust yticks #
             if adjust:
-                inc = long(ymax / 10)
+                inc = long(ymax / unit)
                 if inc == 0:
                     inc = 1
                 yticks(xrange(ymin, long(ymax + inc), inc), fontsize=fontsize)
@@ -99631,7 +99670,6 @@ class TaskAnalyzer(object):
                     % (long(avg), filterName, filterInfo),
                     True,
                 )
-                return
 
                 # remove item #
                 graphStats.pop(name, None)
@@ -100014,7 +100052,14 @@ class TaskAnalyzer(object):
         )
 
     def drawLayout(
-        self, graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent, logEvents
+        self,
+        graphStats,
+        _drawCpu=None,
+        _drawMem=None,
+        _drawIo=None,
+        _drawPrio=None,
+        _drawEvent=None,
+        logEvents=None,
     ):
         pos = 0
         total = 0
@@ -100085,6 +100130,8 @@ class TaskAnalyzer(object):
                 elif targetc == "IO" or targetc.startswith("I"):
                     if _drawIo:
                         _drawIo(graphStats, xtype, pos, size)
+                if targetc == "PRIO" or targetc.startswith("P"):
+                    _drawPrio(graphStats, xtype, pos, size)
                 else:
                     SysMgr.printErr(
                         "failed to draw graph "
@@ -101145,6 +101192,250 @@ class TaskAnalyzer(object):
 
             # draw name #
             TaskAnalyzer.drawName(ax, name)
+
+            # draw base #
+            self.figure = TaskAnalyzer.drawFigure()
+
+            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
+
+        def _drawPrio(graphStats, xtype, pos, size):
+            # draw title #
+            ax = subplot2grid((6, 1), (pos, 0), rowspan=size, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            suptitle(graphStats["graphTitle"], fontsize=8)
+
+            # define common label list #
+            labelList = []
+
+            # get minimum timeline #
+            timeline = None
+            for key, val in graphStats.items():
+                if not key.endswith("timeline"):
+                    continue
+                elif not timeline:
+                    timeline = val
+                elif len(timeline) > len(val):
+                    timeline = val
+            lent = len(timeline)
+
+            conv = UtilMgr.convNum
+
+            # get max condition #
+            if "MAXPRICOND" in SysMgr.environList:
+                maxPriCond = abs(
+                    SysMgr.convSchedPrio(
+                        SysMgr.environList["MAXPRICOND"][0].upper()
+                    )
+                    - 39
+                )
+            else:
+                maxPriCond = 0
+
+            # get min condition #
+            if "MINPRICOND" in SysMgr.environList:
+                minPriCond = abs(
+                    SysMgr.convSchedPrio(
+                        SysMgr.environList["MINPRICOND"][0].upper()
+                    )
+                    - 39
+                )
+            else:
+                minPriCond = 0
+
+            # start loop #
+            cnt = 0
+            for key, val in graphStats.items():
+                if not key.endswith("timeline"):
+                    continue
+
+                res = key.split(":")
+                if len(res) > 1:
+                    fname = "%s:" % res[0]
+                    prefix = "[%s] " % res[0]
+                else:
+                    fname = ""
+                    prefix = ""
+
+                cpuProcPrio = graphStats["%scpuProcPrio" % fname]
+
+                # add boundary line #
+                self.drawBoundary("pri", labelList)
+
+                # draw user event #
+                self.drawUserEvent("pri")
+
+                # define top variable #
+                tcnt = 0
+
+                # Convert process priority #
+                for val in list(cpuProcPrio):
+                    usage = cpuProcPrio[val]["usage"][:lent]
+                    usage = list(map(SysMgr.convSchedPrio, usage))
+                    usage = list(
+                        map(
+                            lambda e: 0 if e is None else abs(long(e) - 39),
+                            usage,
+                        )
+                    )
+                    cpuProcPrio[val]["usage"] = usage
+                    eusage = []
+                    for v in usage:
+                        if v:
+                            eusage.append(v)
+                    if eusage:
+                        maxUsage = max(eusage)
+                        minUsage = min(eusage)
+                    else:
+                        maxUsage = minUsage = 0
+                    cpuProcPrio[val]["maxUsage"] = maxUsage
+                    cpuProcPrio[val]["minUsage"] = minUsage
+
+                # Process priority #
+                for idx, item in sorted(
+                    cpuProcPrio.items(),
+                    key=lambda e: e[1]["maxUsage"],
+                    reverse=True,
+                ):
+
+                    # check condition #
+                    if maxPriCond and maxPriCond < item["maxUsage"]:
+                        continue
+                    elif minPriCond and minPriCond > item["maxUsage"]:
+                        continue
+
+                    usage = item["usage"]
+
+                    # get plot attr #
+                    lw, pe = _getPlotAttr(idx)
+
+                    # remove 0 #
+                    eusage = []
+                    prevVal = None
+                    for i, v in enumerate(usage):
+                        if v is not None:
+                            prevVal = v
+                        else:
+                            if "start" in item and v < item["start"]:
+                                v = None
+                            elif "finish" in item and v > item["finish"]:
+                                v = None
+                            elif prevVal is None:
+                                v = None
+                            else:
+                                v = prevVal
+                        eusage.append(v)
+
+                    # draw plot and get color #
+                    color = plot(
+                        timeline, eusage, "-", linewidth=lw, path_effects=pe
+                    )[0].get_color()
+
+                    # get stats #
+                    maxusage = item["maxUsage"]
+                    margin = self.getMargin()
+                    maxIdx = usage.index(maxusage)
+                    maxPri = SysMgr.convSchedPrio(item["maxUsage"], True)
+                    minPri = SysMgr.convSchedPrio(item["minUsage"], True)
+
+                    # check lifecycle event #
+                    life = ""
+                    if (
+                        "start" in item
+                        and "finish" in item
+                        and item["start"] < len(timeline)
+                        and item["finish"] < len(timeline)
+                    ):
+                        life += "|Run_%s~%s" % (
+                            timeline[item["start"]],
+                            timeline[item["finish"]],
+                        )
+                    elif "start" in item and item["start"] < len(timeline):
+                        life += "|Run_%s~" % timeline[item["start"]]
+                    elif "finish" in item and item["finish"] < len(timeline):
+                        life += "|Run_~%s" % timeline[item["finish"]]
+
+                    # make text #
+                    maxStr = "[Min_%s|Max_%s|%s]" % (
+                        minPri,
+                        maxPri,
+                        life,
+                    )
+
+                    # mark text at peek #
+                    ilabel = "%s%s%s" % (prefix, idx, maxStr)
+
+                    if not "NOLABEL" in SysMgr.environList:
+                        text(
+                            timeline[maxIdx],
+                            usage[maxIdx] + margin,
+                            ilabel,
+                            fontsize=self.lfsize - 1,
+                            color=color,
+                            fontweight="normal",
+                            rotation=35,
+                            ha=_getTextAlign(maxIdx, timeline),
+                        )
+
+                    labelList.append("%s%s - %4s" % (prefix, idx, maxPri))
+
+            # draw label #
+            TaskAnalyzer.drawLabel(labelList, draw=True, anchor=(1.12, 1.05))
+
+            grid(which="both", linestyle=":", linewidth=0.2)
+            tick_params(axis="x", direction="in")
+            tick_params(axis="y", direction="in")
+
+            # update xticks #
+            xticks(fontsize=self.xfsize)
+            if len(timeline) > 1:
+                xlim([timeline[0], timeline[-1]])
+
+            # adjust yticks #
+            ylist = ax.get_yticks().tolist()
+
+            # set ymin #
+            ymin = long(min(ylist))
+            if ymin < 0:
+                ymin = 0
+            elif ymin == 0:
+                try:
+                    ax.set_ylim(bottom=0)
+                except:
+                    pass
+
+            # set ymax #
+            TaskAnalyzer.drawYticks(ax, 140, unit=14)
+
+            # draw name #
+            TaskAnalyzer.drawName(ax, "Prio")
+
+            # convert priority units #
+            try:
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(long, ytickLabel))
+
+                # convert label units #
+                ytickLabel = [
+                    SysMgr.convSchedPrio(val, True) for val in ytickLabel
+                ]
+
+                ax.set_yticklabels(ytickLabel)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # draw watermark #
+            try:
+                # RT #
+                axhline(y=40, linewidth=1, linestyle="--", color="black")
+
+                # NORMAL - #
+                axhline(y=19, linewidth=1, linestyle="--", color="black")
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             # draw base #
             self.figure = TaskAnalyzer.drawFigure()
@@ -102513,7 +102804,13 @@ class TaskAnalyzer(object):
             _drawMem(graphStats, 1, 5, 1)
         else:
             self.drawLayout(
-                graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent, logEvents
+                graphStats,
+                _drawCpu,
+                _drawMem,
+                _drawIo,
+                _drawPrio,
+                _drawEvent,
+                logEvents,
             )
 
         # draw system info #
@@ -103253,9 +103550,7 @@ class TaskAnalyzer(object):
                 _drawAvgCpu(graphStats, 3, 0, 4)
                 _drawAvgMem(graphStats, 1, 4, 2)
             else:
-                self.drawLayout(
-                    graphStats, _drawAvgCpu, _drawAvgMem, None, None, None
-                )
+                self.drawLayout(graphStats, _drawAvgCpu, _drawAvgMem)
 
         # draw CPU #
         elif SysMgr.checkMode("drawcpuavg", True):
