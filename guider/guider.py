@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230309"
+__revision__ = "230311"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7339,7 +7339,7 @@ class UtilMgr(object):
         if string is None:
             string = value
 
-        if value >= SysMgr.cpuPerHighThreshold:
+        if value >= SysMgr.cpuPerHighThr:
             return UtilMgr.convColor(string, "RED", size, align)
         elif value > 0:
             return UtilMgr.convColor(string, "YELLOW", size, align)
@@ -24390,14 +24390,14 @@ class SysMgr(object):
     nrReport = 0
 
     # watermark constants #
-    cpuPerHighThreshold = 80
-    cpuPerLowThreshold = 10
-    memAvailPerThreshold = 10
-    memHighThreshold = 1024
-    memLowThreshold = 100
-    swapPerThreshold = 90
-    diskPerHighThreshold = 90
-    fdHighThreshold = 8192
+    cpuPerHighThr = 80
+    cpuPerLowThr = 10
+    memAvailPerThr = 10
+    memHighThr = 1024
+    memLowThr = 100
+    swapPerThr = 90
+    diskPerHighThr = 90
+    fdHighThr = 8192
 
     # print condition #
     printCond = dict(
@@ -24515,12 +24515,12 @@ class SysMgr(object):
     vmflagList = []
 
     # threshold #
-    thresholdData = {}
-    prevThresholdData = {}
-    thresholdTarget = {}
-    thresholdRefreshList = []
-    thresholdEventList = {}
-    thresholdEventHistory = {}
+    thrData = {}
+    prevThrData = {}
+    thrTarget = {}
+    thrRefreshList = []
+    thrEvtList = {}
+    thrEvtHist = {}
     eventLockList = {}
     eventCommandList = {}
 
@@ -24547,8 +24547,8 @@ class SysMgr(object):
     libLLVMObj = None
     demangleFunc = None
     geterrnoFunc = None
-    readaheadFunc = None
-    readaheadMaxSize = 1048576  # 1MB #
+    raFunc = None
+    raMaxSize = 1048576  # 1MB #
     matplotlibVersion = 0
     matplotlibDpi = 500
     matplotlibSize = None
@@ -24754,7 +24754,7 @@ class SysMgr(object):
     tgidEnable = True
     threadEnable = False
     thresholdEnable = False
-    taskThresholdEnable = False
+    taskThrEnable = False
     totalEnable = False
     truncEnable = True
     ttyEnable = False
@@ -28885,7 +28885,7 @@ Commands:
                     _checkPerm(value)
 
         if update:
-            confData = SysMgr.thresholdData
+            confData = SysMgr.thrData
         else:
             # check threshold #
             if not "threshold" in ConfigMgr.confData:
@@ -28906,7 +28906,7 @@ Commands:
                 )
                 return
             else:
-                SysMgr.thresholdData = confData
+                SysMgr.thrData = confData
 
             # check permission #
             _checkPerm(confData)
@@ -28928,7 +28928,7 @@ Commands:
             SysMgr.rankProcEnable = False
 
         # reset activation list #
-        SysMgr.thresholdTarget = {}
+        SysMgr.thrTarget = {}
 
         # check default resources #
         resourceList = [
@@ -28954,18 +28954,18 @@ Commands:
                 if not _checkResource(confData[item]):
                     raise Exception()
 
-                SysMgr.thresholdTarget[item] = True
-                SysMgr.thresholdTarget[item] = _checkResTask(confData[item])
+                SysMgr.thrTarget[item] = True
+                SysMgr.thrTarget[item] = _checkResTask(confData[item])
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
 
         # print target resources #
-        if SysMgr.thresholdTarget:
+        if SysMgr.thrTarget:
             SysMgr.printInfo(
                 "enabled resource events [ %s ]"
-                % ", ".join([res for res in SysMgr.thresholdTarget])
+                % ", ".join([res for res in SysMgr.thrTarget])
             )
 
         # check block #
@@ -28983,27 +28983,27 @@ Commands:
             pass
 
         # check storage #
-        if "storage" in SysMgr.thresholdTarget:
+        if "storage" in SysMgr.thrTarget:
             SysMgr.diskEnable = True
 
         # check network #
-        if "net" in SysMgr.thresholdTarget:
+        if "net" in SysMgr.thrTarget:
             SysMgr.networkEnable = True
 
         # check fd #
-        if "fd" in SysMgr.thresholdTarget:
+        if "fd" in SysMgr.thrTarget:
             SysMgr.addEnvironVar("ACTUALFD")
 
         # check log #
-        if "log" in SysMgr.thresholdData:
-            SysMgr.initLogWatcher(SysMgr.thresholdData["log"])
+        if "log" in SysMgr.thrData:
+            SysMgr.initLogWatcher(SysMgr.thrData["log"])
 
         # check func #
-        if "func" in SysMgr.thresholdData:
-            SysMgr.initFuncWatcher(SysMgr.thresholdData["func"])
+        if "func" in SysMgr.thrData:
+            SysMgr.initFuncWatcher(SysMgr.thrData["func"])
 
         # check cgroup #
-        if "cgroup" in SysMgr.thresholdTarget:
+        if "cgroup" in SysMgr.thrTarget:
             enableList = []
             for item in ("cpu", "throttle", "memory", "read", "write"):
                 if _checkAttr(confData["cgroup"], item):
@@ -29028,9 +29028,9 @@ Commands:
             SysMgr.taskEnable = _checkTask(confData)
             if SysMgr.taskEnable:
                 # check thresholds #
-                SysMgr.taskThresholdEnable = _checkTask(confData, True)
+                SysMgr.taskThrEnable = _checkTask(confData, True)
             else:
-                SysMgr.taskThresholdEnable = False
+                SysMgr.taskThrEnable = False
                 SysMgr.printWarn(
                     (
                         "disabled the task monitoring "
@@ -29798,7 +29798,7 @@ Commands:
 
         # update threshold condition #
         try:
-            SysMgr.thresholdData.update(value)
+            SysMgr.thrData.update(value)
         except:
             SysMgr.printErr("failed to update threshold data", True)
             return None
@@ -29806,9 +29806,7 @@ Commands:
         SysMgr.applyThreshold(update=True)
 
         # print threshold data #
-        SysMgr.printWarn(
-            UtilMgr.convDict2Str(SysMgr.thresholdData, pretty=True)
-        )
+        SysMgr.printWarn(UtilMgr.convDict2Str(SysMgr.thrData, pretty=True))
 
     @staticmethod
     def updateConfigPath():
@@ -38453,7 +38451,7 @@ Commands:
     CMD_SAVE{{:TIME@NAME}}      save the monitoring results
     CMD_SAVERAW{{:TIME@NAME}}   save the monitoring results
     CMD_STOP                  stop the threshold monitoring
-    CMD_UPDATE:FILE           update the threshold data
+    CMD_UPDATE:PATH           update the threshold data from the file
                         """.format(
                         cmd, mode
                     )
@@ -48302,7 +48300,7 @@ Copyright:
     @staticmethod
     def readahead(path, offset, size=0, closeFd=False, raMax=0):
         # pylint: disable=not-callable
-        if not SysMgr.readaheadFunc:
+        if not SysMgr.raFunc:
             # load libc #
             SysMgr.loadLibcObj()
 
@@ -48312,9 +48310,9 @@ Copyright:
                 sys.exit(-1)
 
             # define readahead #
-            SysMgr.readaheadFunc = getattr(SysMgr.libcObj, "readahead")
-            SysMgr.readaheadFunc.argtypes = [c_int, c_int64, c_int]
-            SysMgr.readaheadFunc.restype = c_int
+            SysMgr.raFunc = getattr(SysMgr.libcObj, "readahead")
+            SysMgr.raFunc.argtypes = [c_int, c_int64, c_int]
+            SysMgr.raFunc.restype = c_int
 
         # get fd #
         try:
@@ -48347,7 +48345,7 @@ Copyright:
         if raMax:
             chunk = raMax
         else:
-            chunk = SysMgr.readaheadMaxSize
+            chunk = SysMgr.raMaxSize
         remain = size
         coffset = offset
 
@@ -48361,7 +48359,7 @@ Copyright:
 
             # readahead a chunk #
             os.lseek(fd, coffset, 0)
-            SysMgr.readaheadFunc(c_int(fd), c_int64(coffset), c_int(csize))
+            SysMgr.raFunc(c_int(fd), c_int64(coffset), c_int(csize))
 
             # check break condition #
             if csize < chunk:
@@ -48400,7 +48398,7 @@ Copyright:
         ) = FileAnalyzer.getReadaheadItems()
 
         # get readahead max size #
-        raMax = SysMgr.readaheadMaxSize
+        raMax = SysMgr.raMaxSize
         if "RAMAX" in SysMgr.environList:
             try:
                 raMax = SysMgr.environList["RAMAX"][0]
@@ -49900,8 +49898,8 @@ Copyright:
             SysMgr.closeStdFd(stderr=False)
 
         # clear threshold condition #
-        SysMgr.prevThresholdData = SysMgr.thresholdData
-        SysMgr.thresholdData = {}
+        SysMgr.prevThrData = SysMgr.thrData
+        SysMgr.thrData = {}
         SysMgr.eventCommandList = {}
         SysMgr.eventLockList = {}
 
@@ -104409,7 +104407,7 @@ class TaskAnalyzer(object):
     def addSysInterval(self, res, key, value):
         if not SysMgr.maxInterval:
             return
-        elif not res in SysMgr.thresholdTarget:
+        elif not res in SysMgr.thrTarget:
             return
 
         # TODO: filter only system resource #
@@ -104423,11 +104421,11 @@ class TaskAnalyzer(object):
     def addProcInterval(self, res, pid, target, key, value):
         if not SysMgr.maxInterval:
             return
-        elif not SysMgr.taskThresholdEnable:
+        elif not SysMgr.taskThrEnable:
             return
-        elif not res in SysMgr.thresholdTarget:
+        elif not res in SysMgr.thrTarget:
             return
-        elif not SysMgr.thresholdTarget[res]:
+        elif not SysMgr.thrTarget[res]:
             return
 
         try:
@@ -115691,7 +115689,7 @@ class TaskAnalyzer(object):
 
             # convert the number of fds #
             nrFd = len(value["fdList"])
-            if nrFd > SysMgr.fdHighThreshold:
+            if nrFd > SysMgr.fdHighThr:
                 nrFd = convColor(nrFd, "RED", 6)
             elif nrFd == 0:
                 break
@@ -117946,7 +117944,7 @@ class TaskAnalyzer(object):
         # check task status #
         statData = self.procData[tid]["stat"]
         tstat = statData[self.statIdx]
-        if tstat != "S" and tstat != "R" and tstat != "I":
+        if not tstat in "SRI":
             self.abnormalTasks[tid] = tstat
 
         # set comm #
@@ -118772,7 +118770,7 @@ class TaskAnalyzer(object):
         availMemStr = r"%6s" % availMem
         if availMemPer == 0:
             pass
-        elif availMemPer <= SysMgr.memAvailPerThreshold:
+        elif availMemPer <= SysMgr.memAvailPerThr:
             availMemStr = convColor(availMemStr, "RED")
         else:
             availMemStr = convColor(availMemStr, "YELLOW")
@@ -118787,7 +118785,7 @@ class TaskAnalyzer(object):
         if swapUsagePer == 0:
             pass
         else:
-            if swapUsagePer >= SysMgr.swapPerThreshold:
+            if swapUsagePer >= SysMgr.swapPerThr:
                 swapUsageStr = convColor(swapUsageStr, "RED")
             else:
                 swapUsageStr = convColor(swapUsageStr, "YELLOW")
@@ -121275,7 +121273,7 @@ class TaskAnalyzer(object):
 
             # convert color for storage usage #
             usePer = "%4s%%" % value["usagePer"]
-            if value["usagePer"] > SysMgr.diskPerHighThreshold:
+            if value["usagePer"] > SysMgr.diskPerHighThr:
                 usePer = convColor(usePer, "RED")
             elif value["usagePer"] > 0:
                 usePer = convColor(usePer, "YELLOW")
@@ -121734,7 +121732,7 @@ class TaskAnalyzer(object):
                 cpu = "%6.1f" % usage
 
                 # convert color for CPU usage #
-                if not isReport and usage >= SysMgr.cpuPerLowThreshold:
+                if not isReport and usage >= SysMgr.cpuPerLowThr:
                     cpu = UtilMgr.convCpuColor(usage, cpu)
             except SystemExit:
                 sys.exit(0)
@@ -122792,7 +122790,7 @@ class TaskAnalyzer(object):
                 value["fdSize"] = fdsize
 
                 # apply color #
-                if fdsize > SysMgr.fdHighThreshold:
+                if fdsize > SysMgr.fdHighThr:
                     fdstr = convColor(fdsize, "RED", 4)
                 else:
                     fdstr = fdsize
@@ -122990,7 +122988,7 @@ class TaskAnalyzer(object):
                 btime = value["btime"]
 
             # convert color for CPU usage #
-            if value["ttime"] >= SysMgr.cpuPerLowThreshold:
+            if value["ttime"] >= SysMgr.cpuPerLowThr:
                 ttime = convCpuColor(value["ttime"], ttime, size=4)
 
             # vss #
@@ -123075,8 +123073,8 @@ class TaskAnalyzer(object):
 
             # convert color for SHM #
             try:
-                if long(shr) >= SysMgr.memLowThreshold:
-                    if shr >= SysMgr.memHighThreshold:
+                if long(shr) >= SysMgr.memLowThr:
+                    if shr >= SysMgr.memHighThr:
                         shr = convColor(shr, "RED", 3)
                     else:
                         shr = convColor(shr, "YELLOW", 3)
@@ -123086,10 +123084,10 @@ class TaskAnalyzer(object):
                 pass
 
             # convert color for physical memory usage #
-            if mems < SysMgr.memLowThreshold:
+            if mems < SysMgr.memLowThr:
                 memstr = mems
             else:
-                if mems >= SysMgr.memHighThreshold:
+                if mems >= SysMgr.memHighThr:
                     memstr = convColor(mems, "RED", 4)
                 else:
                     memstr = convColor(mems, "YELLOW", 4)
@@ -124102,14 +124100,14 @@ class TaskAnalyzer(object):
                 return None
 
             # search event command #
-            if not item in SysMgr.thresholdData:
+            if not item in SysMgr.thrData:
                 return None
 
             # init variables #
             eventList = []
             self.reportData.setdefault("event", {})
 
-            for _name, _values in SysMgr.thresholdData[item].items():
+            for _name, _values in SysMgr.thrData[item].items():
                 if name != _name:
                     continue
 
@@ -124300,8 +124298,8 @@ class TaskAnalyzer(object):
 
             # reset threshold data #
             ConfigMgr.confData = {}
-            SysMgr.thresholdEventHistory = {}
-            SysMgr.thresholdEventList = {}
+            SysMgr.thrEvtHist = {}
+            SysMgr.thrEvtList = {}
 
             # load and check config file #
             if not SysMgr.loadConfig(path):
@@ -124348,9 +124346,9 @@ class TaskAnalyzer(object):
                 SysMgr.eventCommandList = {}
 
             # clear threshold data #
-            SysMgr.thresholdData = {}
-            SysMgr.thresholdEventList = {}
-            SysMgr.thresholdEventHistory = {}
+            SysMgr.thrData = {}
+            SysMgr.thrEvtList = {}
+            SysMgr.thrEvtHist = {}
         else:
             SysMgr.printWarn(
                 "no support '%s' as an embedded command" % cmd, True
@@ -124743,16 +124741,16 @@ class TaskAnalyzer(object):
             for cmd in value["command"]:
                 # extract full command by name in current context #
                 if (
-                    "COMMAND" in SysMgr.thresholdData
-                    and cmd in SysMgr.thresholdData["COMMAND"]
+                    "COMMAND" in SysMgr.thrData
+                    and cmd in SysMgr.thrData["COMMAND"]
                 ):
-                    cmd = SysMgr.thresholdData["COMMAND"][cmd]
+                    cmd = SysMgr.thrData["COMMAND"][cmd]
                 # extract full command by name in previous context #
                 elif (
-                    "COMMAND" in SysMgr.prevThresholdData
-                    and cmd in SysMgr.prevThresholdData["COMMAND"]
+                    "COMMAND" in SysMgr.prevThrData
+                    and cmd in SysMgr.prevThrData["COMMAND"]
                 ):
-                    cmd = SysMgr.prevThresholdData["COMMAND"][cmd]
+                    cmd = SysMgr.prevThrData["COMMAND"][cmd]
                 # handle embedded commands #
                 else:
                     ret = self.handleEventCmd(cmd, event, False)
@@ -124804,11 +124802,11 @@ class TaskAnalyzer(object):
         # check exit condition #
         if not SysMgr.thresholdEnable:
             return
-        elif not SysMgr.thresholdEventList and not self.reportData["event"]:
+        elif not SysMgr.thrEvtList and not self.reportData["event"]:
             return
 
         # print events #
-        prevList = list(SysMgr.thresholdEventList)
+        prevList = list(SysMgr.thrEvtList)
         nowList = list(self.reportData["event"])
         timestr = "at %s (%s)" % (
             SysMgr.uptime,
@@ -124846,7 +124844,7 @@ class TaskAnalyzer(object):
             )
 
         # update event list #
-        SysMgr.thresholdEventList = self.reportData["event"]
+        SysMgr.thrEvtList = self.reportData["event"]
 
         if not self.reportData["event"]:
             return
@@ -124856,7 +124854,7 @@ class TaskAnalyzer(object):
         SysMgr.printWarn("%s" % estr)
 
     def checkResourceThreshold(self):
-        if not SysMgr.thresholdData:
+        if not SysMgr.thrData:
             return
 
         def _getIntval(item):
@@ -124874,9 +124872,9 @@ class TaskAnalyzer(object):
             SysMgr.imagePath = None
 
         # update refresh items #
-        if SysMgr.thresholdRefreshList:
+        if SysMgr.thrRefreshList:
             newList = []
-            for item in SysMgr.thresholdRefreshList:
+            for item in SysMgr.thrRefreshList:
                 tick, ename, data = item
 
                 tick -= 1
@@ -124888,13 +124886,13 @@ class TaskAnalyzer(object):
                     data["apply"] = "true"
 
                     # remove event form history #
-                    SysMgr.thresholdEventHistory.pop(ename, None)
+                    SysMgr.thrEvtHist.pop(ename, None)
 
-            SysMgr.thresholdRefreshList = newList
+            SysMgr.thrRefreshList = newList
 
         # check CPU #
         try:
-            if not "cpu" in SysMgr.thresholdTarget:
+            if not "cpu" in SysMgr.thrTarget:
                 raise Exception()
 
             for item in ["total", "user", "kernel", "irq", "iowait"]:
@@ -124908,7 +124906,7 @@ class TaskAnalyzer(object):
         # check GPU #
         try:
             # check activation #
-            if not "gpu" in SysMgr.thresholdTarget:
+            if not "gpu" in SysMgr.thrTarget:
                 raise Exception()
             elif not self.reportData["gpu"]:
                 SysMgr.printErr("failed to check GPU usage because no support")
@@ -124944,7 +124942,7 @@ class TaskAnalyzer(object):
         # check memory #
         try:
             # check activation #
-            if not "mem" in SysMgr.thresholdTarget:
+            if not "mem" in SysMgr.thrTarget:
                 raise Exception()
 
             # check available memory #
@@ -124965,7 +124963,7 @@ class TaskAnalyzer(object):
 
         # check GPU memory #
         try:
-            if not "gpumem" in SysMgr.thresholdTarget:
+            if not "gpumem" in SysMgr.thrTarget:
                 raise Exception()
             elif not self.reportData["gpumem"]:
                 SysMgr.printErr(
@@ -124981,7 +124979,7 @@ class TaskAnalyzer(object):
 
         # check swap #
         try:
-            if not "swap" in SysMgr.thresholdTarget:
+            if not "swap" in SysMgr.thrTarget:
                 raise Exception()
             elif self.reportData["swap"]["total"] == 0:
                 SysMgr.printErr(
@@ -125000,7 +124998,7 @@ class TaskAnalyzer(object):
 
         # check iowait #
         try:
-            if not "block" in SysMgr.thresholdTarget:
+            if not "block" in SysMgr.thrTarget:
                 raise Exception()
 
             self.checkThreshold("block", "ioWait", "IO", "big")
@@ -125012,7 +125010,7 @@ class TaskAnalyzer(object):
         # check storage #
         try:
             # check activation #
-            if not "storage" in SysMgr.thresholdTarget:
+            if not "storage" in SysMgr.thrTarget:
                 raise Exception()
 
             items = (
@@ -125078,7 +125076,7 @@ class TaskAnalyzer(object):
         # check network #
         try:
             # check activation #
-            if not "net" in SysMgr.thresholdTarget:
+            if not "net" in SysMgr.thrTarget:
                 raise Exception()
 
             # total inbound #
@@ -125146,7 +125144,7 @@ class TaskAnalyzer(object):
 
         # check loadavg #
         try:
-            if not "load" in SysMgr.thresholdTarget:
+            if not "load" in SysMgr.thrTarget:
                 raise Exception()
 
             intval = _getIntval("load")
@@ -125168,8 +125166,53 @@ class TaskAnalyzer(object):
         # check sched #
         try:
             # check activation #
-            if not "task" in SysMgr.thresholdTarget:
+            if not "task" in SysMgr.thrTarget:
                 raise Exception()
+
+            def _checkTaskStatus(stat, lev, val):
+                if type(val) is not dict:
+                    return
+
+                if not "apply" in val or val["apply"] != "true":
+                    return
+
+                # get task filter #
+                if lev == "TASK":
+                    levFilter = ["*"]
+                else:
+                    levFilter = [lev]
+
+                # get abnormal condition #
+                abnormalCond = (
+                    val["abnormalCond"]
+                    if (stat == "abnormal" and "abnormalCond" in val)
+                    else None
+                )
+
+                # get the number of tasks #
+                nrTask = 0
+                for attr in taskList:
+                    if abnormalCond:
+                        if not attr["status"] in abnormalCond:
+                            continue
+
+                    if UtilMgr.isValidStr(attr["comm"], levFilter):
+                        nrTask += 1
+
+                # get interval data #
+                ename = stat + "-" + lev
+                self.addSysInterval("task", ename, nrTask)
+                intval = _getIntval(ename)
+
+                self.checkThreshold(
+                    "task",
+                    stat,
+                    target,
+                    "big",
+                    nrTask,
+                    attr=lev,
+                    intval=intval,
+                )
 
             taskData = self.reportData["task"]
 
@@ -125187,14 +125230,29 @@ class TaskAnalyzer(object):
                     self.addSysInterval("task", stat, 0)
                     continue
 
+                # check SYSTEM level #
                 taskList = list(taskData[procStat].values())
                 nrTask = len(taskList)
-                target = "_".join([v["comm"] for v in taskList])
+                target = "I".join([v["comm"] for v in taskList])
+
+                # get interval data #
                 self.addSysInterval("task", stat, nrTask)
                 intval = _getIntval(stat)
+
                 self.checkThreshold(
-                    "task", stat, stat.upper(), "big", nrTask, intval=intval
+                    "task", stat, target, "big", nrTask, intval=intval
                 )
+
+                # check TASK level #
+                for lev, val in SysMgr.thrData["task"].items():
+                    if lev == "SYSTEM":
+                        continue
+
+                    if type(val) is list:
+                        for v in val:
+                            _checkTaskStatus(stat, lev, v)
+                    else:
+                        _checkTaskStatus(stat, lev, val)
         except SystemExit:
             sys.exit(0)
         except:
@@ -125202,7 +125260,7 @@ class TaskAnalyzer(object):
 
         # check fd #
         try:
-            if not "fd" in SysMgr.thresholdTarget:
+            if not "fd" in SysMgr.thrTarget:
                 raise Exception()
 
             self.checkThreshold("fd", "curFd", "FD", "big")
@@ -125213,7 +125271,7 @@ class TaskAnalyzer(object):
 
         # check socket #
         try:
-            if not "sock" in SysMgr.thresholdTarget:
+            if not "sock" in SysMgr.thrTarget:
                 raise Exception()
 
             items = ["nrUDPSock", "nrTCPSock", "nrTCPConn", "nrUDSSock"]
@@ -125227,7 +125285,7 @@ class TaskAnalyzer(object):
 
         # check PSI #
         try:
-            if not "psi" in SysMgr.thresholdTarget:
+            if not "psi" in SysMgr.thrTarget:
                 raise Exception()
             elif not SysMgr.psiData:
                 SysMgr.printErr(
@@ -125249,8 +125307,19 @@ class TaskAnalyzer(object):
                         except:
                             continue
 
+                        # get interval data #
+                        iname = res + "_" + name
+                        self.addSysInterval("psi", iname, target)
+                        intval = _getIntval(iname)
+
                         self.checkThreshold(
-                            "psi", name, "psi", "big", target=target, attr=res
+                            "psi",
+                            name,
+                            "psi",
+                            "big",
+                            target=target,
+                            attr=res,
+                            intval=intval,
                         )
         except SystemExit:
             sys.exit(0)
@@ -125259,7 +125328,7 @@ class TaskAnalyzer(object):
 
         # check cgroup #
         try:
-            if not "cgroup" in SysMgr.thresholdTarget:
+            if not "cgroup" in SysMgr.thrTarget:
                 raise Exception()
             elif not self.reportData["cgroup"]:
                 SysMgr.printErr(
@@ -125383,12 +125452,26 @@ class TaskAnalyzer(object):
 
             # check items in intervals #
             intval = intval[-comval["interval"] :]
-            average = sum(intval) / len(intval)
+
+            # get result value #
+            if "type" in comval:
+                dtype = comval["type"]
+                if dtype == "avg":
+                    result = sum(intval) / len(intval)
+                elif dtype == "min":
+                    result = min(intval)
+                elif dtype == "max":
+                    result = max(intval)
+                else:
+                    result = sum(intval) / len(intval)
+            else:
+                result = sum(intval) / len(intval)
+
             threshold = UtilMgr.convUnit2Size(thresholdVal)
-            if (comp == "big" and threshold <= average) or (
-                comp == "less" and threshold >= average
+            if (comp == "big" and threshold <= result) or (
+                comp == "less" and threshold >= result
             ):
-                value = average
+                value = result
         else:
             threshold = UtilMgr.convUnit2Size(thresholdVal)
             if (comp == "big" and threshold <= target) or (
@@ -125465,9 +125548,9 @@ class TaskAnalyzer(object):
 
         # handle goneshot flag #
         if goneshot:
-            if SysMgr.thresholdData:
-                SysMgr.prevThresholdData = SysMgr.thresholdData
-            SysMgr.thresholdData = {}
+            if SysMgr.thrData:
+                SysMgr.prevThrData = SysMgr.thrData
+            SysMgr.thrData = {}
             SysMgr.printWarn(
                 (
                     "disabled the threshold monitoring "
@@ -125504,11 +125587,11 @@ class TaskAnalyzer(object):
 
             # update threshold items #
             if refresh:
-                SysMgr.thresholdRefreshList.append([refresh, ename, comval])
-            elif not _checkResource(SysMgr.thresholdData):
-                if SysMgr.thresholdData:
-                    SysMgr.prevThresholdData = SysMgr.thresholdData
-                SysMgr.thresholdData = {}
+                SysMgr.thrRefreshList.append([refresh, ename, comval])
+            elif not _checkResource(SysMgr.thrData):
+                if SysMgr.thrData:
+                    SysMgr.prevThrData = SysMgr.thrData
+                SysMgr.thrData = {}
                 SysMgr.printWarn(
                     (
                         "disabled the threshold monitoring "
@@ -125528,7 +125611,7 @@ class TaskAnalyzer(object):
         # handle oneshot command #
         if goneshot:
             run = True
-        elif oneshot and ename in SysMgr.thresholdEventHistory:
+        elif oneshot and ename in SysMgr.thrEvtHist:
             run = False
         else:
             run = True
@@ -125536,7 +125619,7 @@ class TaskAnalyzer(object):
         # set value for event #
         self.reportData["event"][ename] = dict(comval)
         self.reportData["event"][ename]["run"] = run
-        SysMgr.thresholdEventHistory.setdefault(ename, None)
+        SysMgr.thrEvtHist.setdefault(ename, None)
 
         return ename
 
@@ -125648,11 +125731,11 @@ class TaskAnalyzer(object):
 
     def checkFileThreshold(self):
         # check threshold #
-        if not SysMgr.thresholdData:
+        if not SysMgr.thrData:
             return False
 
         # define shortcut #
-        td = SysMgr.thresholdData
+        td = SysMgr.thrData
 
         # check attribute #
         if not "file" in td:
@@ -125751,11 +125834,11 @@ class TaskAnalyzer(object):
     ):
 
         # check threshold #
-        if not SysMgr.thresholdData:
+        if not SysMgr.thrData:
             return False
 
         # define shortcut #
-        td = SysMgr.thresholdData
+        td = SysMgr.thrData
 
         # check attribute #
         if not resource in td or not UtilMgr.isValidStr(attr, td[resource]):
@@ -125898,14 +125981,14 @@ class TaskAnalyzer(object):
                 )
 
     def checkTaskThreshold(self):
-        if not SysMgr.thresholdData:
+        if not SysMgr.thrData:
             return
-        elif not SysMgr.taskThresholdEnable:
+        elif not SysMgr.taskThrEnable:
             return
 
         # init variables #
-        td = SysMgr.thresholdData
-        tt = SysMgr.thresholdTarget
+        td = SysMgr.thrData
+        tt = SysMgr.thrTarget
 
         # mapping table between thresholds and stats #
         maps = []
