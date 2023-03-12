@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230311"
+__revision__ = "230312"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -64324,7 +64324,7 @@ Copyright:
 
         SysMgr.infoBufferPrint("\n[Memory Map Info]\n%s" % twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^35} | {1:^32} | {2:<1}\n{3:1}".format(
+            "{0:^35} | {1:^32} | {2:<79} |\n{3:1}".format(
                 "ADDR", "SIZE", "NAME", twoLine
             )
         )
@@ -64340,7 +64340,7 @@ Copyright:
         for start, value in sorted(maps.items(), key=lambda e: long(e[0])):
             addr = "%16s - %16s" % (value["start"], value["end"])
             SysMgr.infoBufferPrint(
-                "{0:>35} | {1:>32} | {2:<1}".format(
+                "{0:>35} | {1:>32} | {2:<79} |".format(
                     addr, value["sizeUnit"], value["name"]
                 )
             )
@@ -65086,10 +65086,13 @@ Copyright:
             SysMgr.jsonData["general"]["cache"] = {}
             jsonData = SysMgr.jsonData["general"]["cache"]
 
+        lineLen = 143
         SysMgr.infoBufferPrint("\n[System CPU Cache Info]")
-        SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^20} {1:100}".format("Core", "Information"))
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
+        SysMgr.infoBufferPrint(
+            "{0:^20} {1:120} |".format("Core", "Information")
+        )
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         cnt = 0
         try:
@@ -65098,7 +65101,7 @@ Copyright:
             ):
                 try:
                     SysMgr.infoBufferPrint(
-                        "{0:^20} {1:<100}".format(core[3:], info.strip())
+                        "{0:^20} {1:<120} |".format(core[3:], info.strip())
                     )
                     cnt += 1
 
@@ -65110,9 +65113,11 @@ Copyright:
             pass
 
         if cnt == 0:
-            SysMgr.infoBufferPrint("{0:^16}".format("None"))
+            SysMgr.infoBufferPrint(
+                "{0:<135}|\n{1:1}".format("\tNone", oneLine[:lineLen])
+            )
 
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
     def printCpuInfo(self):
         if not self.cpuData:
@@ -65136,15 +65141,18 @@ Copyright:
             SysMgr.jsonData["general"]["cpu"] = {}
             jsonData = SysMgr.jsonData["general"]["cpu"]
 
+        lineLen = 103
         SysMgr.infoBufferPrint("\n[System CPU Info]")
-        SysMgr.infoBufferPrint(twoLine)
-        SysMgr.infoBufferPrint("{0:^20} {1:100}".format("Type", "Information"))
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
+        SysMgr.infoBufferPrint(
+            "{0:^20} {1:80} |".format("Type", "Information")
+        )
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
         try:
             physical = long(self.cpuInfo["physical id"]) + 1
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format("Physical", physical)
+                "{0:20} {1:<80} |".format("Physical", physical)
             )
 
             if SysMgr.jsonEnable:
@@ -65154,7 +65162,7 @@ Copyright:
 
         try:
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format(
+                "{0:20} {1:<80} |".format(
                     "CoresPerCPU", self.cpuInfo["cpu cores"]
                 )
             )
@@ -65167,7 +65175,7 @@ Copyright:
         try:
             logical = long(self.cpuInfo["processor"]) + 1
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format("Logical", logical)
+                "{0:20} {1:<80} |".format("Logical", logical)
             )
 
             if SysMgr.jsonEnable:
@@ -65177,7 +65185,7 @@ Copyright:
 
         try:
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format("Vendor", self.cpuInfo["vendor_id"])
+                "{0:20} {1:<80} |".format("Vendor", self.cpuInfo["vendor_id"])
             )
 
             if SysMgr.jsonEnable:
@@ -65187,7 +65195,7 @@ Copyright:
 
         try:
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format("Model", self.cpuInfo["model name"])
+                "{0:20} {1:<80} |".format("Model", self.cpuInfo["model name"])
             )
 
             if SysMgr.jsonEnable:
@@ -65197,7 +65205,7 @@ Copyright:
 
         try:
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format(
+                "{0:20} {1:<80} |".format(
                     "Cache(L2)", self.cpuInfo["cache size"]
                 )
             )
@@ -65209,7 +65217,7 @@ Copyright:
 
         try:
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format("Perf", self.cpuInfo["bogomips"])
+                "{0:20} {1:<80} |".format("Perf", self.cpuInfo["bogomips"])
             )
 
             if SysMgr.jsonEnable:
@@ -65219,7 +65227,7 @@ Copyright:
 
         try:
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format(
+                "{0:20} {1:<80} |".format(
                     "Address", self.cpuInfo["address sizes"]
                 )
             )
@@ -65236,7 +65244,7 @@ Copyright:
                     data = fd.readline().strip()
 
                 SysMgr.infoBufferPrint(
-                    "{0:20} {1:<100}".format(item.title(), data)
+                    "{0:20} {1:<80} |".format(item.title(), data)
                 )
 
                 if SysMgr.jsonEnable:
@@ -65244,7 +65252,7 @@ Copyright:
             except:
                 pass
 
-        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(twoLine[:lineLen])
 
     def updateDiskInfo(self, time, data):
         self.diskInfo[time] = {}
@@ -67125,15 +67133,15 @@ Copyright:
         SysMgr.infoBufferPrint("\n[System SHM Info]")
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(
-            "{0:^66} | {1:^24} | {2:^15} | {3:^36}   |".format(
+            "{0:^65} | {1:^24} | {2:^15} | {3:^36}    |".format(
                 "ID", "Segment", "Attr", "Time"
             )
         )
         SysMgr.infoBufferPrint(oneLine)
         SysMgr.infoBufferPrint(
             (
-                "{0:^26}   {1:^8}   {2:^26} | {3:>6}   {4:>6}   {5:>6} | "
-                "{6:>6}   {7:>6} | {8:>11}   {9:>11}   {10:>11}|".format(
+                "{0:^25}   {1:^8}   {2:^26} | {3:>6}   {4:>6}   {5:>6} | "
+                "{6:>6}   {7:>6} | {8:>11}   {9:>11}   {10:>11} |".format(
                     "OWNER",
                     "SHM",
                     "USER",
@@ -67212,10 +67220,10 @@ Copyright:
                     SysMgr.infoBufferPrint(oneLine)
 
                 totalStat = "[ TOTAL: %s ]" % ownerData[pid]["count"]
-                space = 66 - len(owner) - len(totalStat)
+                space = 65 - len(owner) - len(totalStat)
                 totalStr = "%s%s%s" % (owner, " " * space, totalStat)
                 SysMgr.infoBufferPrint(
-                    "{0:>40}   {1:>6}   {2:>6}   {3:>6}   {4:>57}|".format(
+                    "{0:>40}   {1:>6}   {2:>6}   {3:>6}   {4:>57} |".format(
                         totalStr,
                         convertSizeFunc(ownerData[pid]["size"], True),
                         convertSizeFunc(ownerData[pid]["rss"], True),
@@ -67271,8 +67279,8 @@ Copyright:
             try:
                 SysMgr.infoBufferPrint(
                     (
-                        "{0:>37}   {1:>26}   {2:>6}   {3:>6}   {4:>6}   "
-                        "{5:>6}   {6:>6}   {7:>11}   {8:>11}   {9:>11}|"
+                        "{0:>36}   {1:>26}   {2:>6}   {3:>6}   {4:>6}   "
+                        "{5:>6}   {6:>6}   {7:>11}   {8:>11}   {9:>11} |"
                     ).format(
                         shmids,
                         access,
@@ -67293,7 +67301,7 @@ Copyright:
 
         # check output count #
         if cnt == 0:
-            SysMgr.infoBufferPrint("\tNone")
+            SysMgr.infoBufferPrint("{0:<146}|".format("\tNone"))
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -67495,8 +67503,8 @@ Copyright:
 
                 SysMgr.infoBufferPrint(
                     (
-                        "{0:>16} {1:^21}   "
-                        "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                        "{0:>16} {1:^21} | "
+                        "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9} | "
                         "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                     ).format(
                         dev[-16:],
@@ -67532,8 +67540,8 @@ Copyright:
 
                 SysMgr.infoBufferPrint(
                     (
-                        "{0:>16} {1:^21}   "
-                        "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                        "{0:>16} {1:^21} | "
+                        "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9} | "
                         "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                     ).format(
                         " ",
@@ -67588,14 +67596,14 @@ Copyright:
                 pass
 
         if cnt == 1:
-            SysMgr.infoBufferPrint("\tNone")
+            SysMgr.infoBufferPrint("{0:<128}|".format("\tNone"))
         else:
             rdiff = totalStat["rdiff"]
             tdiff = totalStat["tdiff"]
             SysMgr.infoBufferPrint(
                 (
-                    "{12:1}\n{0:>16} {1:^21}   "
-                    "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                    "{12:1}\n{0:>16} {1:^21} | "
+                    "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9} | "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                 ).format(
                     "[ TOTAL ]",
@@ -67618,8 +67626,8 @@ Copyright:
             ttotal = totalStat["ttotal"]
             SysMgr.infoBufferPrint(
                 (
-                    "{0:>16} {1:^21}   "
-                    "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                    "{0:>16} {1:^21} | "
+                    "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9} | "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9} |"
                 ).format(
                     " ",
@@ -67757,7 +67765,7 @@ Copyright:
         SysMgr.infoBufferPrint(
             (
                 "{0:>16} {1:>8} {2:>8} {3:>8} {4:>10} "
-                "{5:>8} {6:>8} {7:>8} {8:>1}"
+                "{5:>8} {6:>8} {7:>8} {8:<70} |"
             ).format(
                 "DEV",
                 "BlkSize",
@@ -67778,7 +67786,7 @@ Copyright:
                 SysMgr.infoBufferPrint(
                     (
                         "{0:>16} {1:>8} {2:>8} {3:>8} {4:>10} "
-                        "{5:>8} {6:>8} {7:>8} {8:>1}"
+                        "{5:>8} {6:>8} {7:>8} {8:<70} |"
                     ).format(
                         dev,
                         data["size"],
@@ -67799,7 +67807,9 @@ Copyright:
         if self.blockData:
             SysMgr.infoBufferPrint(oneLine)
         else:
-            SysMgr.infoBufferPrint("\tNone\n%s" % oneLine)
+            SysMgr.infoBufferPrint(
+                "{0:<146}|\n{1:1}".format("\tNone", oneLine)
+            )
 
     def printStorageInfo(self):
         # add JSON stats #
