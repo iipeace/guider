@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230312"
+__revision__ = "230313"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23741,6 +23741,13 @@ class LogMgr(object):
 
         # get times for tail and until option #
         since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], time.time())
+        current = time.time()
+
+        # apply relative time #
+        if since < 0:
+            since += current
+        if until < 0:
+            until += current
 
         # initialize variables #
         data = c_void_p(0)
@@ -23797,9 +23804,9 @@ class LogMgr(object):
                     )
                     if ret == 0:
                         realtime = usec.value / 1000000
-                        if realtime < since:
+                        if since and realtime < since:
                             continue
-                        elif realtime >= until:
+                        elif until and realtime >= until:
                             SysMgr.printWarn(
                                 "all previous journal logs are printed", True
                             )
@@ -23996,15 +24003,14 @@ class LogMgr(object):
     def printKmsg(console=False):
         # open kmsg device node #
         try:
-            if not SysMgr.kmsgFd:
-                SysMgr.kmsgFd = open(SysMgr.kmsgPath, "r")
-                if SysMgr.findOption("Q"):
-                    SysMgr.setBlock(SysMgr.kmsgFd, False)
+            SysMgr.kmsgFd = open(SysMgr.kmsgPath, "r")
+            if SysMgr.findOption("Q"):
+                SysMgr.setBlock(SysMgr.kmsgFd, False)
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printOpenErr(SysMgr.kmsgPath)
-            sys.exit(-1)
+            # get ctypes object #
+            SysMgr.importPkgItems("ctypes")
 
         SysMgr.printInfo("start printing kernel log... [ STOP(Ctrl+c) ]")
 
@@ -24018,20 +24024,16 @@ class LogMgr(object):
         tail, until = SysMgr.getTimeValues(
             ["TAIL", "UNTIL"], SysMgr.getUptime()
         )
+        current = SysMgr.getUptime()
 
-        # check device node #
-        try:
-            SysMgr.kmsgFd.readline()
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.kmsgFd = None
+        # apply relative time #
+        if tail < 0:
+            tail += current
+        if until < 0:
+            until += current
 
         # syslog #
         if not SysMgr.kmsgFd:
-            # get ctypes object #
-            SysMgr.importPkgItems("ctypes")
-
             # get kernel ring-buffer size #
             size = SysMgr.syscall(
                 "syslog", LogMgr.SYSLOG_ACTION_SIZE_BUFFER, 0, 0
@@ -24052,17 +24054,18 @@ class LogMgr(object):
                     # convert log level #
                     if line.startswith("<"):
                         try:
-                            level, line = line.split(">", 1)
+                            level, line = line[1:].split(">", 1)
 
-                            nrLevel = long(level[1:])
+                            # get level number #
+                            nrLevel = long(level)
                             try:
                                 level = ConfigMgr.LOG_LEVEL[nrLevel]
                             except:
                                 level = nrLevel
 
-                            ts, line = line.split(" ", 1)
+                            ts, line = line.split("] ", 1)
 
-                            line = "%s <%s> %s" % (ts, level, line)
+                            line = "%s] <%s> %s" % (ts, level, line)
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -24074,12 +24077,11 @@ class LogMgr(object):
                             if not line.startswith("["):
                                 raise Exception("no time")
 
-                            item = line.split("]", 1)[0]
-                            ltime = float(item[1:])
+                            ltime = float(line[1:].split("]", 1)[0])
 
-                            if ltime < tail:
+                            if tail and ltime < tail:
                                 continue
-                            elif ltime >= until:
+                            elif until and ltime >= until:
                                 SysMgr.printWarn(
                                     "all previous kernel logs are printed",
                                     True,
@@ -24120,14 +24122,6 @@ class LogMgr(object):
 
             return
 
-        # change file position #
-        try:
-            SysMgr.kmsgFd.seek(0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            pass
-
         # kmsg node #
         while 1:
             jsonResult = {}
@@ -24161,9 +24155,9 @@ class LogMgr(object):
                 if tail or until:
                     try:
                         ltime = float(ltime)
-                        if ltime < tail:
+                        if tail and ltime < tail:
                             continue
-                        elif ltime >= until:
+                        elif until and ltime >= until:
                             SysMgr.printWarn(
                                 "all previous kernel logs are printed", True
                             )
@@ -24205,6 +24199,9 @@ class LogMgr(object):
                         name = UtilMgr.convColor(name, "SPECIAL")
                         ltime = UtilMgr.convColor(ltime, "GREEN")
                     log = "[%s] (%s) %s" % (ltime, level, log)
+            # skip special info #
+            elif tail or until:
+                continue
 
             # print message #
             if SysMgr.jsonEnable:
@@ -31950,6 +31947,10 @@ Examples:
     - {3:1} all {2:1} and execute specific commands when terminated
         # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
 
+    - {3:1} all {2:1} and execute specific commands when terminated and print also their output
+        # {0:1} {1:1} -a -q PRINTCMD:"DLT#{0:1} printdlt -q TAIL:-3 -Q -d L"
+        # {0:1} {1:1} -a -q PRINTCMD:"KERNEL#{0:1} printkmsg -q TAIL:-3 -Q -d L"
+
     - {3:1} all {2:1} and quit when specific {2:1} are terminated
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
 
@@ -33081,6 +33082,7 @@ Examples:
     - {2:1} generated since specific time in real-time
         # {0:1} {1:1} -q TAIL
         # {0:1} {1:1} -q TAIL:1235.123
+        # {0:1} {1:1} -q TAIL:-3.0
 
     - {2:1} generated until specific time in real-time
         # {0:1} {1:1} -q UNTIL
@@ -41862,6 +41864,25 @@ Copyright:
                 else:
                     TaskAnalyzer.printIntervalUsage()
 
+                # print output of last commands #
+                if "PRINTCMD" in SysMgr.environList:
+                    for cmd in SysMgr.environList["PRINTCMD"]:
+                        # get title #
+                        if "#" in cmd:
+                            title, cmd = cmd.split("#", 1)
+                        else:
+                            title = cmd
+
+                        # print output of the command #
+                        title = " " + title + " "
+                        stars = "*" * long(
+                            (long(SysMgr.lineLength) - len(title)) / 2
+                        )
+                        SysMgr.printPipe(
+                            "\n\n\n\n%s%s%s\n\n" % (stars, title, stars)
+                        )
+                        SysMgr.printPipe(SysMgr.executeCommandSync(cmd))
+
                 if os.path.exists(SysMgr.inputFile):
                     # get output size #
                     fsize = UtilMgr.getFileSizeStr(SysMgr.inputFile)
@@ -49607,7 +49628,7 @@ Copyright:
             return -1
 
     @staticmethod
-    def executeCommandSync(cmd, stdout=1, stderr=True):
+    def executeCommandSync(cmd, stdout=1, stderr=True, remoteRun=True):
         # create pipe #
         rd, wr = os.pipe()
 
@@ -49625,7 +49646,7 @@ Copyright:
 
             while 1:
                 ret = rdFd.readline().rstrip("\n")
-                if not ret:
+                if not ret and not SysMgr.isAlive(pid):
                     break
                 output.append(ret)
 
@@ -49641,6 +49662,10 @@ Copyright:
             # close stderr #
             if not stderr:
                 sys.stderr.close()
+
+            # set environment variables #
+            if remoteRun:
+                SysMgr.setRemoteEnv()
 
             # split command #
             cmd = UtilMgr.parseCommand(cmd)
@@ -72507,9 +72532,6 @@ class DltAnalyzer(object):
         until=0,
         fname=None,
     ):
-        # save and reset global filter #
-        filterGroup = SysMgr.filterGroup
-
         # get timestamp for the message creation #
         timestamp = msg.headerextra.tmsp / float(10000)
 
@@ -72523,6 +72545,9 @@ class DltAnalyzer(object):
         elif until and timestamp >= until:
             SysMgr.printWarn("all previous DLT logs are printed", True)
             sys.exit(0)
+
+        # save and reset global filter #
+        filterGroup = SysMgr.filterGroup
 
         # pick header info #
         ecuId = msg.storageheader.contents.ecu.decode()
@@ -73550,8 +73575,6 @@ class DltAnalyzer(object):
                 SysMgr.clearPrint()
                 SysMgr.printPipe(output, flush=True)
 
-            sys.exit(0)
-
         # check dlt-daemon #
         DltAnalyzer.pids = SysMgr.getProcPids("dlt-daemon")
         if not DltAnalyzer.pids and not SysMgr.remoteServObj:
@@ -73757,10 +73780,17 @@ class DltAnalyzer(object):
         if not since and not origShowAll:
             since = current
 
-        # convert times to DLT timestamp unit #
-        if since and since != current:
-            since += currentDiff
+        # convert since to DLT timestamp unit #
+        if since:
+            if since < 0:
+                since += current
+            if since != current:
+                since += currentDiff
+
+        # convert until to DLT timestamp unit #
         if until:
+            if until < 0:
+                until += current
             if until != current:
                 until += currentDiff
         elif quitFlag:
@@ -109214,6 +109244,9 @@ class TaskAnalyzer(object):
 
         pCnt = 0
         for idx, val in list(enumerate(TaskAnalyzer.procIntData)):
+            if not val:
+                continue
+
             if idx == 0:
                 before = "%.3f" % (float(val["time"]) - float(val["inter"]))
             elif "time" in TaskAnalyzer.procIntData[idx - 1]:
