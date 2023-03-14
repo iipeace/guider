@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230313"
+__revision__ = "230314"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6035,7 +6035,7 @@ class UtilMgr(object):
     def sort(l, val=None, reverse=False):
         convert = lambda text: float(text) if text.isdigit() else text
         alphanum = lambda key: [
-            convert(c) for c in re.split("([-+]?[0-9]*\.?[0-9]*)", key)
+            convert(c) for c in re.split("([-+]?[0-9]+\.?[0-9]*)", key)
         ]
 
         if type(l) is list:
@@ -31948,8 +31948,9 @@ Examples:
         # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
 
     - {3:1} all {2:1} and execute specific commands when terminated and print also their output
-        # {0:1} {1:1} -a -q PRINTCMD:"DLT#{0:1} printdlt -q TAIL:-3 -Q -d L"
-        # {0:1} {1:1} -a -q PRINTCMD:"KERNEL#{0:1} printkmsg -q TAIL:-3 -Q -d L"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -q TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -q TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"ls#ls -lha"
 
     - {3:1} all {2:1} and quit when specific {2:1} are terminated
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
@@ -33085,8 +33086,8 @@ Examples:
         # {0:1} {1:1} -q TAIL:-3.0
 
     - {2:1} generated until specific time in real-time
-        # {0:1} {1:1} -q UNTIL
-        # {0:1} {1:1} -q UNTIL:1235.123
+        # {0:1} {1:1} -q UNTIL -Q
+        # {0:1} {1:1} -q UNTIL:1235.123 -Q
 
     - {2:1} in JSON format
         # {0:1} {1:1} -J
@@ -41881,7 +41882,7 @@ Copyright:
                         SysMgr.printPipe(
                             "\n\n\n\n%s%s%s\n\n" % (stars, title, stars)
                         )
-                        SysMgr.printPipe(SysMgr.executeCommandSync(cmd))
+                        SysMgr.printPipe(SysMgr.executeCmdSync(cmd))
 
                 if os.path.exists(SysMgr.inputFile):
                     # get output size #
@@ -49467,6 +49468,7 @@ Copyright:
         copyOpt=True,
         initPkg=False,
         block=False,
+        remote=False,
     ):
         """
         - desc: launch a new Guider process as a child
@@ -49523,6 +49525,10 @@ Copyright:
             # disable pager, print output both to file and to stdout #
             if stream:
                 SysMgr.setStream()
+
+            # set environment variables #
+            if remote:
+                SysMgr.setRemoteEnv()
 
             # inherit options #
             disOptVal = SysMgr.getOption("d")
@@ -49628,7 +49634,7 @@ Copyright:
             return -1
 
     @staticmethod
-    def executeCommandSync(cmd, stdout=1, stderr=True, remoteRun=True):
+    def executeCmdSync(cmd, stdout=1, stderr=True, remote=True):
         # create pipe #
         rd, wr = os.pipe()
 
@@ -49636,12 +49642,18 @@ Copyright:
         SysMgr.setPipeHandler()
 
         # create a new process #
-        pid = SysMgr.createProcess()
+        rdFd = None
+        pid = SysMgr.createCmdProcess(
+            cmd if SysMgr.isGuiderCmd(cmd) else None, pipe=True, remote=remote
+        )
+        if type(pid) is tuple:
+            pid, rdFd = pid
 
         # parent #
         if pid > 0:
-            os.close(wr)
-            rdFd = os.fdopen(rd, "r")
+            if rdFd is None:
+                os.close(wr)
+                rdFd = os.fdopen(rd, "r")
             output = []
 
             while 1:
@@ -49664,7 +49676,7 @@ Copyright:
                 sys.stderr.close()
 
             # set environment variables #
-            if remoteRun:
+            if remote:
                 SysMgr.setRemoteEnv()
 
             # split command #
@@ -49765,7 +49777,7 @@ Copyright:
         os._exit(0)
 
     @staticmethod
-    def createCmdProcess(cmd, mute=False):
+    def isGuiderCmd(cmd):
         # check Guider command #
         if UtilMgr.isString(cmd) and cmd.startswith("GUIDER "):
             isGuider = True
@@ -49773,6 +49785,12 @@ Copyright:
             isGuider = True
         else:
             isGuider = False
+        return isGuider
+
+    @staticmethod
+    def createCmdProcess(cmd, mute=False, pipe=False, remote=False):
+        # check guider command #
+        isGuider = SysMgr.isGuiderCmd(cmd)
 
         # launch Guider #
         if isGuider:
@@ -49786,11 +49804,12 @@ Copyright:
             try:
                 ret = SysMgr.launchGuider(
                     cmdList,
-                    pipe=False,
+                    pipe=pipe,
                     stderr=True,
                     stream=False,
                     logo=False,
                     log=True,
+                    remote=remote,
                 )
             except SystemExit:
                 sys.exit(0)
