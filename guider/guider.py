@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230314"
+__revision__ = "230315"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31947,9 +31947,9 @@ Examples:
     - {3:1} all {2:1} and execute specific commands when terminated
         # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
 
-    - {3:1} all {2:1} and execute specific commands when terminated and print also their output
-        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -q TAIL:-3\, UNTIL -d L -Q"
-        # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -q TAIL:-3\, UNTIL -d L -Q"
+    - {3:1} all {2:1} and execute specific commands to save also their output when terminated
+        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -a -q TAIL:-3\, UNTIL -d L -Q"
         # {0:1} {1:1} -a -o -q PRINTCMD:"ls#ls -lha"
 
     - {3:1} all {2:1} and quit when specific {2:1} are terminated
@@ -34161,12 +34161,12 @@ Examples:
         # {0:1} {1:1}
         # {0:1} {1:1} -C /tmp/guider.conf
 
-    - {2:1} {3:1} and report also in JSON format
+    - {2:1} {3:1} and report in JSON format every interval
         # {0:1} {1:1} -j -Q -q TEXTREPORT
         # {0:1} {1:1} -j -o /tmp -q TEXTREPORT
         # {0:1} {1:1} -C /tmp/guider.conf -j -o /tmp -q TEXTREPORT
 
-    - {2:1} {3:1} and report also in JSON format with contents of specific files or directories
+    - {2:1} {3:1} and report in JSON format with contents of specific files or directories every interval
         # {0:1} {1:1} -j -Q -q TEXTREPORT, RECFILE:/tmp/setting1, RECFILE:/tmp/setting2
         # {0:1} {1:1} -j -Q -q RECFILE:/tmp/setting1, RECFILESIZE:1024
         # {0:1} {1:1} -j -Q -q RECFILE:/tmp/setting1, RECFILETAIL:1024
@@ -34197,22 +34197,26 @@ Examples:
     - {2:1} including normal tasks {3:1}
         # {0:1} {1:1} -j -q SAVEJSONSTAT
 
+    - {2:1} {3:1} and execute specific commands to save also their output when terminated
+        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -a -q TAIL:-3\, UNTIL -d L -Q"
+
     - {2:1} without threshold condition until CMD_RELOAD event is received
         # {0:1} {1:1} -q NOTHRESHOLD
 
     - {2:1} after updating original threshold data from specific files
         # {0:1} {1:1} -q UPDATETHRESHOLD:guider2.conf, UPDATETHRESHOLD:guider3.conf
 
-    - {2:1} {3:1} with the cpu limitation in % unit using cgroup
+    - {2:1} {3:1} after applying the cpu limitation in % unit using cgroup
         # {0:1} {1:1} -q LIMITCPU:20
         # {0:1} {1:1} -q LIMITCPU:20@"*yes*|a.out"
         # {0:1} {1:1} -q LIMITCPU:cfs_quota_us:20000+cfs_period_us:100000@"*yes*|a.out"
 
-    - {2:1} {3:1} with the memory limitation using cgroup
+    - {2:1} {3:1} after applying the memory limitation using cgroup
         # {0:1} {1:1} -q LIMITMEM:50M
         # {0:1} {1:1} -q LIMITMEM:50M@"*yes*|a.out"
 
-    - {2:1} {3:1} with the block I/O limitation using cgroup
+    - {2:1} {3:1} after applying the block I/O limitation using cgroup
         # {0:1} {1:1} -q LIMITREAD:50M
         # {0:1} {1:1} -q LIMITWRITE:50M
         # {0:1} {1:1} -q LIMITREAD:50M@"*yes*|a.out"
@@ -72604,7 +72608,7 @@ class DltAnalyzer(object):
         # printing #
         elif mode == "print":
             # get payload #
-            dltObj.dlt_message_payload(
+            ret = dltObj.dlt_message_payload(
                 byref(msg), buf, DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verb
             )
 
@@ -73594,6 +73598,9 @@ class DltAnalyzer(object):
                 SysMgr.clearPrint()
                 SysMgr.printPipe(output, flush=True)
 
+            # finish file mode #
+            return
+
         # check dlt-daemon #
         DltAnalyzer.pids = SysMgr.getProcPids("dlt-daemon")
         if not DltAnalyzer.pids and not SysMgr.remoteServObj:
@@ -73648,6 +73655,14 @@ class DltAnalyzer(object):
                 # set blocking #
                 connSock.setblocking(1)  # pylint: disable=no-member
                 connSock.settimeout(1)  # pylint: disable=no-member
+
+                # increase recv buffer #
+                try:
+                    connSock.setsockopt(SOL_SOCKET, SO_RCVBUF, 1 << 20)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
                 break
             except SystemExit:
@@ -73803,7 +73818,7 @@ class DltAnalyzer(object):
         if since:
             if since < 0:
                 since += current
-            if since != current:
+            if False and since != current:
                 since += currentDiff
 
         # convert until to DLT timestamp unit #
@@ -73829,7 +73844,7 @@ class DltAnalyzer(object):
                     )
                     sys.exit(-1)
 
-                # check DLT data to be read #
+                # read DLT data from daemon #
                 try:
                     ret = dlt_receiver_receive(byref(dltReceiver), verbVal)
                     if ret <= 0:
