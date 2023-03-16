@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230315"
+__revision__ = "230316"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -36220,18 +36220,25 @@ Examples:
                     # printdlt #
                     elif SysMgr.checkMode("printdlt"):
                         helpStr += """
-    - {2:1} from specific files
+    - {2:1} {3:1}
         # {0:1} {1:1} "./*.dlt"
         # {0:1} {1:1} -I "./*.dlt"
 
-    - {2:1} from specific files from current directory to all sub-directories
+    - {2:1} {3:1} from current directory to all sub-directories
         # {0:1} {1:1} "**/*.dlt"
 
-    - {2:1} summary from specific files
+    - {2:1} summary {3:1}
         # {0:1} {1:1} "./*.dlt" -q PRINTSUMMARY
 
-    - {2:1} with the file name
-        # {0:1} {1:1} "./*.dlt" -q PRINTFILENAME
+    - {2:1} with the file path
+        # {0:1} {1:1} "./*.dlt" -q PRINTPATH
+        # {0:1} {1:1} "./*.dlt" -q PRINTFILE
+
+    - {2:1} with count limit
+        # {0:1} {1:1} "./*.dlt" -q NRMSG:5
+
+    - {2:1} from the last trace file
+        # {0:1} {1:1} -q PRINTLASTFILE
 
     - {2:1} including all in the past
         # {0:1} {1:1} -a
@@ -36248,7 +36255,7 @@ Examples:
     - {2:1} using libdlt.so from specific path
         # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
 
-    - {2:1} sorted by line from specific files
+    - {2:1} sorted by line {3:1}
         # {0:1} {1:1} "./*.dlt" -S
         # {0:1} {1:1} -I "./*.dlt" -S
 
@@ -36258,7 +36265,10 @@ Examples:
     - {2:1} with connection retry to dlt-daemon every 1,000 ms
         # {0:1} {1:1} -q RETRYCONN:1000
                     """.format(
-                            cmd, mode, "Print DLT messages"
+                            cmd,
+                            mode,
+                            "Print DLT messages",
+                            "from specific files",
                         )
 
                     # printlogcat #
@@ -72256,6 +72266,7 @@ class DltAnalyzer(object):
     dbgObj = None
     version = None
     totalTime = 0
+    configData = {}
 
     @staticmethod
     def printSummary():
@@ -72350,6 +72361,37 @@ class DltAnalyzer(object):
             SysMgr.printPipe("\tNone")
 
         SysMgr.printPipe(oneLine)
+
+    @staticmethod
+    def loadDaemonConfig(path=None):
+        if not path:
+            path = "/etc/dlt.conf"
+
+        confDict = DltAnalyzer.loadConfig(path)
+        if confDict:
+            DltAnalyzer.configData = confDict
+
+    @staticmethod
+    def loadConfig(path):
+        data = SysMgr.readFile(path)
+        if not data:
+            return
+
+        confDict = {}
+        for l in data.split("\n"):
+            l = l.strip()
+            if not l or l.startswith("#"):
+                continue
+
+            try:
+                k, v = l.split("=", 1)
+                confDict[k.strip()] = v.strip()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("failed to parse DLT config", reason=True)
+
+        return confDict
 
     @staticmethod
     def printIntervalSummary(force=False):
@@ -72541,6 +72583,18 @@ class DltAnalyzer(object):
         return (
             msg.extendedheader.contents.msin & DLT_MSIN_MTIN
         ) >> DLT_MSIN_MTIN_SHIFT
+
+    @staticmethod
+    def getTraceFileList():
+        if not "OfflineTraceDirectory" in DltAnalyzer.configData:
+            return []
+
+        # make file expression #
+        traceDir = DltAnalyzer.configData["OfflineTraceDirectory"]
+        fileExp = os.path.join(traceDir, "*.dlt")
+
+        # return trace file list #
+        return UtilMgr.getFileList([fileExp], exceptDir=True)
 
     @staticmethod
     def handleMessage(
@@ -73469,6 +73523,77 @@ class DltAnalyzer(object):
                 "failed to set legacy data structures", reason=True
             )
 
+        # set flag and print mode #
+        quitFlag = False
+        if mode == "top":
+            # set handler for exit #
+            signal.signal(signal.SIGINT, SysMgr.exitHandler)
+            if SysMgr.outPath:
+                SysMgr.addExitFunc(DltAnalyzer.onAlarm, [0, 0])
+            SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
+
+            SysMgr.printInfo("start collecting DLT logs... [ STOP(Ctrl+c) ]")
+        elif mode == "print":
+            quitFlag = SysMgr.findOption("Q")
+
+            SysMgr.printInfo("start printing DLT logs... [ STOP(Ctrl+c) ]\n")
+
+        # get item for log filter #
+        if "WATCHLOG" in SysMgr.environList:
+            watchcond = SysMgr.environList["WATCHLOG"][0].split("+")
+        else:
+            watchcond = None
+
+        # save timestamp #
+        SysMgr.updateUptime()
+
+        # get times for tail and until option #
+        current = UtilMgr.getClockTime(dlt=True)
+        currentDiff = current - SysMgr.getUptime()
+        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], current)
+
+        # initialize dlt-daemon info #
+        origShowAll = SysMgr.showAll
+        SysMgr.showAll = True
+        SysMgr.cmdlineEnable = True
+        procInfo = DltAnalyzer.procInfo = TaskAnalyzer(onlyInstance=True)
+        for pid in DltAnalyzer.pids:
+            procInfo.saveProcData(None, pid)
+            procInfo.saveCmdlineData(None, pid)
+
+        # convert since to DLT timestamp unit #
+        if not since and mode != "print" and not origShowAll:
+            since = current
+        if since:
+            if since < 0:
+                since += current
+            if False and since != current:
+                since += currentDiff
+
+        # convert until to DLT timestamp unit #
+        if until:
+            if until < 0:
+                until += current
+            if until != current:
+                until += currentDiff
+        elif quitFlag:
+            until = current
+
+        # load daemon configs #
+        DltAnalyzer.loadDaemonConfig()
+
+        # get trace file list #
+        traceFileList = DltAnalyzer.getTraceFileList()
+        if "PRINTLASTFILE" in SysMgr.environList:
+            if traceFileList:
+                flist = [traceFileList[-1]]
+            else:
+                SysMgr.printErr("failed to find trace file")
+                sys.exit(-1)
+
+        # get message count limit #
+        msgLimit = UtilMgr.getEnvironNum("NRMSG", False, 0, False, True)
+
         # messages from file #
         if mode == "print" and flist:
             # set print mode #
@@ -73483,12 +73608,24 @@ class DltAnalyzer(object):
                 action = "printing"
 
             # set print filename flag #
-            if "PRINTFILENAME" in SysMgr.environList:
+            if "PRINTPATH" in SysMgr.environList:
                 printName = True
+                hasFullPath = True
+            elif "PRINTFILE" in SysMgr.environList:
+                printName = True
+                hasFullPath = False
             else:
                 printName = False
+                hasFullPath = False
 
             for path in flist:
+                if not os.path.isfile(path):
+                    SysMgr.printWarn(
+                        "failed to open '%s' because it is not file" % path,
+                        True,
+                    )
+                    continue
+
                 # get file size #
                 fsize = UtilMgr.getFileSizeStr(path)
 
@@ -73497,7 +73634,7 @@ class DltAnalyzer(object):
                 )
 
                 # convert path string to utf-8 format #
-                pathOrig = path
+                pathOrig = path if hasFullPath else os.path.basename(path)
                 path = UtilMgr.encodeStr(path)
 
                 # initialize file object #
@@ -73551,6 +73688,7 @@ class DltAnalyzer(object):
                     SysMgr.printPipe()
 
                 # read messages #
+                msgCnt = 0
                 for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
                     if ret < 0:
@@ -73579,8 +73717,16 @@ class DltAnalyzer(object):
                         printMode,
                         verb,
                         buffered,
+                        since=since,
+                        until=until,
                         fname=pathOrig if printName else None,
                     )
+
+                    # check message limit #
+                    if msgLimit:
+                        msgCnt += 1
+                        if msgCnt >= msgLimit:
+                            break
 
                 # free file object #
                 ret = dltObj.dlt_file_free(byref(dltFile), verb)
@@ -73590,6 +73736,7 @@ class DltAnalyzer(object):
             # print summary #
             if printMode == "top":
                 SysMgr.printPipe()
+                DltAnalyzer.dbgObj = None
                 DltAnalyzer.printIntervalSummary(force=True)
 
             # handle buffered logs #
@@ -73771,64 +73918,9 @@ class DltAnalyzer(object):
         # save timestamp #
         SysMgr.updateUptime()
 
-        # initialize dlt-daemon info #
-        origShowAll = SysMgr.showAll
-        SysMgr.showAll = True
-        SysMgr.cmdlineEnable = True
-        procInfo = DltAnalyzer.procInfo = TaskAnalyzer(onlyInstance=True)
-        for pid in DltAnalyzer.pids:
-            procInfo.saveProcData(None, pid)
-            procInfo.saveCmdlineData(None, pid)
-
         # set timer #
         signal.signal(signal.SIGALRM, DltAnalyzer.onAlarm)
         SysMgr.updateTimer()
-
-        # set flag and print mode #
-        quitFlag = False
-        if mode == "top":
-            # set handler for exit #
-            signal.signal(signal.SIGINT, SysMgr.exitHandler)
-            if SysMgr.outPath:
-                SysMgr.addExitFunc(DltAnalyzer.onAlarm, [0, 0])
-            SysMgr.addExitFunc(SysMgr.stopHandler, [0, 0])
-
-            SysMgr.printInfo("start collecting DLT logs... [ STOP(Ctrl+c) ]")
-        elif mode == "print":
-            quitFlag = SysMgr.findOption("Q")
-
-            SysMgr.printInfo("start printing DLT logs... [ STOP(Ctrl+c) ]\n")
-
-        # get item for log filter #
-        if "WATCHLOG" in SysMgr.environList:
-            watchcond = SysMgr.environList["WATCHLOG"][0].split("+")
-        else:
-            watchcond = None
-
-        # get times for tail and until option #
-        current = UtilMgr.getClockTime(dlt=True)
-        currentDiff = current - SysMgr.getUptime()
-        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], current)
-
-        # print from now in default #
-        if not since and not origShowAll:
-            since = current
-
-        # convert since to DLT timestamp unit #
-        if since:
-            if since < 0:
-                since += current
-            if False and since != current:
-                since += currentDiff
-
-        # convert until to DLT timestamp unit #
-        if until:
-            if until < 0:
-                until += current
-            if until != current:
-                until += currentDiff
-        elif quitFlag:
-            until = current
 
         # define status variables #
         tryCnt = 0
@@ -73945,6 +74037,12 @@ class DltAnalyzer(object):
                         since=since,
                         until=until,
                     )
+
+                    # check message limit #
+                    if msgLimit:
+                        msgCnt += 1
+                        if msgCnt >= msgLimit:
+                            return
             except SystemExit:
                 sys.exit(0)
             except:
