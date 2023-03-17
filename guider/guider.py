@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230316"
+__revision__ = "230317"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25289,6 +25289,20 @@ Commands:
             return None
 
     @staticmethod
+    def removeFiles(flist):
+        for f in flist:
+            try:
+                if not os.path.exists(f):
+                    continue
+
+                os.remove(f)
+                SysMgr.printInfo("removed '%s'" % f)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to remove '%s'" % f, True)
+
+    @staticmethod
     def getFd(fname, perm="rb", verb=True):
         if fname in SysMgr.fdCache and SysMgr.fdCache[fname]["perm"] == perm:
             return SysMgr.fdCache[fname]["fd"]
@@ -31111,7 +31125,9 @@ Commands:
                     node = item[0].split()[1]
                     values = item[1].split()
                     zone = values[1]
-                    blocks = list(map(long, values[2:]))
+                    blocks = list(
+                        map(lambda f: long(f.lstrip(">")), values[2:])
+                    )
 
                     blockInfo.setdefault(node, {})
                     blockInfo[node].setdefault(zone, {})
@@ -31125,7 +31141,9 @@ Commands:
                     zone = item[1].split()[1]
                     values = item[2].split()
                     ztype = values[1]
-                    pages = list(map(long, values[2:]))
+                    pages = list(
+                        map(lambda f: long(f.lstrip(">")), values[2:])
+                    )
 
                     freeInfo.setdefault(node, {})
                     freeInfo[node].setdefault(zone, {})
@@ -33657,8 +33675,9 @@ Examples:
         # {0:1} {1:1} -s . -e L
 
     - {2:1} including specific user function of all threads to guider.dat
+        # {0:1} {1:1} -s . -U "@SYM:func*:/tmp/a.out"
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
-        # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out:arg1=%ip arg2=%ax"
+        # {0:1} {1:1} -s . -U "evt1:func*:/tmp/a.out:arg1=%ip arg2=%ax"
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out:arg1=%ip:RET", "evt1:func2:/tmp/a.out:arg1=%ip:u64"
 
     - {2:1} including specific kernel function of all threads to guider.dat
@@ -36194,7 +36213,7 @@ Examples:
                     ):
                         helpStr += """
     - Print logs including specific words
-        # {0:1} {1:1} -g test
+        # {0:1} {1:1} -g "*test*"
                     """.format(
                             cmd, mode
                         )
@@ -36206,7 +36225,7 @@ Examples:
         # {0:1} {1:1} -a
 
     - {2:1} including specific words in real-time
-        # {0:1} {1:1} -g test
+        # {0:1} {1:1} -g "*test*"
 
     - {2:1} with all fields in real-time
         # {0:1} {1:1} -I
@@ -36226,6 +36245,9 @@ Examples:
 
     - {2:1} {3:1} from current directory to all sub-directories
         # {0:1} {1:1} "**/*.dlt"
+
+    - {2:1} {3:1} decompressed
+        # {0:1} {1:1} "./*.dlt" -q DECOMP
 
     - {2:1} summary {3:1}
         # {0:1} {1:1} "./*.dlt" -q PRINTSUMMARY
@@ -40811,7 +40833,8 @@ Copyright:
 
             # get items #
             name, func, path = cmdFormat[:3]
-            if len(cmdFormat) <= 4:
+
+            if len(cmdFormat) == 4:
                 args = cmdFormat[3]
             else:
                 args = ""
@@ -40822,9 +40845,11 @@ Copyright:
                 retval = ""
 
             # check redundant event name #
-            if kernelCmd and name in [
-                kcmd.split(":")[0] for kcmd in kernelCmd
-            ]:
+            if (
+                kernelCmd
+                and not name != "@SYM"
+                and name in [kcmd.split(":")[0] for kcmd in kernelCmd]
+            ):
                 SysMgr.printErr(
                     (
                         "redundant event name '%s' exists "
@@ -40878,18 +40903,35 @@ Copyright:
                     sys.exit(-1)
 
             for item in effectiveCmd:
-                if name == item[0]:
+                if name == item[0] and not name != "@SYM":
                     SysMgr.printErr("redundant user event name '%s'" % item[0])
                     sys.exit(-1)
 
             # convert address #
             if type(addr) is list:
-                try:
-                    addr = str(hex(addr[0][0])).rstrip("L")
-                except:
-                    addr = str(addr[0][1])
+                symList = []
+                for one in addr:
+                    try:
+                        target = str(hex(one[0])).rstrip("L")
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        target = str(one[1])
 
-            effectiveCmd.append([name, addr, path, args, retval])
+                    # convert name #
+                    if name == "@SYM":
+                        realname = one[1] + "_USER"
+                    else:
+                        realname = name
+
+                    symList.append(one[1])
+                    effectiveCmd.append([realname, target, path, args, retval])
+
+                SysMgr.printInfo(
+                    "found multiple symbols [ %s ]" % ", ".join(symList)
+                )
+            else:
+                effectiveCmd.append([name, addr, path, args, retval])
 
         # print uprobe event list #
         SysMgr.printInfo(
@@ -46372,6 +46414,7 @@ Copyright:
 
     @staticmethod
     def makeKerSymTable(symbol):
+        # disable restrict #
         try:
             restPath = "%s/sys/kernel/kptr_restrict" % SysMgr.procPath
             with open(restPath, "w+") as fd:
@@ -46412,7 +46455,7 @@ Copyright:
         return ret
 
     @staticmethod
-    def getKerAddr(symbol):
+    def getAddrFromKernel(symbol):
         try:
             return SysMgr.kerSymTable[symbol]
         except:
@@ -60805,17 +60848,18 @@ Copyright:
             )
 
     @staticmethod
-    def doDecompress():
+    def doDecompress(args=[]):
         SysMgr.printFd = None
         SysMgr.setStream()
         SysMgr.setDefaultSignal()
 
         # check input #
-        if SysMgr.hasMainArg():
+        if not args:
+            if not SysMgr.hasMainArg():
+                SysMgr.printErr("no path for decompression")
+                sys.exit(-1)
+
             args = SysMgr.getMainArgs()
-        else:
-            SysMgr.printErr("no path for decompression")
-            sys.exit(-1)
 
         # get file list #
         infileList = UtilMgr.getFileList(args, exceptDir=True)
@@ -60832,6 +60876,8 @@ Copyright:
             compType = "gzip"
             compressor = SysMgr.getPkg("gzip")
             extent = ".gz"
+
+        retList = []
 
         for infile in infileList:
             # check file #
@@ -60918,6 +60964,10 @@ Copyright:
                 % (infile, infileSizeStr, outfile, outfileSizeStr),
                 prefix=False,
             )
+
+            retList.append(outfile)
+
+        return retList
 
     @staticmethod
     def doPrintSig(target=None):
@@ -63726,7 +63776,7 @@ Copyright:
 
             # CPU events #
             if SysMgr.cpuEnable:
-                addr = SysMgr.getKerAddr("tick_sched_timer")
+                addr = SysMgr.getAddrFromKernel("tick_sched_timer")
                 if addr:
                     SysMgr.writeTraceCmd(
                         "timer/hrtimer_start/filter",
@@ -73619,12 +73669,20 @@ class DltAnalyzer(object):
                 hasFullPath = False
 
             for path in flist:
+                # check file type #
                 if not os.path.isfile(path):
                     SysMgr.printWarn(
                         "failed to open '%s' because it is not file" % path,
                         True,
                     )
                     continue
+
+                # decompress file #
+                removeList = []
+                if path.endswith(".gz") and "DECOMP" in SysMgr.environList:
+                    removeList = SysMgr.doDecompress(args=[path])
+                    if removeList:
+                        path = removeList[0]
 
                 # get file size #
                 fsize = UtilMgr.getFileSizeStr(path)
@@ -73649,16 +73707,26 @@ class DltAnalyzer(object):
                 ret = dltObj.dlt_file_open(byref(dltFile), path, verb)
                 if ret != 0:
                     SysMgr.printErr("failed to open %s" % pathOrig)
-                    return
+                    SysMgr.removeFiles(removeList)
+                    continue
                 elif dltFile.file_length == 0:
                     SysMgr.printErr(
                         "failed to read %s because size is 0" % pathOrig
                     )
-                    return
+                    SysMgr.removeFiles(removeList)
+                    continue
 
                 # read the file #
+                msgCnt = 0
                 while dltFile.file_position < dltFile.file_length:
                     ret = dltObj.dlt_file_read(byref(dltFile), verb)
+
+                    # check message limit #
+                    if msgLimit:
+                        msgCnt += 1
+                        if msgCnt >= msgLimit:
+                            break
+
                     # storage header corrupted #
                     if ret < 0:
                         nextHeaderPos = _findNextHeader(
@@ -73688,7 +73756,6 @@ class DltAnalyzer(object):
                     SysMgr.printPipe()
 
                 # read messages #
-                msgCnt = 0
                 for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
                     if ret < 0:
@@ -73722,11 +73789,8 @@ class DltAnalyzer(object):
                         fname=pathOrig if printName else None,
                     )
 
-                    # check message limit #
-                    if msgLimit:
-                        msgCnt += 1
-                        if msgCnt >= msgLimit:
-                            break
+                    # remove decompressed file #
+                    SysMgr.removeFiles(removeList)
 
                 # free file object #
                 ret = dltObj.dlt_file_free(byref(dltFile), verb)
@@ -107428,7 +107492,7 @@ class TaskAnalyzer(object):
             ):
 
                 for key, value in sorted(
-                    self.customInfo.items(),
+                    eventList.items(),
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]["count"],
                     reverse=True,
                 ):
@@ -115429,7 +115493,16 @@ class TaskAnalyzer(object):
 
             for name in eventList:
                 if not func.startswith(name):
-                    continue
+                    if name != "@SYM":
+                        continue
+                    elif func.endswith("_USER_enter"):
+                        name = UtilMgr.rstrip(func, "_USER_enter")
+                        func = func.replace("USER_", "")
+                    elif func.endswith("_USER_exit"):
+                        name = UtilMgr.rstrip(func, "_USER_exit")
+                        func = func.replace("USER_", "")
+                    else:
+                        continue
 
                 if not threadData[eventName]:
                     threadData[eventName] = {}
@@ -115463,10 +115536,25 @@ class TaskAnalyzer(object):
                                 ]
                             )
                         else:
-                            isSaved = False
-                            SysMgr.printWarn(
-                                "failed to recognize '%s' user event" % etc
-                            )
+                            m = re.match(r"^\s*\((?P<addr>.+)\)", etc)
+                            if m:
+                                d = m.groupdict()
+                                eventData.append(
+                                    [
+                                        "ENTER",
+                                        name,
+                                        comm,
+                                        thread,
+                                        allTime,
+                                        "",
+                                        "",
+                                    ]
+                                )
+                            else:
+                                isSaved = False
+                                SysMgr.printWarn(
+                                    "failed to recognize '%s' user event" % etc
+                                )
                     # kernel enter #
                     else:
                         m = re.match(
@@ -115576,10 +115664,28 @@ class TaskAnalyzer(object):
                                 ]
                             )
                         else:
-                            isSaved = False
-                            SysMgr.printWarn(
-                                "failed to recognize '%s' user event" % etc
+                            m = re.match(
+                                r"^\s*\((?P<addr>.+) <- (?P<caller>.+)\)",
+                                etc,
                             )
+                            if m:
+                                d = m.groupdict()
+                                eventData.append(
+                                    [
+                                        "EXIT",
+                                        name,
+                                        comm,
+                                        thread,
+                                        allTime,
+                                        d["caller"],
+                                        "",
+                                    ]
+                                )
+                            else:
+                                isSaved = False
+                                SysMgr.printWarn(
+                                    "failed to recognize '%s' user event" % etc
+                                )
 
                     # kernel exit #
                     else:
