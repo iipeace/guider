@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230317"
+__revision__ = "230318"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -107492,10 +107492,12 @@ class TaskAnalyzer(object):
             ):
 
                 for key, value in sorted(
-                    eventList.items(),
+                    self.threadData.items(),
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]["count"],
                     reverse=True,
                 ):
+                    if not value[event] or not idx in value[event]:
+                        continue
                     timeLine = ""
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
@@ -107555,9 +107557,13 @@ class TaskAnalyzer(object):
                     SysMgr.addPrint(
                         "%16s(%7s/%7s): "
                         % (
-                            self.threadData[key]["comm"],
+                            self.threadData[key]["comm"]
+                            if key in self.threadData
+                            else "?",
                             key,
-                            self.threadData[key]["tgid"],
+                            self.threadData[key]["tgid"]
+                            if key in self.threadData
+                            else "?",
                         )
                         + timeLine
                         + "\n"
@@ -111936,7 +111942,7 @@ class TaskAnalyzer(object):
                 # make total custom event list #
                 if SysMgr.customEventList:
                     self.intData[index]["toTal"]["customEvent"] = {}
-                    for evt in SysMgr.customEventList:
+                    for evt in self.customEventInfo:
                         self.intData[index]["toTal"]["customEvent"][
                             evt
                         ] = dict(self.init_eventData)
@@ -111944,7 +111950,7 @@ class TaskAnalyzer(object):
                 # make user event list #
                 if SysMgr.userEventList:
                     self.intData[index]["toTal"]["userEvent"] = {}
-                    for evt in SysMgr.userEventList:
+                    for evt in self.userEventInfo:
                         self.intData[index]["toTal"]["userEvent"][evt] = dict(
                             self.init_eventData
                         )
@@ -111952,7 +111958,7 @@ class TaskAnalyzer(object):
                 # make kernel event list #
                 if SysMgr.kernelEventList:
                     self.intData[index]["toTal"]["kernelEvent"] = {}
-                    for evt in SysMgr.kernelEventList:
+                    for evt in self.kernelEventInfo:
                         self.intData[index]["toTal"]["kernelEvent"][
                             evt
                         ] = dict(self.init_eventData)
@@ -112017,7 +112023,7 @@ class TaskAnalyzer(object):
             if SysMgr.customEventList:
                 curIntval["customEvent"] = {}
                 curIntval["totalCustomEvent"] = {}
-                for evt in SysMgr.customEventList:
+                for evt in self.customEventInfo:
                     curIntval["customEvent"][evt] = dict(self.init_eventData)
                     curIntval["totalCustomEvent"][evt] = dict(
                         self.init_eventData
@@ -112035,7 +112041,7 @@ class TaskAnalyzer(object):
             if SysMgr.userEventList:
                 curIntval["userEvent"] = {}
                 curIntval["totalUserEvent"] = {}
-                for evt in SysMgr.userEventList:
+                for evt in self.userEventInfo:
                     curIntval["userEvent"][evt] = dict(self.init_eventData)
                     curIntval["totalUserEvent"][evt] = dict(
                         self.init_eventData
@@ -112057,7 +112063,7 @@ class TaskAnalyzer(object):
             if SysMgr.kernelEventList:
                 curIntval["kernelEvent"] = {}
                 curIntval["totalKernelEvent"] = {}
-                for evt in SysMgr.kernelEventList:
+                for evt in self.kernelEventInfo:
                     curIntval["kernelEvent"][evt] = dict(self.init_eventData)
                     curIntval["totalKernelEvent"][evt] = dict(
                         self.init_eventData
