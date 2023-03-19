@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230318"
+__revision__ = "230319"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33524,55 +33524,55 @@ Description:
                     helpStr += """
 Options:
   [collect]
-    -e  <CHARACTER>             enable options
+    -e  <CHARACTER>                      enable options
           [ b:block | B:binder | c:cgroup | d:disk
             e:encode | f:fs | g:graph | i:irq | I:i2c
             k:kvm | L:lock | m:mem | n:net | o:io_uring
             p:pipe | r:reset | P:power | w:workqueue ]
-    -d  <CHARACTER>             disable options
+    -d  <CHARACTER>                      disable options
           [ a:all | c:cpu | C:compress | e:encode
             g:general ]
-    -s  <DIR|FILE>              save trace data
-    -f                          force execution
-    -u                          run in the background
-    -W  <SEC>                   wait for input
-    -b  <SIZE:KB>               set buffer size
-    -D                          trace task dependency
-    -t  <SYSCALL>               trace syscall
-    -B  <DIR|FILE>              set command script path
-    -w  <TIME:FILE{:VALUE}>     set additional command
-    -U  <NAME:FUNC|ADDR:FILE>   set user event
-    -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
-    -R  <INTERVAL:TIME:TERM>    set repeat count
-    -L  <PATH>                  set log file
+    -s  <DIR|FILE>                       save trace data
+    -f                                   force execution
+    -u                                   run in the background
+    -W  <SEC>                            wait for input
+    -b  <SIZE:KB>                        set buffer size
+    -D                                   trace task dependency
+    -t  <SYSCALL>                        trace syscall
+    -B  <DIR|FILE>                       set command script path
+    -w  <TIME:FILE{:VALUE}>              set additional command
+    -U  <NAME:FUNC|ADDR:FILE|COMM|PID>   set user event
+    -K  <NAME:FUNC|ADDR:ARGS>            set kernel event
+    -R  <INTERVAL:TIME:TERM>             set repeat count
+    -L  <PATH>                           set log file
 
   [report]
-    -a                          show all stats and events
-    -o  <DIR|FILE>              set output path
-    -S  <CHARACTER>             sort by key
+    -a                                   show all stats and events
+    -o  <DIR|FILE>                       set output path
+    -S  <CHARACTER>                      sort by key
           [ c:cpu / m:memory / p:pid / b:block
             w:wfc / n:new / r:runtime / f:file ]
-    -P                          group threads in a same process
-    -p  <TID>                   show preemption info
-    -O  <CORE>                  set core filter
-    -L  <RES:PER>               set graph layout (TOTAL PER: 6)
-    -m  <ROWS:COLS:SYSTEM>      set terminal size
-    -i  <SEC>                   set interval
-    -Q                          print all rows in a stream
-    -q  <NAME{:VALUE}>          set environment variables
+    -P                                   group threads in a same process
+    -p  <TID>                            show preemption info
+    -O  <CORE>                           set core filter
+    -L  <RES:PER>                        set graph layout (TOTAL PER: 6)
+    -m  <ROWS:COLS:SYSTEM>               set terminal size
+    -i  <SEC>                            set interval
+    -Q                                   print all rows in a stream
+    -q  <NAME{:VALUE}>                   set environment variables
 
   [common]
-    -g  <COMM|TID{:FILE}>       set task filter
-    -C  <PATH>                  set config path
-    -A  <ARCH>                  set CPU type
-    -c  <EVENT:COND>            set custom event
-    -E  <DIR>                   set cache dir path
-    -k  <COMM|TID:SIG{:CONT}>   set signal
-    -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
-    -Y  <VALUES>                set sched
+    -g  <COMM|TID{:FILE}>                set task filter
+    -C  <PATH>                           set config path
+    -A  <ARCH>                           set CPU type
+    -c  <EVENT:COND>                     set custom event
+    -E  <DIR>                            set cache dir path
+    -k  <COMM|TID:SIG{:CONT}>            set signal
+    -z  <COMM|TID:MASK{:CONT}>           set CPU affinity
+    -Y  <VALUES>                         set sched
           [ POLICY:PRIO|TIME{:TID|COMM:CONT}
             CLASS:{{WHICH:}}PRIO:TID|COMM ]
-    -v                          verbose
+    -v                                   verbose
                     """
 
                     helpStr += """
@@ -33676,11 +33676,13 @@ Examples:
 
     - {2:1} including specific user function of all threads to guider.dat
         # {0:1} {1:1} -s . -U "@SYM:func*:/tmp/a.out"
+        # {0:1} {1:1} -s . -U "@SYM:func*:a.*"
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
         # {0:1} {1:1} -s . -U "evt1:func*:/tmp/a.out:arg1=%ip arg2=%ax"
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out:arg1=%ip:RET", "evt1:func2:/tmp/a.out:arg1=%ip:u64"
 
     - {2:1} including specific kernel function of all threads to guider.dat
+        # {0:1} {1:1} -s . -d c -K "evt1:func*"
         # {0:1} {1:1} -s . -d c -K "evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16"
 
     - {2:1} including specific kernel function with args of all threads on x86 to guider.dat
@@ -40659,6 +40661,46 @@ Copyright:
 
             effectiveCmd.append(cmdFormat)
 
+        # convert kprobe commands #
+        hasTable = False
+        tempCmd = []
+        for cmd in list(effectiveCmd):
+            # convert name #
+            if cmd[0] == "@SYM":
+                realname = True
+            else:
+                realname = False
+
+            if "*" in cmd[1]:
+                # make kernel symbol table #
+                if not hasTable:
+                    SysMgr.makeKerSymTable()
+                    hasTable = True
+
+                symList = [
+                    sym
+                    for sym in SysMgr.kerSymTable
+                    if UtilMgr.isValidStr(sym, [cmd[1]])
+                ]
+
+                for sym in symList:
+                    newCmd = list(cmd)
+                    if realname:
+                        newCmd[0] = sym + "_KERNEL"
+                    newCmd[1] = sym
+                    tempCmd.append(newCmd)
+            else:
+                newCmd = list(cmd)
+                if realname:
+                    newCmd[0] = cmd[1] + "_KERNEL"
+                tempCmd.append(newCmd)
+
+        # check result #
+        effectiveCmd = tempCmd
+        if not effectiveCmd:
+            SysMgr.printErr("failed to find kernel symbol")
+            sys.exit(-1)
+
         # print kprobe event list #
         SysMgr.printInfo(
             "enabled kernel events [ %s ]"
@@ -40667,18 +40709,22 @@ Copyright:
 
         # apply kprobe events #
         for cmd in effectiveCmd:
+            name, sym = cmd[:2]
+
             # check redundant event name #
-            if SysMgr.userCmd and cmd[0] in [
-                ucmd.split(":")[0] for ucmd in SysMgr.userCmd
-            ]:
+            if (
+                SysMgr.userCmd
+                and not name != "@SYM"
+                and name in [ucmd.split(":")[0] for ucmd in SysMgr.userCmd]
+            ):
                 SysMgr.printErr(
                     "redundant name '%s' for user event and kernel event"
-                    % cmd[0]
+                    % name
                 )
                 sys.exit(-1)
 
             # make entry commands #
-            pCmd = "p:%s_enter %s" % (cmd[0], cmd[1])
+            pCmd = "p:%s_enter %s" % (name, sym)
             sCmd = ""
             try:
                 # parse argument option #
@@ -40737,7 +40783,7 @@ Copyright:
                     sys.exit(-1)
 
             # make return commands #
-            rCmd = "r:%s_exit %s" % (cmd[0], cmd[1])
+            rCmd = "r:%s_exit %s" % (name, sym)
             sCmd = ""
 
             try:
@@ -40847,7 +40893,7 @@ Copyright:
             # check redundant event name #
             if (
                 kernelCmd
-                and not name != "@SYM"
+                and name != "@SYM"
                 and name in [kcmd.split(":")[0] for kcmd in kernelCmd]
             ):
                 SysMgr.printErr(
@@ -40861,12 +40907,22 @@ Copyright:
 
             # check binary file #
             if not os.path.isfile(path):
-                SysMgr.printErr("failed to find '%s' binary" % path)
-                sys.exit(-1)
+                pids = SysMgr.getTgids(path)
+                if pids:
+                    addr = []
+                    for pid in pids:
+                        symList = SysMgr.getProcAddrBySymbol(pid, [func])
+                        for val in symList.values():
+                            addr.append([long(val[0], 16), val[3], val[1]])
+                else:
+                    SysMgr.printErr("failed to find '%s' binary" % path)
+                    sys.exit(-1)
 
             # symbol input #
             objdumpPath = None
-            if not func.startswith("0x"):
+            if addr:
+                pass
+            elif not func.startswith("0x"):
                 # symbol input with no objdump path #
                 if not "OBJDUMP" in SysMgr.environList:
                     # get address of symbol in binary #
@@ -40903,7 +40959,7 @@ Copyright:
                     sys.exit(-1)
 
             for item in effectiveCmd:
-                if name == item[0] and not name != "@SYM":
+                if name == item[0] and name != "@SYM":
                     SysMgr.printErr("redundant user event name '%s'" % item[0])
                     sys.exit(-1)
 
@@ -40912,11 +40968,17 @@ Copyright:
                 symList = []
                 for one in addr:
                     try:
+                        # set addr #
                         target = str(hex(one[0])).rstrip("L")
                     except SystemExit:
                         sys.exit(0)
                     except:
+                        # set symbol #
                         target = str(one[1])
+
+                    # set path #
+                    if len(one) >= 3:
+                        path = one[2]
 
                     # convert name #
                     if name == "@SYM":
@@ -46413,7 +46475,9 @@ Copyright:
                 sys.exit(-1)
 
     @staticmethod
-    def makeKerSymTable(symbol):
+    def makeKerSymTable(symbol=None):
+        SysMgr.printInfo("start reading kernel symbols...")
+
         # disable restrict #
         try:
             restPath = "%s/sys/kernel/kptr_restrict" % SysMgr.procPath
@@ -46443,9 +46507,12 @@ Copyright:
             if startPos > curPos:
                 continue
 
+            if not line:
+                break
+
             # Cache address and symbol #
-            line = line.split()
-            SysMgr.kerSymTable[line[2]] = line[0]
+            line = line.split(" ", 2)
+            SysMgr.kerSymTable[line[2].strip()] = line[0]
 
             if line[2] == symbol:
                 ret = line[0]
@@ -48101,6 +48168,23 @@ Copyright:
             SysMgr.printPipe("\nno process in the background\n", pager=False)
         else:
             SysMgr.printPipe(SysMgr.getBgProcString(), pager=False)
+
+    @staticmethod
+    def getTgids(
+        name, isThread=True, sibling=False, main=False, inc=False, cache=False
+    ):
+        # get tids #
+        pids = SysMgr.getTids(name, isThread, sibling, main, inc, cache)
+        if not pids:
+            return pids
+
+        # convert to tgids #
+        tgids = []
+        for tid in pids:
+            tgids.append(SysMgr.getTgid(tid))
+        pids = list(set(tgids))
+
+        return pids
 
     @staticmethod
     def getTids(
@@ -56727,11 +56811,7 @@ Copyright:
         # get pid list #
         pids = []
         for item in inputArg:
-            pids = SysMgr.getTids(item)
-            taskList = []
-            for tid in pids:
-                taskList.append(SysMgr.getTgid(tid))
-            pids += list(set(taskList))
+            pids += SysMgr.getTgids(item)
         pids = list(set(pids))
 
         # single file #
@@ -56868,11 +56948,9 @@ Copyright:
         maxSymLen = 5
 
         # get pid list #
-        pids = SysMgr.getTids(inputArg)
-        taskList = []
-        for tid in pids:
-            taskList.append(SysMgr.getTgid(tid))
-        pids = list(set(taskList))
+        pids = SysMgr.getTgids(inputArg)
+
+        # init process string #
         procInfo = ""
 
         # files #
@@ -107842,123 +107920,48 @@ class TaskAnalyzer(object):
                     ioUsageList.append(timeLineData)
                     ioLabelList.append("Block Write")
 
+        # define event printer #
+        def _printEventInterval(eventInfo, name):
+            newLine = True
+            for evt, value in sorted(
+                eventInfo.items(),
+                key=lambda e: e[1]["count"],
+                reverse=True,
+            ):
+
+                timeLine = ""
+                timeLineLen = titleLineLen
+                for i in xrange(lval):
+                    if timeLineLen + 4 > maxLineLen:
+                        timeLine += "\n" + (" " * (titleLineLen + 1))
+                        timeLineLen = titleLineLen + 4
+                    else:
+                        timeLineLen += 4
+
+                    try:
+                        intval = self.intData[i]["toTal"][name][evt]["count"]
+                        timeLine += "%3d " % intval
+                    except:
+                        timeLine += "%3d " % 0
+
+                if newLine:
+                    SysMgr.addPrint("\n")
+                    newLine = False
+
+                SysMgr.addPrint(
+                    "%16s(%7s/%7s): " % (evt[: SysMgr.commLen], "-", "-")
+                    + timeLine
+                    + "\n"
+                )
+
         # total custom event usage on timeline #
-        newLine = True
-        for evt, value in sorted(
-            self.customEventInfo.items(),
-            key=lambda e: e[1]["count"],
-            reverse=True,
-        ):
-
-            timeLine = ""
-            timeLineLen = titleLineLen
-            for icount in xrange(lval):
-                if timeLineLen + 4 > maxLineLen:
-                    timeLine += "\n" + (" " * (titleLineLen + 1))
-                    timeLineLen = titleLineLen + 4
-                else:
-                    timeLineLen += 4
-
-                try:
-                    timeLine += (
-                        "%3d "
-                        % self.intData[icount]["toTal"]["customEvent"][evt][
-                            "count"
-                        ]
-                    )
-                except:
-                    timeLine += "%3d " % 0
-
-            if newLine:
-                SysMgr.addPrint("\n")
-                newLine = False
-
-            SysMgr.addPrint(
-                "%16s(%7s/%7s): " % (evt[: SysMgr.commLen], "-", "-")
-                + timeLine
-                + "\n"
-            )
+        _printEventInterval(self.customEventInfo, "customEvent")
 
         # total user event usage on timeline #
-        newLine = True
-        for evt, value in sorted(
-            self.userEventInfo.items(),
-            key=lambda e: e[1]["count"],
-            reverse=True,
-        ):
-
-            timeLine = ""
-            timeLineLen = titleLineLen
-            for icount in xrange(lval):
-                if timeLineLen + 4 > maxLineLen:
-                    timeLine += "\n" + (" " * (titleLineLen + 1))
-                    timeLineLen = titleLineLen + 4
-                else:
-                    timeLineLen += 4
-
-                try:
-                    timeLine += (
-                        "%3d "
-                        % self.intData[icount]["toTal"]["userEvent"][evt][
-                            "count"
-                        ]
-                    )
-
-                    """
-                    timeLine += '%3d ' % \
-                        (self.intData[icount]['toTal']['userEvent'][evt]['usage'] / \
-                        intervalEnable * 100)
-                    """
-                except:
-                    timeLine += "%3d " % (0)
-
-            if newLine:
-                SysMgr.addPrint("\n")
-                newLine = False
-
-            SysMgr.addPrint(
-                "%16s(%7s/%7s): " % (evt[: SysMgr.commLen], "-", "-")
-                + timeLine
-                + "\n"
-            )
+        _printEventInterval(self.userEventInfo, "userEvent")
 
         # total kernel event usage on timeline #
-        newLine = True
-        for evt, value in sorted(
-            self.kernelEventInfo.items(),
-            key=lambda e: e[1]["count"],
-            reverse=True,
-        ):
-
-            timeLine = ""
-            timeLineLen = titleLineLen
-            for icount in xrange(lval):
-                if timeLineLen + 4 > maxLineLen:
-                    timeLine += "\n" + (" " * (titleLineLen + 1))
-                    timeLineLen = titleLineLen + 4
-                else:
-                    timeLineLen += 4
-
-                try:
-                    evtVal = self.intData[icount]["toTal"]["kernelEvent"][evt]
-                    timeLine += "%3d " % evtVal["count"]
-
-                    """
-                    timeLine += '%3d ' % \
-                        (evtVal['usage'] / intervalEnable * 100)
-                    """
-                except:
-                    timeLine += "%3d " % (0)
-
-            if newLine:
-                SysMgr.addPrint("\n")
-                newLine = False
-
-            SysMgr.addPrint(
-                "%16s(%7s/%7s): " % (evt[: SysMgr.commLen], "-", "-")
-                + timeLine
-                + "\n"
-            )
+        _printEventInterval(self.kernelEventInfo, "kernelEvent")
 
         # print buffered info #
         SysMgr.printPipe("%s# %s\n" % ("", "Total(%/MB/Cnt)"))
@@ -115498,16 +115501,30 @@ class TaskAnalyzer(object):
             eventList, eventName, eventInfo, eventData = item
 
             for name in eventList:
+                # convert real symbol #
                 if not func.startswith(name):
                     if name != "@SYM":
                         continue
-                    elif func.endswith("_USER_enter"):
-                        name = UtilMgr.rstrip(func, "_USER_enter")
-                        func = func.replace("USER_", "")
-                    elif func.endswith("_USER_exit"):
-                        name = UtilMgr.rstrip(func, "_USER_exit")
-                        func = func.replace("USER_", "")
-                    else:
+
+                    found = False
+                    for suffix, prefix, evt in (
+                        ("_USER_enter", "USER_", "userEvent"),
+                        ("_USER_exit", "USER_", "userEvent"),
+                        ("_KERNEL_enter", "KERNEL_", "kernelEvent"),
+                        ("_KERNEL_exit", "KERNEL_", "kernelEvent"),
+                    ):
+                        if evt != eventName:
+                            continue
+                        elif not func.endswith(suffix):
+                            continue
+
+                        name = UtilMgr.rstrip(func, suffix)
+                        func = func.replace(prefix, "")
+
+                        found = True
+                        break
+
+                    if not found:
                         continue
 
                 if not threadData[eventName]:
@@ -115697,7 +115714,8 @@ class TaskAnalyzer(object):
                     else:
                         m = re.match(
                             (
-                                r"^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- "
+                                r"^\s*\((?P<caller>.+)\+(?P<offset>.+)"
+                                r" <(?P<caddr>.+)> <- "
                                 r"(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)"
                             ),
                             etc,
