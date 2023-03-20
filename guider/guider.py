@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230319"
+__revision__ = "230320"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18742,7 +18742,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe("\n")
 
             # Print custom event file in user space #
             SysMgr.printPipe(
@@ -18777,7 +18777,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe("\tNone\n%s" % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe("\n")
 
         # Print custom event in kernel space #
         SysMgr.clearPrint()
@@ -18846,7 +18846,7 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe("\n")
 
         # Print custom call history #
         if not SysMgr.showAll or not self.customCallData:
@@ -33170,7 +33170,7 @@ Options:
     -Q                          print all rows in a stream
     -q  <NAME{:VALUE}>          set environment variables
     -A  <ARCH>                  set CPU type
-    -c  <EVENT:COND>            set custom event
+    -c  <EVENT:COND>            set trace event
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
     -k  <COMM|TID:SIG{:CONT}>   set signal
@@ -33207,8 +33207,8 @@ Examples:
     - {2:1} for all threads and save recording commands to specific script file
         # {0:1} {1:1} -B guider.cmd
 
-    - {2:1} including softirq_entry event for all threads to guider.dat
-        # {0:1} {1:1} -s . -c "softirq_entry:vec==1"
+    - {2:1} including specific trace points of all threads to guider.dat
+        # {0:1} {1:1} -s . -c "irq/softirq_entry:vec==1"
 
     - {2:1} including segmentation fault for all threads to guider.dat in real-time
         # {0:1} {1:1} -s . -d c -K "segflt:bad_area" -e p
@@ -33565,7 +33565,7 @@ Options:
     -g  <COMM|TID{:FILE}>                set task filter
     -C  <PATH>                           set config path
     -A  <ARCH>                           set CPU type
-    -c  <EVENT:COND>                     set custom event
+    -c  <EVENT:COND>                     set trace event
     -E  <DIR>                            set cache dir path
     -k  <COMM|TID:SIG{:CONT}>            set signal
     -z  <COMM|TID:MASK{:CONT}>           set CPU affinity
@@ -33674,24 +33674,29 @@ Examples:
     - {2:1} including lock of all threads to guider.dat
         # {0:1} {1:1} -s . -e L
 
-    - {2:1} including specific user function of all threads to guider.dat
+    - {2:1} including specific trace points of all threads to guider.dat
+        # {0:1} {1:1} -s . -c sched, cgroup
+        # {0:1} {1:1} -s . -c sched/sched_switch
+        # {0:1} {1:1} -s . -c "irq/softirq_entry:vec==1"
+
+    - {2:1} including specific user functions of all threads to guider.dat
         # {0:1} {1:1} -s . -U "@SYM:func*:/tmp/a.out"
         # {0:1} {1:1} -s . -U "@SYM:func*:a.*"
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
         # {0:1} {1:1} -s . -U "evt1:func*:/tmp/a.out:arg1=%ip arg2=%ax"
         # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out:arg1=%ip:RET", "evt1:func2:/tmp/a.out:arg1=%ip:u64"
 
-    - {2:1} including specific kernel function of all threads to guider.dat
+    - {2:1} including specific kernel functions of all threads to guider.dat
         # {0:1} {1:1} -s . -d c -K "evt1:func*"
         # {0:1} {1:1} -s . -d c -K "evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16"
 
-    - {2:1} including specific kernel function with args of all threads on x86 to guider.dat
+    - {2:1} including specific kernel functions with args of all threads on x86 to guider.dat
         # {0:1} {1:1} -s . -d c -K "open:do_sys_open:dfd=%ax filename=%bx;u64 flags=%cx;s32 mode=+4(\$stack):NONE"
 
-    - {2:1} including specific kernel function with register values of all threads on x86 to guider.dat
+    - {2:1} including specific kernel functions with register values of all threads on x86 to guider.dat
         # {0:1} {1:1} -s . -d c -K "strace32:func1:%bp/u32.%sp/s64, strace:0x1234:\$stack:NONE"
 
-    - {2:1} including specific kernel function with the return value of all threads to guider.dat
+    - {2:1} including specific kernel functions with the return value of all threads to guider.dat
         # {0:1} {1:1} -s . -d c -K "openfile:getname::*string, access:0x1234:NONE:*string"
         # {0:1} {1:1} -s . -d c -K "openfile:getname::**string, access:0x1234:NONE:*string"
 
@@ -41254,7 +41259,7 @@ Copyright:
 
         if effectiveCmd:
             SysMgr.printInfo(
-                "enabled custom events [ %s ]" % ", ".join(effectiveCmd)
+                "enabled trace events [ %s ]" % ", ".join(effectiveCmd)
             )
 
     @staticmethod
@@ -41297,7 +41302,7 @@ Copyright:
 
         if SysMgr.customCmd:
             SysMgr.printInfo(
-                "selected custom events [ %s ]" % ", ".join(SysMgr.customCmd)
+                "selected trace events [ %s ]" % ", ".join(SysMgr.customCmd)
             )
 
         # common options #
@@ -43287,6 +43292,8 @@ Copyright:
             if endIdx >= 0:
                 filterList = filterList[:endIdx]
             filterList = filterList.strip().split(",")
+            filterList = UtilMgr.cleanItem(filterList, union=False)
+            filterList = list(map(lambda c: c.split(":", 1)[0], filterList))
             for idx, item in enumerate(filterList):
                 tempItem = filterList[idx].split("/")
                 if len(tempItem) == 2:
@@ -43299,7 +43306,7 @@ Copyright:
                     filterList.pop(idx)
             if filterList:
                 SysMgr.printInfo(
-                    "profiled custom events [ %s ]" % ", ".join(filterList)
+                    "profiled trace events [ %s ]" % ", ".join(filterList)
                 )
                 if not SysMgr.customCmd:
                     SysMgr.customCmd = filterList
@@ -46423,7 +46430,7 @@ Copyright:
                 itemList = UtilMgr.splitString(value)
                 SysMgr.customCmd = UtilMgr.cleanItem(itemList)
                 if not SysMgr.customCmd:
-                    SysMgr.printErr("failed to recognize custom events")
+                    SysMgr.printErr("failed to recognize trace events")
                     sys.exit(-1)
 
             elif option == "d":
@@ -104314,6 +104321,8 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
     def printEventInfo(self):
+        convNum = UtilMgr.convNum
+
         # pick up event info from thread info #
         for key, value in sorted(self.threadData.items()):
             if value["customEvent"]:
@@ -104323,111 +104332,13 @@ class TaskAnalyzer(object):
             if value["kernelEvent"]:
                 self.kernelInfo[key] = value["kernelEvent"]
 
-        # print custom event info #
-        if self.customEventInfo:
+        # define event printer #
+        def _printEvent(items, info, data, name):
+            if not items:
+                return
+
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread CUSTOM Event Info]\n%s" % twoLine)
-            SysMgr.printPipe(
-                (
-                    "{0:^32} {1:>32}({2:>7}) {3:>10} " "{4:>10} {5:>10}\n{6:1}"
-                ).format(
-                    "Event",
-                    "COMM",
-                    "TID",
-                    "Count",
-                    "MaxPeriod",
-                    "MinPeriod",
-                    twoLine,
-                )
-            )
-
-            newLine = False
-            for idx, val in sorted(
-                self.customEventInfo.items(),
-                key=lambda e: e[1]["count"],
-                reverse=True,
-            ):
-                if newLine:
-                    SysMgr.printPipe()
-                else:
-                    newLine = True
-
-                SysMgr.printPipe(
-                    (
-                        "{0:<32} {1:>32}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}"
-                    ).format(
-                        idx,
-                        "TOTAL",
-                        "-",
-                        val["count"],
-                        val["maxPeriod"],
-                        val["minPeriod"],
-                    )
-                )
-
-                for key, value in sorted(
-                    self.customInfo.items(),
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]["count"],
-                    reverse=True,
-                ):
-
-                    try:
-                        value[idx]
-                        self.threadData[key]["comm"]
-                    except:
-                        continue
-
-                    SysMgr.printPipe(
-                        (
-                            "{0:<32} {1:>32}({2:>7}) {3:>10} {4:>10.6f} "
-                            "{5:>10.6f}"
-                        ).format(
-                            " ",
-                            self.threadData[key]["comm"],
-                            key,
-                            value[idx]["count"],
-                            value[idx]["maxPeriod"],
-                            value[idx]["minPeriod"],
-                        )
-                    )
-                SysMgr.printPipe(oneLine)
-
-        # print custom event history #
-        if SysMgr.showAll and len(self.customEventData) > 0:
-            SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread CUSTOM Event History]\n%s" % twoLine)
-            SysMgr.printPipe(
-                "{0:^32} {1:^10} {2:>16}({3:>7}) {4:<1}\n{5:1}".format(
-                    "EVENT", "TIME", "COMM", "TID", "ARG", twoLine
-                )
-            )
-
-            cnt = 0
-            for val in self.customEventData:
-                skipFlag = False
-                for fval in SysMgr.filterGroup:
-                    if SysMgr.isValidTid(val[2], fval) or fval in val[1]:
-                        skipFlag = False
-                        break
-                    skipFlag = True
-
-                if skipFlag:
-                    continue
-
-                cnt += 1
-                SysMgr.printPipe(
-                    "{0:<32} {1:>10.6f} {2:>16}({3:>7}) {4:<1}".format(
-                        val[0], val[3], val[1][:16], val[2], val[4]
-                    )
-                )
-            if cnt == 0:
-                SysMgr.printPipe("\tNone")
-            SysMgr.printPipe(oneLine)
-
-        # print user event info #
-        if self.userEventInfo:
-            SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread User Event Info]\n%s" % twoLine)
+            SysMgr.printPipe("\n[Thread %s Event Info]\n%s" % (name, twoLine))
             SysMgr.printPipe(
                 (
                     "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} "
@@ -104446,10 +104357,16 @@ class TaskAnalyzer(object):
                 )
             )
 
+            # set sort value #
+            if name == "Trace":
+                sortval = "count"
+            else:
+                sortval = "usage"
+
             newLine = False
             for idx, val in sorted(
-                self.userEventInfo.items(),
-                key=lambda e: e[1]["usage"],
+                items.items(),
+                key=lambda e: e[1][sortval],
                 reverse=True,
             ):
 
@@ -104465,18 +104382,18 @@ class TaskAnalyzer(object):
                         idx,
                         "TOTAL",
                         "-",
-                        val["usage"],
-                        val["count"],
-                        val["max"],
-                        val["min"],
+                        0 if name == "Trace" else val["usage"],
+                        convNum(val["count"]),
+                        val["max"] if "max" in val else 0,
+                        val["min"] if "min" in val else 0,
                         val["maxPeriod"],
                         val["minPeriod"],
                     )
                 )
 
                 for key, value in sorted(
-                    self.userInfo.items(),
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]["usage"],
+                    info.items(),
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx][sortval],
                     reverse=True,
                 ):
 
@@ -104494,74 +104411,99 @@ class TaskAnalyzer(object):
                             " ",
                             self.threadData[key]["comm"][:16],
                             key,
-                            value[idx]["usage"],
-                            value[idx]["count"],
-                            value[idx]["max"],
-                            value[idx]["min"],
+                            0 if name == "Trace" else value[idx]["usage"],
+                            convNum(value[idx]["count"]),
+                            value[idx]["max"] if "max" in value[idx] else 0,
+                            value[idx]["min"] if "max" in value[idx] else 0,
                             value[idx]["maxPeriod"],
                             value[idx]["minPeriod"],
                         )
                     )
-            SysMgr.printPipe(oneLine)
 
-        # print user event history #
-        if SysMgr.showAll and len(self.userEventData) > 0:
+                SysMgr.printPipe(oneLine)
+
+            # print user event history #
+            if not SysMgr.showAll or len(data) == 0:
+                return
+
+            # set title menu #
+            if name == "Trace":
+                caller = "ARGS"
+                etype = elapsed = args = " "
+            else:
+                etype = "TYPE"
+                caller = "CALLER"
+                elapsed = "ELAPSED"
+                args = "ARGS"
+
             SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread User Event History]\n%s" % twoLine)
+            SysMgr.printPipe(
+                "\n[Thread %s Event History]\n%s" % (name, twoLine)
+            )
             SysMgr.printPipe(
                 (
                     "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
                     "{5:^16} {6:>10} {7:1} \n{8:1}"
                 ).format(
                     "EVENT",
-                    "TYPE",
+                    etype,
                     "TIME",
                     "COMM",
                     "TID",
-                    "CALLER",
-                    "ELAPSED",
-                    "ARGS",
+                    caller,
+                    elapsed,
+                    args,
                     twoLine,
                 )
             )
 
             cnt = 0
             callTable = {}
-            for val in self.userEventData:
+            for val in data:
                 elapsed = "-"
+
+                if name == "User":
+                    etype, ename, ecomm, etid, etime, _, eargs = val[:8]
+                elif name == "Kernel":
+                    etype, ename, eaddr, ecomm, etid, etime, _, eargs = val[:8]
+                elif name == "Trace":
+                    ename, ecomm, etid, etime, _ = val[:5]
+                    etype = eargs = elapsed = " "
+                else:
+                    continue
 
                 skipFlag = False
                 for fval in SysMgr.filterGroup:
-                    if SysMgr.isValidTid(val[3], fval) or fval in val[2]:
+                    if SysMgr.isValidTid(etid, fval) or fval in ecomm:
                         skipFlag = False
                         break
                     skipFlag = True
 
                 if skipFlag:
                     continue
-                elif val[0] == "ENTER":
-                    cid = "%s%s" % (val[1], val[3])
-                    callTable[cid] = val[4]
-                elif val[0] == "EXIT":
-                    cid = "%s%s" % (val[1], val[3])
+                elif etype == "ENTER":
+                    cid = "%s%s" % (ename, etid)
+                    callTable[cid] = etime
+                elif etype == "EXIT":
+                    cid = "%s%s" % (ename, etid)
                     try:
-                        elapsed = "%.6f" % (val[4] - callTable[cid])
+                        elapsed = "%.6f" % (etime - callTable[cid])
                     except:
                         pass
 
                 cnt += 1
-                args = (" ".join(val[6].split(" arg"))).replace("=", ">")
+                args = (" ".join(eargs.split(" arg"))).replace("=", ">")
                 SysMgr.printPipe(
                     (
                         "{0:<32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
-                        "{5:>16} {6:>10} {7:1}"
+                        "{5:<16} {6:>10} {7:1}"
                     ).format(
-                        val[1],
-                        val[0],
-                        val[4],
-                        val[2][:16],
-                        val[3],
-                        val[5],
+                        ename,
+                        etype,
+                        etime,
+                        ecomm[:16],
+                        etid,
+                        _,
                         elapsed,
                         args.lstrip(),
                     )
@@ -104570,153 +104512,26 @@ class TaskAnalyzer(object):
                 SysMgr.printPipe("\tNone")
             SysMgr.printPipe(oneLine)
 
-        # print kernel event info #
-        if self.kernelEventInfo:
-            SysMgr.clearPrint()
-            SysMgr.printPipe("\n[Thread Kernel Event Info]\n%s" % twoLine)
-            SysMgr.printPipe(
-                (
-                    "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} "
-                    "{5:>10} {6:>10} {7:>10} {8:>10}\n{9:1}"
-                ).format(
-                    "Event",
-                    "COMM",
-                    "TID",
-                    "Usage",
-                    "Count",
-                    "ProcMax",
-                    "ProcMin",
-                    "InterMax",
-                    "InterMin",
-                    twoLine,
-                )
-            )
-
-            newLine = False
-            for idx, val in sorted(
-                self.kernelEventInfo.items(),
-                key=lambda e: e[1]["usage"],
-                reverse=True,
-            ):
-
-                if newLine:
-                    SysMgr.printPipe()
-                else:
-                    newLine = True
-                SysMgr.printPipe(
-                    (
-                        "{0:<32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
-                        "{6:>10.6f} {7:>10.6f} {8:>10.6f}"
-                    ).format(
-                        idx,
-                        "TOTAL",
-                        "-",
-                        val["usage"],
-                        val["count"],
-                        val["max"],
-                        val["min"],
-                        val["maxPeriod"],
-                        val["minPeriod"],
-                    )
-                )
-
-                for key, value in sorted(
-                    self.kernelInfo.items(),
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]["usage"],
-                    reverse=True,
-                ):
-
-                    try:
-                        value[idx]
-                        self.threadData[key]["comm"]
-                    except:
-                        continue
-
-                    SysMgr.printPipe(
-                        (
-                            "{0:<32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
-                            "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}"
-                        ).format(
-                            " ",
-                            self.threadData[key]["comm"][:16],
-                            key,
-                            value[idx]["usage"],
-                            value[idx]["count"],
-                            value[idx]["max"],
-                            value[idx]["min"],
-                            value[idx]["maxPeriod"],
-                            value[idx]["minPeriod"],
-                        )
-                    )
-            SysMgr.printPipe(oneLine)
-
-        # print kernel event history #
-        if not SysMgr.showAll or not self.kernelEventData:
-            return
-
-        SysMgr.clearPrint()
-        SysMgr.printPipe("\n[Thread Kernel Event History]\n%s" % twoLine)
-        SysMgr.printPipe(
-            (
-                "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
-                "{5:^22} {6:>10} {7:<1}\n{8:1}"
-            ).format(
-                "EVENT",
-                "TYPE",
-                "TIME",
-                "COMM",
-                "TID",
-                "CALLER",
-                "ELAPSED",
-                "ARG",
-                twoLine,
-            )
+        # print trace event info #
+        _printEvent(
+            self.customEventInfo,
+            self.customInfo,
+            self.customEventData,
+            "Trace",
         )
 
-        cnt = 0
-        callTable = {}
-        for val in self.kernelEventData:
-            elapsed = "-"
+        # print user event info #
+        _printEvent(
+            self.userEventInfo, self.userInfo, self.userEventData, "User"
+        )
 
-            skipFlag = False
-            for fval in SysMgr.filterGroup:
-                if SysMgr.isValidTid(val[4], fval) or fval in val[3]:
-                    skipFlag = False
-                    break
-                skipFlag = True
-
-            if skipFlag:
-                continue
-            elif val[0] == "ENTER":
-                cid = "%s%s" % (val[1], val[4])
-                callTable[cid] = val[5]
-            elif val[0] == "EXIT":
-                cid = "%s%s" % (val[1], val[4])
-                try:
-                    elapsed = "%.6f" % (val[5] - callTable[cid])
-                except:
-                    pass
-
-            cnt += 1
-            args = (" ".join(val[7].split(" arg"))).replace("=", ">")
-            SysMgr.printPipe(
-                (
-                    "{0:<32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
-                    "{5:>22} {6:>10} {7:<1}"
-                ).format(
-                    val[1],
-                    val[0],
-                    val[5],
-                    val[3][:16],
-                    val[4],
-                    val[6],
-                    elapsed,
-                    args.lstrip(),
-                )
-            )
-        if cnt == 0:
-            SysMgr.printPipe("\tNone")
-        SysMgr.printPipe(oneLine)
+        # print kernel event info #
+        _printEvent(
+            self.kernelEventInfo,
+            self.kernelInfo,
+            self.kernelEventData,
+            "Kernel",
+        )
 
     def addSysInterval(self, res, key, value):
         if not SysMgr.maxInterval:
