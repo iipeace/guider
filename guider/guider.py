@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230320"
+__revision__ = "230321"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6797,7 +6797,7 @@ class UtilMgr(object):
         return timeobj.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @staticmethod
-    def getFileList(flist, sort=False, exceptDir=False):
+    def getFileList(flist, sort=False, exceptDir=False, verb=True):
         if not flist or type(flist) is not list:
             return []
 
@@ -6810,9 +6810,10 @@ class UtilMgr(object):
             # apply regular expression for path #
             ilist = UtilMgr.convPath(item)
             if not ilist:
-                SysMgr.printWarn(
-                    "failed to find any file related to '%s'" % item, True
-                )
+                if verb:
+                    SysMgr.printWarn(
+                        "failed to find any file related to '%s'" % item, True
+                    )
             elif UtilMgr.isString(ilist):
                 rlist.append(ilist)
             elif type(ilist) is list:
@@ -6820,9 +6821,11 @@ class UtilMgr(object):
 
         # check redundant files #
         if len(rlist) != len(set(rlist)):
-            SysMgr.printWarn(
-                "detected redundant files in [ %s ]" % ", ".join(rlist), True
-            )
+            if verb:
+                SysMgr.printWarn(
+                    "detected redundant files in [ %s ]" % ", ".join(rlist),
+                    True,
+                )
 
         # exclude dir #
         if exceptDir:
@@ -7857,7 +7860,11 @@ class UtilMgr(object):
 
     @staticmethod
     def printProgress(current=0, dest=0):
-        if not SysMgr.printEnable or dest == sys.maxsize:
+        if (
+            not SysMgr.printEnable
+            or not SysMgr.logEnable
+            or dest == sys.maxsize
+        ):
             return
 
         # just output #
@@ -72721,15 +72728,16 @@ class DltAnalyzer(object):
 
     @staticmethod
     def getTraceFileList():
-        if not "OfflineTraceDirectory" in DltAnalyzer.configData:
-            return []
-
-        # make file expression #
-        traceDir = DltAnalyzer.configData["OfflineTraceDirectory"]
-        fileExp = os.path.join(traceDir, "*.dlt")
+        fileList = []
+        for path in ("OfflineTraceDirectory", "OfflineLogstorageDirPath"):
+            if not path in DltAnalyzer.configData:
+                continue
+            fileList.append(
+                os.path.join(DltAnalyzer.configData[path], "*.dlt")
+            )
 
         # return trace file list #
-        return UtilMgr.getFileList([fileExp], exceptDir=True)
+        return UtilMgr.getFileList(fileList, exceptDir=True, verb=False)
 
     @staticmethod
     def handleMessage(
@@ -72802,9 +72810,8 @@ class DltAnalyzer(object):
             )
 
             try:
-                # string = buf.value.decode("utf8")
                 string = buf.value
-                string = string.decode().strip()
+                string = string.decode("ascii", "ignore").strip()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -73806,12 +73813,6 @@ class DltAnalyzer(object):
                 while dltFile.file_position < dltFile.file_length:
                     ret = dltObj.dlt_file_read(byref(dltFile), verb)
 
-                    # check message limit #
-                    if msgLimit:
-                        msgCnt += 1
-                        if msgCnt >= msgLimit:
-                            break
-
                     # storage header corrupted #
                     if ret < 0:
                         nextHeaderPos = _findNextHeader(
@@ -73833,6 +73834,12 @@ class DltAnalyzer(object):
                     UtilMgr.printProgress(
                         dltFile.file_position, dltFile.file_length
                     )
+
+                    # check message limit #
+                    if msgLimit:
+                        msgCnt += 1
+                        if msgCnt >= msgLimit:
+                            break
 
                 UtilMgr.deleteProgress()
 
