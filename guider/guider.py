@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230321"
+__revision__ = "230322"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24578,6 +24578,7 @@ class SysMgr(object):
     dbgEventLine = 0
     uptime = 0
     prevUptime = 0
+    dltTime = 0
     uptimeDiff = 0
     diskStats = []
     prevDiskStats = []
@@ -24680,6 +24681,7 @@ class SysMgr(object):
     depEnable = False
     diskEnable = False
     dltEnable = False
+    dltTimeEnable = False
     dltTopEnable = False
     dwarfEnable = False
     elasticEnable = False
@@ -25061,6 +25063,12 @@ Commands:
             SysMgr.printErr("no input message for %s" % mtype)
             sys.exit(-1)
 
+        # get log level #
+        if not SysMgr.customCmd:
+            level = None
+        else:
+            level = SysMgr.customCmd[0]
+
         # get repeat count #
         repeatCnt = UtilMgr.getEnvironNum("REPEAT", False, 1, False, True)
 
@@ -25071,7 +25079,7 @@ Commands:
             interval = 0
 
         for idx in xrange(repeatCnt):
-            ret = func(msg=msg)
+            ret = func(msg=msg, level=level)
             if ret == 0:
                 SysMgr.printInfo(
                     "logged a %s message '%s' successfully" % (mtype, msg)
@@ -26036,6 +26044,7 @@ Commands:
         # DLT #
         elif SysMgr.checkMode("dlttop"):
             SysMgr.dltTopEnable = True
+            SysMgr.dltTimeEnable = True
 
         # D-Bus #
         elif SysMgr.checkMode("dbustop"):
@@ -31972,6 +31981,9 @@ Examples:
     - {3:1} all {2:1} and execute specific commands when terminated
         # {0:1} {1:1} -a -q EXITCMD:"ls -lha"
 
+    - {3:1} {2:1} with DLT time
+        # {0:1} {1:1} -q DLTTIME
+
     - {3:1} all {2:1} and execute specific commands to save also their output when terminated
         # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q TAIL:-3\, UNTIL -d L -Q"
         # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -a -q TAIL:-3\, UNTIL -d L -Q"
@@ -32531,6 +32543,7 @@ Commands:
     exit     exit tracing
     filter   print only filtered context [VAR|ADDR|REG|RETTIME|RETVAL:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
     getarg   print specific registers [REGS]
+    getaux   print the auxiliary vector
     getenv   print specific environment variable [VAR]
     getret   print return value [CMD]
     help     print help
@@ -33055,6 +33068,7 @@ Options:
     -v                          verbose
     -i  <INTERVAL(ms)>          set logging interval
     -I  <LOG>                   set log message
+    -c  <LEVEL>                 set log level
 
 Examples:
     - Log a message
@@ -36174,6 +36188,17 @@ Examples:
                 ):
                     helpStr = logCommonStr
 
+                    # logdlt #
+                    if SysMgr.checkMode("logdlt"):
+                        helpStr += """
+    - {2:1} without checking daemon
+        # {0:1} {1:1} -q NOCHECKDAEMON
+                    """.format(
+                            cmd,
+                            mode,
+                            "Log a DLT message",
+                        )
+
                 # printlog #
                 elif (
                     SysMgr.checkMode("printdlt")
@@ -36262,6 +36287,7 @@ Examples:
 
     - {2:1} {3:1} decompressed
         # {0:1} {1:1} "./*.dlt" -q DECOMP
+        # {0:1} {1:1} "./**" -q DECOMP -dL
 
     - {2:1} summary {3:1}
         # {0:1} {1:1} "./*.dlt" -q PRINTSUMMARY
@@ -36272,6 +36298,12 @@ Examples:
 
     - {2:1} with count limit
         # {0:1} {1:1} "./*.dlt" -q NRMSG:5
+
+    - {2:1} with file limit
+        # {0:1} {1:1} "./*.dlt" -q PRINTFILE, NRFILE:5
+
+    - Find trace files from specific time
+        # {0:1} {1:1} "./*.dlt" -q PRINTFILE, NRFILE:1, NRMSG:1, TAIL:123.123 -dL
 
     - {2:1} from the last trace file
         # {0:1} {1:1} -q PRINTLASTFILE
@@ -37341,6 +37373,7 @@ Description:
 Options:
     -g  <PID|COMM>              set target process
     -J                          print in JSON format
+    -l                          print values from the auxiliary vector
     -I  <WORD>                  set filter
     -v                          verbose
                         """.format(
@@ -37358,6 +37391,9 @@ Examples:
 
     - {2:1} including PWD for all processes
         # {0:1} {1:1} "*" -I PWD
+
+    - {2:1} for the auxiliary vector
+        # {0:1} {1:1} -l
                     """.format(
                         cmd,
                         mode,
@@ -41610,7 +41646,7 @@ Copyright:
             if idx == 1:
                 continue
 
-            val = hex(SysMgr.getauxval(attr))
+            auxList[attr] = hex(SysMgr.getauxval(attr))
 
         return auxList
 
@@ -45373,6 +45409,10 @@ Copyright:
                 filters += item.split("+")
             SysMgr.environList["SUMMARYFILTER"] = filters
 
+        # enable DLT time #
+        if "DLTTIME" in SysMgr.environList:
+            SysMgr.dltTimeEnable = True
+
     @staticmethod
     def checkOptVal(option, value):
         if not value:
@@ -47979,6 +48019,10 @@ Copyright:
         SysMgr.prevUptime = SysMgr.uptime
         SysMgr.uptime = SysMgr.getUptime()
         SysMgr.uptimeDiff = SysMgr.uptime - SysMgr.prevUptime
+
+        if SysMgr.dltTimeEnable:
+            SysMgr.dltTime = UtilMgr.getClockTime(dlt=True)
+
         return SysMgr.uptime
 
     @staticmethod
@@ -53350,6 +53394,30 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
+        # set line length #
+        lenLine = long(len(oneLine) / 2)
+
+        # print values from the auxiliary vector #
+        if SysMgr.findOption("l"):
+            pid = SysMgr.pid
+            comm = SysMgr.getComm(pid)
+            cmdline = SysMgr.getCmdline(pid)
+
+            SysMgr.printPipe(
+                "\n[Env Info] [Proc: %s(%s)] [Cmd: %s]\n%s\n"
+                % (comm, pid, cmdline, oneLine[:lenLine])
+            )
+
+            auxList = SysMgr.getAuxList()
+            if not auxList:
+                SysMgr.printPipe("\tNone")
+            else:
+                for name, val in sorted(auxList.items()):
+                    SysMgr.printPipe("{0:<30} {1:1}".format(name, val))
+            SysMgr.printPipe(oneLine[:lenLine])
+
+            sys.exit(0)
+
         # get argument #
         ret = SysMgr.selectTaskId()
         if ret:
@@ -53368,9 +53436,6 @@ Copyright:
                 % ", ".join(filterGroup)
             )
             sys.exit(-1)
-
-        # set line length #
-        lenLine = long(len(oneLine) / 2)
 
         # check filter #
         if SysMgr.inputParam:
@@ -72574,13 +72639,14 @@ class DltAnalyzer(object):
         # print title #
         SysMgr.addPrint(
             (
-                "[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s] "
+                "[%s] [Time: %7.3f] [Interval: %.1f] [DLT: %.3f] [NrMsg: %s] "
                 "[SYS: %s/%s] [%s: %s/%s]\n"
             )
             % (
                 "DLT Info",
                 SysMgr.uptime,
                 SysMgr.uptimeDiff,
+                SysMgr.dltTime,
                 convNum(DltAnalyzer.dltData["cnt"]),
                 sysCpuStr,
                 sysMemStr,
@@ -72894,7 +72960,7 @@ class DltAnalyzer(object):
 
     @staticmethod
     def doLogDlt(
-        appid=b"GIDR", context=b"GIDR", msg=None, level="INFO", split=True
+        appid=b"GIDR", context=b"GIDR", msg=None, level=None, split=True
     ):
 
         # get ctypes object #
@@ -72910,14 +72976,18 @@ class DltAnalyzer(object):
             ]
 
         # check dlt-daemon #
-        DltAnalyzer.pids = SysMgr.getProcPids("dlt-daemon")
-        if not DltAnalyzer.pids and not SysMgr.remoteServObj:
-            SysMgr.printWarn("failed to find dlt-daemon process", True)
+        if not "NOCHECKDAEMON" in SysMgr.environList and not DltAnalyzer.pids:
+            DltAnalyzer.pids = SysMgr.getProcPids("dlt-daemon")
+            if not DltAnalyzer.pids and not SysMgr.remoteServObj:
+                SysMgr.printWarn("failed to find dlt-daemon process", True)
 
         DLT_USER_BUF_MAX_SIZE = 1380
 
         # set log level #
         try:
+            if not level:
+                level = "INFO"
+
             loglevel = DltAnalyzer.LOGLEVEL[level.upper()]
         except:
             loglevel = DltAnalyzer.LOGLEVEL["INFO"]
@@ -72956,7 +73026,10 @@ class DltAnalyzer(object):
             SysMgr.dltCtx = ctx
 
         # split by newline #
-        msgList = msg.strip().split("\n")
+        if type(msg) is list:
+            msgList = msg
+        else:
+            msgList = msg.strip().split("\n")
 
         # log #
         for msg in msgList:
@@ -73735,6 +73808,7 @@ class DltAnalyzer(object):
 
         # get message count limit #
         msgLimit = UtilMgr.getEnvironNum("NRMSG", False, 0, False, True)
+        fileLimit = UtilMgr.getEnvironNum("NRFILE", False, 0, False, True)
 
         # messages from file #
         if mode == "print" and flist:
@@ -73760,6 +73834,7 @@ class DltAnalyzer(object):
                 printName = False
                 hasFullPath = False
 
+            fileCnt = 0
             for path in flist:
                 # check file type #
                 if not os.path.isfile(path):
@@ -73843,10 +73918,6 @@ class DltAnalyzer(object):
 
                 UtilMgr.deleteProgress()
 
-                # print a newline #
-                if printMode == "print" and not buffered:
-                    SysMgr.printPipe()
-
                 # read messages #
                 for index in xrange(dltFile.counter_total):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verb)
@@ -73883,6 +73954,12 @@ class DltAnalyzer(object):
 
                     # remove decompressed file #
                     SysMgr.removeFiles(removeList)
+
+                # check file limit #
+                if fileLimit:
+                    fileCnt += 1
+                    if fileCnt >= fileLimit:
+                        break
 
                 # free file object #
                 ret = dltObj.dlt_file_free(byref(dltFile), verb)
@@ -75690,6 +75767,7 @@ typedef struct {
                 "map": "",
                 "madvise": "ADDR:LENGTH:ADVISE",
                 "print": "VAR",
+                "printaux": "",
                 "pyfile": "PATH:SYNC",
                 "pyscript": "PATH:FUNC:ARGS",
                 "pystr": "CODE:SYNC",
@@ -76127,6 +76205,13 @@ typedef struct {
                         ConfigMgr.FADV_TYPE[advice],
                     )
                 )
+
+            elif cmd == "printaux":
+                auxList = self.getauxval()
+
+                _addPrint("\n[%s]\n" % cmdstr)
+                for name, val in sorted(auxList.items()):
+                    _addPrint("{0:<30} {1:1}\n".format(name, val))
 
             elif cmd == "madvise":
                 if len(cmdset) == 1:
@@ -78174,6 +78259,28 @@ typedef struct {
         except:
             SysMgr.printSigError(pid, "SIGSTOP")
             return -1
+
+    def getauxval(self):
+        # get function address #
+        symbol = "getauxval"
+        func = self.getAddrBySymbol(symbol, one=True)
+        if not func:
+            return None
+
+        # call getauxval #
+        auxList = {}
+        for attr, idx in sorted(ConfigMgr.AT_TYPE.items(), key=lambda e: e[1]):
+            ret = self.remoteUsercall(func, [idx])
+            if ret < 0:
+                SysMgr.printErr(
+                    "failed to call getauxval(%s) for %s(%s)"
+                    % (attr, self.comm, self.pid)
+                )
+                return auxList
+
+            auxList[attr] = hex(ret)
+
+        return auxList
 
     def madvise(self, addr, length, advise):
         # get function address #
@@ -120498,11 +120605,17 @@ class TaskAnalyzer(object):
         except:
             battery = ""
 
+        # dlt time #
+        if SysMgr.dltTime:
+            dlttime = " [DLT: %.3f]" % SysMgr.dltTime
+        else:
+            dlttime = ""
+
         # print stats #
         SysMgr.addPrint(
             UtilMgr.convColor(
                 (
-                    "%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
+                    "%s [Time: %7.3f] [Inter: %.1f]%s [Ctxt: %d] "
                     "[Life: +%d/-%d]%s[IRQ: %d] [Core: %d] [Task: %d/%d] "
                     "[Load: %s] [RAM: %s] [Swap: %s]%s\n"
                 )
@@ -120510,6 +120623,7 @@ class TaskAnalyzer(object):
                     title,
                     SysMgr.uptime,
                     SysMgr.uptimeDiff,
+                    dlttime,
                     nrCtxt,
                     nrNewThreads,
                     nrTermThreads,
