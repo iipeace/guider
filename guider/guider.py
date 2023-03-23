@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230322"
+__revision__ = "230323"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26476,6 +26476,16 @@ Commands:
                 if not mask:
                     raise Exception("wrong input")
 
+                # convert mask values #
+                if "+" in mask:
+                    maskList = mask.split("+")
+                    mask = 0
+                    for val in maskList:
+                        if not val:
+                            continue
+                        mask |= 1 << long(val)
+                    mask = str(hex(mask))
+
                 if launch:
                     sibling = SysMgr.groupProcEnable
                     targetList = SysMgr.getTids(tid, sibling=sibling)
@@ -29174,7 +29184,7 @@ Commands:
                 )
                 return
         except:
-            SysMgr.printErr("failed to recognize mask type")
+            SysMgr.printErr("failed to recognize mask type '%s'" % mask, True)
             return
 
         # load libc #
@@ -37839,8 +37849,7 @@ Examples:
         # {0:1} {1:1} :20000000:userspace
 
     - Set hotplug status of specific CPUs
-        # {0:1} {1:1} 0-3:ON
-        # {0:1} {1:1} 4-7:OFF
+        # {0:1} {1:1} 0-3:ON, 4-7:OFF
 
     - Set the governor to performance for CPU2
         # {0:1} {1:1} 2::performance
@@ -38123,25 +38132,26 @@ Options:
                     helpStr += """
 Examples:
     - {2:1} to use only CPU 1 and CPU 2
-        # {0:1} {1:1} a.out:3
-        # {0:1} {1:1} -g a.out:3
+        # {0:1} {1:1} a.out:1+2
+        # {0:1} {1:1} a.out:0x6
+        # {0:1} {1:1} -g a.out:0x6
 
-    - {2:1} to use only CPU 1 (wait for new target if no task)
-        # {0:1} {1:1} a.out:2 -q WAITTASK
-        # {0:1} {1:1} a.out:2 -q WAITTASK:1
-        # {0:1} {1:1} a.out:2 -q WAITTASK, NOPIDCACHE
+    - {2:1} to use only CPU 0 (wait for new target if no task)
+        # {0:1} {1:1} a.out:0+ -q WAITTASK
+        # {0:1} {1:1} a.out:0x1 -q WAITTASK:1
+        # {0:1} {1:1} a.out:0x1 -q WAITTASK, NOPIDCACHE
 
     - {2:1} to use only CPU 1 every 2 seconds
-        # {0:1} {1:1} a.out:1 -i 2
+        # {0:1} {1:1} a.out:1+ -i 2
 
     - {2:1} to use only CPU 1 and CPU 2 after selecting the target task
-        # {0:1} {1:1} "PID:3" -q TASKMON
-        # {0:1} {1:1} "PID:3" -q TASKMON -e t
-        # {0:1} {1:1} "PID:3" -q TASKMON:3
-        # {0:1} {1:1} "PID:3" -q TASKMON -a
-        # {0:1} {1:1} "PID:3" -q TASKMON, TASKFILTER:"*a.out*"
-        # {0:1} {1:1} "PID:3" -q TASKMON, TASKFILTER:"*a.out*" -e t -P
-        # {0:1} {1:1} "PID:3" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
+        # {0:1} {1:1} "PID:0x3" -q TASKMON
+        # {0:1} {1:1} "PID:0x3" -q TASKMON -e t
+        # {0:1} {1:1} "PID:0x3" -q TASKMON:3
+        # {0:1} {1:1} "PID:0x3" -q TASKMON -a
+        # {0:1} {1:1} "PID:0x3" -q TASKMON, TASKFILTER:"*a.out*"
+        # {0:1} {1:1} "PID:0x3" -q TASKMON, TASKFILTER:"*a.out*" -e t -P
+        # {0:1} {1:1} "PID:0x3" -q TASKMON, TASKMONOPT:"-qNRTOPRANK:10|-Yr:1"
                     """.format(
                         cmd, mode, "Set CPU affinity of a specific thread"
                     )
