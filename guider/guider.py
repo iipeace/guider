@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230323"
+__revision__ = "230324"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28450,7 +28450,27 @@ Commands:
                 else:
                     path, name, keyword = values
 
-                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q", "-a"]
+                # get last file path #
+                if logtype == "DLTEVENT":
+                    if values[0] == "LASTFILE":
+                        # convert path #
+                        traceFileList = DltAnalyzer.getTraceFileList()
+                        if traceFileList:
+                            path = traceFileList[-1]
+                        else:
+                            path = None
+
+                    # convert time #
+                    if tail or until:
+                        diff = SysMgr.getUptime() - UtilMgr.getClockTime(
+                            dlt=True
+                        )
+                        if tail:
+                            tail -= diff
+                        if until:
+                            until -= diff
+
+                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q", "-a", "dL"]
 
                 # set input path #
                 inputParam.insert(1, "-I" + (path if path else ""))
@@ -28487,7 +28507,10 @@ Commands:
                         # read a line #
                         line = pipe.readline()
                         if not line:
-                            break
+                            if SysMgr.isAlive(ret[0]):
+                                continue
+                            else:
+                                break
 
                         # remove useless characters #
                         line = line.strip()
@@ -31995,7 +32018,7 @@ Examples:
         # {0:1} {1:1} -q DLTTIME
 
     - {3:1} all {2:1} and execute specific commands to save also their output when terminated
-        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q PRINTLASTFILE\, TAIL:-3\, UNTIL -d L -Q"
         # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -a -q TAIL:-3\, UNTIL -d L -Q"
         # {0:1} {1:1} -a -o -q PRINTCMD:"ls#ls -lha"
 
@@ -32165,7 +32188,8 @@ Examples:
         # {0:1} {1:1} -o . -b 50m -d b
 
     - {3:1} {2:1} and {5:1} with specific log events
-        # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|DLT"
+        # {0:1} {1:1} -o . -q "DLTEVENT:LASTFILE|DLT|"
+        # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|DLT|"
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", MSGALL
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", PRINTEVENT
@@ -32433,7 +32457,8 @@ Examples:
         # {0:1} {1:1} {3:1} -q EVENT:30:100:EVENT_5:RARROW
 
     - {2:1} with specific log events
-        # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|DLT"
+        # {0:1} {1:1} {3:1} -q "DLTEVENT:LASTFILE|DLT|"
+        # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|DLT|"
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout", PRINTEVENT
         # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
@@ -41984,7 +42009,13 @@ Copyright:
                         "DLTEVENT": {
                             "time": "mtime",
                             "diff": UtilMgr.getClockTime(dlt=True) - current,
-                            "field": ["ecuId", "apId", "ctxId", "message"]
+                            "field": [
+                                "mtime",
+                                "ecuId",
+                                "apId",
+                                "ctxId",
+                                "message",
+                            ]
                             if msgall
                             else [],
                         },
@@ -42006,7 +42037,8 @@ Copyright:
                             # get message name #
                             name = log["name"]
                             for f in info["field"]:
-                                name += ">%s" % log[f]
+                                if f in log:
+                                    name += ">%s" % log[f]
 
                             # append event to list #
                             TaskAnalyzer.procEventData.append(
@@ -65337,6 +65369,23 @@ Copyright:
         except:
             pass
 
+        # report file #
+        if SysMgr.outPath:
+            outPath = UtilMgr.convLineStr(
+                self.outPath,
+                "",
+                20,
+                SysMgr.lineLength - 21,
+                startIndent=False,
+            ).lstrip()
+
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format("ReportPath", outPath)
+            )
+
+            if SysMgr.jsonEnable:
+                jsonData["reportPath"] = SysMgr.outPath
+
         # report reason #
         if SysMgr.reportReason:
             SysMgr.infoBufferPrint(
@@ -72804,6 +72853,10 @@ class DltAnalyzer(object):
 
     @staticmethod
     def getTraceFileList():
+        # load dlt config #
+        if not DltAnalyzer.configData:
+            DltAnalyzer.loadDaemonConfig()
+
         fileList = []
         for path in ("OfflineTraceDirectory", "OfflineLogstorageDirPath"):
             if not path in DltAnalyzer.configData:
