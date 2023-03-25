@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230324"
+__revision__ = "230325"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8459,7 +8459,7 @@ function format_percent(n) {
 
     @staticmethod
     def deleteProgress():
-        if not SysMgr.printEnable:
+        if not SysMgr.printEnable or not SysMgr.logEnable:
             return
 
         sys.stdout.write(" " * 6)
@@ -32018,7 +32018,7 @@ Examples:
         # {0:1} {1:1} -q DLTTIME
 
     - {3:1} all {2:1} and execute specific commands to save also their output when terminated
-        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q PRINTLASTFILE\, TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q PRINTLASTFILE\, TAIL:-3\, UNTIL -d L -Q", DLTTIME
         # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -a -q TAIL:-3\, UNTIL -d L -Q"
         # {0:1} {1:1} -a -o -q PRINTCMD:"ls#ls -lha"
 
@@ -34280,7 +34280,7 @@ Examples:
         # {0:1} {1:1} -j -q SAVEJSONSTAT
 
     - {2:1} {3:1} and execute specific commands to save also their output when terminated
-        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q TAIL:-3\, UNTIL -d L -Q"
+        # {0:1} {1:1} -a -o -q PRINTCMD:"DLT#GUIDER printdlt -a -q TAIL:-3\, UNTIL -d L -Q", DLTTIME
         # {0:1} {1:1} -a -o -q PRINTCMD:"KERNEL#GUIDER printkmsg -a -q TAIL:-3\, UNTIL -d L -Q"
 
     - {2:1} without threshold condition until CMD_RELOAD event is received
@@ -55852,7 +55852,10 @@ Copyright:
             # make space between symbol and path #
             maxSymLen += 4
 
-            SysMgr.printPipe("\n[Address Info]%s\n%s" % (procInfo, twoLine))
+            SysMgr.printPipe(
+                "\n[Address Info]%s (NrAddr: %s)\n%s"
+                % (procInfo, UtilMgr.convNum(len(resInfo)), twoLine)
+            )
             SysMgr.printPipe(
                 "{0:<18} {1:<18} {2:<{maxSymLen}} {3:<1}\n{4:1}".format(
                     menu1st,
@@ -57026,7 +57029,10 @@ Copyright:
             # make space between symbol and path #
             maxSymLen += 4
 
-            SysMgr.printPipe("\n[Symbol Info]%s\n%s" % (procInfo, twoLine))
+            SysMgr.printPipe(
+                "\n[Symbol Info]%s (NrSym: %s)\n%s"
+                % (procInfo, UtilMgr.convNum(len(resInfo)), twoLine)
+            )
             SysMgr.printPipe(
                 "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}\n{4:1}".format(
                     "Symbol",
@@ -64714,6 +64720,14 @@ Copyright:
         try:
             for item in os.listdir(dpath):
                 size = UtilMgr.lstrip(item, "hugepages-")
+                try:
+                    sizeBytes = UtilMgr.convUnit2Size(size)
+                    size = UtilMgr.convSize2Unit(sizeBytes)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
                 for stat in os.listdir(os.path.join(dpath, item)):
                     # check type #
                     fpath = os.path.join(dpath, item, stat)
@@ -65370,9 +65384,14 @@ Copyright:
             pass
 
         # report file #
-        if SysMgr.outPath:
-            outPath = UtilMgr.convLineStr(
-                self.outPath,
+        try:
+            if not SysMgr.outPath:
+                raise Exception("no out path")
+
+            outPath = SysMgr.convFullPath(SysMgr.outPath)
+
+            outPathNew = UtilMgr.convLineStr(
+                outPath,
                 "",
                 20,
                 SysMgr.lineLength - 21,
@@ -65380,11 +65399,13 @@ Copyright:
             ).lstrip()
 
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<1}".format("ReportPath", outPath)
+                "{0:20} {1:<1}".format("ReportPath", outPathNew)
             )
 
             if SysMgr.jsonEnable:
-                jsonData["reportPath"] = SysMgr.outPath
+                jsonData["reportPath"] = outPath
+        except:
+            pass
 
         # report reason #
         if SysMgr.reportReason:
@@ -65394,6 +65415,26 @@ Copyright:
 
             if SysMgr.jsonEnable:
                 jsonData["reportReason"] = SysMgr.reportReason
+
+        # report last DLT file #
+        try:
+            lastDltFile = DltAnalyzer.getTraceFileList()[-1]
+            outPath = UtilMgr.convLineStr(
+                lastDltFile,
+                "",
+                20,
+                SysMgr.lineLength - 21,
+                startIndent=False,
+            ).lstrip()
+
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}".format("lastDltFile", outPath)
+            )
+
+            if SysMgr.jsonEnable:
+                jsonData["lastDltFile"] = lastDltFile
+        except:
+            pass
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -67625,7 +67666,7 @@ Copyright:
 
         # check output count #
         if cnt == 0:
-            SysMgr.infoBufferPrint("{0:<146}|".format("\tNone"))
+            SysMgr.infoBufferPrint("{0:<150}|".format("\tNone"))
 
         SysMgr.infoBufferPrint(twoLine)
 
@@ -93303,14 +93344,17 @@ Section header string table index: %d
             fd.seek(sh_offset)
             dynsym_section = fd.read(sh_size)
 
+            nrItems = long(sh_size / sh_entsize)
+
             # print .dynsym table title #
             if debug:
                 printer(
                     (
-                        "\n[.dynsym Section]\n%s\n"
+                        "\n[.dynsym Section] (nrItem: %s)\n%s\n"
                         "%04s %16s%10s%10s%10s%10s%10s %30s\n%s"
                     )
                     % (
+                        UtilMgr.convNum(nrItems),
                         twoLine,
                         "Num",
                         "Value",
@@ -93324,7 +93368,6 @@ Section header string table index: %d
                     )
                 )
 
-            nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
                 printer("\tNone")
 
@@ -93486,14 +93529,17 @@ Section header string table index: %d
             fd.seek(sh_offset)
             sym_section = fd.read(sh_size)
 
+            nrItems = long(sh_size / sh_entsize)
+
             # parse .sym table title #
             if debug:
                 printer(
                     (
-                        "\n[.symtab Section]\n%s\n"
+                        "\n[.symtab Section] (nrItem: %s)\n%s\n"
                         "%04s %16s%10s%10s%10s%10s%10s%30s\n%s"
                     )
                     % (
+                        UtilMgr.convNum(nrItems),
                         twoLine,
                         "Num",
                         "Value",
@@ -93507,13 +93553,13 @@ Section header string table index: %d
                     )
                 )
 
-            nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
                 printer("\tNone")
 
             printCnt = 0
 
             for i in xrange(nrItems):
+                target = sym_section[i * sh_entsize : (i + 1) * sh_entsize]
                 if self.is32Bit:
                     (
                         st_name,
@@ -93522,10 +93568,7 @@ Section header string table index: %d
                         st_info,
                         st_other,
                         st_shndx,
-                    ) = struct.unpack(
-                        "IIIBBH",
-                        sym_section[i * sh_entsize : (i + 1) * sh_entsize],
-                    )
+                    ) = struct.unpack("IIIBBH", target)
                 # 64-bit #
                 else:
                     (
@@ -93535,10 +93578,7 @@ Section header string table index: %d
                         st_shndx,
                         st_value,
                         st_size,
-                    ) = struct.unpack(
-                        "IBBHQQ",
-                        sym_section[i * sh_entsize : (i + 1) * sh_entsize],
-                    )
+                    ) = struct.unpack("IBBHQQ", target)
 
                 # get symbol string #
                 symbol = self.getString(strtab_section, st_name)
@@ -93629,11 +93669,16 @@ Section header string table index: %d
             # get symbol string #
             shname = self.getString(str_section, sh_name)
 
+            nrItems = long(sh_size / sh_entsize)
+
             if debug:
                 printer(
-                    ("\n[%s Section]\n%s\n%16s %16s %32s %16s %s\n%s")
+                    (
+                        "\n[%s Section] (nrItem: %s)\n%s\n%16s %16s %32s %16s %s\n%s"
+                    )
                     % (
                         shname,
+                        UtilMgr.convNum(nrItems),
                         twoLine,
                         "Offset",
                         "Info",
@@ -93646,7 +93691,6 @@ Section header string table index: %d
 
             fd.seek(sh_offset)
 
-            nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
                 printer("\tNone")
 
@@ -93726,11 +93770,16 @@ Section header string table index: %d
             # get symbol string #
             shname = self.getString(str_section, sh_name)
 
+            nrItems = long(sh_size / sh_entsize)
+
             if debug:
                 printer(
-                    ("\n[%s Section]\n%s\n%16s %16s %32s %16s %s\n%s")
+                    (
+                        "\n[%s Section] (nrItem: %s)\n%s\n%16s %16s %32s %16s %s\n%s"
+                    )
                     % (
                         shname,
+                        UtilMgr.convNum(nrItems),
                         twoLine,
                         "Offset",
                         "Info",
@@ -93743,7 +93792,6 @@ Section header string table index: %d
 
             fd.seek(sh_offset)
 
-            nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
                 printer("\tNone")
 
@@ -95020,7 +95068,10 @@ Section header string table index: %d
             shname = self.getString(str_section, sh_name)
 
             if debug:
-                printer("\n[%s Section]\n%s\n" % (shname, twoLine))
+                printer(
+                    "\n[%s Section] (nrItem: %s)\n%s\n"
+                    % (shname, UtilMgr.convNum(nrItems), twoLine)
+                )
 
             for idx in xrange(nrItems):
                 # read value #
@@ -96042,6 +96093,11 @@ Section header string table index: %d
                                         )
 
                                 helper = addStr if addStr else value
+
+                                # demangle symbols #
+                                if name in ("DW_AT_linkage_name"):
+                                    helper = ElfAnalyzer.demangleSymbol(helper)
+
                                 printStr += "    <%x>   %-18s: %s" % (
                                     origPos,
                                     name,
@@ -96103,13 +96159,21 @@ Section header string table index: %d
 
         fd.seek(sh_offset + sh_size)
 
+        nrItems = long(sh_size / sh_entsize)
+
         if debug:
             printer(
-                ("\n[.dynamic Section]\n%s\n%16s %20s %1s\n%s")
-                % (twoLine, "Tag", "Type", "Value", twoLine)
+                ("\n[.dynamic Section] (nrItem: %s)\n%s\n%16s %20s %1s\n%s")
+                % (
+                    UtilMgr.convNum(nrItems),
+                    twoLine,
+                    "Tag",
+                    "Type",
+                    "Value",
+                    twoLine,
+                )
             )
 
-        nrItems = long(sh_size / sh_entsize)
         if nrItems == 0:
             printer("\tNone")
 
