@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230325"
+__revision__ = "230326"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -36339,6 +36339,7 @@ Examples:
 
     - Find trace files from specific time
         # {0:1} {1:1} "./*.dlt" -q PRINTFILE, NRFILE:1, NRMSG:1, TAIL:123.123 -dL
+        # {0:1} {1:1} "./*.dlt" -q FINDFILE, TAIL:-2000, UNTIL:-10
 
     - {2:1} from the last trace file
         # {0:1} {1:1} -q PRINTLASTFILE
@@ -73893,7 +73894,7 @@ class DltAnalyzer(object):
         if until:
             if until < 0:
                 until += current
-            if until != current:
+            if False and until != current:
                 until += currentDiff
         elif quitFlag:
             until = current
@@ -73902,10 +73903,23 @@ class DltAnalyzer(object):
         DltAnalyzer.loadDaemonConfig()
 
         # get trace file list #
+        findMode = False
         traceFileList = DltAnalyzer.getTraceFileList()
         if "PRINTLASTFILE" in SysMgr.environList:
             if traceFileList:
                 flist = [traceFileList[-1]]
+            else:
+                SysMgr.printErr("failed to find trace file")
+                sys.exit(-1)
+        elif "FINDFILE" in SysMgr.environList:
+            if since == until == 0:
+                SysMgr.printErr("no time info")
+                sys.exit(-1)
+            elif traceFileList:
+                traceFileList.reverse()
+                flist = traceFileList
+                targetFileList = []
+                findMode = True
             else:
                 SysMgr.printErr("failed to find trace file")
                 sys.exit(-1)
@@ -73934,12 +73948,18 @@ class DltAnalyzer(object):
             elif "PRINTFILE" in SysMgr.environList:
                 printName = True
                 hasFullPath = False
+            elif findMode:
+                printName = False
+                hasFullPath = True
             else:
                 printName = False
                 hasFullPath = False
 
             fileCnt = 0
             for path in flist:
+                # init skip file flag #
+                skipFile = False
+
                 # check file type #
                 if not os.path.isfile(path):
                     SysMgr.printWarn(
@@ -74014,13 +74034,45 @@ class DltAnalyzer(object):
                         dltFile.file_position, dltFile.file_length
                     )
 
+                    msgCnt += 1
+
+                    # check file scope #
+                    if findMode and msgCnt == 1:
+                        ret = dltObj.dlt_file_message(byref(dltFile), 0, verb)
+                        fileStart = dltFile.msg.headerextra.tmsp / float(10000)
+                        if until < fileStart:
+                            skipFile = True
+                            break
+
                     # check message limit #
                     if msgLimit:
-                        msgCnt += 1
                         if msgCnt >= msgLimit:
                             break
 
                 UtilMgr.deleteProgress()
+
+                # check skip file flag #
+                if skipFile:
+                    continue
+
+                if findMode:
+                    # start time #
+                    ret = dltObj.dlt_file_message(byref(dltFile), 0, verb)
+                    fileStart = dltFile.msg.headerextra.tmsp / float(10000)
+
+                    # end time #
+                    ret = dltObj.dlt_file_message(
+                        byref(dltFile), dltFile.counter_total - 1, verb
+                    )
+                    fileEnd = dltFile.msg.headerextra.tmsp / float(10000)
+
+                    # check final condition #
+                    if fileEnd < since:
+                        break
+
+                    # add to list #
+                    targetFileList.append(pathOrig)
+                    continue
 
                 # read messages #
                 for index in xrange(dltFile.counter_total):
@@ -74069,6 +74121,23 @@ class DltAnalyzer(object):
                 ret = dltObj.dlt_file_free(byref(dltFile), verb)
                 if ret < 0:
                     SysMgr.printErr("failed to free a DLTFile object")
+
+            # check no target file #
+            if findMode:
+                if targetFileList:
+                    SysMgr.printPipe(
+                        "\nFound below files in %.3f ~ %.3f" % (since, until)
+                    )
+                    for i, f in enumerate(sorted(targetFileList)):
+                        SysMgr.printPipe(
+                            "[%3s] %s" % (i, UtilMgr.convColor(f, "YELLOW"))
+                        )
+
+                else:
+                    SysMgr.printErr(
+                        "failed to find file in %.3f ~ %.3f" % (since, until)
+                    )
+                sys.exit(-1)
 
             # print summary #
             if printMode == "top":
