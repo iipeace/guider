@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230326"
+__revision__ = "230327"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -36340,6 +36340,8 @@ Examples:
     - Find trace files from specific time
         # {0:1} {1:1} "./*.dlt" -q PRINTFILE, NRFILE:1, NRMSG:1, TAIL:123.123 -dL
         # {0:1} {1:1} "./*.dlt" -q FINDFILE, TAIL:-2000, UNTIL:-10
+        # {0:1} {1:1} "./*.dlt" -q FINDFILE, TAIL:-2000, UNTIL:-10 -J
+        # {0:1} {1:1} "./*.dlt" -q FINDFILE, TAIL:-2000, UNTIL:-10, SETCURRENT:1234.123
 
     - {2:1} from the last trace file
         # {0:1} {1:1} -q PRINTLASTFILE
@@ -73956,7 +73958,9 @@ class DltAnalyzer(object):
                 hasFullPath = False
 
             fileCnt = 0
-            for path in flist:
+            startTimeList = {}
+
+            for fidx, path in enumerate(flist):
                 # init skip file flag #
                 skipFile = False
 
@@ -74037,11 +74041,20 @@ class DltAnalyzer(object):
                     msgCnt += 1
 
                     # check file scope #
-                    if findMode and msgCnt == 1:
-                        ret = dltObj.dlt_file_message(byref(dltFile), 0, verb)
-                        fileStart = dltFile.msg.headerextra.tmsp / float(10000)
-                        if until < fileStart:
-                            skipFile = True
+                    if findMode:
+                        if msgCnt == 1:
+                            ret = dltObj.dlt_file_message(
+                                byref(dltFile), 0, verb
+                            )
+                            fileStart = dltFile.msg.headerextra.tmsp / float(
+                                10000
+                            )
+                            startTimeList[fidx] = fileStart
+
+                            # scope exceed #
+                            if until < fileStart:
+                                skipFile = True
+
                             break
 
                     # check message limit #
@@ -74061,18 +74074,36 @@ class DltAnalyzer(object):
                     fileStart = dltFile.msg.headerextra.tmsp / float(10000)
 
                     # end time #
-                    ret = dltObj.dlt_file_message(
-                        byref(dltFile), dltFile.counter_total - 1, verb
-                    )
-                    fileEnd = dltFile.msg.headerextra.tmsp / float(10000)
+                    if fidx == 0:
+                        if "SETCURRENT" in SysMgr.environList:
+                            try:
+                                current = SysMgr.environList["SETCURRENT"][0]
+                                fileEnd = float(current)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                SysMgr.printErr(
+                                    "failed to set current to '%s'" % current,
+                                    True,
+                                )
+                                sys.exit(-1)
+                        else:
+                            fileEnd = current
+                    else:
+                        fileEnd = startTimeList[fidx - 1]
 
-                    # check final condition #
+                    # check stop condition #
                     if fileEnd < since:
                         break
 
                     # add to list #
                     targetFileList.append(pathOrig)
-                    continue
+
+                    # check last boundary #
+                    if fileStart < since and fileEnd > until:
+                        break
+                    else:
+                        continue
 
                 # read messages #
                 for index in xrange(dltFile.counter_total):
@@ -74124,20 +74155,48 @@ class DltAnalyzer(object):
 
             # check no target file #
             if findMode:
+                # print total CPU usage #
+                try:
+                    dobj = Debugger(pid=os.getpid(), attach=False)
+                    dobj.initValues()
+                    dobj.getCpuUsage()
+                    cpuUsage = dobj.prevCpuStat[0]
+                    cpustr = " and used CPU %s%% totally" % cpuUsage
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    cpustr = ""
+
+                if SysMgr.jsonEnable:
+                    jsonList = {
+                        "cpu": cpuUsage,
+                        "list": list(sorted(targetFileList)),
+                    }
+
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            jsonList, pretty=not SysMgr.findOption("Q")
+                        )
+                    )
+
+                    sys.exit(0)
+
                 if targetFileList:
                     SysMgr.printPipe(
-                        "\nFound below files in %.3f ~ %.3f" % (since, until)
+                        "\nFound below files in %.3f ~ %.3f%s"
+                        % (since, until, cpustr)
                     )
                     for i, f in enumerate(sorted(targetFileList)):
                         SysMgr.printPipe(
                             "[%3s] %s" % (i, UtilMgr.convColor(f, "YELLOW"))
                         )
-
+                    sys.exit(0)
                 else:
                     SysMgr.printErr(
-                        "failed to find file in %.3f ~ %.3f" % (since, until)
+                        "failed to find file in %.3f ~ %.3f%s"
+                        % (since, until, cpustr)
                     )
-                sys.exit(-1)
+                    sys.exit(-1)
 
             # print summary #
             if printMode == "top":
