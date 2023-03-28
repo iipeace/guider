@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230327"
+__revision__ = "230328"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26510,6 +26510,150 @@ Commands:
             except:
                 SysMgr.printErr("wrong option value '%s'" % origVal, True)
                 sys.exit(-1)
+
+    @staticmethod
+    def splitFile(infile, size=None, outfile=None, count=0, which="START"):
+        pathList = []
+        try:
+            # check error condition #
+            if not size and not count:
+                SysMgr.printErr("no size and count info")
+                return pathList
+
+            # convert infile to realpath #
+            infile = os.path.realpath(infile).rstrip("/")
+
+            # set direction #
+            if which == "END":
+                direction = 2
+                fromStart = False
+            elif which == "START":
+                direction = 0
+                fromStart = True
+            else:
+                SysMgr.printErr(
+                    "failed to split '%s' because wrong direction '%s'"
+                    % (infile, which)
+                )
+                return pathList
+
+            # split file #
+            with open(infile, "rb") as fd:
+                # get total size #
+                fd.seek(0, 2)
+                totalSize = fd.tell()
+
+                # convert size #
+                if size:
+                    nsize = UtilMgr.convUnit2Size(size)
+                    if not count:
+                        count = long(totalSize / nsize)
+                        if totalSize % nsize:
+                            count += 1
+                elif count:
+                    nsize = long(totalSize / count)
+                    if totalSize % count:
+                        nsize += 1
+
+                # set position #
+                fd.seek(0, direction)
+
+                # init file count #
+                if fromStart:
+                    nrCnt = 0
+                else:
+                    if count:
+                        nrCnt = long(totalSize / nsize) - 1
+                        if totalSize % nsize:
+                            nrCnt += 1
+                        count = nrCnt - count
+                    else:
+                        nrCnt = count
+                        count = 0
+
+                while 1:
+                    # get current pos #
+                    pos = fd.tell()
+
+                    # get chunk size #
+                    if fromStart:
+                        chunk = (
+                            nsize
+                            if pos + nsize <= totalSize
+                            else totalSize - pos
+                        )
+                    else:
+                        chunk = nsize if pos - nsize >= 0 else pos
+                        fd.seek(-(chunk), 1)
+
+                    # set pos from current #
+                    buf = fd.read(chunk)
+
+                    # rewind pos from end #
+                    if not fromStart:
+                        fd.seek(-(chunk), 1)
+                        pos = fd.tell()
+
+                    # make a new outfile path #
+                    if outfile:
+                        if os.path.isdir(outfile):
+                            filename = os.path.basename(infile)
+                            outpath = os.path.join(outfile, filename)
+                            outpath += "_{0:03}".format(nrCnt)
+                        else:
+                            outpath = outfile + "_{0:03}".format(nrCnt)
+                    else:
+                        outpath = infile + "_{0:03}".format(nrCnt)
+                    outpath = os.path.realpath(outpath)
+
+                    # save to a new file #
+                    with open(outpath, "wb") as wfd:
+                        wfd.write(buf)
+
+                    SysMgr.printInfo(
+                        "%s bytes from offset %s in '%s' are written to '%s'"
+                        % (
+                            UtilMgr.convNum(chunk),
+                            UtilMgr.convNum(pos),
+                            infile,
+                            outpath,
+                        )
+                    )
+
+                    pathList.append(outpath)
+
+                    # get current pos #
+                    pos = fd.tell()
+
+                    # increase file count #
+                    if fromStart:
+                        nrCnt += 1
+                    else:
+                        nrCnt -= 1
+
+                    # check exit condition #
+                    if fromStart:
+                        if pos == totalSize:
+                            break
+                        elif count and nrCnt >= count:
+                            break
+                    else:
+                        if pos == 0:
+                            break
+                        elif nrCnt <= count:
+                            break
+
+            # sort list #
+            pathList.sort()
+
+            return pathList
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to split '%s' by %s" % (infile, size), True
+            )
+            return pathList
 
     @staticmethod
     def doDump():
@@ -64546,7 +64690,7 @@ Copyright:
             SysMgr.jsonData["general"].setdefault("page", pageInfo)
 
         SysMgr.infoBufferPrint(
-            "\n[FreePage Info] (PageBlockOrder: %s) (Pages per Block: %s)\n%s"
+            "\n[FreePage Info] (PageBlockOrder: %s) (PagesPerBlock: %s)\n%s"
             % (
                 pageInfo["pageBlockOrder"],
                 pageInfo["pagePerBlock"],
@@ -68069,7 +68213,7 @@ Copyright:
                 addInfo = ""
                 addDict = {}
                 indent = " " * 60
-                if path.startswith("/dev/zram"):
+                if os.path.basename(path).startswith("zram"):
                     target = ["comp_algorithm", "mm_stat"]
                     addDict.update(
                         SysMgr.readZramStats(path.split("/")[-1], target)
@@ -72683,7 +72827,7 @@ class DltAnalyzer(object):
 
     @staticmethod
     def loadConfig(path):
-        data = SysMgr.readFile(path)
+        data = SysMgr.readFile(path, verb=False)
         if not data:
             return
 
