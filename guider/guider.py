@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230328"
+__revision__ = "230330"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26512,7 +26512,9 @@ Commands:
                 sys.exit(-1)
 
     @staticmethod
-    def splitFile(infile, size=None, outfile=None, count=0, which="START"):
+    def splitFile(
+        infile, size=None, outfile=None, count=0, which="START", verb=True
+    ):
         pathList = []
         try:
             # check error condition #
@@ -26606,19 +26608,25 @@ Commands:
                         outpath = infile + "_{0:03}".format(nrCnt)
                     outpath = os.path.realpath(outpath)
 
+                    # backup file #
+                    if os.path.exists(outpath):
+                        SysMgr.backupFile(outpath)
+
                     # save to a new file #
                     with open(outpath, "wb") as wfd:
                         wfd.write(buf)
 
-                    SysMgr.printInfo(
-                        "%s bytes from offset %s in '%s' are written to '%s'"
-                        % (
-                            UtilMgr.convNum(chunk),
-                            UtilMgr.convNum(pos),
-                            infile,
-                            outpath,
+                    if verb:
+                        SysMgr.printInfo(
+                            "%s bytes from offset %s in '%s' are written to '%s'"
+                            % (
+                                UtilMgr.convNum(chunk),
+                                UtilMgr.convNum(pos),
+                                infile,
+                                outpath,
+                            ),
+                            prefix=False,
                         )
-                    )
 
                     pathList.append(outpath)
 
@@ -31541,6 +31549,7 @@ Commands:
                 "hserver",
                 "iotest",
                 "list",
+                "merge",
                 "mkcache",
                 "ntop",
                 "ping",
@@ -31553,6 +31562,7 @@ Commands:
                 "req",
                 "rtop",
                 "send",
+                "split",
                 "strings",
                 "sym2addr",
                 "tail",
@@ -31877,6 +31887,7 @@ Commands:
                 "fadvise": ("File", "Linux"),
                 "getafnt": ("Affinity", "Linux"),
                 "getpid": ("PID", "Linux"),
+                "merge": ("File", "Linux/MacOS/Windows"),
                 "mkcache": ("Cache", "Linux/MacOS/Windows"),
                 "mount": ("Mount", "Linux"),
                 "ping": ("ICMP", "Linux/MacOS/Windows"),
@@ -31903,6 +31914,7 @@ Commands:
                 "readahead": ("File", "Linux"),
                 "readelf": ("File", "Linux/MacOS/Windows"),
                 "req": ("URL", "Linux/MacOS/Windows"),
+                "split": ("File", "Linux/MacOS/Windows"),
                 "strings": ("Text", "Linux/MacOS/Windows"),
                 "sym2addr": ("Address", "Linux/MacOS/Windows"),
                 "sync": ("File", "Linux"),
@@ -37715,6 +37727,65 @@ Examples:
                         cmd,
                         mode,
                         "Print the tree of",
+                    )
+
+                # split #
+                elif SysMgr.checkMode("split"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Split files
+
+Options:
+    -o  <FILE>                  set output path
+    -q  <NAME{{:VALUE}}>          set environment variables
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Split files to 10M size
+        # {0:1} {1:1} "guider.tgz, guider2.tgz" -q CHUNK:10m
+
+    - Split files into 5 files each
+        # {0:1} {1:1} "guider.tgz, guider2.tgz" -q COUNT:5
+
+    - Split files into 5 files of 10M size each
+        # {0:1} {1:1} "guider.tgz, guider2.tgz" -q CHUNK:10M, COUNT:5
+
+    - Split files into 5 files of 10M size each from the back 
+        # {0:1} {1:1} "guider.tgz, guider2.tgz" -q CHUNK:10M, COUNT:5, TAIL
+                    """.format(
+                        cmd, mode
+                    )
+
+                # merge #
+                elif SysMgr.checkMode("merge"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Merge files
+
+Options:
+    -o  <FILE>                  set output path
+    -q  <NAME{{:VALUE}}>          set environment variables
+    -v                          verbose
+                        """.format(
+                        cmd, mode
+                    )
+
+                    helpStr += """
+Examples:
+    - Merge files into a new file
+        # {0:1} {1:1} "guider.tgz, guider2.tgz" -o guiderMerged.tgz
+                    """.format(
+                        cmd, mode
                     )
 
                 # comp #
@@ -47361,7 +47432,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("failed to compress", True)
+                SysMgr.printErr("failed to compress files", True)
 
         # DECOMP MODE #
         elif SysMgr.checkMode("decomp"):
@@ -47370,9 +47441,27 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("failed to decompress", True)
+                SysMgr.printErr("failed to decompress files", True)
 
-        # PS MODE #
+        # SPLIT MODE #
+        elif SysMgr.checkMode("split"):
+            try:
+                SysMgr.doSplit()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to split files", True)
+
+        # MERGE MODE #
+        elif SysMgr.checkMode("merge"):
+            try:
+                SysMgr.doMerge()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("failed to mergefiles", True)
+
+        # SYSTAT MODE #
         elif SysMgr.checkMode("systat"):
             SysMgr.doSystat()
 
@@ -61085,6 +61174,119 @@ Copyright:
         TaskAnalyzer.printProcTree(
             obj.procData, title=title, printFunc=printFunc, targets=targets
         )
+
+    @staticmethod
+    def doMerge():
+        outPath = SysMgr.outPath
+
+        # check output file #
+        if outPath:
+            outPath = os.path.realpath(outPath)
+        else:
+            SysMgr.printErr("no output path")
+            sys.exit(-1)
+
+        SysMgr.setStream()
+        SysMgr.setDefaultSignal()
+
+        # check input #
+        if SysMgr.hasMainArg():
+            args = SysMgr.getMainArgs()
+        else:
+            SysMgr.printErr("no path for merge")
+            sys.exit(-1)
+
+        # get file list #
+        targetList = []
+        for item in args:
+            files = UtilMgr.getFileList([item], sort=True, exceptDir=True)
+            targetList += files
+        if not targetList:
+            SysMgr.printErr("no file for input path")
+            sys.exit(-1)
+
+        # check exist file #
+        if os.path.exists(outPath):
+            SysMgr.backupFile(outPath)
+
+        # merge files #
+        with open(outPath, "wb") as fd:
+            for f in targetList:
+                f = os.path.realpath(f)
+                SysMgr.printInfo(
+                    "append '%s%s' to '%s%s'"
+                    % (
+                        f,
+                        UtilMgr.getFileSizeStr(f),
+                        outPath,
+                        UtilMgr.getFileSizeStr(outPath),
+                    ),
+                    prefix=False,
+                )
+
+                with open(f, "rb") as rfd:
+                    fd.write(rfd.read())
+
+        SysMgr.printInfo(
+            "%s files are merged to %s%s"
+            % (
+                UtilMgr.convNum(len(targetList)),
+                outPath,
+                UtilMgr.getFileSizeStr(outPath),
+            )
+        )
+
+    @staticmethod
+    def doSplit():
+        SysMgr.setStream()
+        SysMgr.setDefaultSignal()
+
+        # check input #
+        if SysMgr.hasMainArg():
+            args = SysMgr.getMainArgs()
+        else:
+            SysMgr.printErr("no path for split")
+            sys.exit(-1)
+
+        # get file list #
+        targetList = []
+        for item in args:
+            files = UtilMgr.getFileList([item], sort=True, exceptDir=True)
+            targetList += files
+        if not targetList:
+            SysMgr.printErr("no file for input path")
+            sys.exit(-1)
+
+        # get direction #
+        if "TAIL" in SysMgr.environList:
+            which = "END"
+        else:
+            which = "START"
+
+        # get chunk size #
+        if "CHUNK" in SysMgr.environList:
+            chunk = SysMgr.environList["CHUNK"][0]
+        else:
+            chunk = None
+
+        # get count #
+        count = UtilMgr.getEnvironNum("COUNT", False, 0, False, isInt=True)
+
+        # split files #
+        for f in targetList:
+            SysMgr.printInfo("start splitting '%s'..." % f)
+
+            ret = SysMgr.splitFile(f, chunk, SysMgr.outPath, count, which)
+
+            SysMgr.printInfo("spliited '%s' to below files" % f)
+            for idx, nf in enumerate(ret):
+                SysMgr.printInfo(
+                    "({0:03}) {1:1}{2:1}".format(
+                        idx, nf, UtilMgr.getFileSizeStr(nf)
+                    ),
+                    prefix=False,
+                    title=False,
+                )
 
     @staticmethod
     def doCompress():
