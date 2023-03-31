@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230330"
+__revision__ = "230331"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8520,7 +8520,7 @@ function format_percent(n) {
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
         if not SysMgr.encodeEnable:
-            jsonStr = re.sub("\s", "", jsonStr) + "\n"
+            jsonStr = re.sub("[\t\n\r\f\v]", "", jsonStr) + "\n"
 
         return jsonStr
 
@@ -17842,14 +17842,14 @@ class FunctionAnalyzer(object):
 
                 # set tgid #
                 try:
-                    threadData[thread]["tgid"] = d["tgid"]
+                    tgid = d["tgid"]
                 except:
                     try:
-                        threadData[thread]["tgid"] = SysMgr.savedProcTree[
-                            thread
-                        ]
+                        tgid = SysMgr.savedProcTree[thread]
                     except:
-                        pass
+                        continue
+
+                threadData[thread]["tgid"] = tgid
 
         return threadData
 
@@ -23469,6 +23469,143 @@ class LogMgr(object):
         return LogMgr._lock(fd, lock=False)
 
     @staticmethod
+    def printTrace(console=False):
+        fileSize = 0
+        compressed = False
+
+        if SysMgr.inputParam:
+            # open the target file #
+            try:
+                path = SysMgr.inputParam
+
+                # check gzip magic number #
+                if UtilMgr.isGzipFile(path):
+                    # get file size from last 4 bytes #
+                    with open(path, "rb") as fd:
+                        fd.seek(-4, 2)
+                        fileSize = struct.unpack("I", fd.read(4))[0]
+
+                    traceFd = SysMgr.getPkg("gzip", False).open(path, "r")
+                    compressed = True
+                else:
+                    traceFd = open(path, "r")
+
+                    # get file size #
+                    fileSize = UtilMgr.getFileSize(path, string=False)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(path)
+                return -1
+        else:
+            # check root permission #
+            SysMgr.checkRootPerm()
+
+            # open trace_marker #
+            try:
+                tracePath = "%s/../trace" % SysMgr.getTraceEventPath()
+                traceFd = open(tracePath, "r")
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(tracePath)
+                return -1
+
+        # get item for log filter #
+        if "WATCHLOG" in SysMgr.environList:
+            watchcond = SysMgr.environList["WATCHLOG"][0].split("+")
+        else:
+            watchcond = None
+
+        # get times for tail and until option #
+        current = SysMgr.getUptime()
+        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], current)
+        if since or until:
+            checkTime = True
+            if since and since < 0:
+                since += current
+            if until and until < 0:
+                until += until
+        else:
+            checkTime = False
+
+        SysMgr.printInfo("start printing trace logs... [ STOP(Ctrl+c) ]")
+
+        while 1:
+            log = traceFd.readline()
+
+            # decode and remove newlines #
+            if compressed:
+                log = log.decode()
+            log = log.rstrip()
+
+            if not log:
+                if SysMgr.inputParam:
+                    if traceFd.tell() == fileSize:
+                        break
+                else:
+                    if console:
+                        break
+                    else:
+                        time.sleep(0.1)
+                continue
+            elif log[0] == "#" or not UtilMgr.isValidStr(log, inc=True):
+                continue
+
+            m = None
+            if checkTime:
+                m = SysMgr.getTraceItem(log)
+                if m:
+                    d = m.groupdict()
+                    try:
+                        ltime = float(d["time"])
+
+                        if since:
+                            if since > ltime:
+                                continue
+                            else:
+                                since = 0
+
+                        if until:
+                            if until < ltime:
+                                continue
+                            else:
+                                break
+
+                        if since == until == 0:
+                            checkTime = False
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+            elif SysMgr.inputParam:
+                m = SysMgr.getTraceItem(log)
+                if not m:
+                    continue
+
+            if SysMgr.jsonEnable:
+                if not m:
+                    m = SysMgr.getTraceItem(log)
+                    if not m:
+                        continue
+
+                # pick each key and value set #
+                d = m.groupdict()
+                addAttrs = re.findall("(\w+)=(.+?(?=\s\w+=|\Z)) ", d["etc"])
+                for name, val in addAttrs:
+                    d[name] = val
+
+                log = UtilMgr.convDict2Str(d, pretty=not console).rstrip()
+
+            if SysMgr.outPath and console:
+                print(log)
+
+            SysMgr.printPipe(log)
+
+            # check log command #
+            SysMgr.checkLogCond(log, watchcond)
+
+    @staticmethod
     def printLogcat(console=False):
         # check logcat #
         logcatPath = UtilMgr.which("logcat")
@@ -23479,16 +23616,13 @@ class LogMgr(object):
         # create pipe #
         rd, wr = os.pipe()
 
-        # get stream option #
-        stream = SysMgr.findOption("Q")
-
         # get item for log filter #
         if "WATCHLOG" in SysMgr.environList:
             watchcond = SysMgr.environList["WATCHLOG"][0].split("+")
         else:
             watchcond = None
 
-        SysMgr.printInfo("start printing syslog... [ STOP(Ctrl+c) ]")
+        SysMgr.printInfo("start printing logcat... [ STOP(Ctrl+c) ]")
 
         # create a new process #
         pid = SysMgr.createProcess()
@@ -23507,7 +23641,7 @@ class LogMgr(object):
                 log = rdPipe.readline()
 
                 if not log:
-                    if stream:
+                    if console:
                         break
                     else:
                         time.sleep(0.1)
@@ -23530,15 +23664,25 @@ class LogMgr(object):
                 # others #
                 pid, tid, lev = items[2:5]
 
+                if SysMgr.jsonEnable:
+                    msgDict = {
+                        "pid": pid,
+                        "tid": tid,
+                        "level": lev,
+                    }
+
                 # proc #
                 pcomm = " "
                 if pid != "0":
                     pcomm = SysMgr.getComm(pid, cache=True, save=True)
                     if not pcomm:
                         pcomm = " "
-                proc = "{0:>16}({1:>{pidlen}})".format(
-                    pcomm, pid, pidlen=pidlen
-                )
+                if SysMgr.jsonEnable:
+                    msgDict["pcomm"] = pcomm
+                else:
+                    proc = "{0:>16}({1:>{pidlen}})".format(
+                        pcomm, pid, pidlen=pidlen
+                    )
 
                 # thread #
                 thread = ""
@@ -23549,21 +23693,31 @@ class LogMgr(object):
                         tcomm = SysMgr.getComm(tid, cache=True, save=True)
                         if not tcomm:
                             tcomm = " "
-                    thread = "{0:>16}({1:>{pidlen}})".format(
-                        tcomm, tid, pidlen=pidlen
-                    )
-                    proc += "->" + thread
+                    if SysMgr.jsonEnable:
+                        msgDict["tcomm"] = tcomm
+                    else:
+                        thread = "{0:>16}({1:>{pidlen}})".format(
+                            tcomm, tid, pidlen=pidlen
+                        )
+                        proc += "->" + thread
+
+                # remove useless spaces #
+                msg = msg.strip()
 
                 if len(items) > 5:
                     msg = items[5] + ": " + msg
 
-                # build log line #
-                log = "%s %s %s %s" % (ltime, proc, lev, msg)
+                if SysMgr.jsonEnable:
+                    msgDict["message"] = msg
+                    log = UtilMgr.convDict2Str(msgDict, pretty=not console)
+                else:
+                    # build log line #
+                    log = "%s %s %s %s" % (ltime, proc, lev, msg)
 
                 if SysMgr.outPath and console:
                     print(log)
 
-                SysMgr.printPipe(log, newline=False)
+                SysMgr.printPipe(log)
 
                 # check log command #
                 SysMgr.checkLogCond(log, watchcond)
@@ -23602,7 +23756,7 @@ class LogMgr(object):
 
         # set nonblock attribute #
         try:
-            if SysMgr.findOption("Q"):
+            if console:
                 SysMgr.setBlock(SysMgr.syslogFd, False)
                 stream = True
             else:
@@ -23747,8 +23901,8 @@ class LogMgr(object):
             watchcond = None
 
         # get times for tail and until option #
-        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], time.time())
         current = time.time()
+        since, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], current)
 
         # apply relative time #
         if since < 0:
@@ -23761,7 +23915,6 @@ class LogMgr(object):
         size = c_size_t(0)
         usec = c_uint64(0)
         timeout = c_uint64(10000)
-        quitFlag = SysMgr.findOption("Q")
 
         # set fields #
         if SysMgr.inputParam:
@@ -23793,7 +23946,7 @@ class LogMgr(object):
                     ret = systemdObj.sd_journal_wait(jrl, timeout)
                     # SD_JOURNAL_NOP / SD_JOURNAL_APPEND / SD_JOURNAL_INVALID #
                     if ret == 0:
-                        if quitFlag:
+                        if console:
                             break
                         else:
                             continue
@@ -24028,10 +24181,8 @@ class LogMgr(object):
             watchcond = None
 
         # get times for tail and until option #
-        tail, until = SysMgr.getTimeValues(
-            ["TAIL", "UNTIL"], SysMgr.getUptime()
-        )
         current = SysMgr.getUptime()
+        tail, until = SysMgr.getTimeValues(["TAIL", "UNTIL"], current)
 
         # apply relative time #
         if tail < 0:
@@ -24227,6 +24378,43 @@ class LogMgr(object):
             SysMgr.checkLogCond(log, watchcond)
 
     @staticmethod
+    def doLogTrace(msg=None, level=None):
+        # open trace_marker #
+        try:
+            if not SysMgr.traceFd:
+                tracePath = "%s/../trace_marker" % SysMgr.getTraceEventPath()
+                SysMgr.traceFd = open(tracePath, "w")
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(tracePath)
+            return -1
+
+        # print messages #
+        try:
+            msgList = msg.split("\n")
+            for line in msgList:
+                SysMgr.traceFd.write(line)
+            SysMgr.traceFd.flush()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                traceStatPath = "%s/../tracing_on" % SysMgr.getTraceEventPath()
+                traceStat = SysMgr.readFile(traceStatPath)
+                if traceStat == "0":
+                    SysMgr.printErr(
+                        "failed to write trace message because tracing is off"
+                    )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("failed to write trace message", reason=True)
+            return -1
+
+        return 0
+
+    @staticmethod
     def doLogKmsg(msg=None, level=None):
         # open kmsg device node #
         try:
@@ -24243,7 +24431,7 @@ class LogMgr(object):
             msgList = msg.split("\n")
             for line in msgList:
                 SysMgr.kmsgFd.write("guider: %s\n" % line)
-                SysMgr.kmsgFd.flush()
+            SysMgr.kmsgFd.flush()
         except SystemExit:
             sys.exit(0)
         except:
@@ -24635,6 +24823,7 @@ class SysMgr(object):
     eventLogFd = None
     irqFd = None
     kmsgFd = None
+    traceFd = None
     lmkFd = None
     loadavgFd = None
     memFd = None
@@ -25051,6 +25240,9 @@ Commands:
         elif mode.upper() == "SYSLOG":
             func = LogMgr.doLogSyslog
             mtype = "syslog"
+        elif mode.upper() == "TRACE":
+            func = LogMgr.doLogTrace
+            mtype = "trace"
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -28581,6 +28773,7 @@ Commands:
             ("KERNELEVENT", "printkmsg"),
             ("LOGCATEVENT", "printlogcat"),
             ("SYSLOGEVENT", "printsys"),
+            ("TRACEEVENT", "printtrace"),
         ):
             if not logtype in SysMgr.environList:
                 continue
@@ -28622,7 +28815,14 @@ Commands:
                         if until:
                             until -= diff
 
-                inputParam = [logcmd, "-g%s" % keyword, "-J", "-Q", "-a", "dL"]
+                inputParam = [
+                    logcmd,
+                    "-g%s" % keyword,
+                    "-J",
+                    "-Q",
+                    "-a",
+                    "-dL",
+                ]
 
                 # set input path #
                 inputParam.insert(1, "-I" + (path if path else ""))
@@ -28709,6 +28909,7 @@ Commands:
             "KERNEL": "printkmsg",
             "LOGCAT": "printlogcat",
             "SYSLOG": "printsys",
+            "TRACE": "printtrace",
         }
 
         for name, values in data.items():
@@ -28748,6 +28949,10 @@ Commands:
                     exitCond = ""
 
                 # set port opt #
+                if not SysMgr.localServObj:
+                    SysMgr.printErr("no local network address info")
+                    sys.exit(-1)
+
                 portOpt = " -X%s" % SysMgr.localServObj.port
 
                 # set default command #
@@ -31929,11 +32134,13 @@ Commands:
                 "logjrl": ("Journal", "Linux"),
                 "logkmsg": ("Kernel", "Linux"),
                 "logsys": ("Syslog", "Linux"),
+                "logtrace": ("Ftrace", "Linux"),
                 "printdlt": ("DLT", "Linux/MacOS"),
                 "printjrl": ("Journal", "Linux"),
                 "printkmsg": ("Kernel", "Linux"),
                 "printlogcat": ("Android", "Linux"),
                 "printsys": ("Syslog", "Linux"),
+                "printtrace": ("Ftrace", "Linux"),
             },
             "network": {
                 "cli": ("Client", "Linux/MacOS/Windows"),
@@ -32350,6 +32557,7 @@ Examples:
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", MSGALL
         # {0:1} {1:1} -o . -q "DLTEVENT:test.dlt|TIMEOUT|timeout", PRINTEVENT
         # {0:1} {1:1} -o . -q "KERNELEVENT:TIMEOUT|timeout"
+        # {0:1} {1:1} -o . -q "TRACEEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} -o . -q "JOURNALEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} -o . -q "SYSLOGEVENT:TIMEOUT|timeout"
 
@@ -32618,6 +32826,7 @@ Examples:
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "DLTEVENT:test.dlt|TIMEOUT|timeout", PRINTEVENT
         # {0:1} {1:1} {3:1} -q "KERNELEVENT:TIMEOUT|timeout"
+        # {0:1} {1:1} {3:1} -q "TRACEEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "JOURNALEVENT:TIMEOUT|timeout"
         # {0:1} {1:1} {3:1} -q "SYSLOGEVENT:TIMEOUT|timeout"
 
@@ -36376,6 +36585,7 @@ Examples:
                     or SysMgr.checkMode("logjrl")
                     or SysMgr.checkMode("logkmsg")
                     or SysMgr.checkMode("logsys")
+                    or SysMgr.checkMode("logtrace")
                 ):
                     helpStr = logCommonStr
 
@@ -36398,6 +36608,7 @@ Examples:
                     or SysMgr.checkMode("printkmsg")
                     or SysMgr.checkMode("printlogcat")
                     or SysMgr.checkMode("printsys")
+                    or SysMgr.checkMode("printtrace")
                 ):
                     helpStr = printCommonStr
 
@@ -42205,7 +42416,9 @@ Copyright:
                             "DLTEVENT",
                             "KERNELEVENT",
                             "JOURNALEVENT",
+                            "LOGCATEVENT",
                             "SYSLOGEVENT",
+                            "TRACEEVENT",
                         )
                     ]
                 ):
@@ -42224,6 +42437,7 @@ Copyright:
 
                     # get log item #
                     logInfo = {
+                        # TODO: add more log event format #
                         "DLTEVENT": {
                             "time": "mtime",
                             "diff": UtilMgr.getClockTime(dlt=True) - current,
@@ -45143,6 +45357,8 @@ Copyright:
             # check condition #
             if not cond or not UtilMgr.isValidStr(log, cond):
                 return
+            elif "EVENT_CMD_NOTIFY:log_" in log:
+                return
 
             SysMgr.printWarn(
                 "detected '%s' in %s" % (", ".join(cond), [log]), True
@@ -47249,6 +47465,10 @@ Copyright:
         elif SysMgr.checkMode("logkmsg"):
             SysMgr.doLogMode("kmsg")
 
+        # LOGTRACE MODE #
+        elif SysMgr.checkMode("logtrace"):
+            SysMgr.doLogMode("trace")
+
         # LOGSYS MODE #
         elif SysMgr.checkMode("logsys"):
             SysMgr.doLogMode("syslog")
@@ -47312,6 +47532,10 @@ Copyright:
             # PRINTKMSG MODE #
             elif SysMgr.checkMode("printkmsg"):
                 LogMgr.printKmsg(console)
+
+            # PRINTTRACE MODE #
+            elif SysMgr.checkMode("printtrace"):
+                LogMgr.printTrace(console)
 
             # PRINTLOGCAT MODE #
             elif SysMgr.checkMode("printlogcat"):
@@ -47764,6 +47988,7 @@ Copyright:
             "printkmsg",
             "printlogcat",
             "printsys",
+            "printtrace",
         ):
             return True
         else:
