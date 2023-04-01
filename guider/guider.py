@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230331"
+__revision__ = "230401"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23473,6 +23473,10 @@ class LogMgr(object):
         fileSize = 0
         compressed = False
 
+        # flush the ring buffer #
+        if "FLUSH" in SysMgr.environList:
+            SysMgr.clearTraceBuffer()
+
         if SysMgr.inputParam:
             # open the target file #
             try:
@@ -23501,7 +23505,7 @@ class LogMgr(object):
             # check root permission #
             SysMgr.checkRootPerm()
 
-            # open trace_marker #
+            # open trace file #
             try:
                 tracePath = "%s/../trace" % SysMgr.getTraceEventPath()
                 traceFd = open(tracePath, "r")
@@ -34082,6 +34086,9 @@ Examples:
     - {2:1} of all threads to guider.dat every 3 seconds continuously
         # {0:1} {1:1} -s . -R 3:1:1
 
+    - {2:1} of all threads to guider.dat without flushing the ring buffer
+        # {0:1} {1:1} -s . -q NOFLUSH
+
     - {2:1} of all threads to guider.dat with fastest initialization
         # {0:1} {1:1} -s . -q FASTINIT
 
@@ -36757,6 +36764,15 @@ Examples:
         # {0:1} {1:1} -e t
                     """.format(
                             cmd, mode, "Print logcat logs"
+                        )
+
+                    # printtrace #
+                    elif SysMgr.checkMode("printtrace"):
+                        helpStr += """
+    - {2:1} after flushing the ring buffer
+        # {0:1} {1:1} -q FLUSH
+                    """.format(
+                            cmd, mode, "Print ftrace logs"
                         )
 
                 # printsig #
@@ -43140,10 +43156,13 @@ Copyright:
             if not SysMgr.cmdFd:
                 try:
                     SysMgr.cmdFd = open(SysMgr.cmdEnable, perm)
+
+                    # TODO: check debugfs and tracefs #
                     SysMgr.cmdFd.write(
                         "mount -t debugfs nodev %s 2>%s\n"
                         % (SysMgr.debugfsPath, SysMgr.nullPath)
                     )
+
                     SysMgr.cmdFd.write(
                         'echo "\n[Info] start recording... '
                         '[ STOP(Ctrl+c) ]\n"\n'
@@ -43172,7 +43191,7 @@ Copyright:
 
         # open node #
         try:
-            target = "%s/%s" % (SysMgr.traceEventPath, path)
+            target = "%s/%s" % (SysMgr.getTraceEventPath(), path)
             if append:
                 fd = os.open(target, os.O_RDWR | os.O_CREAT | os.O_APPEND)
             else:
@@ -64087,6 +64106,10 @@ Copyright:
 
     @staticmethod
     def clearTraceBuffer():
+        # check skip value #
+        if "NOFLUSH" in SysMgr.environList:
+            return
+
         SysMgr.printInfo(r"clear trace buffer... ", suffix=False)
         SysMgr.writeTraceCmd("../trace", "")
         SysMgr.printInfo("[done]", prefix=False, title=False)
