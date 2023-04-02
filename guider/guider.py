@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230401"
+__revision__ = "230402"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23473,9 +23473,28 @@ class LogMgr(object):
         fileSize = 0
         compressed = False
 
+        # print trace point list #
+        if SysMgr.findOption("l"):
+            if not SysMgr.findOption("Q"):
+                SysMgr.streamEnable = False
+            SysMgr.printDirs(
+                SysMgr.getTraceEventPath(),
+                SysMgr.funcDepth if SysMgr.funcDepth > 0 else 1,
+            )
+            sys.exit(0)
+
         # flush the ring buffer #
         if "FLUSH" in SysMgr.environList:
             SysMgr.clearTraceBuffer()
+
+        # enable events #
+        SysMgr.enableEvents()
+
+        # disable events #
+        SysMgr.disableEvents()
+
+        # clear filters #
+        SysMgr.clearFilters()
 
         if SysMgr.inputParam:
             # open the target file #
@@ -24383,6 +24402,25 @@ class LogMgr(object):
 
     @staticmethod
     def doLogTrace(msg=None, level=None):
+        # print trace point list #
+        if SysMgr.findOption("l"):
+            if not SysMgr.findOption("Q"):
+                SysMgr.streamEnable = False
+            SysMgr.printDirs(
+                SysMgr.getTraceEventPath(),
+                SysMgr.funcDepth if SysMgr.funcDepth > 0 else 1,
+            )
+            sys.exit(0)
+
+        # enable events #
+        SysMgr.enableEvents()
+
+        # disable events #
+        SysMgr.disableEvents()
+
+        # clear filters #
+        SysMgr.clearFilters()
+
         # open trace_marker #
         try:
             if not SysMgr.traceFd:
@@ -34107,6 +34145,15 @@ Examples:
         # {0:1} {1:1} -s . -c sched/sched_switch
         # {0:1} {1:1} -s . -c "irq/softirq_entry:vec==1"
 
+    - Print tracepoint list
+        # {0:1} {1:1} -l
+        # {0:1} {1:1} -l -H -a
+
+    - {2:1} with control for specific trace points of all threads to guider.dat
+        # {0:1} {1:1} -s . -q ENABLETP:"irq*"
+        # {0:1} {1:1} -s . -q DISABLETP:"irq*"
+        # {0:1} {1:1} -s . -q CLEARFILTER
+
     - {2:1} including specific user functions of all threads to guider.dat
         # {0:1} {1:1} -s . -U "@SYM:func*:/tmp/a.out"
         # {0:1} {1:1} -s . -U "@SYM:func*:a.*"
@@ -36606,6 +36653,22 @@ Examples:
                             mode,
                             "Log a DLT message",
                         )
+                    # logtrace #
+                    elif SysMgr.checkMode("logtrace"):
+                        helpStr += """
+    - {2:1} with control for specific trace points
+        # {0:1} {1:1} -q ENABLETP:"irq*"
+        # {0:1} {1:1} -q DISABLETP:"irq*"
+        # {0:1} {1:1} -q CLEARFILTER
+
+    - Print tracepoint list
+        # {0:1} {1:1} -l
+        # {0:1} {1:1} -l -H -a
+                    """.format(
+                            cmd,
+                            mode,
+                            "Log a ftrace message",
+                        )
 
                 # printlog #
                 elif (
@@ -36771,6 +36834,15 @@ Examples:
                         helpStr += """
     - {2:1} after flushing the ring buffer
         # {0:1} {1:1} -q FLUSH
+
+    - {2:1} with control for specific trace points
+        # {0:1} {1:1} -q ENABLETP:"irq*"
+        # {0:1} {1:1} -q DISABLETP:"irq*"
+        # {0:1} {1:1} -q CLEARFILTER
+
+    - Print tracepoint list
+        # {0:1} {1:1} -l
+        # {0:1} {1:1} -l -H -a
                     """.format(
                             cmd, mode, "Print ftrace logs"
                         )
@@ -64348,7 +64420,61 @@ Copyright:
             SysMgr.addExitFunc(SysMgr.clearTraceBuffer)
             SysMgr.addExitFunc(SysMgr.clearTraceFilter)
 
-    def enableEvents(self):
+    @staticmethod
+    def applyTraceAttr(filters, var, val):
+        # get target list #
+        eventPath = SysMgr.getTraceEventPath() + "/"
+        targets = UtilMgr.getFiles(eventPath, [var])
+
+        # change var for rstrip #
+        var = "/" + var
+
+        for item in targets:
+            # get name #
+            name = UtilMgr.lstrip(item, eventPath)
+            name = UtilMgr.rstrip(name, var)
+
+            if UtilMgr.isValidStr(name, filters):
+                SysMgr.writeFile(item, val)
+
+    @staticmethod
+    def clearFilters():
+        if not "CLEARFILTER" in SysMgr.environList:
+            return
+
+        SysMgr.printInfo(r"clear trace filters... ", suffix=False)
+        SysMgr.applyTraceAttr(["*"], "filter", "0")
+        SysMgr.printInfo("[done]", prefix=False, title=False)
+
+    @staticmethod
+    def enableEvents():
+        if not "ENABLETP" in SysMgr.environList:
+            return
+
+        # get filter list #
+        filters = SysMgr.environList["ENABLETP"]
+
+        SysMgr.applyTraceAttr(filters, "enable", "1")
+
+        # prepare for recovering tracing status after printing #
+        tracingStat = os.path.join(SysMgr.getTraceEventPath(), "../tracing_on")
+        orig = SysMgr.readFile(tracingStat)
+        SysMgr.addExitFunc(SysMgr.writeTraceCmd, ["../tracing_on", orig])
+
+        # write command to start tracing #
+        SysMgr.writeTraceCmd("../tracing_on", "1")
+
+    @staticmethod
+    def disableEvents():
+        if not "DISABLETP" in SysMgr.environList:
+            return
+
+        # get filter list #
+        filters = SysMgr.environList["DISABLETP"]
+
+        SysMgr.applyTraceAttr(filters, "enable", "0")
+
+    def enableCmdEvents(self):
         for cmd, value in self.cmdList.items():
             if value:
                 SysMgr.writeTraceCmd("%s/enable" % cmd, "1")
@@ -64455,6 +64581,16 @@ Copyright:
 
             # start tracing #
             self.startTracing()
+
+        # print trace point list #
+        if SysMgr.findOption("l"):
+            if not SysMgr.findOption("Q"):
+                SysMgr.streamEnable = False
+            SysMgr.printDirs(
+                SysMgr.getTraceEventPath(),
+                SysMgr.funcDepth if SysMgr.funcDepth > 0 else 1,
+            )
+            sys.exit(0)
 
         # check root permission #
         SysMgr.checkRootPerm(msg="trace system")
@@ -64828,8 +64964,17 @@ Copyright:
         # special events #
         _writeCommonCmd()
 
+        # enable command events #
+        self.enableCmdEvents()
+
         # enable events #
-        self.enableEvents()
+        SysMgr.enableEvents()
+
+        # disable events #
+        SysMgr.disableEvents()
+
+        # clear filters #
+        SysMgr.clearFilters()
 
         # start tracing #
         self.startTracing()
