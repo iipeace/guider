@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "230402"
+__revision__ = "230403"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6438,7 +6438,7 @@ class UtilMgr(object):
         def _variance(data, ddof=0):
             n = len(data)
             mean = sum(data) / n
-            return sum((x - mean) ** 2 for x in data) / (n - ddof)
+            return __builtins__.sum((x - mean) ** 2 for x in data) / (n - ddof)
 
         var = _variance(data)
         math = SysMgr.getPkg("math")
@@ -32770,6 +32770,10 @@ Examples:
     - {2:1} for specific tasks and their siblings
         # {0:1} {1:1} {3:1} -g task3 -P
 
+    - {2:1} by displaying process info only
+        # {0:1} {1:1} {3:1} -q ONLYPROC
+        # {0:1} {1:1} {3:1} -q ONLYPROC, PERTASK
+
     - {2:1} after concatenating specific files
         # {0:1} {1:1} {4:1} -q CONCATENATE
         # {0:1} {1:1} {4:1} -q CONCATENATE, ONLYTOTAL
@@ -36356,6 +36360,7 @@ Description:
     Draw system resource graph, event timeline, memory chart
 
     * The system memory chart is created only when using PSS-enabled report
+    * The event timeline supports sched, block, syscall, mark, custom, user, kernel, off
                         """.format(
                         cmd, mode
                     )
@@ -89549,10 +89554,18 @@ class EventAnalyzer(object):
             eventData[name] = {"list": [], "summary": []}
 
         eventData[name]["list"].append(
-            [ID, time, sum(t[0] == ID for t in eventData[name]["list"]) + 1]
+            [
+                ID,
+                time,
+                __builtins__.sum(t[0] == ID for t in eventData[name]["list"])
+                + 1,
+            ]
         )
 
-        if sum(id[0] == ID for id in eventData[name]["summary"]) == 0:
+        if (
+            __builtins__.sum(id[0] == ID for id in eventData[name]["summary"])
+            == 0
+        ):
             eventData[name]["summary"].append([ID, 1, -1, -1, -1, time, time])
         else:
             for n in eventData[name]["summary"]:
@@ -100755,6 +100768,19 @@ class TaskAnalyzer(object):
         # set zorder #
         if res:
             res.set_zorder(1)
+
+    @staticmethod
+    def getProcThrInfo(pid, tid, tcomm):
+        # get process info #
+        pcomm = SysMgr.commCache[pid] if pid in SysMgr.commCache else "?"
+        pinfo = "%s(%s)" % (pcomm, pid)
+        if "ONLYPROC" in SysMgr.environList:
+            return pinfo, pid
+
+        # get thread info #
+        tinfo = "%s(%s)" % (tcomm, tid)
+
+        return pinfo + "->" + tinfo, tid
 
     @staticmethod
     def initDrawEnv(dpi=0, size=None, fontsize=None):
@@ -113890,11 +113916,14 @@ class TaskAnalyzer(object):
                 else:
                     tcomm = prev_comm
 
+                # make target info #
+                ptinfo, thd = TaskAnalyzer.getProcThrInfo(tgid, prev_id, tcomm)
+
                 # add timeline data #
                 self.addTimelineData(
                     long(core),
-                    "%s(%s)" % (tcomm, prev_id),
-                    prev_id,
+                    ptinfo,
+                    thd,
                     prev_state,
                     start_delta,
                     stop_delta,
@@ -114968,33 +114997,37 @@ class TaskAnalyzer(object):
 
             # save syscall usage #
             diff = ""
-            hasTimeline = True
             sysItem = td["syscallInfo"][nrstr]
-            if "NOSYSCALL" in SysMgr.environList:
-                hasTimeline = False
-            elif sysItem["last"] > 0:
-                start_delta = long((float(sysItem["last"]) - stime) * 1000000)
-                stop_delta = long((float(ftime) - stime) * 1000000)
 
+            # add syscall timeline #
+            if not "NOSYSCALL" in SysMgr.environList:
+                if sysItem["last"] > 0:
+                    start_delta = long(
+                        (float(sysItem["last"]) - stime) * 1000000
+                    )
+                    stop_delta = long((float(ftime) - stime) * 1000000)
+                else:
+                    # start_delta = 0
+                    stop_delta = long((float(ftime) - stime) * 1000000)
+                    start_delta = long((float(ftime) - stime) * 1000000)
+
+                # make context string #
                 try:
-                    text = "%s(%s)_%s" % (comm, thread, ConfigMgr.sysList[nr])
+                    ptinfo, thd = TaskAnalyzer.getProcThrInfo(
+                        tgid, thread, comm
+                    )
+                    text = "%s->%s" % (ptinfo, ConfigMgr.sysList[nr])
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printWarn("wrong syscall(%s)" % nr)
                     return time
-            else:
-                # start_delta = 0
-                stop_delta = long((float(ftime) - stime) * 1000000)
-                start_delta = long((float(ftime) - stime) * 1000000)
-                text = "%s(%s)_%s" % (comm, thread, ConfigMgr.sysList[nr])
 
-            # add timeline data #
-            if hasTimeline:
+                # add timeline data #
                 self.addTimelineData(
                     long(core),
                     text,
-                    thread,
+                    thd,
                     "SYSCALL",
                     start_delta,
                     stop_delta,
@@ -115349,13 +115382,16 @@ class TaskAnalyzer(object):
                             (float(startTime) - stime) * 1000000
                         )
                         stop_delta = long((float(ftime) - stime) * 1000000)
-                        text = "%s(%s) | RD[%s]" % (tcomm, reqThd, workload)
+                        ptinfo, thd = TaskAnalyzer.getProcThrInfo(
+                            tgid, reqThd, tcomm
+                        )
+                        text = "%s | RD[%s]" % (ptinfo, workload)
 
                         # add timeline data #
                         self.addTimelineData(
                             long(lastCore),
                             text,
-                            reqThd,
+                            thd,
                             "RD",
                             start_delta,
                             stop_delta,
@@ -115391,13 +115427,16 @@ class TaskAnalyzer(object):
                             (float(startTime) - stime) * 1000000
                         )
                         stop_delta = long((float(ftime) - stime) * 1000000)
-                        text = "%s(%s) | WR[%s]" % (tcomm, reqThd, workload)
+                        ptinfo, thd = TaskAnalyzer.getProcThrInfo(
+                            tgid, reqThd, tcomm
+                        )
+                        text = "%s | WR[%s]" % (ptinfo, workload)
 
                         # add timeline data #
                         self.addTimelineData(
                             long(lastCore),
                             text,
-                            reqThd,
+                            thd,
                             "WR",
                             start_delta,
                             stop_delta,
@@ -115961,7 +116000,7 @@ class TaskAnalyzer(object):
             sthr = "%s(%s)" % (comm, thread)
 
             # sender process #
-            if tgid in SysMgr.commCache:
+            if tgid in commCache:
                 sproc = "%s(%s)" % (commCache[tgid], tgid)
             else:
                 sproc = "??(%s)" % tgid
@@ -115976,14 +116015,14 @@ class TaskAnalyzer(object):
             dthread = d["dthread"]
             if dthread == "0":
                 rthr = ""
-            elif dthread in SysMgr.commCache:
+            elif dthread in commCache:
                 rthr = "%s(%s)" % (commCache[dthread], dthread)
             else:
                 rthr = "??(%s)" % dthread
 
             # receiver process #
             dproc = d["dproc"]
-            if dproc in SysMgr.commCache:
+            if dproc in commCache:
                 rproc = "%s(%s)" % (commCache[dproc], dproc)
             else:
                 rproc = "??(%s)" % dproc
@@ -116173,9 +116212,14 @@ class TaskAnalyzer(object):
 
                 stop_delta = long((float(ftime) - stime) * 1000000)
 
+                if "ONLYPROC" in SysMgr.environList:
+                    thd = tgid
+                else:
+                    thd = thread
+
                 # add timeline data #
                 self.addTimelineData(
-                    long(core), "OFF", thread, "OFF", start_delta, stop_delta
+                    long(core), "OFF", thd, "OFF", start_delta, stop_delta
                 )
 
             # sleep #
@@ -116335,11 +116379,14 @@ class TaskAnalyzer(object):
 
             start_delta = stop_delta = long((float(ftime) - stime) * 1000000)
 
+            ptinfo, thd = TaskAnalyzer.getProcThrInfo(tgid, thread, comm)
+            event = "%s->%s" % (ptinfo, d["event"])
+
             # add timeline data #
             self.addTimelineData(
                 long(core),
-                d["event"],
-                thread,
+                event,
+                thd,
                 "EVENT_MARK",
                 start_delta,
                 stop_delta,
@@ -116360,21 +116407,21 @@ class TaskAnalyzer(object):
                 [func, comm, thread, allTime, etc.strip()]
             )
 
-            # make event list #
-            if not threadData["customEvent"]:
-                threadData["customEvent"] = {}
+            eventName = "customEvent"
 
-            threadData["customEvent"].setdefault(
-                func, dict(self.init_eventData)
-            )
+            # make event list #
+            if not threadData[eventName]:
+                threadData[eventName] = {}
+
+            threadData[eventName].setdefault(func, dict(self.init_eventData))
 
             self.customEventInfo.setdefault(func, dict(self.init_eventData))
 
-            threadData["customEvent"][func]["count"] += 1
+            threadData[eventName][func]["count"] += 1
             self.customEventInfo[func]["count"] += 1
 
             # define eventObj #
-            eventObj = threadData["customEvent"][func]
+            eventObj = threadData[eventName][func]
 
             # get interval #
             interDiff = 0
@@ -116383,9 +116430,9 @@ class TaskAnalyzer(object):
 
             # update period of thread #
             if interDiff > eventObj["maxPeriod"] or eventObj["maxPeriod"] == 0:
-                threadData["customEvent"][func]["maxPeriod"] = interDiff
+                threadData[eventName][func]["maxPeriod"] = interDiff
             if interDiff < eventObj["minPeriod"] or eventObj == 0:
-                threadData["customEvent"][func]["minPeriod"] = interDiff
+                threadData[eventName][func]["minPeriod"] = interDiff
 
             # update period of system #
             if (
@@ -116399,9 +116446,22 @@ class TaskAnalyzer(object):
             ):
                 self.customEventInfo[func]["minPeriod"] = interDiff
 
-            threadData["customEvent"][func]["start"] = ftime
+            threadData[eventName][func]["start"] = ftime
 
             handleSpecialEvents = True
+
+            # add timeline data #
+            ptinfo, thd = TaskAnalyzer.getProcThrInfo(tgid, thread, comm)
+            event = "%s->%s" % (ptinfo, func)
+            start_delta = stop_delta = long((float(ftime) - stime) * 1000000)
+            self.addTimelineData(
+                long(core),
+                event,
+                thd,
+                eventName,
+                start_delta,
+                stop_delta,
+            )
 
         # check special event flag #
         if not handleSpecialEvents:
@@ -116716,6 +116776,24 @@ class TaskAnalyzer(object):
                         or eventInfo[name]["min"] == 0
                     ):
                         eventInfo[name]["min"] = usage
+
+                    # add timeline data #
+                    ptinfo, thd = TaskAnalyzer.getProcThrInfo(
+                        tgid, thread, comm
+                    )
+                    event = "%s->%s" % (ptinfo, name)
+                    stop_delta = long((float(ftime) - stime) * 1000000)
+                    start_delta = long(
+                        (float(eventObj["start"]) - stime) * 1000000
+                    )
+                    self.addTimelineData(
+                        long(core),
+                        event,
+                        thd,
+                        eventName,
+                        start_delta,
+                        stop_delta,
+                    )
 
         # return time #
         return time
@@ -128306,6 +128384,9 @@ def main(args=None):
         SysMgr.intervalEnable = 0
         tobj = TaskAnalyzer(origInputFile)
         outputPath = UtilMgr.prepareForImageFile(SysMgr.inputFile, "timeline")
+
+        # initialize environment for drawing #
+        TaskAnalyzer.initDrawEnv()
 
         # check absolute timeline option #
         if "ABSTIME" in SysMgr.environList:
