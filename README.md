@@ -35,7 +35,7 @@ Some of the key features of Guider include:
 Guider supports a wide range of platforms based on the Linux kernel,
 including distros like Ubuntu, CentOS, and RHEL, as well as Android, ccOS, webOS, Tizen, and AGL.
 Limited support is also available for Windows and MacOS.
-In terms of architecture, Guider can work on x86, x64, ARM, AArch64.
+In terms of architecture, Guider can work on x86, x64, ARM, AArch64, RISC-V.
 
 Output
 =======
@@ -1309,8 +1309,9 @@ Help
 Usage:
     $ ./guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(136):
-    [CONTROL]       freeze            <Thread>        (Linux)
+COMMAND(146):
+    [CONTROL]       cgroup            <Cgroup>        (Linux)
+                    freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
                     kill/tkill        <Signal>        (Linux/MacOS)
                     limitcpu          <CPU>           (Linux)
@@ -1330,10 +1331,13 @@ COMMAND(136):
                     logjrl            <Journal>       (Linux)
                     logkmsg           <Kernel>        (Linux)
                     logsys            <Syslog>        (Linux)
+                    logtrace          <Ftrace>        (Linux)
                     printdlt          <DLT>           (Linux/MacOS)
                     printjrl          <Journal>       (Linux)
                     printkmsg         <Kernel>        (Linux)
+                    printlogcat       <Android>       (Linux)
                     printsys          <Syslog>        (Linux)
+                    printtrace        <Ftrace>        (Linux)
 
     [MONITOR]       atop              <All>           (Linux)
                     bgtop             <Background>    (Linux/MacOS/Windows)
@@ -1356,6 +1360,7 @@ COMMAND(136):
                     stacktop          <Stack>         (Linux)
                     systop            <Syscall>       (Linux)
                     top               <Process>       (Linux/MacOS/Windows)
+                    trtop             <Tree>          (Linux)
                     ttop              <Thread>        (Linux)
                     utop              <Function>      (Linux)
                     vtop              <Memory>        (Linux)
@@ -1367,7 +1372,7 @@ COMMAND(136):
                     hserver           <Http>          (Linux/MacOS/Windows)
                     list              <List>          (Linux/MacOS/Windows)
                     send              <UDP>           (Linux/MacOS/Windows)
-                    server            <TCP>           (Linux/MacOS)
+                    server            <Server>        (Linux/MacOS)
                     start             <Signal>        (Linux)
 
     [PROFILE]       filerec           <File>          (Linux)
@@ -1386,21 +1391,24 @@ COMMAND(136):
 
     [TRACE]         btrace            <Function>      (Linux)
                     leaktrace         <Leak>          (Linux)
+                    mtrace            <Memory>        (Linux)
                     pytrace           <Python>        (Linux)
                     sigtrace          <Signal>        (Linux)
                     strace            <Syscall>       (Linux)
                     utrace            <Function>      (Linux)
 
     [UTIL]          addr2sym          <Symbol>        (Linux/MacOS/Windows)
-                    cgroup            <Cgroup>        (Linux)
                     checkdup          <Page>          (Linux)
                     comp              <Compress>      (Linux/MacOS/Windows)
                     decomp            <Decompress>    (Linux/MacOS/Windows)
+                    dirdiff           <Dir>           (Linux/MacOS/Windows)
                     dump              <Memory>        (Linux)
                     exec              <Command>       (Linux/MacOS/Windows)
                     fadvise           <File>          (Linux)
                     flush             <Memory>        (Linux)
                     getafnt           <Affinity>      (Linux)
+                    getpid            <PID>           (Linux)
+                    merge             <File>          (Linux/MacOS/Windows)
                     mkcache           <Cache>         (Linux/MacOS/Windows)
                     mount             <Mount>         (Linux)
                     ping              <ICMP>          (Linux/MacOS/Windows)
@@ -1427,6 +1435,7 @@ COMMAND(136):
                     readahead         <File>          (Linux)
                     readelf           <File>          (Linux/MacOS/Windows)
                     req               <URL>           (Linux/MacOS/Windows)
+                    split             <File>          (Linux/MacOS/Windows)
                     strings           <Text>          (Linux/MacOS/Windows)
                     sym2addr          <Address>       (Linux/MacOS/Windows)
                     sync              <File>          (Linux)
@@ -1448,6 +1457,7 @@ COMMAND(136):
                     drawleak          <Leak>          (Linux/MacOS/Windows)
                     drawmem           <Memory>        (Linux/MacOS/Windows)
                     drawmemavg        <Memory>        (Linux/MacOS/Windows)
+                    drawpri           <Prio>          (Linux/MacOS/Windows)
                     drawreq           <URL>           (Linux/MacOS/Windows)
                     drawrss           <RSS>           (Linux/MacOS/Windows)
                     drawrssavg        <RSS>           (Linux/MacOS/Windows)
@@ -1461,5 +1471,4 @@ FILE:
 
 Options:
     Check COMMAND with --help (e.g. ./guider top --help)
-
 ```
