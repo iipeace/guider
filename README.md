@@ -1309,7 +1309,7 @@ Help
 Usage:
     $ ./guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(146):
+COMMAND(150):
     [CONTROL]       cgroup            <Cgroup>        (Linux)
                     freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
@@ -1350,6 +1350,7 @@ COMMAND(146):
                     fetop             <File>          (Linux)
                     ftop              <File>          (Linux/MacOS)
                     irqtop            <IRQ>           (Linux)
+                    kftop             <Function>      (Linux)
                     ktop              <Function>      (Linux)
                     mtop              <Memory>        (Linux)
                     ntop              <Network>       (Linux/MacOS/Windows)
@@ -1408,6 +1409,7 @@ COMMAND(146):
                     flush             <Memory>        (Linux)
                     getafnt           <Affinity>      (Linux)
                     getpid            <PID>           (Linux)
+                    less              <Pager>         (Linux/MacOS/Windows)
                     merge             <File>          (Linux/MacOS/Windows)
                     mkcache           <Cache>         (Linux/MacOS/Windows)
                     mount             <Mount>         (Linux)
@@ -1439,6 +1441,7 @@ COMMAND(146):
                     strings           <Text>          (Linux/MacOS/Windows)
                     sym2addr          <Address>       (Linux/MacOS/Windows)
                     sync              <File>          (Linux)
+                    sysrq             <sysrq>         (Linux)
                     systat            <Status>        (Linux)
                     topdiff           <Diff>          (Linux/MacOS/Windows)
                     topsum            <Summary>       (Linux/MacOS/Windows)
@@ -1462,6 +1465,7 @@ COMMAND(146):
                     drawrss           <RSS>           (Linux/MacOS/Windows)
                     drawrssavg        <RSS>           (Linux/MacOS/Windows)
                     drawtime          <Timeline>      (Linux/MacOS/Windows)
+                    drawviolin        <Data>          (Linux/MacOS/Windows)
                     drawvss           <VSS>           (Linux/MacOS/Windows)
                     drawvssavg        <VSS>           (Linux/MacOS/Windows)
 
