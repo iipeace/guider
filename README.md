@@ -1191,9 +1191,7 @@ Output
     $ python3 guider/guider.py top -o test1.out
     $ python3 guider/guider.py top -o test2.out
     $ python3 guider/guider.py top -o test3.out
-    $ python3 guider/guider.py top -o test4.out
-    $ python3 guider/guider.py top -o test5.out
-    $ python3 guider/guider.py drawavg "test1.out, test2.out, test3.out, test4.out, test5.out"
+    $ python3 guider/guider.py drawavg "test1.out, test2.out, test3.out"
 
 >>>
 
@@ -1207,6 +1205,13 @@ Output
 >>>
 
 <img alt="drawreq" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawreq.svg" width="100%" height="100%">
+
+>>>
+       
+    $ python3 guider/guider.py top -o test1.out
+    $ python3 guider/guider.py top -o test2.out
+    $ python3 guider/guider.py top -o test3.out
+    $ python3 guider/guider.py drawviolin "test.out" "test2.out"
 
 >>>
 
