@@ -1191,7 +1191,8 @@ Output
     $ python3 guider/guider.py top -o test1.out
     $ python3 guider/guider.py top -o test2.out
     $ python3 guider/guider.py top -o test3.out
-    $ python3 guider/guider.py drawavg "test1.out, test2.out, test3.out"
+    $ python3 guider/guider.py drawavg "test1.out" "test2.out" "test3.out"
+    $ python3 guider/guider.py drawavg "test*.out"
 
 >>>
 
@@ -1211,7 +1212,8 @@ Output
     $ python3 guider/guider.py top -o test1.out
     $ python3 guider/guider.py top -o test2.out
     $ python3 guider/guider.py top -o test3.out
-    $ python3 guider/guider.py drawviolin "test.out" "test2.out"
+    $ python3 guider/guider.py drawviolin "test.out" "test2.out" "test3.out"
+    $ python3 guider/guider.py drawviolin "test*.out"
 
 >>>
 
