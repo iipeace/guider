@@ -1318,9 +1318,9 @@ Help
 
 ```
 Usage:
-    $ ./guider COMMAND [OPTIONS] [--help]
+    $ guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(150):
+COMMAND(151):
     [CONTROL]       cgroup            <Cgroup>        (Linux)
                     freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
@@ -1338,16 +1338,17 @@ COMMAND(150):
                     setcpu            <Clock>         (Linux)
                     setsched          <Priority>      (Linux)
 
-    [LOG]           logdlt            <DLT>           (Linux)
+    [LOG]           logand            <Android>       (Linux)
+                    logdlt            <DLT>           (Linux)
                     logjrl            <Journal>       (Linux)
                     logkmsg           <Kernel>        (Linux)
                     logsys            <Syslog>        (Linux)
                     logtrace          <Ftrace>        (Linux)
+                    printand          <Android>       (Linux)
                     printdlt          <DLT>           (Linux/MacOS)
                     printjrl          <Journal>       (Linux)
                     printkmsg         <Kernel>        (Linux)
-                    printlogcat       <Android>       (Linux)
-                    printsys          <Syslog>        (Linux)
+                    printsyslog       <Syslog>        (Linux)
                     printtrace        <Ftrace>        (Linux)
 
     [MONITOR]       atop              <All>           (Linux)
