@@ -1318,9 +1318,9 @@ Help
 
 ```
 Usage:
-    $ guider COMMAND [OPTIONS] [--help]
+    $ ./guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(151):
+COMMAND(152):
     [CONTROL]       cgroup            <Cgroup>        (Linux)
                     freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
@@ -1468,6 +1468,7 @@ COMMAND(151):
                     drawcpuavg        <CPU>           (Linux/MacOS/Windows)
                     drawdelay         <Delay>         (Linux/MacOS/Windows)
                     drawflame         <Function>      (Linux/MacOS/Windows)
+                    drawhist          <Histogram>     (Linux/MacOS/Windows)
                     drawio            <I/O>           (Linux/MacOS/Windows)
                     drawleak          <Leak>          (Linux/MacOS/Windows)
                     drawmem           <Memory>        (Linux/MacOS/Windows)
