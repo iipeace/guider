@@ -41,33 +41,19 @@ Output
 =======
     $ python3 guider/guider.py top -a
 
-    [Top Info] [Time: 4588832.570] [Inter: 1.0] [Ctxt: 314463] [Life: +0/-0] [IRQ: 26606] [Core: 40] [Task: 498/625] [Load: 0/0/0] [RAM: 125.7G] [Swap: 4.0G]
+    [Top Info] [Time: 4588832.570] [Inter: 1.0] [Ctxt: 314463] [Life: +0/-0] [IRQ: 26606] [Core: 4] [Task: 498/625] [Load: 0/0/0] [RAM: 125.7G] [Swap: 4.0G]
                [Cycle: 8.3G / Inst: 5.7G / IPC: 0.69 / CacheMiss : 13.7M(23%) / BrcMiss: 25.7M(1%) / Clk: 38.7G / MinFlt: 358 / MajFlt: 0]
     ==========================================================================================================================================================
       ID   |  CPU(Usr/Ker/Blk/IRQ)|MemAvl( Per/ User/Cache/Kern)| Swap( Per/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDirt |  Network   |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
     Total  | 10 %( 1 / 6 / 0 / 0 )|124649(  96/  453/ 5690/1787)|    0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   | 15889  | 4616  |   20   |    2K/0    |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    CPU [#####                                     ]    MEM [###                                       ]    SWAP [                                          ]|
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
     Core/0 |100 %(66 /34 / 0 / 0 )|###################################################################|   powersave   |  0-0   |  24 C | 2874 Mhz [1171-3515]|
     Core/1 |  7 %( 0 / 6 / 0 / 0 )|####                                                               |   powersave   |  0-1   |  22 C | 2307 Mhz [1171-3515]|
     Core/2 |  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  0-2   |  23 C | 2165 Mhz [1171-3515]|
     Core/3 |  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  0-3   |  22 C | 2170 Mhz [1171-3515]|
-    Core/4 | 22 %( 0 /21 / 0 / 0 )|##############                                                     |   powersave   |  0-4   |  20 C | 2763 Mhz [1171-3515]|
-    Core/5 |  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  0-8   |  24 C | 2160 Mhz [1171-3515]|
-    Core/6 | 33 %( 0 / 0 / 0 /32 )|######################                                             |   powersave   |  0-9   |  19 C | 2194 Mhz [1171-3515]|
-    Core/7 |  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  0-10  |  17 C | 2160 Mhz [1171-3515]|
-    Core/8 |  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  0-11  |  23 C | 2158 Mhz [1171-3515]|
-    Core/9 |  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  0-12  |  18 C | 2164 Mhz [1171-3515]|
-    Core/10|  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  1-0   |  21 C | 2907 Mhz [1171-3515]|
-    Core/11|  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  1-1   |  18 C | 2903 Mhz [1171-3515]|
-    Core/12| 11 %( 9 / 1 / 0 / 0 )|#######                                                            |   powersave   |  1-2   |  22 C | 2927 Mhz [1171-3515]|
-    Core/13|  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  1-3   |  17 C | 2904 Mhz [1171-3515]|
-    Core/14|  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  1-4   |  21 C | 2903 Mhz [1171-3515]|
-    Core/15|  7 %( 0 / 6 / 0 / 0 )|####                                                               |   powersave   |  1-8   |  19 C | 2912 Mhz [1171-3515]|
-    Core/16|  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  1-9   |  24 C | 2925 Mhz [1171-3515]|
-    Core/17| 87 %( 0 /86 / 0 / 0 )|##########################################################         |   powersave   |  1-10  |  24 C | 2907 Mhz [1171-3515]|
-    Core/18|100 %( 0 /100/ 0 / 0 )|###################################################################|   powersave   |  1-11  |  20 C | 2914 Mhz [1171-3515]|
-    Core/19|  0 %( 0 / 0 / 0 / 0 )|                                                                   |   powersave   |  1-12  |  21 C | 2894 Mhz [1171-3515]|
     ==========================================================================================================================================================
          Process (    PID/   PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)| VSS( RSS/Txt/Shr/Swp)| Blk(  RD/  WR/NrFlt)| SID | USER | FD | LifeTime|       Parent        |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -389,25 +375,39 @@ Output
            
     # python3 guider/guider.py mtop
 
-    [Top Info] [Time: 1144292.910] [Inter: 1.0] [Ctxt: 739] [Life: +0/-0] [IRQ: 10740] [Core: 40] [Task: 509/725] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
-               [N0-DMA     > diff:       0 / free:  15.5M / high:  32.0K / low:  20.0K / managed:  15.5M / min:   8.0K / present:  15.6M / spanned:  16.0M ]
-               [N0-DMA32   > diff:       0 / free:   1.9G / high:   4.6M / low:   2.8M / managed:   1.9G / min: 956.0K / present:   1.9G / spanned:   4.0G ]
-               [N0-Device  > diff:       0 / free:      0 / high:      0 / low:      0 / managed:      0 / min:      0 / present:      0 / spanned:      0 ]
-               [N0-Movable > diff:       0 / free:      0 / high:      0 / low:      0 / managed:      0 / min:      0 / present:      0 / spanned:      0 ]
-               [N0-Normal  > diff:   -3.9M / free: 113.4G / high: 318.7M / low: 191.9M / managed: 123.9G / min:  65.1M / present: 126.0G / spanned: 126.0G ]
+    [Top Info] [Time: 92097.250] [Inter: 1.0] [Ctxt: 41] [Life: +0/-0] [IRQ: 6] [Core: 8] [Task: 49/77] [Load: 0/0/0] [RAM: 3.7G] [Swap: 1.0G] [Bat: 99%/08:43:
+               [SYSTEM > Active:          490.2M, Active(anon):      3.8M, Active(file):    486.4M, AnonHugePages:    46.0M, AnonPages:       139.8M
+                         Buffers:         127.7M, Cached:          698.4M, CommitLimit:       2.9G, Committed_AS:    675.7M, DirectMap1G:       8.0G
+                         DirectMap2M:       3.8G, DirectMap4k:     101.0M, Dirty:            88.0K, Hugepagesize:      2.0M, Inactive:        483.1M
+                         Inactive(anon):  159.6M, Inactive(file):  323.5M, KReclaimable:     66.2M, KernelStack:       3.6M, Mapped:           99.9M
+                         MemAvailable:      3.1G, MemFree:           2.4G, MemTotal:          3.7G, PageTables:        3.5M, Percpu:            3.9M
+                         SReclaimable:     66.2M, SUnreclaim:       49.3M, Shmem:            16.2M, Slab:            115.5M, SwapFree:          1.0G
+                         SwapTotal:         1.0G, VmallocTotal:     32.0T, VmallocUsed:      24.7M]
+               [BUDDY > DMA: 0_0_0_0_0_0_0_0_0_1_3 / DMA32: 1,721_922_562_1,003_698_425_265_98_13_15_543 / Normal: 7_4_2_2_1_0_0_1_0_0_0]
+               [KSM  > full_scans: 0, max_page_sharing: 256, pages_shared: 0, pages_sharing: 0, pages_to_scan: 100, pages_total: 0, pages_unshared: 0
+                       pages_volatile: 0, run: 0, sleep_millisecs: 20, stable_node_chains: 0, stable_node_chains_prune_millisecs: 2,000, stable_node_dups: 0
+                       use_zero_pages: 0]
+               [VM > swappiness: 60 / cache_pressure: 100 / overcommit: 0]
+               [N0-DMA     > diff:       0 / free:  14.0M / min: 244.0K / low: 304.0K / high: 364.0K / managed:  14.0M / present:  14.6M / spanned:  16.0M]
+               [N0-DMA32   > diff: -252.0K / free:   2.4G / min:  65.2M / low:  81.5M / high:  97.8M / managed:   3.7G / present:   3.9G / spanned:   4.0G]
+               [N0-Device  > diff:       0 / free:      0 / min:      0 / low:      0 / high:      0 / managed:      0 / present:      0 / spanned:   8.0G]
+               [N0-Normal  > diff:       0 / free: 732.0K / min: 592.0K / low: 740.0K / high: 888.0K / managed:  33.5M / present:  42.0M / spanned:  42.0M]
     ==========================================================================================================================================================
-      ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl( Per/ User/Cache/Kern)|  Swap( Per/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
+      ID   |  CPU(Usr/Ker/Blk/IRQ)|MemAvl(Per/  User/ Cache/ Kern)| Swap( Per/ In/Out)|  PgRclm   | BlkRW | NrFlt |Blk| NrSIRQ | PgMlk | PgDirt |   NetIO    |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-    Total  | 98 %(97 / 0 / 0 / 0 )|12417(  96/ 1117/ 7915/1739)|     0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   | 12975  | 4613  |   67   |   2K/52    |
+    Total  |  0 %(  0/  0/  0/  0)|  3143( 18/   139/   941/  259)|    0(   0/  0/  0)|    0/0    |  0/0  |    0  | 0 |      0 |     0 |     22 |   255/52   |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    CPU [                                          ]    MEM [#######                                   ]    SWAP [                                          ]|
     ==========================================================================================================================================================
-        Process      (  PID/ PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  Mem(RSS/Txt/Shr/Swp)| Blk( RD / WR /NrFlt)| Yld | Prmt | FD | LifeTime|     WaitChannel     |
+               Process ( PID/PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)| VSS( RSS/Txt/Shr/Swp)| Blk(  RD/  WR/NrFlt)|  SID|  USER|  FD| LifeTime|               Parent|
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-     FahCore_a8 ( 214159/ 214155/  41/C 19)|3792(3791/  0/  -)|3219( 548/ 14/ 13/  0)|   0(   -/   -/    0)| 1197|fahcli|  64| 00:20:54|FAHCoreWrapper(214155|
-                               MEM(STACK/1) | VSS: 132.0K / RSS:  48.0K / PSS:  48.0K / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:  48.0K|
-                                MEM(FILE/6) | VSS:  20.4M / RSS:  13.2M / PSS:  10.7M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:  92.0K|
-                                 MEM(ETC/3) | VSS:  20.0K / RSS:   4.0K / PSS:      0 / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
-                              MEM(ANON/165) | VSS:   3.1G / RSS: 539.7M / PSS: 539.7M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT: 539.7M|
-                                   MEM(SUM) | VmPeak: 4.0G, VmHWM: 548.6M, VmData: 948.2M, HugetlbPages: 0, RssAnon: 535.5M, RssFile: 13.2M, RssShmem: 0     |
+                 snapd (3094/   1/  15/C  0)|   0(  0/  0/  -)|1722(  43/  9/ 18/  0)|   0(   -/   -/    0)| 3094|  root| 128| 16:50:57|           systemd(1)|
+                               MEM(ANON/73) | VSS:   1.7G / RSS:  23.7M / PSS:  23.7M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                                MEM(FILE/4) | VSS:  23.7M / RSS:  21.5M / PSS:  19.9M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                                MEM(HEAP/1) | VSS: 132.0K / RSS:   4.0K / PSS:   4.0K / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                               MEM(OTHER/2) | VSS:  24.0K / RSS:   4.0K / PSS:      0 / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                               MEM(STACK/1) | VSS: 132.0K / RSS:  20.0K / PSS:  20.0K / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                                   MEM(SUM) | VmPeak: 1.7G, VmHWM: 54.2M, VmData: 175.5M, HugetlbPages: 0, RssAnon: 24.7M, RssFile: 19.0M, RssShmem: 0       |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -465,24 +465,35 @@ Output
            
     # python3 guider/guider.py wtop -g yes
 
-    [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
-               [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
+    [Top Info] [Time: 92197.480] [Inter: 1.0] [Ctxt: 72] [Life: +0/-0] [IRQ: 18] [Core: 8] [Task: 49/77] [Load: 0/0/0] [RAM: 3.7G] [Swap: 1.0G] [Bat: 99%/08:43:53/+]
     ==========================================================================================================================================================
-      ID   | CPU (Usr/Ker/Blk/IRQ)| Mem (Diff/ User/Cache/Kern)| Swap (Diff/  I/O  )|NrPgRclm | BlkRW | NrFlt | NrBlk | NrSIRQ | NrMlk | NrDrt  |  Network   |
+      ID   |  CPU(Usr/Ker/Blk/IRQ)|MemAvl(Per/  User/ Cache/ Kern)| Swap( Per/ In/Out)|  PgRclm   | BlkRW | NrFlt |Blk| NrSIRQ | PgMlk | PgDirt |   NetIO    |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-    Total  |  5 %( 4 / 0 / 0 / 0 )| 4719(   0/  856/57152/1149)|  0   ( 0  /  0/0  )|   0/0   |  0/0  |   0   |   0   |  2410  |   0   |   2    |   1K/5K    |
+    Total  |  1 %(  0/  0/  0/  0)|  3134( 18/   140/   941/  267)|    0(   0/  0/  0)|    0/0    |  0/0  |    0  | 0 |      0 |     0 |     36 |    0/0     |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    CPU [                                          ]    MEM [#######                                   ]    SWAP [                                          ]|
     ==========================================================================================================================================================
-        Process      (  PID/ PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  Mem(RSS/Txt/Shr/Swp)| Blk( RD / WR /NrFlt)| Yld | Prmt | FD | LifeTime|     WaitChannel     |
+               Process ( PID/PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)| VSS( RSS/Txt/Shr/Swp)| Blk(  RD/  WR/NrFlt)|  SID|  USER|  FD| LifeTime|               Parent|
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-                 yes (22371/ 9085/   1/R 90)|  99( 99/  0/  0)|    8(  0/  0/  0/  0)|   0(   -/   -/    0)|    0|     0| 256|  0: 5:25|       RUNNING       |
-                                 (1)[STACK] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   8K / NOPM:   0K|
-                                            |  WSS: [   8K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
-                                  (4)[FILE] | SIZE:   7M / RSS:   1M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  40K / NOPM:2048K|
-                                            |  WSS: [   1M] ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M
-                                   (3)[ETC] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   0K / NOPM:   0K|
-                                            |  WSS: [   4K] ->    4K ->    4K ->    4K ->    4K ->     0 ->     0 ->     0 ->     0 ->     0 ->    4K ->    4K
-                                  (5)[ANON] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  48K / NOPM:   0K|
-                                            |  WSS: [  48K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
+                 snapd (3094/   1/  15/C  0)|   0(  0/  0/  0)|1722(  43/  9/ 18/  0)|   0(   -/   -/    0)| 3094|  root| 128| 16:52:37|           systemd(1)|
+                                   MEM(VSS) | VSS: [   1.7G] ->    1.7G ->    1.7G ->    1.7G ->    1.7G ->    1.7G ->    1.7G ->    1.7G ->    1.7G
+                                   MEM(RSS) | RSS: [  45.4M] ->   45.4M ->   45.4M ->   45.4M ->   45.4M ->   45.4M ->   45.4M ->   45.4M ->   45.4M
+                                   MEM(PSS) | PSS: [  43.8M] ->   43.8M ->   43.8M ->   43.8M ->   43.8M ->   43.8M ->   43.8M ->   43.8M ->   43.8M
+                                   MEM(USS) | USS: [  43.7M] ->   43.7M ->   43.7M ->   43.7M ->   43.7M ->   43.7M ->   43.7M ->   43.7M ->   43.7M
+                                   MEM(WSS) | WSS: [   1.7M] ->       0 ->   12.7M ->   12.7M ->   12.7M ->   12.7M ->   12.7M ->   12.7M ->   12.7M
+                               MEM(ANON/73) | VSS:   1.7G / RSS:  23.9M / PSS:  23.9M / SWAP:      0 / HUGE:  16M / LOCK:     0 / SDRT:      0 / PDRT:  23.9M|
+                                            | WSS: [      0] ->       0 ->   12.2M ->   12.2M ->   12.2M ->   12.2M ->   12.2M ->   12.2M ->   12.2M
+                                MEM(FILE/4) | VSS:  23.7M / RSS:  21.5M / PSS:  19.9M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:   1.9M|
+                                            | WSS: [   1.7M] ->       0 ->  436.0K ->  436.0K ->  436.0K ->  436.0K ->  436.0K ->  436.0K ->  436.0K
+                                MEM(HEAP/1) | VSS: 132.0K / RSS:   4.0K / PSS:   4.0K / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:   4.0K|
+                                            | WSS: [      0] ->       0 ->       0 ->       0 ->       0 ->       0 ->       0 ->       0 ->       0
+                               MEM(OTHER/2) | VSS:  24.0K / RSS:   4.0K / PSS:      0 / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                                            | WSS: [   4.0K] ->       0 ->    4.0K ->    4.0K ->    4.0K ->    4.0K ->    4.0K ->    4.0K ->    4.0K
+                               MEM(STACK/1) | VSS: 132.0K / RSS:  20.0K / PSS:  20.0K / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:  20.0K|
+                                            | WSS: [      0] ->       0 ->       0 ->       0 ->       0 ->       0 ->       0 ->       0 ->       0
+                                   MEM(SUM) | VmPeak: 1.7G, VmHWM: 54.2M, VmData: 175.5M, HugetlbPages: 0, RssAnon: 24.7M, RssFile: 19.0M, RssShmem: 0       |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+                                   [ TOTAL ]|   0.0(   0/   0)| RSS:  43.0M|Swp:    0|   0(   -/   -/    0)|      Yld: -|       Prmt: -|              Task: 1|
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -681,40 +692,25 @@ Output
            
     # python3 guider/guider.py sigtrace -g a.out
 
-    [INFO] start profiling a.out(3100585)...
-    
-    0.000130 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    0.000276 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    0.000287 [SIGRT1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    0.000307 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    0.000317 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    0.000326 [SIGRT2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955804 [SIGCHLD] {si_code=CLD_EXITED si_pid=3100586, si_uid=0, si_status=0 si_utime=0, si_stime=0}
-    1.955816 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955826 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955836 [SIGRT3] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955846 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955856 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955866 [SIGRT4] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955875 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955884 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955893 [SIGRT5] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955903 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955912 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955922 [SIGRT6] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955931 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955941 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955950 [SIGRT7] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955959 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955969 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955978 [SIGRT8] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955987 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.955997 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.956006 [SIGRT9] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.956015 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
-    1.956025 [SIGSEGV] {si_code=SEGV_MAPERR si_addr=0x4d2}
-    
-    2.191489 +++ exited a.out(3100585) with 139 +++
+    0.000929 [SIGABRT] {code=SI_TKILL, pid=signal(6858)|addr=0x1aca, uid=root(0), status=0}
+    [INFO] load /usr/lib/x86_64-linux-gnu/libc.so.6... [done]
+    [INFO] load /home/iipeace/test/a.out... [done]
+    ==========================================================================================================================================================
+            Backtrace Info [a.out(6858)<-a.out(6858)]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    pthread_kill@GLIBC_2.34+300/0x7f9656bd29fc[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    gsignal@GLIBC_2.13+22/0x7f9656b7e476[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    abort@GLIBC_2.2.5+211/0x7f9656b647f3[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    0x893e0+662/0x7f9656bc5676[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    __fortify_fail@GLIBC_2.2.5+42/0x7f9656c7259a[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    __stack_chk_fail+22/0x7f9656c72566[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    main+64/0x55a53b20e1f5[/home/iipeace/test/a.out]
+    0x29d10+128/0x7f9656b65d90[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    __libc_start_main@GLIBC_2.2.5+128/0x7f9656b65e40[/usr/lib/x86_64-linux-gnu/libc.so.6]
+    [.text]+37/0x55a53b20e0a5[/home/iipeace/test/a.out]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    0.001051 +++ exited a.out(6858) with 6(SIGABRT) +++
 
 >>>
            
@@ -1122,42 +1118,31 @@ Output
        
     # python3 guider/guider.py filerec 
 
-    [File Usage Info] [ File: 281 ] [ RAM: 78.0M ] [ Keys: Foward/Back/Save/Quit ]
+    [File Usage Info] [File: 213] [RAM: 175.2M] [Reclaim: 0/0] [Uptime: 1d:01:42:33] [Keys: Foward/Back/Save/Quit]
     ==========================================================================================================================================================
-    ____RAM_____|___File___|__%___|_____________________________________________________Library & Process_____________________________________________________
+    __RAM___|__File__|__%__|__PSS___|____________________________________________________Library & Process____________________________________________________
     ==========================================================================================================================================================
-          7,616 |    7,616 |  100 | /run/samba/locking.tdb [Proc: 10] [Link: 1]
-                                  |             smbd ( 2937) |             smbd ( 9178) |             smbd (21387) |             smbd ( 3356) |
-                                  |             smbd ( 2828) |             smbd ( 2417) |             smbd ( 3862) |             smbd ( 2631) |
-                                  |             smbd (11086) |             smbd (  729) |
+      39.1M |  39.1M | 100 |  39.1M | /var/lib/snapd/snaps/snapd_21184.snap [Proc: 1] [Link: 1] [Open: 1]
+                                    |         snapfuse (    125) |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          6,076 |    8,452 |   71 | /usr/lib/apache2/modules/libphp5.so [Proc: 11] [Link: 1]
-                                  |  /usr/sbin/apach (13071) |  /usr/sbin/apach (13073) |  /usr/sbin/apach ( 3817) |  /usr/sbin/apach ( 9111) |
-                                  |  /usr/sbin/apach (20085) |  /usr/sbin/apach ( 7221) |  /usr/sbin/apach (  345) |  /usr/sbin/apach (  346) |
-                                  |  /usr/sbin/apach ( 7222) |  /usr/sbin/apach (14278) |  /usr/sbin/apach ( 9715) |
+       5.3M |   8.0M |  66 |   5.3M | /var/log/journal/758ca7c4e01db1a1cae9325f634ab22a/system.journal [Proc: 1] [Link: 1] [Open: 1]
+                                    |  systemd-journal (     56) |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          5,784 |    9,828 |   58 | /usr/sbin/smbd [Proc: 10] [Link: 1]
-                                  |             smbd ( 2937) |             smbd ( 9178) |             smbd (21387) |             smbd ( 3356) |
-                                  |             smbd ( 2828) |             smbd ( 2417) |             smbd ( 3862) |             smbd ( 2631) |
-                                  |             smbd (11086) |             smbd (  729) |
+       5.2M |   5.2M | 100 |   5.2M | /home/iipeace/guider/guider/.guider.py.swp [Proc: 1] [Link: 1] [Open: 1]
+                                    |               vi (   6732) |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          4,800 |   25,880 |   18 | /var/lib/gems/1.9.1/gems/passenger-5.1.0/buildout/support-binaries/PassengerAgent [Proc: 3] [Link: 1]
-                                  |   PassengerAgent (23161) |   PassengerAgent (23176) |   PassengerAgent (23191) |
+       5.1M |   5.6M |  90 |   2.5M | /usr/bin/python3.10 [Proc: 2] [Link: 1] [Map: 2]
+                                    |  networkd-dispat (    178) |  unattended-upgr (    341) |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          3,612 |   12,016 |   30 | /usr/sbin/mysqld [Proc: 1] [Link: 1]
-                                  |           mysqld ( 3208) |
+       3.8M |   4.2M |  89 | 434.7K | /usr/lib/x86_64-linux-gnu/libcrypto.so.3 [Proc: 9] [Link: 1] [Map: 9]
+                                    |          systemd (      1) |  systemd-journal (     56) |    systemd-udevd (     85) |  systemd-network (    172) |
+                                    |   systemd-logind (    190) |          udisksd (    198) |  systemd-resolve (    262) |             sshd (    829) |
+                                    |      packagekitd (   3858) |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          2,988 |    2,988 |  100 | /usr/lib/libpython2.7.so.1.0 [Proc: 6] [Link: 1]
-                                  |               vi (18865) |               vi (28546) |               vi ( 7200) |               vi (22546) |
-                                  |               vi ( 8826) |               vi ( 8135) |
+       3.7M |   8.0M |  46 |   3.7M | /var/log/journal/758ca7c4e01db1a1cae9325f634ab22a/user-1000.journal [Proc: 1] [Link: 1] [Open: 1]
+                                    |  systemd-journal (     56) |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          2,228 |    2,884 |   77 | /usr/bin/python3.2mu [Proc: 1] [Link: 1]
-                                  |           guider (22637) |
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-          2,016 |    2,016 |  100 | /usr/lib/libruby-1.9.1.so.1.9.1 [Proc: 1] [Link: 1]
-                                  |        ruby1.9.1 (23294) |
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       
+
 >>>
        
     $ python3 guider/guider.py top -o guider.out
@@ -1318,9 +1303,9 @@ Help
 
 ```
 Usage:
-    $ ./guider COMMAND [OPTIONS] [--help]
+    $ guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(152):
+COMMAND(153):
     [CONTROL]       cgroup            <Cgroup>        (Linux)
                     freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
@@ -1345,7 +1330,7 @@ COMMAND(152):
                     logsys            <Syslog>        (Linux)
                     logtrace          <Ftrace>        (Linux)
                     printand          <Android>       (Linux)
-                    printdlt          <DLT>           (Linux/MacOS)
+                    printdlt          <DLT>           (Linux/MacOS/Windows)
                     printjrl          <Journal>       (Linux)
                     printkmsg         <Kernel>        (Linux)
                     printsyslog       <Syslog>        (Linux)
@@ -1477,6 +1462,7 @@ COMMAND(152):
                     drawreq           <URL>           (Linux/MacOS/Windows)
                     drawrss           <RSS>           (Linux/MacOS/Windows)
                     drawrssavg        <RSS>           (Linux/MacOS/Windows)
+                    drawstack         <System>        (Linux/MacOS/Windows)
                     drawtime          <Timeline>      (Linux/MacOS/Windows)
                     drawviolin        <Data>          (Linux/MacOS/Windows)
                     drawvss           <VSS>           (Linux/MacOS/Windows)
@@ -1487,5 +1473,6 @@ FILE:
     Report  file (e.g. guider.out)
 
 Options:
-    Check COMMAND with --help (e.g. ./guider top --help)
+    Check COMMAND with --help (e.g. guider top --help)
+
 ```
