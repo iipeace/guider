@@ -1,14 +1,24 @@
 from setuptools import setup, find_packages
 import site, os, sys, shutil
 
+try:
+    readme = "README.md"
+    with open(readme, "r") as fh:
+        long_description = fh.read()
+except:
+    print("failed to read %s" % readme)
+
 setup(
     name = 'guider',
-    version = '3.9.899',
+    version = '3.9.8992',
     license = 'GPL2',
     description = 'Unified performance analyzer',
     author = 'Peace Lee',
     author_email = 'iipeace5@gmail.com',
     url = 'https://github.com/iipeace/guider',
+    readme = 'README.md',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     download_url = 'https://github.com/iipeace/guider/archive/master.zip',
     packages = find_packages(exclude = ['tests*']),
     keywords = ['guider', 'linux', 'analyzer', 'performance', 'profile', 'trace', 'kernel'],
