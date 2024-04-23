@@ -10,7 +10,7 @@ except:
 
 setup(
     name = 'guider',
-    version = '3.9.8992',
+    version = '3.9.8993',
     license = 'GPL2',
     description = 'Unified performance analyzer',
     author = 'Peace Lee',
