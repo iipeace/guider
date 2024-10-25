@@ -21,21 +21,34 @@ Table of contents
 Guider
 =======
 
-Guider is a comprehensive performance analysis tool designed to meet all your system performance needs.
-With features like monitoring, profiling, tracing, visualization, control, logging, networking, testing, and utilities,
-Guider provides you with everything you need to measure, analyze, and verify your system's performance.
+Guider is a powerful and versatile performance analysis tool, designed to simplify and enhance
+system performance monitoring, profiling, and debugging for optimized results across various platforms.
+With additional features like tracing, control, logging, networking, testing, and utilities,
+Guider offers all the tools needed to measure, analyze, and optimize system performance.
 
 Some of the key features of Guider include:
-1. Accurate measurements: Guider provides measurements in units of count, time (in microseconds), and size (in bytes) for precise results.
-2. Comprehensive functionality: Guider offers a range of functions for analysis and experimentation.
-3. Detailed reports: Guider provides in-depth reports with as much information as possible.
-4. Browser-based visualization: Guider outputs visualizations in SVG format for easy viewing in a browser.
-5. Easy to use: Guider is designed to be simple and straightforward, with no need for installation or setup.
+1. Accurate measurements: Provides measurements in counts, time (μs), and size (bytes).
+2. Comprehensive functionality: Offers a range of functions for analysis and experimentation.
+3. Detailed reports: Provides in-depth reports with as much information as possible.
+4. Browser-based visualization: Generates interactive SVG visualizations that can be viewed in any browser.
+5. Easy to use: Designed to be simple and straightforward, with no need for installation or setup.
 
-Guider supports a wide range of platforms based on the Linux kernel,
-including distros like Ubuntu, CentOS, and RHEL, as well as Android, ccOS, webOS, Tizen, and AGL.
-Limited support is also available for Windows and MacOS.
-In terms of architecture, Guider can work on x86, x64, ARM, AArch64, RISC-V.
+Guider supports a wide range of platforms based on the Linux kernel and architectures.
+
+    +--------------------------------------------------------+
+    | Platform Type     | Supported Platforms                |
+    |--------------------------------------------------------|
+    | Linux Distros     | Ubuntu, CentOS, RHEL               |
+    | Others            | Android, ccOS, webOS, Tizen, AGL   |
+    | Limited Support   | Windows, macOS                     |
+    +--------------------------------------------------------+
+    +--------------------------------------------------------+
+    | Architecture      | Supported Architectures            |
+    |-------------------|------------------------------------|
+    | CPU               | x86, x64, ARM, AArch64, RISC-V     |
+    +-------------------|------------------------------------+
+
+>>>
 
 Output
 =======
@@ -1216,22 +1229,22 @@ How to use
 =======
 
 ```
-To view a list of all commands supported by Guider, enter one of the following commands:
+To view a list of all commands supported by Guider, use one of the following commands:
     $ python3 guider/guider.py --help
     $ python3 -m guider --help
     $ guider --help
 
-To start tracing for all threads, use the following command:
+To start tracing for all threads:
     # python3 guider/guider.py rec -a
 
-To start tracing for all threads, use the following command:
+To start tracing for all threads:
     $ python3 guider/guider.py top -a
 
-To view options and examples for each command, enter a command in the following format:
+To view options and examples for each command:
     $ python3 guider/guider.py rec -h
     $ python3 guider/guider.py top -h
 
-To view the output of Guider, visit the following link:
+For more information and detailed usage examples, visit the Guider Wiki.
     - https://github.com/iipeace/guider/wiki
 ```
 
@@ -1240,19 +1253,19 @@ Build & Installation
 =======
 
 ```
-To install Guider using pip, enter the following commands:
-    # pip3 install guider
-    # pip3 install guider --no-deps
-    # pip3 install guider --force-reinstall
+To install Guider via pip, use one of these commands:
+    # pip3 install guider                    # Standard installation
+    # pip3 install guider --no-deps          # Without dependencies
+    # pip3 install guider --force-reinstall  # Reinstall if already installed
 
-After installation, run one of the following commands to start Guider:
+After installation, start Guider with:
     # python3 -m guider
     # guider
 
-If you don't have pip on your system, you can download the source code from https://github.com/iipeace/guider, and then run the following command to start Guider:
+If pip is not available, you can download Guider's source code from GitHub and start it with:
     # python3 guider/guider.py
 
-For faster and lighter operation, you can build and install Guider from the source code by running the following commands:
+To build and install from source for improved performance, use:
     # cd guider && make && make install
 ```
 
@@ -1303,9 +1316,9 @@ Help
 
 ```
 Usage:
-    $ guider COMMAND [OPTIONS] [--help]
+    $ ./guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(153):
+COMMAND(163):
     [CONTROL]       cgroup            <Cgroup>        (Linux)
                     freeze            <Thread>        (Linux)
                     hook              <Function>      (Linux)
@@ -1323,20 +1336,23 @@ COMMAND(153):
                     setcpu            <Clock>         (Linux)
                     setsched          <Priority>      (Linux)
 
-    [LOG]           logand            <Android>       (Linux)
+    [LOG]           logand            <Log>           (Android)
                     logdlt            <DLT>           (Linux)
                     logjrl            <Journal>       (Linux)
                     logkmsg           <Kernel>        (Linux)
                     logsys            <Syslog>        (Linux)
                     logtrace          <Ftrace>        (Linux)
-                    printand          <Android>       (Linux)
+                    printand          <Log>           (Android)
                     printdlt          <DLT>           (Linux/MacOS/Windows)
                     printjrl          <Journal>       (Linux)
                     printkmsg         <Kernel>        (Linux)
                     printsyslog       <Syslog>        (Linux)
                     printtrace        <Ftrace>        (Linux)
 
-    [MONITOR]       atop              <All>           (Linux)
+    [MONITOR]       andtop            <Log>           (Android)
+                    atop              <All>           (Linux)
+                    attop             <Atrace>        (Android)
+                    bdtop             <Binder>        (Linux)
                     bgtop             <Background>    (Linux/MacOS/Windows)
                     btop              <Function>      (Linux)
                     cgtop             <Cgroup>        (Linux)
@@ -1358,6 +1374,7 @@ COMMAND(153):
                     stacktop          <Stack>         (Linux)
                     systop            <Syscall>       (Linux)
                     top               <Process>       (Linux/MacOS/Windows)
+                    tptop             <Ftrace>        (Linux)
                     trtop             <Tree>          (Linux)
                     ttop              <Thread>        (Linux)
                     utop              <Function>      (Linux)
@@ -1376,13 +1393,16 @@ COMMAND(153):
     [PROFILE]       filerec           <File>          (Linux)
                     funcrec           <Function>      (Linux)
                     genrec            <System>        (Linux)
+                    hprof             <Memory>        (Android)
                     iorec             <I/O>           (Linux)
                     mem               <Page>          (Linux)
                     rec               <Thread>        (Linux)
                     report            <Report>        (Linux)
+                    sperf             <Function>      (Android)
                     sysrec            <Syscall>       (Linux)
 
     [TEST]          cputest           <CPU>           (Linux/MacOS/Windows)
+                    helptest          <HELP>          (ALL)
                     iotest            <Storage>       (Linux/MacOS/Windows)
                     memtest           <Memory>        (Linux/MacOS/Windows)
                     nettest           <Network>       (Linux)
@@ -1399,6 +1419,7 @@ COMMAND(153):
                     checkdup          <Page>          (Linux)
                     comp              <Compress>      (Linux/MacOS/Windows)
                     decomp            <Decompress>    (Linux/MacOS/Windows)
+                    demangle          <Demangling>    (Linux/MacOS/Windows)
                     dirdiff           <Dir>           (Linux/MacOS/Windows)
                     dump              <Memory>        (Linux)
                     exec              <Command>       (Linux/MacOS/Windows)
@@ -1452,7 +1473,9 @@ COMMAND(153):
                     drawcpu           <CPU>           (Linux/MacOS/Windows)
                     drawcpuavg        <CPU>           (Linux/MacOS/Windows)
                     drawdelay         <Delay>         (Linux/MacOS/Windows)
+                    drawdiff          <Diff>          (Linux/MacOS/Windows)
                     drawflame         <Function>      (Linux/MacOS/Windows)
+                    drawflamediff     <Function>      (Linux/MacOS/Windows)
                     drawhist          <Histogram>     (Linux/MacOS/Windows)
                     drawio            <I/O>           (Linux/MacOS/Windows)
                     drawleak          <Leak>          (Linux/MacOS/Windows)
@@ -1473,6 +1496,6 @@ FILE:
     Report  file (e.g. guider.out)
 
 Options:
-    Check COMMAND with --help (e.g. guider top --help)
+    Check COMMAND with --help (e.g. ./guider top --help)
 
 ```
