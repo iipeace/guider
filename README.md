@@ -11,6 +11,7 @@ Table of contents
 =================
 <!--ts-->
    * [Guider](#Guider)
+   * [Overview](#Overview)
    * [Output](#Output)
    * [How to use](#How-to-use)
    * [Build & Installation](#Build--Installation)
@@ -21,17 +22,32 @@ Table of contents
 Guider
 =======
 
-Guider is a powerful and versatile performance analysis tool, designed to simplify and enhance
-system performance monitoring, profiling, and debugging for optimized results across various platforms.
-With additional features like tracing, control, logging, networking, testing, and utilities,
-Guider offers all the tools needed to measure, analyze, and optimize system performance.
+Guider is **a powerful and versatile performance analysis tool**,
+designed to simplify and enhance system performance monitoring, profiling, and debugging for optimizing system performance and resource utilization across various platforms.
+With additional features like tracing, visualization, control, logging, networking,  testing, and utilities,
+Guider offers a comprehensive set of tools to measure, analyze, and optimize system performance.
 
-Some of the key features of Guider include:
-1. Accurate measurements: Provides measurements in counts, time (μs), and size (bytes).
-2. Comprehensive functionality: Offers a range of functions for analysis and experimentation.
-3. Detailed reports: Provides in-depth reports with as much information as possible.
-4. Browser-based visualization: Generates interactive SVG visualizations that can be viewed in any browser.
-5. Easy to use: Designed to be simple and straightforward, with no need for installation or setup.
+Guider provides **a continuous system monitoring service** that proactively manages events based on predefined thresholds and conditions.
+Leveraging its extensive set of built-in commands, Guider operates independently without requiring external infrastructure.
+Instead of streaming monitoring data to an external server in real time,  
+Guider retains collected data in its internal buffer and automatically generates comprehensive analysis reports upon event detection.
+
+In addition, Guider offers **a command-based API over TCP and UDS protocols**,
+Enabling Linux and Android application developers to easily access and visualize system  performance data.
+
+Key Advantages of Guider include:
+1. Accurate Measurements  
+   Provides precise measurements in counts, execution time (μs), and data size (bytes).
+2. Comprehensive Functionality  
+   Offers a wide range of features for performance analysis, profiling, and experimentation.
+3. Detailed Reports  
+   Generates in-depth reports that capture as much relevant information as possible.
+4. Browser-Based Visualization  
+   Creates interactive SVG visualizations that can be viewed directly in any modern browser.
+5. Ease of Use  
+   Designed to be simple and intuitive, requiring no complex installation or setup.
+6. Optimized Resource Usage  
+   Designed to operate continuously with minimal system overhead, ensuring stable performance.
 
 Guider supports a wide range of platforms based on the Linux kernel and architectures.
 
@@ -47,6 +63,49 @@ Guider supports a wide range of platforms based on the Linux kernel and architec
     |-------------------|------------------------------------|
     | CPU               | x86, x64, ARM, AArch64, RISC-V     |
     +-------------------|------------------------------------+
+
+>>>
+
+Overview
+=======
+
+<img alt="features" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_features.jpg" width="100%" height="100%">
+
+Guider provides a wide range of features that are categorized into the following major areas:
+
+1. Core Commands  
+    Guider offers a rich set of built-in commands for various performance tasks:
+    - Monitoring: Resource, Task, Function, File, WSS, Log, IPC, Container, Event
+    - Profiling: Resource, File, Function, Event
+    - Tracing: Resource, Leak, Signal, Function, Event
+    - Control: Resource, Task, Signal, Affinity, Scheduler, Hook
+    - Logging: Kernel, Syslog, Ftrace, DLT, Journal, Android
+    - Visualization: Line Graph, Stacked Graph, Flame Graph, Bar Graph, Violin Plot, Histogram
+    - Testing: CPU, Memory, Storage, Network
+    - Utilities: Duplicated Memory, Property, Pager, Diff, Watch, Systemd, binutils, bugreport
+
+2. Continuous Monitoring Service  
+    Guider enables automated system surveillance with proactive event management:
+    - Thresholds: Configurable thresholds for various metrics like CPU load, memory usage, I/O latency, etc.
+    - Conditions: Logical rules combining thresholds and system states to trigger specific actions.
+    - Commands: Event handlers that automatically execute built-in commands to collect data or mitigate issues.
+
+3. Rich and Extensible APIs  
+    Guider provides command-based APIs using UDS/TCP for external integration:
+    - Oneshot: Single command execution with immediate JSON-formatted response.
+    - Stream: Persistent session for continuous command output streaming (e.g., monitoring updates).
+    - Control: Command interface to start, stop, configure, and manage Guider services remotely.
+
+4. Multi-Domain Integrated Monitoring  
+    Guider simultaneously monitors multiple resource domains:
+    - CPU performance metrics, memory usage trends, storage I/O behavior, network traffic analysis, and more.
+    - Cross-domain correlation analysis for identifying complex system bottlenecks.
+
+5. Large-Scale Data Visualization  
+    Guider provides comprehensive visualization of vast amounts of:
+    - Guider Reports: Automated detailed reports covering monitored periods and detected events.
+    - Peak Usages: Identification and visualization of resource usage peaks across domains.
+    - Process Crash, Kernel Panic, ANR: Analyzes crash dumps and abnormal system behaviors.
 
 >>>
 
@@ -1163,7 +1222,7 @@ Output
 
 >>>
 
-<img alt="graph" src="https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png" width="100%" height="100%">
+<img alt="graph" src="https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_draw_graph.jpg" width="100%" height="100%">
 <img alt="chart" src="https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png" width="100%" height="100%">
 
 >>>
@@ -1318,7 +1377,7 @@ Help
 Usage:
     $ ./guider COMMAND [OPTIONS] [--help]
                 
-COMMAND(173):
+COMMAND(182):
     [CONTROL]       cgroup            <Cgroup>        (Linux/Android)
                     freeze            <Thread>        (Linux/Android)
                     hook              <Function>      (Linux/Android)
@@ -1327,6 +1386,7 @@ COMMAND(173):
                     limitcpuset       <Core>          (Linux/Android)
                     limitcpuw         <CPU>           (Linux/Android)
                     limitmem          <Memory>        (Linux/Android)
+                    limitmemsoft      <Memory>        (Linux/Android)
                     limitpid          <Task>          (Linux/Android)
                     limitread         <I/O>           (Linux/Android)
                     limitwrite        <I/O>           (Linux/Android)
@@ -1357,6 +1417,7 @@ COMMAND(173):
                     bgtop             <Background>    (Linux/Android/MacOS/Windows)
                     btop              <Function>      (Linux/Android)
                     cgtop             <Cgroup>        (Linux/Android)
+                    contop            <Container>     (Linux/Android)
                     ctop              <Threshold>     (Linux/Android/MacOS/Windows)
                     dbustop           <D-Bus>         (Linux)
                     disktop           <Storage>       (Linux/Android/MacOS/Windows)
@@ -1420,8 +1481,12 @@ COMMAND(173):
                     utrace            <Function>      (Linux/Android)
 
     [UTIL]          addr2sym          <Symbol>        (Linux/Android/MacOS/Windows)
+                    andcmd            <Command>       (Android)
+                    bugrec            <Report>        (Android)
+                    bugrep            <Report>        (Android)
                     checkdup          <Page>          (Linux/Android)
                     comp              <Compress>      (Linux/Android/MacOS/Windows)
+                    convlog           <Log>           (Linux/Android/MacOS/Windows)
                     decomp            <Decompress>    (Linux/Android/MacOS/Windows)
                     demangle          <Demangling>    (Linux/Android/MacOS/Windows)
                     dirdiff           <Dir>           (Linux/Android/MacOS/Windows)
@@ -1432,6 +1497,7 @@ COMMAND(173):
                     flush             <Memory>        (Linux/Android)
                     getafnt           <Affinity>      (Linux/Android)
                     getpid            <PID>           (Linux/Android)
+                    getprop           <Property>      (Android)
                     less              <Pager>         (Linux/Android/MacOS/Windows)
                     merge             <File>          (Linux/Android/MacOS/Windows)
                     mkcache           <Cache>         (Linux/Android/MacOS/Windows)
@@ -1465,6 +1531,7 @@ COMMAND(173):
                     req               <URL>           (Linux/Android/MacOS/Windows)
                     scrcap            <Capture>       (Android)
                     scrrec            <Record>        (Android)
+                    setprop           <Property>      (Android)
                     split             <File>          (Linux/Android/MacOS/Windows)
                     strings           <Text>          (Linux/Android/MacOS/Windows)
                     sym2addr          <Address>       (Linux/Android/MacOS/Windows)
@@ -1475,6 +1542,7 @@ COMMAND(173):
                     topsum            <Summary>       (Linux/Android/MacOS/Windows)
                     umount            <Unmount>       (Linux/Android)
                     watch             <File>          (Linux/Android)
+                    watchprop         <Property>      (Android)
 
     [VISUAL]        convert           <Text>          (Linux/MacOS/Windows)
                     draw              <System>        (Linux/MacOS/Windows)
