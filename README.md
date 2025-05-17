@@ -64,6 +64,9 @@ Guider supports a wide range of platforms based on the Linux kernel and architec
     | CPU               | x86, x64, ARM, AArch64, RISC-V     |
     +-------------------|------------------------------------+
 
+This project has evolved over 10 years (2015–2025) through continuous development, field usage, and community feedback.
+Thank you for being part of the journey.
+
 >>>
 
 Overview
