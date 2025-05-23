@@ -5,10 +5,10 @@ BUGTRACKER = "https://github.com/iipeace/guider/issues"
 LICENSE = "GPL-2.0-or-later"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2c1c00f9d3ed9e24fa69b932b7e7aff2"
 
-PV = "3.9.8+git"
+PV = "3.9.9"
 
-SRC_URI = "git://github.com/iipeace/${BPN};branch=master;protocol=https"
-SRCREV = "a502cd93b13235b7539557a91328de00b7c51bc3"
+SRC_URI = "git://github.com/iipeace/${BPN};branch=master;protocol=https;tag=versions/${PV}"
+SRCREV = "118ab61773463e56dedc78f5cf6723b97a4ad946"
 
 S = "${WORKDIR}/git"
 
