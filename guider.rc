@@ -1,0 +1,9 @@
+on post-fs-data
+    mkdir /mnt/user/guider 0770 system system
+    start guider
+
+service guider /vendor/bin/guider ctop -i 3 -o /data/guider -q TEXTREPORT,NOSOCKPROF,LIMITREPDIR:200M,TCPSERVER:55555,OPSLOG:a,NOTEMPER,NOUSBINFO -b 10M -e dC -C /vendor/etc/guider/guider.conf
+    class main
+    user root
+    group system log readproc
+    disabled
