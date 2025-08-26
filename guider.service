@@ -1,0 +1,13 @@
+[Unit]
+Description=Guider service
+After=network.target
+
+[Service]
+Type=forking
+ExecStartPre=/bin/sh -c 'mkdir -p /home/iipeace/guider'
+ExecStart=/bin/sh -c 'guider ctop -i 3 -o /home/iipeace/guider -b 5M -e dC -C /etc/guider/guider.conf -j /tmp/perf.report -q TEXTREPORT,NOSOCKPROF,NOTEMPER,NOUSBINFO,LIMITREPDIR:100M,TCPSERVER:55555'
+RemainAfterExit=yes
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
