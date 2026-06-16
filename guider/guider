@@ -2,7 +2,7 @@
 
 # Guider Launcher
 #
-# Copyright (c) 2016-2025 Peace Lee <iipeace5@gmail.com>
+# Copyright (c) 2016-2026 Peace Lee <iipeace5@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
@@ -10,37 +10,32 @@
 # any later version.
 
 # export CMDLINE for Guider #
-CMDLINE=$0
-export CMDLINE
+export CMDLINE=$0
 
 # check PYTHON variable #
-if [ $PYTHON ]; then
-    exec $PYTHON -m guider "$@"
+if [ -n "$PYTHON" ]; then
+    exec "$PYTHON" -m guider "$@"
 fi
 
 # define PYTHON variable #
 PYTHON=""
 
 # check python binaries #
-for cmd in python3 python python2
+for cmd in python3 python
 do
     # check a python binary #
-    R=$(which $cmd 2> /dev/null)
-    if [ $? -ne "0" ]; then
-        continue;
-    fi
+    command -v "$cmd" > /dev/null 2>&1 || continue
 
     # set available python list #
     PYTHON="$PYTHON$cmd "
 
     # check guider module #
-    R=$($cmd -m guider)
-    if [ $? -ne "0" ]; then
-        continue;
+    if ! "$cmd" -c "import guider" 2>/dev/null; then
+        continue
     fi
 
     # launch Guider #
-    exec $cmd -m guider "$@"
+    exec "$cmd" -m guider "$@"
 done
 
 # print error message #
