@@ -1,0 +1,557 @@
+openapi: "3.1.0"
+info:
+  title: Guider Performance Analysis API
+  description: |
+    REST API for the Guider Linux/Android performance analysis toolkit.
+    Exposes 10 tool endpoints corresponding to the MCP tool definitions.
+
+    All endpoints return a standard JSON envelope:
+    ```json
+    {
+      "ok": true,
+      "command": "ttop",
+      "timestamp": 1720000000.0,
+      "duration_sec": 2.1,
+      "data": { ... },
+      "truncated": false,
+      "warnings": [],
+      "error": null
+    }
+    ```
+  version: "1.0.0"
+  contact:
+    name: Guider Project
+    url: https://github.com/iipeace/guider
+
+servers:
+  - url: http://localhost:8080
+    description: Local Guider REST server
+
+paths:
+  /systemMonitor:
+    post:
+      operationId: systemMonitor
+      summary: System-wide resource monitoring
+      description: |
+        Monitor CPU, memory, IO, threads, containers, and other system resources.
+
+        Available commands: top, ttop, atop, mtop, vtop, wtop, ftop, ntop,
+        disktop, irqtop, swaptop, slabtop, kstop, stacktop, ctop, cgtop,
+        contop, oomtop, pytop, rtop, sigtop, dbustop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemMonitorRequest'
+      responses:
+        '200':
+          description: Monitoring result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /bpfTrace:
+    post:
+      operationId: bpfTrace
+      summary: eBPF-based kernel/user tracing
+      description: |
+        Trace kernel and user-space functions using eBPF programs.
+        Requires CAP_BPF or root privileges. Minimum kernel version: 5.8.
+
+        Available commands: bpftop, bpfsnoop, bpfstacktop, bpfwaittop,
+        bpfblktop, bpfrunqtop, bpfreclaimtop, bpftcpretrans, bpfdroptop,
+        bpftcplat, bpflocktop, bpfbinderlat, bpfbindersnoop, bpfbinderpool,
+        bpfsyscalltop, bpfsyscallsnoop, bpfpkttop, bpfpktsnoop, bpfnetlat,
+        bpfwatch, bpfwatchtop, bpfwqtop, bpfcachetop, bpfkleaktop,
+        bpflsmopen, bpfprogtop, irqlattop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BpfTraceRequest'
+      responses:
+        '200':
+          description: BPF trace result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /ftraceProfile:
+    post:
+      operationId: ftraceProfile
+      summary: ftrace/perf-based kernel function profiling
+      description: |
+        Profile kernel functions using ftrace and perf infrastructure.
+        Requires root privileges. Minimum kernel version: 4.4.
+        Only 1 ftrace command can run concurrently (tracefs semaphore).
+
+        Available commands: trtop, tptop, bpfmarktop, funcrec, btop, utop,
+        ktop, ptop, fperf, utrace, btrace, iorec, filerec, sysrec, stat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FtraceProfileRequest'
+      responses:
+        '200':
+          description: Profiling result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /networkTrace:
+    post:
+      operationId: networkTrace
+      summary: Network performance tracing
+      description: |
+        Trace network events including TCP retransmits, packet drops, and latency.
+
+        Available commands: ntop, bpftcpretrans, bpftcplife, bpfdroptop,
+        bpftcplat, bpfpkttop, bpfpktsnoop, bpfnetlat, dbustop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkTraceRequest'
+      responses:
+        '200':
+          description: Network trace result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /androidPerf:
+    post:
+      operationId: androidPerf
+      summary: Android performance analysis
+      description: |
+        Analyze Android system performance including Perfetto traces, Binder IPC,
+        ATrace, logcat, CAN bus, and more. Requires adb connection.
+
+        Available commands: perfetto, bdtop, attop, gfxtop, bpfbinderlat,
+        bpfbindersnoop, bpfbinderpool, andtop, bugrec, mdtop, andcmd,
+        hprof, scrcap, logand, cantop, cansnoop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AndroidPerfRequest'
+      responses:
+        '200':
+          description: Android performance result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /memoryAnalyze:
+    post:
+      operationId: memoryAnalyze
+      summary: Memory analysis and leak detection
+      description: |
+        Analyze memory usage, detect duplicate mappings, track leaks,
+        and monitor OOM events.
+
+        Available commands: mtop, checkdup, bpfreclaimtop, leaktop,
+        leaktrace, mtrace, oomtop, vtop, dump, slabtop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoryAnalyzeRequest'
+      responses:
+        '200':
+          description: Memory analysis result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /visualize:
+    post:
+      operationId: visualize
+      summary: Generate performance visualizations
+      description: |
+        Generate graphs, flame charts, scatter plots, and other visualizations
+        from recorded guider data files.
+
+        Available commands: draw, drawtime, drawcpu, drawmem, drawnet,
+        drawdisk, drawflame, drawflamediff, drawscatter, drawhist,
+        drawviolin, drawstack, drawbitmap, drawconn, drawpsi, drawreq,
+        drawrss, drawgantt, drawdiff, convert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisualizeRequest'
+      responses:
+        '200':
+          description: Visualization result (output file path)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /logAnalyze:
+    post:
+      operationId: logAnalyze
+      summary: Log streaming and analysis
+      description: |
+        Stream or analyze logs from kernel messages, DLT, journald,
+        Android logcat, ftrace, and other log sources.
+
+        Available commands: logand, logkmsg, logdlt, logjrl, logsys,
+        logtrace, convlog, printand, printkmsg, printdlt, printjrl, printtrace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogAnalyzeRequest'
+      responses:
+        '200':
+          description: Log analysis result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /runCommand:
+    post:
+      operationId: runCommand
+      summary: Generic guider command runner
+      description: |
+        Run any whitelisted guider command not covered by specialized tools.
+        Blocked commands (kill, exec, LLM-loop options) are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunCommandRequest'
+      responses:
+        '200':
+          description: Command result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuiderResponse'
+
+  /guiderHelp:
+    get:
+      operationId: guiderHelp
+      summary: List available commands and metadata
+      description: |
+        Returns the command catalog without running any subprocess.
+        Use query or tool_name parameters to filter results.
+      parameters:
+        - name: query
+          in: query
+          description: Keyword to filter commands by name or description
+          schema:
+            type: string
+          example: "tcp"
+        - name: tool_name
+          in: query
+          description: MCP tool name to list (e.g. "bpfTrace")
+          schema:
+            type: string
+            enum:
+              - systemMonitor
+              - bpfTrace
+              - ftraceProfile
+              - networkTrace
+              - androidPerf
+              - memoryAnalyze
+              - visualize
+              - logAnalyze
+              - runCommand
+              - guiderHelp
+      responses:
+        '200':
+          description: Command catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelpResponse'
+
+  /health:
+    get:
+      operationId: health
+      summary: Server health check
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  guider_path:
+                    type: string
+
+components:
+  schemas:
+    GuiderResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: Whether the command succeeded
+        command:
+          type: string
+          description: The guider sub-command that was executed
+        timestamp:
+          type: number
+          description: Unix timestamp when the command started
+        duration_sec:
+          type: number
+          description: Wall-clock execution time in seconds
+        data:
+          description: Command output (JSON object for JSON commands, string for text)
+          oneOf:
+            - type: object
+            - type: array
+            - type: string
+        truncated:
+          type: boolean
+          description: True if output was truncated at 500 KB
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Non-fatal warnings (blocked options, stderr snippets)
+        error:
+          type: string
+          nullable: true
+          description: Error message if ok=false
+
+    CommonArgs:
+      type: object
+      properties:
+        duration:
+          type: integer
+          description: Run duration in seconds
+          default: 5
+          minimum: 1
+          maximum: 300
+        interval:
+          type: integer
+          description: Sampling interval in seconds
+          default: 1
+          minimum: 1
+        target:
+          type: string
+          description: Process name or PID to filter (-e)
+          example: "systemd"
+        extra_opts:
+          type: array
+          items:
+            type: string
+          description: Extra -q KEY[:VALUE] options
+          example: ["FILTER:comm"]
+
+    SystemMonitorRequest:
+      allOf:
+        - $ref: '#/components/schemas/CommonArgs'
+        - type: object
+          required: [command]
+          properties:
+            command:
+              type: string
+              description: guider sub-command
+              enum:
+                - top
+                - ttop
+                - atop
+                - mtop
+                - vtop
+                - wtop
+                - ftop
+                - ntop
+                - disktop
+                - irqtop
+                - swaptop
+                - slabtop
+                - kstop
+                - stacktop
+                - ctop
+                - cgtop
+                - contop
+                - oomtop
+                - pytop
+                - rtop
+                - sigtop
+                - dbustop
+
+    BpfTraceRequest:
+      allOf:
+        - $ref: '#/components/schemas/CommonArgs'
+        - type: object
+          required: [command]
+          properties:
+            command:
+              type: string
+              description: guider BPF sub-command
+            func_name:
+              type: string
+              description: Kernel function name for bpftop/bpfsnoop
+            duration:
+              type: integer
+              default: 10
+
+    FtraceProfileRequest:
+      allOf:
+        - $ref: '#/components/schemas/CommonArgs'
+        - type: object
+          required: [command]
+          properties:
+            command:
+              type: string
+              description: guider ftrace sub-command
+
+    NetworkTraceRequest:
+      allOf:
+        - $ref: '#/components/schemas/CommonArgs'
+        - type: object
+          required: [command]
+          properties:
+            command:
+              type: string
+              description: guider network sub-command
+            duration:
+              type: integer
+              default: 10
+
+    AndroidPerfRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          description: guider Android sub-command
+        duration:
+          type: integer
+          default: 5
+          minimum: 1
+          maximum: 300
+        interval:
+          type: integer
+          default: 1
+        device_id:
+          type: string
+          description: Android device serial (adb -s)
+          pattern: '^[a-zA-Z0-9:._-]+$'
+          example: "5af877f6"
+        input_file:
+          type: string
+          description: Path to existing trace file for offline analysis
+        extra_opts:
+          type: array
+          items:
+            type: string
+          example: ["PERF:5s", "CPUFREQ"]
+
+    MemoryAnalyzeRequest:
+      allOf:
+        - $ref: '#/components/schemas/CommonArgs'
+        - type: object
+          required: [command]
+          properties:
+            command:
+              type: string
+              description: guider memory sub-command
+
+    VisualizeRequest:
+      type: object
+      required: [command, input_file]
+      properties:
+        command:
+          type: string
+          description: guider visualization sub-command
+        input_file:
+          type: string
+          description: Path to recorded data file (required)
+        extra_opts:
+          type: array
+          items:
+            type: string
+
+    LogAnalyzeRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          description: guider log sub-command
+        duration:
+          type: integer
+          default: 10
+          minimum: 1
+        input_file:
+          type: string
+          description: Path to log file for offline analysis
+        extra_opts:
+          type: array
+          items:
+            type: string
+
+    RunCommandRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          description: Any whitelisted guider sub-command
+        duration:
+          type: integer
+          default: 5
+        interval:
+          type: integer
+          default: 1
+        target:
+          type: string
+        input_file:
+          type: string
+        device_id:
+          type: string
+          pattern: '^[a-zA-Z0-9:._-]+$'
+        extra_opts:
+          type: array
+          items:
+            type: string
+        json_output:
+          type: boolean
+          default: true
+
+    HelpResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        total_commands:
+          type: integer
+        mcp_tools:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        commands:
+          type: object
+          additionalProperties:
+            type: object

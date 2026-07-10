@@ -1,0 +1,10 @@
+# Guider MCP Server requirements
+# Install with: pip install -r requirements.txt
+
+# MCP framework (provides FastMCP and stdio transport)
+mcp>=1.0.0
+
+# Optional: FastMCP standalone package (alternative to mcp)
+# fastmcp>=2.0.0
+
+# Python version requirement: 3.8+

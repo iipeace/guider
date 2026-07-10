@@ -1,0 +1,308 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "systemMonitor",
+      "description": "Monitor system-wide CPU, memory, IO, threads, and other resources using guider. Available commands: top, ttop, atop, mtop, vtop, wtop, ftop, ntop, disktop, irqtop, swaptop, slabtop, kstop, stacktop, ctop, cgtop, contop, oomtop, pytop, rtop, sigtop, dbustop.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider sub-command (e.g. 'ttop' for thread CPU, 'mtop' for memory, 'disktop' for disk IO)",
+            "enum": ["top","ttop","atop","mtop","vtop","wtop","ftop","ntop","disktop","irqtop","swaptop","slabtop","kstop","stacktop","ctop","cgtop","contop","oomtop","pytop","rtop","sigtop","dbustop"]
+          },
+          "duration": {
+            "type": "integer",
+            "description": "monitoring duration in seconds",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 300
+          },
+          "interval": {
+            "type": "integer",
+            "description": "sampling interval in seconds",
+            "default": 1
+          },
+          "target": {
+            "type": "string",
+            "description": "process name or PID to filter (guider -e option)"
+          },
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "extra -q KEY[:VALUE] option strings"
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "bpfTrace",
+      "description": "eBPF-based kernel/user space tracing. Requires CAP_BPF or root, kernel >=5.8. Commands include: bpftop (function call counts), bpfstacktop (on-CPU stack sampling), bpfwaittop (off-CPU blocking), bpfblktop (block IO latency), bpfrunqtop (runqueue latency), bpfsyscalltop (syscall stats), bpfbinderlat/snoop/pool (Android Binder), and more.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider BPF sub-command",
+            "enum": ["bpftop","bpfsnoop","bpfstacktop","bpfwaittop","bpfblktop","bpfrunqtop","bpfreclaimtop","bpftcpretrans","bpfdroptop","bpftcplat","bpflocktop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","bpfsyscalltop","bpfsyscallsnoop","bpfpkttop","bpfpktsnoop","bpfnetlat","bpfwatch","bpfwatchtop","bpfwqtop","bpfcachetop","bpfkleaktop","bpflsmopen","bpfprogtop","irqlattop"]
+          },
+          "duration": {
+            "type": "integer",
+            "description": "tracing duration in seconds",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 300
+          },
+          "interval": {
+            "type": "integer",
+            "description": "display interval in seconds",
+            "default": 1
+          },
+          "target": {
+            "type": "string",
+            "description": "process name or PID to filter"
+          },
+          "func_name": {
+            "type": "string",
+            "description": "kernel function name for bpftop or bpfsnoop (e.g. 'do_sys_open')"
+          },
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "extra -q options (e.g. ['LAT', 'ADDUSERSTACK', 'SORTBYCNT'])"
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ftraceProfile",
+      "description": "ftrace and perf-based kernel function profiling (requires root, kernel >=4.4). Only 1 concurrent ftrace command allowed. Commands: trtop (tracepoint events), tptop, btop/ktop (function top), utop (user-space), ptop (perf), funcrec/btrace/utrace (recording), iorec/filerec/sysrec (IO/file/syscall recording), stat (snapshot).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider ftrace sub-command",
+            "enum": ["trtop","tptop","bpfmarktop","funcrec","btop","utop","ktop","ptop","fperf","utrace","btrace","iorec","filerec","sysrec","stat"]
+          },
+          "duration": {
+            "type": "integer",
+            "description": "profiling duration in seconds",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 300
+          },
+          "interval": {
+            "type": "integer",
+            "default": 1
+          },
+          "target": {
+            "type": "string",
+            "description": "process name or PID to filter"
+          },
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "networkTrace",
+      "description": "Network performance tracing including TCP retransmits, packet drops, RTT latency, XDP packet flows, and D-Bus messages.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider network sub-command",
+            "enum": ["ntop","bpftcpretrans","bpftcplife","bpfdroptop","bpftcplat","bpfpkttop","bpfpktsnoop","bpfnetlat","dbustop"]
+          },
+          "duration": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 300
+          },
+          "interval": {"type": "integer", "default": 1},
+          "target": {"type": "string"},
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "androidPerf",
+      "description": "Android performance analysis: Perfetto traces, Binder IPC (bdtop/bpfbinderlat/snoop/pool), ATrace (attop), GPU frames (gfxtop), logcat (logand), CAN bus (cantop/cansnoop), bug reports (bugrec), Java heap profiles (hprof), and system commands (andcmd).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider Android sub-command",
+            "enum": ["perfetto","bdtop","attop","gfxtop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","andtop","bugrec","mdtop","andcmd","hprof","scrcap","logand","cantop","cansnoop"]
+          },
+          "duration": {"type": "integer", "default": 5, "minimum": 1, "maximum": 300},
+          "interval": {"type": "integer", "default": 1},
+          "device_id": {
+            "type": "string",
+            "description": "Android device serial number from 'adb devices'",
+            "pattern": "^[a-zA-Z0-9:._-]+$"
+          },
+          "input_file": {
+            "type": "string",
+            "description": "path to existing trace file for offline analysis (perfetto -I)"
+          },
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "e.g. ['PERF:5s','CPUFREQ','ANALYZEJANK'] for perfetto"
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "memoryAnalyze",
+      "description": "Memory analysis: detect duplicate mappings (checkdup), track user-space leaks (leaktop/leaktrace/mtrace), monitor OOM (oomtop), virtual memory (vtop), slab allocator (slabtop), memory top (mtop), and process memory dump.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider memory sub-command",
+            "enum": ["mtop","checkdup","bpfreclaimtop","leaktop","leaktrace","mtrace","oomtop","vtop","dump","slabtop"]
+          },
+          "duration": {"type": "integer", "default": 5, "minimum": 0, "maximum": 300},
+          "interval": {"type": "integer", "default": 1},
+          "target": {"type": "string"},
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "e.g. ['SKIPEXMAPPED','CMDLINE'] for checkdup"
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "visualize",
+      "description": "Generate performance graphs from recorded guider data files. Commands: draw (combined), drawcpu/mem/net/disk (per metric), drawflame (flame graph), drawflamediff (diff flame), drawscatter/hist/violin/stack/bitmap (statistics), drawconn (flow graph), drawpsi (pressure stall), drawreq (latency), drawrss (resident set), drawgantt (timeline), drawdiff, convert.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider visualization sub-command",
+            "enum": ["draw","drawtime","drawcpu","drawmem","drawnet","drawdisk","drawflame","drawflamediff","drawscatter","drawhist","drawviolin","drawstack","drawbitmap","drawconn","drawpsi","drawreq","drawrss","drawgantt","drawdiff","convert"]
+          },
+          "input_file": {
+            "type": "string",
+            "description": "path to recorded data file (required)"
+          },
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["command", "input_file"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "logAnalyze",
+      "description": "Log streaming and analysis. Live streaming: logkmsg (kernel), logdlt (DLT), logjrl (journald), logsys (syslog), logtrace (ftrace), logand (Android). Offline analysis: printkmsg/printdlt/printjrl/printtrace/printand. Format conversion: convlog.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "guider log sub-command",
+            "enum": ["logand","logkmsg","logdlt","logjrl","logsys","logtrace","convlog","printand","printkmsg","printdlt","printjrl","printtrace"]
+          },
+          "duration": {"type": "integer", "default": 10, "minimum": 1, "maximum": 300},
+          "input_file": {"type": "string", "description": "log file for offline analysis"},
+          "extra_opts": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "e.g. ['FILTER:ActivityManager'] to filter by tag"
+          }
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "runCommand",
+      "description": "Generic guider command runner for any whitelisted command not covered by specialized tools. Blocked: kill, exec, LLM-loop options (ASKAI, ASKRUN, AIPERIODIC). Use guiderHelp to discover available commands.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "any whitelisted guider sub-command"
+          },
+          "duration": {"type": "integer", "default": 5, "minimum": 0, "maximum": 300},
+          "interval": {"type": "integer", "default": 1},
+          "target": {"type": "string"},
+          "input_file": {"type": "string"},
+          "device_id": {"type": "string"},
+          "extra_opts": {"type": "array", "items": {"type": "string"}},
+          "json_output": {"type": "boolean", "default": true}
+        },
+        "required": ["command"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "guiderHelp",
+      "description": "List available guider commands and their metadata without running any subprocess. Filter by tool name (e.g. 'bpfTrace') or keyword (e.g. 'tcp'). Call this first to discover which commands to use.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "keyword to search in command names and descriptions"
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "MCP tool name to list commands for",
+            "enum": ["systemMonitor","bpfTrace","ftraceProfile","networkTrace","androidPerf","memoryAnalyze","visualize","logAnalyze","runCommand","guiderHelp"]
+          }
+        },
+        "required": []
+      }
+    }
+  }
+]
