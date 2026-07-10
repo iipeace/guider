@@ -3,8 +3,51 @@
 This document explains how to connect Guider performance analysis to three AI coding tools:
 **Claude Code**, **Google Gemini Code Assist**, and **OpenAI Codex**.
 
-> Note: The existing `docs/` directory is root-owned. This file lives in `mcp/` instead.
-> A symlink or copy can be placed in `docs/` once root access is available.
+---
+
+## How It Works — The Complete Flow
+
+**Yes, just type a natural language prompt.** No special syntax is needed.
+
+When you type a prompt like *"show me the top CPU-consuming threads right now"*, the following
+happens automatically:
+
+```
+1. You type a natural language prompt
+         │
+         ▼
+2. Claude Code reads tool schemas on startup
+   (from guider-mcp.py via .mcp.json — done once per session)
+         │
+         ▼
+3. Claude decides which MCP tool to call
+   e.g. systemMonitor("top", duration=3)              # process-level overview
+        systemMonitor("top", duration=3, target="bd")   # root: + per-device I/O & disk usage
+         │
+         ▼
+4. guider-mcp.py receives the tool call over stdio
+         │
+         ▼
+5. GuiderAdapter builds a subprocess command list
+   e.g. ["python3", "guider.py", "ttop", "-i", "1", "-R", "5s", "-J"]
+         │
+         ▼
+6. guider.py runs as a subprocess (shell=False, isolated process group)
+         │
+         ▼
+7. JSON output is parsed and wrapped in a result envelope:
+   { "ok": true, "command": "ttop", "data": [...], "duration_sec": 5.1, ... }
+         │
+         ▼
+8. Claude reads the envelope and interprets the data
+         │
+         ▼
+9. Claude answers in natural language with analysis and recommendations
+```
+
+The MCP server (`guider-mcp.py`) is **started automatically** by Claude Code when a session
+begins (via `.mcp.json`), and stays alive for the entire session. You do not start or stop it
+manually.
 
 ---
 
@@ -30,6 +73,21 @@ The adapter runs guider via subprocess using standard flags:
 
 ---
 
+## MCP Server Lifecycle
+
+| Event | What Happens |
+|-------|-------------|
+| Claude Code starts | Reads `.mcp.json`, launches `python3 mcp/guider-mcp.py` as a child process |
+| First tool call | MCP server imports catalog + adapter, locates guider.py |
+| Each tool call | GuiderAdapter spawns a guider subprocess, waits, returns JSON envelope |
+| Subprocess timeout | SIGTERM → 2s → SIGKILL sent to the process group |
+| Claude Code exits | SIGTERM sent to MCP server → `atexit` kills all active guider subprocesses |
+| Ctrl+C | SIGINT handler cleans up children and exits |
+
+The MCP server process is completely transparent — you never interact with it directly.
+
+---
+
 ## 10 MCP Tools
 
 | Tool | Purpose | Key Commands |
@@ -49,49 +107,68 @@ The adapter runs guider via subprocess using standard flags:
 
 ## 1. Claude Code (Recommended — MCP Native)
 
-Claude Code natively supports MCP via stdio. The `.mcp.json` at project root
+Claude Code natively supports MCP via stdio. The `.mcp.json` at the project root
 configures automatic connection.
 
 ### Setup
 
 ```bash
-cd /home/iipeace/work/guider
+cd <GUIDER_ROOT>    # e.g. $HOME/guider
 
-# Install MCP SDK
+# Install MCP SDK (one-time)
 pip install mcp
 
-# Verify MCP server starts
+# Optional: verify the MCP server starts without error
 python3 mcp/guider-mcp.py
-# (press Ctrl+C — it waits for stdio input)
+# (waits for stdio — press Ctrl+C to exit)
 ```
 
-The `.mcp.json` is pre-configured:
+The `.mcp.json` is pre-configured at the project root:
 ```json
 {
   "mcpServers": {
     "guider": {
       "command": "python3",
-      "args": ["/home/iipeace/work/guider/mcp/guider-mcp.py"],
+      "args": ["<GUIDER_ROOT>/mcp/guider-mcp.py"],
       "env": {
-        "GUIDER_PATH": "/home/iipeace/work/guider/guider/guider.py"
+        "GUIDER_PATH": "<GUIDER_ROOT>/guider/guider.py"
       }
     }
   }
 }
 ```
+Replace `<GUIDER_ROOT>` with the absolute path to your guider checkout
+(e.g. `/home/user/guider`). If your `mcp` package lives in a virtualenv,
+set `command` to that virtualenv's `python3` instead.
 
-Restart Claude Code after placing `.mcp.json` — the 10 tools become available automatically.
+**After placing `.mcp.json`, restart Claude Code.** The 10 tools appear automatically.
+Verify with `/mcp` in the Claude Code prompt — you should see `guider` listed.
 
-### Example Prompts
+### Example Prompts (just type these)
 
 ```
-"Use guiderHelp to list all BPF tracing commands"
-"Run systemMonitor ttop for 5 seconds and identify the hottest threads"
-"Use bpfTrace bpfstacktop for 10 seconds to find on-CPU kernel hotspots"
-"Use memoryAnalyze checkdup with SKIPEXMAPPED option"
-"Run androidPerf perfetto with ANALYZEJANK on device 5af877f6"
-"Use logAnalyze logkmsg for 5 seconds to show recent kernel messages"
+List all available BPF tracing commands
+Show me the hottest CPU threads right now
+Find on-CPU kernel hotspots over the next 10 seconds
+Check for duplicate memory mappings
+Capture Android performance trace on device <YOUR_DEVICE_SERIAL> with jank analysis
+Stream kernel messages for 5 seconds
+Generate a flame graph from stacks.out
+What is using the most memory?
 ```
+
+Claude will automatically choose the right tool and command for each prompt.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Tools not appearing in `/mcp` | Restart Claude Code; check `.mcp.json` is at project root |
+| `ModuleNotFoundError: mcp` | Run `pip install mcp` |
+| `guider.py not found` | Set `GUIDER_PATH` in `.mcp.json` env or run from the guider repo root |
+| `too many concurrent calls` | Wait for previous calls to finish (max 3 concurrent) |
+| `tracefs busy` | Another ftrace command is running; wait for it to finish |
+| `ok: false, error: "exit code 1"` | Most BPF/ftrace commands require root (`sudo`) |
 
 ---
 
@@ -105,11 +182,14 @@ pip install gemini-cli
 # or: npm install -g @google/gemini-cli
 
 # Register guider MCP server
-gemini mcp add guider python3 /home/iipeace/work/guider/mcp/guider-mcp.py
+gemini mcp add guider python3 <GUIDER_ROOT>/mcp/guider-mcp.py
 
 # Verify
 gemini mcp list
 ```
+
+Once registered, type natural language prompts in Gemini CLI — it calls the guider tools
+the same way Claude Code does.
 
 ### Option B: Gemini API with Function Definitions
 
@@ -133,9 +213,7 @@ gemini_tools = [to_gemini(d) for d in openai_defs]
 genai.configure(api_key="YOUR_API_KEY")
 model = genai.GenerativeModel("gemini-1.5-pro", tools=gemini_tools)
 
-# The REST server dispatches Gemini function calls to guider
-# python3 openapi/guider-rest.py --port 8080
-
+# Start the REST server first: python3 openapi/guider-rest.py --port 8080
 import requests
 
 def handle_gemini_call(function_call) -> str:
@@ -187,7 +265,7 @@ for tc in msg.tool_calls or []:
         "content": result,
     })
 
-# Continue conversation with tool results...
+# Continue conversation with tool results
 final = client.chat.completions.create(model="gpt-4o", messages=messages)
 print(final.choices[0].message.content)
 ```
@@ -209,7 +287,7 @@ spec = requests.get("http://localhost:8080/openapi.json").json()
 pip install fastapi uvicorn pydantic
 
 # Start server (localhost only by default)
-python3 /home/iipeace/work/guider/openapi/guider-rest.py --port 8080
+python3 <GUIDER_ROOT>/openapi/guider-rest.py --port 8080
 
 # Endpoints:
 # GET  /health                    health check
@@ -259,34 +337,61 @@ ask, chat, embed, rag, askai, askrun, aiperiodic
 
 ---
 
+## Result Envelope
+
+Every tool call returns a JSON envelope:
+
+```json
+{
+  "ok": true,
+  "command": "ttop",
+  "timestamp": 1720000000.0,
+  "duration_sec": 5.1,
+  "data": [ { /* one guider JSON object per sampling interval */ } ],
+  "truncated": false,
+  "warnings": [],
+  "error": null
+}
+```
+
+- `ok: false` — check `error` field for the reason
+- `truncated: true` — output exceeded 500 KB; only the first 500 KB is in `data`
+- `warnings` — non-fatal issues (e.g. blocked options, stderr output)
+
+---
+
 ## Verification
 
 ```bash
-cd /home/iipeace/work/guider
+cd <GUIDER_ROOT>    # e.g. $HOME/guider
 
-# 1. Catalog check
+# 1. Syntax check all MCP files
+python3 -m py_compile mcp/guider-mcp.py     && echo 'guider-mcp.py: OK'
+python3 -m py_compile mcp/guider_adapter.py && echo 'guider_adapter.py: OK'
+python3 -m py_compile mcp/guider_catalog.py && echo 'guider_catalog.py: OK'
+
+# 2. Catalog check
 python3 -c "
 import sys; sys.path.insert(0, 'mcp')
-from guider_catalog import CATALOG
+from guider_catalog import CATALOG, get_tool_commands
 print('Total commands:', len(CATALOG))
-print('First 5:', list(CATALOG.keys())[:5])
+for tool in ['systemMonitor','bpfTrace','ftraceProfile','networkTrace',
+             'androidPerf','memoryAnalyze','visualize','logAnalyze']:
+    print(f'  {tool}: {len(get_tool_commands(tool))} commands')
 "
 
-# 2. Adapter test (2-second ttop run)
+# 3. Adapter functional test (requires guider.py + python3)
 python3 -c "
 import sys; sys.path.insert(0, 'mcp')
 from guider_adapter import GuiderAdapter
 r = GuiderAdapter().run('ttop', duration=2)
 print('ok:', r['ok'], '| duration_sec:', r['duration_sec'])
-if isinstance(r.get('data'), dict):
-    print('data keys:', list(r['data'].keys())[:5])
 "
 
-# 3. MCP server syntax check
-python3 -m py_compile mcp/guider-mcp.py && echo 'guider-mcp.py: OK'
-python3 -m py_compile mcp/guider_adapter.py && echo 'guider_adapter.py: OK'
-python3 -m py_compile mcp/guider_catalog.py && echo 'guider_catalog.py: OK'
+# 4. MCP server start test (requires pip install mcp)
+python3 mcp/guider-mcp.py &
+sleep 1 && kill %1 && echo 'MCP server: OK'
 
-# 4. REST server check (requires fastapi)
-# python3 -m py_compile openapi/guider-rest.py && echo 'guider-rest.py: OK'
+# 5. REST server check (requires fastapi)
+python3 -m py_compile openapi/guider-rest.py && echo 'guider-rest.py: OK'
 ```

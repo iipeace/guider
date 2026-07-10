@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "guider": {
+      "command": "/home/iipeace/HmgWorkTools/opengrok-aosp-mcp/.venv/bin/python3",
+      "args": [
+        "/home/iipeace/work/guider/mcp/guider-mcp.py"
+      ],
+      "env": {
+        "GUIDER_PATH": "/home/iipeace/work/guider/guider/guider.py"
+      },
+      "description": "Guider Linux/Android performance analysis toolkit"
+    }
+  }
+}

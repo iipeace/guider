@@ -167,15 +167,13 @@ def system_monitor(req: SystemMonitorRequest) -> dict:
 @app.post("/bpfTrace")
 def bpf_trace(req: BpfTraceRequest) -> dict:
     _check_command(req.command, get_tool_commands("bpfTrace"))
-    opts = list(req.extra_opts)
-    if req.func_name:
-        opts = [f"FUNC:{req.func_name}"] + opts
     return adapter.run(
         req.command,
         duration=req.duration,
         interval=req.interval,
         target_pid=req.target or None,
-        extra_opts=opts,
+        extra_opts=list(req.extra_opts),
+        main_arg=req.func_name or None,
     )
 
 

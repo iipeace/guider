@@ -59,7 +59,7 @@ CATALOG: dict = {
         "examples": ["guider atop"],
     },
     "mtop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -71,7 +71,7 @@ CATALOG: dict = {
         "examples": ["guider mtop"],
     },
     "vtop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -95,7 +95,7 @@ CATALOG: dict = {
         "examples": ["guider wtop"],
     },
     "ftop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -119,7 +119,7 @@ CATALOG: dict = {
         "examples": ["guider ntop"],
     },
     "disktop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -155,7 +155,7 @@ CATALOG: dict = {
         "examples": ["guider swaptop"],
     },
     "slabtop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -179,7 +179,7 @@ CATALOG: dict = {
         "examples": ["guider kstop"],
     },
     "stacktop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -215,7 +215,7 @@ CATALOG: dict = {
         "examples": ["guider cgtop"],
     },
     "contop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -275,7 +275,7 @@ CATALOG: dict = {
         "examples": ["guider sigtop"],
     },
     "dbustop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -703,7 +703,7 @@ CATALOG: dict = {
         "examples": ["guider ktop"],
     },
     "ptop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -717,13 +717,13 @@ CATALOG: dict = {
     "fperf": {
         "requires_root": False,
         "output_type": "json",
-        "streaming": False,
-        "default_duration": "",
+        "streaming": True,
+        "default_duration": "5s",
         "min_kernel": "",
         "mcp_tool": "ftraceProfile",
         "semaphore": False,
         "android_only": False,
-        "description": "Function-level perf profiling",
+        "description": "Function-level perf profiling (requires target via -e <pid>)",
         "examples": ["guider fperf -e <pid>"],
     },
     "utrace": {
@@ -855,7 +855,7 @@ CATALOG: dict = {
         "examples": ["guider attop"],
     },
     "gfxtop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -891,7 +891,7 @@ CATALOG: dict = {
         "examples": ["guider bugrec"],
     },
     "mdtop": {
-        "requires_root": False,
+        "requires_root": True,
         "output_type": "json",
         "streaming": True,
         "default_duration": "5s",
@@ -904,7 +904,7 @@ CATALOG: dict = {
     },
     "andcmd": {
         "requires_root": False,
-        "output_type": "json",
+        "output_type": "text",
         "streaming": False,
         "default_duration": "",
         "min_kernel": "",
@@ -912,7 +912,7 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": True,
         "description": "Run Android-specific diagnostic commands",
-        "examples": ["guider andcmd -q GETPROP", "guider andcmd -q GETSELINUX"],
+        "examples": ["guider andcmd getselinux", "guider andcmd getpkglist", "guider andcmd getproclist"],
     },
     "hprof": {
         "requires_root": False,
@@ -1447,9 +1447,15 @@ BLOCKED_OPTS: set = {
 }
 
 
+# Pre-built index: mcp_tool → list of command names (built once at import time)
+_TOOL_COMMANDS: dict = {}
+for _cmd, _meta in CATALOG.items():
+    _TOOL_COMMANDS.setdefault(_meta["mcp_tool"], []).append(_cmd)
+
+
 def get_tool_commands(mcp_tool: str) -> list:
-    """Return all command names assigned to the given MCP tool."""
-    return [cmd for cmd, meta in CATALOG.items() if meta["mcp_tool"] == mcp_tool]
+    """Return all command names assigned to the given MCP tool (O(1) lookup)."""
+    return _TOOL_COMMANDS.get(mcp_tool, [])
 
 
 def get_catalog_entry(command: str) -> dict | None:

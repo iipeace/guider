@@ -56,6 +56,19 @@ class GuiderAdapter:
         # result["data"] contains parsed JSON or text
     """
 
+    # Default on-device paths (override via env vars in .mcp.json)
+    _ANDROID_GUIDER_PATH: str = os.environ.get(
+        "ANDROID_GUIDER_PATH", "/data/local/tmp/guider/guider.py"
+    )
+    _ANDROID_PYTHON_PATH: str = os.environ.get(
+        "ANDROID_PYTHON_PATH",
+        "/data/local/tmp/python3.13.11_android_aarch64/usr/bin/python3",
+    )
+    _ANDROID_PYTHON_LIB: str = os.environ.get(
+        "ANDROID_PYTHON_LIB",
+        "/data/local/tmp/python3.13.11_android_aarch64/usr/lib",
+    )
+
     def __init__(
         self,
         guider_path: str | None = None,
@@ -89,6 +102,7 @@ class GuiderAdapter:
         device_id: str | None = None,
         timeout_sec: int | None = None,
         json_output: bool = True,
+        main_arg: str | None = None,
     ) -> dict[str, Any]:
         """
         Run a guider command and return a structured result envelope.
@@ -103,6 +117,7 @@ class GuiderAdapter:
             device_id:    Android device serial (validated)
             timeout_sec:  wall-clock timeout; defaults to duration+30
             json_output:  append -J flag for JSON output
+            main_arg:     positional argument after command (e.g. function name for bpftop)
 
         Returns:
             dict with keys: ok, command, timestamp, duration_sec,
@@ -134,6 +149,21 @@ class GuiderAdapter:
         warnings: list[str] = []
         safe_opts = self._filter_opts(extra_opts or [], warnings)
         envelope["warnings"] = warnings
+
+        # early pre-flight checks (saves subprocess startup + gives clear errors)
+        if meta.get("requires_root") and os.getuid() != 0:
+            envelope["error"] = (
+                f"command '{command}' requires root or CAP_BPF"
+                + (f" (kernel >= {meta['min_kernel']})" if meta.get("min_kernel") else "")
+                + ". Re-run the MCP server with sudo."
+            )
+            return envelope
+
+        if meta.get("android_only") and not device_id:
+            warnings.append(
+                f"command '{command}' requires an Android device — "
+                "pass device_id='<serial>' (adb devices to list)"
+            )
 
         # validate device_id
         if device_id and not _SAFE_DEVICE_ID.match(device_id):
@@ -173,6 +203,7 @@ class GuiderAdapter:
             target_pid=target_pid,
             device_id=device_id,
             json_output=json_output,
+            main_arg=main_arg,
         )
         logger.debug("exec: %s", " ".join(cmd))
 
@@ -215,13 +246,21 @@ class GuiderAdapter:
                     envelope["error"] = "no JSON output" if rc == 0 else f"exit code {rc}"
                     envelope["data"] = raw
             else:
-                envelope["data"] = raw
+                # Strip ANSI escape codes from text output so LLMs see clean text
+                envelope["data"] = GuiderAdapter._ANSI_ESCAPE.sub('', raw)
                 envelope["ok"] = rc == 0 or bool(raw.strip())
 
             if err:
                 stderr_text = err.decode("utf-8", errors="replace").strip()
                 if stderr_text:
-                    envelope["warnings"].append(f"stderr: {stderr_text[:500]}")
+                    # Filter known-harmless terminal probe lines (stty on non-tty stdin)
+                    filtered = "\n".join(
+                        line for line in stderr_text.splitlines()
+                        if "stty:" not in line
+                    ).strip()
+                    if filtered:
+                        filtered = GuiderAdapter._ANSI_ESCAPE.sub('', filtered)
+                        envelope["warnings"].append(f"stderr: {filtered[:500]}")
 
         except Exception as exc:  # pylint: disable=broad-except
             envelope["error"] = str(exc)
@@ -277,13 +316,38 @@ class GuiderAdapter:
         target_pid: str | None,
         device_id: str | None,
         json_output: bool,
+        main_arg: str | None = None,
     ) -> list[str]:
-        """Construct the subprocess argument list."""
+        """Construct the subprocess argument list.
+
+        For android_only commands with a device_id, the command is executed
+        on-device via ``adb -s <device_id> shell env LD_LIBRARY_PATH=... python3 guider.py``
+        instead of running guider.py on the host machine.
+        """
+        if meta.get("android_only") and device_id:
+            # Only add -J when the command actually produces JSON output;
+            # text/file output_type commands silently drop output when -J is passed.
+            effective_json = json_output and meta.get("output_type") == "json"
+            return self._build_adb_cmd(
+                command=command,
+                duration=duration,
+                interval=interval,
+                extra_opts=extra_opts,
+                target_pid=target_pid,
+                device_id=device_id,
+                json_output=effective_json,
+                main_arg=main_arg,
+            )
+
         is_py = self._guider_path.endswith(".py")
         if is_py:
             cmd: list[str] = [self._python_bin, self._guider_path, command]
         else:
             cmd = [self._guider_path, command]
+
+        # positional main argument (e.g. function name for bpftop/bpfsnoop)
+        if main_arg:
+            cmd.append(main_arg)
 
         # sampling interval
         cmd += ["-i", str(interval)]
@@ -300,7 +364,7 @@ class GuiderAdapter:
         if target_pid:
             cmd += ["-e", str(target_pid)]
 
-        # android device
+        # android device (for non-android_only commands that still use -d)
         if device_id:
             cmd += ["-d", device_id]
 
@@ -312,6 +376,50 @@ class GuiderAdapter:
         if json_output:
             cmd += ["-J"]
 
+        return cmd
+
+    def _build_adb_cmd(
+        self,
+        *,
+        command: str,
+        duration: int | None,
+        interval: int,
+        extra_opts: list[str],
+        target_pid: str | None,
+        device_id: str,
+        json_output: bool,
+        main_arg: str | None,
+    ) -> list[str]:
+        """Build an adb-shell command that runs guider on the Android device."""
+        adb = shutil.which("adb") or "adb"
+        cmd: list[str] = [adb, "-s", device_id, "shell"]
+
+        # guider invocation on the device: env LD_LIBRARY_PATH=... python3 guider.py CMD
+        guider_args: list[str] = []
+        if self._ANDROID_PYTHON_LIB:
+            guider_args += ["env", f"LD_LIBRARY_PATH={self._ANDROID_PYTHON_LIB}"]
+        guider_args += [self._ANDROID_PYTHON_PATH, self._ANDROID_GUIDER_PATH, command]
+
+        if main_arg:
+            guider_args.append(main_arg)
+
+        guider_args += ["-i", str(interval)]
+
+        if duration is not None:
+            guider_args += ["-R", f"{duration}s"]
+
+        if target_pid:
+            guider_args += ["-e", str(target_pid)]
+
+        for opt in extra_opts:
+            guider_args += ["-q", opt]
+
+        if json_output:
+            guider_args.append("-J")
+
+        # Pass all guider args as a single quoted shell string so adb shell
+        # executes them as one command without further splitting.
+        cmd.append(" ".join(guider_args))
         return cmd
 
     def _filter_opts(self, opts: list[str], warnings: list[str]) -> list[str]:
@@ -364,11 +472,22 @@ class GuiderAdapter:
 
     @staticmethod
     def _kill_pgid(pid: int) -> None:
-        """Send SIGTERM then SIGKILL to the process group."""
+        """Send SIGTERM then SIGKILL to the process group.
+
+        Polls up to 2 s in 0.1 s increments so fast-exiting processes are
+        reaped immediately rather than always waiting the full 2 s.
+        """
         try:
             pgid = os.getpgid(pid)
             os.killpg(pgid, signal.SIGTERM)
-            time.sleep(2)
+            # Poll for up to 2s (20 × 0.1s) before escalating to SIGKILL
+            for _ in range(20):
+                time.sleep(0.1)
+                try:
+                    os.killpg(pgid, 0)  # signal 0: check existence only
+                except ProcessLookupError:
+                    return  # process group already gone
+            # Still alive → SIGKILL
             try:
                 os.killpg(pgid, signal.SIGKILL)
             except ProcessLookupError:

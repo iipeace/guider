@@ -7,4 +7,4 @@ mcp>=1.0.0
 # Optional: FastMCP standalone package (alternative to mcp)
 # fastmcp>=2.0.0
 
-# Python version requirement: 3.8+
+# Python version requirement: 3.10+ (mcp package requires Python >=3.10)
