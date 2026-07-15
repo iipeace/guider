@@ -68,6 +68,9 @@ _ALLOWED: dict[str, frozenset] = {
     ]
 }
 
+# Reverse index: command name → correct MCP tool name (for helpful error messages)
+_CMD_TO_TOOL: dict[str, str] = {cmd: meta["mcp_tool"] for cmd, meta in CATALOG.items()}
+
 
 # ---------------------------------------------------------------------------
 # Helper: build result summary for the LLM
@@ -79,13 +82,24 @@ def _wrap(result: dict[str, Any]) -> str:
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
+def _wrong_tool_error(command: str, tool_name: str) -> str:
+    """Return a structured error pointing to the correct MCP tool."""
+    correct = _CMD_TO_TOOL.get(command)
+    hint = (
+        f" Try {correct}(command='{command}', ...)."
+        if correct
+        else " Use guiderHelp() to list available commands."
+    )
+    return _wrap({"ok": False, "error": f"'{command}' is not in {tool_name}.{hint}"})
+
+
 # ---------------------------------------------------------------------------
 # 1. systemMonitor
 # ---------------------------------------------------------------------------
 @mcp.tool()
 def systemMonitor(
     command: str,
-    duration: int = 3,
+    duration: int = 5,
     interval: int = 1,
     target: str = "",
     extra_opts: list[str] | None = None,
@@ -105,7 +119,7 @@ def systemMonitor(
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["systemMonitor"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in systemMonitor. Use guiderHelp."})
+        return _wrong_tool_error(command, "systemMonitor")
     result = adapter.run(
         command,
         duration=duration,
@@ -127,6 +141,7 @@ def bpfTrace(
     target: str = "",
     func_name: str = "",
     extra_opts: list[str] | None = None,
+    device_id: str = "",
 ) -> str:
     """
     eBPF-based kernel/user tracing (requires CAP_BPF or root, kernel ≥5.8).
@@ -145,9 +160,10 @@ def bpfTrace(
         target:     optional process name or PID to filter (-e)
         func_name:  kernel function name for bpftop/bpfsnoop (passed as positional arg)
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["LAT", "ADDUSERSTACK"])
+        device_id:  Android device serial for bpfbinder* commands (adb -s <device_id>)
     """
     if command not in _ALLOWED["bpfTrace"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in bpfTrace. Use guiderHelp."})
+        return _wrong_tool_error(command, "bpfTrace")
 
     result = adapter.run(
         command,
@@ -156,6 +172,7 @@ def bpfTrace(
         target_pid=target or None,
         extra_opts=list(extra_opts or []),
         main_arg=func_name or None,
+        device_id=device_id or None,
     )
     return _wrap(result)
 
@@ -186,7 +203,7 @@ def ftraceProfile(
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["ftraceProfile"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in ftraceProfile. Use guiderHelp."})
+        return _wrong_tool_error(command, "ftraceProfile")
     result = adapter.run(
         command,
         duration=duration,
@@ -222,7 +239,7 @@ def networkTrace(
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["networkTrace"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in networkTrace. Use guiderHelp."})
+        return _wrong_tool_error(command, "networkTrace")
     result = adapter.run(
         command,
         duration=duration,
@@ -261,11 +278,13 @@ def androidPerf(
         device_id:   Android device serial (adb -s <device_id>); leave empty for default
         input_file:  path to existing trace file for offline analysis (-I)
         extra_opts:  list of -q KEY[:VALUE] option strings (e.g. ["PERF:5s", "CPUFREQ"])
-        sub_command: positional sub-command for andcmd (e.g. "getselinux", "getpkglist",
-                     "getproclist", "getbinderstats"); ignored for other commands
+        sub_command: positional sub-command for andcmd
+                     (e.g. "getselinux", "getpkglist", "getproclist",
+                           "getbinderstats", "getappstat", "getpkgattr")
+                     Ignored for other commands.
     """
     if command not in _ALLOWED["androidPerf"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in androidPerf. Use guiderHelp."})
+        return _wrong_tool_error(command, "androidPerf")
     result = adapter.run(
         command,
         duration=duration,
@@ -303,7 +322,7 @@ def memoryAnalyze(
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["SKIPEXMAPPED"])
     """
     if command not in _ALLOWED["memoryAnalyze"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in memoryAnalyze. Use guiderHelp."})
+        return _wrong_tool_error(command, "memoryAnalyze")
     result = adapter.run(
         command,
         duration=duration if duration > 0 else None,
@@ -337,7 +356,7 @@ def visualize(
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["visualize"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in visualize. Use guiderHelp."})
+        return _wrong_tool_error(command, "visualize")
     if not input_file:
         return _wrap({"ok": False, "error": "input_file is required for visualize commands"})
     result = adapter.run(
@@ -372,7 +391,7 @@ def logAnalyze(
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["FILTER:tag"])
     """
     if command not in _ALLOWED["logAnalyze"]:
-        return _wrap({"ok": False, "error": f"'{command}' not in logAnalyze. Use guiderHelp."})
+        return _wrong_tool_error(command, "logAnalyze")
     result = adapter.run(
         command,
         duration=duration,
@@ -498,14 +517,16 @@ def guiderHelp(
         "ok": True,
         "count": len(results),
         "commands": {
-            cmd: {
+            cmd: {k: v for k, v in {
                 "description": meta["description"],
                 "requires_root": meta["requires_root"],
                 "streaming": meta["streaming"],
                 "default_duration": meta.get("default_duration", ""),
                 "mcp_tool": meta["mcp_tool"],
+                "main_arg_name": meta.get("main_arg_name", ""),
+                "main_arg_desc": meta.get("main_arg_desc", ""),
                 "examples": meta.get("examples", []),
-            }
+            }.items() if v != ""}
             for cmd, meta in results.items()
         },
     }, ensure_ascii=False)

@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -324,6 +325,13 @@ class GuiderAdapter:
         on-device via ``adb -s <device_id> shell env LD_LIBRARY_PATH=... python3 guider.py``
         instead of running guider.py on the host machine.
         """
+        # Bug-0b: visualize/file commands use a positional FILE arg, not -I FILE.
+        # Auto-promote input_file to main_arg when the command takes a file
+        # as positional argument and no explicit main_arg was given.
+        if meta.get("output_type") == "file" and input_file and not main_arg:
+            main_arg = input_file
+            input_file = None
+
         if meta.get("android_only") and device_id:
             # Only add -J when the command actually produces JSON output;
             # text/file output_type commands silently drop output when -J is passed.
@@ -337,6 +345,7 @@ class GuiderAdapter:
                 device_id=device_id,
                 json_output=effective_json,
                 main_arg=main_arg,
+                streaming=meta.get("streaming", False),
             )
 
         is_py = self._guider_path.endswith(".py")
@@ -349,8 +358,10 @@ class GuiderAdapter:
         if main_arg:
             cmd.append(main_arg)
 
-        # sampling interval
-        cmd += ["-i", str(interval)]
+        # Bug-0a: -i (interval) is interpreted as an input file path by guider
+        # for non-streaming commands — only add it for live streaming commands.
+        if meta.get("streaming"):
+            cmd += ["-i", str(interval)]
 
         # duration (-R Ns) for streaming commands
         if duration is not None:
@@ -389,6 +400,7 @@ class GuiderAdapter:
         device_id: str,
         json_output: bool,
         main_arg: str | None,
+        streaming: bool = True,
     ) -> list[str]:
         """Build an adb-shell command that runs guider on the Android device."""
         adb = shutil.which("adb") or "adb"
@@ -403,7 +415,9 @@ class GuiderAdapter:
         if main_arg:
             guider_args.append(main_arg)
 
-        guider_args += ["-i", str(interval)]
+        # Bug-0a: only add -i for streaming/live commands
+        if streaming:
+            guider_args += ["-i", str(interval)]
 
         if duration is not None:
             guider_args += ["-R", f"{duration}s"]
@@ -417,9 +431,9 @@ class GuiderAdapter:
         if json_output:
             guider_args.append("-J")
 
-        # Pass all guider args as a single quoted shell string so adb shell
-        # executes them as one command without further splitting.
-        cmd.append(" ".join(guider_args))
+        # Bug-2: use shlex.join so options with spaces (e.g. "FILTER:my app")
+        # are properly quoted when passed through the adb shell.
+        cmd.append(shlex.join(guider_args))
         return cmd
 
     def _filter_opts(self, opts: list[str], warnings: list[str]) -> list[str]:

@@ -300,6 +300,8 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": False,
         "description": "Per-TID BPF function call count (delta/interval)",
+        "main_arg_name": "func_name",
+        "main_arg_desc": "kernel function to trace (e.g. 'do_sys_open')",
         "examples": ["guider bpftop do_sys_open", "guider bpftop -q LAT"],
     },
     "bpfsnoop": {
@@ -312,6 +314,8 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": False,
         "description": "Real-time per-function call stream via BPF perf ring buffer",
+        "main_arg_name": "func_name",
+        "main_arg_desc": "kernel function to trace (e.g. 'do_sys_open')",
         "examples": ["guider bpfsnoop do_sys_open"],
     },
     "bpfstacktop": {
@@ -528,6 +532,8 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": False,
         "description": "HW watchpoint streaming via perf ring buffer",
+        "main_arg_name": "addr",
+        "main_arg_desc": "memory address to watch (e.g. '0xffff80001234abcd')",
         "examples": ["guider bpfwatch <addr>"],
     },
     "bpfwatchtop": {
@@ -540,6 +546,8 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": False,
         "description": "HW watchpoint access top monitor",
+        "main_arg_name": "addr",
+        "main_arg_desc": "memory address to watch (e.g. '0xffff80001234abcd')",
         "examples": ["guider bpfwatchtop <addr>"],
     },
     "bpfwqtop": {
@@ -912,6 +920,11 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": True,
         "description": "Run Android-specific diagnostic commands",
+        "main_arg_name": "sub_command",
+        "main_arg_desc": (
+            "diagnostic sub-command: getselinux, getpkglist, getproclist, "
+            "getbinderstats, getappstat, getpkgattr"
+        ),
         "examples": ["guider andcmd getselinux", "guider andcmd getpkglist", "guider andcmd getproclist"],
     },
     "hprof": {
@@ -960,6 +973,8 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": False,
         "description": "CAN bus signal top monitor",
+        "main_arg_name": "iface",
+        "main_arg_desc": "CAN interface name (e.g. 'vcan0', 'can0'); leave empty for auto-detect",
         "examples": ["guider cantop vcan0"],
     },
     "cansnoop": {
@@ -972,6 +987,8 @@ CATALOG: dict = {
         "semaphore": False,
         "android_only": False,
         "description": "CAN bus real-time per-frame streaming",
+        "main_arg_name": "iface",
+        "main_arg_desc": "CAN interface name (e.g. 'vcan0', 'can0'); leave empty for auto-detect",
         "examples": ["guider cansnoop vcan0"],
     },
 
@@ -1340,7 +1357,7 @@ CATALOG: dict = {
         "streaming": True,
         "default_duration": "10s",
         "min_kernel": "4.4",
-        "mcp_tool": "logAnalyze",
+        "mcp_tool": "ftraceProfile",
         "semaphore": True,
         "android_only": False,
         "description": "ftrace event log streaming",
@@ -1366,8 +1383,8 @@ CATALOG: dict = {
         "min_kernel": "",
         "mcp_tool": "logAnalyze",
         "semaphore": False,
-        "android_only": True,
-        "description": "Print Android log file",
+        "android_only": False,
+        "description": "Print Android log file (offline; use -I logcat.txt)",
         "examples": ["guider printand -I logcat.txt"],
     },
     "printkmsg": {
@@ -1463,3 +1480,55 @@ def get_catalog_entry(command: str) -> dict | None:
     if command in BLOCKED_COMMANDS:
         return None
     return CATALOG.get(command)
+
+
+def validate_catalog() -> list[str]:
+    """
+    Validate CATALOG entries for common integrity issues.
+
+    Checks:
+    - android_only=True commands placed in a tool without device_id support
+    - streaming=True commands missing default_duration
+    - semaphore=True commands missing requires_root
+
+    Returns a list of issue strings (empty = all clear).
+    """
+    _TOOLS_WITH_DEVICE_ID = frozenset({"androidPerf", "bpfTrace", "runCommand"})
+    issues: list[str] = []
+
+    for cmd, meta in CATALOG.items():
+        tool = meta.get("mcp_tool", "")
+
+        # android_only commands must be in a tool that accepts device_id
+        if meta.get("android_only") and tool not in _TOOLS_WITH_DEVICE_ID:
+            issues.append(
+                f"[android_only] '{cmd}' is android_only=True but mcp_tool='{tool}' "
+                f"has no device_id parameter (expected one of {sorted(_TOOLS_WITH_DEVICE_ID)})"
+            )
+
+        # streaming commands should declare a default_duration
+        if meta.get("streaming") and not meta.get("default_duration"):
+            issues.append(
+                f"[streaming] '{cmd}' has streaming=True but default_duration is empty"
+            )
+
+        # semaphore (tracefs) commands need root
+        if meta.get("semaphore") and not meta.get("requires_root"):
+            issues.append(
+                f"[semaphore] '{cmd}' has semaphore=True but requires_root=False"
+            )
+
+    return issues
+
+
+if __name__ == "__main__":
+    import sys as _sys
+
+    issues = validate_catalog()
+    if issues:
+        print(f"CATALOG validation: {len(issues)} issue(s) found:")
+        for issue in issues:
+            print(f"  {issue}")
+        _sys.exit(1)
+    else:
+        print(f"CATALOG validation: OK ({len(CATALOG)} commands, no issues)")
