@@ -109,7 +109,7 @@ def systemMonitor(
 
     Commands: top, ttop, atop, mtop, vtop, wtop, ftop, ntop, disktop,
               irqtop, swaptop, slabtop, kstop, stacktop, ctop, cgtop,
-              contop, oomtop, pytop, rtop, sigtop, dbustop
+              contop, oomtop, pytop, rtop, dbustop
 
     Args:
         command:    guider sub-command name (e.g. "ttop")
@@ -151,7 +151,8 @@ def bpfTrace(
               bpftcplat, bpflocktop, bpfbinderlat, bpfbindersnoop,
               bpfbinderpool, bpfsyscalltop, bpfsyscallsnoop, bpfpkttop,
               bpfpktsnoop, bpfnetlat, bpfwatch, bpfwatchtop, bpfwqtop,
-              bpfcachetop, bpfkleaktop, bpflsmopen, bpfprogtop, irqlattop
+              bpfcachetop, bpfkleaktop, bpflsmopen, bpfprogtop, bpfsigtop,
+              irqlattop
 
     Args:
         command:    guider sub-command name (e.g. "bpfstacktop")
@@ -269,7 +270,7 @@ def androidPerf(
 
     Commands: perfetto, bdtop, attop, gfxtop, bpfbinderlat, bpfbindersnoop,
               bpfbinderpool, andtop, bugrec, mdtop, andcmd, hprof, scrcap,
-              logand, cantop, cansnoop
+              logand, printand, lmksnoop, cantop, cansnoop
 
     Args:
         command:     guider sub-command name (e.g. "perfetto")
