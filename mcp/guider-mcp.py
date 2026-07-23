@@ -28,7 +28,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 from guider_adapter import get_adapter
-from guider_catalog import CATALOG, BLOCKED_COMMANDS, get_tool_commands
+from guider_catalog import CATALOG, BLOCKED_COMMANDS, get_tool_commands, validate_catalog
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -58,6 +58,10 @@ mcp = FastMCP(
 )
 
 adapter = get_adapter()
+
+# Validate catalog integrity at startup — log warnings if broken
+for _issue in validate_catalog():
+    logger.warning("catalog: %s", _issue)
 
 # Pre-built frozensets of allowed commands per tool (avoid repeated O(n) scans)
 _ALLOWED: dict[str, frozenset] = {
@@ -107,9 +111,9 @@ def systemMonitor(
     """
     System-wide resource monitoring (CPU, memory, IO, threads, containers, etc.).
 
-    Commands: top, ttop, atop, mtop, vtop, wtop, ftop, ntop, disktop,
+    Commands: top, ttop, atop, mtop, vtop, wtop, ftop, disktop,
               irqtop, swaptop, slabtop, kstop, stacktop, ctop, cgtop,
-              contop, oomtop, pytop, rtop, dbustop
+              contop, oomtop, pytop, rtop
 
     Args:
         command:    guider sub-command name (e.g. "ttop")
@@ -147,12 +151,10 @@ def bpfTrace(
     eBPF-based kernel/user tracing (requires CAP_BPF or root, kernel ≥5.8).
 
     Commands: bpftop, bpfsnoop, bpfstacktop, bpfwaittop, bpfblktop,
-              bpfrunqtop, bpfreclaimtop, bpftcpretrans, bpfdroptop,
-              bpftcplat, bpflocktop, bpfbinderlat, bpfbindersnoop,
-              bpfbinderpool, bpfsyscalltop, bpfsyscallsnoop, bpfpkttop,
-              bpfpktsnoop, bpfnetlat, bpfwatch, bpfwatchtop, bpfwqtop,
-              bpfcachetop, bpfkleaktop, bpflsmopen, bpfprogtop, bpfsigtop,
-              irqlattop
+              bpfrunqtop, bpfreclaimtop, bpflocktop, bpfbinderlat,
+              bpfbindersnoop, bpfbinderpool, bpfsyscalltop, bpfsyscallsnoop,
+              bpfwatch, bpfwatchtop, bpfwqtop, bpfcachetop, bpfkleaktop,
+              bpflsmopen, bpfprogtop, bpfsigtop, irqlattop
 
     Args:
         command:    guider sub-command name (e.g. "bpfstacktop")
@@ -194,7 +196,7 @@ def ftraceProfile(
     At most 1 ftrace command runs concurrently (tracefs semaphore enforced).
 
     Commands: trtop, tptop, bpfmarktop, funcrec, btop, utop, ktop, ptop,
-              fperf, utrace, btrace, iorec, filerec, sysrec, stat
+              fperf, utrace, btrace, iorec, filerec, sysrec, logtrace, stat
 
     Args:
         command:    guider sub-command name (e.g. "trtop")
@@ -268,9 +270,8 @@ def androidPerf(
     Android performance analysis (Perfetto, Binder, ATrace, logcat, CAN, etc.).
     Requires adb connection for most commands.
 
-    Commands: perfetto, bdtop, attop, gfxtop, bpfbinderlat, bpfbindersnoop,
-              bpfbinderpool, andtop, bugrec, mdtop, andcmd, hprof, scrcap,
-              logand, printand, lmksnoop, cantop, cansnoop
+    Commands: perfetto, bdtop, attop, gfxtop, andtop, bugrec, mdtop,
+              andcmd, hprof, scrcap, logand, lmksnoop, cantop, cansnoop
 
     Args:
         command:     guider sub-command name (e.g. "perfetto")
@@ -312,8 +313,7 @@ def memoryAnalyze(
     """
     Memory analysis: duplicate mapping detection, leak tracking, OOM monitoring.
 
-    Commands: mtop, checkdup, bpfreclaimtop, leaktop, leaktrace,
-              mtrace, oomtop, vtop, dump, slabtop
+    Commands: checkdup, leaktop, leaktrace, mtrace, dump
 
     Args:
         command:    guider sub-command name (e.g. "checkdup")
@@ -349,7 +349,7 @@ def visualize(
     Commands: draw, drawtime, drawcpu, drawmem, drawnet, drawdisk,
               drawflame, drawflamediff, drawscatter, drawhist, drawviolin,
               drawstack, drawbitmap, drawconn, drawpsi, drawreq, drawrss,
-              drawgantt, drawdiff, convert
+              drawdiff, convert
 
     Args:
         command:    guider sub-command name (e.g. "drawflame")
@@ -376,18 +376,20 @@ def visualize(
 def logAnalyze(
     command: str,
     duration: int = 10,
+    interval: int = 1,
     input_file: str = "",
     extra_opts: list[str] | None = None,
 ) -> str:
     """
     Log streaming and analysis (kernel messages, DLT, journald, Android logcat, etc.).
 
-    Commands: logand, logkmsg, logdlt, logjrl, logsys, logtrace, convlog,
+    Commands: logkmsg, logdlt, logjrl, logsys, convlog,
               printand, printkmsg, printdlt, printjrl, printtrace
 
     Args:
         command:    guider sub-command name (e.g. "logkmsg")
         duration:   streaming duration in seconds for live logs (default 10)
+        interval:   sampling interval in seconds for streaming logs (default 1)
         input_file: path to existing log file for offline analysis (-I)
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["FILTER:tag"])
     """
@@ -396,6 +398,7 @@ def logAnalyze(
     result = adapter.run(
         command,
         duration=duration,
+        interval=interval,
         input_file=input_file or None,
         extra_opts=list(extra_opts or []),
         json_output=False,  # log commands produce text output

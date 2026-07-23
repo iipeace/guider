@@ -243,6 +243,11 @@ class GuiderAdapter:
                 if objects:
                     envelope["data"] = objects  # always a list; len=1 for single-interval
                     envelope["ok"] = True
+                elif envelope.get("truncated"):
+                    # Output cut at 500 KB — JSON boundary lost; return raw text
+                    # so the LLM can still see partial data instead of a failure.
+                    envelope["data"] = raw
+                    envelope["ok"] = True
                 else:
                     envelope["error"] = "no JSON output" if rc == 0 else f"exit code {rc}"
                     envelope["data"] = raw
