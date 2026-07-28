@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260723"
+__revision__ = "260728"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -63657,8 +63657,10 @@ Usage:
                      NRTOPRANK:<n> | FIXTASK:<name> | KEEPTASK | KEEPALIVE
                      FILTER:<name> | USERFILTER:<pat> | CMDLINEFILTER:<pat>
                      EXEFILTER:<pat> | GROUPFILTER:<pat> | NSTYPE:<type>
+                     PRINTNS | ETCINCFILTER:<pat> | ETCEXCFILTER:<pat>
+                     OOMADJ:<score>
           [display]  NODATETIME | DLTTIME | UTCTIME | KBUNIT | FASTINIT
-                     NOCONVSIZE | NOCONVTIME | NOCONVNUM | COMMLEN:<n>
+                     NOCONVSIZE | NOCONVTIME | NOCONVNUM | COMMLEN:<n> | CMDLINE
                      ORDERASC | ORDERDESC | TASKSTREAM | SORTINCSWAP
                      LIVEGRAPH{:<filter>} | PSIGRAPH | FULLPSI | CPUGRAPH | CORESTAT | SWAPMEMSUM
                      LIVETASKCPUGRAPH:<pid|comm> | LIVETASKRSSGRAPH:<pid|comm>
@@ -63666,26 +63668,37 @@ Usage:
                      LIVETASKUSSGRAPH:<pid|comm> | LIVETASKIOGRAPH:<pid|comm> (read+write separately)
           [output]   NOBACKUP | REMOVEBACKUP | MKOUTDIR | NOINTSUMMARY
                      NOSUMMARY | NOHEADER | NOPIDSUFFIX | NOPROCRANK | STRPRINTBUF
-                     DUPOUTPATH:<path> | MEMO:<text> | NRKLOG:<n>
+                     DUPOUTPATH:<path> | MEMO:<text> | NRKLOG:<n> | MAXERRLEN:<n>
                      NRPROCMEM:<n> | EXITCMD:<cmd> | PRINTCMD:<label#cmd>
                      OUTFILEPERM:<perm> | OUTFILEUSER:<user:group>
                      SAVEJSONSTAT | NOSTORAGEREP | NOGPUMEMREP
+                     ALLJSONSTAT | JSONFILTER:<pat>
           [monitor]  PRINTCG | BINDERSTAT | WINDOWSTAT | ACTUALFD
-                     GPUMEM | GPUALLMEM | GPUMEMSUM | GPUTEMP
+                     GPUMEM | GPUALLMEM | GPUMEMSUM
                      MONDIR:<path> | CRASHDIR:<path> | ANRDIR:<path>
-                     PROCMAP:<pat> | EXCEPTSHM | DROPFILECACHE
+                     PROCMAP:<pat> | EXCEPTSHM | DROPFILECACHE | ADDTOMBSTONE
                      DLYSUM | DLYTGID
                      CGUCMN | CGFRZ | CGOOM
+                     MAXCGROWS:<n> | NOPRESSURE | SKIPNOTASK
+                     CGFILTER:<pat> | CGINCFILTER:<pat> | CGEXCFILTER:<pat> | TASKCGFILTER:<pat>
+                     ONLYVISWIN | EXESEC
+                     CNTTASKNEW:<pat> | CNTTASKDIE:<pat> | CNTTASKABNORMAL:<pat>
+                     PEAKTICKLIST:<n> | PEAKUPTIMECOND:<sec> | PEAKRUNTIMECOND:<sec>
           [cond]     STARTCONDTIME:<sec> | STARTCONDTASK:<name>
-                     STARTCONDFILE:<path> | STARTCONDCPUMORE:<pct>
+                     STARTCONDFILE:<path> | STARTCONDNOFILE:<path>
+                     STARTCONDCPUMORE:<pct> | STARTCONDCPULESS:<pct>
+                     STARTCONDMEMMORE:<MB> | STARTCONDMEMLESS:<MB>
                      STARTCONDPSICPU:<pct> | STARTCONDPSIMEM:<pct> | STARTCONDPSIIO:<pct>
                      STARTCONDLOAD:<load> | STARTCONDGPU:<pct>
+                     EXSTARTCOND:<cond>
                      EXITCONDTERM:<name> | EXITCONDTIME:<sec>
-                     EXITCONDFILE:<path> | EXITCONDCPUMORE:<pct>
+                     EXITCONDFILE:<path> | EXITCONDNOFILE:<path>
+                     EXITCONDCPUMORE:<pct> | EXITCONDCPULESS:<pct>
+                     EXITCONDMEMMORE:<MB> | EXITCONDMEMLESS:<MB>
                      EXITCONDPSICPU:<pct> | EXITCONDPSIMEM:<pct> | EXITCONDPSIIO:<pct>
                      EXITCONDLOAD:<load> | EXITCONDGPU:<pct>
-                     CPUCOND:<pct> | MEMFREECOND:<MB> | BLKRDCOND:<MB>
-                     PSICPUCOND:<pct> | LOADCOND:<load> | GPUCOND:<pct>
+                     CPUCOND:<pct> | MEMFREECOND:<MB> | BLKRDCOND:<MB> | BLKWRCOND:<MB>
+                     MEMAVLCOND:<MB> | PSICPUCOND:<pct> | LOADCOND:<load> | GPUCOND:<pct>
                      UPTIMEDIFFCOND:<ratio> | NETRCVCOND:<KB> | NETSNDCOND:<KB>
                      SWAPINCOND:<KB> | SWAPOUTCOND:<KB> | TEMPCOND:<celsius>
                      DYNUPTIMEOPT:<time>:<opts> | DYNRUNTIMEOPT:<time>:<opts>
@@ -63693,16 +63706,18 @@ Usage:
                      MEMMIN:<MB> | MEMMAX:<MB> | AVAILMIN:<MB> | AVAILMAX:<MB>
           [threshold] NOTHRESHOLD | APPLYALL | UPDATETHRESHOLD:<path>
                      SAVELMKLOG[:<N>]
-          [ai]       ASKAI[:<PROMPT>] | AIPERIODIC:<SEC> | ASKRUN | DRYRUN
+          [ai]       ASKAI[:<PROMPT>] | AIPERIODIC:<SEC> | LLMDRYRUN | ALLOWRUN
                      LLMPROVIDER:<NAME> | LLMMODEL:<NAME> | LLMRATELIMIT:<SEC>
+                     LLMMAXCMD:<n> | LLMCTXDEPTH:<n>
+                     LLMAUDITLOG:<path> | LLMALLOWCMD:<cmds>
           [limit]    LIMITCPU:<pct>[@<name>] | LIMITCPUSET:<cores>[@<name>]
                      LIMITMEM:<size>[@<name>] | LIMITMEMSOFT:<size>[@<name>]
                      LIMITREAD:<size>[@<name>] | LIMITWRITE:<size>[@<name>]
                      LIMITDIR:<path>:<size> | LIMITDIRCNT:<path>:<n>
           [event]    DLTEVENT:<file>|<type>|<pat>
                      KERNELEVENT[:<file>]|<type>|<pat> | ANDROIDEVENT[:<file>]|<type>|<pat>
-                     SYSLOGEVENT:<type>|<pat> | TRACEEVENT:<type>|<pat>
-                     JOURNALEVENT:<type>|<pat> | MSGALL | PRINTEVENT
+                     SYSLOGEVENT[:<file>]|<type>|<pat> | TRACEEVENT[:<file>]|<type>|<pat>
+                     JOURNALEVENT[:<file>]|<type>|<pat> | MSGALL | PRINTEVENT
                      EVENTLANE | EVTCOUNT | EVTLIMIT:<N>
     -J                          print in JSON format
     -L  <PATH>                  set log file
@@ -64116,9 +64131,6 @@ Examples:
         # {0:1} {1:1} -a -q STARTCONDFILE:"/tmp/term"
         # {0:1} {1:1} -a -q STARTCONDNOFILE:"/tmp/term"
 
-    - {3:1} all {2:1} after specific functions return true
-        # {0:1} {1:1} -a -q STARTCONDFUNC:"/tmp/check.py":"checkFunc":"123"
-
     - {3:1} all {2:1} with specific condition
         # {0:1} {1:1} -a -q STARTCONDCPUMORE:10, STARTCONDMEMMORE:1000 -R
         # {0:1} {1:1} -a -q STARTCONDCPULESS:90, STARTCONDMEMLESS:90 -R
@@ -64141,14 +64153,10 @@ Examples:
 
     - {3:1} all {2:1} and quit when specific {2:1} are met
         # {0:1} {1:1} -a -q EXITCONDTERM:"a.out"
-        # {0:1} {1:1} -a -q EXITCONDNEW:"a.out"
 
     - {3:1} all {2:1} and quit when specific files are met
         # {0:1} {1:1} -a -q EXITCONDFILE:"/tmp/term"
         # {0:1} {1:1} -a -q EXITCONDNOFILE:"/tmp/term"
-
-    - {3:1} all {2:1} and quit when specific functions return true
-        # {0:1} {1:1} -a -q EXITCONDFUNC:"/tmp/check.py":"checkFunc":"123"
 
     - {3:1} all {2:1} until 100 seconds of uptime
         # {0:1} {1:1} -a -q EXITCONDTIME:100
@@ -64211,9 +64219,6 @@ Examples:
         # {0:1} {1:1} -a -q GPUMEM
         # {0:1} {1:1} -a -q GPUMEM, GPUALLMEM
         # {0:1} {1:1} -a -q GPUMEMSUM
-
-    - {3:1} all {2:1} with GPU temperature
-        # {0:1} {1:1} -a -q GPUTEMP
 
     - {3:1} all {2:1} sorted by execution time
         # {0:1} {1:1} -S e
@@ -69960,7 +69965,7 @@ Examples:
                                 (sched_switch tracepoint, ns metric)
                                 supports: -q ELAPFILTER, -q AVGFILTER, -q BTSORTBY, -q ADDUSERSTACK, -g COMM|PID
     -q  DRAWFLAME               auto-generate flamegraph SVG when monitoring ends
-                                (saved as guider_bpfstacktop_flamegraph.svg in current directory)
+                                (saved as guider.bpfstacktop.svg in current directory)
 """
                         + _bpf_stack_opts
                         + "\n"
@@ -70029,7 +70034,7 @@ Examples:
                         + _bpf_eab_opts
                         + """
     -q  DRAWFLAME               auto-generate flamegraph SVG when monitoring ends
-                                  (saved as guider_bpfwaittop_flamegraph.svg in current directory)
+                                  (saved as guider.bpfwaittop.svg in current directory)
 """
                         + _bpf_kflt_opts
                         + "\n"
@@ -70236,6 +70241,7 @@ Options:
     -q  MIGRATIONCORE           also track CPU migrations aggregated per destination core;
                                 shows per-interval per-core migration bar chart
                                 (attaches to sched/sched_migrate_task tracepoint)
+    -q  PERCORE                 show per-CPU breakdown of runqueue latency histogram
 """
                         + _bpf_samp_cond_opts
                         + _bpf_ai_opts
@@ -71393,7 +71399,7 @@ Options:
     -q  DRAWFLAME               generate flamegraph SVG from cumulative syscall data at end of run
                                   (with ADDUSERSTACK: syscall+user stack chain as leaf, elapsed(ms) as weight)
                                   (without ADDUSERSTACK: syscall name as leaf, elapsed(ms) as weight)
-                                  saved as *_bpfsyscalltop_flamegraph.svg
+                                  saved as guider.bpfsyscalltop.svg in current directory
 """
                         + _bpf_kflt_opts
                         + "\n"
@@ -75782,6 +75788,12 @@ Examples:
     - {2:1} with files lesser than 1MB
         # {0:1} {1:1} {3:1} -a -q SIZECOND:LT:1M
 
+    - {2:1} with dirs whose total size is bigger than 100MB
+        # {0:1} {1:1} {3:1} -q DIRSIZECOND:BT:100M
+
+    - {2:1} with dirs whose total size is lesser than 100MB
+        # {0:1} {1:1} {3:1} -q DIRSIZECOND:LT:100M
+
     - {2:1} and apply specific commands
         # {0:1} {1:1} {3:1} -a -g test -q ONLYDIR -c "rm -rf TARGET"
         # {0:1} {1:1} {3:1} -a -q ONLYFILE -c "cat TARGET > /dev/null"
@@ -75804,10 +75816,30 @@ Options:
     -a                          show all attributes
     -g  <WORD>                  set filter
     -c  <COMMAND>               set command
-    -q  <NAME{:VALUE}>          set environment variables
     -J                          print in JSON format
     -H  <LEVEL>                 set function depth level
     -Q                          print all rows in a stream
+    -q  TIMEINFO                show time info (mtime/ctime/atime) for files and dirs
+    -q  USERINFO                show owner user info for files and dirs
+    -q  PERMINFO                show permission info for files and dirs
+    -q  SECURITY                show SELinux/AppArmor security label
+    -q  ABSPATH                 show absolute path
+    -q  NOMETA                  hide total size / count meta line
+    -q  FULLSIZE                show size in bytes without unit
+    -q  INCLINK                 include symbolic links
+    -q  ONLYFILE                traverse files only
+    -q  ONLYDIR                 traverse directories only
+    -q  DEPTHFILTER:<N>         show only entries at depth N
+    -q  SORT:SIZE|TYPE          sort entries per-directory by size or type
+    -q  EXDIRFILTER:<pat>       exclude directories matching pattern
+    -q  EXFILEFILTER:<pat>      exclude files matching pattern
+    -q  SIZECOND:BT|LT:<size>   filter files by size (e.g. SIZECOND:BT:1M)
+    -q  DIRSIZECOND:BT|LT:<sz>  filter dirs by total content size
+    -q  TIMECOND:[TYPE:]BT|LT:<date>   filter files by time (not dirs)
+                                  TYPE: MTIME(default)|CTIME|ATIME
+                                  date: YYMMDD or YYMMDDTHHmmSS
+    -q  DIRTIMECOND:[TYPE:]BT|LT:<date> filter dirs by own timestamp (not files)
+                                  TYPE: MTIME(default)|CTIME|ATIME
                         """
                     )
 
@@ -75882,15 +75914,29 @@ Examples:
     - {2:1} with files lesser than 1MB from / dir
         # {0:1} {1:1} / -a -q SIZECOND:LT:1M
 
-    - {2:1} with files modified after a specific time from / dir
+    - {2:1} with dirs whose total size is bigger than 100MB from / dir
+        # {0:1} {1:1} / -q DIRSIZECOND:BT:100M
+
+    - {2:1} with dirs whose total size is lesser than 100MB from / dir
+        # {0:1} {1:1} / -q DIRSIZECOND:LT:100M
+
+    - {2:1} with files (not dirs) modified after a specific time from / dir
         # {0:1} {1:1} / -a -q TIMECOND:BT:240115
         # {0:1} {1:1} / -a -q TIMECOND:BT:240115T000000
         # {0:1} {1:1} / -a -q TIMECOND:MTIME:BT:240115T143022
 
-    - {2:1} with files modified before a specific time from / dir
+    - {2:1} with files (not dirs) modified before a specific time from / dir
         # {0:1} {1:1} / -a -q TIMECOND:LT:240115
         # {0:1} {1:1} / -a -q TIMECOND:LT:240115T000000
         # {0:1} {1:1} / -a -q TIMECOND:CTIME:LT:240115T143022
+
+    - {2:1} with dirs modified after a specific time from / dir
+        # {0:1} {1:1} / -q DIRTIMECOND:BT:240115
+        # {0:1} {1:1} / -q DIRTIMECOND:MTIME:BT:240115T143022
+
+    - {2:1} with dirs modified before a specific time from / dir
+        # {0:1} {1:1} / -q DIRTIMECOND:LT:240115
+        # {0:1} {1:1} / -q DIRTIMECOND:CTIME:LT:240115T143022
 
     - Print specific directories or files from a specific directory and apply specific commands
         # {0:1} {1:1} / -a -g test -q ONLYDIR -c "rm -rf TARGET"
@@ -81956,6 +82002,7 @@ Key Value List:
                     "cansnoop",
                     "control",
                     "cpuprof",
+                    "cputest",
                     "dir",
                     "dirlist",
                     "disablepkglist",
@@ -81981,12 +82028,14 @@ Key Value List:
                     "getsettings",
                     "gfxmon",
                     "gfxtop",
+                    "iotest",
                     "jobs",
                     "kill",
                     "logcat",
                     "logmon",
                     "memmon",
                     "memprof",
+                    "memtest",
                     "memtop",
                     "ntop",
                     "overlay",
@@ -82412,6 +82461,23 @@ Key Value List:
                     _sw.start()
 
                 # run BPF/CAN command directly #
+                main(args)
+                sys.exit(0)
+
+            elif mainCmd in ("cputest", "memtest", "iotest"):
+                # redirect fd 1 to TCP socket so all child process output streams back #
+                sys.stdout.flush()
+                os.dup2(connObj.fileno, 1)
+                # reopen Python stdout as line-buffered writer on new fd 1 #
+                sys.stdout = open(1, "w", buffering=1, closefd=False)
+                # set REMOTERUN: makes printWarn/printInfo write via print() -> stdout #
+                os.environ["REMOTERUN"] = "1"
+
+                # set printFd for printPipe callers (memtest, iotest) #
+                _setOutput(connObj)
+
+                # build args and run load test command directly #
+                args = [mainCmd] + (cmdOpt if cmdOpt else [])
                 main(args)
                 sys.exit(0)
 
@@ -103123,6 +103189,15 @@ Key Value List:
                     ):
                         continue
 
+                    # check time #
+                    if not _isValidTime(
+                        fullPath,
+                        dirtimecondop,
+                        dirtimecondval,
+                        dirtimecondtype,
+                    ):
+                        continue
+
                     if SysMgr.showAll:
                         info = dict(_subDirs_={}, _subFiles_={})
                     else:
@@ -103135,6 +103210,11 @@ Key Value List:
                     if perm:
                         info["_perm_"] = perm
 
+                    # get time info #
+                    times = _getTimes(fullPath)
+                    if times:
+                        info["_times_"] = times
+
                     result[parentAbsPath]["_subDirs_"][subAbsPath] = info
 
                     totalInfo = _getDirsJson(
@@ -103144,10 +103224,14 @@ Key Value List:
                         maxLevel,
                     )
 
-                    if blockSize:
-                        totalSize += totalInfo[0]
-                    totalDir += totalInfo[1]
-                    totalFile += totalInfo[2]
+                    # check dir total size #
+                    if not _isValidSize(dirCondop, dirCondval, totalInfo[0]):
+                        del result[parentAbsPath]["_subDirs_"][subAbsPath]
+                    else:
+                        if blockSize:
+                            totalSize += totalInfo[0]
+                        totalDir += totalInfo[1]
+                        totalFile += totalInfo[2]
 
                 elif os.path.isfile(fullPath):
                     # apply filter #
@@ -103182,7 +103266,9 @@ Key Value List:
                         continue
 
                     # check time #
-                    if not _isValidTime(fullPath):
+                    if not _isValidTime(
+                        fullPath, timecondop, timecondval, timecondtype
+                    ):
                         continue
 
                     # get time info #
@@ -103309,26 +103395,51 @@ Key Value List:
                     if procObj:
                         SysMgr.killProcGroup(procObj.pid)
 
+        def _parseSizeCond(key):
+            raw = SysMgr.environList[key][0].split(":")
+            if len(raw) != 2:
+                raise ValueError
+            op = raw[0].strip().upper()
+            if op not in ("BT", "LT"):
+                raise ValueError
+            return op, UtilMgr.convUnit2Size(raw[1].strip())
+
+        def _parseTimeCond(key):
+            raw = SysMgr.environList[key][0].split(":")
+            condtype = "st_mtime"
+            datetime = SysMgr.getPkg("datetime")
+            if len(raw) == 2:
+                op, tval = raw
+            elif len(raw) == 3:
+                ttype = raw[0].strip().upper()
+                if ttype not in ("MTIME", "CTIME", "ATIME"):
+                    raise ValueError
+                condtype = "st_%s" % ttype.lower()
+                op, tval = raw[1], raw[2]
+            else:
+                raise ValueError
+            op = op.strip().upper()
+            if op not in ("BT", "LT"):
+                raise ValueError
+            tval = tval.strip()
+            fmt = "%y%m%dT%H%M%S" if "T" in tval else "%y%m%d"
+            return (
+                op,
+                condtype,
+                datetime.datetime.strptime(tval, fmt).timestamp(),
+            )
+
         def _isValidSize(condop, condval, size):
             if not condop:
                 return True
+            return condval <= size if condop == "BT" else condval >= size
 
-            if condop == "BT":
-                return condval <= size
-            elif condop == "LT":
-                return condval >= size
-            else:
-                return True
-
-        def _isValidTime(fullPath):
-            if not timecondop:
+        def _isValidTime(fullPath, condop, condval, condtype):
+            if not condop:
                 return True
             try:
-                t = getattr(os.stat(fullPath), timecondtype)
-                if timecondop == "BT":
-                    return t >= timecondval
-                else:
-                    return t <= timecondval
+                t = getattr(os.stat(fullPath), condtype)
+                return t >= condval if condop == "BT" else t <= condval
             except:
                 return True
 
@@ -103427,6 +103538,15 @@ Key Value List:
                     ):
                         continue
                     else:
+                        # check time #
+                        if not _isValidTime(
+                            fullPath,
+                            dirtimecondop,
+                            dirtimecondval,
+                            dirtimecondtype,
+                        ):
+                            continue
+
                         # get user info #
                         user = _getUser(fullPath)
 
@@ -103435,13 +103555,21 @@ Key Value List:
                         else:
                             userStr = ""
 
+                        # get time info #
+                        times = _getTimes(fullPath)
+                        if times:
+                            timeStr = " <%s>" % ", ".join(times)
+                        else:
+                            timeStr = ""
+
                         totalSize += blockSize
                         isTarget = True
-                        string = "%s%s[%s]%s%s%s" % (
+                        string = "%s%s[%s]%s%s%s%s" % (
                             prefix,
                             idc,
                             convColor(subPath, "GREEN"),
                             userStr,
+                            timeStr,
                             permStr,
                             secStr,
                         )
@@ -103521,7 +103649,9 @@ Key Value List:
                             continue
 
                         # time #
-                        if not _isValidTime(fullPath):
+                        if not _isValidTime(
+                            fullPath, timecondop, timecondval, timecondtype
+                        ):
                             continue
 
                         # convert size to string #
@@ -103585,7 +103715,9 @@ Key Value List:
                         continue
 
                     # check time #
-                    if not _isValidTime(fullPath):
+                    if not _isValidTime(
+                        fullPath, timecondop, timecondval, timecondtype
+                    ):
                         continue
 
                     # apply command #
@@ -103661,8 +103793,8 @@ Key Value List:
                     if not depthFilter or depthFilter > level:
                         result.append(string)
 
-            # check size #
-            if not _isValidSize(condop, condval, totalSize):
+            # check dir total size #
+            if not _isValidSize(dirCondop, dirCondval, totalSize):
                 return (totalSize, totalDir, totalFile)
 
             # convert total size #
@@ -103670,7 +103802,7 @@ Key Value List:
                 summary = ""
             else:
                 if totalSize:
-                    if totalSize >= BIGSIZE or condval:
+                    if totalSize >= BIGSIZE or dirCondval:
                         color = "RED"
                     else:
                         color = "CYAN"
@@ -103710,85 +103842,53 @@ Key Value List:
                 SysMgr.filterGroup = ["*"]
 
         # parse filter for file size #
-        condop = None
-        condval = None
+        condop = condval = None
         if "SIZECOND" in SysMgr.environList:
-            sizeFilter = SysMgr.environList["SIZECOND"][0].split(":")
-
-            # init variables #
-            error = False
-
-            # parse condition values #
-            if len(sizeFilter) != 2:
-                error = True
-            elif sizeFilter[0].strip().upper() == "BT":
-                condop = "BT"
-                try:
-                    condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    condval = None
-                    error = True
-            elif sizeFilter[0].strip().upper() == "LT":
-                condop = "LT"
-                try:
-                    condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    error = True
-            else:
-                error = True
-
-            # handle error #
-            if error:
-                SysMgr.printErr("wrong input value for SIZECOND", True)
-                sys.exit(-1)
-        else:
-            sizeFilter = None
-
-        # parse filter for file time #
-        timecondop = None
-        timecondval = None
-        timecondtype = "st_mtime"
-        if "TIMECOND" in SysMgr.environList:
-            timeFilter = SysMgr.environList["TIMECOND"][0].split(":")
-            error = False
-            datetime = SysMgr.getPkg("datetime")
             try:
-                if len(timeFilter) == 2:
-                    op, tval = timeFilter
-                elif len(timeFilter) == 3:
-                    ttype = timeFilter[0].strip().upper()
-                    if ttype in ("MTIME", "CTIME", "ATIME"):
-                        timecondtype = "st_%s" % ttype.lower()
-                        op, tval = timeFilter[1], timeFilter[2]
-                    else:
-                        error = True
-                        op = tval = ""
-                else:
-                    error = True
-                    op = tval = ""
-
-                if not error:
-                    op = op.strip().upper()
-                    if op in ("BT", "LT"):
-                        timecondop = op
-                        tval = tval.strip()
-                        fmt = "%y%m%dT%H%M%S" if "T" in tval else "%y%m%d"
-                        timecondval = datetime.datetime.strptime(
-                            tval, fmt
-                        ).timestamp()
-                    else:
-                        error = True
+                condop, condval = _parseSizeCond("SIZECOND")
             except SystemExit:
                 sys.exit(0)
             except:
-                error = True
+                SysMgr.printErr("wrong input value for SIZECOND", True)
+                sys.exit(-1)
 
-            if error:
+        # parse filter for dir total size #
+        dirCondop = dirCondval = None
+        if "DIRSIZECOND" in SysMgr.environList:
+            try:
+                dirCondop, dirCondval = _parseSizeCond("DIRSIZECOND")
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("wrong input value for DIRSIZECOND", True)
+                sys.exit(-1)
+
+        # parse filter for file time #
+        timecondop = timecondval = None
+        timecondtype = "st_mtime"
+        if "TIMECOND" in SysMgr.environList:
+            try:
+                timecondop, timecondtype, timecondval = _parseTimeCond(
+                    "TIMECOND"
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
                 SysMgr.printErr("wrong input value for TIMECOND", True)
+                sys.exit(-1)
+
+        # parse filter for dir time #
+        dirtimecondop = dirtimecondval = None
+        dirtimecondtype = "st_mtime"
+        if "DIRTIMECOND" in SysMgr.environList:
+            try:
+                dirtimecondop, dirtimecondtype, dirtimecondval = (
+                    _parseTimeCond("DIRTIMECOND")
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("wrong input value for DIRTIMECOND", True)
                 sys.exit(-1)
 
         # print start directory #
@@ -106390,7 +106490,7 @@ Key Value List:
                 for seq in xrange(repeat):
                     if SysMgr.printEnable:
                         sys.stdout.write(
-                            "(%s) %s %s '%s'... "
+                            "(%s) %s %s '%s'...\n"
                             % (
                                 conv(seq),
                                 op,
@@ -108563,6 +108663,10 @@ Key Value List:
 
         # set stream #
         SysMgr.setStream()
+
+        # when run via TCP server, run indefinitely until client disconnects #
+        if "SERVERTASK" in SysMgr.environList and not SysMgr.getOption("R"):
+            SysMgr.repeatCnt = sys.maxsize
 
         hasThreshold = "CPUTHRESHOLD" in SysMgr.environList
 
@@ -126491,6 +126595,39 @@ class BpfMgr(object):
         SysMgr.llmAiThreads.clear()
 
     @staticmethod
+    def _tcpStopSleep(interval):
+        """Sleep for interval seconds in 0.5s steps, checking the TCP STOP flag.
+
+        Returns True (and clears the flag) if a TCP STOP was received, so the
+        caller can break out of its outer loop immediately.
+        """
+        _slept = 0.0
+        while _slept < interval:
+            _step = min(0.5, interval - _slept)
+            time.sleep(_step)
+            _slept += _step
+            if getattr(BpfMgr, "_tcp_stop", False):
+                break
+        if getattr(BpfMgr, "_tcp_stop", False):
+            BpfMgr._tcp_stop = False
+            return True
+        return False
+
+    @staticmethod
+    def _emitDrawFile(path):
+        """Send {"drawFile": path} JSON line to the connected TCP client."""
+        if not (SysMgr.printFd and path and os.path.exists(path)):
+            return
+        try:
+            import json as _json
+
+            SysMgr.printFd.write(
+                (_json.dumps({"drawFile": path}) + "\n").encode()
+            )
+        except Exception:
+            pass
+
+    @staticmethod
     def _parseAIOptions():
         """Parse ASKAI/AIPERIODIC options once before a BPF monitoring loop.
 
@@ -143397,16 +143534,7 @@ class BpfMgr(object):
 
             _t_last = time.monotonic()
             while True:
-                # poll in 0.5s steps so TCP STOP flag is checked promptly #
-                _slept = 0.0
-                while _slept < interval:
-                    _step = min(0.5, interval - _slept)
-                    time.sleep(_step)
-                    _slept += _step
-                    if getattr(BpfMgr, "_tcp_stop", False):
-                        break
-                if getattr(BpfMgr, "_tcp_stop", False):
-                    BpfMgr._tcp_stop = False
+                if BpfMgr._tcpStopSleep(interval):
                     break
                 SysMgr.updateUptime()
                 _now = time.monotonic()
@@ -143565,48 +143693,28 @@ class BpfMgr(object):
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
             if drawflame and summary_call:
-                _flame_data = {
-                    leaf: info["cnt"] for leaf, info in summary_call.items()
-                }
-                # resolve SVG output path: prefer _tcp_drawdir (TCP mode, set
-                # before main() is called so SysMgr.outPath is still correct),
-                # then fall back to SysMgr.outPath / cwd
-                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
-                _out_dir = (
-                    _tcp_dir
-                    if _tcp_dir and os.path.isdir(_tcp_dir)
-                    else (
-                        SysMgr.outPath
-                        if SysMgr.outPath and os.path.isdir(SysMgr.outPath)
-                        else None
-                    )
-                )
-                if _out_dir:
-                    _svg = os.path.join(
-                        _out_dir, "guider_bpfstacktop_flamegraph.svg"
-                    )
-                    Debugger.drawFlame(
-                        callList=_flame_data,
-                        title="bpfstacktop",
-                        outFile=_svg,
-                    )
-                else:
-                    Debugger.drawFlameSample(
-                        _flame_data,
-                        "bpfstacktop",
-                        "_bpfstacktop_flamegraph.svg",
-                    )
-                    _svg = None
-                # notify TCP clients with drawFile JSON path #
-                if SysMgr.printFd and _svg:
-                    try:
-                        import json as _json
-
-                        SysMgr.printFd.write(
-                            (_json.dumps({"drawFile": _svg}) + "\n").encode()
+                # Build full call chains from summary_bt so the flame graph
+                # shows the complete stack depth, not just the leaf function.
+                # summary_bt: {leaf: {bt_str: count}}
+                # bt_str is " <- "-joined callers above the leaf.
+                _flame_data = {}
+                for _leaf, _bt_chains in summary_bt.items():
+                    for _bts, _bc in _bt_chains.items():
+                        _chain = (_leaf + " <- " + _bts) if _bts else _leaf
+                        _flame_data[_chain] = _flame_data.get(_chain, 0) + _bc
+                # Include leaf-only entries that had no recorded backtrace.
+                for _leaf, _info in summary_call.items():
+                    if not summary_bt.get(_leaf):
+                        _flame_data[_leaf] = (
+                            _flame_data.get(_leaf, 0) + _info["cnt"]
                         )
-                    except Exception:
-                        pass
+                # resolve TCP override dir if set #
+                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
+                _out_dir = _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                _svg = Debugger.drawFlameSample(
+                    _flame_data, "bpfstacktop", ".bpfstacktop", outDir=_out_dir
+                )
+                BpfMgr._emitDrawFile(_svg)
             BpfMgr._waitBpfAI(timeout=30)
             BpfMgr.detachAll()
 
@@ -144926,7 +145034,8 @@ class BpfMgr(object):
 
             _t_last = time.monotonic()
             while True:
-                time.sleep(interval)
+                if BpfMgr._tcpStopSleep(interval):
+                    break
                 SysMgr.updateUptime()
                 _now = time.monotonic()
                 _actual = _now - _t_last
@@ -145115,11 +145224,10 @@ class BpfMgr(object):
                     leaf: max(1, info["ns"] // 1_000_000)
                     for leaf, info in summary_call.items()
                 }
-                Debugger.drawFlameSample(
-                    _flame_data,
-                    "bpfwaittop (ms blocked)",
-                    "_bpfwaittop_flamegraph.svg",
+                _wsvg = Debugger.drawFlameSample(
+                    _flame_data, "bpfwaittop (ms blocked)", ".bpfwaittop"
                 )
+                BpfMgr._emitDrawFile(_wsvg)
             BpfMgr._waitBpfAI(timeout=30)
             BpfMgr.detachAll()
 
@@ -151748,7 +151856,8 @@ class BpfMgr(object):
             start_time = time.time()
             _t_last = time.monotonic()
             while True:
-                time.sleep(interval)
+                if BpfMgr._tcpStopSleep(interval):
+                    break
                 SysMgr.updateUptime()
                 _now = time.monotonic()
                 _actual = _now - _t_last
@@ -152083,12 +152192,13 @@ class BpfMgr(object):
                 SysMgr.clearProcBuffer()
             # DRAWFLAME: generate flamegraph SVG at end of run
             if drawflame:
+                _ssvg = None
                 if stack_mode and drawflame_data:
                     # Stack mode: chain includes syscall + user frames + label
-                    Debugger.drawFlameSample(
+                    _ssvg = Debugger.drawFlameSample(
                         drawflame_data,
                         "bpfsyscalltop stack (elapsed ms)",
-                        "_bpfsyscalltop_flamegraph.svg",
+                        ".bpfsyscalltop",
                     )
                 elif not stack_mode and cumulative:
                     # Standard mode: syscall name as leaf, elapsed ms as weight
@@ -152100,11 +152210,12 @@ class BpfMgr(object):
                         if s.get("count", 0) > 0
                     }
                     if _fd:
-                        Debugger.drawFlameSample(
+                        _ssvg = Debugger.drawFlameSample(
                             _fd,
                             "bpfsyscalltop (elapsed ms)",
-                            "_bpfsyscalltop_flamegraph.svg",
+                            ".bpfsyscalltop",
                         )
+                BpfMgr._emitDrawFile(_ssvg)
             BpfMgr.detachAll()
 
     @staticmethod
@@ -168766,21 +168877,29 @@ typedef struct {
         return "\n".join(tagList)
 
     @staticmethod
-    def drawFlameSample(callList, titleStr, suffix):
+    def drawFlameSample(callList, titleStr, suffix, outDir=None):
         # make out path #
-        if SysMgr.outPath:
+        if outDir:
+            outFile = os.path.join(outDir, "guider" + suffix)
+        elif SysMgr.outPath:
             if os.path.isdir(SysMgr.outPath):
                 outFile = os.path.join(SysMgr.outPath, "guider" + suffix)
             else:
                 outFile = SysMgr.outPath + suffix
         else:
-            outFile = "guider" + suffix
+            outFile = os.path.join(os.getcwd(), "guider" + suffix)
+
+        # ensure .svg extension #
+        if not outFile.endswith(".svg"):
+            outFile += ".svg"
 
         Debugger.drawFlame(
             callList=callList,
             title=titleStr,
             outFile=outFile,
         )
+
+        return outFile if os.path.exists(outFile) else None
 
     @staticmethod
     def drawFlame(
@@ -234648,10 +234767,7 @@ function isAutoNamedPlot(name) {{
                     # set memory info #
                     try:
                         memUsage = None
-                        if (
-                            self.gpuMemData
-                            and "GPUTEMP" not in SysMgr.environList
-                        ):
+                        if self.gpuMemData:
                             memUsage = convSize(
                                 self.gpuMemData["0"]["size"],
                                 isInt=True,
