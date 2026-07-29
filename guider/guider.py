@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260728"
+__revision__ = "260729"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31233,6 +31233,19 @@ class LogMgr(object):
         LogMgr.andSubLevData = {}
 
     @staticmethod
+    def _parseLevelSet():
+        """Parse LEVELFILTER env into a set of single-char level keys, or None."""
+        if "LEVELFILTER" not in SysMgr.environList:
+            return None
+        _lv2ch = {n.upper(): n[0] for n in LogMgr.ANDROID_LOG_LEVEL.values()}
+        levSet = set()
+        for _v in SysMgr.environList["LEVELFILTER"][0].split(","):
+            _v = _v.strip().upper()
+            if _v:
+                levSet.add(_lv2ch.get(_v, _v[:1]))
+        return levSet
+
+    @staticmethod
     def printAndLog(console=False):
         # check input #
         if SysMgr.inputParam:
@@ -31458,12 +31471,7 @@ class LogMgr(object):
                     sys.exit(0)
 
             # set level set filter (exact level selection, overrides min-level filter) #
-            levSet = None
-            if "LEVELFILTER" in SysMgr.environList:
-                levSet = set(
-                    v.strip().upper()
-                    for v in SysMgr.environList["LEVELFILTER"][0].split(",")
-                )
+            levSet = LogMgr._parseLevelSet()
 
             # set timeline flag #
             if "TIMELINE" in SysMgr.environList:
@@ -32024,12 +32032,8 @@ class LogMgr(object):
                 )
                 sys.exit(0)
 
-        # get level set filter #
-        if "LEVELFILTER" in SysMgr.environList:
-            levSet = set(
-                v.strip().upper()
-                for v in SysMgr.environList["LEVELFILTER"][0].split(",")
-            )
+        # get level set filter (exact level selection, overrides min-level filter) #
+        levSet = LogMgr._parseLevelSet()
 
         # define color list #
         colorList = LogMgr.ANDROID_LOG_COLOR
@@ -74717,9 +74721,11 @@ Examples:
         # {0:1} {1:1} -q COMMFILTER:"system_server|zygote"
         # {0:1} {1:1} -q COMMEXFILTER:"logd|drmserver"
 
-    - {2:1} with exact log level selection (E and F only, etc.)
+    - {2:1} with exact log level selection (single levels or comma-separated multi-select)
         # {0:1} {1:1} -q LEVELFILTER:"E,F"
         # {0:1} {1:1} -q LEVELFILTER:"W,E,F"
+        # {0:1} {1:1} -q LEVELFILTER:"ERROR,FATAL"
+        # {0:1} {1:1} -q LEVELFILTER:"WARN,ERROR,FATAL"
 
     - {2:1} and stop when a specific pattern is detected
         # {0:1} {1:1} -q WATCHLOG:"*ANR*", WATCHLOGEXIT
@@ -82413,30 +82419,35 @@ Key Value List:
 
                 args = [mainCmd] + (cmdOpt if cmdOpt else [])
 
-                # for bpfstacktop -qdrawflame: set writable outdir + default duration
-                # and register atexit to send JSON (main() calls sys.exit internally)
-                _isDrawflame = mainCmd == "bpfstacktop" and any(
+                # for bpfstacktop/bpfwaittop/bpfsyscalltop -qdrawflame:
+                # set writable outdir so flame SVG lands in an accessible dir
+                _hasDrawflame = any(
                     "drawflame" in (a or "").lower() for a in (cmdOpt or [])
                 )
+                _drawflame_cmds = {
+                    "bpfstacktop",
+                    "bpfwaittop",
+                    "bpfsyscalltop",
+                }
+                _isDrawflame = mainCmd in _drawflame_cmds and _hasDrawflame
                 if _isDrawflame:
                     _drawdir = origOutPath or "/data/local/tmp"
                     if not any(a.startswith("-o") for a in args[1:]):
                         args.extend(["-o", _drawdir])
-                    if not any(a.startswith("-R") for a in args[1:]):
-                        args.extend(["-R", "30s"])
 
-                # watch for STOP command on the socket (bpfstacktop only) #
-                # flag is checked in doBpfstacktopCmd polling loop (<0.5s)
-                # → finally block: drawFlameSample() + drawFile JSON sent
-                if _isDrawflame:
-                    # store draw dir as class attr so doBpfstacktopCmd can
-                    # use it after main() resets SysMgr.outPath via init
-                    BpfMgr._tcp_drawdir = _drawdir
+                # watch for STOP command on the socket (all drawflame commands) #
+                # flag is checked in BPF polling loops (<0.5s via _tcpStopSleep)
+                # → loop breaks, drawFlameSample() + drawFile JSON sent
+                if _hasDrawflame:
+                    if _isDrawflame:
+                        # store draw dir as class attr so BPF cmd can
+                        # use it after main() resets SysMgr.outPath via init
+                        BpfMgr._tcp_drawdir = _drawdir
                     BpfMgr._tcp_stop = False
                     _sock_ref = connObj.socket
 
                     def _stop_watcher():
-                        import select as _sel
+                        _sel = SysMgr.getPkg("select")
 
                         try:
                             while True:
@@ -82444,15 +82455,14 @@ Key Value List:
                                     [_sock_ref], [], [], 1.0
                                 )
                                 if rd:
-                                    data = _sock_ref.recv(1024)
+                                    data = _sock_ref.recv(connObj.recvSize)
                                     if not data or b"STOP" in data:
-                                        # set flag — doBpfstacktopCmd polling
-                                        # loop detects it within 0.5s, breaks,
-                                        # runs finally: drawFlameSample + JSON
+                                        # set flag — BPF polling loop detects
+                                        # it within 0.5s and breaks
                                         BpfMgr._tcp_stop = True
                                         break
                         except Exception:
-                            # socket closed/error → stop bpfstacktop immediately
+                            # socket closed/error → stop BPF command immediately
                             BpfMgr._tcp_stop = True
 
                     import threading as _thr
@@ -90183,8 +90193,8 @@ Key Value List:
             "atop",
             "attop",
             "bdtop",
-            "bpfmarktop",
             "bgtop",
+            "bpfmarktop",
             "btop",
             "cgtop",
             "contop",
@@ -90196,10 +90206,10 @@ Key Value List:
             "ftop",
             "gfxtop",
             "irqtop",
-            "kstop",
             "ktop",
-            "mdtop",
+            "kstop",
             "leaktop",
+            "mdtop",
             "mtop",
             "ntop",
             "oomtop",
@@ -90208,6 +90218,7 @@ Key Value List:
             "rtop",
             "slabtop",
             "stacktop",
+            "swaptop",
             "systop",
             "top",
             "tptop",
@@ -90216,7 +90227,6 @@ Key Value List:
             "utop",
             "vtop",
             "wtop",
-            "swaptop",
         ):
             return True
         else:
@@ -95684,7 +95694,9 @@ Key Value List:
                         "server", path=uds, uds=True, bind=False
                     )
                 else:
-                    connObj = NetworkMgr("server", ip=ip, tcp=True, bind=False)
+                    connObj = NetworkMgr(
+                        "server", ip=ip, port=port, tcp=True, bind=False
+                    )
                 connObj.socket = sock
                 connObj.fileno = sock.fileno()
             except SystemExit:
@@ -143710,7 +143722,9 @@ class BpfMgr(object):
                         )
                 # resolve TCP override dir if set #
                 _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
-                _out_dir = _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                _out_dir = (
+                    _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                )
                 _svg = Debugger.drawFlameSample(
                     _flame_data, "bpfstacktop", ".bpfstacktop", outDir=_out_dir
                 )
@@ -145224,8 +145238,15 @@ class BpfMgr(object):
                     leaf: max(1, info["ns"] // 1_000_000)
                     for leaf, info in summary_call.items()
                 }
+                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
+                _out_dir = (
+                    _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                )
                 _wsvg = Debugger.drawFlameSample(
-                    _flame_data, "bpfwaittop (ms blocked)", ".bpfwaittop"
+                    _flame_data,
+                    "bpfwaittop (ms blocked)",
+                    ".bpfwaittop",
+                    outDir=_out_dir,
                 )
                 BpfMgr._emitDrawFile(_wsvg)
             BpfMgr._waitBpfAI(timeout=30)
@@ -152193,12 +152214,17 @@ class BpfMgr(object):
             # DRAWFLAME: generate flamegraph SVG at end of run
             if drawflame:
                 _ssvg = None
+                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
+                _out_dir = (
+                    _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                )
                 if stack_mode and drawflame_data:
                     # Stack mode: chain includes syscall + user frames + label
                     _ssvg = Debugger.drawFlameSample(
                         drawflame_data,
                         "bpfsyscalltop stack (elapsed ms)",
                         ".bpfsyscalltop",
+                        outDir=_out_dir,
                     )
                 elif not stack_mode and cumulative:
                     # Standard mode: syscall name as leaf, elapsed ms as weight
@@ -152214,6 +152240,7 @@ class BpfMgr(object):
                             _fd,
                             "bpfsyscalltop (elapsed ms)",
                             ".bpfsyscalltop",
+                            outDir=_out_dir,
                         )
                 BpfMgr._emitDrawFile(_ssvg)
             BpfMgr.detachAll()
