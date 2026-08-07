@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260729"
+__revision__ = "260807"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24600,32 +24600,10 @@ class FunctionAnalyzer(object):
         convSize = UtilMgr.convSize2Unit
         size = convSize(diff * SysMgr.PAGESIZE)
 
-        # Print page alloc-free pair in user space #
-        if SysMgr.userEnable:
-            SysMgr.clearPrint()
-            SysMgr.printPipe(
-                "[%s] [Total: %s] (USER)\n%s" % (title, size, twoLine)
-            )
-
-            SysMgr.printPipe(
-                (
-                    "{0:^7}({1:^6}/{2:^6}/{3:^6})|"
-                    "{4:_^47}|{5:_^40}|{6:_^35}\n{7:1}"
-                ).format(
-                    "Usage",
-                    "Usr",
-                    "Buf",
-                    "Ker",
-                    "Function",
-                    "LifeTime",
-                    "Binary",
-                    twoLine,
-                )
-            )
-
+        def _printSymGroup(dataDict, includeBinary):
             isPrinted = False
             for idx, value in sorted(
-                self.userSymData.items(),
+                dataDict.items(),
                 key=lambda e: e[1]["pagePairCnt"],
                 reverse=True,
             ):
@@ -24654,19 +24632,31 @@ class FunctionAnalyzer(object):
                     value["pagePairMax"],
                 )
 
-                SysMgr.printPipe(
-                    (
-                        "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}"
-                    ).format(
-                        convSize(value["pagePairCnt"] * SysMgr.PAGESIZE),
-                        convSize(typeList["USER"] * SysMgr.PAGESIZE),
-                        convSize(typeList["CACHE"] * SysMgr.PAGESIZE),
-                        convSize(typeList["KERNEL"] * SysMgr.PAGESIZE),
-                        idx,
-                        lifeTime,
-                        self.posData[value["pos"]]["origBin"],
+                if includeBinary:
+                    SysMgr.printPipe(
+                        (
+                            "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}"
+                        ).format(
+                            convSize(value["pagePairCnt"] * SysMgr.PAGESIZE),
+                            convSize(typeList["USER"] * SysMgr.PAGESIZE),
+                            convSize(typeList["CACHE"] * SysMgr.PAGESIZE),
+                            convSize(typeList["KERNEL"] * SysMgr.PAGESIZE),
+                            idx,
+                            lifeTime,
+                            self.posData[value["pos"]]["origBin"],
+                        )
                     )
-                )
+                else:
+                    SysMgr.printPipe(
+                        "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:^75}".format(
+                            convSize(value["pagePairCnt"] * SysMgr.PAGESIZE),
+                            convSize(typeList["USER"] * SysMgr.PAGESIZE),
+                            convSize(typeList["CACHE"] * SysMgr.PAGESIZE),
+                            convSize(typeList["KERNEL"] * SysMgr.PAGESIZE),
+                            idx,
+                            lifeTime,
+                        )
+                    )
 
                 isPrinted = True
 
@@ -24688,7 +24678,7 @@ class FunctionAnalyzer(object):
                     except:
                         kernelPages = 0
 
-                    # get user alloc and free call #
+                    # get alloc and free call #
                     allocCall, freeCall = pairId.split("#", 1)
 
                     printBuf = "{0:4}+ {1:>7}({2:>6}/{3:>6}/{4:>6})| ".format(
@@ -24739,6 +24729,31 @@ class FunctionAnalyzer(object):
             if not isPrinted:
                 SysMgr.printPipe(UtilMgr.NONE_STR + "\n" + oneLine)
 
+        # Print page alloc-free pair in user space #
+        if SysMgr.userEnable:
+            SysMgr.clearPrint()
+            SysMgr.printPipe(
+                "[%s] [Total: %s] (USER)\n%s" % (title, size, twoLine)
+            )
+
+            SysMgr.printPipe(
+                (
+                    "{0:^7}({1:^6}/{2:^6}/{3:^6})|"
+                    "{4:_^47}|{5:_^40}|{6:_^35}\n{7:1}"
+                ).format(
+                    "Usage",
+                    "Usr",
+                    "Buf",
+                    "Ker",
+                    "Function",
+                    "LifeTime",
+                    "Binary",
+                    twoLine,
+                )
+            )
+
+            _printSymGroup(self.userSymData, True)
+
             SysMgr.printPipe("\n")
 
         # Print page alloc-free pair in kernel space #
@@ -24754,116 +24769,7 @@ class FunctionAnalyzer(object):
         )
 
         # Print mem usage of stacks #
-        isPrinted = False
-        for idx, value in sorted(
-            self.kerSymData.items(),
-            key=lambda e: e[1]["pagePairCnt"],
-            reverse=True,
-        ):
-            if value["pagePairCnt"] == 0:
-                break
-
-            typeList = {"USER": 0, "KERNEL": 0, "CACHE": 0}
-
-            for pairId, item in value["pagePair"].items():
-                for ptype, cnt in item["valueList"].items():
-                    try:
-                        typeList[ptype] += cnt
-                    except:
-                        pass
-
-            try:
-                avrTime = float(value["pagePairTotal"] / value["pagePairCnt"])
-            except:
-                avrTime = 0
-
-            lifeTime = " AVR: %.3f / MIN: %.3f / MAX: %.3f" % (
-                avrTime,
-                value["pagePairMin"],
-                value["pagePairMax"],
-            )
-
-            SysMgr.printPipe(
-                "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:^75}".format(
-                    convSize(value["pagePairCnt"] * SysMgr.PAGESIZE),
-                    convSize(typeList["USER"] * SysMgr.PAGESIZE),
-                    convSize(typeList["CACHE"] * SysMgr.PAGESIZE),
-                    convSize(typeList["KERNEL"] * SysMgr.PAGESIZE),
-                    idx,
-                    lifeTime,
-                )
-            )
-
-            isPrinted = True
-
-            for pairId, item in sorted(
-                value["pagePair"].items(),
-                key=lambda e: e[1]["size"],
-                reverse=True,
-            ):
-                try:
-                    userPages = item["valueList"]["USER"]
-                except:
-                    userPages = 0
-                try:
-                    cachePages = item["valueList"]["CACHE"]
-                except:
-                    cachePages = 0
-                try:
-                    kernelPages = item["valueList"]["KERNEL"]
-                except:
-                    kernelPages = 0
-
-                # get kernel alloc and free call #
-                allocCall, freeCall = pairId.split("#", 1)
-
-                printBuf = "{0:4}+ {1:>7}({2:>6}/{3:>6}/{4:>6})| ".format(
-                    " ",
-                    convSize(item["size"] * SysMgr.PAGESIZE),
-                    convSize(userPages * SysMgr.PAGESIZE),
-                    convSize(cachePages * SysMgr.PAGESIZE),
-                    convSize(kernelPages * SysMgr.PAGESIZE),
-                )
-
-                ilen = len(printBuf)
-                tlen = ilen
-
-                for seq, call in enumerate(allocCall.split(" <- ")):
-                    if seq > 0 and tlen + len(call) > lineLength:
-                        printBuf = "%s\n%s" % (printBuf, " " * ilen)
-                        tlen = ilen
-                    printBuf = "%s<- %s " % (printBuf, call)
-                    tlen += len(call) + 4
-
-                SysMgr.printPipe(printBuf)
-
-                printBuf = "{0:5}{1:>30}|".format(" ", "[FREE]")
-                ilen = len(printBuf)
-                tlen = ilen
-
-                for index, call in enumerate(freeCall.split(" <- ")):
-                    clen = len(call) + 4
-
-                    if index == 0:
-                        clen -= 4
-
-                    if index > 0 and tlen + clen > lineLength:
-                        printBuf = "%s\n%s" % (printBuf, " " * ilen)
-                        tlen = ilen
-
-                    if index == 0:
-                        printBuf = "%s %s" % (printBuf, call)
-                    else:
-                        printBuf = "%s <- %s" % (printBuf, call)
-
-                    tlen += clen
-
-                SysMgr.printPipe(printBuf)
-
-            SysMgr.printPipe(oneLine)
-
-        if not isPrinted:
-            SysMgr.printPipe(UtilMgr.NONE_STR + "\n" + oneLine)
+        _printSymGroup(self.kerSymData, False)
 
         SysMgr.printPipe()
 
@@ -32252,32 +32158,47 @@ class LogMgr(object):
 
     @staticmethod
     def printSyslog(console=False):
-        # check root permission #
-        SysMgr.checkRootPerm()
+        # open a saved syslog file for offline analysis #
+        if SysMgr.inputParam:
+            path = SysMgr.inputParam
+            try:
+                SysMgr.syslogFd = SysMgr.getCompFd(path, perm="rt", raw=True)
+                if not SysMgr.syslogFd:
+                    raise Exception()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(path)
+                sys.exit(-1)
 
-        # open syslog file #
-        # TODO: implement reading syslog using syslog syscall #
-        try:
-            if not SysMgr.syslogFd:
-                SysMgr.syslogFd = open(SysMgr.syslogPath, "r")
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(SysMgr.syslogPath)
-            sys.exit(-1)
+            stream = True
+        else:
+            # check root permission #
+            SysMgr.checkRootPerm()
 
-        # set nonblock attribute #
-        try:
-            if console:
-                SysMgr.setBlock(SysMgr.syslogFd, False)
-                stream = True
-            else:
-                SysMgr.setBlock(SysMgr.syslogFd)
-                stream = False
-        except SystemExit:
-            sys.exit(0)
-        except:
-            pass
+            # open syslog file #
+            # TODO: implement reading syslog using syslog syscall #
+            try:
+                if not SysMgr.syslogFd:
+                    SysMgr.syslogFd = open(SysMgr.syslogPath, "r")
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(SysMgr.syslogPath)
+                sys.exit(-1)
+
+            # set nonblock attribute #
+            try:
+                if console:
+                    SysMgr.setBlock(SysMgr.syslogFd, False)
+                    stream = True
+                else:
+                    SysMgr.setBlock(SysMgr.syslogFd)
+                    stream = False
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
         SysMgr.printInfo("start printing syslog... [ STOP(Ctrl+c) ]")
 
@@ -32301,10 +32222,18 @@ class LogMgr(object):
             elif not UtilMgr.isValidStr(log, inc=True):
                 continue
 
-            if SysMgr.outPath and console:
-                print(log)
+            if SysMgr.jsonEnable:
+                if log:
+                    jsonResult = UtilMgr.convDict2Str(
+                        {"message": log.rstrip()}, gpretty=True
+                    )
+                    if jsonResult:
+                        SysMgr.printPipe(jsonResult)
+            else:
+                if SysMgr.outPath and console:
+                    print(log)
 
-            SysMgr.printPipe(log, newline=False)
+                SysMgr.printPipe(log, newline=False)
 
             # check log command #
             SysMgr.checkLogCond(log, watchcond, refilter)
@@ -33157,6 +33086,12 @@ class LLMMgr(object):
                     )
                 )
 
+        def _appendAssistantReply(self, assistantMessage):
+            self.history.append(
+                {"role": "assistant", "content": assistantMessage}
+            )
+            self._trimHistory()
+
         def _getApiKeyFromEnv(self):
             """
             Get API key from environment variables
@@ -33384,13 +33319,17 @@ class LLMMgr(object):
             cacheSystemPrompt=None,
             cacheTTL=None,
             temperature=None,
+            requestTimeout=None,
         ):
             self.model = (
                 model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
             )
             self.baseUrl = baseUrl or os.getenv("GEMINI_BASE_URL")
             super().__init__(
-                apiKey, skipKeyCheck=skipKeyCheck, temperature=temperature
+                apiKey,
+                skipKeyCheck=skipKeyCheck,
+                temperature=temperature,
+                requestTimeout=requestTimeout,
             )
 
             # Load caching configuration from environment if not provided
@@ -33758,6 +33697,7 @@ class LLMMgr(object):
             cacheSystemPrompt=None,
             cacheTTL=None,
             temperature=None,
+            requestTimeout=None,
         ):
             self.model = (
                 model
@@ -33770,7 +33710,10 @@ class LLMMgr(object):
                 or os.getenv("ANTHROPIC_BASE_URL")
             )
             super().__init__(
-                apiKey, skipKeyCheck=skipKeyCheck, temperature=temperature
+                apiKey,
+                skipKeyCheck=skipKeyCheck,
+                temperature=temperature,
+                requestTimeout=requestTimeout,
             )
 
             # Load caching configuration from environment if not provided
@@ -33995,10 +33938,7 @@ class LLMMgr(object):
                 cacheStats = self._extractClaudeCacheStats(finalMsg)
                 self.lastCacheStats = cacheStats
                 self.history.append(userMsg)
-                self.history.append(
-                    {"role": "assistant", "content": assistantMessage}
-                )
-                self._trimHistory()
+                self._appendAssistantReply(assistantMessage)
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
@@ -34033,10 +33973,7 @@ class LLMMgr(object):
             # Add user message and assistant response to history
             self.history.append(userMsg)
             assistantMessage = response.content[0].text
-            self.history.append(
-                {"role": "assistant", "content": assistantMessage}
-            )
-            self._trimHistory()
+            self._appendAssistantReply(assistantMessage)
 
             return LLMMgr.LLMResponse(
                 content=assistantMessage,
@@ -34133,11 +34070,15 @@ class LLMMgr(object):
             cacheSystemPrompt=None,
             cacheTTL=None,
             temperature=None,
+            requestTimeout=None,
         ):
             self.model = model or os.getenv("OPENAI_MODEL") or "gpt-4o"
             self.baseUrl = baseUrl or os.getenv("OPENAI_BASE_URL")
             super().__init__(
-                apiKey, skipKeyCheck=skipKeyCheck, temperature=temperature
+                apiKey,
+                skipKeyCheck=skipKeyCheck,
+                temperature=temperature,
+                requestTimeout=requestTimeout,
             )
 
             # Load caching configuration from environment if not provided
@@ -34346,10 +34287,7 @@ class LLMMgr(object):
                 sys.stdout.flush()
                 assistantMessage = "".join(accumulated)
                 self.history.append(userMsg)
-                self.history.append(
-                    {"role": "assistant", "content": assistantMessage}
-                )
-                self._trimHistory()
+                self._appendAssistantReply(assistantMessage)
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
@@ -34372,10 +34310,7 @@ class LLMMgr(object):
             # Add user message and assistant response to history
             self.history.append(userMsg)
             assistantMessage = response.choices[0].message.content
-            self.history.append(
-                {"role": "assistant", "content": assistantMessage}
-            )
-            self._trimHistory()
+            self._appendAssistantReply(assistantMessage)
 
             return LLMMgr.LLMResponse(
                 content=assistantMessage,
@@ -34437,6 +34372,7 @@ class LLMMgr(object):
             cacheSystemPrompt=None,
             cacheTTL=None,
             temperature=None,
+            requestTimeout=None,
         ):
             requests_mod = SysMgr.getPkg("requests", isExit=False)
             if not requests_mod:
@@ -34448,7 +34384,7 @@ class LLMMgr(object):
                 model
                 or os.getenv("CUSTOM_CLAUDE_MODEL")
                 or os.getenv("CUSTOM_MODEL")
-                or "claude-sonnet-4-6"
+                or "claude-sonnet-5"
             )
             self.baseUrl = baseUrl or os.getenv("CUSTOM_BASE_URL")
             self.projectId = projectId or os.getenv("CUSTOM_PROJECT_ID")
@@ -34459,7 +34395,10 @@ class LLMMgr(object):
                 )
 
             super().__init__(
-                apiKey, skipKeyCheck=skipKeyCheck, temperature=temperature
+                apiKey,
+                skipKeyCheck=skipKeyCheck,
+                temperature=temperature,
+                requestTimeout=requestTimeout,
             )
 
             # Load caching configuration from environment if not provided
@@ -34954,10 +34893,7 @@ class LLMMgr(object):
                     response
                 )
                 self.history.append(userMsg)
-                self.history.append(
-                    {"role": "assistant", "content": assistantMessage}
-                )
-                self._trimHistory()
+                self._appendAssistantReply(assistantMessage)
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
@@ -35008,10 +34944,7 @@ class LLMMgr(object):
                 )
 
             self.history.append(userMsg)
-            self.history.append(
-                {"role": "assistant", "content": assistantMessage}
-            )
-            self._trimHistory()
+            self._appendAssistantReply(assistantMessage)
 
             return LLMMgr.LLMResponse(
                 content=assistantMessage,
@@ -35048,6 +34981,7 @@ class LLMMgr(object):
             cacheSystemPrompt=None,
             cacheTTL=None,
             temperature=None,
+            requestTimeout=None,
         ):
             requests_mod = SysMgr.getPkg("requests", isExit=False)
             if not requests_mod:
@@ -35069,7 +35003,10 @@ class LLMMgr(object):
                 )
 
             super().__init__(
-                apiKey, skipKeyCheck=skipKeyCheck, temperature=temperature
+                apiKey,
+                skipKeyCheck=skipKeyCheck,
+                temperature=temperature,
+                requestTimeout=requestTimeout,
             )
 
             # Load caching configuration from environment if not provided
@@ -35450,6 +35387,7 @@ class LLMMgr(object):
             cacheSystemPrompt=None,
             cacheTTL=None,
             temperature=None,
+            requestTimeout=None,
         ):
             self.model = (
                 model
@@ -35465,7 +35403,10 @@ class LLMMgr(object):
                 )
 
             super().__init__(
-                apiKey, skipKeyCheck=skipKeyCheck, temperature=temperature
+                apiKey,
+                skipKeyCheck=skipKeyCheck,
+                temperature=temperature,
+                requestTimeout=requestTimeout,
             )
 
             # Load caching configuration from environment if not provided
@@ -35727,8 +35668,9 @@ class LLMMgr(object):
                 "Content-Type": "application/json",
             }
 
-            # Add user message to history
-            self.history.append({"role": "user", "content": message})
+            # Build messages with user turn (without mutating history yet)
+            userMsg = {"role": "user", "content": message}
+            pendingHistory = self.history + [userMsg]
 
             # Build messages with optional system prompt
             messages = []
@@ -35736,7 +35678,7 @@ class LLMMgr(object):
                 messages.append(
                     {"role": "system", "content": self.cacheSystemPrompt}
                 )
-            messages.extend(self.history)
+            messages.extend(pendingHistory)
 
             payload = {
                 "max_tokens": maxTokens,
@@ -35766,10 +35708,8 @@ class LLMMgr(object):
                 assistantMessage, promptTokens, completionTokens = (
                     self._parseOpenAISSEStream(response)
                 )
-                self.history.append(
-                    {"role": "assistant", "content": assistantMessage}
-                )
-                self._trimHistory()
+                self.history.append(userMsg)
+                self._appendAssistantReply(assistantMessage)
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
@@ -35795,12 +35735,10 @@ class LLMMgr(object):
             cacheStats = self._extractOpenAICacheStats(result)
             self.lastCacheStats = cacheStats
 
-            # Add assistant response to history
+            # Add user message and assistant response to history
+            self.history.append(userMsg)
             assistantMessage = self._extractText(result)
-            self.history.append(
-                {"role": "assistant", "content": assistantMessage}
-            )
-            self._trimHistory()
+            self._appendAssistantReply(assistantMessage)
 
             return LLMMgr.LLMResponse(
                 content=assistantMessage,
@@ -35882,7 +35820,7 @@ class LLMMgr(object):
 
     class CustomOpenAIEmbedder(BaseEmbedder):
         """
-        Embeddings client for H-Chat (AzureOpenAI-compatible) platform.
+        Embeddings client for an AzureOpenAI-compatible platform.
 
         Endpoint (v3):
             POST {baseUrl}/openai/deployments/{model}/embeddings
@@ -35989,6 +35927,97 @@ class LLMMgr(object):
                 usage=usage,
                 rawResponse=result,
             )
+
+    class GeminiEmbedder(BaseEmbedder):
+        """
+        Embeddings client for Google Gemini (google-genai SDK).
+
+        Supported models:
+            text-embedding-004  (768-dim, default)
+            gemini-embedding-001
+        """
+
+        def __init__(
+            self,
+            apiKey=None,
+            model=None,
+            baseUrl=None,
+            skipKeyCheck=False,
+            requestTimeout=None,
+        ):
+            self.baseUrl = baseUrl or os.getenv("GEMINI_BASE_URL")
+            super().__init__(
+                apiKey=apiKey,
+                model=model,
+                skipKeyCheck=skipKeyCheck,
+                requestTimeout=requestTimeout,
+            )
+            self._genai = SysMgr.getPkg("google.genai", isExit=False)
+            self._genai_types = SysMgr.getPkg(
+                "google.genai.types", isExit=False
+            )
+
+        def _getApiKeyFromEnv(self):
+            return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
+        def _getDefaultModel(self):
+            return os.getenv("GEMINI_EMBED_MODEL") or "text-embedding-004"
+
+        def embed(self, inputText, dimensions=None, encodingFormat="float"):
+            """
+            Generate embeddings for one or more texts via the Gemini API.
+
+            Args:
+                inputText : str or list[str]  — text(s) to embed
+                dimensions: int or None       — output dimensionality
+                encodingFormat: unused (kept for BaseEmbedder signature parity)
+
+            Returns:
+                EmbeddingResponse
+            """
+            genai = self._genai
+            if not genai:
+                raise ImportError(
+                    "google-genai package required. Install: pip install google-genai"
+                )
+            types = self._genai_types
+
+            client_kwargs = {"api_key": self.apiKey}
+            if self.baseUrl and types:
+                client_kwargs["http_options"] = types.HttpOptions(
+                    base_url=self.baseUrl
+                )
+            client = genai.Client(**client_kwargs)
+
+            config = None
+            if dimensions is not None and types:
+                config = types.EmbedContentConfig(
+                    output_dimensionality=dimensions
+                )
+
+            result = client.models.embed_content(
+                model=self.model,
+                contents=inputText,
+                config=config,
+            )
+
+            embeddings = [list(e.values) for e in result.embeddings]
+
+            return LLMMgr.EmbeddingResponse(
+                embeddings=embeddings,
+                model=self.model,
+                usage=None,
+                rawResponse=result,
+            )
+
+    @staticmethod
+    def _getEmbedder(provider, model=None):
+        """Instantiate the embedder for the given provider name.
+        Defaults to CustomOpenAIEmbedder to preserve prior behavior when
+        no provider is specified."""
+        if provider and provider.lower() == "gemini":
+            return LLMMgr.GeminiEmbedder(model=model)
+        return LLMMgr.CustomOpenAIEmbedder(model=model)
 
     # ============================================================================
     # LLM Factory
@@ -36310,31 +36339,26 @@ class LLMMgr(object):
             settings["system"] = confData["SYSTEM"]
 
         # Load API keys and set as environment variables
-        # (Environment variables are lowest priority, so setting here is safe)
+        # (Documented priority is config file > environment variable, so a
+        # config value here must override any pre-existing env var)
         if "API_KEYS" in confData:
             apiKeys = confData["API_KEYS"]
 
-            # Only set if not already in environment (preserve existing env vars)
             if "ANTHROPIC" in apiKeys and apiKeys["ANTHROPIC"]:
-                if not os.getenv("ANTHROPIC_API_KEY"):
-                    os.environ["ANTHROPIC_API_KEY"] = apiKeys["ANTHROPIC"]
+                os.environ["ANTHROPIC_API_KEY"] = apiKeys["ANTHROPIC"]
 
             if "GOOGLE" in apiKeys and apiKeys["GOOGLE"]:
-                if not os.getenv("GOOGLE_API_KEY"):
-                    os.environ["GOOGLE_API_KEY"] = apiKeys["GOOGLE"]
+                os.environ["GOOGLE_API_KEY"] = apiKeys["GOOGLE"]
 
             if "OPENAI" in apiKeys and apiKeys["OPENAI"]:
-                if not os.getenv("OPENAI_API_KEY"):
-                    os.environ["OPENAI_API_KEY"] = apiKeys["OPENAI"]
+                os.environ["OPENAI_API_KEY"] = apiKeys["OPENAI"]
 
             if "CUSTOM" in apiKeys and apiKeys["CUSTOM"]:
-                if not os.getenv("CUSTOM_API_KEY"):
-                    os.environ["CUSTOM_API_KEY"] = apiKeys["CUSTOM"]
+                os.environ["CUSTOM_API_KEY"] = apiKeys["CUSTOM"]
 
         # Load custom base URL
         if "CUSTOM_BASE_URL" in confData and confData["CUSTOM_BASE_URL"]:
-            if not os.getenv("CUSTOM_BASE_URL"):
-                os.environ["CUSTOM_BASE_URL"] = confData["CUSTOM_BASE_URL"]
+            os.environ["CUSTOM_BASE_URL"] = confData["CUSTOM_BASE_URL"]
 
         # Load CONTEXT and ASKRUN sections
         ctx_cfg = confData.get("CONTEXT", {})
@@ -36356,6 +36380,81 @@ class LLMMgr(object):
         if value is None:
             return False
         return str(value).lower().strip() in ("1", "true", "yes", "on")
+
+    @staticmethod
+    def _resolveCache(configSettings):
+        # Cache priority: -q > config > env
+        cacheOpt = LLMMgr._getEnvironValue("LLMCACHE")
+        if cacheOpt:
+            return LLMMgr._parseBoolValue(cacheOpt)
+        elif configSettings.get("cache"):
+            return LLMMgr._parseBoolValue(configSettings.get("cache"))
+        else:
+            return LLMMgr._parseBoolValue(os.getenv("LLM_CACHE"))
+
+    @staticmethod
+    def _resolveTemperature(configSettings):
+        # Temperature priority: -q > config > env
+        temperatureOpt = LLMMgr._getEnvironValue("LLMTEMPERATURE")
+        if temperatureOpt is not None:
+            return float(temperatureOpt)
+        elif configSettings.get("temperature") is not None:
+            return float(configSettings.get("temperature"))
+        elif os.getenv("LLM_TEMPERATURE"):
+            return float(os.getenv("LLM_TEMPERATURE"))
+        else:
+            return None
+
+    @staticmethod
+    def _buildLlmKwargs(model, enableCache, temperature):
+        kwargs = {}
+        if model:
+            kwargs["model"] = model
+        if enableCache:
+            kwargs["enableCache"] = True
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        return kwargs
+
+    @staticmethod
+    def _computeDocsFingerprint(ragDocs):
+        """
+        Build a fingerprint of a RAG source path (file or directory) from
+        each member file's (relative path, mtime, size), so a saved index
+        can detect that its source docs changed since it was built.
+        """
+        try:
+            entries = []
+            if os.path.isdir(ragDocs):
+                import glob as _glob
+
+                for fpath in sorted(
+                    _glob.glob(
+                        os.path.join(ragDocs, "**", "*"), recursive=True
+                    )
+                ):
+                    if os.path.isfile(fpath):
+                        st = os.stat(fpath)
+                        entries.append(
+                            "{0}:{1}:{2}".format(
+                                os.path.relpath(fpath, ragDocs),
+                                st.st_mtime,
+                                st.st_size,
+                            )
+                        )
+            elif os.path.isfile(ragDocs):
+                st = os.stat(ragDocs)
+                entries.append(
+                    "{0}:{1}:{2}".format(ragDocs, st.st_mtime, st.st_size)
+                )
+            else:
+                return None
+
+            import hashlib as _hl
+
+            return _hl.md5("\n".join(entries).encode("utf-8")).hexdigest()
+        except Exception:
+            return None
 
     # ============================================================
     # CLI Command Handlers
@@ -36385,6 +36484,7 @@ class LLMMgr(object):
             LLMSESSION:path     - Session file to load/save for ask continuity
             LLMSTREAM:1         - Enable streaming output
             LLMJSON:1           - Output response as JSON
+            LLMLIVE:1           - Inject a live system snapshot (CPU/mem/top processes)
 
         Environment variables (fallback):
             LLM_PROVIDER, LLM_PROVIDERS, LLM_MODEL, LLM_SYSTEM, LLM_CACHE, LLM_TEMPERATURE
@@ -36518,6 +36618,44 @@ class LLMMgr(object):
                                 dataSource = "stdin (text)"
                 except:
                     pass
+
+            # LLMLIVE: inject a live system snapshot into the data sent to
+            # the LLM, reusing the same snapshot helpers as chat's
+            # interactive "sysinfo" command #
+            if LLMMgr._parseBoolValue(LLMMgr._getEnvironValue("LLMLIVE")):
+                try:
+                    # apply LLMKEYS to the original data before wrapping it
+                    # with live_snapshot below, since askWithData's own
+                    # LLMKEYS filter only looks at top-level keys and would
+                    # otherwise see just "data"/"live_snapshot" and abort #
+                    llmKeys = LLMMgr._getEnvironValue("LLMKEYS")
+                    if llmKeys and data and isinstance(data, dict):
+                        keys = [k.strip() for k in llmKeys.split(":")]
+                        filteredData = {k: data[k] for k in keys if k in data}
+                        if filteredData:
+                            data = filteredData
+                            SysMgr.environList.pop("LLMKEYS", None)
+                        else:
+                            SysMgr.printErr("no valid keys found in LLMKEYS")
+                            sys.exit(1)
+
+                    liveSnapshot = {
+                        "system": SysMgr.sysSnapshot(),
+                        "top_processes": SysMgr.topProcs(10, "cpu"),
+                    }
+                    if data is not None:
+                        data = {"data": data, "live_snapshot": liveSnapshot}
+                    else:
+                        data = {"live_snapshot": liveSnapshot}
+                    dataSource = (
+                        "{0} + live snapshot".format(dataSource)
+                        if dataSource
+                        else "live snapshot"
+                    )
+                except Exception as e:
+                    SysMgr.printWarn(
+                        "failed to collect live snapshot: {0}".format(e)
+                    )
 
             # Print loaded data in verbose mode (-v)
             if data is not None:
@@ -36834,6 +36972,31 @@ class LLMMgr(object):
             except Exception:
                 pass
 
+        # THERMAL: /sys/class/thermal/thermal_zone*/{type,temp}
+        if ctx_cfg.get("THERMAL"):
+            try:
+                result = {}
+                tpath = "/sys/class/thermal"
+                zones = sorted(
+                    d
+                    for d in os.listdir(tpath)
+                    if d.startswith("thermal_zone")
+                )
+                for zone in zones:
+                    zpath = "%s/%s" % (tpath, zone)
+                    ztype = SysMgr.readFile("%s/type" % zpath, verb=False)
+                    temp_raw = SysMgr.readFile("%s/temp" % zpath, verb=False)
+                    if ztype is None or temp_raw is None:
+                        continue
+                    try:
+                        result[ztype.strip()] = int(temp_raw.strip()) / 1000.0
+                    except ValueError:
+                        continue
+                if result:
+                    extras["thermal"] = result
+            except Exception:
+                pass
+
         return extras
 
     @staticmethod
@@ -36906,27 +37069,8 @@ class LLMMgr(object):
                 or os.getenv("LLM_MODEL")
             )
 
-            # Cache priority: -q > config > env
-            cacheOpt = LLMMgr._getEnvironValue("LLMCACHE")
-            if cacheOpt:
-                enableCache = LLMMgr._parseBoolValue(cacheOpt)
-            elif configSettings.get("cache"):
-                enableCache = LLMMgr._parseBoolValue(
-                    configSettings.get("cache")
-                )
-            else:
-                enableCache = LLMMgr._parseBoolValue(os.getenv("LLM_CACHE"))
-
-            # Temperature priority: -q > config > env
-            temperatureOpt = LLMMgr._getEnvironValue("LLMTEMPERATURE")
-            if temperatureOpt is not None:
-                temperature = float(temperatureOpt)
-            elif configSettings.get("temperature") is not None:
-                temperature = float(configSettings.get("temperature"))
-            elif os.getenv("LLM_TEMPERATURE"):
-                temperature = float(os.getenv("LLM_TEMPERATURE"))
-            else:
-                temperature = None
+            enableCache = LLMMgr._resolveCache(configSettings)
+            temperature = LLMMgr._resolveTemperature(configSettings)
 
             # System prompt priority: -q > config > env
             systemPrompt = (
@@ -37067,36 +37211,12 @@ class LLMMgr(object):
                 or os.getenv("LLM_SESSION")
             )
 
-            # 5. Get cache setting with priority: -q > config > env
-            cacheOpt = LLMMgr._getEnvironValue("LLMCACHE")
-            if cacheOpt:
-                enableCache = LLMMgr._parseBoolValue(cacheOpt)
-            elif configSettings.get("cache"):
-                enableCache = LLMMgr._parseBoolValue(
-                    configSettings.get("cache")
-                )
-            else:
-                enableCache = LLMMgr._parseBoolValue(os.getenv("LLM_CACHE"))
-
-            # 5b. Get temperature with priority: -q > config > env
-            temperatureOpt = LLMMgr._getEnvironValue("LLMTEMPERATURE")
-            if temperatureOpt is not None:
-                temperature = float(temperatureOpt)
-            elif configSettings.get("temperature") is not None:
-                temperature = float(configSettings.get("temperature"))
-            elif os.getenv("LLM_TEMPERATURE"):
-                temperature = float(os.getenv("LLM_TEMPERATURE"))
-            else:
-                temperature = None
+            # 5. Get cache/temperature settings with priority: -q > config > env
+            enableCache = LLMMgr._resolveCache(configSettings)
+            temperature = LLMMgr._resolveTemperature(configSettings)
 
             # 6. Build kwargs
-            kwargs = {}
-            if model:
-                kwargs["model"] = model
-            if enableCache:
-                kwargs["enableCache"] = True
-            if temperature is not None:
-                kwargs["temperature"] = temperature
+            kwargs = LLMMgr._buildLlmKwargs(model, enableCache, temperature)
 
             # 7. Get LLM instance
             llm = LLMMgr.getLLM(provider, **kwargs)
@@ -37335,7 +37455,7 @@ class LLMMgr(object):
         CLI handler for 'guider embed' command.
 
         Generates embedding vector(s) for the given text using the
-        H-Chat (AzureOpenAI-compatible) Embeddings API.
+        AzureOpenAI-compatible Embeddings API.
 
         Command format:
             guider embed [TEXT] -q KEY:VALUE[,KEY:VALUE...]
@@ -37344,6 +37464,7 @@ class LLMMgr(object):
             EMBEDTEXT:string      - Text to embed (alternative to positional arg)
             EMBEDFILE:path        - Read text from file (plain text or JSON)
             EMBEDMODEL:model-id   - Embedding model (default: text-embedding-3-small)
+            EMBEDPROVIDER:name    - Embedding provider: "custom-openai" (default) or "gemini"
             EMBEDDIM:256          - Reduce output dimensions (text-embedding-3+ only)
             EMBEDOUTPUT:path      - Save result JSON to file
             EMBEDBATCH:1          - Treat each line of file as a separate input
@@ -37407,9 +37528,10 @@ class LLMMgr(object):
             dimOpt = LLMMgr._getEnvironValue("EMBEDDIM")
             dimensions = int(dimOpt) if dimOpt else None
             outputPath = LLMMgr._getEnvironValue("EMBEDOUTPUT")
+            embedProvider = LLMMgr._getEnvironValue("EMBEDPROVIDER")
 
             # Create embedder
-            embedder = LLMMgr.CustomOpenAIEmbedder(model=model)
+            embedder = LLMMgr._getEmbedder(embedProvider, model=model)
 
             SysMgr.printInfo(
                 "embedding with model: {0}{1}".format(
@@ -37474,7 +37596,7 @@ class LLMMgr(object):
 
         Retrieval-Augmented Generation pipeline:
           1. Load documents and split into chunks
-          2. Embed chunks via H-Chat Embeddings API (or load cached index)
+          2. Embed chunks via the configured Embeddings API (or load cached index)
           3. Embed query, find TopK similar chunks (cosine similarity)
           4. Send context + query to LLM for final answer
 
@@ -37487,7 +37609,9 @@ class LLMMgr(object):
             RAGTOPK:5             - Number of retrieved chunks (default: 5)
             RAGCHUNK:500          - Chunk size in characters (default: 500)
             RAGOVERLAP:50         - Chunk overlap in characters (default: 50)
+            RAGFORCE:1            - Force rebuild index even if RAGINDEX exists and is fresh
             EMBEDMODEL:model-id   - Embedding model
+            EMBEDPROVIDER:name    - Embedding provider: "custom-openai" (default) or "gemini"
             EMBEDDIM:256          - Embedding dimensions (text-embedding-3+ only)
             LLMPROVIDER:name      - LLM provider for answer generation
             LLMMODEL:name         - LLM model override
@@ -37536,23 +37660,59 @@ class LLMMgr(object):
             embedModel = LLMMgr._getEnvironValue("EMBEDMODEL") or os.getenv(
                 "EMBED_MODEL"
             )
+            embedProvider = LLMMgr._getEnvironValue("EMBEDPROVIDER")
             dimOpt = LLMMgr._getEnvironValue("EMBEDDIM")
             dimensions = int(dimOpt) if dimOpt else None
+            ragForce = LLMMgr._parseBoolValue(
+                LLMMgr._getEnvironValue("RAGFORCE")
+            )
 
             json_mod = SysMgr.getPkg("json")
 
             # 3. Load or build vector index
             indexData = None  # list of {"text": str, "embedding": list[float]}
 
-            if ragIndex and os.path.isfile(ragIndex):
+            if ragIndex and os.path.isfile(ragIndex) and not ragForce:
                 SysMgr.printInfo("loading index: {0}".format(ragIndex))
                 with open(ragIndex, "r", encoding="utf-8") as f:
-                    indexData = json_mod.load(f)
-                SysMgr.printInfo(
-                    "{0} chunks loaded from index".format(
-                        UtilMgr.convNum(len(indexData))
+                    loadedIndex = json_mod.load(f)
+
+                # new format: {"meta": {...}, "chunks": [...]} with a
+                # source-docs fingerprint for staleness detection.
+                # legacy format: a bare list, no fingerprint available,
+                # so it is trusted as-is (unchanged prior behavior) #
+                if isinstance(loadedIndex, dict) and "chunks" in loadedIndex:
+                    savedFingerprint = loadedIndex.get("meta", {}).get(
+                        "docsFingerprint"
                     )
-                )
+                    curFingerprint = (
+                        LLMMgr._computeDocsFingerprint(ragDocs)
+                        if ragDocs
+                        else None
+                    )
+                    if (
+                        ragDocs
+                        and savedFingerprint
+                        and curFingerprint != savedFingerprint
+                    ):
+                        SysMgr.printInfo(
+                            "index is stale (source docs changed since "
+                            "index was built), rebuilding: {0}".format(
+                                ragIndex
+                            )
+                        )
+                        indexData = None
+                    else:
+                        indexData = loadedIndex["chunks"]
+                else:
+                    indexData = loadedIndex
+
+                if indexData:
+                    SysMgr.printInfo(
+                        "{0} chunks loaded from index".format(
+                            UtilMgr.convNum(len(indexData))
+                        )
+                    )
 
             if not indexData:
                 # Need documents to build index
@@ -37611,7 +37771,7 @@ class LLMMgr(object):
                 )
 
                 # Embed all chunks (batch)
-                embedder = LLMMgr.CustomOpenAIEmbedder(model=embedModel)
+                embedder = LLMMgr._getEmbedder(embedProvider, model=embedModel)
                 SysMgr.printInfo(
                     "embedding {0} chunks with model: {1}".format(
                         UtilMgr.convNum(len(chunks)), embedder.model
@@ -37642,11 +37802,24 @@ class LLMMgr(object):
                 # Save index if path provided
                 if ragIndex:
                     with open(ragIndex, "w", encoding="utf-8") as f:
-                        json_mod.dump(indexData, f)
+                        json_mod.dump(
+                            {
+                                "meta": {
+                                    "ragDocs": ragDocs,
+                                    "docsFingerprint": (
+                                        LLMMgr._computeDocsFingerprint(ragDocs)
+                                        if ragDocs
+                                        else None
+                                    ),
+                                },
+                                "chunks": indexData,
+                            },
+                            f,
+                        )
                     SysMgr.printInfo("index saved to: {0}".format(ragIndex))
 
             # 4. Embed query
-            embedder = LLMMgr.CustomOpenAIEmbedder(model=embedModel)
+            embedder = LLMMgr._getEmbedder(embedProvider, model=embedModel)
             queryResp = embedder.embed(query, dimensions=dimensions)
             if not queryResp.embeddings:
                 SysMgr.printErr("failed to get query embedding")
@@ -37694,22 +37867,8 @@ class LLMMgr(object):
                 or configSettings.get("model")
                 or os.getenv("LLM_MODEL")
             )
-            cacheOpt = LLMMgr._getEnvironValue("LLMCACHE")
-            if cacheOpt:
-                enableCache = LLMMgr._parseBoolValue(cacheOpt)
-            else:
-                enableCache = LLMMgr._parseBoolValue(
-                    configSettings.get("cache") or os.getenv("LLM_CACHE")
-                )
-            temperatureOpt = LLMMgr._getEnvironValue("LLMTEMPERATURE")
-            if temperatureOpt is not None:
-                temperature = float(temperatureOpt)
-            elif configSettings.get("temperature") is not None:
-                temperature = float(configSettings.get("temperature"))
-            elif os.getenv("LLM_TEMPERATURE"):
-                temperature = float(os.getenv("LLM_TEMPERATURE"))
-            else:
-                temperature = None
+            enableCache = LLMMgr._resolveCache(configSettings)
+            temperature = LLMMgr._resolveTemperature(configSettings)
 
             if not provider:
                 detectedProviders = LLMMgr._detectProviders()
@@ -37747,6 +37906,53 @@ class LLMMgr(object):
     # Helper Methods
     # ============================================================
 
+    # approximate USD price per 1M tokens (input, output); best-effort
+    # estimate only, matched against a response's model name by substring.
+    # unlisted/custom/self-hosted models simply get no cost estimate #
+    MODEL_PRICING = {
+        "claude-opus": (15.0, 75.0),
+        "claude-sonnet": (3.0, 15.0),
+        "claude-haiku": (0.8, 4.0),
+        "gpt-4o-mini": (0.15, 0.6),
+        "gpt-4o": (2.5, 10.0),
+        "gpt-4-turbo": (10.0, 30.0),
+        "gpt-4": (30.0, 60.0),
+        "gpt-3.5": (0.5, 1.5),
+        "gemini-1.5-pro": (1.25, 5.0),
+        "gemini-1.5-flash": (0.075, 0.3),
+        "gemini-2.0-flash": (0.1, 0.4),
+        "gemini": (1.25, 5.0),
+    }
+
+    @staticmethod
+    def _estimateCost(model, promptTokens, completionTokens):
+        """Return a best-effort USD cost estimate for a response, or None
+        if the model isn't in MODEL_PRICING or token counts are unknown."""
+        if not model or promptTokens is None or completionTokens is None:
+            return None
+
+        modelLower = model.lower()
+        for key, (inPrice, outPrice) in LLMMgr.MODEL_PRICING.items():
+            if key in modelLower:
+                return (promptTokens / 1000000.0) * inPrice + (
+                    completionTokens / 1000000.0
+                ) * outPrice
+
+        # older Claude naming embeds the version between "claude" and the
+        # tier, e.g. "claude-3-5-sonnet-20241022", so the combined
+        # "claude-<tier>" keys above never match it; fall back to matching
+        # on the tier keyword alone for any "claude*" model name #
+        if "claude" in modelLower:
+            for tier in ("opus", "sonnet", "haiku"):
+                key = "claude-%s" % tier
+                if tier in modelLower and key in LLMMgr.MODEL_PRICING:
+                    inPrice, outPrice = LLMMgr.MODEL_PRICING[key]
+                    return (promptTokens / 1000000.0) * inPrice + (
+                        completionTokens / 1000000.0
+                    ) * outPrice
+
+        return None
+
     @staticmethod
     def _printResponseInfo(response, compact=False):
         """Print model name, token usage, and cache stats after an LLM response.
@@ -37783,6 +37989,10 @@ class LLMMgr(object):
                             ),
                         )
                     )
+
+            estCost = LLMMgr._estimateCost(response.model, prompt, comp)
+            if estCost is not None:
+                parts.append("est. cost: ~$%.4f" % estCost)
 
         if response.cacheStats and response.cacheStats.get("cache_hit"):
             savings = response.cacheStats.get("cost_savings_percent", 0)
@@ -37823,24 +38033,8 @@ class LLMMgr(object):
                 or configSettings.get("model")
                 or os.getenv("LLM_MODEL")
             )
-            cacheOpt = LLMMgr._getEnvironValue("LLMCACHE")
-            if cacheOpt:
-                enableCache = LLMMgr._parseBoolValue(cacheOpt)
-            elif configSettings.get("cache"):
-                enableCache = LLMMgr._parseBoolValue(
-                    configSettings.get("cache")
-                )
-            else:
-                enableCache = LLMMgr._parseBoolValue(os.getenv("LLM_CACHE"))
-            temperatureOpt = LLMMgr._getEnvironValue("LLMTEMPERATURE")
-            if temperatureOpt is not None:
-                temperature = float(temperatureOpt)
-            elif configSettings.get("temperature") is not None:
-                temperature = float(configSettings.get("temperature"))
-            elif os.getenv("LLM_TEMPERATURE"):
-                temperature = float(os.getenv("LLM_TEMPERATURE"))
-            else:
-                temperature = None
+            enableCache = LLMMgr._resolveCache(configSettings)
+            temperature = LLMMgr._resolveTemperature(configSettings)
             systemPrompt = (
                 LLMMgr._getEnvironValue("LLMSYSTEM")
                 or configSettings.get("system")
@@ -37854,13 +38048,7 @@ class LLMMgr(object):
                     return 1
                 provider = detectedProviders[0]
 
-            kwargs = {}
-            if model:
-                kwargs["model"] = model
-            if enableCache:
-                kwargs["enableCache"] = True
-            if temperature is not None:
-                kwargs["temperature"] = temperature
+            kwargs = LLMMgr._buildLlmKwargs(model, enableCache, temperature)
 
             llm = LLMMgr.getLLM(provider, **kwargs)
             if systemPrompt:
@@ -37962,13 +38150,7 @@ class LLMMgr(object):
             # Display data size
             LLMMgr._printDataSize(data)
 
-            kwargs = {}
-            if model:
-                kwargs["model"] = model
-            if enableCache:
-                kwargs["enableCache"] = True
-            if temperature is not None:
-                kwargs["temperature"] = temperature
+            kwargs = LLMMgr._buildLlmKwargs(model, enableCache, temperature)
 
             # Get LLM instance
             llm = LLMMgr.getLLM(provider, **kwargs)
@@ -38094,8 +38276,7 @@ class LLMMgr(object):
                 or configSettings.get("cache")
                 or os.getenv("LLM_CACHE")
             )
-            tempOpt = LLMMgr._getEnvironValue("LLMTEMPERATURE")
-            temperature = float(tempOpt) if tempOpt else None
+            temperature = LLMMgr._resolveTemperature(configSettings)
             systemPrompt = (
                 LLMMgr._getEnvironValue("LLMSYSTEM")
                 or configSettings.get("system")
@@ -38109,13 +38290,7 @@ class LLMMgr(object):
                     return 1
                 provider = detected[0]
 
-            kwargs = {}
-            if model:
-                kwargs["model"] = model
-            if enableCache:
-                kwargs["enableCache"] = True
-            if temperature is not None:
-                kwargs["temperature"] = temperature
+            kwargs = LLMMgr._buildLlmKwargs(model, enableCache, temperature)
 
             llm = LLMMgr.LLMFactory.create(provider, **kwargs)
             if systemPrompt:
@@ -38305,11 +38480,9 @@ class LLMMgr(object):
             SysMgr.printInfo("[{0}] Analyzing...".format(displayName))
 
             try:
-                kwargs = {"model": model}
-                if enableCache:
-                    kwargs["enableCache"] = True
-                if temperature is not None:
-                    kwargs["temperature"] = temperature
+                kwargs = LLMMgr._buildLlmKwargs(
+                    model, enableCache, temperature
+                )
 
                 # Get LLM instance
                 llm = LLMMgr.getLLM(provider, **kwargs)
@@ -38413,13 +38586,9 @@ class LLMMgr(object):
 
         for provider in providers:
             try:
-                kwargs = {}
-                if model:
-                    kwargs["model"] = model
-                if enableCache:
-                    kwargs["enableCache"] = True
-                if temperature is not None:
-                    kwargs["temperature"] = temperature
+                kwargs = LLMMgr._buildLlmKwargs(
+                    model, enableCache, temperature
+                )
 
                 # Get LLM instance
                 llm = LLMMgr.getLLM(provider, **kwargs)
@@ -41946,6 +42115,10 @@ class AndroidMgr(object):
             SysMgr.killChildren(descendants=True)
             if not isOrigDir:
                 SysMgr.removeDirs(origOutPath, False)
+            # os._exit skips stdio flush, dropping the message above when #
+            # stdout is not a line-buffered TTY (piped/redirected output) #
+            sys.stdout.flush()
+            sys.stderr.flush()
             os._exit(0)
 
         # set cancel handler #
@@ -44357,7 +44530,28 @@ trigger_config {
             # make default record command #
             # use -D (background-wait) if WAITREADY is set, else -d (background) #
             backFlag = "-D" if "WAITREADY" in SysMgr.environList else "-d"
-            cmd = [binPath, "--txt", "-c", "-", "-o", outPath, backFlag]
+
+            # the perfetto binary runs in its own confined SELinux domain
+            # (u:r:perfetto:s0) which is denied "search" on arbitrary
+            # directories such as /data/local/tmp (shell_data_file) even
+            # when guider itself runs as root. Its only reliably writable
+            # location on stock policy is /data/misc/perfetto-traces, so
+            # record there and move the result to the real outPath once
+            # recording finishes (root has no such SELinux restriction) #
+            recPath = outPath
+            if SysMgr.isAndroid:
+                _perfSafeDir = "/data/misc/perfetto-traces"
+                _outDir = os.path.dirname(os.path.abspath(outPath))
+                if _outDir != os.path.abspath(_perfSafeDir) and os.path.isdir(
+                    _perfSafeDir
+                ):
+                    recPath = os.path.join(
+                        _perfSafeDir,
+                        "guider_%s_%s"
+                        % (SysMgr.pid, os.path.basename(outPath)),
+                    )
+
+            cmd = [binPath, "--txt", "-c", "-", "-o", recPath, backFlag]
             if "NOGUARDRAILS" in SysMgr.environList:
                 cmd += ["--no-guardrails"]
             if "DETACHKEY" in SysMgr.environList:
@@ -44371,6 +44565,8 @@ trigger_config {
 
             # backup an exist file #
             SysMgr.backupFile(outPath)
+            if recPath != outPath:
+                SysMgr.backupFile(recPath)
 
             # start monitoring #
             if "TASKMON" in SysMgr.environList:
@@ -44606,6 +44802,22 @@ trigger_config {
 
             # get meminfo using dumpsys #
             AndroidMgr.saveMemDump(memTarget)
+
+            # move the trace out of perfetto's dedicated SELinux-writable
+            # directory to the actual requested output path #
+            if recPath != outPath and os.path.exists(recPath):
+                try:
+                    shutil = SysMgr.getPkg("shutil")
+                    if os.path.exists(outPath):
+                        os.remove(outPath)
+                    shutil.move(recPath, outPath)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    _printErr(
+                        "failed to move '%s' to '%s'" % (recPath, outPath),
+                        True,
+                    )
 
         # check record file #
         if not os.path.exists(outPath):
@@ -45626,6 +45838,8 @@ trigger_config {
                 "VULKAN",
                 "NETPKT",
                 "OOMWATCH",
+                "GETPKGLIST",
+                "GETPKGLISTINFO",
             )
         )
         nativeProto = (
@@ -45786,6 +46000,12 @@ trigger_config {
             _ext_thermals = _pd.get("thermals", {})
             _ext_jank_layers = _pd.get("jank_layers", {})
             _ext_art_methods = _pd.get("art_methods", {})
+            _ext_packages = _pd.get("packages_list", {})
+            if _ext_packages.get("packages"):
+                packets.setdefault("packages_list", {"packages": []})
+                packets["packages_list"]["packages"].extend(
+                    _ext_packages["packages"]
+                )
             if not stacks and not _hasExtFeatures:
                 _printErr("no profiled sample data")
                 return -1
@@ -46856,8 +47076,7 @@ trigger_config {
         lines.append("  %s" % label)
         if pid:
             try:
-                with open("/proc/%d/cmdline" % pid, "rb") as _f:
-                    _cmd = _f.read().split(b"\x00")[0].decode(errors="replace")
+                _cmd = SysMgr.getCmdline(pid, retList=True)[0]
             except:
                 _cmd = ""
             _proc_str = "%s(%d)" % (_cmd, pid) if _cmd else str(pid)
@@ -47485,24 +47704,24 @@ trigger_config {
     @staticmethod
     def _parseProtoProfilePacket(data, profile_data):
         """Parse binary ProfilePacket proto, merging into profile_data.
-        Fields: 1=process_dumps (pid=1, samples=4: {cid=1,alloc=3,freed=4,acnt=5,fcnt=6}).
+        Fields: 5=process_dumps (pid=1, samples=2: {cid=1,alloc=2,freed=3,acnt=5,fcnt=6}).
         """
         _pi = UtilMgr._protoIter
         for fnum, wt, val in _pi(data):
             try:
-                if fnum == 1 and wt == 2:  # process_dumps
+                if fnum == 5 and wt == 2:  # process_dumps
                     pkt_pid = 0
                     for fn2, wt2, v2 in _pi(val):
                         if fn2 == 1 and wt2 == 0:
                             pkt_pid = v2
-                        elif fn2 == 4 and wt2 == 2:  # samples: HeapSample
+                        elif fn2 == 2 and wt2 == 2:  # samples: HeapSample
                             cid = alloc = freed = acnt = fcnt = 0
                             for fn3, wt3, v3 in _pi(v2):
                                 if fn3 == 1 and wt3 == 0:
                                     cid = v3
-                                elif fn3 == 3 and wt3 == 0:
+                                elif fn3 == 2 and wt3 == 0:
                                     alloc = v3
-                                elif fn3 == 4 and wt3 == 0:
+                                elif fn3 == 3 and wt3 == 0:
                                     freed = v3
                                 elif fn3 == 5 and wt3 == 0:
                                     acnt = v3
@@ -47558,6 +47777,50 @@ trigger_config {
             }
         if pid:
             profile_data["pids"].add(pid)
+
+    @staticmethod
+    def _parseProtoPackagesList(data, profile_data):
+        """Parse PackagesList proto (TracePacket field 47).
+        PackagesList: packages(1, repeated PackageInfo)
+        PackageInfo: name(1, string), uid(2, uint64), debuggable(3, bool),
+                     profileable_from_shell(4, bool), version_code(5, int64)
+        """
+        _pi = UtilMgr._protoIter
+        plist = profile_data.setdefault("packages_list", {"packages": []})
+        for fnum, wt, val in _pi(data):
+            try:
+                if fnum != 1 or wt != 2:  # PackageInfo
+                    continue
+                name = None
+                uid = 0
+                debuggable = False
+                profileable = False
+                vercode = 0
+                for f2, wt2, v2 in _pi(val):
+                    if f2 == 1 and wt2 == 2:
+                        name = v2.decode("utf-8", errors="replace")
+                    elif f2 == 2 and wt2 == 0:
+                        uid = v2
+                    elif f2 == 3 and wt2 == 0:
+                        debuggable = bool(v2)
+                    elif f2 == 4 and wt2 == 0:
+                        profileable = bool(v2)
+                    elif f2 == 5 and wt2 == 0:
+                        vercode = v2
+                if name:
+                    plist["packages"].append(
+                        {
+                            "name": name,
+                            "uid": str(uid),
+                            "debuggable": "true" if debuggable else "false",
+                            "profileable_from_shell": (
+                                "true" if profileable else "false"
+                            ),
+                            "version_code": str(vercode),
+                        }
+                    )
+            except Exception:
+                continue
 
     @staticmethod
     def _parseProtoSysStats(data, profile_data):
@@ -48129,6 +48392,7 @@ trigger_config {
             "art_stacks": {},
             "art_methods": {},
             "track_descs": {},
+            "packages_list": {"packages": []},
         }
         intern_state = {
             "mapping_paths": {},
@@ -48169,8 +48433,16 @@ trigger_config {
                             pass
                     elif fn2 == 56 and wt2 == 2:  # heap_graph
                         hgraph_list.append(AndroidMgr._parseProtoHeapGraph(v2))
-                    elif fn2 == 9 and wt2 == 2:  # profile_packet
+                    elif fn2 == 37 and wt2 == 2:  # profile_packet
                         AndroidMgr._parseProtoProfilePacket(v2, profile_data)
+                    elif fn2 == 47 and wt2 == 2:  # packages_list
+                        if (
+                            "GETPKGLIST" in SysMgr.environList
+                            or "GETPKGLISTINFO" in SysMgr.environList
+                        ):
+                            AndroidMgr._parseProtoPackagesList(
+                                v2, profile_data
+                            )
                     elif (
                         fn2 == 66 and wt2 == 2
                     ):  # perf_sample (linux.perf CPU profiling)
@@ -48527,8 +48799,7 @@ trigger_config {
         lines.append("  JAVA HEAP DUMP ANALYSIS")
         if pid:
             try:
-                with open("/proc/%d/cmdline" % pid, "rb") as _f:
-                    _cmd = _f.read().split(b"\x00")[0].decode(errors="replace")
+                _cmd = SysMgr.getCmdline(pid, retList=True)[0]
             except:
                 _cmd = ""
             _proc_str = "%s(%d)" % (_cmd, pid) if _cmd else str(pid)
@@ -50052,6 +50323,8 @@ class SysMgr(object):
     skipImpPkg = {}
     exitFuncList = []
     exitPrivateFuncList = {}
+    exitCode = 0
+    errorOccurred = False
     dltObj = None
     dltCtx = None
     shmObj = None
@@ -50637,7 +50910,7 @@ Commands:
                 if timer.isdigit():
                     timer = long(timer)
                 else:
-                    timer = UtilMgr.convTime2Sec(timer)
+                    timer = UtilMgr.convUnit2Time(timer)
             else:
                 return
 
@@ -54044,7 +54317,7 @@ Commands:
                     targetList = list(map(long, targetList))
                     targetList = list(set(targetList) - doneList)
                     if targetList:
-                        SysMgr.setAffinity(mask, targetList)
+                        SysMgr.setAffinity(mask, targetList, hardCheck=True)
                         doneList = set(list(doneList) + targetList)
                     elif doneList:
                         pass
@@ -57194,6 +57467,236 @@ Commands:
         except:
             SysMgr.printErr("failed to restart %s" % __module__, True)
 
+    # bpf*top-family commands that emit periodic reports and are safe to
+    # rotate via process-relaunch under -q CONTINUOUS; *snoop/streaming
+    # commands are intentionally excluded (see plan: window rotation makes
+    # no sense for a continuous event stream) #
+    continuousCmds = (
+        "bpfstacktop",
+        "bpfwaittop",
+        "bpflocktop",
+        "bpfrunqtop",
+        "bpfiotop",
+        "bpfsyscalltop",
+        "bpftcpretrans",
+        "bpftcplat",
+        "bpfblktop",
+        "bpfcachetop",
+        "bpfprogtop",
+        "bpfmmaptop",
+        "bpfheaptop",
+        "bpfudptop",
+        "bpfpkttop",
+        "cantop",
+    )
+
+    @staticmethod
+    def runContinuousMode():
+        cmdName = SysMgr.getMode(orig=True)
+        if cmdName not in SysMgr.continuousCmds:
+            SysMgr.printWarn(
+                "CONTINUOUS is not supported for '%s', running once instead "
+                "(supported: %s)"
+                % (cmdName, ", ".join(SysMgr.continuousCmds)),
+                always=True,
+            )
+            return False
+
+        # parse rotate_sec[:keep_n] from -q CONTINUOUS:<rotate_sec>[:<keep_n>] #
+        try:
+            raw = SysMgr.environList["CONTINUOUS"][0]
+            parts = raw.split(":") if raw and raw != "SET" else []
+            rotateSec = int(parts[0]) if parts and parts[0] else 30
+            keepN = int(parts[1]) if len(parts) > 1 and parts[1] else None
+            if rotateSec <= 0:
+                raise ValueError("rotate_sec must be > 0")
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "wrong CONTINUOUS format, use "
+                "-q CONTINUOUS:<rotate_sec>[:<keep_n>]",
+                reason=True,
+            )
+            return False
+
+        # rebuild child argv: strip CONTINUOUS out of -q, force -R rotateSec #
+        childOpts = []
+        origTokens = SysMgr.origArgs[2:]
+        idx = 0
+        while idx < len(origTokens):
+            tok = origTokens[idx]
+            if tok == "-q" and idx + 1 < len(origTokens):
+                items = [
+                    it
+                    for it in UtilMgr.splitString(origTokens[idx + 1])
+                    if it.split(":", 1)[0].upper() != "CONTINUOUS"
+                ]
+                if items:
+                    childOpts += ["-q", ",".join(items)]
+                idx += 2
+                continue
+            elif tok.startswith("-q") and len(tok) > 2:
+                items = [
+                    it
+                    for it in UtilMgr.splitString(tok[2:])
+                    if it.split(":", 1)[0].upper() != "CONTINUOUS"
+                ]
+                if items:
+                    childOpts.append("-q" + ",".join(items))
+                idx += 1
+                continue
+            elif tok == "-R" and idx + 1 < len(origTokens):
+                idx += 2
+                continue
+            elif tok.startswith("-R") and len(tok) > 2:
+                idx += 1
+                continue
+            else:
+                childOpts.append(tok)
+                idx += 1
+        childOpts += ["-R", str(rotateSec)]
+
+        try:
+            scriptPath = os.path.abspath(__file__)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            scriptPath = os.path.abspath(sys.argv[0])
+        childCmd = [SysMgr.pythonPath, scriptPath, cmdName] + childOpts
+
+        # locate -o output path, if any, for rotation #
+        outOpt = None
+        for i, t in enumerate(childOpts):
+            if t == "-o" and i + 1 < len(childOpts):
+                outOpt = childOpts[i + 1]
+                break
+
+        SysMgr.printInfo(
+            "[CONTINUOUS] %s: rotate=%ss, keep=%s (Ctrl+C to stop)"
+            % (cmdName, rotateSec, keepN if keepN else "unlimited")
+        )
+
+        def _rotateFile(path):
+            if not path or not os.path.exists(path):
+                return
+            base, ext = os.path.splitext(path)
+            stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+            rotated = "%s.%s%s" % (base, stamp, ext)
+            try:
+                os.rename(path, rotated)
+                SysMgr.printInfo("[CONTINUOUS] saved -> %s" % rotated)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return
+
+            if keepN:
+                glob = SysMgr.getPkg("glob")
+                pattern = "%s.*%s" % (base, ext)
+                files = sorted(glob.glob(pattern))
+                while len(files) > keepN:
+                    oldest = files.pop(0)
+                    try:
+                        os.remove(oldest)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+        subprocess = SysMgr.getPkg("subprocess")
+
+        stopFlag = [False]
+        curProc = [None]
+
+        def _sigHandler(signum, frame):
+            stopFlag[0] = True
+            if curProc[0] and curProc[0].poll() is None:
+                try:
+                    curProc[0].send_signal(signal.SIGINT)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+        prevHandler = signal.signal(signal.SIGINT, _sigHandler)
+
+        winIdx = 0
+        defaultSvg = "guider.%s.svg" % cmdName
+        noTargetWarned = [False]
+        # most command functions swallow internal sys.exit() via a blanket
+        # 'except SystemExit: sys.exit(0)' handler, so a failing child
+        # (e.g. missing root permission) still exits with code 0; detect
+        # that case by wall-clock duration instead of relying on exit code #
+        fastExitThresh = rotateSec * 0.5
+        consecFast = [0]
+
+        try:
+            while not stopFlag[0]:
+                winIdx += 1
+                SysMgr.printInfo(
+                    "[Window #%d] %s ~"
+                    % (
+                        winIdx,
+                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                    )
+                )
+
+                try:
+                    startTime = time.time()
+                    proc = subprocess.Popen(childCmd)
+                except SystemExit:
+                    sys.exit(0)
+                except Exception:
+                    SysMgr.printErr(
+                        "failed to launch continuous window", reason=True
+                    )
+                    break
+
+                curProc[0] = proc
+                ret = proc.wait()
+                curProc[0] = None
+                duration = time.time() - startTime
+
+                if ret != 0 and not stopFlag[0]:
+                    SysMgr.printErr(
+                        "continuous window #%d exited with code %s, stopping"
+                        % (winIdx, ret)
+                    )
+                    break
+
+                if duration < fastExitThresh and not stopFlag[0]:
+                    consecFast[0] += 1
+                    if consecFast[0] >= 2:
+                        SysMgr.printErr(
+                            "continuous window #%d finished in %.1fs "
+                            "(expected ~%ss), stopping after %d consecutive "
+                            "fast exits to avoid a retry storm"
+                            % (winIdx, duration, rotateSec, consecFast[0])
+                        )
+                        break
+                else:
+                    consecFast[0] = 0
+
+                target = outOpt if outOpt else defaultSvg
+                if os.path.exists(target):
+                    _rotateFile(target)
+                elif not noTargetWarned[0]:
+                    noTargetWarned[0] = True
+                    SysMgr.printInfo(
+                        "[CONTINUOUS] no output file to rotate for '%s' "
+                        "(add -o <FILE> or -q DRAWFLAME); repeating "
+                        "screen output only" % cmdName
+                    )
+        finally:
+            signal.signal(signal.SIGINT, prevHandler)
+
+        SysMgr.printInfo(
+            "[CONTINUOUS] stopped. %d window(s) run (keep=%s)."
+            % (winIdx, keepN if keepN else "unlimited")
+        )
+        return True
+
     @staticmethod
     def removeCgroup(path):
         try:
@@ -57982,6 +58485,9 @@ Commands:
 
     @staticmethod
     def doCgroup(cmds=None, make=False, remove=False, verb=True):
+        # check root permission, -f must not bypass this #
+        SysMgr.checkRootPerm(allowForce=False)
+
         if cmds is None:
             cmds = []
 
@@ -60455,7 +60961,7 @@ Commands:
         SysMgr.encodeEnable = False
 
     @staticmethod
-    def setAffinity(mask, pids, isProcess=False):
+    def setAffinity(mask, pids, isProcess=False, hardCheck=False):
         if not SysMgr.isLinux:
             return
 
@@ -60466,6 +60972,9 @@ Commands:
             and SysMgr.pid == long(pids[0])
         ):
             pass
+        elif hardCheck:
+            # -f must not bypass a hard check #
+            SysMgr.checkRootPerm(msg="set affinity", allowForce=False)
         else:
             SysMgr.checkRootPerm(exit=False, attr="warn", msg="set affinity")
 
@@ -63328,7 +63837,7 @@ Commands:
                 else:
                     types = " "
 
-                cmdbuf = "%s%4s%-12s%4s%-14s%4s%-15s (%-s)\n" % (
+                cmdbuf = "%s%4s%-12s%4s%-15s%4s%-15s (%-s)\n" % (
                     cmdbuf,
                     " ",
                     types,
@@ -63374,12 +63883,23 @@ Commands:
                 "bpfcachetop": ("Memory", "Linux"),
                 "bpfsyscalltop": ("Kernel", "Linux/Android"),
                 "bpfsyscallsnoop": ("Kernel", "Linux/Android"),
+                "bpfexectop": ("Process", "Linux/Android"),
+                "bpfexecsnoop": ("Process", "Linux/Android"),
+                "bpfmmaptop": ("Memory", "Linux/Android"),
+                "bpfheaptop": ("Memory", "Linux/Android"),
+                "bpfiotop": ("Storage", "Linux/Android"),
+                "bpfudptop": ("Network", "Linux/Android"),
+                "bpfudpsnoop": ("Network", "Linux/Android"),
+                "bpfwaittop": ("Kernel", "Linux/Android"),
+                "bpfsigtop": ("Signal", "Linux/Android"),
                 "irqlattop": ("IRQ", "Linux/Android"),
                 "attop": ("Atrace", "Android"),
                 "bpfmarktop": ("Atrace", "Linux/Android"),
                 "bdtop": ("Binder", "Android"),
                 "bgtop": ("Background", "Linux/Android/MacOS/Windows"),
                 "btop": ("Function", "Linux/Android"),
+                "cantop": ("CAN", "Linux/Android"),
+                "cansnoop": ("CAN", "Linux/Android"),
                 "cgtop": ("Cgroup", "Linux/Android"),
                 "contop": ("Container", "Linux/Android"),
                 "ctop": ("Threshold", "Linux/Android/MacOS/Windows"),
@@ -63394,6 +63914,7 @@ Commands:
                 "ktop": ("Function", "Linux/Android"),
                 "mdtop": ("Memory", "Android"),
                 "leaktop": ("Leak", "Linux/Android"),
+                "lmksnoop": ("LMK", "Android"),
                 "mtop": ("Memory", "Linux/Android"),
                 "ntop": ("Network", "Linux/Android/MacOS/Windows"),
                 "oomtop": ("OOM", "Linux/Android"),
@@ -63584,6 +64105,7 @@ Commands:
                 "start": ("Signal", "Linux/Android"),
             },
             "test": {
+                "cmdtest": ("Test", "Linux/Android/MacOS/Windows"),
                 "cputest": ("CPU", "Linux/Android/MacOS/Windows"),
                 "helptest": ("HELP", "ALL"),
                 "iotest": ("Storage", "Linux/Android/MacOS/Windows"),
@@ -63676,7 +64198,7 @@ Usage:
                      NRPROCMEM:<n> | EXITCMD:<cmd> | PRINTCMD:<label#cmd>
                      OUTFILEPERM:<perm> | OUTFILEUSER:<user:group>
                      SAVEJSONSTAT | NOSTORAGEREP | NOGPUMEMREP
-                     ALLJSONSTAT | JSONFILTER:<pat>
+                     ALLJSONSTAT | JSONFILTER:<pat> | STRICTEXIT
           [monitor]  PRINTCG | BINDERSTAT | WINDOWSTAT | ACTUALFD
                      GPUMEM | GPUALLMEM | GPUMEMSUM
                      MONDIR:<path> | CRASHDIR:<path> | ANRDIR:<path>
@@ -63914,13 +64436,34 @@ Troubleshooting:
     -g  <COMM|PID>              filter by process name or PID (comma-separated, wildcard: *name*)
                                 (Python-level: dynamic, tracks new processes automatically)
                                 (use -q THREADCOMMFILTER for BPF-level exact comm filter)"""
+                # shared bpfwatchtop/bpfwatch TARGET description block #
+                _bpf_watch_target_desc = """\
+    TARGET  : one or more comma-separated watchpoint targets:
+      file:symbol   - ELF symbol in a library/binary; watches ALL processes that
+                      have the file mapped (no -g required); wildcard supported
+                      e.g. /lib/libc.so.6:write  or  /lib/libc.so.6:"*write*"
+                      ELF version suffixes are stripped automatically (write@GLIBC_2.2.5)
+      0xKADDR       - kernel virtual address (upper 16 bits set); pid=-1
+      0xUADDR       - user virtual address (upper 16 bits zero); requires -g
+      symbol        - if -g given: user-space symbol in target process
+                      if -g omitted: kernel symbol from /proc/kallsyms (wildcard supported)"""
+                # shared bpfwatchtop/bpfwatch Notes tail block #
+                _bpf_watch_notes_tail = """\
+    - Kernel VA mode (upper 16 bits non-zero): monitors all processes on all CPUs
+    - User VA mode (upper 16 bits zero): monitors a specific process on any CPU
+      Requires -g <PID|COMM> to identify the target process
+    - file:symbol mode scans all running processes that map the file, attaches
+      a separate watchpoint per process — no -g required
+    - Kernel symbol lookup (no -g): reads /proc/kallsyms; wildcard supported
+    - Hardware breakpoints limited by CPU architecture (typically 4 per CPU)
+    - X (execute) type sets a breakpoint at the function entry address"""
                 _bpf_ai_opts = """\
     -q  ASKAI[:<PROMPT>]        trigger AI analysis every interval (analysis only, no commands)
                                 (prompt: optional custom analysis question)
     -q  AIPERIODIC:<SEC>        trigger periodic AI trend summary every N seconds
     -q  LLMRATELIMIT:<SEC>      minimum seconds between AI calls (default: 60)
     -q  LLMPROVIDER:<NAME>      LLM provider: custom-claude / claude / openai / gemini
-    -q  LLMMODEL:<NAME>         model name override (e.g. claude-sonnet-4-6)"""
+    -q  LLMMODEL:<NAME>         model name override (e.g. claude-sonnet-5)"""
                 # shared common -i/-R/-H options block (interval 3s, repeat, depth 127) #
                 _bpf_iRH = """\
     -i  <SEC>                   set interval in seconds (default: 3)
@@ -65817,9 +66360,34 @@ Usage:
                     ]
                     return "%s\nDescription:\n    %s\n" % (usages[t], s)
 
+                # shared ask/chat help text blocks #
+                _llm_config_priority = """\
+Config File Priority:
+    Settings are applied in this order (highest to lowest):
+    1. -q option          (one-time override)
+    2. config file        (only with -C option)
+    3. environment var    (global default)"""
+                _llm_env_common = """\
+    LLM_PROVIDER                - Default LLM provider (same as LLMPROVIDER)
+    LLM_MODEL                   - Default model name (same as LLMMODEL)
+    LLM_SYSTEM                  - Default system prompt (same as LLMSYSTEM)
+    LLM_CACHE                   - Enable caching (1=enabled, 0=disabled)
+    LLM_TEMPERATURE             - Sampling temperature (same as LLMTEMPERATURE)"""
+                _llm_env_apikeys = """\
+    [Official API Keys]
+    ANTHROPIC_API_KEY           - For claude provider
+    GOOGLE_API_KEY              - For gemini provider
+    OPENAI_API_KEY              - For openai provider
+
+    [Custom API Settings]
+    CUSTOM_API_KEY              - API key for custom-* providers
+    CUSTOM_BASE_URL             - Base URL for custom API endpoint
+                                  (e.g., https://api.example.com/v1)"""
+
                 # ask #
                 if SysMgr.checkMode("ask"):
-                    helpStr = """
+                    helpStr = (
+                        """
 Usage:
     # {0:1} {1:1} <PROMPT> [OPTIONS] [--help]
 
@@ -65846,21 +66414,18 @@ Options:
           LLMCACHE:1              - Enable prompt caching
           LLMTEMPERATURE:<float>  - Sampling temperature (0.0-2.0, default: 0.7)
           LLMTIMEOUT:<sec>        - Request timeout in seconds (default: 60)
+          LLMJSON:1               - Output response as JSON
     -C  <PATH>                  set config file for LLM settings
     -v                          verbose
 
-Config File Priority:
-    Settings are applied in this order (highest to lowest):
-    1. -q option          (one-time override)
-    2. config file        (only with -C option)
-    3. environment var    (global default)
+"""
+                        + _llm_config_priority
+                        + """
 
 Environment Variables:
-    LLM_PROVIDER                - Default LLM provider (same as LLMPROVIDER)
-    LLM_MODEL                   - Default model name (same as LLMMODEL)
-    LLM_SYSTEM                  - Default system prompt (same as LLMSYSTEM)
-    LLM_CACHE                   - Enable caching (1=enabled, 0=disabled)
-    LLM_TEMPERATURE             - Sampling temperature (same as LLMTEMPERATURE)
+"""
+                        + _llm_env_common
+                        + """
 
     [Multiple Models]
     ANTHROPIC_MODELS            - Multiple Claude models (colon-separated)
@@ -65869,15 +66434,9 @@ Environment Variables:
     CUSTOM_MODELS               - Multiple custom models (colon-separated)
     CUSTOM_MODEL                - Custom model
 
-    [Official API Keys]
-    ANTHROPIC_API_KEY           - For claude provider
-    GOOGLE_API_KEY              - For gemini provider
-    OPENAI_API_KEY              - For openai provider
-
-    [Custom API Settings]
-    CUSTOM_API_KEY              - API key for custom-* providers
-    CUSTOM_BASE_URL             - Base URL for custom API endpoint
-                                  (e.g., https://api.example.com/v1)
+"""
+                        + _llm_env_apikeys
+                        + """
 
 Examples:
     - Ask a simple question without data
@@ -65959,13 +66518,13 @@ Examples:
     - Pipe stdin and enable streaming
         # cat metrics.json | {0:1} {1:1} "Analyze this"
         # {0:1} {1:1} "Explain GIL" -q LLMSTREAM:1
-                    """.format(
-                        cmd, mode
-                    )
+                    """
+                    ).format(cmd, mode)
 
                 # chat #
                 elif SysMgr.checkMode("chat"):
-                    helpStr = """
+                    helpStr = (
+                        """
 Usage:
     # {0:1} {1:1} <INITIAL_MESSAGE> [OPTIONS] [--help]
 
@@ -65986,11 +66545,9 @@ Options:
     -C  <PATH>                  set config file for LLM settings
     -v                          verbose
 
-Config File Priority:
-    Settings are applied in this order (highest to lowest):
-    1. -q option          (one-time override)
-    2. config file        (only with -C option)
-    3. environment var    (global default)
+"""
+                        + _llm_config_priority
+                        + """
 
 Interactive Commands:
     exit, quit, q               - End chat session
@@ -66003,22 +66560,14 @@ Interactive Commands:
     report [FILE]               - Generate structured markdown analysis report
 
 Environment Variables:
-    LLM_PROVIDER                - Default LLM provider (same as LLMPROVIDER)
-    LLM_MODEL                   - Default model name (same as LLMMODEL)
-    LLM_SYSTEM                  - Default system prompt (same as LLMSYSTEM)
-    LLM_CACHE                   - Enable caching (1=enabled, 0=disabled)
-    LLM_TEMPERATURE             - Sampling temperature (same as LLMTEMPERATURE)
+"""
+                        + _llm_env_common
+                        + """
     LLM_SESSION                 - Session file to load on startup (same as LLMSESSION)
 
-    [Official API Keys]
-    ANTHROPIC_API_KEY           - For claude provider
-    GOOGLE_API_KEY              - For gemini provider
-    OPENAI_API_KEY              - For openai provider
-
-    [Custom API Settings]
-    CUSTOM_API_KEY              - API key for custom-* providers
-    CUSTOM_BASE_URL             - Base URL for custom API endpoint
-                                  (e.g., https://api.example.com/v1)
+"""
+                        + _llm_env_apikeys
+                        + """
 
 Examples:
     - Start interactive chat
@@ -66077,9 +66626,8 @@ Examples:
         # (in chat) history
         # (in chat) search error
         # (in chat) report analysis.md
-                    """.format(
-                        cmd, mode
-                    )
+                    """
+                    ).format(cmd, mode)
 
                 # embed #
                 elif SysMgr.checkMode("embed"):
@@ -68984,6 +69532,7 @@ Examples:
     -E  <DIR>                   set cache dir path
     -q  <NAME{:VALUE}>          set environment variables
     -P                          group threads by process
+    -J                          print in JSON format
     -v                          verbose
                     """
                     )
@@ -69233,7 +69782,6 @@ Examples:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q  <NAME{:VALUE}>          set environment variables
-          [ BPF                  use BPF uprobes (Python 3.11+, x86_64/aarch64/riscv64, requires CAP_BPF) ]
     -J                          print in JSON format
     -v                          verbose
                     """
@@ -69266,10 +69814,6 @@ Examples:
     - {3:1} with breakpoint for specific functions {4:1}
         # {0:1} {1:1} -g iotop -c peace
         # {0:1} {1:1} -g iotop -c peace -a
-
-    - {3:1} using BPF uprobe (non-intrusive, Python 3.11+, requires CAP_BPF)
-        # {0:1} {1:1} -g 1234 -q BPF -R 10s
-        # {0:1} {1:1} -q BPF -R 10s
                     """.format(
                             cmd,
                             mode,
@@ -69353,6 +69897,9 @@ Options:
                                 (default groups by process/TGID)
     -q  LAT                     measure latency histogram instead of call count
                                 (ns histogram with log2 buckets, entry+ret kprobes)
+    -q  DRAWFLAME               auto-generate flamegraph SVG when monitoring ends
+                                (saved as guider.bpftop.svg in current directory)
+                                (requires -H; combine with ADDUSERSTACK for full stacks)
 """
                         + _bpf_stack_opts
                         + "\n"
@@ -69412,6 +69959,9 @@ Examples:
 
     - Show call stacks grouped by process name in flamegraph
         # {0:1} {1:1} vfs_write -H -R 15 -q ADDCOMMSTACK
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} vfs_write -H -R 15 -q ADDUSERSTACK,DRAWFLAME
 
     - Count libc open calls with user stack, per-thread view
         # {0:1} {1:1} libc.so:open -H -q "ADDUSERSTACK, ADDTHREADSTACK"
@@ -69475,6 +70025,9 @@ Options:
     -q  TYPEFILTER:<TYPE>       filter by program type (partial match, e.g. KPROBE, XDP)
     -q  NAMEFILTER:<NAME>       filter by program name (partial match)
     -q  NOSUMMARY               suppress cumulative summary when saving with -o
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_samp_cond_opts
                         + """
@@ -69541,6 +70094,9 @@ Options:
     -q  EFF                     show only extended frame format (29-bit IDs)
     -q  BLFFORMAT               save captured frames to -o <path> in BLF binary format
     -q  MINRATE:<HZ>            hide CAN IDs with rate below HZ frames/second
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 
 Notes:
     - Live mode: uses AF_CAN raw socket (SocketCAN); requires CAN interface up (ip link set can0 up)
@@ -69784,6 +70340,9 @@ Options:
     -q  SEARCH                  list kernel symbols matching the given pattern then exit
                                 (no BPF attachment; reads /proc/kallsyms; supports wildcards e.g. '*open*')
     -q  RATE                    print per-second event rate line once per second (── [RATE HH:MM:SS] N evt/s)
+    -q  DRAWFLAME               auto-generate flamegraph SVG when monitoring ends
+                                (saved as guider.bpfsnoop.svg in current directory)
+                                (requires -H; combine with ADDUSERSTACK for full stacks)
 """
                         + _bpf_stack_opts
                         + "\n"
@@ -69838,7 +70397,10 @@ Notes:
       (ArtMethod+12), stable across vtable copies, Nterp dispatch table, and interface stubs;
       APK DEX files under /proc/<pid>/maps are parsed at startup to build the dispatch map;
       wildcard patterns match against both simple class name and fully-qualified class name;
-      does NOT capture JIT/AOT-compiled methods (only interpreted execution)
+      does NOT capture JIT/AOT-compiled methods (only interpreted execution);
+      dex_method_index_ is only unique within one dex file, so on multidex APKs any
+      matched methods that collide across dex files are skipped with a warning
+      instead of being traced under the wrong name
 """
                         + _bpf_stack_notes
                         + "\n"
@@ -69885,6 +70447,9 @@ Examples:
 
     - Snoop vfs_write with stacks grouped by thread (comm[tid])
         # {0:1} {1:1} vfs_write -H -R 10 -q ADDTASKSTACK
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} vfs_write -H -R 10 -q ADDUSERSTACK,DRAWFLAME
 
     - Trace file opens via kprobe with filename (ARG2=filename pointer on aarch64)
         # {0:1} {1:1} do_sys_openat2 -q ARG2STR
@@ -69968,8 +70533,14 @@ Examples:
     -q  OFFCPU                  track off-CPU blocked time instead of on-CPU sampling
                                 (sched_switch tracepoint, ns metric)
                                 supports: -q ELAPFILTER, -q AVGFILTER, -q BTSORTBY, -q ADDUSERSTACK, -g COMM|PID
+    -q  EVENT:page-fault-major  sample stacks on major (disk-bound) page faults instead of
+                                on-CPU time (PERF_COUNT_SW_PAGE_FAULTS_MAJ, 1 sample/fault)
+    -q  FAULTSTACK              alias for -q EVENT:page-fault-major
     -q  DRAWFLAME               auto-generate flamegraph SVG when monitoring ends
                                 (saved as guider.bpfstacktop.svg in current directory)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_stack_opts
                         + "\n"
@@ -70039,6 +70610,9 @@ Examples:
                         + """
     -q  DRAWFLAME               auto-generate flamegraph SVG when monitoring ends
                                   (saved as guider.bpfwaittop.svg in current directory)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_kflt_opts
                         + "\n"
@@ -70098,6 +70672,11 @@ Examples:
                         + _bpf_stack_opts
                         + """
     -q  DEVFILTER:<device>      track only I/O to specified block device (e.g. sda, nvme0n1)
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = ms blocked) when
+                                monitoring ends (saved as guider.bpfblktop.svg)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_eab_opts
                         + """
@@ -70144,6 +70723,9 @@ Examples:
 
     - Show only stacks with avg I/O latency > 1ms
         # {0:1} {1:1} -q "ELAPFILTER:>0.001"
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} -R 30 -q ADDUSERSTACK,DRAWFLAME
 """
                         + _bpf_ai_examples_tmpl
                     ).format(cmd, mode)
@@ -70246,6 +70828,9 @@ Options:
                                 shows per-interval per-core migration bar chart
                                 (attaches to sched/sched_migrate_task tracepoint)
     -q  PERCORE                 show per-CPU breakdown of runqueue latency histogram
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_samp_cond_opts
                         + _bpf_ai_opts
@@ -70324,6 +70909,8 @@ Examples:
                         + _bpf_eab_opts
                         + """
     -q  PROCCOMMFILTER:<pat>    filter by process name (Python-level, wildcard supported)
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = ms blocked) when
+                                monitoring ends (saved as guider.bpfreclaimtop.svg)
 """
                         + _bpf_nosummary_opt
                         + _bpf_jo_opts
@@ -70356,6 +70943,9 @@ Examples:
 
     - Show only stacks with avg reclaim latency > 1ms
         # {0:1} {1:1} -q "ELAPFILTER:>0.001"
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} -R 30 -q ADDUSERSTACK,DRAWFLAME
                         """.format(
                         cmd, mode
                     )
@@ -70419,6 +71009,11 @@ Examples:
                         + _bpf_eab_opts
                         + """
     -q  PROCCOMMFILTER:<pat>    filter by process name (Python-level, wildcard supported)
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = ms blocked) when
+                                monitoring ends (saved as guider.bpflocktop.svg)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_nosummary_opt
                         + _bpf_samp_cond_opts
@@ -70452,6 +71047,9 @@ Examples:
 
     - Show only stacks with avg lock wait > 1ms
         # {0:1} {1:1} -q "ELAPFILTER:>0.001"
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} -R 30 -q ADDUSERSTACK,DRAWFLAME
                         """.format(
                         cmd, mode
                     )
@@ -70472,6 +71070,9 @@ Examples:
     -q  ACCU                    accumulate allocations until stopped (no per-interval reset)
                                 useful for catching short-lived allocation storms (stop with Enter or -R)
     -q  NOSUMMARY               suppress final summary when saving with -o or using ACCU
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = bytes outstanding)
+                                from the final summary (saved as guider.bpfkleaktop.svg)
+                                (requires -o or -q ACCU, same as the final summary itself)
 """
                         + _bpf_samp_cond_opts
                         + _bpf_jo_opts
@@ -70501,6 +71102,9 @@ Examples:
 
     - Accumulate outstanding allocations until stopped (no reset per interval)
         # {0:1} {1:1} -q ACCU -R 30
+
+    - Auto-generate flamegraph SVG of outstanding allocations after stopping
+        # {0:1} {1:1} -q "ADDUSERSTACK, ACCU, DRAWFLAME" -R 30
                         """.format(
                         cmd, mode
                     )
@@ -70519,6 +71123,8 @@ Examples:
     -q  ADDUSERSTACK            append user-space call stack per thread (requires -fno-omit-frame-pointer)
     -q  BTFILTER:<PATTERN>      show only stack chains containing PATTERN (wildcard: *name*)
     -q  IGNBTFILTER:<PATTERN>   hide stack chains containing PATTERN (wildcard: *name*)
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = ms blocked) when
+                                monitoring ends (saved as guider.bpfbinderlat.svg)
 """
                         + _bpf_kflt_opts
                         + "\n"
@@ -70572,6 +71178,9 @@ Examples:
 
     - Track binder blocking latency with user stacks for a specific process
         # {0:1} {1:1} -R 60 -q "ADDUSERSTACK, PROCCOMMFILTER:*surfaceflinger*"
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} -R 30 -q ADDUSERSTACK,DRAWFLAME
 
     - Track binder blocking latency without ELF cache eviction
         # {0:1} {1:1} -q "ADDUSERSTACK, NOELFCACHELIMIT"
@@ -70756,6 +71365,9 @@ Examples:
                                 (attaches to sock/inet_sock_set_state tracepoint)
                                 shows: TIME COMM[TID/PID] src.ip:port → dst.ip:port OldState→NewState
     -q  UPTIME                  show uptime (seconds since boot) instead of HH:MM:SS (SOCKSTATE mode)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_jo_opts
                         + """
@@ -70797,6 +71409,8 @@ Options:
     -R  <SEC>                   set repeat duration in seconds
     -H  <LEVEL>                 show kernel call stack up to LEVEL frames deep
     -g  <COMM|PID>              filter by process name or PID
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = drop count) when
+                                monitoring ends (saved as guider.bpfdroptop.svg)
 """
                         + _bpf_stack_opts
                         + "\n"
@@ -70832,6 +71446,9 @@ Examples:
     - Monitor drops for a specific process
         # {0:1} {1:1} -g myapp -R 30
 
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} -H 20 -R 30 -q ADDUSERSTACK,DRAWFLAME
+
     - Save results to file
         # {0:1} {1:1} -o /tmp/drop.out
                         """.format(
@@ -70851,6 +71468,9 @@ Examples:
                                 (attaches kprobe to tcp_v4_connect entry+return)
                                 shows: TIME COMM[TID/PID] connect_lat=Xms
     -q  UPTIME                  show uptime (seconds since boot) instead of HH:MM:SS (TRACKCONN mode)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_jo_opts
                         + """
@@ -70937,6 +71557,9 @@ Examples:
                         "\nOptions:\n"
                         + _bpf_iR
                         + """    -q  IFACE:<name>            network interface to attach XDP program (default: auto)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_samp_cond_opts
                         + _bpf_jo_opts
@@ -71064,15 +71687,9 @@ Examples:
 Usage:
     # {0:1} {1:1} <TARGET[,TARGET...]> [OPTIONS]
 
-    TARGET  : one or more comma-separated watchpoint targets:
-      file:symbol   - ELF symbol in a library/binary; watches ALL processes that
-                      have the file mapped (no -g required); wildcard supported
-                      e.g. /lib/libc.so.6:write  or  /lib/libc.so.6:"*write*"
-                      ELF version suffixes are stripped automatically (write@GLIBC_2.2.5)
-      0xKADDR       - kernel virtual address (upper 16 bits set); pid=-1
-      0xUADDR       - user virtual address (upper 16 bits zero); requires -g
-      symbol        - if -g given: user-space symbol in target process
-                      if -g omitted: kernel symbol from /proc/kallsyms (wildcard supported)
+"""
+                        + _bpf_watch_target_desc
+                        + """
 
 Options:
     -i  <SEC>                   set interval in seconds (default: 3)
@@ -71081,6 +71698,8 @@ Options:
     -q  TYPE:R|W|RW|X           set watchpoint type (default: X)
                                   R=read, W=write, RW=read+write, X=execute
     -q  SIZE:1|2|4|8            set watchpoint size in bytes (default: 8)
+    -q  DRAWFLAME               auto-generate flamegraph SVG (weight = hit count) when
+                                monitoring ends (saved as guider.bpfwatchtop.svg)
 """
                         + _bpf_stack_opts
                         + "\n"
@@ -71094,14 +71713,9 @@ Options:
                         + """
 Notes:
     - Output leaf shows: sym(0xaddr)[COMM(TGID)] for per-process attribution
-    - Kernel VA mode (upper 16 bits non-zero): monitors all processes on all CPUs
-    - User VA mode (upper 16 bits zero): monitors a specific process on any CPU
-      Requires -g <PID|COMM> to identify the target process
-    - file:symbol mode scans all running processes that map the file, attaches
-      a separate watchpoint per process — no -g required
-    - Kernel symbol lookup (no -g): reads /proc/kallsyms; wildcard supported
-    - Hardware breakpoints limited by CPU architecture (typically 4 per CPU)
-    - X (execute) type sets a breakpoint at the function entry address
+"""
+                        + _bpf_watch_notes_tail
+                        + """
 """
                         + _bpf_stack_notes
                         + "\n"
@@ -71134,6 +71748,9 @@ Examples:
 
     - Watch a user VA by PID with user stacks
         # {0:1} {1:1} 0x<USER_ADDR> -g <PID> -q ADDUSERSTACK -H 5
+
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} vfs_write -q TYPE:X,ADDUSERSTACK,DRAWFLAME -H 10 -R 30
                         """.format(
                         cmd, mode
                     )
@@ -71149,15 +71766,9 @@ Examples:
 Usage:
     # {0:1} {1:1} <TARGET[,TARGET...]> [OPTIONS]
 
-    TARGET  : one or more comma-separated watchpoint targets:
-      file:symbol   - ELF symbol in a library/binary; watches ALL processes that
-                      have the file mapped (no -g required); wildcard supported
-                      e.g. /lib/libc.so.6:write  or  /lib/libc.so.6:"*write*"
-                      ELF version suffixes are stripped automatically (write@GLIBC_2.2.5)
-      0xKADDR       - kernel virtual address (upper 16 bits set); pid=-1
-      0xUADDR       - user virtual address (upper 16 bits zero); requires -g
-      symbol        - if -g given: user-space symbol in target process
-                      if -g omitted: kernel symbol from /proc/kallsyms (wildcard supported)
+"""
+                        + _bpf_watch_target_desc
+                        + """
 
 Options:
     -R  <SEC>                   set repeat duration in seconds
@@ -71184,14 +71795,9 @@ Notes:
     - Output columns: TIME / PID / TID / COMM / ACCESS / INTERVAL / TARGET
       ACCESS shows exact type: R, W, or X per individual hit
       INTERVAL: inter-hit elapsed time (seconds) per (addr, pid, tgid); '-' on first hit
-    - Kernel VA mode (upper 16 bits non-zero): monitors all processes on all CPUs
-    - User VA mode (upper 16 bits zero): monitors a specific process on any CPU
-      Requires -g <PID|COMM> to identify the target process
-    - file:symbol mode scans all running processes that map the file, attaches
-      a separate watchpoint per process — no -g required
-    - Kernel symbol lookup (no -g): reads /proc/kallsyms; wildcard supported
-    - Hardware breakpoints limited by CPU architecture (typically 4 per CPU)
-    - X (execute) type sets a breakpoint at the function entry address
+"""
+                        + _bpf_watch_notes_tail
+                        + """
 """
                         + _bpf_stack_notes
                         + "\n"
@@ -71303,6 +71909,8 @@ Options:
     -q  ADDTASKSTACK            append comm[tid] as outermost frame (group by task/thread)
     -q  ADDATTRSTACK            append [HIT]/[MISS]/[DIRTY] label as bottommost frame
                                   (auto-enabled when 2+ event types are active)
+    -q  DRAWFLAME                auto-generate flamegraph SVG (weight = event count) when
+                                  monitoring ends (requires -H; saved as guider.bpfcachetop.svg)
 """
                         + _bpf_kflt_opts
                         + """
@@ -71310,6 +71918,9 @@ Options:
     -Q                          stream output without ---more--- paging
     -o  <FILE>                  save output to file (cumulative summary appended at end)
     -q  NOSUMMARY               suppress cumulative summary when using -o
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_ai_opts
                         + "\n"
@@ -71366,6 +71977,9 @@ Examples:
     - Monitor MISS for a specific process
         # {0:1} {1:1} -q PROCCOMMFILTER:myapp -R 30
 
+    - Auto-generate flamegraph SVG after monitoring ends
+        # {0:1} {1:1} -H 5 -R 30 -q ADDUSERSTACK,DRAWFLAME
+
     - JSON output (one object per interval)
         # {0:1} {1:1} -J -R 10
 """
@@ -71404,6 +72018,9 @@ Options:
                                   (with ADDUSERSTACK: syscall+user stack chain as leaf, elapsed(ms) as weight)
                                   (without ADDUSERSTACK: syscall name as leaf, elapsed(ms) as weight)
                                   saved as guider.bpfsyscalltop.svg in current directory
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
 """
                         + _bpf_kflt_opts
                         + "\n"
@@ -71683,6 +72300,245 @@ Examples:
                         cmd, mode
                     )
 
+                # bpfexectop #
+                elif SysMgr.checkMode("bpfexectop"):
+                    helpStr = _getDesc(
+                        "exec() call count top using eBPF tracepoint",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -H  <LEVEL>                 enable user stack trace (e.g. -H 1)
+    -q  ADDUSERSTACK            show user-space call stack for each entry
+                                (captured at fork time, in the parent's context)
+    -J                          output in JSON format
+
+Notes:
+    - Attaches to sched/sched_process_exec tracepoint
+    - Aggregates exec() calls per process (TGID) per interval
+    - Columns: PROCESS(PID) | PARENT(PPID) | COUNT | AVG_ELAPSED | FILENAME
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Show exec() top every 3 seconds
+        # {0:1} {1:1}
+
+    - Show for 60 seconds
+        # {0:1} {1:1} -i 3 -R 60
+
+    - Show with user stack traces
+        # {0:1} {1:1} -q ADDUSERSTACK -H 1
+                        """.format(
+                        cmd, mode
+                    )
+
+                # bpfexecsnoop #
+                elif SysMgr.checkMode("bpfexecsnoop"):
+                    helpStr = _getDesc(
+                        "Stream exec() events in real-time using eBPF perf ring buffer",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -J                          output in JSON format
+
+Notes:
+    - Attaches to sched/sched_process_exec tracepoint
+    - Streams exec events: TIME | PID | COMM | FILENAME
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Stream exec() events
+        # {0:1} {1:1}
+
+    - Stream for 30 seconds
+        # {0:1} {1:1} -R 30
+                        """.format(
+                        cmd, mode
+                    )
+
+                # bpfmmaptop #
+                elif SysMgr.checkMode("bpfmmaptop"):
+                    helpStr = _getDesc(
+                        "Anonymous mmap() allocation top using eBPF",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -H  <LEVEL>                 enable user stack trace (e.g. -H 1)
+    -q  ADDUSERSTACK            show user-space call stack for each entry
+    -q  DRAWFLAME               generate a flame graph SVG from captured stacks
+                                (requires -q ADDUSERSTACK -H)
+    -J                          output in JSON format
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
+
+Notes:
+    - Tracks MAP_ANONYMOUS mmap() calls via syscalls tracepoint
+    - Monitors outstanding (currently mapped) bytes per process/stack
+    - Columns: PID | COMM | OUTSTANDING | TOTAL | CNT | STACK
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Show anonymous mmap top every 3 seconds
+        # {0:1} {1:1}
+
+    - Show with user stack traces
+        # {0:1} {1:1} -q ADDUSERSTACK -H 1
+
+    - Generate a flame graph of outstanding mmap allocations
+        # {0:1} {1:1} -q ADDUSERSTACK,DRAWFLAME -H 1
+                        """.format(
+                        cmd, mode
+                    )
+
+                # bpfheaptop #
+                elif SysMgr.checkMode("bpfheaptop"):
+                    helpStr = _getDesc(
+                        "Heap allocation top (malloc/calloc/realloc/free) using eBPF uprobe",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -H  <LEVEL>                 enable user stack trace (e.g. -H 1)
+    -q  ADDUSERSTACK            show user-space call stack for each entry
+    -q  DRAWFLAME               generate a flame graph SVG from captured stacks
+                                (requires -q ADDUSERSTACK -H)
+    -J                          output in JSON format
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
+
+Notes:
+    - Attaches uprobes to malloc/calloc/realloc/memalign/free in libc
+    - Tracks outstanding heap bytes and total allocation per process/stack
+    - Columns: PID | COMM | OUTSTANDING | TOTAL | ALLOCS | STACK
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Show heap allocation top every 3 seconds
+        # {0:1} {1:1}
+
+    - Show with user stack traces
+        # {0:1} {1:1} -q ADDUSERSTACK -H 1
+
+    - Generate a flame graph of outstanding heap allocations
+        # {0:1} {1:1} -q ADDUSERSTACK,DRAWFLAME -H 1
+                        """.format(
+                        cmd, mode
+                    )
+
+                # bpfiotop #
+                elif SysMgr.checkMode("bpfiotop"):
+                    helpStr = _getDesc(
+                        "File I/O top (read/write bytes and latency) using eBPF",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -J                          output in JSON format
+    -q  IOURING                 also track io_uring_enter call count/latency per process
+                                (raw_syscalls sys_enter/sys_exit, no io_uring tracepoint ABI risk)
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
+
+Notes:
+    - Attaches to syscalls/sys_enter_read, sys_exit_read, sys_enter_write, sys_exit_write
+    - Aggregates per-process file I/O: bytes transferred and average latency
+    - Columns: PID | COMM | RD_BYTES | WR_BYTES | RD_CNT | WR_CNT | RD_LAT_AVG | WR_LAT_AVG
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Show file I/O top every 3 seconds
+        # {0:1} {1:1}
+
+    - Show for 60 seconds
+        # {0:1} {1:1} -i 3 -R 60
+
+    - Also track io_uring_enter latency/count
+        # {0:1} {1:1} -q IOURING
+                        """.format(
+                        cmd, mode
+                    )
+
+                # bpfudptop #
+                elif SysMgr.checkMode("bpfudptop"):
+                    helpStr = _getDesc(
+                        "UDP traffic top (send/recv bytes per process) using eBPF",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -J                          output in JSON format
+    -q  CONTINUOUS:<SEC>[:<KEEP>]  keep re-running in <SEC>-second windows, rotating the
+                                output file each round (deletes oldest beyond <KEEP>);
+                                each window runs in a fresh process (no shared state)
+
+Notes:
+    - Attaches to syscalls/sys_enter_sendto, sys_exit_sendto, sys_enter_recvfrom, sys_exit_recvfrom
+    - Aggregates per-process UDP traffic: TX and RX bytes/packets
+    - Columns: PID | COMM | TX_BYTES | RX_BYTES | TX_PKTS | RX_PKTS
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Show UDP traffic top every 3 seconds
+        # {0:1} {1:1}
+
+    - Show for 60 seconds
+        # {0:1} {1:1} -i 3 -R 60
+                        """.format(
+                        cmd, mode
+                    )
+
+                # bpfudpsnoop #
+                elif SysMgr.checkMode("bpfudpsnoop"):
+                    helpStr = _getDesc(
+                        "Stream UDP sendto events in real-time using eBPF perf ring buffer",
+                        t=1,
+                    )
+                    helpStr += (
+                        "\nOptions:\n"
+                        + _bpf_iR
+                        + """    -q  DNSONLY                 show only DNS-related UDP packets (port 53)
+    -J                          output in JSON format
+
+Notes:
+    - Attaches to syscalls/sys_enter_sendto tracepoint
+    - Streams sendto events: TIME | PID | COMM | LEN | SOCKFD
+    - Requires root privilege and kernel BPF support (Linux 4.9+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Stream UDP sendto events
+        # {0:1} {1:1}
+
+    - Stream DNS packets for 30 seconds
+        # {0:1} {1:1} -q DNSONLY -R 30
+                        """.format(
+                        cmd, mode
+                    )
+
                 # remote #
                 elif SysMgr.checkMode("remote"):
                     helpStr = _getDesc(
@@ -71924,6 +72780,10 @@ Examples:
                     )
 
                     helpStr += _statdbg_opts
+                    helpStr += (
+                        "    -J                          "
+                        + "print in JSON format\n"
+                    )
 
                     helpStr += (
                         """
@@ -74353,26 +75213,26 @@ Examples:
         # {0:1} {1:1} -g system_server -I "framework*" -q METHODFILTER:"*onTransact*"
 
     - Package summary
-        # {0:1} {1:1} -I hmg.car.jar -q SUMMARY
-        # {0:1} {1:1} -I hmg.car.jar -q SUMMARY:3
+        # {0:1} {1:1} -I app.jar -q SUMMARY
+        # {0:1} {1:1} -I app.jar -q SUMMARY:3
 
     - String search
-        # {0:1} {1:1} -I hmg.car.jar -q STRFILTER:"*vehicle*"
+        # {0:1} {1:1} -I app.jar -q STRFILTER:"*vehicle*"
 
     - Filter by superclass/interface
-        # {0:1} {1:1} -I hmg.car.jar -q SUPERFILTER:"*Binder*"
+        # {0:1} {1:1} -I app.jar -q SUPERFILTER:"*Binder*"
 
     - AIDL interface detection
-        # {0:1} {1:1} -I hmg.car.jar -q AIDL
+        # {0:1} {1:1} -I app.jar -q AIDL
 
     - Method signature filter
-        # {0:1} {1:1} -I hmg.car.jar -q SIGFILTER:"*Context*"
+        # {0:1} {1:1} -I app.jar -q SIGFILTER:"*Context*"
 
     - Public API only
-        # {0:1} {1:1} -I hmg.car.jar -q PUBONLY
+        # {0:1} {1:1} -I app.jar -q PUBONLY
 
     - Field filter
-        # {0:1} {1:1} -I hmg.car.jar -q FIELDFILTER:"*Token*"
+        # {0:1} {1:1} -I app.jar -q FIELDFILTER:"*Token*"
                     """.format(
                         cmd,
                         mode,
@@ -74558,6 +75418,14 @@ Examples:
                     """.format(
                             cmd, mode
                         )
+
+                        if SysMgr.checkMode("printsyslog"):
+                            helpStr += """
+    - Print logs from a saved syslog file
+        # {0:1} {1:1} -I syslog.txt
+                    """.format(
+                                cmd, mode
+                            )
 
                     # printjrl #
                     elif SysMgr.checkMode("printjrl"):
@@ -76815,6 +77683,10 @@ Examples:
 
     - Decode a file in BASE64 format to specific directory
         # {0:1} {1:1} guider.b64 -o ./test -q BASE64
+
+    - Decompress a single file to an exact output file path (-o is
+      treated as a full file path instead of a directory)
+        # {0:1} {1:1} guider.out.gz -o result.out -q EXACTOUT
                     """.format(
                         cmd,
                         mode,
@@ -77661,6 +78533,12 @@ Examples:
 
     - Write 100MB of dummy data that is consist of random values to the specific file
         # {0:1} {1:1} write:TEST:100M -q RAND, PROGRESS
+
+    - {2:1} recursively but stop after 1000 files (default: unlimited)
+        # {0:1} {1:1} . -q SCANLIMIT:1000
+
+    - {2:1} recursively but no more than 3 directory levels deep (default: unlimited)
+        # {0:1} {1:1} . -q SCANDEPTH:3
                     """.format(
                         cmd,
                         mode,
@@ -77811,6 +78689,7 @@ Examples:
                         _getDesc("Show %s processes" % __module__)
                         + """
 Options:
+    -J                          print in JSON format
     -Q                          print all rows in a stream
     -v                          verbose
                         """
@@ -78295,9 +79174,43 @@ Options:
                         )
                     )
 
+                # cmdtest #
+                elif SysMgr.checkMode("cmdtest"):
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [--help]
+
+Description:
+    Smoke-test every registered command by launching it and killing it
+    1 second later
+
+Options:
+    (none)
+
+Warning:
+    This launches every one of the {2:1} registered commands in turn,
+    including destructive ones (kill / tkill / freeze / limitcpu /
+    swapout / etc.) without confirmation. Do not run on a system you
+    cannot afford to disrupt.
+                    """.format(
+                        cmd, mode, len(SysMgr.getCmdSet())
+                    )
+
                 # helptest #
                 elif SysMgr.checkMode("helptest"):
-                    return
+                    helpStr = """
+Usage:
+    # {0:1} {1:1} [--help]
+
+Description:
+    Print the '-h' help text of every registered command in sequence
+    (used to sanity-check that every command's help text renders)
+
+Options:
+    (none)
+                    """.format(
+                        cmd, mode
+                    )
 
                 # wrong command #
                 else:
@@ -79381,23 +80294,29 @@ Key Value List:
             )
 
     @staticmethod
-    def checkRootPerm(exit=True, verb=True, attr="error", msg=""):
+    def checkRootPerm(
+        exit=True, verb=True, attr="error", msg="", allowForce=True
+    ):
         if SysMgr.isRoot():
             return True
+
+        willForce = allowForce and SysMgr.forceEnable
 
         # print log #
         if verb:
             if msg:
                 msg = " to %s" % msg
 
-            if attr == "error":
-                logger = SysMgr.printErr
+            # avoid marking a run that -f is about to force through as an #
+            # error, so STRICTEXIT doesn't misreport a successful bypass #
+            if willForce:
+                SysMgr.printWarn("failed to get root permission%s" % msg, True)
+            elif attr == "error":
+                SysMgr.printErr("failed to get root permission%s" % msg)
             else:
-                logger = SysMgr.printWarn
+                SysMgr.printWarn("failed to get root permission%s" % msg)
 
-            logger("failed to get root permission%s" % msg)
-
-        if SysMgr.forceEnable:
+        if willForce:
             return True
 
         # exit #
@@ -81832,7 +82751,9 @@ Key Value List:
                     (origTargetExe, "TARGETEXE"),
                     (origTargetCmd, "TARGETCMD"),
                 ):
-                    if not flag:
+                    if flag:
+                        SysMgr.environList[name] = flag
+                    else:
                         SysMgr.environList.pop(name, None)
                 return
 
@@ -82155,11 +83076,14 @@ Key Value List:
                     # pylint: disable=unsupported-membership-test
                     # get real path #
                     path = SysMgr.lastReportPath
-                    suffix = "_%s." % SysMgr.pid
-                    if path and suffix not in path:
-                        name, ext = path.rsplit(".", 1)
-                        name += suffix
-                        path = name + ext
+                    if path and not os.path.exists(path):
+                        # only adopt the pid-suffixed name if it actually exists #
+                        suffix = "_%s." % SysMgr.pid
+                        if suffix not in path:
+                            name, ext = path.rsplit(".", 1)
+                            candidate = name + suffix + ext
+                            if os.path.exists(candidate):
+                                path = candidate
 
                     # send result #
                     pathDict = {
@@ -82574,13 +83498,16 @@ Key Value List:
                         sys.exit(-1)
                     # absolute path #
                     elif d.startswith("/"):
-                        if not d.startswith(origOutPath):
+                        normOutPath = origOutPath.rstrip("/") + "/"
+                        if d != origOutPath and not d.startswith(normOutPath):
                             _printErr("'%s' is not in '%s'" % (d, origOutPath))
                             sys.exit(-1)
                     # relative path #
                     elif not os.path.exists(os.path.join(origOutPath, d)):
                         _printErr("'%s' is not in '%s'" % (d, origOutPath))
                         sys.exit(-1)
+                    else:
+                        d = os.path.join(origOutPath, d)
 
                     # remove #
                     if mainCmd == "remove":
@@ -82707,6 +83634,11 @@ Key Value List:
                 _retJson(connObj, SysMgr.getEventTaskList())
 
             elif mainCmd in ("kill", "tkill", "bgkill"):
+                # check allowance option #
+                if not "ALLOWRUN" in SysMgr.environList:
+                    _printErr("remote %s is not allowed" % mainCmd)
+                    sys.exit(-1)
+
                 # set JSON attribute #
                 SysMgr.jsonEnable = True
 
@@ -82866,6 +83798,7 @@ Key Value List:
                 # set report path #
                 SysMgr.outPath = origOutPath
                 SysMgr.setReportPath(origOutPath, mainCmd)
+                baseReportPath = SysMgr.outPath
 
                 # launch Guider command #
                 try:
@@ -82892,6 +83825,25 @@ Key Value List:
 
                 # get pid and pipe #
                 pid, pipe = ret
+
+                # drawflame/drawflamediff write their JSON summary to a report
+                # file instead of stdout (see printPipe's file-output branch),
+                # so an empty stdout pipe from the child doesn't mean it
+                # failed - the relay loop below falls back to reading that
+                # file. It writes its own SVG at baseReportPath itself (see
+                # Debugger.drawFlame() -> UtilMgr.getDrawOutputPath, which
+                # reuses SysMgr.outPath), but the JSON *summary* naming this
+                # SVG's path lands at a sibling file with the child's pid
+                # spliced in before the extension (confirmed on-device) -
+                # e.g. "..._drawflame_<ts>.out" (the SVG) alongside
+                # "..._drawflame_<ts>_<pid>.out" (the JSON) - so it's this
+                # pid-suffixed sibling we need to read, not baseReportPath.
+                if isDrawMode:
+                    _base, _ext = os.path.splitext(baseReportPath)
+                    expectedReportPath = "%s_%s%s" % (_base, pid, _ext)
+                else:
+                    expectedReportPath = None
+
                 pipeObj = os.fdopen(os.dup(pipe.fileno()), "r")
                 SysMgr.setBlock(pipe.fileno(), False)
 
@@ -82951,7 +83903,39 @@ Key Value List:
                                     connObj.close()
                                     raise ValueError()
                                 else:
-                                    # EOF with no data: grandchild exited without output
+                                    # EOF with no data: grandchild exited without
+                                    # output on stdout. For isDrawMode commands
+                                    # (drawflame/drawflamediff) this doesn't mean
+                                    # failure - their JSON summary went to the
+                                    # report file instead of stdout, so relay
+                                    # that file's content if it was produced.
+                                    if expectedReportPath:
+                                        # the stdout pipe closing (what got us
+                                        # here) doesn't guarantee the child has
+                                        # finished flushing/closing its other
+                                        # fds (the report file) yet - wait for
+                                        # it to fully exit first. A SIGCHLD
+                                        # handler elsewhere may reap it first,
+                                        # which is fine (it also proves the
+                                        # child is gone) - either way is enough.
+                                        try:
+                                            os.waitpid(pid, 0)
+                                        except SystemExit:
+                                            raise
+                                        except:
+                                            pass
+                                        if os.path.exists(expectedReportPath):
+                                            try:
+                                                with open(
+                                                    expectedReportPath, "rb"
+                                                ) as _reportFd:
+                                                    connObj.write(
+                                                        _reportFd.read()
+                                                    )
+                                            except SystemExit:
+                                                raise
+                                            except:
+                                                pass
                                     connObj.close()
                                     raise ValueError()
                             # signal from client #
@@ -83451,7 +84435,6 @@ Key Value List:
 
                     # get log item #
                     logInfo = {
-                        # TODO: add more log event format #
                         "DLTEVENT": {
                             "time": "mtime",
                             "diff": UtilMgr.getClockTime(dlt=True) - current,
@@ -83467,12 +84450,30 @@ Key Value List:
                                 else []
                             ),
                         },
+                        # kmsg / ftrace timestamps already share guider's
+                        # own uptime clock, so no offset is needed #
+                        "KERNELEVENT": {
+                            "time": "uptime",
+                            "diff": 0,
+                            "field": [],
+                        },
+                        "TRACEEVENT": {
+                            "time": "time",
+                            "diff": 0,
+                            "field": [],
+                        },
+                        # ANDROIDEVENT/JOURNALEVENT/SYSLOGEVENT carry
+                        # wall-clock timestamps and need date parsing
+                        # before they fit guider's uptime timeline;
+                        # not implemented yet (see _convertToGraphSeconds
+                        # for their DATETIME-mode equivalent) #
                     }
 
                     SysMgr.printStat(
                         "start gathering log events... [ STOP(Ctrl+c) ]"
                     )
 
+                    warnedLogTypes = set()
                     for log in SysMgr.getLogEvents(
                         since=SysMgr.startTime, until=SysMgr.getUptime()
                     ):
@@ -83495,6 +84496,10 @@ Key Value List:
                         except SystemExit:
                             break
                         except:
+                            logType = log.get("type", "UNKNOWN")
+                            if logType in warnedLogTypes:
+                                continue
+                            warnedLogTypes.add(logType)
                             SysMgr.printWarn(
                                 "failed to recognize a below log\n%s"
                                 % UtilMgr.convDict2Str(log, pretty=True),
@@ -87332,6 +88337,10 @@ Key Value List:
         # print backtrace #
         # SysMgr.printBacktrace()
 
+        # mark that an error was reported, for opt-in STRICTEXIT #
+        if line:
+            SysMgr.errorOccurred = True
+
         if not SysMgr.logEnable and SysMgr.forceEnable:
             return
         elif not line:
@@ -87784,20 +88793,25 @@ Key Value List:
             pass
         elif repeatParams and len(repeatParams) == 3:
             SysMgr.termFlag = False
-            SysMgr.printInfo(
-                "run every %s sec %s time"
-                % (convNum(SysMgr.intervalEnable), convNum(SysMgr.repeatCnt))
-            )
+            if not SysMgr.jsonEnable and "-J" not in sys.argv:
+                SysMgr.printInfo(
+                    "run every %s sec %s time"
+                    % (
+                        convNum(SysMgr.intervalEnable),
+                        convNum(SysMgr.repeatCnt),
+                    )
+                )
         else:
-            interval = SysMgr.intervalEnable
-            repeat = SysMgr.repeatCnt
-            totalSec = convNum(interval)
-            totalCnt = convNum(repeat)
-            totalTime = convNum(long(interval * repeat))
-            SysMgr.printInfo(
-                "run only %s times in %s sec for a total of %s sec"
-                % (totalCnt, totalSec, totalTime)
-            )
+            if not SysMgr.jsonEnable and "-J" not in sys.argv:
+                interval = SysMgr.intervalEnable
+                repeat = SysMgr.repeatCnt
+                totalSec = convNum(interval)
+                totalCnt = convNum(repeat)
+                totalTime = convNum(long(interval * repeat))
+                SysMgr.printInfo(
+                    "run only %s times in %s sec for a total of %s sec"
+                    % (totalCnt, totalSec, totalTime)
+                )
 
     @staticmethod
     def reloadFileBuffer(path=None, retFd=False, fd=None):
@@ -88972,8 +89986,13 @@ Key Value List:
     @staticmethod
     def applySaveOption(value=None):
         # apply default path #
+        isDefaultPath = not value
         if not value:
             value = "."
+
+        # fall back to a writable dir on Android when cwd is not writable #
+        if isDefaultPath and SysMgr.isAndroid and not SysMgr.isWritable(value):
+            value = SysMgr.tmpPath
 
         # change output path #
         try:
@@ -89620,8 +90639,17 @@ Key Value List:
 
         elif option == "o":
             # apply default path #
+            isDefaultPath = value == ""
             if value == "":
                 value = "."
+
+            # fall back to a writable dir on Android when cwd is not writable #
+            if (
+                isDefaultPath
+                and SysMgr.isAndroid
+                and not SysMgr.isWritable(value)
+            ):
+                value = SysMgr.tmpPath
 
             # check writable access #
             if not SysMgr.isWritable(value):
@@ -90792,6 +91820,34 @@ Key Value List:
         elif SysMgr.checkMode("bpfsigtop"):
             BpfMgr.doSigtopCmd()
 
+        # BPFEXECTOP MODE #
+        elif SysMgr.checkMode("bpfexectop"):
+            BpfMgr.doExectopCmd()
+
+        # BPFEXECSNOOP MODE #
+        elif SysMgr.checkMode("bpfexecsnoop"):
+            BpfMgr.doExecsnoopCmd()
+
+        # BPFMMAPTOP MODE #
+        elif SysMgr.checkMode("bpfmmaptop"):
+            BpfMgr.doMmaptopCmd()
+
+        # BPFHEAPTOP MODE #
+        elif SysMgr.checkMode("bpfheaptop"):
+            BpfMgr.doHeaptopCmd()
+
+        # BPFIOTOP MODE #
+        elif SysMgr.checkMode("bpfiotop"):
+            BpfMgr.doIotopCmd()
+
+        # BPFUDPTOP MODE #
+        elif SysMgr.checkMode("bpfudptop"):
+            BpfMgr.doUdptopCmd()
+
+        # BPFUDPSNOOP MODE #
+        elif SysMgr.checkMode("bpfudpsnoop"):
+            BpfMgr.doUdpsnoopCmd()
+
         # PAGE MODE #
         elif SysMgr.checkMode("mem"):
             SysMgr.printLogo(big=True, onlyFile=True)
@@ -91008,7 +92064,25 @@ Key Value List:
 
             while True:
                 graph = SysMgr.buildDepGraph(focusPid)
-                SysMgr.printDepTree(graph)
+                if SysMgr.jsonEnable:
+                    jsonGraph = {
+                        pid: {
+                            "comm": data["comm"],
+                            "deps": [
+                                {
+                                    "type": dtype,
+                                    "detail": detail,
+                                    "peerPid": other,
+                                    "peerComm": ocomm,
+                                }
+                                for dtype, detail, other, ocomm in data["deps"]
+                            ],
+                        }
+                        for pid, data in graph.items()
+                    }
+                    print(SysMgr.getPkg("json").dumps(jsonGraph))
+                else:
+                    SysMgr.printDepTree(graph)
                 if not SysMgr.intervalEnable:
                     break
                 time.sleep(SysMgr.intervalEnable)
@@ -91114,10 +92188,7 @@ Key Value List:
 
         # PYTRACE MODE #
         elif SysMgr.checkMode("pytrace"):
-            if "BPF" in SysMgr.environList:
-                BpfMgr.doBpfPytraceCmd()
-            else:
-                SysMgr.doTrace("pytrace")
+            SysMgr.doTrace("pytrace")
 
         # SIGTRACE MODE #
         elif SysMgr.checkMode("sigtrace"):
@@ -95460,7 +96531,7 @@ Key Value List:
                 class ThreadedHTTPServer(
                     socketserver.ThreadingMixIn, server.HTTPServer
                 ):
-                    pass
+                    daemon_threads = True
 
                 httpd = ThreadedHTTPServer((ip, port), handler)
             else:
@@ -99340,8 +100411,12 @@ Key Value List:
         # get keyword #
         if SysMgr.hasMainArg():
             targetList = SysMgr.getMainArg(False)
+            # plain positional target keeps exact-match semantics #
+            viaGroup = False
         elif SysMgr.filterGroup:
             targetList = ",".join(SysMgr.filterGroup)
+            # only -g targets get substring matching #
+            viaGroup = True
         else:
             SysMgr.printErr("no target process info")
             sys.exit(-1)
@@ -99357,6 +100432,7 @@ Key Value List:
                     targetList,
                     isThread=not SysMgr.processEnable,
                     sibling=SysMgr.groupProcEnable,
+                    inc=viaGroup,
                 )
             )
 
@@ -102032,10 +103108,7 @@ Key Value List:
         # update uptime #
         SysMgr.updateUptime()
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         while 1:
             try:
@@ -102054,15 +103127,12 @@ Key Value List:
                         )
 
                 # check sampling condition #
-                if _samp_cond:
-                    _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                        _samp_cond,
-                        _samp_idle,
-                        _samp_nr_cores,
-                        SysMgr.intervalEnable,
-                    )
-                else:
-                    _cond_met = True
+                _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                    _samp_cond,
+                    _samp_idle,
+                    _samp_nr_cores,
+                    SysMgr.intervalEnable,
+                )
 
                 # print stats #
                 if prevCoreStat and _cond_met:
@@ -106498,6 +107568,14 @@ Key Value List:
                     SysMgr.environList.get("SLEEP", ["0"])[0], True
                 )
 
+                # get directory scan range limits (unset = unlimited, prior behavior) #
+                scanLimit = UtilMgr.getEnvironNum(
+                    "SCANLIMIT", False, -1, False, isInt=True
+                )
+                scanDepth = UtilMgr.getEnvironNum(
+                    "SCANDEPTH", False, -1, False, isInt=True
+                )
+
                 # run loop #
                 for seq in xrange(repeat):
                     if SysMgr.printEnable:
@@ -106565,12 +107643,30 @@ Key Value List:
                         continue
 
                     # DIR #
+                    scannedFiles = 0
                     for r, d, f in os.walk(path):
+                        # enforce depth limit by pruning further descent #
+                        if scanDepth >= 0:
+                            relDir = os.path.relpath(r, path)
+                            curDepth = (
+                                0
+                                if relDir == "."
+                                else relDir.count(os.sep) + 1
+                            )
+                            if curDepth >= scanDepth:
+                                d[:] = []
+
                         for item in f:
+                            # enforce file-count limit across the tree #
+                            if 0 <= scanLimit <= scannedFiles:
+                                break
+
                             try:
                                 fpath = os.path.join(r, item)
                                 if not os.path.isfile(fpath):
                                     continue
+
+                                scannedFiles += 1
 
                                 # flush file pages #
                                 if "DROPFILECACHE" in SysMgr.environList:
@@ -106597,6 +107693,9 @@ Key Value List:
                                     True,
                                     True,
                                 )
+
+                        if 0 <= scanLimit <= scannedFiles:
+                            break
 
                     elapsed = time.time() - start
                     if SysMgr.printEnable:
@@ -107727,6 +108826,8 @@ Key Value List:
 
             SysMgr.printPipe(oneLine)
 
+            return sum(stats["perReqErr"].values())
+
         def _runCLIMode():
             def __printMenu():
                 sys.stdout.write(
@@ -107916,9 +109017,15 @@ Key Value List:
                         # create a new worker #
                         pid = SysMgr.createProcess()
                         if pid == 0:
-                            _task(reqs, repeat, delay, cache)
+                            errCnt = _task(reqs, repeat, delay, cache)
 
-                            sys.exit(0)
+                            # doExit() is registered via atexit and
+                            # always terminates with os._exit(), so
+                            # the intended code has to be handed to
+                            # it explicitly instead of relying on
+                            # this sys.exit() argument alone #
+                            SysMgr.exitCode = 0 if not errCnt else 1
+                            sys.exit(SysMgr.exitCode)
 
                     # wait for children #
                     SysMgr.waitChild()
@@ -107927,11 +109034,22 @@ Key Value List:
                         _task, (reqs, repeat, delay, cache), SysMgr.utilProc
                     )
             else:
-                _task(reqs, repeat, delay, cache)
-        except SystemExit:
-            sys.exit(0)
+                errCnt = _task(reqs, repeat, delay, cache)
+                if errCnt:
+                    SysMgr.printErr(
+                        "failed to complete %s out of %s requests"
+                        % (
+                            UtilMgr.convNum(errCnt),
+                            UtilMgr.convNum(len(reqs) * repeat),
+                        )
+                    )
+                    SysMgr.exitCode = 1
+                    sys.exit(-1)
+        except SystemExit as e:
+            sys.exit(e.code)
         except:
             SysMgr.printErr("failed to request", reason=True)
+            SysMgr.exitCode = 1
             sys.exit(-1)
 
         # print elapsed time #
@@ -110245,11 +111363,9 @@ Key Value List:
         # set signal handler #
         SysMgr.setNormalSignal()
 
-        # enable settings items #
-        if record:
-            AndroidMgr.applySettingVars()
-
-        # set timer #
+        # set timer before any blocking setup call so that a hang in #
+        # the setup below (e.g. a stuck 'settings' service) is still #
+        # bounded by -R instead of bypassing it entirely #
         try:
             SysMgr.setAlarmTimer(handler=SysMgr.alarmStopHandler)
         except SystemExit:
@@ -110257,6 +111373,10 @@ Key Value List:
         except:
             _printErr("failed to set timer", True)
             return -1
+
+        # enable settings items #
+        if record:
+            AndroidMgr.applySettingVars()
 
         # get monitor file size #
         maxSize = UtilMgr.convUnit2Size(
@@ -110813,6 +111933,20 @@ Key Value List:
                 origOutfile = outfile
                 inputDir = inputDir if inputDir else "."
                 outfile = os.path.join(outDirFinal, subDir, inputDir, outfile)
+
+                # treat -o as the exact output file path instead of a
+                # directory, only for a single non-multi-member file and
+                # only when explicitly requested (opt-in, no effect on
+                # multiproc worker dispatch or the recursive re-decompress
+                # call site which always pass a real directory) #
+                if (
+                    "EXACTOUT" in SysMgr.environList
+                    and not isMulti
+                    and len(infileList) == 1
+                    and outPath
+                    and not os.path.isdir(outPath)
+                ):
+                    outfile = outPath
 
                 # apply filter #
                 skip = False
@@ -114651,7 +115785,15 @@ Key Value List:
         # reset terminal #
         SysMgr.resetTTY()
 
-        os._exit(0)
+        # opt-in: reflect reported errors in the exit code #
+        if (
+            SysMgr.errorOccurred
+            and SysMgr.exitCode == 0
+            and "STRICTEXIT" in SysMgr.environList
+        ):
+            SysMgr.exitCode = 1
+
+        os._exit(SysMgr.exitCode)
 
     @staticmethod
     def releaseResource(sig=None):
@@ -124715,8 +125857,7 @@ class FuncPerfMgr(object):
                 if not entry.isdigit():
                     continue
                 try:
-                    with open("/proc/%s/comm" % entry, "r") as f:
-                        comm = f.read().strip()
+                    comm = SysMgr.getComm(entry, default="")
                     if comm in ("zygote64", "zygote"):
                         FuncPerfMgr._zygote_pid = int(entry)
                         return FuncPerfMgr._zygote_pid
@@ -124936,11 +126077,7 @@ class FuncPerfMgr(object):
     @staticmethod
     def _getComm(pid):
         """Read the process name from /proc/PID/comm"""
-        try:
-            with open("/proc/%d/comm" % pid, "r") as f:
-                return f.read().strip()
-        except Exception:
-            return str(pid)
+        return SysMgr.getComm(pid, default=str(pid))
 
     # ------------------------------------------------------------------ #
     #  Reporting: parse .perf.dat and generate flamegraph                  #
@@ -125608,6 +126745,244 @@ class BpfMgr(object):
             return -1
 
     @staticmethod
+    def _iterMapKeys(map_fd, key_sz):
+        """Iterate all keys in a BPF map via BPF_MAP_GET_NEXT_KEY (ctypes syscall)"""
+        import ctypes as _ct
+
+        _NR_BPF = SysMgr.getNrSyscall("sys_bpf")
+        _BPF_MAP_GET_NEXT_KEY = 4
+
+        class _Attr(_ct.Structure):
+            _fields_ = [
+                ("map_fd", _ct.c_uint32),
+                ("pad0", _ct.c_uint32),
+                ("key", _ct.c_uint64),
+                ("next_key", _ct.c_uint64),
+                ("flags", _ct.c_uint64),
+            ]
+
+        _cur = (_ct.c_uint8 * key_sz)()
+        _nxt = (_ct.c_uint8 * key_sz)()
+        _attr = _Attr()
+        _attr.map_fd = map_fd
+        _attr.key = 0
+        _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
+        _attr.flags = 0
+        ret = SysMgr.libcObj.syscall(
+            _ct.c_long(_NR_BPF),
+            _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
+            _ct.byref(_attr),
+            _ct.c_uint(_ct.sizeof(_attr)),
+        )
+        if ret != 0:
+            return
+        while True:
+            yield bytes(_nxt)
+            _ct.memmove(_cur, _nxt, key_sz)
+            _attr.key = _ct.cast(_cur, _ct.c_void_p).value
+            _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
+            ret = SysMgr.libcObj.syscall(
+                _ct.c_long(_NR_BPF),
+                _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
+                _ct.byref(_attr),
+                _ct.c_uint(_ct.sizeof(_attr)),
+            )
+            if ret != 0:
+                break
+
+    @staticmethod
+    def _computeIntervalParams(default_interval=3):
+        """Resolve (interval, total_time) from -i/-R CLI options"""
+        _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
+        if SysMgr.isTopMode():
+            # top-mode -R (e.g. pytop) encodes the repeat COUNT into both
+            # repeatCnt and repeatInterval (see parseRuntimeOption); the
+            # real per-iteration cadence always lives in intervalEnable,
+            # so repeatInterval*_r_cnt would double-count the iterations.
+            interval = max(int(SysMgr.intervalEnable or 1), 1)
+            total_time = interval * _r_cnt if SysMgr.repeatInterval else 0
+            return interval, total_time
+        if SysMgr.getOption("i"):
+            interval = max(int(SysMgr.intervalEnable), 1)
+        elif _r_cnt > 1:
+            interval = max(int(SysMgr.repeatInterval or default_interval), 1)
+        else:
+            interval = default_interval
+        total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+        return interval, total_time
+
+    @staticmethod
+    def _setupPerfRingBuffers(
+        cpu_list, target_map_fd, warn_on_fail=True, warn_label=""
+    ):
+        """Open per-CPU PERF_TYPE_SOFTWARE/BPF_OUTPUT perf events,
+        mmap ring buffers, and register fds in the BPF map"""
+        ct = SysMgr.getPkg("ctypes")
+        libc = SysMgr.libcObj
+        libc.syscall.restype = ct.c_long
+        libc.mmap.restype = ct.c_uint64
+        libc.mmap.argtypes = [
+            ct.c_uint64,
+            ct.c_uint64,
+            ct.c_int,
+            ct.c_int,
+            ct.c_int,
+            ct.c_uint64,
+        ]
+
+        try:
+            page_size = os.sysconf("SC_PAGESIZE")
+        except Exception:
+            page_size = 4096
+
+        n_data_pages = 64  # data pages per CPU ring buffer
+        total_mmap_size = (1 + n_data_pages) * page_size
+        PROT_READ = 0x1
+        PROT_WRITE = 0x2
+        MAP_SHARED = 0x1
+        PERF_SAMPLE_RAW = 1 << 10  # sample_type flag
+
+        perfEvents = SysMgr.getPerfEventList()
+        nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
+
+        perf_fds = []
+        mmap_bufs = []
+
+        for cpu in cpu_list:
+            # perf_event_attr: SOFTWARE type, BPF_OUTPUT config #
+            attr = bytearray(112)
+            struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
+            struct.pack_into("<I", attr, 4, 112)  # size
+            struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
+            struct.pack_into("<Q", attr, 16, 1)  # sample_period=1
+            struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
+            struct.pack_into("<I", attr, 48, 1)  # wakeup_events=1
+            attr_arr = (ct.c_uint8 * 112)(*attr)
+
+            fd = int(
+                libc.syscall(
+                    ct.c_long(nr_perf),
+                    attr_arr,
+                    ct.c_int(-1),
+                    ct.c_int(cpu),
+                    ct.c_int(-1),
+                    ct.c_long(0),
+                )
+            )
+            if fd < 0:
+                if warn_on_fail:
+                    SysMgr.printWarn(
+                        "skip cpu %d: %sperf_event_open failed"
+                        % (cpu, warn_label),
+                        always=True,
+                    )
+                continue
+
+            # mmap ring buffer for this CPU #
+            buf_addr = int(
+                libc.mmap(
+                    ct.c_uint64(0),
+                    ct.c_uint64(total_mmap_size),
+                    ct.c_int(PROT_READ | PROT_WRITE),
+                    ct.c_int(MAP_SHARED),
+                    ct.c_int(fd),
+                    ct.c_uint64(0),
+                )
+            )
+            if ct.c_long(buf_addr).value < 0:
+                if warn_on_fail:
+                    SysMgr.printWarn(
+                        "skip cpu %d: mmap failed" % cpu, always=True
+                    )
+                os.close(fd)
+                continue
+
+            # Enable the perf event #
+            libc.ioctl(
+                ct.c_int(fd),
+                ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
+                ct.c_int(0),
+            )
+
+            # Populate PERF_EVENT_ARRAY map at key=cpu with this fd #
+            BpfMgr.mapUpdate(
+                target_map_fd,
+                struct.pack("<I", cpu),
+                struct.pack("<I", fd),
+            )
+            perf_fds.append(fd)
+            mmap_bufs.append((buf_addr, page_size, n_data_pages * page_size))
+
+        return perf_fds, mmap_bufs
+
+    @staticmethod
+    def _iterRingBufferRecords(
+        buf_addr, page_size, data_size, eager_writeback=False
+    ):
+        """Drain perf ring-buffer records from a single per-CPU mmap
+        buffer, yielding (rec_type, raw, raw_size, body) per record.
+        raw/raw_size are the PERF_RECORD_SAMPLE payload (None/0 for other
+        record types, e.g. PERF_RECORD_LOST); body is the full record
+        body (minus the 8-byte header) for callers that need it (e.g. to
+        decode a PERF_RECORD_LOST count). Tail bookkeeping is owned here;
+        with eager_writeback=True the mmap tail pointer is advanced right
+        after each record is handed to the caller (matching call sites
+        that persist progress per-record), otherwise it's written back
+        once after the buffer is drained (matching the majority of call
+        sites that batch the write-back)."""
+        ct = SysMgr.getPkg("ctypes")
+        c_uint8 = ct.c_uint8
+        c_uint64 = ct.c_uint64
+        cast = ct.cast
+        POINTER = ct.POINTER
+
+        PERF_RECORD_SAMPLE = 9
+
+        head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
+        tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
+        tail = tail_ptr[0]
+        data_start = buf_addr + page_size
+
+        def rb_read(off, n):
+            pos = off % data_size
+            if pos + n <= data_size:
+                return bytes((c_uint8 * n).from_address(data_start + pos))
+            first = data_size - pos
+            buf = bytearray(n)
+            buf[:first] = bytes(
+                (c_uint8 * first).from_address(data_start + pos)
+            )
+            buf[first:] = bytes(
+                (c_uint8 * (n - first)).from_address(data_start)
+            )
+            return bytes(buf)
+
+        while tail + 8 <= head:
+            try:
+                hdr = rb_read(tail, 8)
+                rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
+            except Exception:
+                break
+            if rec_size < 8:
+                break
+            body = rb_read(tail + 8, rec_size - 8)
+            raw_size = 0
+            raw = None
+            if rec_type == PERF_RECORD_SAMPLE:
+                try:
+                    raw_size = struct.unpack_from("<I", body, 0)[0]
+                    raw = body[4 : 4 + raw_size]
+                except Exception:
+                    raw_size = 0
+                    raw = None
+            yield rec_type, raw, raw_size, body
+            if eager_writeback:
+                tail_ptr[0] = tail + rec_size
+            tail += rec_size
+        if not eager_writeback:
+            tail_ptr[0] = tail
+
+    @staticmethod
     def iterMap(map_fd, key_size, val_size=8):
         """Iterate over all key-value pairs in a BPF HASH map"""
         try:
@@ -125723,10 +127098,12 @@ class BpfMgr(object):
     def attachTracepoint(prog_fd, tp_cat, tp_name):
         """Attach a BPF program to a tracepoint on all online CPUs.
 
-        In Linux 5.15 the tracepoint BPF-program slot is global (one per
-        tracepoint), so PERF_EVENT_IOC_SET_BPF is called only on the first
-        CPU's perf_event fd.  Subsequent CPUs only need IOC_ENABLE so their
-        perf_event counts/wakes up; the single BPF prog fires on every CPU.
+        The kernel keeps a single, shared bpf prog slot per tracepoint
+        (event->tp_event->prog), so PERF_EVENT_IOC_SET_BPF is called only on
+        the first CPU's perf_event fd -- calling it again on another CPU's fd
+        for the same tracepoint fails with EEXIST. Once set, the program
+        fires on every CPU regardless of which fd it was attached through;
+        the other CPUs' perf_event fds only need IOC_ENABLE.
         """
         try:
             tp_id_path = "%s/%s/%s/id" % (
@@ -126275,6 +127652,81 @@ class BpfMgr(object):
             raise
 
     @staticmethod
+    def attachSamplerEvent(prog_fd, perf_type, perf_config, sample_period=1):
+        """Attach BPF perf-event program to an arbitrary perf event on all online CPUs.
+
+        Same wiring as attachSampler() but with perf_type/perf_config/sample_period
+        parameterized instead of hardcoded to SW_CPU_CLOCK+freq. Used for low-rate,
+        count-based sampling (e.g. PERF_TYPE_SOFTWARE=1 / PERF_COUNT_SW_PAGE_FAULTS_MAJ=6
+        with sample_period=1 so every major fault fires one sample).
+        """
+        try:
+            perfEvents = SysMgr.getPerfEventList()
+            cpu_list = BpfMgr._getOnlineCpus()
+            libc = SysMgr.libcObj
+            libc.syscall.restype = c_long
+
+            for cpu in cpu_list:
+                attr = bytearray(128)
+                struct.pack_into("<I", attr, 0, perf_type)  # type
+                struct.pack_into("<I", attr, 4, 128)  # size
+                struct.pack_into("<Q", attr, 8, perf_config)  # config
+                struct.pack_into(
+                    "<Q", attr, 16, max(int(sample_period), 1)
+                )  # sample_period (freq bit left unset)
+                struct.pack_into("<I", attr, 48, 1)  # wakeup_events=1
+                attr_arr = (c_uint8 * 128)(*attr)
+
+                fd = int(
+                    libc.syscall(
+                        c_long(SysMgr.getNrSyscall("sys_perf_event_open")),
+                        attr_arr,
+                        c_int(-1),
+                        c_int(cpu),
+                        c_int(-1),
+                        c_long(0),
+                    )
+                )
+                if fd < 0:
+                    raise Exception(
+                        "perf_event_open(type=%d,config=%d) failed for cpu=%d"
+                        % (perf_type, perf_config, cpu)
+                    )
+
+                if (
+                    libc.ioctl(
+                        c_int(fd),
+                        c_uint(perfEvents["PERF_EVENT_IOC_SET_BPF"]),
+                        c_uint(prog_fd),
+                    )
+                    < 0
+                ):
+                    raise Exception(
+                        "PERF_EVENT_IOC_SET_BPF failed for cpu=%d" % cpu
+                    )
+                if (
+                    libc.ioctl(
+                        c_int(fd),
+                        c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
+                        c_int(0),
+                    )
+                    < 0
+                ):
+                    raise Exception(
+                        "PERF_EVENT_IOC_ENABLE failed for cpu=%d" % cpu
+                    )
+                BpfMgr._openFds.append(fd)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to attach BPF sampler (type=%d,config=%d)"
+                % (perf_type, perf_config),
+                reason=True,
+            )
+            raise
+
+    @staticmethod
     def attachWatchpoint(prog_fd, bp_addr, bp_type, bp_len, pid=-1):
         """Attach a BPF PERF_EVENT program to a hardware breakpoint.
 
@@ -126471,6 +127923,25 @@ class BpfMgr(object):
         # BPF_LD | BPF_DW | BPF_IMM with src_reg=BPF_PSEUDO_MAP_FD(1) #
         return bi(0x18, dst_reg, 1, 0, map_fd) + bi(0x00, 0, 0, 0, 0)
 
+    @staticmethod
+    def buildLoadImm64(dst_reg, value):
+        """Build LD_IMM64 pair (16 bytes) to load a raw 64-bit value
+        (e.g. a userspace VA baked in at codegen time) into dst_reg.
+
+        Unlike buildLoadMapFd, src_reg=0 (plain immediate, not
+        BPF_PSEUDO_MAP_FD) - the two 32-bit halves are stored as-is,
+        little-endian low half first, matching the encoding already
+        used for raw address immediates elsewhere (see hit_addr in
+        genWatchProg).
+        """
+        bi = BpfMgr.buildInsn
+        value &= 0xFFFFFFFFFFFFFFFF
+        lo = value & 0xFFFFFFFF
+        hi = (value >> 32) & 0xFFFFFFFF
+        lo_s = lo - 0x100000000 if lo >= 0x80000000 else lo
+        hi_s = hi - 0x100000000 if hi >= 0x80000000 else hi
+        return bi(0x18, dst_reg, 0, 0, lo_s) + bi(0x00, 0, 0, 0, hi_s)
+
     # -----------------------------------------------------------------------
     # Kernel-level filter helpers
     # -----------------------------------------------------------------------
@@ -126638,6 +128109,43 @@ class BpfMgr(object):
             )
         except Exception:
             pass
+
+    @staticmethod
+    def _buildFlameFromSummary(summary_call, summary_bt, weight_fn):
+        """Flatten {leaf: {bt_str: node}} + {leaf: leaf_node} into a
+        {chain_str: weight} dict for Debugger.drawFlameSample.
+        weight_fn extracts the numeric weight from a summary_bt leaf-node
+        or a summary_call leaf-node (same node shape for both, per caller)."""
+        flame_data = {}
+        for leaf, bt_chains in summary_bt.items():
+            for bts, node in bt_chains.items():
+                chain = (leaf + " <- " + bts) if bts else leaf
+                flame_data[chain] = flame_data.get(chain, 0) + weight_fn(node)
+        for leaf, info in summary_call.items():
+            if not summary_bt.get(leaf):
+                flame_data[leaf] = flame_data.get(leaf, 0) + weight_fn(info)
+        return flame_data
+
+    @staticmethod
+    def _emitFlameSVG(flame_data, title, suffix):
+        _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
+        _out_dir = _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+        _svg = Debugger.drawFlameSample(
+            flame_data, title, suffix, outDir=_out_dir
+        )
+        BpfMgr._emitDrawFile(_svg)
+
+    @staticmethod
+    def _buildFlameFromEntries(entries, label_fn):
+        """Flatten mmaptop/heaptop-style (tgid, comm, outstanding, total_bytes,
+        cnt, stk, extra) entries into a {chain_str: weight} dict, where extra
+        is command-specific (unused for mmaptop, alloc type for heaptop)."""
+        flame_data = {}
+        for tgid, comm, outstanding, total_bytes, cnt, stk, extra in entries:
+            label = label_fn(comm, tgid, extra)
+            chain = (stk + " <- " + label) if stk else label
+            flame_data[chain] = flame_data.get(chain, 0) + max(1, outstanding)
+        return flame_data
 
     @staticmethod
     def _parseAIOptions():
@@ -126825,12 +128333,9 @@ class BpfMgr(object):
         tid_set = set()
 
         def add_tgid_threads(tgid):
-            try:
-                for tid_str in os.listdir("/proc/%d/task" % tgid):
-                    if tid_str.isdigit():
-                        tid_set.add(int(tid_str))
-            except Exception:
-                pass
+            threads = SysMgr.getThreadList(tgid)
+            if threads:
+                tid_set.update(threads)
 
         for v in SysMgr.environList.get("TIDFILTER", []):
             try:
@@ -129941,13 +131446,8 @@ class BpfMgr(object):
     @staticmethod
     def _readTgidOfTid(tid):
         """Read TGID (process ID) for a given TID from /proc/<tid>/status."""
-        try:
-            with open("/proc/%d/status" % tid) as f:
-                for line in f:
-                    if line.startswith("Tgid:"):
-                        return int(line.split()[1])
-        except Exception:
-            return None
+        tgid = SysMgr.getTgid(tid)
+        return int(tgid) if tgid else None
 
     @staticmethod
     def _matchesProcThreadFilter(
@@ -129966,11 +131466,7 @@ class BpfMgr(object):
                     return False
             else:
                 if tgid not in proc_cc:
-                    try:
-                        with open("/proc/%d/comm" % tgid) as f:
-                            proc_cc[tgid] = f.read().strip()
-                    except Exception:
-                        proc_cc[tgid] = ""
+                    proc_cc[tgid] = SysMgr.getComm(tgid, default="")
                 if not UtilMgr.isValidStr(proc_cc[tgid], [process_filter]):
                     return False
         if thread_filter:
@@ -129979,11 +131475,7 @@ class BpfMgr(object):
                     return False
             else:
                 if tid not in thr_cc:
-                    try:
-                        with open("/proc/%d/comm" % tid) as f:
-                            thr_cc[tid] = f.read().strip()
-                    except Exception:
-                        thr_cc[tid] = ""
+                    thr_cc[tid] = SysMgr.getComm(tid, default="")
                 if not UtilMgr.isValidStr(thr_cc[tid], [thread_filter]):
                     return False
         return True
@@ -130084,108 +131576,6 @@ class BpfMgr(object):
             + insns[(null_pos + 1) * 8 :]
         )
         return insns
-
-    @staticmethod
-    def genPyTraceEmitProg(
-        ringbuf_fd,
-        f_code_off=32,
-        filter_tgid=0,
-        exclude_tgid=0,
-        frame_reg_off=None,
-    ):
-        """Uprobe entry for pytrace -q BPF: emit 24B event via bpf_ringbuf_output.
-
-        Event (24B): {ktime_ns:u64, f_code_ptr:u64, pid_tgid:u64}
-        Emits directly on function entry — no ts_map, no return probe needed.
-        Reads f_code_ptr = *(frame_ptr + f_code_off) via bpf_probe_read_user.
-        Stack: fp-8=probe_read dst (f_code_ptr), fp-32=ktime_ns, fp-24=f_code_ptr, fp-16=pid_tgid
-        Uses bpf_ringbuf_output (helper 130) with BPF_MAP_TYPE_RINGBUF — works for
-        both kprobe and uprobe contexts on Linux 5.8+.
-        f_code_off: 32 for Python 3.11 (_PyInterpreterFrame.f_code), 0 for 3.12+.
-        filter_tgid > 0: include-only TGID filter (skip events from other processes).
-        exclude_tgid > 0: exclusion filter (skip events from this specific TGID).
-          Used in global mode to exclude guider's own Python execution from flooding.
-        Both can be combined; exclude_tgid check happens first.
-        frame_reg_off: pt_regs offset of the register holding the frame pointer.
-          None (default) → RSI at x86_64:104, aarch64:8, riscv64:88 (function entry arg2).
-          32 → RBP at x86_64 offset 32 (inside _PyEval_EvalFrameDefault; RESUME handler).
-        """
-        bi = BpfMgr.buildInsn
-        LM = BpfMgr.buildLoadMapFd
-        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
-        FID = ConfigMgr.BPF_FUNC_ID
-        BPF_STX_MEM_DW = 0x7B
-        BPF_LDX_MEM_DW = 0x79
-        BPF_JEQ_K = 0x15  # JEQ immediate (skip if ==)
-        BPF_JNE_K = 0x55  # JNE immediate (skip if !=)
-        arch = SysMgr.getArch()
-        if frame_reg_off is None:
-            # Default: frame pointer is arg2 at function entry
-            frame_reg_off = (
-                8 if arch == "aarch64" else (88 if arch == "riscv64" else 104)
-            )
-
-        # Body: read frame_ptr from ctx (R9 already set), probe_read f_code_ptr, emit.
-        # All register-using helper calls clobber R1-R5; R6-R9 are callee-saved in BPF.
-        # R9 = ctx (saved at program entry), R8 = ktime_ns, R7 = f_code_ptr, R6 = frame_ptr.
-        body = b""
-        body += bi(0x79, R6, R9, frame_reg_off, 0)  # R6 = frame_ptr from ctx
-        body += bi(0xBF, R1, R10, 0, 0)
-        body += bi(0x07, R1, 0, 0, -8)  # R1 = fp-8 (dst for probe_read_user)
-        body += bi(0xB7, R2, 0, 0, 8)  # R2 = 8 bytes
-        body += bi(0xBF, R3, R6, 0, 0)  # R3 = frame_ptr
-        if f_code_off:
-            body += bi(
-                0x07, R3, 0, 0, f_code_off
-            )  # R3 = frame_ptr + f_code_off
-        body += bi(0x85, 0, 0, 0, FID["probe_read_user"])  # fp-8 = f_code_ptr
-        body += bi(BPF_LDX_MEM_DW, R7, R10, -8, 0)  # R7 = f_code_ptr
-        body += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
-        body += bi(0xBF, R8, R0, 0, 0)  # R8 = ktime_ns
-        body += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
-        # R0 = pid_tgid
-        body += bi(BPF_STX_MEM_DW, R10, R8, -32, 0)  # fp-32 = ktime_ns
-        body += bi(BPF_STX_MEM_DW, R10, R7, -24, 0)  # fp-24 = f_code_ptr
-        body += bi(BPF_STX_MEM_DW, R10, R0, -16, 0)  # fp-16 = pid_tgid
-        # bpf_ringbuf_output(ringbuf, data_ptr, size, flags=0)
-        body += LM(R1, ringbuf_fd)  # 2 insns: R1 = ringbuf
-        body += bi(0xBF, R2, R10, 0, 0)
-        body += bi(0x07, R2, 0, 0, -32)  # R2 = fp-32 (24-byte event data)
-        body += bi(0xB7, R3, 0, 0, 24)  # R3 = 24 bytes
-        body += bi(0xB7, R4, 0, 0, 0)  # R4 = flags=0
-        body += bi(0x85, 0, 0, 0, 130)  # bpf_ringbuf_output (helper 130)
-        body += bi(0xB7, R0, 0, 0, 0)  # return 0 (exit block, last 2 insns)
-        body += bi(0x95, 0, 0, 0, 0)  # exit
-
-        # ctx-save: always first (helpers clobber R1; R9 is preserved across calls)
-        ctx_save = bi(0xBF, R9, R1, 0, 0)  # R9 = ctx
-
-        if filter_tgid <= 0 and exclude_tgid <= 0:
-            return ctx_save + body
-
-        # PID filter section. Jump target for all skips: exit block = last 2 insns of body.
-        # Instruction layout: ctx_save | pid_get+rsh | [JEQ excl] | [JNE incl] | body...
-        # Jump offsets are relative to the insn AFTER the jump instruction.
-        body_n = len(body) // 8
-        # Insns between JEQ (if present) and body start: just the JNE (if present)
-        n_after_excl_jmp = (1 if filter_tgid > 0 else 0) + (body_n - 2)
-        # Insns between JNE (if present) and body start: none
-        n_after_incl_jmp = body_n - 2
-
-        pid_filter = b""
-        pid_filter += bi(
-            0x85, 0, 0, 0, FID["get_current_pid_tgid"]
-        )  # R0 = pid_tgid
-        pid_filter += bi(0x77, R0, 0, 0, 32)  # R0 >>= 32 (→ tgid)
-        if exclude_tgid > 0:
-            pid_filter += bi(
-                BPF_JEQ_K, R0, 0, n_after_excl_jmp, exclude_tgid
-            )  # == → exit
-        if filter_tgid > 0:
-            pid_filter += bi(
-                BPF_JNE_K, R0, 0, n_after_incl_jmp, filter_tgid
-            )  # != → exit
-        return ctx_save + pid_filter + body
 
     @staticmethod
     def _parseFuncDataConds(comval):
@@ -131510,9 +132900,3142 @@ class BpfMgr(object):
         )
         return insns
 
+    @staticmethod
+    def genExecEntryProg(ts_map_fd):
+        """
+        Tracepoint syscalls/sys_enter_execve: record entry ktime in ts_map.
+        ts_map: HASH key=u64(pid_tgid), val=u64(ktime_ns)
+        Stack: fp-8=pid_tgid(u64), fp-16=ktime(u64)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R10 = 0, 1, 2, 3, 4, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        insns = b""
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -8, 0)  # fp-8 = pid_tgid
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -16, 0)  # fp-16 = ktime
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # R2 = &fp-8 (key)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -16)  # R3 = &fp-16 (val)
+        insns += bi(0xB7, R4, 0, 0, 0)  # flags=BPF_ANY
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genExecExitProg(ts_map_fd, agg_map_fd):
+        """
+        Tracepoint syscalls/sys_exit_execve: compute elapsed, update agg_map.
+        ts_map: HASH key=pid_tgid(u64/8B), val=ktime(u64/8B)
+        agg_map: HASH key=tgid(u64/8B), val=32B [total_ns(u64)+cnt(u64)+comm(16B)]
+        Stack:
+          fp-8:  pid_tgid key for ts_map
+          fp-16: delta_ns
+          fp-24: tgid key for agg_map
+          fp-56: insert total_ns  } 32B val block at fp-56..fp-25
+          fp-48: insert cnt        } (val_ptr = R10-56)
+          fp-40: comm[0..7]        }
+          fp-32: comm[8..15]       }
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        insns = b""
+
+        # pid_tgid → fp-8, saved in R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -8, 0)  # fp-8 = pid_tgid
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid
+
+        # lookup ts_map[pid_tgid]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # R2 = &fp-8
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # NULL → exit (patch later)
+
+        # delta = ktime_now - ktime_entry
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = ktime_entry
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = delta_ns
+        insns += bi(0x7B, R10, R0, -16, 0)  # fp-16 = delta_ns
+
+        # delete ts_map[pid_tgid]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # tgid = pid_tgid >> 32 → fp-24
+        insns += bi(0x77, R9, 0, 0, 32)  # R9 >>= 32 → tgid
+        insns += bi(0x7B, R10, R9, -24, 0)  # fp-24 = tgid (u64)
+
+        # get_current_comm(fp-40, 16) — writes 16 bytes of comm at exec time
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -40)  # R1 = &fp-40 (comm buffer)
+        insns += bi(0xB7, R2, 0, 0, 16)  # size=16
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+
+        # lookup agg_map[tgid]
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -24)  # R2 = &fp-24
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # NULL → insert (patch later)
+
+        # update: total_ns += delta, cnt++ (don't touch comm at +16)
+        insns += bi(0x79, R7, R10, -16, 0)  # R7 = delta_ns
+        insns += bi(0x79, R8, R0, 0, 0)  # R8 = current total_ns
+        insns += bi(0x0F, R8, R7, 0, 0)  # R8 += delta_ns
+        insns += bi(0x7B, R0, R8, 0, 0)  # *(R0+0) = total_ns_new
+        insns += bi(0x79, R8, R0, 8, 0)  # R8 = current cnt
+        insns += bi(0x07, R8, 0, 0, 1)  # R8 += 1
+        insns += bi(0x7B, R0, R8, 8, 0)  # *(R0+8) = cnt_new
+
+        jmp_exit_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # JMP exit (patch later)
+
+        # insert: {total_ns=delta, cnt=1, comm=current} at fp-56..fp-25 (32B)
+        insert_pos = len(insns) // 8
+        insns += bi(0x79, R7, R10, -16, 0)  # R7 = delta_ns
+        insns += bi(0x7B, R10, R7, -56, 0)  # fp-56 = delta_ns (total_ns)
+        insns += bi(0x7A, R10, 0, -48, 1)  # fp-48 = 1 (cnt)
+        # comm already at fp-40..fp-25 from get_current_comm above
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -24)  # R2 = &fp-24 (key, 8B)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -56)  # R3 = &fp-56 (val: 32B)
+        insns += bi(0xB7, R4, 0, 0, 0)  # BPF_ANY
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        # patch jumps
+        jmp = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp = insert_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp = exit_pos - (jmp_exit_pos + 1)
+        insns = (
+            insns[: jmp_exit_pos * 8]
+            + bi(0x05, 0, 0, jmp, 0)
+            + insns[(jmp_exit_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genExecEntryProgWithStack(ts_map_fd, ustack_fd):
+        """
+        sys_enter_execve tracepoint: record ktime + user stack at execve entry.
+        User stack captured HERE (entry) because at sys_exit_execve the address
+        space has been replaced and bpf_get_stackid fails.
+        ts_map key: pid_tgid (u64/8B)
+        ts_map val: 16B [ktime(u64)|ustack_id(u32)|pad(u32)]
+        Stack layout:
+          R8 = ctx (callee-saved)
+          fp-8:  pid_tgid (u64)  — ts_map key
+          ts_map val at fp-24..fp-9:
+            fp-24: ktime (u64)       [fp-24..fp-17]
+            fp-16: ustack_id (u32)   [fp-16..fp-13] (STX_W)
+            fp-12: pad=0 (u32)       [fp-12..fp-9]  (ST_W)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R8, R9, R10 = 0, 1, 2, 3, 4, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        BPF_F_USER_STACK = ConfigMgr.BPF_F_USER_STACK
+        insns = b""
+
+        # Save ctx → R8 (callee-saved; survives all BPF helper calls)
+        insns += bi(0xBF, R8, R1, 0, 0)  # R8 = ctx
+
+        # pid_tgid → fp-8 (ts_map key), R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -8, 0)  # fp-8 = pid_tgid
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (saved, callee-saved)
+
+        # ktime → fp-24 (ts_map val[0])
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -24, 0)  # fp-24 = ktime
+
+        # bpf_get_stackid(ctx, ustack_map, BPF_F_USER_STACK) → R0 = ustack_id (s32)
+        insns += bi(0xBF, R1, R8, 0, 0)  # R1 = ctx (from R8)
+        insns += LM(R2, ustack_fd)  # R2 = ustack_map_fd
+        insns += bi(0xB7, R3, 0, 0, BPF_F_USER_STACK)  # R3 = 0x100
+        insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+        # R0 = ustack_id (s32); negative on error; store even if negative
+        insns += bi(0x63, R10, R0, -16, 0)  # STX_W: fp-16..fp-13 = ustack_id
+        insns += bi(0x62, R10, 0, -12, 0)  # ST_W: fp-12..fp-9 = pad=0
+
+        # ts_map update: key=&fp-8 (8B), val=&fp-24 (16B), flags=BPF_ANY
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # R2 = &fp-8 (key)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -24)  # R3 = &fp-24 (16B val)
+        insns += bi(0xB7, R4, 0, 0, 0)  # BPF_ANY
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genExecExitProgWithStack(ts_map_fd, agg_map_fd):
+        """
+        sys_exit_execve tracepoint: compute elapsed, read stack from ts_map entry.
+        ts_map val: 16B [ktime(u64)|ustack_id(u32)|pad(u32)]
+        agg_map key: 16B [tgid(u64)|ustack_id(u32)|pad(u32)]
+        agg_map val: 32B [total_ns(u64)|cnt(u64)|comm(16B)]
+        Stack layout:
+          fp-8:  pid_tgid (u64)       — ts_map key
+          fp-16: delta_ns (u64)
+          16B agg_map key at fp-56..fp-41:
+            fp-56: tgid (u64)
+            fp-48: ustack_id (u32, STX_W)
+            fp-44: pad=0 (u32, ST_W)
+          32B agg_map val at fp-88..fp-57:
+            fp-88: total_ns (u64)
+            fp-80: cnt (u64)
+            fp-72: comm[0..15] (16B, get_current_comm target)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        insns = b""
+
+        # pid_tgid → fp-8 (key), R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -8, 0)  # fp-8 = pid_tgid
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (callee-saved)
+
+        # ts_map lookup: key=&fp-8 (8B), val=16B [ktime(8B)|ustack_id(u32)|pad(u32)]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # R2 = &fp-8
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # NULL → exit (patched)
+
+        # Load ktime (val[0]) and ustack_id (val[8]) from ts_map entry
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = ktime_entry (u64 at val+0)
+        insns += bi(
+            0x61, R6, R0, 8, 0
+        )  # R6 = ustack_id (u32 via LDX_W at val+8)
+
+        # ktime_now; delta = now - entry → fp-16
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = delta_ns
+        insns += bi(0x7B, R10, R0, -16, 0)  # fp-16 = delta_ns
+
+        # delete ts_map[pid_tgid]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # agg_map 16B key at fp-56..fp-41: [tgid(8B)|ustack_id(u32)|pad(u32)]
+        insns += bi(0x77, R9, 0, 0, 32)  # R9 = tgid (pid_tgid >> 32)
+        insns += bi(0x7B, R10, R9, -56, 0)  # fp-56 = tgid
+        insns += bi(
+            0x63, R10, R6, -48, 0
+        )  # STX_W: fp-48 = ustack_id (from R6)
+        insns += bi(0x62, R10, 0, -44, 0)  # ST_W: fp-44 = 0 (pad)
+
+        # get_current_comm → fp-72..fp-57 (comm slot in INSERT val)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -72)  # R1 = &fp-72
+        insns += bi(0xB7, R2, 0, 0, 16)  # R2 = 16
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+
+        # agg_map lookup: key at fp-56 (16B)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -56)  # R2 = &fp-56 (16B key)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # NULL → insert (patched)
+
+        # UPDATE: total_ns += delta, cnt++ (comm unchanged)
+        insns += bi(0x79, R7, R10, -16, 0)  # R7 = delta_ns
+        insns += bi(0x79, R8, R0, 0, 0)  # R8 = *total_ns
+        insns += bi(0x0F, R8, R7, 0, 0)  # R8 += delta
+        insns += bi(0x7B, R0, R8, 0, 0)  # *total_ns = R8
+        insns += bi(0x79, R8, R0, 8, 0)  # R8 = *cnt
+        insns += bi(0x07, R8, 0, 0, 1)  # R8++
+        insns += bi(0x7B, R0, R8, 8, 0)  # *cnt = R8
+        jmp_exit_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # JMP exit (patched)
+
+        # INSERT: {total_ns=delta, cnt=1, comm=captured} at fp-88..fp-57
+        insert_pos = len(insns) // 8
+        insns += bi(0x79, R7, R10, -16, 0)  # R7 = delta_ns
+        insns += bi(0x7B, R10, R7, -88, 0)  # fp-88 = total_ns
+        insns += bi(0x7A, R10, 0, -80, 1)  # fp-80 = cnt=1 (ST_DW imm)
+        # comm already at fp-72..fp-57 from get_current_comm
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -56)  # R2 = &fp-56 (16B key)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -88)  # R3 = &fp-88 (32B val)
+        insns += bi(0xB7, R4, 0, 0, 0)  # BPF_ANY
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        # patch jumps
+        jmp = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp = insert_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp = exit_pos - (jmp_exit_pos + 1)
+        insns = (
+            insns[: jmp_exit_pos * 8]
+            + bi(0x05, 0, 0, jmp, 0)
+            + insns[(jmp_exit_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genExecForkProg(ts_map_fd):
+        """
+        sched/sched_process_fork: record child ktime + parent_pid for exec timing.
+        ts_map key: u64(child_pid)  val: 16B [ktime(8)|ppid(u32)|pad(u32)]
+        sched_process_fork ctx: parent_pid at +24, child_pid at +44 (both u32/4B)
+        Stack: fp-8=key(8B), fp-24=ktime(8B,val+0), fp-16=ppid(4B,val+8), fp-12=pad(4B,val+12)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        insns = b""
+        insns += bi(0xBF, R8, R1, 0, 0)  # R8 = ctx
+        insns += bi(0x61, R7, R8, 44, 0)  # R7 = child_pid (u32, zero-ext)
+        insns += bi(0x7B, R10, R7, -8, 0)  # fp-8 = child_pid as u64 (key)
+        insns += bi(
+            0x61, R6, R8, 24, 0
+        )  # R6 = parent_pid (u32) [callee-saved]
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -24, 0)  # fp-24 = ktime (val[0..7])
+        insns += bi(0x63, R10, R6, -16, 0)  # fp-16 = ppid  (val[8..11], STX_W)
+        insns += bi(0x62, R10, 0, -12, 0)  # fp-12 = 0     (val[12..15], pad)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -24)  # val 16B starts at fp-24
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genExecForkProgWithStack(ts_map_fd, ustack_fd):
+        """
+        sched/sched_process_fork with user stack capture (parent stack at fork).
+        ts_map key: u64(child_pid)  val: 16B [ktime(8B)|ppid(u32)|ustack_id(u32)]
+        Stack: fp-8=key(8B), fp-24=ktime(val+0), fp-16=ppid(val+8), fp-12=ustack_id(val+12)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        BPF_F_USER_STACK = ConfigMgr.BPF_F_USER_STACK
+        insns = b""
+        insns += bi(0xBF, R8, R1, 0, 0)  # R8 = ctx
+        insns += bi(0x61, R7, R8, 44, 0)  # R7 = child_pid (u32, zero-ext)
+        insns += bi(0x7B, R10, R7, -8, 0)  # fp-8 = child_pid as u64 (key)
+        insns += bi(
+            0x61, R6, R8, 24, 0
+        )  # R6 = parent_pid (u32) [callee-saved]
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -24, 0)  # fp-24 = ktime   (val[0..7])
+        insns += bi(
+            0x63, R10, R6, -16, 0
+        )  # fp-16 = ppid    (val[8..11], STX_W)
+        # bpf_get_stackid(ctx, ustack_map, BPF_F_USER_STACK) → ustack_id at val[12..15]
+        insns += bi(0xBF, R1, R8, 0, 0)
+        insns += LM(R2, ustack_fd)
+        insns += bi(0xB7, R3, 0, 0, BPF_F_USER_STACK)
+        insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+        insns += bi(
+            0x63, R10, R0, -12, 0
+        )  # fp-12 = ustack_id (val[12..15], STX_W)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -24)  # val 16B at fp-24..fp-9
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genExecTopFromSchedProg(ts_map_fd, agg_map_fd, fname_map_fd):
+        """
+        sched/sched_process_exec: compute elapsed, update agg_map, store filename.
+        ts_map val: 16B [ktime(8)|ppid(u32)|pad(u32)]
+        agg_map key: u64(tgid)/8B  val: 40B [total_ns(8)|cnt(8)|comm(16)|ppid(4)|pad(4)]
+        fname_map key: u64(tgid)/8B  val: 64B filename string
+        Registers: R8=ctx, R9=tgid, R6=ppid, R7=delta_ns (all callee-saved)
+        Stack:
+          fp-8:          tgid (u64, agg key)
+          fp-56..fp-17:  insert val (40B): [total_ns|cnt|comm(16)|ppid(4)|pad(4)]
+            fp-56=total_ns, fp-48=cnt, fp-40..fp-25=comm, fp-24=ppid(4B), fp-20=pad(4B)
+          fp-120..fp-57: fname buffer (64B, zeroed then filled by probe_read_kernel_str)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        insns = b""
+        # save ctx in R8 (callee-saved) before any helper clobbers R1
+        insns += bi(0xBF, R8, R1, 0, 0)
+        # tgid = pid_tgid >> 32 → fp-8, R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x77, R0, 0, 0, 32)
+        insns += bi(0x7B, R10, R0, -8, 0)  # fp-8 = tgid
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = tgid [callee-saved]
+        # ts_map lookup by tgid
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # NULL → exit (patched)
+        # read ktime from val+0, ppid from val+8
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = ktime_entry [callee-saved]
+        insns += bi(0x61, R6, R0, 8, 0)  # R6 = ppid (u32)  [callee-saved]
+        # delta = now - ktime_entry; keep delta in R7
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = delta_ns
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = delta_ns [callee-saved]
+        # delete ts_map[tgid]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+        # get_current_comm → fp-40 (16B, comm slot inside insert val block)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -40)
+        insns += bi(0xB7, R2, 0, 0, 16)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+        # agg_map lookup by tgid
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # NULL → insert (patched)
+        # UPDATE path: total_ns += delta, cnt++, ppid = R6
+        insns += bi(0x79, R1, R0, 0, 0)  # R1 = total_ns (R0 = val ptr)
+        insns += bi(0x0F, R1, R7, 0, 0)  # R1 += delta_ns
+        insns += bi(0x7B, R0, R1, 0, 0)  # *(val+0) = R1
+        insns += bi(0x79, R1, R0, 8, 0)  # R1 = cnt
+        insns += bi(0x07, R1, 0, 0, 1)  # R1++
+        insns += bi(0x7B, R0, R1, 8, 0)  # *(val+8) = R1
+        insns += bi(0x63, R0, R6, 32, 0)  # *(u32*)(val+32) = ppid
+        jmp_fname_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # jump to fname_update (patched)
+        # INSERT path: build 40B val on stack
+        insert_pos = len(insns) // 8
+        insns += bi(0x7B, R10, R7, -56, 0)  # fp-56 = total_ns (= delta_ns)
+        insns += bi(0x7A, R10, 0, -48, 1)  # fp-48 = cnt = 1
+        # comm already at fp-40 (16B, fp-40..fp-25)
+        insns += bi(0x63, R10, R6, -24, 0)  # fp-24 = ppid (4B, val offset 32)
+        insns += bi(
+            0x62, R10, 0, -20, 0
+        )  # fp-20 = 0   (4B, val offset 36, pad)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # key ptr
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -56)  # val ptr (40B at fp-56..fp-17)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        # FNAME_UPDATE: store filename from ctx __data_loc into fname_map
+        fname_update_pos = len(insns) // 8
+        # zero fname buf (fp-120..fp-57, 64B = 8 × 8B stores)
+        for _foff in (-120, -112, -104, -96, -88, -80, -72, -64):
+            insns += bi(0x7A, R10, 0, _foff, 0)
+        # fname_ptr = ctx + (__data_loc & 0xFFFF)
+        insns += bi(0x61, R7, R8, 8, 0)  # R7 = __data_loc (u32 at ctx+8)
+        insns += bi(0x57, R7, 0, 0, 0xFFFF)  # R7 &= 0xFFFF → byte offset
+        insns += bi(0x0F, R7, R8, 0, 0)  # R7 += ctx → fname ptr
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -120)  # R1 = fp-120 (fname buf)
+        insns += bi(0xB7, R2, 0, 0, 64)
+        insns += bi(0xBF, R3, R7, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel_str"])
+        # fname_map[tgid] = fname buf
+        insns += LM(R1, fname_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # key: tgid at fp-8
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -120)  # val: fname buf
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        # patch jumps
+        jmp = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp = insert_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp = fname_update_pos - (jmp_fname_pos + 1)
+        insns = (
+            insns[: jmp_fname_pos * 8]
+            + bi(0x05, 0, 0, jmp, 0)
+            + insns[(jmp_fname_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genExecTopFromSchedProgWithStack(ts_map_fd, agg_map_fd, fname_map_fd):
+        """
+        sched/sched_process_exec with stack: reads ppid+ustack_id from ts_map val.
+        ts_map val: 16B [ktime(8)|ppid(u32)|ustack_id(u32)]
+        agg_map key: 16B [tgid(8B)|ustack_id(u32)|pad(u32)]
+        agg_map val: 40B [total_ns(8)|cnt(8)|comm(16)|ppid(4)|pad(4)]
+        fname_map key: u64(tgid)/8B  val: 64B filename
+        Registers: R8=ctx, R9=tgid, R6=ustack_id, R7=delta_ns (all callee-saved)
+        Stack:
+          fp-8:          tgid (u64, ts_map key)
+          fp-16..fp-13:  ppid (u32, tmp; STX_W before first clobber)
+          fp-40..fp-25:  agg_map key 16B [tgid(8)|ustack_id(4)|pad(4)]
+          fp-80..fp-41:  agg_map val 40B [total_ns|cnt|comm(16)|ppid(4)|pad(4)]
+            fp-80=total_ns, fp-72=cnt, fp-64..fp-49=comm, fp-48=ppid(4B), fp-44=pad(4B)
+          fp-144..fp-81: fname buffer (64B)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        insns = b""
+        # save ctx in R8 (callee-saved)
+        insns += bi(0xBF, R8, R1, 0, 0)
+        # tgid → fp-8, R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x77, R0, 0, 0, 32)
+        insns += bi(0x7B, R10, R0, -8, 0)
+        insns += bi(0xBF, R9, R0, 0, 0)
+        # ts_map lookup
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+        # ktime at val+0, ppid at val+8, ustack_id at val+12
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = ktime_entry [callee-saved]
+        insns += bi(0x61, R1, R0, 8, 0)  # R1 = ppid (u32, tmp before clobber)
+        insns += bi(
+            0x63, R10, R1, -16, 0
+        )  # fp-16 = ppid (STX_W, stored to stack)
+        insns += bi(0x61, R6, R0, 12, 0)  # R6 = ustack_id [callee-saved]
+        # delta = now - ktime_entry; keep in R7
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = delta_ns
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = delta_ns [callee-saved]
+        # delete ts_map
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+        # agg_map key 16B at fp-40..fp-25: [tgid(8)|ustack_id(4)|pad(4)]
+        insns += bi(0x7B, R10, R9, -40, 0)  # fp-40 = tgid
+        insns += bi(0x63, R10, R6, -32, 0)  # fp-32 = ustack_id (STX_W)
+        insns += bi(0x62, R10, 0, -28, 0)  # fp-28 = 0 (pad)
+        # get_current_comm → fp-64 (16B, comm slot inside agg val at offset 16)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -64)
+        insns += bi(0xB7, R2, 0, 0, 16)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+        # agg_map lookup
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -40)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+        # UPDATE: total_ns += delta, cnt++, ppid from fp-16
+        insns += bi(0x79, R1, R0, 0, 0)
+        insns += bi(0x0F, R1, R7, 0, 0)
+        insns += bi(0x7B, R0, R1, 0, 0)
+        insns += bi(0x79, R1, R0, 8, 0)
+        insns += bi(0x07, R1, 0, 0, 1)
+        insns += bi(0x7B, R0, R1, 8, 0)
+        insns += bi(0x61, R1, R10, -16, 0)  # R1 = ppid from fp-16
+        insns += bi(0x63, R0, R1, 32, 0)  # *(u32*)(val+32) = ppid
+        jmp_fname_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # jump to fname_update (patched)
+        # INSERT: build 40B val on stack at fp-80..fp-41
+        insert_pos = len(insns) // 8
+        insns += bi(0x7B, R10, R7, -80, 0)  # fp-80 = total_ns (= delta_ns)
+        insns += bi(0x7A, R10, 0, -72, 1)  # fp-72 = cnt = 1
+        # comm already at fp-64 (16B at fp-64..fp-49)
+        insns += bi(0x61, R1, R10, -16, 0)  # R1 = ppid from fp-16
+        insns += bi(0x63, R10, R1, -48, 0)  # fp-48 = ppid (4B, val offset 32)
+        insns += bi(
+            0x62, R10, 0, -44, 0
+        )  # fp-44 = 0   (4B, val offset 36, pad)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -40)  # key ptr
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -80)  # val ptr (40B at fp-80..fp-41)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        # FNAME_UPDATE: store filename from ctx __data_loc into fname_map
+        fname_update_pos = len(insns) // 8
+        # zero fname buf (fp-144..fp-81, 64B = 8 × 8B stores)
+        for _foff in (-144, -136, -128, -120, -112, -104, -96, -88):
+            insns += bi(0x7A, R10, 0, _foff, 0)
+        insns += bi(0x61, R7, R8, 8, 0)  # R7 = __data_loc (u32 at ctx+8)
+        insns += bi(0x57, R7, 0, 0, 0xFFFF)  # R7 &= 0xFFFF → byte offset
+        insns += bi(0x0F, R7, R8, 0, 0)  # R7 += ctx → fname ptr
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -144)  # R1 = fp-144 (fname buf)
+        insns += bi(0xB7, R2, 0, 0, 64)
+        insns += bi(0xBF, R3, R7, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel_str"])
+        # fname_map[tgid] = fname buf
+        insns += LM(R1, fname_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # key: tgid at fp-8
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -144)  # val: fname buf
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        # patch jumps
+        jmp = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp = insert_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp = fname_update_pos - (jmp_fname_pos + 1)
+        insns = (
+            insns[: jmp_fname_pos * 8]
+            + bi(0x05, 0, 0, jmp, 0)
+            + insns[(jmp_fname_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genExecSnoopProg(perf_map_fd, n_cpus):
+        """
+        Tracepoint sched/sched_process_exec: emit 64B event via perf ring buffer.
+        Payload (64B at fp-64..fp-1):
+          fp-64: pid_tgid(u64)
+          fp-56: comm[0..7](u64)
+          fp-48: comm[8..15](u64)
+          fp-40..fp-1: fname(40B) — from __data_loc_filename in ctx
+        sched_process_exec context: +0=header(8B), +8=__data_loc_filename(u32),
+          +12=pid(s32), +16=old_pid(s32)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R10 = 0, 1, 2, 3, 4, 5, 6, 7, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # pid_tgid at fp-64
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -64, 0)
+
+        # get_current_comm(fp-56, 16) — writes 16 bytes starting at fp-56
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -56)
+        insns += bi(0xB7, R2, 0, 0, 16)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+
+        # fname: __data_loc_filename at ctx+8 (u32); lower 16 bits = offset from ctx
+        insns += bi(0x61, R7, R6, 8, 0)  # R7 = __data_loc_filename (u32)
+        insns += bi(0x57, R7, 0, 0, 0xFFFF)  # R7 &= 0xFFFF → offset
+        insns += bi(0x0F, R7, R6, 0, 0)  # R7 += R6 → fname ptr
+
+        # probe_read_kernel_str(fp-40, 40, R7)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -40)
+        insns += bi(0xB7, R2, 0, 0, 40)
+        insns += bi(0xBF, R3, R7, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel_str"])
+
+        # perf_event_output(ctx, perf_map, BPF_F_CURRENT_CPU, fp-64, 64)
+        insns += bi(0xBF, R1, R6, 0, 0)
+        insns += LM(R2, perf_map_fd)
+        insns += bi(0xB4, R3, 0, 0, -1)  # BPF_F_CURRENT_CPU
+        insns += bi(0xBF, R4, R10, 0, 0)
+        insns += bi(0x07, R4, 0, 0, -64)
+        insns += bi(0xB7, R5, 0, 0, 64)
+        insns += bi(0x85, 0, 0, 0, FID["perf_event_output"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genMmapEntryProg(ts_map_fd, ustack_map_fd=-1, nr_filter=-1):
+        """
+        Tracepoint syscalls/sys_enter_mmap: filter MAP_ANONYMOUS, store entry in ts_map.
+        Also supports raw_syscalls/sys_enter when nr_filter=NR_mmap (ctx+8=id, args same offsets).
+        mmap args in context: len(+24), flags(+40)
+        MAP_ANONYMOUS = 0x20
+        ts_map: HASH key=8B [pid_tgid], val=24B [ktime(8)+len(8)+ustack_id(u32)+pad(u32)]
+        Stack: fp-8=pid_tgid(key), fp-32=ktime, fp-24=len, fp-16=ustack_id+pad (val starts at fp-32)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        MAP_ANONYMOUS = 0x20
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # NR filter for raw_syscalls/sys_enter mode (ctx+8 = syscall id)
+        exit_nr_pos = -1
+        if nr_filter >= 0:
+            insns += bi(0x79, R7, R6, 8, 0)  # R7 = syscall id
+            exit_nr_pos = len(insns) // 8
+            insns += bi(
+                0x55, R7, 0, 0, nr_filter
+            )  # JNE nr_filter → exit (patch)
+
+        # filter: flags & MAP_ANONYMOUS; ctx+40 = flags (same for both syscalls and raw_syscalls)
+        insns += bi(0x79, R7, R6, 40, 0)  # R7 = flags
+        insns += bi(0x57, R7, 0, 0, MAP_ANONYMOUS)  # R7 &= MAP_ANONYMOUS
+
+        exit_filter_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)  # if R7==0 (not MAP_ANON): exit (patch)
+
+        # get pid_tgid → key at fp-8
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid
+        insns += bi(0x7B, R10, R9, -8, 0)  # *(u64*)(fp-8) = pid_tgid
+
+        # ktime_get_ns → fp-32
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)  # *(u64*)(fp-32) = ktime
+
+        # len = ctx+24 → fp-24
+        insns += bi(0x79, R8, R6, 24, 0)  # R8 = len
+        insns += bi(0x7B, R10, R8, -24, 0)  # *(u64*)(fp-24) = len
+
+        # ustack_id at fp-16, pad at fp-12
+        if ustack_map_fd >= 0:
+            insns += bi(0xBF, R1, R6, 0, 0)  # R1 = ctx (bpf_get_stackid arg0)
+            insns += LM(R2, ustack_map_fd)  # R2 = map (bpf_get_stackid arg1)
+            insns += bi(0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK)
+            insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+            insns += bi(0x63, R10, R0, -16, 0)  # *(u32*)(fp-16) = ustack_id
+        else:
+            insns += bi(0x62, R10, 0, -16, 0)  # *(u32*)(fp-16) = 0
+        insns += bi(0x62, R10, 0, -12, 0)  # *(u32*)(fp-12) = 0 (pad)
+
+        # map_update_elem(ts_map, fp-8, fp-32, BPF_ANY)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)  # key = fp-8
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)  # val = fp-32 (24B)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp_filter = exit_pos - (exit_filter_pos + 1)
+        insns = (
+            insns[: exit_filter_pos * 8]
+            + bi(0x15, R7, 0, jmp_filter, 0)
+            + insns[(exit_filter_pos + 1) * 8 :]
+        )
+        if exit_nr_pos >= 0:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_filter)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genMmapExitProg(
+        ts_map_fd, alloc_map_fd, agg_map_fd, ustack_map_fd=-1, nr_filter=-1
+    ):
+        """
+        Tracepoint syscalls/sys_exit_mmap: record allocation in alloc_map + agg_map.
+        sys_exit context: +8=__syscall_nr(8B), +16=ret(s64)
+        alloc_map: HASH key=8B [ret_addr], val=24B [len(8)+pid_tgid(8)+ustack_id(u32)+pad(u32)]
+        agg_map: HASH key=16B [pid_tgid(8)+ustack_id(u32)+pad(u32)],
+                      val=24B [outstanding(8)+total_bytes(8)+cnt(8)]
+        Stack:
+          fp-8  = ret_addr (alloc_map key)
+          fp-16 = pid_tgid scratch
+          fp-40 = alloc_map val: len@fp-40, pid_tgid@fp-32, ustack_id+pad@fp-24
+          fp-64 = agg_map key: pid_tgid@fp-64, ustack_id+pad@fp-56
+          fp-96 = agg_map insert val: outstanding@fp-96, total@fp-88, cnt@fp-80
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # NR filter for raw_syscalls/sys_exit mode (ctx+8 = syscall id; ctx+16 = ret in both modes)
+        exit_nr_pos = -1
+        if nr_filter >= 0:
+            insns += bi(0x79, R7, R6, 8, 0)  # R7 = syscall id
+            exit_nr_pos = len(insns) // 8
+            insns += bi(
+                0x55, R7, 0, 0, nr_filter
+            )  # JNE nr_filter → exit (patch)
+
+        # ret = *(s64*)(ctx+16); if ret < 0: exit (MAP_FAILED)
+        insns += bi(0x79, R7, R6, 16, 0)  # R7 = ret (s64)
+        exit_err_pos = len(insns) // 8
+        insns += bi(0xC5, R7, 0, 0, 0)  # JSLT R7 < 0 → exit (patch)
+
+        # ret_addr → fp-8
+        insns += bi(0x7B, R10, R7, -8, 0)
+
+        # get pid_tgid → fp-16, R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -16, 0)
+
+        # lookup ts_map[pid_tgid]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -16)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # if NULL: exit (patch)
+
+        # R8 = ts_map val ptr; save len, ustack_id
+        insns += bi(0xBF, R8, R0, 0, 0)  # R8 = val*
+        insns += bi(0x79, R5, R8, 8, 0)  # R5 = len
+        insns += bi(0x61, R4, R8, 16, 0)  # R4 = ustack_id (u32)
+
+        # build alloc_map val BEFORE delete: saves R5/R4 to stack before helper clobbers them
+        # helper calls (delete_elem/update_elem/lookup_elem) clobber R1-R5
+        insns += bi(0x7B, R10, R5, -40, 0)  # fp-40 = len (alloc_map val[0])
+        insns += bi(
+            0x7B, R10, R9, -32, 0
+        )  # fp-32 = pid_tgid (alloc_map val[8])
+        insns += bi(
+            0x63, R10, R4, -24, 0
+        )  # fp-24 = ustack_id (alloc_map val[16])
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+
+        # delete ts_map entry (R1-R5 clobbered; len/ustack_id preserved on stack above)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -16)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # map_update_elem(alloc_map, fp-8, fp-40, BPF_ANY)
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -40)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        # build agg_map key at fp-64: pid_tgid@fp-64, ustack_id+pad@fp-56
+        insns += bi(0x7B, R10, R9, -64, 0)  # *(u64*)(fp-64) = pid_tgid
+        insns += bi(0x61, R4, R10, -24, 0)  # R4 = ustack_id (reload)
+        insns += bi(0x63, R10, R4, -56, 0)  # *(u32*)(fp-56) = ustack_id
+        insns += bi(0x62, R10, 0, -52, 0)  # *(u32*)(fp-52) = 0
+
+        # lookup agg_map[key]
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -64)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # if NULL: insert (patch)
+
+        # update path: R0 = val*; outstanding+=len, total+=len, cnt+=1
+        insns += bi(
+            0x79, R5, R10, -40, 0
+        )  # R5 = len (reload from stack; R5 clobbered by prior helpers)
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = outstanding
+        insns += bi(0x0F, R7, R5, 0, 0)  # R7 += len
+        insns += bi(0x7B, R0, R7, 0, 0)
+        insns += bi(0x79, R7, R0, 8, 0)  # R7 = total
+        insns += bi(0x0F, R7, R5, 0, 0)  # R7 += len
+        insns += bi(0x7B, R0, R7, 8, 0)
+        insns += bi(0x79, R7, R0, 16, 0)  # R7 = cnt
+        insns += bi(0x07, R7, 0, 0, 1)
+        insns += bi(0x7B, R0, R7, 16, 0)
+
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # JMP → exit (patch)
+
+        # insert path: build val {len, len, 1} at fp-96
+        insert_agg_pos = len(insns) // 8
+        insns += bi(
+            0x79, R5, R10, -40, 0
+        )  # R5 = len (reload from stack; R5 clobbered by prior helpers)
+        insns += bi(0x7B, R10, R5, -96, 0)  # outstanding = len
+        insns += bi(0x7B, R10, R5, -88, 0)  # total = len
+        insns += bi(0x7A, R10, 0, -80, 1)  # cnt = 1
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -64)  # key = fp-64
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -96)  # val = fp-96
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        # patch jumps
+        jmp_err = exit_pos - (exit_err_pos + 1)
+        insns = (
+            insns[: exit_err_pos * 8]
+            + bi(0xC5, R7, 0, jmp_err, 0)
+            + insns[(exit_err_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        if exit_nr_pos >= 0:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_filter)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genMunmapProg(alloc_map_fd, agg_map_fd, nr_filter=-1):
+        """
+        Tracepoint syscalls/sys_enter_munmap: free tracking in alloc_map + agg_map.
+        Also supports raw_syscalls/sys_enter when nr_filter=NR_munmap (ctx+8=id, args same offsets).
+        munmap args: addr(+16), len(+24)
+        alloc_map: key=8B [addr], val=24B [len(8)+pid_tgid(8)+ustack_id(u32)+pad(u32)]
+        agg_map: key=16B [pid_tgid(8)+ustack_id(u32)+pad(u32)], val=24B [outstanding+total+cnt]
+        Stack: fp-8=addr(key), fp-32=agg_key: pid_tgid@fp-32, ustack_id+pad@fp-24; fp-40=len
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # NR filter for raw_syscalls/sys_enter mode (ctx+8 = syscall id)
+        exit_nr_pos = -1
+        if nr_filter >= 0:
+            insns += bi(0x79, R7, R6, 8, 0)  # R7 = syscall id
+            exit_nr_pos = len(insns) // 8
+            insns += bi(
+                0x55, R7, 0, 0, nr_filter
+            )  # JNE nr_filter → exit (patch)
+
+        # addr → fp-8
+        insns += bi(0x79, R7, R6, 16, 0)  # R7 = addr
+        insns += bi(0x7B, R10, R7, -8, 0)
+
+        # lookup alloc_map[addr]
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_alloc_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # if NULL: exit (patch)
+
+        # save: len(R5), pid_tgid(R8), ustack_id(R4)
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = val*
+        insns += bi(0x79, R5, R9, 0, 0)  # R5 = len
+        insns += bi(0x79, R8, R9, 8, 0)  # R8 = pid_tgid
+        insns += bi(0x61, R4, R9, 16, 0)  # R4 = ustack_id
+
+        # build agg_map key BEFORE delete (R4 clobbered by helper; save len to fp-40)
+        insns += bi(
+            0x7B, R10, R5, -40, 0
+        )  # fp-40 = len (save before helper clobbers R5)
+        insns += bi(0x7B, R10, R8, -32, 0)  # fp-32 = pid_tgid
+        insns += bi(
+            0x63, R10, R4, -24, 0
+        )  # fp-24 = ustack_id (save before helper clobbers R4)
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+
+        # delete alloc_map[addr] (R1-R5 clobbered; values preserved on stack above)
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # lookup agg_map[key]
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # if NULL: exit (patch)
+
+        # decrease outstanding: *(u64*)(R0+0) -= len
+        insns += bi(
+            0x79, R5, R10, -40, 0
+        )  # R5 = len (reload from stack; R5 clobbered by prior helpers)
+        insns += bi(0x79, R7, R0, 0, 0)
+        insns += bi(0x1F, R7, R5, 0, 0)  # R7 -= R5 (SUB64_REG)
+        insns += bi(0x7B, R0, R7, 0, 0)
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp_null_alloc = exit_pos - (null_alloc_pos + 1)
+        insns = (
+            insns[: null_alloc_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_alloc, 0)
+            + insns[(null_alloc_pos + 1) * 8 :]
+        )
+        jmp_null_agg = exit_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        if exit_nr_pos >= 0:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_filter)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genHeapMallocEntryProg(ts_map_fd, ustack_map_fd=-1):
+        """
+        Uprobe malloc(size): ts_map[pid_tgid] = {ktime, size=arg0, ustack_id}
+        ts_map: HASH key=8B [pid_tgid], val=24B [ktime(8)+size(8)+ustack_id(u32)+pad(u32)]
+        Stack: fp-8=pid_tgid(key), fp-32=ktime, fp-24=size, fp-16=ustack_id+pad
+        arg0 (size): aarch64=ctx+0, x86_64=ctx+112, riscv64=ctx+80
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        di_off = 0 if arch == "aarch64" else (80 if arch == "riscv64" else 112)
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # get pid_tgid → fp-8
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        # ktime → fp-32
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)
+
+        # size = arg0 via probe_read_kernel → fp-24
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -24)  # dst = fp-24
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, di_off)  # src = ctx+di_off
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        # ustack_id at fp-16
+        if ustack_map_fd >= 0:
+            insns += bi(0xBF, R1, R6, 0, 0)  # R1 = ctx
+            insns += LM(R2, ustack_map_fd)  # R2 = map
+            insns += bi(0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK)
+            insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+            insns += bi(0x63, R10, R0, -16, 0)
+        else:
+            insns += bi(0x62, R10, 0, -16, 0)
+        insns += bi(0x62, R10, 0, -12, 0)  # pad
+
+        # map_update_elem(ts_map, fp-8, fp-32, BPF_ANY)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genHeapCallocEntryProg(ts_map_fd, ustack_map_fd=-1):
+        """
+        Uprobe calloc(nmemb, size): store size=nmemb*size in ts_map.
+        arg0=nmemb, arg1=size; we store nmemb in val+8 and size in val+16 scratch.
+        ts_map val: ktime(8)+nmemb(8)+size_per_elem(u32)+ustack_id(u32)
+        Stack: fp-8=pid_tgid, fp-32=ktime, fp-24=nmemb, fp-16=size_per_elem(u32)+ustack_id(u32)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        di_off = 0 if arch == "aarch64" else (80 if arch == "riscv64" else 112)
+        si_off = 8 if arch == "aarch64" else (88 if arch == "riscv64" else 104)
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)
+
+        # nmemb = arg0 → fp-24
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -24)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, di_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        # size_per_elem = arg1 → fp-16 lower 4B (u32)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -16)
+        insns += bi(0xB7, R2, 0, 0, 4)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, si_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        # ustack_id at fp-12 (upper 4B of fp-16 slot)
+        if ustack_map_fd >= 0:
+            insns += bi(0xBF, R1, R6, 0, 0)  # R1 = ctx
+            insns += LM(R2, ustack_map_fd)  # R2 = map
+            insns += bi(0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK)
+            insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+            insns += bi(0x63, R10, R0, -12, 0)
+        else:
+            insns += bi(0x62, R10, 0, -12, 0)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genHeapReallocEntryProg(
+        ts_map_fd, alloc_map_fd, agg_map_fd, ustack_map_fd=-1
+    ):
+        """
+        Uprobe realloc(ptr, size): FIRST decrement the old allocation (arg0)
+        from agg_map, THEN store size=arg1 in ts_map exactly like the
+        original entry so the existing Ret handler (genHeapReallocRetProg,
+        which aliases genHeapMallocRetProg) records the new allocation.
+        Without the decrement here, outstanding only ever grows on realloc,
+        since the Ret handler has no way to see the old pointer.
+        ts_map val: ktime(8)+size(8)+ustack_id(u32)+pad(u32)
+        arg0 (old_ptr): aarch64=ctx+0, x86_64=ctx+112, riscv64=ctx+80
+        arg1 (size): aarch64=ctx+8, x86_64=ctx+104, riscv64=ctx+88
+        Decrement-block stack is isolated from the block below (which reuses
+        fp-8/-32 like the original entry): old_ptr@fp-48, old_size@fp-80,
+        agg key: pid_tgid_old@fp-72, ustack_id_old@fp-64, pad@fp-60
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        di_off = 0 if arch == "aarch64" else (80 if arch == "riscv64" else 112)
+        si_off = 8 if arch == "aarch64" else (88 if arch == "riscv64" else 104)
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        # ---- Block A: decrement old allocation (old_ptr = arg0) ----
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -48)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, di_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        # if old_ptr == 0: skip decrement (realloc(NULL,...) behaves like malloc)
+        insns += bi(0x79, R7, R10, -48, 0)
+        skip_pos1 = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)
+
+        # lookup alloc_map[old_ptr]
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -48)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        skip_pos2 = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # save old_size(R5), pid_tgid_old(R8, callee-saved), ustack_id_old(R4)
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x79, R5, R9, 0, 0)
+        insns += bi(0x79, R8, R9, 8, 0)
+        insns += bi(0x61, R4, R9, 16, 0)
+
+        # build agg_map key BEFORE delete: pid_tgid_old@fp-72, ustack_id_old@fp-64, pad@fp-60
+        insns += bi(0x7B, R10, R8, -72, 0)
+        insns += bi(0x63, R10, R4, -64, 0)
+        insns += bi(0x62, R10, 0, -60, 0)
+        insns += bi(
+            0x7B, R10, R5, -80, 0
+        )  # fp-80 = old_size (save before delete clobbers R5)
+
+        # delete alloc_map[old_ptr]
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -48)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # lookup agg_map using fp-72 key
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -72)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        skip_pos3 = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # outstanding -= old_size
+        insns += bi(0x79, R5, R10, -80, 0)
+        insns += bi(0x79, R7, R0, 0, 0)
+        insns += bi(0x1F, R7, R5, 0, 0)
+        insns += bi(0x7B, R0, R7, 0, 0)
+
+        skip_decrement_label = len(insns) // 8
+
+        # ---- Block B: original entry logic (unchanged) ----
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)
+
+        # size = arg1 → fp-24
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -24)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, si_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        if ustack_map_fd >= 0:
+            insns += bi(0xBF, R1, R6, 0, 0)  # R1 = ctx
+            insns += LM(R2, ustack_map_fd)  # R2 = map
+            insns += bi(0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK)
+            insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+            insns += bi(0x63, R10, R0, -16, 0)
+        else:
+            insns += bi(0x62, R10, 0, -16, 0)
+        insns += bi(0x62, R10, 0, -12, 0)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp1 = skip_decrement_label - (skip_pos1 + 1)
+        insns = (
+            insns[: skip_pos1 * 8]
+            + bi(0x15, R7, 0, jmp1, 0)
+            + insns[(skip_pos1 + 1) * 8 :]
+        )
+        jmp2 = skip_decrement_label - (skip_pos2 + 1)
+        insns = (
+            insns[: skip_pos2 * 8]
+            + bi(0x15, R0, 0, jmp2, 0)
+            + insns[(skip_pos2 + 1) * 8 :]
+        )
+        jmp3 = skip_decrement_label - (skip_pos3 + 1)
+        insns = (
+            insns[: skip_pos3 * 8]
+            + bi(0x15, R0, 0, jmp3, 0)
+            + insns[(skip_pos3 + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genHeapMemalignEntryProg(ts_map_fd, ustack_map_fd=-1):
+        """
+        Uprobe memalign/aligned_alloc(align, size): size=arg1.
+        Self-contained (NOT an alias of genHeapReallocEntryProg): realloc's
+        entry now also reads arg0 as a heap pointer to decrement the old
+        allocation, but memalign's arg0 is an alignment value, not a
+        pointer — aliasing it would risk a spurious alloc_map lookup hit.
+        ts_map val: ktime(8)+size(8)+ustack_id(u32)+pad(u32)
+        arg1 (size): aarch64=ctx+8, x86_64=ctx+104, riscv64=ctx+88
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        si_off = 8 if arch == "aarch64" else (88 if arch == "riscv64" else 104)
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)
+
+        # size = arg1 → fp-24
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -24)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, si_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        if ustack_map_fd >= 0:
+            insns += bi(0xBF, R1, R6, 0, 0)  # R1 = ctx
+            insns += LM(R2, ustack_map_fd)  # R2 = map
+            insns += bi(0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK)
+            insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
+            insns += bi(0x63, R10, R0, -16, 0)
+        else:
+            insns += bi(0x62, R10, 0, -16, 0)
+        insns += bi(0x62, R10, 0, -12, 0)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
+    def genHeapMallocRetProg(ts_map_fd, alloc_map_fd, agg_map_fd):
+        """
+        Uprobe return for malloc/calloc/memalign: record allocation.
+        Return value (ret_ptr): aarch64=ctx+0, x86_64=ctx+80
+        alloc_map: HASH key=8B [ret_ptr], val=24B [size(8)+pid_tgid(8)+ustack_id(u32)+pad(u32)]
+        agg_map: HASH key=16B [pid_tgid(8)+ustack_id(u32)+pad(u32)],
+                      val=24B [outstanding(8)+total(8)+cnt(8)]
+        Stack: fp-8=ret_ptr(key), fp-16=pid_tgid, fp-40=alloc val, fp-64=agg key, fp-96=agg insert val
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        ax_off = 0 if arch == "aarch64" else 80
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        # ret_ptr via probe_read_kernel → fp-8
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -8)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, ax_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        # if ret_ptr == 0: exit
+        insns += bi(0x79, R7, R10, -8, 0)  # R7 = ret_ptr
+        exit_null_ret_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)  # if ret_ptr==0: exit (patch)
+
+        # get pid_tgid → fp-16, R9
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -16, 0)
+
+        # lookup ts_map[pid_tgid]
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -16)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # if NULL: exit (patch)
+
+        # save size(R5), ustack_id(R4) from ts_map val
+        insns += bi(0xBF, R8, R0, 0, 0)
+        insns += bi(0x79, R5, R8, 8, 0)  # R5 = size
+        insns += bi(0x61, R4, R8, 16, 0)  # R4 = ustack_id
+
+        # build alloc_map val BEFORE delete (saves R5/R4 while still valid)
+        insns += bi(0x7B, R10, R5, -40, 0)  # fp-40 = size
+        insns += bi(
+            0x7B, R10, R9, -32, 0
+        )  # fp-32 = pid_tgid (R9, callee-saved)
+        insns += bi(0x63, R10, R4, -24, 0)  # fp-24 = ustack_id
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+
+        # delete ts_map entry (R1-R5 clobbered; R5/R4 preserved on stack above)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -16)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # map_update_elem(alloc_map, fp-8, fp-40, BPF_ANY) — alloc val already at fp-40
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -40)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        # build agg_map key at fp-64: pid_tgid@fp-64, ustack_id+pad@fp-56
+        insns += bi(
+            0x7B, R10, R9, -64, 0
+        )  # R9 = pid_tgid (callee-saved, still valid)
+        insns += bi(
+            0x61, R4, R10, -24, 0
+        )  # R4 = ustack_id (reload from stack)
+        insns += bi(0x63, R10, R4, -56, 0)
+        insns += bi(0x62, R10, 0, -52, 0)
+
+        # lookup agg_map
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -64)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # update: outstanding+=size, total+=size, cnt+=1
+        insns += bi(
+            0x79, R5, R10, -40, 0
+        )  # R5 = size (reload; R5 clobbered by helpers)
+        insns += bi(0x79, R7, R0, 0, 0)
+        insns += bi(0x0F, R7, R5, 0, 0)
+        insns += bi(0x7B, R0, R7, 0, 0)
+        insns += bi(0x79, R7, R0, 8, 0)
+        insns += bi(0x0F, R7, R5, 0, 0)
+        insns += bi(0x7B, R0, R7, 8, 0)
+        insns += bi(0x79, R7, R0, 16, 0)
+        insns += bi(0x07, R7, 0, 0, 1)
+        insns += bi(0x7B, R0, R7, 16, 0)
+
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)
+
+        # insert agg
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x79, R5, R10, -40, 0)  # R5 = size (reload from stack)
+        insns += bi(0x7B, R10, R5, -96, 0)  # outstanding = size
+        insns += bi(0x7B, R10, R5, -88, 0)  # total = size
+        insns += bi(0x7A, R10, 0, -80, 1)  # cnt = 1
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -64)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -96)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp_null_ret = exit_pos - (exit_null_ret_pos + 1)
+        insns = (
+            insns[: exit_null_ret_pos * 8]
+            + bi(0x15, R7, 0, jmp_null_ret, 0)
+            + insns[(exit_null_ret_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genHeapCallocRetProg(ts_map_fd, alloc_map_fd, agg_map_fd):
+        """
+        Uprobe return for calloc: size = nmemb * size_per_elem.
+        ts_map val layout (calloc): ktime(8)+nmemb(8)+size_per_elem(u32)+ustack_id(u32)
+          → val+8=nmemb, val+16=size_per_elem, val+20=ustack_id
+        MUL64_REG opcode: 0x2F  (R5 = R5 * R7)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        ax_off = 0 if arch == "aarch64" else 80
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        # ret_ptr via probe_read_kernel → fp-8
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -8)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, ax_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        insns += bi(0x79, R7, R10, -8, 0)  # R7 = ret_ptr
+        exit_null_ret_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -16, 0)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -16)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        insns += bi(0xBF, R8, R0, 0, 0)
+        insns += bi(0x79, R5, R8, 8, 0)  # R5 = nmemb
+        insns += bi(0x61, R7, R8, 16, 0)  # R7 = size_per_elem (u32 zero-ext)
+        insns += bi(
+            0x2F, R5, R7, 0, 0
+        )  # R5 = nmemb * size_per_elem (MUL64_REG)
+        insns += bi(0x61, R4, R8, 20, 0)  # R4 = ustack_id (u32 at val+20)
+
+        # build alloc_map val BEFORE delete (saves R5/R4 while still valid)
+        insns += bi(0x7B, R10, R5, -40, 0)  # fp-40 = size
+        insns += bi(
+            0x7B, R10, R9, -32, 0
+        )  # fp-32 = pid_tgid (R9, callee-saved)
+        insns += bi(0x63, R10, R4, -24, 0)  # fp-24 = ustack_id
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+
+        # delete ts_map entry (R1-R5 clobbered; R5/R4 preserved on stack above)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -16)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # map_update_elem(alloc_map, fp-8, fp-40, BPF_ANY) — alloc val already at fp-40
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -40)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        # build agg_map key at fp-64: pid_tgid@fp-64, ustack_id+pad@fp-56
+        insns += bi(
+            0x7B, R10, R9, -64, 0
+        )  # R9 = pid_tgid (callee-saved, still valid)
+        insns += bi(
+            0x61, R4, R10, -24, 0
+        )  # R4 = ustack_id (reload from stack)
+        insns += bi(0x63, R10, R4, -56, 0)
+        insns += bi(0x62, R10, 0, -52, 0)
+
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -64)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        insns += bi(
+            0x79, R5, R10, -40, 0
+        )  # R5 = size (reload; R5 clobbered by helpers)
+        insns += bi(0x79, R7, R0, 0, 0)
+        insns += bi(0x0F, R7, R5, 0, 0)
+        insns += bi(0x7B, R0, R7, 0, 0)
+        insns += bi(0x79, R7, R0, 8, 0)
+        insns += bi(0x0F, R7, R5, 0, 0)
+        insns += bi(0x7B, R0, R7, 8, 0)
+        insns += bi(0x79, R7, R0, 16, 0)
+        insns += bi(0x07, R7, 0, 0, 1)
+        insns += bi(0x7B, R0, R7, 16, 0)
+
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)
+
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x79, R5, R10, -40, 0)  # R5 = size (reload from stack)
+        insns += bi(0x7B, R10, R5, -96, 0)  # outstanding = size
+        insns += bi(0x7B, R10, R5, -88, 0)  # total = size
+        insns += bi(0x7A, R10, 0, -80, 1)  # cnt = 1
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -64)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -96)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp_null_ret = exit_pos - (exit_null_ret_pos + 1)
+        insns = (
+            insns[: exit_null_ret_pos * 8]
+            + bi(0x15, R7, 0, jmp_null_ret, 0)
+            + insns[(exit_null_ret_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genHeapReallocRetProg(ts_map_fd, alloc_map_fd, agg_map_fd):
+        """Uprobe return for realloc: same as MallocRet (track new allocation)."""
+        return BpfMgr.genHeapMallocRetProg(ts_map_fd, alloc_map_fd, agg_map_fd)
+
+    @staticmethod
+    def genHeapFreeProg(alloc_map_fd, agg_map_fd):
+        """
+        Uprobe free(ptr): decrease outstanding in agg_map, delete from alloc_map.
+        arg0 (ptr): aarch64=ctx+0, x86_64=ctx+112, riscv64=ctx+80
+        Stack: fp-8=ptr(key), fp-32=agg_key: pid_tgid@fp-32, ustack_id+pad@fp-24
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+        arch = SysMgr.getArch()
+        di_off = 0 if arch == "aarch64" else (80 if arch == "riscv64" else 112)
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        # ptr = arg0 via probe_read_kernel → fp-8
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -8)
+        insns += bi(0xB7, R2, 0, 0, 8)
+        insns += bi(0xBF, R3, R6, 0, 0)
+        insns += bi(0x07, R3, 0, 0, di_off)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_kernel"])
+
+        # if ptr == 0: exit (free(NULL) is a no-op)
+        insns += bi(0x79, R7, R10, -8, 0)
+        exit_null_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)
+
+        # lookup alloc_map[ptr]
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_alloc_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # save size, pid_tgid, ustack_id from alloc_map val
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x79, R5, R9, 0, 0)  # R5 = size
+        insns += bi(0x79, R8, R9, 8, 0)  # R8 = pid_tgid (callee-saved)
+        insns += bi(0x61, R4, R9, 16, 0)  # R4 = ustack_id
+
+        # build agg_map key BEFORE delete (R4/R5 are caller-saved, clobbered by delete)
+        insns += bi(
+            0x7B, R10, R8, -32, 0
+        )  # fp-32 = pid_tgid (R8, callee-saved)
+        insns += bi(
+            0x63, R10, R4, -24, 0
+        )  # fp-24 = ustack_id (R4, must save before delete)
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+        insns += bi(
+            0x7B, R10, R5, -40, 0
+        )  # fp-40 = size (R5, must save before delete)
+
+        # delete alloc_map[ptr] (R1-R5 clobbered; key+size saved on stack above)
+        insns += LM(R1, alloc_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # lookup agg_map using fp-32 key (already built before delete)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # decrease outstanding; reload R5 from stack (clobbered by prior map calls)
+        insns += bi(0x79, R5, R10, -40, 0)  # R5 = size (reload)
+        insns += bi(0x79, R7, R0, 0, 0)
+        insns += bi(0x1F, R7, R5, 0, 0)  # SUB64_REG
+        insns += bi(0x7B, R0, R7, 0, 0)
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp_null_ret = exit_pos - (exit_null_pos + 1)
+        insns = (
+            insns[: exit_null_pos * 8]
+            + bi(0x15, R7, 0, jmp_null_ret, 0)
+            + insns[(exit_null_pos + 1) * 8 :]
+        )
+        jmp_null_alloc = exit_pos - (null_alloc_pos + 1)
+        insns = (
+            insns[: null_alloc_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_alloc, 0)
+            + insns[(null_alloc_pos + 1) * 8 :]
+        )
+        jmp_null_agg = exit_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genVfsReadEntryProg(ts_map_fd, nr_read=-1):
+        """
+        Tracepoint sys_enter_read: store entry time + fd.
+        nr_read != -1: raw_syscalls/sys_enter mode with NR filter at ctx+8.
+        fd at ctx+16 (u32). ts_map val: ktime(8)@fp-24, fd(u32)@fp-16, rw(u32)@fp-12.
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        if nr_read != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_read)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -24, 0)
+
+        insns += bi(0x61, R7, R6, 16, 0)
+        insns += bi(0x63, R10, R7, -16, 0)
+        insns += bi(0x62, R10, 0, -12, 0)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -24)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_read != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_read)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genVfsReadExitProg(ts_map_fd, agg_map_fd, nr_read=-1):
+        """
+        Tracepoint sys_exit_read: record read bytes + latency.
+        nr_read != -1: raw_syscalls/sys_exit NR filter at ctx+8.
+        Callee-saved reg allocation: R6=ctx, R7=entry_ktime→delta_ns, R8=bytes_read, R9=pid_tgid
+        agg_map key=16B at fp-32: pid_tgid@fp-32, fd(u32)@fp-24, pad@fp-20
+        agg_map val=48B at fp-96: rd_bytes(8)+wr_bytes(8)+rd_ns(8)+wr_ns(8)+rd_cnt(u32)+wr_cnt(u32)+pad(8)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx (callee-saved)
+
+        if nr_read != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_read)
+
+        # ret = ctx+16; skip if <= 0
+        insns += bi(0x79, R7, R6, 16, 0)
+        exit_err_pos = len(insns) // 8
+        insns += bi(0xC5, R7, 0, 0, 0)  # JSLT < 0: exit
+        exit_zero_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)  # JEQ == 0: exit
+
+        insns += bi(0xBF, R8, R7, 0, 0)  # R8 = bytes_read (callee-saved)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (callee-saved)
+        insns += bi(0x7B, R10, R9, -8, 0)  # fp-8 = key
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # Read entry_ktime → R7 (callee-saved), fd → R5 (build key before delete)
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = entry_ktime (callee-saved)
+        insns += bi(0x61, R5, R0, 8, 0)  # R5 = fd
+
+        # Build agg_key BEFORE delete (R5=fd is caller-saved, save now)
+        insns += bi(0x7B, R10, R9, -32, 0)  # fp-32 = pid_tgid
+        insns += bi(
+            0x63, R10, R5, -24, 0
+        )  # fp-24 = fd (save R5 before delete)
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+
+        # delete ts_map (R1-R5 clobbered; R7=entry_ktime, R8=bytes_read, R9=pid_tgid survive)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # delta_ns = now - entry_ktime (R7=entry_ktime survives delete, callee-saved)
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = now - entry_ktime
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = delta_ns (callee-saved)
+
+        # lookup agg_map (R7=delta_ns, R8=bytes_read survive as callee-saved)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # update: rd_bytes[+0]+=R8, rd_ns[+16]+=R7, rd_cnt[+32]+=1
+        insns += bi(0x79, R5, R0, 0, 0)
+        insns += bi(0x0F, R5, R8, 0, 0)
+        insns += bi(0x7B, R0, R5, 0, 0)
+        insns += bi(0x79, R5, R0, 16, 0)
+        insns += bi(0x0F, R5, R7, 0, 0)
+        insns += bi(0x7B, R0, R5, 16, 0)
+        insns += bi(0x61, R5, R0, 32, 0)
+        insns += bi(0x07, R5, 0, 0, 1)
+        insns += bi(0x63, R0, R5, 32, 0)
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)
+
+        # insert: 48B val at fp-96 (R7=delta_ns, R8=bytes_read still callee-saved)
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x7B, R10, R8, -96, 0)  # rd_bytes
+        insns += bi(0x7A, R10, 0, -88, 0)  # wr_bytes = 0
+        insns += bi(0x7B, R10, R7, -80, 0)  # rd_ns
+        insns += bi(0x7A, R10, 0, -72, 0)  # wr_ns = 0
+        insns += bi(0x62, R10, 0, -64, 1)  # rd_cnt = 1
+        insns += bi(0x62, R10, 0, -60, 0)  # wr_cnt = 0
+        insns += bi(0x7A, R10, 0, -56, 0)  # pad = 0
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -96)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_read != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_read)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        jmp_err = exit_pos - (exit_err_pos + 1)
+        insns = (
+            insns[: exit_err_pos * 8]
+            + bi(0xC5, R7, 0, jmp_err, 0)
+            + insns[(exit_err_pos + 1) * 8 :]
+        )
+        jmp_zero = exit_pos - (exit_zero_pos + 1)
+        insns = (
+            insns[: exit_zero_pos * 8]
+            + bi(0x15, R7, 0, jmp_zero, 0)
+            + insns[(exit_zero_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genVfsWriteEntryProg(ts_map_fd, nr_write=-1):
+        """
+        Tracepoint syscalls/sys_enter_write: store entry time + fd.
+        nr_write != -1: raw_syscalls/sys_enter mode with NR filter at ctx+8.
+        write args: fd(+16), buf(+24), count(+32)
+        ts_map: HASH key=8B [pid_tgid], val=16B [ktime(8)+fd(u32)+rw(u32=1)]
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        if nr_write != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_write)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -24, 0)
+
+        insns += bi(0x61, R7, R6, 16, 0)  # fd
+        insns += bi(0x63, R10, R7, -16, 0)
+        insns += bi(0x62, R10, 0, -12, 1)  # rw = 1 (write)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -24)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_write != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_write)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genVfsWriteExitProg(ts_map_fd, agg_map_fd, nr_write=-1):
+        """
+        Tracepoint sys_exit_write: record write bytes + latency.
+        nr_write != -1: raw_syscalls/sys_exit NR filter at ctx+8.
+        Callee-saved reg allocation: R6=ctx, R7=entry_ktime->delta_ns, R8=bytes_written, R9=pid_tgid
+        agg_map key=16B at fp-32: pid_tgid@fp-32, fd(u32)@fp-24, pad@fp-20
+        agg_map val=48B at fp-96: rd_bytes(8)+wr_bytes(8)+rd_ns(8)+wr_ns(8)+rd_cnt(u32)+wr_cnt(u32)+pad(8)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx (callee-saved)
+
+        if nr_write != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_write)
+
+        # ret = ctx+16; skip if <= 0
+        insns += bi(0x79, R7, R6, 16, 0)
+        exit_err_pos = len(insns) // 8
+        insns += bi(0xC5, R7, 0, 0, 0)  # JSLT < 0: exit
+        exit_zero_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)  # JEQ == 0: exit
+
+        insns += bi(0xBF, R8, R7, 0, 0)  # R8 = bytes_written (callee-saved)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (callee-saved)
+        insns += bi(0x7B, R10, R9, -8, 0)  # fp-8 = key
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # Read entry_ktime -> R7 (callee-saved), fd -> R5 (build key before delete)
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = entry_ktime (callee-saved)
+        insns += bi(0x61, R5, R0, 8, 0)  # R5 = fd
+
+        # Build agg_key BEFORE delete (R5=fd is caller-saved, save now)
+        insns += bi(0x7B, R10, R9, -32, 0)  # fp-32 = pid_tgid
+        insns += bi(
+            0x63, R10, R5, -24, 0
+        )  # fp-24 = fd (save R5 before delete)
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = 0 pad
+
+        # delete ts_map (R1-R5 clobbered; R7=entry_ktime, R8=bytes_written, R9=pid_tgid survive)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # delta_ns = now - entry_ktime (R7=entry_ktime survives delete, callee-saved)
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = now - entry_ktime
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = delta_ns (callee-saved)
+
+        # lookup agg_map (R7=delta_ns, R8=bytes_written survive as callee-saved)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # update: wr_bytes[+8]+=R8, wr_ns[+24]+=R7, wr_cnt[+36]+=1
+        insns += bi(0x79, R5, R0, 8, 0)
+        insns += bi(0x0F, R5, R8, 0, 0)
+        insns += bi(0x7B, R0, R5, 8, 0)
+        insns += bi(0x79, R5, R0, 24, 0)
+        insns += bi(0x0F, R5, R7, 0, 0)
+        insns += bi(0x7B, R0, R5, 24, 0)
+        insns += bi(0x61, R5, R0, 36, 0)
+        insns += bi(0x07, R5, 0, 0, 1)
+        insns += bi(0x63, R0, R5, 36, 0)
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)
+
+        # insert: 48B val at fp-96 (R7=delta_ns, R8=bytes_written still callee-saved)
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x7A, R10, 0, -96, 0)  # rd_bytes = 0
+        insns += bi(0x7B, R10, R8, -88, 0)  # wr_bytes = bytes_written
+        insns += bi(0x7A, R10, 0, -80, 0)  # rd_ns = 0
+        insns += bi(0x7B, R10, R7, -72, 0)  # wr_ns = delta_ns
+        insns += bi(0x62, R10, 0, -64, 0)  # rd_cnt = 0
+        insns += bi(0x62, R10, 0, -60, 1)  # wr_cnt = 1
+        insns += bi(0x7A, R10, 0, -56, 0)  # pad = 0
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -96)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_write != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_write)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        jmp_err = exit_pos - (exit_err_pos + 1)
+        insns = (
+            insns[: exit_err_pos * 8]
+            + bi(0xC5, R7, 0, jmp_err, 0)
+            + insns[(exit_err_pos + 1) * 8 :]
+        )
+        jmp_zero = exit_pos - (exit_zero_pos + 1)
+        insns = (
+            insns[: exit_zero_pos * 8]
+            + bi(0x15, R7, 0, jmp_zero, 0)
+            + insns[(exit_zero_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genIoUringEntryProg(ts_map_fd, nr_io_uring_enter=-1):
+        """
+        Tracepoint sys_enter_io_uring_enter: store entry ktime keyed by pid_tgid.
+        Same raw_syscalls/syscalls NR-filter pattern as genVfsReadEntryProg, minus
+        fd/rw tracking (io_uring_enter has no per-call byte size worth recording).
+        ts_map: HASH key=8B [pid_tgid], val=8B [ktime]
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        if nr_io_uring_enter != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_io_uring_enter)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)  # key = pid_tgid
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -16, 0)  # val = ktime
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -16)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_io_uring_enter != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_io_uring_enter)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genIoUringExitProg(ts_map_fd, agg_map_fd, nr_io_uring_enter=-1):
+        """
+        Tracepoint sys_exit_io_uring_enter: compute latency, update per-pid
+        aggregate (cnt + total_ns + max_ns). Mirrors genVfsReadExitProg's
+        ts_map lookup-delete + agg_map lookup-update/insert flow, keyed by
+        pid_tgid only (no fd/bytes needed for io_uring).
+        Callee-saved reg allocation: R6=ctx, R7=entry_ktime->delta_ns, R9=pid_tgid
+        agg_map key=8B [pid_tgid]
+        agg_map val=24B: total_ns(8)@0, cnt(8)@8, max_ns(8)@16
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R9, R10 = 0, 1, 2, 3, 4, 5, 6, 7, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx (callee-saved)
+
+        if nr_io_uring_enter != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_io_uring_enter)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (callee-saved)
+        insns += bi(0x7B, R10, R9, -8, 0)  # fp-8 = key
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # JEQ NULL -> exit
+
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = entry_ktime (callee-saved)
+
+        # delete ts_map[pid_tgid] (R1-R5 clobbered; R7, R9 survive)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # delta_ns = now - entry_ktime
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = now - entry_ktime
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = delta_ns (callee-saved)
+
+        # agg_map key = pid_tgid, still at fp-8 (untouched memory)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)  # JEQ NULL -> insert
+
+        # update: total_ns[+0]+=R7, cnt[+8]+=1, max_ns[+16]=max(max_ns,R7)
+        insns += bi(0x79, R5, R0, 0, 0)
+        insns += bi(0x0F, R5, R7, 0, 0)
+        insns += bi(0x7B, R0, R5, 0, 0)
+        insns += bi(0x79, R5, R0, 8, 0)
+        insns += bi(0x07, R5, 0, 0, 1)
+        insns += bi(0x7B, R0, R5, 8, 0)
+        insns += bi(0x79, R5, R0, 16, 0)  # R5 = cur max_ns
+        skip_max_pos = len(insns) // 8
+        insns += bi(
+            0xBD, R7, R5, 0, 0
+        )  # JLE_X: if delta_ns <= cur_max, skip store
+        insns += bi(0x7B, R0, R7, 16, 0)  # max_ns = delta_ns
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # JMP -> exit
+
+        # insert: 24B val at fp-40 (R7=delta_ns still callee-saved)
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x7B, R10, R7, -40, 0)  # total_ns = delta_ns
+        insns += bi(0x7A, R10, 0, -32, 1)  # cnt = 1
+        insns += bi(0x7B, R10, R7, -24, 0)  # max_ns = delta_ns
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -40)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_io_uring_enter != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_io_uring_enter)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_skip_max = jmp_done_pos - (skip_max_pos + 1)
+        insns = (
+            insns[: skip_max_pos * 8]
+            + bi(0xBD, R7, R5, jmp_skip_max, 0)
+            + insns[(skip_max_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genUdpSendEntryProg(ts_map_fd, nr_sendto=-1):
+        """
+        Tracepoint syscalls/sys_enter_sendto: store {ktime, len, sockfd, dport}.
+        nr_sendto != -1: raw_syscalls/sys_enter mode with NR filter at ctx+8.
+        sendto args: sockfd(+16), buf(+24), len(+32), flags(+40), dest_addr(+48), addrlen(+56)
+        ts_map: HASH key=8B [pid_tgid], val=24B [ktime(8)+len(u32)+sockfd(u32)+dir(u32=0)+dport(u32)]
+        Stack: fp-8=pid_tgid(key), val at fp-32: ktime@fp-32, len+sockfd@fp-24, dir+dport@fp-16
+        dport is read from dest_addr->sin_port (offset 2, network byte order) via
+        bpf_probe_read_user into scratch fp-40, since /proc/net/udp's rem_address
+        is only populated for connect()'d sockets and is unusable for classifying
+        unconnected sendto() traffic (e.g. DNS queries).
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        if nr_sendto != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_sendto)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)
+
+        # len = ctx+32 (u32 in sys_enter context)
+        insns += bi(0x61, R7, R6, 32, 0)
+        insns += bi(0x63, R10, R7, -24, 0)
+
+        # sockfd = ctx+16 (u32)
+        insns += bi(0x61, R8, R6, 16, 0)
+        insns += bi(0x63, R10, R8, -20, 0)
+
+        insns += bi(0x62, R10, 0, -16, 0)  # dir = 0 (send)
+
+        # dest_addr = ctx+48 (u64 user ptr); untag HWASAN top byte
+        insns += bi(0x79, R9, R6, 48, 0)
+        insns += bi(0x67, R9, 0, 0, 8)
+        insns += bi(0x77, R9, 0, 0, 8)
+
+        insns += bi(0x62, R10, 0, -40, 0)  # zero scratch fp-40 (4B)
+        skip_probe_pos = len(insns) // 8
+        insns += bi(0x15, R9, 0, 0, 0)  # if dest_addr==0: skip probe
+
+        insns += bi(0x07, R9, 0, 0, 2)  # R9 = &dest_addr->sin_port
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -40)
+        insns += bi(0xB7, R2, 0, 0, 2)
+        insns += bi(0xBF, R3, R9, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+
+        skip_probe_target = len(insns) // 8
+        jmp_probe = skip_probe_target - (skip_probe_pos + 1)
+        insns = (
+            insns[: skip_probe_pos * 8]
+            + bi(0x15, R9, 0, jmp_probe, 0)
+            + insns[(skip_probe_pos + 1) * 8 :]
+        )
+
+        # combine 2 network-order bytes at fp-40/fp-39 into host int (no BPF_END needed)
+        insns += bi(0x71, R7, R10, -40, 0)  # R7 = high byte
+        insns += bi(0x71, R8, R10, -39, 0)  # R8 = low byte
+        insns += bi(0x67, R7, 0, 0, 8)
+        insns += bi(0x4F, R7, R8, 0, 0)  # R7 = dport (host order)
+
+        insns += bi(0x63, R10, R7, -12, 0)  # dport (was pad)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        if nr_sendto != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_sendto)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genUdpSendExitProg(ts_map_fd, agg_map_fd, nr_sendto=-1):
+        """
+        Tracepoint sys_exit_sendto: update agg_map with tx bytes.
+        nr_sendto != -1: raw_syscalls/sys_exit NR filter at ctx+8.
+        Callee-saved: R6=ctx, R7=entry_ktime->tx_ns, R8=tx_bytes, R9=pid_tgid
+        agg_map: HASH key=16B [pid_tgid(8)+sockfd(u32)+dir(u32=0)],
+                      val=40B [tx_bytes(8)+rx_bytes(8)+tx_pkts(u32)+rx_pkts(u32)+tx_ns(8)+dport(u32)+pad(u32)]
+        dport (captured at sendto entry) is only written on INSERT (new agg entry);
+        it does not change across an existing socket's later packets so no UPDATE
+        path is needed for it. Saved to scratch fp-16 across the ts_map delete call.
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx (callee-saved)
+
+        if nr_sendto != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_sendto)
+
+        # ret = ctx+16; if < 0: exit
+        insns += bi(0x79, R7, R6, 16, 0)
+        exit_err_pos = len(insns) // 8
+        insns += bi(0xC5, R7, 0, 0, 0)
+
+        insns += bi(0xBF, R8, R7, 0, 0)  # R8 = tx_bytes (callee-saved)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (callee-saved)
+        insns += bi(0x7B, R10, R9, -8, 0)  # fp-8 = key
+
+        # lookup ts_map
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # R7 = entry_ktime (callee-saved), R5 = sockfd/dport (temp, save before delete)
+        insns += bi(0x79, R7, R0, 0, 0)  # R7 = entry_ktime (callee-saved)
+
+        insns += bi(
+            0x61, R5, R0, 20, 0
+        )  # R5 = dport at val+20 (repurposed pad)
+        insns += bi(
+            0x63, R10, R5, -16, 0
+        )  # fp-16 = dport (scratch, survives delete)
+
+        insns += bi(0x61, R5, R0, 12, 0)  # R5 = sockfd at val+12
+
+        # Build agg_key BEFORE delete (R5=sockfd caller-saved)
+        insns += bi(0x7B, R10, R9, -32, 0)  # fp-32 = pid_tgid
+        insns += bi(
+            0x63, R10, R5, -24, 0
+        )  # fp-24 = sockfd (save before delete)
+        insns += bi(0x62, R10, 0, -20, 0)  # fp-20 = dir=0
+
+        # delete ts_map (R1-R5 clobbered; R7=entry_ktime, R8=tx_bytes, R9=pid_tgid survive)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # tx_ns = now - entry_ktime (R7=entry_ktime survives)
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R7, 0, 0)  # R0 = now - entry_ktime
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = tx_ns (callee-saved)
+
+        # lookup agg_map (R7=tx_ns, R8=tx_bytes survive)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # update: tx_bytes[+0]+=R8, tx_pkts[+16]+=1, tx_ns[+24]+=R7
+        insns += bi(0x79, R5, R0, 0, 0)
+        insns += bi(0x0F, R5, R8, 0, 0)
+        insns += bi(0x7B, R0, R5, 0, 0)
+        insns += bi(0x61, R5, R0, 16, 0)
+        insns += bi(0x07, R5, 0, 0, 1)
+        insns += bi(0x63, R0, R5, 16, 0)
+        insns += bi(0x79, R5, R0, 24, 0)
+        insns += bi(0x0F, R5, R7, 0, 0)
+        insns += bi(0x7B, R0, R5, 24, 0)
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)
+
+        # insert: 40B val at fp-72 (R7=tx_ns, R8=tx_bytes still callee-saved)
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x7B, R10, R8, -72, 0)  # tx_bytes
+        insns += bi(0x7A, R10, 0, -64, 0)  # rx_bytes = 0
+        insns += bi(0x62, R10, 0, -56, 1)  # tx_pkts = 1
+        insns += bi(0x62, R10, 0, -52, 0)  # rx_pkts = 0
+        insns += bi(0x7B, R10, R7, -48, 0)  # tx_ns
+        insns += bi(
+            0x61, R5, R10, -16, 0
+        )  # R5 = saved dport (from before delete)
+        insns += bi(0x63, R10, R5, -40, 0)  # dport
+        insns += bi(0x62, R10, 0, -36, 0)  # pad = 0
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -72)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_sendto != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_sendto)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        jmp_err = exit_pos - (exit_err_pos + 1)
+        insns = (
+            insns[: exit_err_pos * 8]
+            + bi(0xC5, R7, 0, jmp_err, 0)
+            + insns[(exit_err_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genUdpRecvEntryProg(ts_map_fd, nr_recvfrom=-1):
+        """
+        Tracepoint syscalls/sys_enter_recvfrom: store {ktime, len, sockfd}.
+        nr_recvfrom != -1: raw_syscalls/sys_enter mode with NR filter at ctx+8.
+        recvfrom args: sockfd(+16), buf(+24), len(+32)
+        ts_map val: ktime(8)+len(u32)+sockfd(u32)+dir(u32=1)+pad(u32)
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)
+
+        if nr_recvfrom != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_recvfrom)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)
+        insns += bi(0x7B, R10, R9, -8, 0)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -32, 0)
+
+        insns += bi(0x61, R7, R6, 32, 0)  # len
+        insns += bi(0x63, R10, R7, -24, 0)
+
+        insns += bi(0x61, R8, R6, 16, 0)  # sockfd
+        insns += bi(0x63, R10, R8, -20, 0)
+
+        insns += bi(0x62, R10, 0, -16, 1)  # dir = 1 (recv)
+        insns += bi(0x62, R10, 0, -12, 0)  # pad
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        if nr_recvfrom != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_recvfrom)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
+    @staticmethod
+    def genUdpRecvExitProg(ts_map_fd, agg_map_fd, nr_recvfrom=-1):
+        """
+        Tracepoint sys_exit_recvfrom: update agg_map with rx bytes.
+        nr_recvfrom != -1: raw_syscalls/sys_exit NR filter at ctx+8.
+        Callee-saved: R6=ctx, R7=entry_ktime (unused in agg), R8=rx_bytes, R9=pid_tgid
+        agg_map: same 40B layout as send; dir=1, rx_bytes at +8, rx_pkts at +20.
+        recv direction carries no meaningful destination port, so dport/pad are
+        always zeroed on insert (never read back by the update path).
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = (
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+        )
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx (callee-saved)
+
+        if nr_recvfrom != -1:
+            insns += bi(0x79, R7, R6, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_recvfrom)
+
+        # ret = ctx+16; if < 0: exit
+        insns += bi(0x79, R7, R6, 16, 0)
+        exit_err_pos = len(insns) // 8
+        insns += bi(0xC5, R7, 0, 0, 0)
+
+        insns += bi(0xBF, R8, R7, 0, 0)  # R8 = rx_bytes (callee-saved)
+
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid (callee-saved)
+        insns += bi(0x7B, R10, R9, -8, 0)  # fp-8 = key
+
+        # lookup ts_map
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_ts_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # R7 = entry_ktime (callee-saved), R5 = sockfd (temp)
+        insns += bi(
+            0x79, R7, R0, 0, 0
+        )  # R7 = entry_ktime (callee-saved, not used in agg)
+        insns += bi(0x61, R5, R0, 12, 0)  # R5 = sockfd at val+12
+
+        # Build agg_key BEFORE delete (R5=sockfd caller-saved)
+        insns += bi(0x7B, R10, R9, -32, 0)  # fp-32 = pid_tgid
+        insns += bi(
+            0x63, R10, R5, -24, 0
+        )  # fp-24 = sockfd (save before delete)
+        insns += bi(0x62, R10, 0, -20, 1)  # fp-20 = dir=1 (recv)
+
+        # delete ts_map (R7=entry_ktime, R8=rx_bytes, R9=pid_tgid survive as callee-saved)
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_delete_elem"])
+
+        # lookup agg_map (R8=rx_bytes survives)
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        null_agg_pos = len(insns) // 8
+        insns += bi(0x15, R0, 0, 0, 0)
+
+        # update: rx_bytes[+8]+=R8, rx_pkts[+20]+=1
+        insns += bi(0x79, R5, R0, 8, 0)
+        insns += bi(0x0F, R5, R8, 0, 0)
+        insns += bi(0x7B, R0, R5, 8, 0)
+        insns += bi(0x61, R5, R0, 20, 0)
+        insns += bi(0x07, R5, 0, 0, 1)
+        insns += bi(0x63, R0, R5, 20, 0)
+        jmp_done_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)
+
+        # insert: 40B val at fp-72 (R8=rx_bytes still callee-saved)
+        insert_agg_pos = len(insns) // 8
+        insns += bi(0x7A, R10, 0, -72, 0)  # tx_bytes = 0
+        insns += bi(0x7B, R10, R8, -64, 0)  # rx_bytes
+        insns += bi(0x62, R10, 0, -56, 0)  # tx_pkts = 0
+        insns += bi(0x62, R10, 0, -52, 1)  # rx_pkts = 1
+        insns += bi(0x7A, R10, 0, -48, 0)  # tx_ns = 0
+        insns += bi(0x7A, R10, 0, -40, 0)  # dport=0, pad=0
+        insns += LM(R1, agg_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -72)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        if nr_recvfrom != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_recvfrom)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        jmp_err = exit_pos - (exit_err_pos + 1)
+        insns = (
+            insns[: exit_err_pos * 8]
+            + bi(0xC5, R7, 0, jmp_err, 0)
+            + insns[(exit_err_pos + 1) * 8 :]
+        )
+        jmp_null_ts = exit_pos - (null_ts_pos + 1)
+        insns = (
+            insns[: null_ts_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_ts, 0)
+            + insns[(null_ts_pos + 1) * 8 :]
+        )
+        jmp_null_agg = insert_agg_pos - (null_agg_pos + 1)
+        insns = (
+            insns[: null_agg_pos * 8]
+            + bi(0x15, R0, 0, jmp_null_agg, 0)
+            + insns[(null_agg_pos + 1) * 8 :]
+        )
+        jmp_done = exit_pos - (jmp_done_pos + 1)
+        insns = (
+            insns[: jmp_done_pos * 8]
+            + bi(0x05, 0, 0, jmp_done, 0)
+            + insns[(jmp_done_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
+    def genUdpDnsSnoopProg(perf_map_fd, n_cpus, nr_sendto=-1):
+        """
+        Tracepoint syscalls/sys_enter_sendto: emit event for DNS snooping.
+        nr_sendto != -1: raw_syscalls/sys_enter NR filter at ctx+8.
+        Payload (96B at fp-96..fp-1):
+          [0..7]   pid_tgid(u64)
+          [8..23]  comm (16B)
+          [24..27] len (u32)
+          [28..31] sockfd (u32)
+          [32..39] ktime (u64)
+          [40..41] dest_port (u16, big-endian from sin_port)
+          [42..47] zeros
+          [48..95] dns_buf (48B of UDP payload for DNS qname decoding)
+        Uses probe_read_user (kernel 5.5+) for dest_addr and payload.
+        Falls back gracefully (zeros) on helper failure.
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R5, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 5, 6, 7, 8, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+
+        insns = b""
+        insns += bi(0xBF, R8, R1, 0, 0)  # R8 = ctx (callee-saved)
+
+        if nr_sendto != -1:
+            insns += bi(0x79, R7, R8, 8, 0)
+            exit_nr_pos = len(insns) // 8
+            insns += bi(0x55, R7, 0, 0, nr_sendto)  # patched later
+
+        # Pre-zero 96 bytes fp-96..fp-1 (12 × ST_DW 0)
+        for _off in (
+            -96,
+            -88,
+            -80,
+            -72,
+            -64,
+            -56,
+            -48,
+            -40,
+            -32,
+            -24,
+            -16,
+            -8,
+        ):
+            insns += bi(0x7A, R10, 0, _off, 0)
+
+        # pid_tgid at fp-96 (u64)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0x7B, R10, R0, -96, 0)
+
+        # comm at fp-88 (16B)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -88)
+        insns += bi(0xB7, R2, 0, 0, 16)
+        insns += bi(0x85, 0, 0, 0, FID["get_current_comm"])
+
+        # len at fp-72 (u32), sockfd at fp-68 (u32)
+        insns += bi(0x61, R7, R8, 32, 0)  # len = ctx+32
+        insns += bi(0x63, R10, R7, -72, 0)
+        insns += bi(0x61, R7, R8, 16, 0)  # sockfd = ctx+16
+        insns += bi(0x63, R10, R7, -68, 0)
+
+        # ktime at fp-64 (u64)
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -64, 0)
+
+        # dest_port from sockaddr_in.sin_port (ctx+48 = dest_addr_ptr)
+        insns += bi(0x79, R7, R8, 48, 0)  # R7 = dest_addr_ptr
+        _skip_dp_ph = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)  # JEQ R7, 0, skip_dp (patched)
+        insns += bi(0xBF, R3, R7, 0, 0)  # R3 = R7
+        insns += bi(0x07, R3, 0, 0, 2)  # R3 += 2 (→ &sin_port)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -56)  # R1 = fp-56
+        insns += bi(0xB7, R2, 0, 0, 2)  # R2 = 2 bytes (sin_port)
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+        _skip_dp_tgt = len(insns) // 8
+        insns = (
+            insns[: _skip_dp_ph * 8]
+            + bi(0x15, R7, 0, _skip_dp_tgt - (_skip_dp_ph + 1), 0)
+            + insns[(_skip_dp_ph + 1) * 8 :]
+        )
+
+        # DNS payload: first 48B of sendto buf (ctx+24 = buf_ptr)
+        insns += bi(0x79, R6, R8, 24, 0)  # R6 = buf_ptr
+        _skip_dns_ph = len(insns) // 8
+        insns += bi(0x15, R6, 0, 0, 0)  # JEQ R6, 0, skip_dns (patched)
+        insns += bi(0xBF, R1, R10, 0, 0)
+        insns += bi(0x07, R1, 0, 0, -48)  # R1 = fp-48
+        insns += bi(0xB7, R2, 0, 0, 48)  # R2 = 48
+        insns += bi(0xBF, R3, R6, 0, 0)  # R3 = buf_ptr
+        insns += bi(0x85, 0, 0, 0, FID["probe_read_user"])
+        _skip_dns_tgt = len(insns) // 8
+        insns = (
+            insns[: _skip_dns_ph * 8]
+            + bi(0x15, R6, 0, _skip_dns_tgt - (_skip_dns_ph + 1), 0)
+            + insns[(_skip_dns_ph + 1) * 8 :]
+        )
+
+        # perf_event_output(ctx, perf_map, BPF_F_CURRENT_CPU, fp-96, 96)
+        insns += bi(0xBF, R1, R8, 0, 0)
+        insns += LM(R2, perf_map_fd)
+        insns += bi(0xB4, R3, 0, 0, -1)
+        insns += bi(0xBF, R4, R10, 0, 0)
+        insns += bi(0x07, R4, 0, 0, -96)
+        insns += bi(0xB7, R5, 0, 0, 96)
+        insns += bi(0x85, 0, 0, 0, FID["perf_event_output"])
+
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        if nr_sendto != -1:
+            jmp_nr = exit_pos - (exit_nr_pos + 1)
+            insns = (
+                insns[: exit_nr_pos * 8]
+                + bi(0x55, R7, 0, jmp_nr, nr_sendto)
+                + insns[(exit_nr_pos + 1) * 8 :]
+            )
+        return insns
+
     # -----------------------------------------------------------------------
     # Output helpers
     # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _checkLoopExit(total_time, elapsed):
+        return total_time > 0 and elapsed >= total_time
+
+    @staticmethod
+    def _advanceLoopClock(t_last):
+        now = time.monotonic()
+        return now, now - t_last, now
+
+    @staticmethod
+    def _initSampCond():
+        cond = BpfMgr._parseSampCond()
+        if cond:
+            return cond, SysMgr.getIdleTime(), SysMgr.getNrCore() or 1
+        return cond, None, None
+
+    @staticmethod
+    def _checkSampCondOrSkip(samp_cond, idle_ref, nr_cores, interval):
+        if not samp_cond:
+            return True, idle_ref
+        return BpfMgr._evalSampCond(samp_cond, idle_ref, nr_cores, interval)
 
     @staticmethod
     def _flushBuf():
@@ -132127,11 +136650,7 @@ class BpfMgr(object):
     @staticmethod
     def _readProcComm(tgid):
         """Read /proc/<tgid>/comm, return stripped name or '?'."""
-        try:
-            with open("/proc/%d/comm" % tgid, "r") as _f:
-                return _f.read().strip()
-        except Exception:
-            return "?"
+        return SysMgr.getComm(tgid, default="?")
 
     @staticmethod
     def _readProcName(pid, use_comm=False):
@@ -132139,13 +136658,7 @@ class BpfMgr(object):
         if use_comm:
             return BpfMgr._readProcComm(pid) or "?"
         try:
-            with open("/proc/%d/cmdline" % pid, "rb") as _f:
-                data = _f.read()
-            first = (
-                data.split(b"\x00")[0]
-                .decode("utf-8", errors="replace")
-                .strip()
-            )
+            first = SysMgr.getCmdline(pid, retList=True)[0].strip()
             if first.startswith("/"):
                 first = first.rsplit("/", 1)[-1]
             return first or BpfMgr._readProcComm(pid) or "?"
@@ -132513,7 +137026,10 @@ class BpfMgr(object):
 
         patterns: list of strings; each may be 'ClassName->method',
                   'method', or use '*' wildcards.
-        Returns list of (method_idx, display_name) tuples.
+        Returns list of (method_idx, display_name, dex_file_name) tuples.
+        dex_file_name (e.g. 'classes2.dex') lets callers detect
+        dex_method_index_ collisions across dex files in a multidex APK,
+        since that index is only unique within a single dex file.
         """
         import zipfile as _zf
 
@@ -132529,7 +137045,12 @@ class BpfMgr(object):
                 for _dn in _dex_names:
                     try:
                         _data = _apk.read(_dn)
-                        results.extend(BpfMgr._parseSingleDex(_data, patterns))
+                        results.extend(
+                            (_midx, _disp, _dn)
+                            for _midx, _disp in BpfMgr._parseSingleDex(
+                                _data, patterns
+                            )
+                        )
                     except Exception:
                         pass
         except Exception as _e:
@@ -132630,7 +137151,7 @@ class BpfMgr(object):
             cname = _simple(_desc(cls_idx))
             # Also keep the simple (unqualified) class name for pattern matching.
             # This lets users use either "TcpSocketDataSource" or
-            # "com.hmg.hperf.data.datasource.TcpSocketDataSource" as patterns.
+            # "com.example.app.data.datasource.TcpSocketDataSource" as patterns.
             _cname_simple = cname.split(".")[-1] if "." in cname else cname
             display = "%s->%s" % (cname, mname)
             for pat in patterns:
@@ -132794,6 +137315,7 @@ class BpfMgr(object):
         func_names = []
         show_kstack = False
         stack_summary = {}
+        drawflame = False
         hist_arg_n = None  # set inside try; used in finally
         total_arg_hists = {}
         try:
@@ -132854,6 +137376,7 @@ class BpfMgr(object):
             show_ustack = show_kstack and (
                 "ADDUSERSTACK" in SysMgr.environList
             )
+            drawflame = "DRAWFLAME" in SysMgr.environList
             comm_mode = (
                 "task"
                 if "ADDTASKSTACK" in SysMgr.environList
@@ -132975,14 +137498,7 @@ class BpfMgr(object):
                 SysMgr.printErr("bpftop: no functions attached successfully")
                 sys.exit(-1)
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             show_cmdline = "CMDLINE" in SysMgr.environList
@@ -133358,7 +137874,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -133427,7 +137943,7 @@ class BpfMgr(object):
 
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -133517,6 +138033,8 @@ class BpfMgr(object):
                 and "NOSUMMARY" not in SysMgr.environList
             ):
                 BpfMgr.printKstackReport(stack_summary, "Call Stack Summary")
+            if drawflame and stack_summary:
+                BpfMgr._emitFlameSVG(dict(stack_summary), "bpftop", ".bpftop")
             BpfMgr.detachAll()
 
     @staticmethod
@@ -133635,14 +138153,7 @@ class BpfMgr(object):
                 )
                 sys.exit(-1)
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -133699,7 +138210,7 @@ class BpfMgr(object):
                 # Phase 2: print stats header then histograms
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -133754,7 +138265,7 @@ class BpfMgr(object):
                     if printed:
                         BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -133863,6 +138374,7 @@ class BpfMgr(object):
         show_kstack = SysMgr.depthLevel > 0
         KS = 8 if show_kstack else 0  # extra payload bytes for kstack_id
         show_ustack = show_kstack and ("ADDUSERSTACK" in SysMgr.environList)
+        drawflame = "DRAWFLAME" in SysMgr.environList
         US = 8 if show_ustack else 0  # extra payload bytes for ustack_id
         show_entry = "SHOWRET" in SysMgr.environList
         TS = (
@@ -134082,7 +138594,19 @@ class BpfMgr(object):
                                         _apk_path, _art_pats
                                     )
                                     if _hits:
-                                        _art_java.extend(_hits)
+                                        # tag each hit with its source
+                                        # "apk!dex" so cross-dex-file
+                                        # dex_method_index_ collisions can
+                                        # be detected below
+                                        _apk_base = os.path.basename(_apk_path)
+                                        _art_java.extend(
+                                            (
+                                                _midx,
+                                                _disp,
+                                                "%s!%s" % (_apk_base, _dexn),
+                                            )
+                                            for _midx, _disp, _dexn in _hits
+                                        )
                                         _matched_apks.append(_apk_path)
                                 if not _art_java:
                                     SysMgr.printWarn(
@@ -134109,26 +138633,88 @@ class BpfMgr(object):
                                                 _art_lib,
                                                 _art_off,
                                             )
-                                            _art_base = len(func_names)
-                                            # Assign func_idx for each unique method
-                                            # and build dmi → func_idx dispatch map.
                                             # Key is dex_method_index_ (ArtMethod+12),
                                             # which matches the per-DEX method_ids index
                                             # parsed from the APK and is stable across
                                             # all ArtMethod copies (Nterp, vtable, etc).
-                                            for _ai, (_midx, _dn) in enumerate(
-                                                _art_java
-                                            ):
-                                                func_names.append(_dn)
+                                            # It is only unique WITHIN a single dex
+                                            # file though, so in a multidex APK two
+                                            # matched methods from different dex
+                                            # files can share the same dex_method_index_.
+                                            # Detect that here and drop the ambiguous
+                                            # entries instead of silently letting one
+                                            # overwrite the other in the dispatch map.
+                                            _art_by_midx = {}
+                                            for (
+                                                _midx,
+                                                _disp,
+                                                _dexsrc,
+                                            ) in _art_java:
+                                                _art_by_midx.setdefault(
+                                                    _midx, []
+                                                ).append((_disp, _dexsrc))
+                                            _art_kept = []
+                                            _art_dropped = 0
+                                            for (
+                                                _midx,
+                                                _entries,
+                                            ) in _art_by_midx.items():
+                                                _uniq_src = {
+                                                    _s for _, _s in _entries
+                                                }
+                                                if len(_uniq_src) > 1:
+                                                    _art_dropped += len(
+                                                        _entries
+                                                    )
+                                                    SysMgr.printWarn(
+                                                        "ARTINTERP:"
+                                                        " dex_method_index_"
+                                                        " 0x%x collides"
+                                                        " across %d dex"
+                                                        " file(s), skipping"
+                                                        " ambiguous methods:"
+                                                        " %s"
+                                                        % (
+                                                            _midx,
+                                                            len(_uniq_src),
+                                                            ", ".join(
+                                                                "%s(%s)"
+                                                                % (_d, _s)
+                                                                for _d, _s in _entries
+                                                            ),
+                                                        ),
+                                                        always=True,
+                                                    )
+                                                    continue
+                                                # same dex source: patterns
+                                                # overlapped on one method,
+                                                # dedupe to a single entry
+                                                _art_kept.append(
+                                                    (_midx, _entries[0][0])
+                                                )
+                                            _art_base = len(func_names)
+                                            for _ai, (
+                                                _midx,
+                                                _disp,
+                                            ) in enumerate(_art_kept):
+                                                func_names.append(_disp)
                                                 _art_dispatch_entries[
                                                     _midx
                                                 ] = (_art_base + _ai)
+                                            _art_skip_msg = (
+                                                " (%d skipped:"
+                                                " dex_method_index_"
+                                                " collision)" % _art_dropped
+                                                if _art_dropped
+                                                else ""
+                                            )
                                             SysMgr.printInfo(
                                                 "ARTINTERP: tracking %d Java"
-                                                " methods from %s"
+                                                " methods from %s%s"
                                                 % (
-                                                    len(_art_java),
+                                                    len(_art_kept),
                                                     ", ".join(_matched_apks),
+                                                    _art_skip_msg,
                                                 )
                                             )
                                         except Exception as _ae:
@@ -134476,99 +139062,12 @@ class BpfMgr(object):
                 SysMgr.printErr("bpfsnoop: no functions attached successfully")
                 sys.exit(-1)
 
-            # Open per-CPU PERF_TYPE_SOFTWARE/BPF_OUTPUT perf events,
-            # mmap ring buffers, and register fds in the BPF map #
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            n_data_pages = 64  # data pages per CPU ring buffer
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ = 0x1
-            PROT_WRITE = 0x2
-            MAP_SHARED = 0x1
-            PERF_SAMPLE_RAW = 1 << 10  # sample_type flag
-
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                # perf_event_attr: SOFTWARE type, BPF_OUTPUT config #
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
-                struct.pack_into("<I", attr, 4, 112)  # size
-                struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
-                struct.pack_into("<Q", attr, 16, 1)  # sample_period=1
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)  # wakeup_events=1
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: BPF output perf_event_open failed" % cpu,
-                        always=True,
-                    )
-                    continue
-
-                # mmap ring buffer for this CPU #
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: mmap failed" % cpu, always=True
-                    )
-                    os.close(fd)
-                    continue
-
-                # Enable the perf event #
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-
-                # Populate PERF_EVENT_ARRAY map at key=cpu with this fd #
-                BpfMgr.mapUpdate(
-                    perf_map_fd,
-                    struct.pack("<I", cpu),
-                    struct.pack("<I", fd),
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list,
+                perf_map_fd,
+                warn_on_fail=True,
+                warn_label="BPF output ",
+            )
 
             if not perf_fds:
                 SysMgr.printErr("failed to open any BPF output perf events")
@@ -134626,11 +139125,9 @@ class BpfMgr(object):
                     _hdr.append("%-1s" % "D")
                 _hdr.append("%-20s" % "FUNC")
                 if use_only_proc:
-                    _hdr.append("%-24s" % "COMM(TGID)")
+                    _hdr.append("%26s" % "COMM(TGID)")
                 else:
-                    _hdr.extend(
-                        ["%-24s" % "COMM(TID)", "%-24s" % "COMM(TGID)"]
-                    )
+                    _hdr.extend(["%26s" % "COMM(TID)", "%26s" % "COMM(TGID)"])
                 if show_proc_comm:
                     _hdr.append("%-16s" % "PROC")
                 if show_user:
@@ -134638,12 +139135,12 @@ class BpfMgr(object):
                         ["%-22s" % "USER(UID)", "%-16s" % "GROUP(GID)"]
                     )
                 if show_core:
-                    _hdr.append("%-6s" % "CPU")
+                    _hdr.append("%6s" % "CPU")
                 if use_callerlib:
                     _hdr.append("%-20s" % "CALLER")
                 if show_entry:
-                    _hdr.append("%-12s" % "ELAPSED")
-                    _hdr.append("%-16s" % "RET")
+                    _hdr.append("%12s" % "ELAPSED")
+                    _hdr.append("%16s" % "RET")
                 _hdr.append("ARGS")
                 SysMgr.printPipe(" ".join(_hdr), trim=False)
                 SysMgr.printPipe(twoLine)
@@ -134682,339 +139179,117 @@ class BpfMgr(object):
 
             # Ring buffer drain helpers #
             PERF_RECORD_SAMPLE = 9
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
+            ct = SysMgr.getPkg("ctypes")
 
             _getCmdline = SysMgr.getCmdline  # pre-bind for minimal overhead
             _get_ts = BpfMgr.makeGetTs()
 
             def drain_one(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
-                    try:
-                        hdr = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
-                    except Exception:
-                        break
-                    if rec_size < 8:
-                        break
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
                     if rec_type == PERF_RECORD_SAMPLE:
+                        if raw_size < 88:
+                            continue
                         try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 88:
-                                raw = body[4 : 4 + raw_size]
-                                # genSnoopProg layout:
-                                #   [0-87]         func_idx(8)+comm(16)+pid_tgid(8)+uid_gid(8)+cpu(8)+args(40)
-                                #   [88-95]        elapsed_ns(u64)  [if SHOWENTRY]    (TS=8)
-                                #   [88+TS-95+TS]  kstack_id(i64)   [if show_kstack]  (KS=8)
-                                #   [96+TS-103+TS] ustack_id(i64)   [if show_ustack]  (US=8)
-                                #   [88+TS+KS+US]  str_mask(u64)    [if str_arg_mask]
-                                #   [96+TS+KS+US.] n_active×ssl-byte string slots (ssl=STRLEN, default 120)
-                                _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
-                                _ks_off = 88 + TS  # kstack_id offset in raw
-                                _us_off = 96 + TS  # ustack_id offset in raw
-                                func_idx = struct.unpack_from("<Q", raw, 0)[0]
-                                comm_raw = raw[8:24]
-                                pid_tgid = struct.unpack_from("<Q", raw, 24)[0]
-                                uid_gid = struct.unpack_from("<Q", raw, 32)[0]
-                                cpu_val = struct.unpack_from("<Q", raw, 40)[0]
-                                args = struct.unpack_from("<5Q", raw, 48)
-                                # SHOWENTRY: parse elapsed_ns; detect entry vs exit #
-                                elapsed_ns = None
-                                is_entry = False
-                                if show_entry and raw_size >= 96:
-                                    elapsed_ns = struct.unpack_from(
-                                        "<Q", raw, 88
-                                    )[0]
-                                    is_entry = elapsed_ns == _UINT64_MAX
-                                # Parse ARGnDATA suffix (entry events only) #
-                                # DATA area: raw[88+TS+KS+US:] with slots [u64 actual_size][data bytes]
-                                _data_dumps = (
-                                    []
-                                )  # [(arg_idx_1b, actual_bytes)]
-                                if data_arg_specs and not (
-                                    show_entry and not is_entry
-                                ):
-                                    _dta_off = 88 + TS + KS + US
-                                    _dta_cur = 0
-                                    for _darg_idx, _dsize in data_arg_specs:
-                                        _dpadded = (_dsize + 7) & ~7
-                                        _dslot = _dta_off + _dta_cur
-                                        if raw_size >= _dslot + 8 + _dpadded:
-                                            _asraw = struct.unpack_from(
-                                                "<q", raw, _dslot
-                                            )[0]
-                                            _actual = max(
-                                                0, min(_asraw, _dsize)
-                                            )
-                                            _dbytes = raw[
-                                                _dslot
-                                                + 8 : _dslot
-                                                + 8
-                                                + _actual
-                                            ]
-                                            _data_dumps.append(
-                                                (_darg_idx + 1, _dbytes)
-                                            )
-                                        _dta_cur += 8 + _dpadded
-                                # ELAPFILTER: suppress entry events; filter exit by elapsed #
-                                _filter_active = (
-                                    _elap_min_ns
-                                    or _elap_max_ns
-                                    or _elap_eq_ns is not None
-                                    or _ret_gt is not None
-                                    or _ret_lt is not None
-                                    or _ret_eq is not None
-                                )
-                                if show_entry and _filter_active:
-                                    if is_entry:
-                                        # Cache entry arg values + resolved strings so exit
-                                        # event can display them. Parse strings here (before
-                                        # filter skip) so ARGnFDPATH/ARGnSTR work with
-                                        # ELAPFILTER/RETFILTER. Max size matches BPF ts_map.
-                                        _cached_strs = [None] * 5
-                                        if (
-                                            (
-                                                str_arg_mask
-                                                | str_uarg_mask
-                                                | path_arg_mask
-                                                | ptrstr_arg_mask
-                                            )
-                                            and raw_size
-                                            >= _STR_TOTAL_py
-                                            + 96
-                                            + TS
-                                            + KS
-                                            + US
-                                        ):
-                                            _smask2 = struct.unpack_from(
-                                                "<Q", raw, 88 + TS + KS + US
-                                            )[0]
-                                            for _si2 in range(3):
-                                                if not (_smask2 & (1 << _si2)):
-                                                    continue
-                                                if _si2 not in _active_si_py:
-                                                    continue
-                                                _rank2 = _active_si_py.index(
-                                                    _si2
-                                                )
-                                                _soff2 = (
-                                                    96
-                                                    + TS
-                                                    + KS
-                                                    + US
-                                                    + _rank2 * _ssl_py
-                                                )
-                                                _sbuf2 = raw[
-                                                    _soff2 : _soff2 + _ssl_py
-                                                ]
-                                                if path_arg_mask & (1 << _si2):
-                                                    _chunks2 = []
-                                                    for _co2, _cs2 in (
-                                                        (0, 49),
-                                                        (49, 17),
-                                                        (66, 9),
-                                                        (75, 9),
-                                                        (84, 9),
-                                                        (93, 9),
-                                                        (102, 9),
-                                                        (111, 9),
-                                                    ):
-                                                        _cb2 = _sbuf2[
-                                                            _co2 : _co2 + _cs2
-                                                        ]
-                                                        _ce2 = _cb2.find(
-                                                            b"\x00"
-                                                        )
-                                                        if _ce2 == 0:
-                                                            break
-                                                        if _ce2 < 0:
-                                                            _ce2 = _cs2
-                                                        _cn2 = _cb2[
-                                                            :_ce2
-                                                        ].decode(
-                                                            "utf-8",
-                                                            errors="replace",
-                                                        )
-                                                        if (
-                                                            not _cn2
-                                                            or _cn2 == "/"
-                                                        ):
-                                                            break
-                                                        _chunks2.append(_cn2)
-                                                    _chunks2.reverse()
-                                                    _path2 = (
-                                                        "/"
-                                                        + "/".join(_chunks2)
-                                                        if _chunks2
-                                                        else "[anon]"
-                                                    )
-                                                    if (
-                                                        SysMgr.isAndroid
-                                                        and _valid_top_dirs
-                                                        and _path2 != "[anon]"
-                                                    ):
-                                                        _pts2 = _path2[
-                                                            1:
-                                                        ].split("/")
-                                                        while (
-                                                            len(_pts2) > 1
-                                                            and _pts2[0]
-                                                            not in _valid_top_dirs
-                                                        ):
-                                                            _pts2 = _pts2[1:]
-                                                        _path2 = (
-                                                            "/"
-                                                            + "/".join(_pts2)
-                                                        )
-                                                    _cached_strs[_si2] = _path2
-                                                else:
-                                                    _se2 = _sbuf2.find(b"\x00")
-                                                    if _se2 < 0:
-                                                        _se2 = _ssl_py
-                                                    _cached_strs[
-                                                        _si2
-                                                    ] = _sbuf2[:_se2].decode(
-                                                        "utf-8",
-                                                        errors="replace",
-                                                    )
-                                        if (
-                                            len(_entry_arg_cache)
-                                            < _ENTRY_ARG_CACHE_MAX
-                                        ):
-                                            _entry_arg_cache[pid_tgid] = (
-                                                list(args),
-                                                _cached_strs,
-                                            )
-                                        tail += rec_size
-                                        continue
-                                    if (
-                                        _elap_min_ns
-                                        or _elap_max_ns
-                                        or _elap_eq_ns is not None
-                                    ):
-                                        if (
-                                            elapsed_ns is not None
-                                            and not UtilMgr.checkElapFilter(
-                                                elapsed_ns,
-                                                _elap_min_ns,
-                                                _elap_max_ns,
-                                                _elap_eq_ns,
-                                            )
-                                        ):
-                                            _entry_arg_cache.pop(
-                                                pid_tgid, None
-                                            )
-                                            tail += rec_size
-                                            continue
-                                    if (
-                                        _ret_gt is not None
-                                        or _ret_lt is not None
-                                        or _ret_eq is not None
-                                    ):
-                                        _ret_int = ct.c_int64(args[0]).value
-                                        if not UtilMgr.checkRetFilter(
-                                            _ret_int, _ret_gt, _ret_lt, _ret_eq
-                                        ):
-                                            _entry_arg_cache.pop(
-                                                pid_tgid, None
-                                            )
-                                            tail += rec_size
-                                            continue
-                                # Parse kernel stack from entry events or extended exit events #
-                                # Exit events also carry kstack_id at _ks_off when KS>0
-                                kstack_frames = []
-                                if show_kstack and raw_size >= _ks_off + 8:
-                                    kstack_id = struct.unpack_from(
-                                        "<q", raw, _ks_off
-                                    )[0]
-                                    if kstack_id not in kstack_sid_cache:
-                                        kstack_sid_cache[kstack_id] = (
-                                            BpfMgr.resolveKernelStack(
-                                                stack_map_fd,
-                                                kstack_id,
-                                                max_depth=snoop_max_depth,
-                                            )
+                            # genSnoopProg layout:
+                            #   [0-87]         func_idx(8)+comm(16)+pid_tgid(8)+uid_gid(8)+cpu(8)+args(40)
+                            #   [88-95]        elapsed_ns(u64)  [if SHOWENTRY]    (TS=8)
+                            #   [88+TS-95+TS]  kstack_id(i64)   [if show_kstack]  (KS=8)
+                            #   [96+TS-103+TS] ustack_id(i64)   [if show_ustack]  (US=8)
+                            #   [88+TS+KS+US]  str_mask(u64)    [if str_arg_mask]
+                            #   [96+TS+KS+US.] n_active×ssl-byte string slots (ssl=STRLEN, default 120)
+                            _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
+                            _ks_off = 88 + TS  # kstack_id offset in raw
+                            _us_off = 96 + TS  # ustack_id offset in raw
+                            func_idx = struct.unpack_from("<Q", raw, 0)[0]
+                            comm_raw = raw[8:24]
+                            pid_tgid = struct.unpack_from("<Q", raw, 24)[0]
+                            uid_gid = struct.unpack_from("<Q", raw, 32)[0]
+                            cpu_val = struct.unpack_from("<Q", raw, 40)[0]
+                            args = struct.unpack_from("<5Q", raw, 48)
+                            # SHOWENTRY: parse elapsed_ns; detect entry vs exit #
+                            elapsed_ns = None
+                            is_entry = False
+                            if show_entry and raw_size >= 96:
+                                elapsed_ns = struct.unpack_from("<Q", raw, 88)[
+                                    0
+                                ]
+                                is_entry = elapsed_ns == _UINT64_MAX
+                            # Parse ARGnDATA suffix (entry events only) #
+                            # DATA area: raw[88+TS+KS+US:] with slots [u64 actual_size][data bytes]
+                            _data_dumps = []  # [(arg_idx_1b, actual_bytes)]
+                            if data_arg_specs and not (
+                                show_entry and not is_entry
+                            ):
+                                _dta_off = 88 + TS + KS + US
+                                _dta_cur = 0
+                                for _darg_idx, _dsize in data_arg_specs:
+                                    _dpadded = (_dsize + 7) & ~7
+                                    _dslot = _dta_off + _dta_cur
+                                    if raw_size >= _dslot + 8 + _dpadded:
+                                        _asraw = struct.unpack_from(
+                                            "<q", raw, _dslot
+                                        )[0]
+                                        _actual = max(0, min(_asraw, _dsize))
+                                        _dbytes = raw[
+                                            _dslot + 8 : _dslot + 8 + _actual
+                                        ]
+                                        _data_dumps.append(
+                                            (_darg_idx + 1, _dbytes)
                                         )
-                                    kstack_frames = kstack_sid_cache[kstack_id]
-                                # Parse user stack from entry events or extended exit events #
-                                ustack_frames = []
-                                if show_ustack and raw_size >= _us_off + 8:
-                                    ustack_id = struct.unpack_from(
-                                        "<q", raw, _us_off
-                                    )[0]
-                                    _spid = pid_tgid & 0xFFFFFFFF
-                                    _ukey = (ustack_id, _spid)
-                                    if _ukey not in ustack_usid_cache:
-                                        ustack_usid_cache[_ukey] = (
-                                            BpfMgr.resolveUserStack(
-                                                ustack_map_fd,
-                                                ustack_id,
-                                                _spid,
-                                                snoop_max_depth,
-                                            )
+                                    _dta_cur += 8 + _dpadded
+                            # ELAPFILTER: suppress entry events; filter exit by elapsed #
+                            _filter_active = (
+                                _elap_min_ns
+                                or _elap_max_ns
+                                or _elap_eq_ns is not None
+                                or _ret_gt is not None
+                                or _ret_lt is not None
+                                or _ret_eq is not None
+                            )
+                            if show_entry and _filter_active:
+                                if is_entry:
+                                    # Cache entry arg values + resolved strings so exit
+                                    # event can display them. Parse strings here (before
+                                    # filter skip) so ARGnFDPATH/ARGnSTR work with
+                                    # ELAPFILTER/RETFILTER. Max size matches BPF ts_map.
+                                    _cached_strs = [None] * 5
+                                    if (
+                                        (
+                                            str_arg_mask
+                                            | str_uarg_mask
+                                            | path_arg_mask
+                                            | ptrstr_arg_mask
                                         )
-                                    ustack_frames = ustack_usid_cache[_ukey]
-                                # Parse string section if present (entry events only) #
-                                arg_strs = [None] * 5
-                                if (
-                                    (
-                                        str_arg_mask
-                                        | str_uarg_mask
-                                        | path_arg_mask
-                                        | ptrstr_arg_mask
-                                    )
-                                    and (not show_entry or is_entry)
-                                    and raw_size
-                                    >= _STR_TOTAL_py + 96 + TS + KS + US
-                                ):
-                                    _smask = struct.unpack_from(
-                                        "<Q", raw, 88 + TS + KS + US
-                                    )[0]
-                                    for _si in range(3):
-                                        if _smask & (1 << _si):
-                                            if _si not in _active_si_py:
+                                        and raw_size
+                                        >= _STR_TOTAL_py + 96 + TS + KS + US
+                                    ):
+                                        _smask2 = struct.unpack_from(
+                                            "<Q", raw, 88 + TS + KS + US
+                                        )[0]
+                                        for _si2 in range(3):
+                                            if not (_smask2 & (1 << _si2)):
                                                 continue
-                                            _rank = _active_si_py.index(_si)
-                                            _soff = (
+                                            if _si2 not in _active_si_py:
+                                                continue
+                                            _rank2 = _active_si_py.index(_si2)
+                                            _soff2 = (
                                                 96
                                                 + TS
                                                 + KS
                                                 + US
-                                                + _rank * _ssl_py
+                                                + _rank2 * _ssl_py
                                             )
-                                            _sbuf = raw[
-                                                _soff : _soff + _ssl_py
+                                            _sbuf2 = raw[
+                                                _soff2 : _soff2 + _ssl_py
                                             ]
-                                            if path_arg_mask & (1 << _si):
-                                                # layout (120B): leaf@0(49B,max48) lv1@49(17B,max16)
-                                                #   lv2@66..lv7@111(6×9B each, max8)
-                                                # chunks are leaf→root order; reverse to build full path
-                                                _chunks = []
-                                                for _coff, _csz in (
+                                            if path_arg_mask & (1 << _si2):
+                                                _chunks2 = []
+                                                for _co2, _cs2 in (
                                                     (0, 49),
                                                     (49, 17),
                                                     (66, 9),
@@ -135024,543 +139299,646 @@ class BpfMgr(object):
                                                     (102, 9),
                                                     (111, 9),
                                                 ):
-                                                    _cb = _sbuf[
-                                                        _coff : _coff + _csz
+                                                    _cb2 = _sbuf2[
+                                                        _co2 : _co2 + _cs2
                                                     ]
-                                                    _ce = _cb.find(b"\x00")
-                                                    if _ce == 0:
+                                                    _ce2 = _cb2.find(b"\x00")
+                                                    if _ce2 == 0:
                                                         break
-                                                    if _ce < 0:
-                                                        _ce = _csz
-                                                    _cn = _cb[:_ce].decode(
+                                                    if _ce2 < 0:
+                                                        _ce2 = _cs2
+                                                    _cn2 = _cb2[:_ce2].decode(
                                                         "utf-8",
                                                         errors="replace",
                                                     )
-                                                    if not _cn or _cn == "/":
+                                                    if not _cn2 or _cn2 == "/":
                                                         break
-                                                    _chunks.append(_cn)
-                                                _chunks.reverse()
-                                                arg_strs[_si] = (
-                                                    "/" + "/".join(_chunks)
-                                                    if _chunks
+                                                    _chunks2.append(_cn2)
+                                                _chunks2.reverse()
+                                                _path2 = (
+                                                    "/" + "/".join(_chunks2)
+                                                    if _chunks2
                                                     else "[anon]"
                                                 )
-                                                # Strip invalid top-level components (Android pivot_root artifacts) #
                                                 if (
                                                     SysMgr.isAndroid
                                                     and _valid_top_dirs
-                                                    and arg_strs[_si]
-                                                    != "[anon]"
+                                                    and _path2 != "[anon]"
                                                 ):
-                                                    _parts = arg_strs[_si][
-                                                        1:
-                                                    ].split("/")
+                                                    _pts2 = _path2[1:].split(
+                                                        "/"
+                                                    )
                                                     while (
-                                                        len(_parts) > 1
-                                                        and _parts[0]
+                                                        len(_pts2) > 1
+                                                        and _pts2[0]
                                                         not in _valid_top_dirs
                                                     ):
-                                                        _parts = _parts[1:]
-                                                    arg_strs[_si] = (
-                                                        "/" + "/".join(_parts)
+                                                        _pts2 = _pts2[1:]
+                                                    _path2 = "/" + "/".join(
+                                                        _pts2
                                                     )
+                                                _cached_strs[_si2] = _path2
                                             else:
-                                                _send = _sbuf.find(b"\x00")
-                                                if _send < 0:
-                                                    _send = _ssl_py
-                                                arg_strs[_si] = _sbuf[
-                                                    :_send
+                                                _se2 = _sbuf2.find(b"\x00")
+                                                if _se2 < 0:
+                                                    _se2 = _ssl_py
+                                                _cached_strs[_si2] = _sbuf2[
+                                                    :_se2
                                                 ].decode(
-                                                    "utf-8", errors="replace"
+                                                    "utf-8",
+                                                    errors="replace",
                                                 )
-                                pid = pid_tgid & 0xFFFFFFFF
-                                tgid = (pid_tgid >> 32) & 0xFFFFFFFF
-                                comm = comm_raw.split(b"\x00")[0].decode(
-                                    "utf-8", errors="replace"
-                                )
-                                fn = (
-                                    func_names[func_idx]
-                                    if func_idx < len(func_names)
-                                    else str(func_idx)
-                                )
-                                # -g / PROCCOMMFILTER filter #
-                                show = BpfMgr._matchesFilter(pid, tgid, comm)
-                                if show and _proccomm_pattern:
-                                    show = bool(
-                                        UtilMgr.isValidStr(
-                                            comm, [_proccomm_pattern]
+                                    if (
+                                        len(_entry_arg_cache)
+                                        < _ENTRY_ARG_CACHE_MAX
+                                    ):
+                                        _entry_arg_cache[pid_tgid] = (
+                                            list(args),
+                                            _cached_strs,
+                                        )
+                                    continue
+                                if (
+                                    _elap_min_ns
+                                    or _elap_max_ns
+                                    or _elap_eq_ns is not None
+                                ):
+                                    if (
+                                        elapsed_ns is not None
+                                        and not UtilMgr.checkElapFilter(
+                                            elapsed_ns,
+                                            _elap_min_ns,
+                                            _elap_max_ns,
+                                            _elap_eq_ns,
+                                        )
+                                    ):
+                                        _entry_arg_cache.pop(pid_tgid, None)
+                                        continue
+                                if (
+                                    _ret_gt is not None
+                                    or _ret_lt is not None
+                                    or _ret_eq is not None
+                                ):
+                                    _ret_int = ct.c_int64(args[0]).value
+                                    if not UtilMgr.checkRetFilter(
+                                        _ret_int, _ret_gt, _ret_lt, _ret_eq
+                                    ):
+                                        _entry_arg_cache.pop(pid_tgid, None)
+                                        continue
+                            # Parse kernel stack from entry events or extended exit events #
+                            # Exit events also carry kstack_id at _ks_off when KS>0
+                            kstack_frames = []
+                            if show_kstack and raw_size >= _ks_off + 8:
+                                kstack_id = struct.unpack_from(
+                                    "<q", raw, _ks_off
+                                )[0]
+                                if kstack_id not in kstack_sid_cache:
+                                    kstack_sid_cache[kstack_id] = (
+                                        BpfMgr.resolveKernelStack(
+                                            stack_map_fd,
+                                            kstack_id,
+                                            max_depth=snoop_max_depth,
                                         )
                                     )
-                                # ARGn filter: eq/gt/lt/ne on argument values #
-                                # Skip for exit events (args hold ret_val/zeros, not original args)
-                                if (
-                                    show
-                                    and arg_filters
-                                    and not (show_entry and not is_entry)
-                                ):
-                                    for _idx, _op, _expected in arg_filters:
-                                        _actual = args[_idx]
-                                        if (
-                                            _op == "eq"
-                                            and _actual != _expected
-                                        ):
-                                            show = False
-                                            break
-                                        elif (
-                                            _op == "gt"
-                                            and _actual <= _expected
-                                        ):
-                                            show = False
-                                            break
-                                        elif (
-                                            _op == "lt"
-                                            and _actual >= _expected
-                                        ):
-                                            show = False
-                                            break
-                                        elif (
-                                            _op == "ne"
-                                            and _actual == _expected
-                                        ):
-                                            show = False
-                                            break
-                                # CALLERLIB/SKIPSAMECALLER: extract DSO from top user stack frame #
-                                _caller_dso = None
-                                if (
-                                    use_callerlib or use_skipsamecaller
-                                ) and ustack_frames:
-                                    _top_frame = ustack_frames[0]
-                                    _lb = _top_frame.rfind("[")
-                                    _rb = _top_frame.rfind("]")
-                                    if _lb >= 0 and _rb > _lb:
-                                        _caller_dso = _top_frame[_lb + 1 : _rb]
-                                # SKIPSAMECALLER: suppress if caller is in the same library as target #
-                                if (
-                                    show
-                                    and use_skipsamecaller
-                                    and _caller_dso
-                                    and ":" in fn
-                                ):
-                                    _target_lib = fn.split(":")[0]
-                                    if (
-                                        os.path.basename(_caller_dso)
-                                        == _target_lib
-                                    ):
-                                        show = False
-                                if show:
-                                    if rate_enable and not mute_events:
-                                        _rate_count[0] += 1
-                                    # accumulate summary (by tgid if PROCSUMMARY); count entry events only #
-                                    if not show_entry or is_entry:
-                                        _skey = (
-                                            tgid if use_proc_summary else pid
+                                kstack_frames = kstack_sid_cache[kstack_id]
+                            # Parse user stack from entry events or extended exit events #
+                            ustack_frames = []
+                            if show_ustack and raw_size >= _us_off + 8:
+                                ustack_id = struct.unpack_from(
+                                    "<q", raw, _us_off
+                                )[0]
+                                _spid = pid_tgid & 0xFFFFFFFF
+                                _ukey = (ustack_id, _spid)
+                                if _ukey not in ustack_usid_cache:
+                                    ustack_usid_cache[_ukey] = (
+                                        BpfMgr.resolveUserStack(
+                                            ustack_map_fd,
+                                            ustack_id,
+                                            _spid,
+                                            snoop_max_depth,
                                         )
-                                        _sentry = summary.setdefault(
-                                            fn, {}
-                                        ).setdefault(_skey, [0, tgid, comm])
-                                        _sentry[0] += 1
-                                    # accumulate merged kernel+user stacks #
-                                    if show_kstack and kstack_frames:
-                                        _all_frames = (
-                                            kstack_frames + ustack_frames
+                                    )
+                                ustack_frames = ustack_usid_cache[_ukey]
+                            # Parse string section if present (entry events only) #
+                            arg_strs = [None] * 5
+                            if (
+                                (
+                                    str_arg_mask
+                                    | str_uarg_mask
+                                    | path_arg_mask
+                                    | ptrstr_arg_mask
+                                )
+                                and (not show_entry or is_entry)
+                                and raw_size
+                                >= _STR_TOTAL_py + 96 + TS + KS + US
+                            ):
+                                _smask = struct.unpack_from(
+                                    "<Q", raw, 88 + TS + KS + US
+                                )[0]
+                                for _si in range(3):
+                                    if _smask & (1 << _si):
+                                        if _si not in _active_si_py:
+                                            continue
+                                        _rank = _active_si_py.index(_si)
+                                        _soff = (
+                                            96 + TS + KS + US + _rank * _ssl_py
                                         )
-                                        if comm_mode:
-                                            if comm_mode == "proc":
-                                                if tgid not in proc_comm_cache:
-                                                    proc_comm_cache[tgid] = (
-                                                        BpfMgr._readProcComm(
-                                                            tgid
-                                                        )
-                                                    )
-                                                _clabel = "%s[%d]" % (
-                                                    proc_comm_cache.get(
-                                                        tgid, comm
-                                                    ),
-                                                    tgid,
-                                                )
-                                            else:
-                                                _clabel = (
-                                                    "%s[%d]" % (comm, pid)
-                                                    if comm_mode == "task"
-                                                    else comm
-                                                )
-                                            if _clabel:
-                                                _all_frames = _all_frames + [
-                                                    _clabel
+                                        _sbuf = raw[_soff : _soff + _ssl_py]
+                                        if path_arg_mask & (1 << _si):
+                                            # layout (120B): leaf@0(49B,max48) lv1@49(17B,max16)
+                                            #   lv2@66..lv7@111(6×9B each, max8)
+                                            # chunks are leaf→root order; reverse to build full path
+                                            _chunks = []
+                                            for _coff, _csz in (
+                                                (0, 49),
+                                                (49, 17),
+                                                (66, 9),
+                                                (75, 9),
+                                                (84, 9),
+                                                (93, 9),
+                                                (102, 9),
+                                                (111, 9),
+                                            ):
+                                                _cb = _sbuf[
+                                                    _coff : _coff + _csz
                                                 ]
-                                        _sk = " <- ".join(_all_frames)
-                                        _sfn = stack_summary.setdefault(fn, {})
-                                        _sfn[_sk] = _sfn.get(_sk, 0) + 1
-                                    if not mute_events:
-                                        ts = _get_ts()
-                                        id_str = (
-                                            _getCmdline(
-                                                pid, cache=True, save=True
+                                                _ce = _cb.find(b"\x00")
+                                                if _ce == 0:
+                                                    break
+                                                if _ce < 0:
+                                                    _ce = _csz
+                                                _cn = _cb[:_ce].decode(
+                                                    "utf-8",
+                                                    errors="replace",
+                                                )
+                                                if not _cn or _cn == "/":
+                                                    break
+                                                _chunks.append(_cn)
+                                            _chunks.reverse()
+                                            arg_strs[_si] = (
+                                                "/" + "/".join(_chunks)
+                                                if _chunks
+                                                else "[anon]"
                                             )
-                                            if show_cmdline
-                                            else comm
-                                        )
-                                        # build output line dynamically #
-                                        _line = ["%-15s" % ts]
-                                        if show_entry:
-                                            _ev_dir = ">" if is_entry else "<"
-                                            _line.append("%-1s" % _ev_dir)
-                                        _line.append("%-20s" % fn)
-                                        if tgid not in proc_comm_cache:
-                                            proc_comm_cache[tgid] = (
-                                                BpfMgr._readProcComm(tgid)
+                                            # Strip invalid top-level components (Android pivot_root artifacts) #
+                                            if (
+                                                SysMgr.isAndroid
+                                                and _valid_top_dirs
+                                                and arg_strs[_si] != "[anon]"
+                                            ):
+                                                _parts = arg_strs[_si][
+                                                    1:
+                                                ].split("/")
+                                                while (
+                                                    len(_parts) > 1
+                                                    and _parts[0]
+                                                    not in _valid_top_dirs
+                                                ):
+                                                    _parts = _parts[1:]
+                                                arg_strs[_si] = "/" + "/".join(
+                                                    _parts
+                                                )
+                                        else:
+                                            _send = _sbuf.find(b"\x00")
+                                            if _send < 0:
+                                                _send = _ssl_py
+                                            arg_strs[_si] = _sbuf[
+                                                :_send
+                                            ].decode("utf-8", errors="replace")
+                            pid = pid_tgid & 0xFFFFFFFF
+                            tgid = (pid_tgid >> 32) & 0xFFFFFFFF
+                            comm = comm_raw.split(b"\x00")[0].decode(
+                                "utf-8", errors="replace"
+                            )
+                            fn = (
+                                func_names[func_idx]
+                                if func_idx < len(func_names)
+                                else str(func_idx)
+                            )
+                            # -g / PROCCOMMFILTER filter #
+                            show = BpfMgr._matchesFilter(pid, tgid, comm)
+                            if show and _proccomm_pattern:
+                                show = bool(
+                                    UtilMgr.isValidStr(
+                                        comm, [_proccomm_pattern]
+                                    )
+                                )
+                            # ARGn filter: eq/gt/lt/ne on argument values #
+                            # Skip for exit events (args hold ret_val/zeros, not original args)
+                            if (
+                                show
+                                and arg_filters
+                                and not (show_entry and not is_entry)
+                            ):
+                                for _idx, _op, _expected in arg_filters:
+                                    _actual = args[_idx]
+                                    if _op == "eq" and _actual != _expected:
+                                        show = False
+                                        break
+                                    elif _op == "gt" and _actual <= _expected:
+                                        show = False
+                                        break
+                                    elif _op == "lt" and _actual >= _expected:
+                                        show = False
+                                        break
+                                    elif _op == "ne" and _actual == _expected:
+                                        show = False
+                                        break
+                            # CALLERLIB/SKIPSAMECALLER: extract DSO from top user stack frame #
+                            _caller_dso = None
+                            if (
+                                use_callerlib or use_skipsamecaller
+                            ) and ustack_frames:
+                                _top_frame = ustack_frames[0]
+                                _lb = _top_frame.rfind("[")
+                                _rb = _top_frame.rfind("]")
+                                if _lb >= 0 and _rb > _lb:
+                                    _caller_dso = _top_frame[_lb + 1 : _rb]
+                            # SKIPSAMECALLER: suppress if caller is in the same library as target #
+                            if (
+                                show
+                                and use_skipsamecaller
+                                and _caller_dso
+                                and ":" in fn
+                            ):
+                                _target_lib = fn.split(":")[0]
+                                if (
+                                    os.path.basename(_caller_dso)
+                                    == _target_lib
+                                ):
+                                    show = False
+                            if show:
+                                if rate_enable and not mute_events:
+                                    _rate_count[0] += 1
+                                # accumulate summary (by tgid if PROCSUMMARY); count entry events only #
+                                if not show_entry or is_entry:
+                                    _skey = tgid if use_proc_summary else pid
+                                    _sentry = summary.setdefault(
+                                        fn, {}
+                                    ).setdefault(_skey, [0, tgid, comm])
+                                    _sentry[0] += 1
+                                # accumulate merged kernel+user stacks #
+                                if show_kstack and kstack_frames:
+                                    _all_frames = kstack_frames + ustack_frames
+                                    if comm_mode:
+                                        if comm_mode == "proc":
+                                            if tgid not in proc_comm_cache:
+                                                proc_comm_cache[tgid] = (
+                                                    BpfMgr._readProcComm(tgid)
+                                                )
+                                            _clabel = "%s[%d]" % (
+                                                proc_comm_cache.get(
+                                                    tgid, comm
+                                                ),
+                                                tgid,
                                             )
-                                        _proc_comm = proc_comm_cache.get(
-                                            tgid, comm
+                                        else:
+                                            _clabel = (
+                                                "%s[%d]" % (comm, pid)
+                                                if comm_mode == "task"
+                                                else comm
+                                            )
+                                        if _clabel:
+                                            _all_frames = _all_frames + [
+                                                _clabel
+                                            ]
+                                    _sk = " <- ".join(_all_frames)
+                                    _sfn = stack_summary.setdefault(fn, {})
+                                    _sfn[_sk] = _sfn.get(_sk, 0) + 1
+                                if not mute_events:
+                                    ts = _get_ts()
+                                    id_str = (
+                                        _getCmdline(pid, cache=True, save=True)
+                                        if show_cmdline
+                                        else comm
+                                    )
+                                    # build output line dynamically #
+                                    _line = ["%-15s" % ts]
+                                    if show_entry:
+                                        _ev_dir = ">" if is_entry else "<"
+                                        _line.append("%-1s" % _ev_dir)
+                                    _line.append("%-20s" % fn)
+                                    if tgid not in proc_comm_cache:
+                                        proc_comm_cache[tgid] = (
+                                            BpfMgr._readProcComm(tgid)
                                         )
-                                        if use_only_proc:
-                                            _line.append(
-                                                "%-24s"
+                                    _proc_comm = proc_comm_cache.get(
+                                        tgid, comm
+                                    )
+                                    if use_only_proc:
+                                        _line.append(
+                                            "%26s"
+                                            % ("%s(%d)" % (_proc_comm, tgid))
+                                        )
+                                    else:
+                                        _line.extend(
+                                            [
+                                                "%26s"
+                                                % ("%s(%d)" % (id_str, pid)),
+                                                "%26s"
                                                 % (
                                                     "%s(%d)"
                                                     % (_proc_comm, tgid)
-                                                )
-                                            )
-                                        else:
-                                            _line.extend(
-                                                [
-                                                    "%-24s"
-                                                    % (
-                                                        "%s(%d)"
-                                                        % (id_str, pid)
-                                                    ),
-                                                    "%-24s"
-                                                    % (
-                                                        "%s(%d)"
-                                                        % (_proc_comm, tgid)
-                                                    ),
-                                                ]
-                                            )
-                                        if show_proc_comm:
-                                            _line.append("%-16s" % _proc_comm)
-                                        if show_user:
-                                            _uid = uid_gid & 0xFFFFFFFF
-                                            _gid = (uid_gid >> 32) & 0xFFFFFFFF
-                                            _line.extend(
-                                                [
-                                                    "%-22s" % _fmt_uid(_uid),
-                                                    "%-16s" % _fmt_uid(_gid),
-                                                ]
-                                            )
-                                        if show_core:
-                                            _line.append("%-6d" % cpu_val)
-                                        if use_callerlib:
-                                            _dso_disp = (
-                                                os.path.basename(_caller_dso)
-                                                if _caller_dso
-                                                else "?"
-                                            )
-                                            _line.append("%-20s" % _dso_disp)
-                                        # Resolve fdno paths and apply filters #
-                                        # Exit events carry ret_val in args[0..4], not original args;
-                                        # skip fdno/str/path resolution for exit events entirely.
-                                        _is_exit = show_entry and not is_entry
-                                        _fdno_paths = {}
-                                        _skip_event = False
-                                        if not _is_exit:
-                                            for _ai, _av in enumerate(args):
-                                                if fdno_arg_mask & (1 << _ai):
-                                                    try:
-                                                        _fp = os.readlink(
-                                                            "/proc/%d/fd/%d"
-                                                            % (tgid, _av)
-                                                        )
-                                                    except OSError:
-                                                        _fp = None
-                                                    _fdno_paths[_ai] = _fp
-                                                    if _ai in fdno_filters:
-                                                        if (
-                                                            not _fp
-                                                            or not UtilMgr.isValidStr(
-                                                                _fp,
-                                                                [
-                                                                    fdno_filters[
-                                                                        _ai
-                                                                    ]
-                                                                ],
-                                                            )
-                                                        ):
-                                                            _skip_event = True
-                                                            break
-                                                elif arg_strs[_ai] is not None:
-                                                    _pat = path_filters.get(
-                                                        _ai
+                                                ),
+                                            ]
+                                        )
+                                    if show_proc_comm:
+                                        _line.append("%-16s" % _proc_comm)
+                                    if show_user:
+                                        _uid = uid_gid & 0xFFFFFFFF
+                                        _gid = (uid_gid >> 32) & 0xFFFFFFFF
+                                        _line.extend(
+                                            [
+                                                "%-22s" % _fmt_uid(_uid),
+                                                "%-16s" % _fmt_uid(_gid),
+                                            ]
+                                        )
+                                    if show_core:
+                                        _line.append("%6d" % cpu_val)
+                                    if use_callerlib:
+                                        _dso_disp = (
+                                            os.path.basename(_caller_dso)
+                                            if _caller_dso
+                                            else "?"
+                                        )
+                                        _line.append("%-20s" % _dso_disp)
+                                    # Resolve fdno paths and apply filters #
+                                    # Exit events carry ret_val in args[0..4], not original args;
+                                    # skip fdno/str/path resolution for exit events entirely.
+                                    _is_exit = show_entry and not is_entry
+                                    _fdno_paths = {}
+                                    _skip_event = False
+                                    if not _is_exit:
+                                        for _ai, _av in enumerate(args):
+                                            if fdno_arg_mask & (1 << _ai):
+                                                try:
+                                                    _fp = os.readlink(
+                                                        "/proc/%d/fd/%d"
+                                                        % (tgid, _av)
                                                     )
+                                                except OSError:
+                                                    _fp = None
+                                                _fdno_paths[_ai] = _fp
+                                                if _ai in fdno_filters:
                                                     if (
-                                                        _pat
-                                                        and not UtilMgr.isValidStr(
-                                                            arg_strs[_ai],
-                                                            [_pat],
+                                                        not _fp
+                                                        or not UtilMgr.isValidStr(
+                                                            _fp,
+                                                            [
+                                                                fdno_filters[
+                                                                    _ai
+                                                                ]
+                                                            ],
                                                         )
                                                     ):
                                                         _skip_event = True
                                                         break
-                                        if not _skip_event:
-                                            # ARG output: string/fdname if ARGxSTR/ARGxFDNAME, fd path if ARGxFDNO, else hex #
-                                            # Exit events: use cached entry (args, strs) if available, else "-" #
-                                            _exit_cached = (
-                                                _entry_arg_cache.pop(
-                                                    pid_tgid, None
+                                            elif arg_strs[_ai] is not None:
+                                                _pat = path_filters.get(_ai)
+                                                if (
+                                                    _pat
+                                                    and not UtilMgr.isValidStr(
+                                                        arg_strs[_ai],
+                                                        [_pat],
+                                                    )
+                                                ):
+                                                    _skip_event = True
+                                                    break
+                                    if not _skip_event:
+                                        # ARG output: string/fdname if ARGxSTR/ARGxFDNAME, fd path if ARGxFDNO, else hex #
+                                        # Exit events: use cached entry (args, strs) if available, else "-" #
+                                        _exit_cached = (
+                                            _entry_arg_cache.pop(
+                                                pid_tgid, None
+                                            )
+                                            if _is_exit
+                                            else None
+                                        )
+                                        _exit_cached_args = (
+                                            _exit_cached[0]
+                                            if _exit_cached
+                                            else None
+                                        )
+                                        _exit_cached_strs = (
+                                            _exit_cached[1]
+                                            if _exit_cached
+                                            else None
+                                        )
+                                        # ELAPSED #
+                                        if show_entry:
+                                            if is_entry:
+                                                _line.append("%12s" % "-")
+                                            else:
+                                                _elap_s = "%.6f" % (
+                                                    elapsed_ns / 1e9
                                                 )
-                                                if _is_exit
-                                                else None
-                                            )
-                                            _exit_cached_args = (
-                                                _exit_cached[0]
-                                                if _exit_cached
-                                                else None
-                                            )
-                                            _exit_cached_strs = (
-                                                _exit_cached[1]
-                                                if _exit_cached
-                                                else None
-                                            )
-                                            # ELAPSED #
-                                            if show_entry:
-                                                if is_entry:
-                                                    _line.append("%-12s" % "-")
-                                                else:
-                                                    _elap_s = "%.6f" % (
-                                                        elapsed_ns / 1e9
-                                                    )
-                                                    _line.append(
-                                                        "%-12s" % _elap_s
-                                                    )
-                                            # RET before ARGS (fixed 16) #
-                                            if show_entry:
-                                                if is_entry:
-                                                    _line.append("%-16s" % "-")
-                                                else:
-                                                    _ret_s = "0x%x" % (
-                                                        args[0]
-                                                        & 0xFFFFFFFFFFFFFFFF
-                                                    )
-                                                    _line.append(
-                                                        "%-16s" % _ret_s
-                                                    )
-                                            # ARGS: collect → "/" join → trim trailing 0x0 #
-                                            _arg_parts = []
-                                            for _ai, _av in enumerate(args):
-                                                if _is_exit:
-                                                    if (
-                                                        _exit_cached_strs
-                                                        is not None
-                                                        and _exit_cached_strs[
-                                                            _ai
-                                                        ]
-                                                        is not None
-                                                    ):
-                                                        _arg_parts.append(
-                                                            repr(
-                                                                _exit_cached_strs[
-                                                                    _ai
-                                                                ]
-                                                            )
-                                                        )
-                                                    elif (
-                                                        _exit_cached_args
-                                                        is not None
-                                                    ):
-                                                        _arg_parts.append(
-                                                            "0x%x"
-                                                            % _exit_cached_args[
+                                                _line.append("%12s" % _elap_s)
+                                        # RET before ARGS (fixed 16) #
+                                        if show_entry:
+                                            if is_entry:
+                                                _line.append("%16s" % "-")
+                                            else:
+                                                _ret_s = "0x%x" % (
+                                                    args[0]
+                                                    & 0xFFFFFFFFFFFFFFFF
+                                                )
+                                                _line.append("%16s" % _ret_s)
+                                        # ARGS: collect → "/" join → trim trailing 0x0 #
+                                        _arg_parts = []
+                                        for _ai, _av in enumerate(args):
+                                            if _is_exit:
+                                                if (
+                                                    _exit_cached_strs
+                                                    is not None
+                                                    and _exit_cached_strs[_ai]
+                                                    is not None
+                                                ):
+                                                    _arg_parts.append(
+                                                        repr(
+                                                            _exit_cached_strs[
                                                                 _ai
                                                             ]
                                                         )
-                                                    else:
-                                                        _arg_parts.append("-")
-                                                elif arg_strs[_ai] is not None:
-                                                    _arg_parts.append(
-                                                        repr(arg_strs[_ai])
                                                     )
-                                                elif fdno_arg_mask & (
-                                                    1 << _ai
+                                                elif (
+                                                    _exit_cached_args
+                                                    is not None
                                                 ):
-                                                    _fp = _fdno_paths.get(_ai)
-                                                    if _fp is not None:
-                                                        _arg_parts.append(
-                                                            repr(_fp)
-                                                        )
-                                                    else:
-                                                        _arg_parts.append(
-                                                            "0x%x" % _av
-                                                        )
+                                                    _arg_parts.append(
+                                                        "0x%x"
+                                                        % _exit_cached_args[
+                                                            _ai
+                                                        ]
+                                                    )
+                                                else:
+                                                    _arg_parts.append("-")
+                                            elif arg_strs[_ai] is not None:
+                                                _arg_parts.append(
+                                                    repr(arg_strs[_ai])
+                                                )
+                                            elif fdno_arg_mask & (1 << _ai):
+                                                _fp = _fdno_paths.get(_ai)
+                                                if _fp is not None:
+                                                    _arg_parts.append(
+                                                        repr(_fp)
+                                                    )
                                                 else:
                                                     _arg_parts.append(
                                                         "0x%x" % _av
                                                     )
-                                            while (
-                                                _arg_parts
-                                                and _arg_parts[-1] == "0x0"
-                                            ):
-                                                _arg_parts.pop()
-                                            _line.append(
-                                                ", ".join(_arg_parts)
-                                                if _arg_parts
-                                                else "-"
-                                            )
-                                            if SysMgr.jsonEnable:
-                                                _jargs = {}
-                                                for _ai, _av in enumerate(
-                                                    args
-                                                ):
-                                                    if _is_exit:
-                                                        # exit event: original args not in payload
-                                                        _jargs[
-                                                            "arg%d" % (_ai + 1)
-                                                        ] = None
-                                                    elif (
-                                                        arg_strs[_ai]
-                                                        is not None
-                                                    ):
-                                                        _jargs[
-                                                            "arg%d" % (_ai + 1)
-                                                        ] = arg_strs[_ai]
-                                                    else:
-                                                        _jargs[
-                                                            "arg%d" % (_ai + 1)
-                                                        ] = _av
-                                                _jevt = {
-                                                    "time": SysMgr.getUptime(),
-                                                    "pid": tgid,
-                                                    "tid": pid,
-                                                    "comm": comm,
-                                                    "func": fn,
-                                                    "args": _jargs,
-                                                }
-                                                if show_entry:
-                                                    _jevt["dir"] = (
-                                                        ">"
-                                                        if is_entry
-                                                        else "<"
-                                                    )
-                                                if not is_entry:
-                                                    _jevt["elapsed_s"] = (
-                                                        elapsed_ns / 1e9
-                                                    )
-                                                    _jevt["ret"] = ct.c_int64(
-                                                        args[0]
-                                                    ).value
-                                                if (
-                                                    kstack_frames
-                                                    or ustack_frames
-                                                ):
-                                                    _jevt["stack"] = (
-                                                        kstack_frames
-                                                        + ustack_frames
-                                                    )
-                                                SysMgr.printPipe(
-                                                    UtilMgr.convDict2Str(
-                                                        _jevt, pretty=False
-                                                    )
-                                                )
                                             else:
-                                                SysMgr.printPipe(
-                                                    " ".join(_line),
-                                                    trim=False,
+                                                _arg_parts.append("0x%x" % _av)
+                                        while (
+                                            _arg_parts
+                                            and _arg_parts[-1] == "0x0"
+                                        ):
+                                            _arg_parts.pop()
+                                        _line.append(
+                                            ", ".join(_arg_parts)
+                                            if _arg_parts
+                                            else "-"
+                                        )
+                                        if SysMgr.jsonEnable:
+                                            _jargs = {}
+                                            for _ai, _av in enumerate(args):
+                                                if _is_exit:
+                                                    # exit event: original args not in payload
+                                                    _jargs[
+                                                        "arg%d" % (_ai + 1)
+                                                    ] = None
+                                                elif arg_strs[_ai] is not None:
+                                                    _jargs[
+                                                        "arg%d" % (_ai + 1)
+                                                    ] = arg_strs[_ai]
+                                                else:
+                                                    _jargs[
+                                                        "arg%d" % (_ai + 1)
+                                                    ] = _av
+                                            _jevt = {
+                                                "time": SysMgr.getUptime(),
+                                                "pid": tgid,
+                                                "tid": pid,
+                                                "comm": comm,
+                                                "func": fn,
+                                                "args": _jargs,
+                                            }
+                                            if show_entry:
+                                                _jevt["dir"] = (
+                                                    ">" if is_entry else "<"
                                                 )
-                                                # Print ARGnDATA hex dumps #
-                                                for _dai, _dbs in _data_dumps:
-                                                    if not _dbs:
-                                                        continue
-                                                    _indent = (
-                                                        "  DATA[ARG%d] (%3dB): "
-                                                        % (
-                                                            _dai,
-                                                            len(_dbs),
-                                                        )
-                                                    )
-                                                    _cont = " " * len(_indent)
-                                                    for _drow in range(
-                                                        0, len(_dbs), 16
-                                                    ):
-                                                        _chunk = _dbs[
-                                                            _drow : _drow + 16
-                                                        ]
-                                                        _hex = " ".join(
-                                                            "%02x" % b
-                                                            for b in _chunk
-                                                        )
-                                                        _asc = "".join(
-                                                            (
-                                                                chr(b)
-                                                                if 0x20
-                                                                <= b
-                                                                < 0x7F
-                                                                else "."
-                                                            )
-                                                            for b in _chunk
-                                                        )
-                                                        _pfx = (
-                                                            _indent
-                                                            if _drow == 0
-                                                            else _cont
-                                                        )
-                                                        SysMgr.printPipe(
-                                                            "%s%-48s | %s"
-                                                            % (
-                                                                _pfx,
-                                                                _hex,
-                                                                _asc,
-                                                            ),
-                                                            trim=False,
-                                                        )
-                                                # Print combined kernel + user stack frames #
-                                                if (
+                                            if not is_entry:
+                                                _jevt["elapsed_s"] = (
+                                                    elapsed_ns / 1e9
+                                                )
+                                                _jevt["ret"] = ct.c_int64(
+                                                    args[0]
+                                                ).value
+                                            if kstack_frames or ustack_frames:
+                                                _jevt["stack"] = (
                                                     kstack_frames
-                                                    or ustack_frames
+                                                    + ustack_frames
+                                                )
+                                            SysMgr.printPipe(
+                                                UtilMgr.convDict2Str(
+                                                    _jevt, pretty=False
+                                                )
+                                            )
+                                        else:
+                                            SysMgr.printPipe(
+                                                " ".join(_line),
+                                                trim=False,
+                                            )
+                                            # Print ARGnDATA hex dumps #
+                                            for _dai, _dbs in _data_dumps:
+                                                if not _dbs:
+                                                    continue
+                                                _indent = (
+                                                    "  DATA[ARG%d] (%3dB): "
+                                                    % (
+                                                        _dai,
+                                                        len(_dbs),
+                                                    )
+                                                )
+                                                _cont = " " * len(_indent)
+                                                for _drow in range(
+                                                    0, len(_dbs), 16
                                                 ):
-                                                    _disp_frames = (
-                                                        kstack_frames
-                                                        + ustack_frames
+                                                    _chunk = _dbs[
+                                                        _drow : _drow + 16
+                                                    ]
+                                                    _hex = " ".join(
+                                                        "%02x" % b
+                                                        for b in _chunk
                                                     )
-                                                    if comm_mode:
-                                                        if comm_mode == "proc":
-                                                            if (
-                                                                tgid
-                                                                not in proc_comm_cache
-                                                            ):
-                                                                proc_comm_cache[
-                                                                    tgid
-                                                                ] = BpfMgr._readProcComm(
-                                                                    tgid
-                                                                )
-                                                            _clabel = "%s[%d]" % (
-                                                                proc_comm_cache.get(
-                                                                    tgid,
-                                                                    comm,
-                                                                ),
-                                                                tgid,
-                                                            )
-                                                        else:
-                                                            _clabel = (
-                                                                "%s[%d]"
-                                                                % (comm, pid)
-                                                                if comm_mode
-                                                                == "task"
-                                                                else comm
-                                                            )
-                                                        if _clabel:
-                                                            _disp_frames = (
-                                                                _disp_frames
-                                                                + [_clabel]
-                                                            )
-                                                    SysMgr.printPipe(
-                                                        BpfMgr._wrapChain(
-                                                            _disp_frames,
-                                                            "{:>17} |  <- ".format(
-                                                                ""
-                                                            ),
-                                                            "",
-                                                            " " * 21 + "<- ",
-                                                            SysMgr.lineLength,
+                                                    _asc = "".join(
+                                                        (
+                                                            chr(b)
+                                                            if 0x20 <= b < 0x7F
+                                                            else "."
                                                         )
+                                                        for b in _chunk
                                                     )
+                                                    _pfx = (
+                                                        _indent
+                                                        if _drow == 0
+                                                        else _cont
+                                                    )
+                                                    SysMgr.printPipe(
+                                                        "%s%-48s | %s"
+                                                        % (
+                                                            _pfx,
+                                                            _hex,
+                                                            _asc,
+                                                        ),
+                                                        trim=False,
+                                                    )
+                                            # Print combined kernel + user stack frames #
+                                            if kstack_frames or ustack_frames:
+                                                _disp_frames = (
+                                                    kstack_frames
+                                                    + ustack_frames
+                                                )
+                                                if comm_mode:
+                                                    if comm_mode == "proc":
+                                                        if (
+                                                            tgid
+                                                            not in proc_comm_cache
+                                                        ):
+                                                            proc_comm_cache[
+                                                                tgid
+                                                            ] = BpfMgr._readProcComm(
+                                                                tgid
+                                                            )
+                                                        _clabel = "%s[%d]" % (
+                                                            proc_comm_cache.get(
+                                                                tgid,
+                                                                comm,
+                                                            ),
+                                                            tgid,
+                                                        )
+                                                    else:
+                                                        _clabel = (
+                                                            "%s[%d]"
+                                                            % (comm, pid)
+                                                            if comm_mode
+                                                            == "task"
+                                                            else comm
+                                                        )
+                                                    if _clabel:
+                                                        _disp_frames = (
+                                                            _disp_frames
+                                                            + [_clabel]
+                                                        )
+                                                SysMgr.printPipe(
+                                                    BpfMgr._wrapChain(
+                                                        _disp_frames,
+                                                        "{:>17} |  <- ".format(
+                                                            ""
+                                                        ),
+                                                        "",
+                                                        " " * 21 + "<- ",
+                                                        SysMgr.lineLength,
+                                                    )
+                                                )
                         except Exception:
                             SysMgr.printWarn(
                                 "failed to process bpfsnoop record",
@@ -135568,7 +139946,6 @@ class BpfMgr(object):
                             )
                     elif rec_type == 2:  # PERF_RECORD_LOST
                         try:
-                            body = rb_read(tail + 8, rec_size - 8)
                             if len(body) >= 16:
                                 lost = struct.unpack_from("<Q", body, 8)[0]
                                 SysMgr.printWarn(
@@ -135577,8 +139954,6 @@ class BpfMgr(object):
                                 )
                         except Exception:
                             pass
-                    tail += rec_size
-                tail_ptr[0] = tail
 
             # Poll ring buffers until timeout or Ctrl-C #
             rate_enable = "RATE" in SysMgr.environList
@@ -135620,6 +139995,11 @@ class BpfMgr(object):
         except:
             SysMgr.printErr("bpfsnoop failed", reason=True)
         finally:
+            _merged_stack = {}
+            if show_kstack and stack_summary:
+                for _call_list in stack_summary.values():
+                    for _k, _v in _call_list.items():
+                        _merged_stack[_k] = _merged_stack.get(_k, 0) + _v
             # Print call count summary (-o or -q PRINTSUMMARY only) #
             if summary and (
                 SysMgr.outPath or "PRINTSUMMARY" in SysMgr.environList
@@ -135662,14 +140042,14 @@ class BpfMgr(object):
                             _counts, _fn, _comms, None, _tgids, _proc_comms
                         )
                 # Print unified kernel stack summary in fperf report format #
-                if show_kstack and stack_summary:
-                    _merged = {}
-                    for _call_list in stack_summary.values():
-                        for _k, _v in _call_list.items():
-                            _merged[_k] = _merged.get(_k, 0) + _v
-                    BpfMgr.printKstackReport(_merged, "Call Stack Summary")
+                if _merged_stack:
+                    BpfMgr.printKstackReport(
+                        _merged_stack, "Call Stack Summary"
+                    )
                 SysMgr.doPrint(pager=False)
                 SysMgr.clearPrint()
+            if drawflame and _merged_stack:
+                BpfMgr._emitFlameSVG(_merged_stack, "bpfsnoop", ".bpfsnoop")
             for fd in perf_fds:
                 try:
                     os.close(fd)
@@ -135741,14 +140121,7 @@ class BpfMgr(object):
                 irq_names = BpfMgr._getIrqNames()
                 max_irq = max(irq_names.keys()) + 1 if irq_names else 1024
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -135838,7 +140211,7 @@ class BpfMgr(object):
                         )
                     ):
                         BpfMgr._flushBuf()
-                        if total_time > 0 and elapsed >= total_time:
+                        if BpfMgr._checkLoopExit(total_time, elapsed):
                             break
                         continue
 
@@ -135942,7 +140315,7 @@ class BpfMgr(object):
 
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -136099,14 +140472,7 @@ class BpfMgr(object):
                 else:
                     show_load = False
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -136133,9 +140499,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -136157,7 +140521,7 @@ class BpfMgr(object):
                     if not _cond_met:
                         _samp_prev_hist = dict(hist)
                         BpfMgr._flushBuf()
-                        if total_time > 0 and elapsed >= total_time:
+                        if BpfMgr._checkLoopExit(total_time, elapsed):
                             break
                         continue
                     display_hist = {
@@ -136415,14 +140779,14 @@ class BpfMgr(object):
                             )
                             SysMgr.addPrint("=" * _mig_w + "\n", force=True)
                             SysMgr.addPrint(
-                                "%-8s  %8s\n" % ("DEST", "COUNT"), force=True
+                                "%8s  %8s\n" % ("DEST", "COUNT"), force=True
                             )
                             SysMgr.addPrint("-" * _mig_w + "\n", force=True)
                             for _dest, _cnt in sorted(
                                 _core_mig.items(), key=lambda x: -x[1]
                             ):
                                 SysMgr.addPrint(
-                                    "%-8d  %8s\n"
+                                    "%8d  %8s\n"
                                     % (_dest, UtilMgr.convNum(_cnt)),
                                     force=True,
                                 )
@@ -136522,7 +140886,7 @@ class BpfMgr(object):
 
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -136553,6 +140917,7 @@ class BpfMgr(object):
         summary_call = {}
         summary_bt = {}
         elapsed = 0
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
             if "PROCCOMMFILTER" in SysMgr.environList:
@@ -136561,6 +140926,7 @@ class BpfMgr(object):
                 )
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
                 if SysMgr.depthLevel
@@ -136639,9 +141005,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -136667,7 +141031,7 @@ class BpfMgr(object):
                         comm_mode=BpfMgr._getCommMode(),
                     )
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -136742,7 +141106,7 @@ class BpfMgr(object):
                 )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -136773,6 +141137,15 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: max(1, n["ns"] // 1_000_000),
+                )
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfreclaimtop (ms blocked)", ".bpfreclaimtop"
+                )
             BpfMgr.detachAll()
 
     @staticmethod
@@ -136880,14 +141253,7 @@ class BpfMgr(object):
             except Exception:
                 pass
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             elap_min_ns, elap_max_ns, elap_eq_ns = UtilMgr.parseElapFilter()
@@ -136912,9 +141278,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -136931,7 +141295,7 @@ class BpfMgr(object):
                     _cond_met = True
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -137102,7 +141466,7 @@ class BpfMgr(object):
 
                     SysMgr.addPrint(twoLine + "\n", 1)
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -137122,6 +141486,7 @@ class BpfMgr(object):
         summary_call = {}
         summary_bt = {}
         elapsed = 0
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
             if "PROCCOMMFILTER" in SysMgr.environList:
@@ -137130,6 +141495,7 @@ class BpfMgr(object):
                 )
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
                 if SysMgr.depthLevel
@@ -137212,9 +141578,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -137256,7 +141620,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -137302,7 +141666,7 @@ class BpfMgr(object):
                 )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -137333,6 +141697,15 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: max(1, n["ns"] // 1_000_000),
+                )
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpflocktop (ms blocked)", ".bpflocktop"
+                )
             BpfMgr.detachAll()
 
     @staticmethod
@@ -137344,12 +141717,14 @@ class BpfMgr(object):
         ml_u_fd = -1
         show_ustack = False
         accu_mode = False
+        drawflame = False
         _dbgObj = None
         _t0 = 0.0
         try:
             BpfMgr.checkAvailable()
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             accu_mode = "ACCU" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
@@ -137395,14 +141770,7 @@ class BpfMgr(object):
             BpfMgr.attachKprobe(ret_fd, "__kmalloc", retprobe=True)
             BpfMgr.attachKprobe(kfree_fd, "kfree", retprobe=False)
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -137434,7 +141802,7 @@ class BpfMgr(object):
             comm_mode = BpfMgr._getCommMode()
 
             def _print_alloc_top(
-                label, interval_s
+                label, interval_s, printOut=True
             ):  # pylint: disable=function-redefined
                 # First pass: group by (kstack_id, ustack_id, pid_tgid) #
                 raw_groups = {}
@@ -137505,20 +141873,22 @@ class BpfMgr(object):
                         twoLine,
                     )
                 )
-                if not SysMgr.addPrint(hdr, hdr.count("\n")):
+                if printOut and not SysMgr.addPrint(hdr, hdr.count("\n")):
                     return
 
                 if not raw_groups:
-                    SysMgr.addPrint(
-                        "%s\n%s\n" % (UtilMgr.NONE_STR, twoLine), 2
-                    )
+                    if printOut:
+                        SysMgr.addPrint(
+                            "%s\n%s\n" % (UtilMgr.NONE_STR, twoLine), 2
+                        )
                     return
 
-                col_hdr = "{0:<9}| {1}\n{2}\n".format(
-                    "Usage  ", "Function [PATH] <Sample>", oneLine
-                )
-                if not SysMgr.addPrint(col_hdr, col_hdr.count("\n")):
-                    return
+                if printOut:
+                    col_hdr = "{0:<9}| {1}\n{2}\n".format(
+                        "Usage  ", "Function [PATH] <Sample>", oneLine
+                    )
+                    if not SysMgr.addPrint(col_hdr, col_hdr.count("\n")):
+                        return
 
                 # Second pass: build callTable[leaf] and btTable[leaf][chain_str] #
                 callTable = {}  # leaf → {"bytes": int, "count": int}
@@ -137556,11 +141926,7 @@ class BpfMgr(object):
                     if comm_mode and pid_tgid:
                         pc = tgid_comm_cache.get(tgid)
                         if pc is None:
-                            try:
-                                with open("/proc/%d/comm" % tgid) as _f:
-                                    pc = _f.read().strip()
-                            except Exception:
-                                pc = ""
+                            pc = SysMgr.getComm(tgid, default="")
                             tgid_comm_cache[tgid] = pc
                         if pc:
                             if comm_mode == "task":
@@ -137581,6 +141947,23 @@ class BpfMgr(object):
                     )
                     bte["bytes"] += info["bytes"]
                     bte["count"] += info["count"]
+
+                if (
+                    drawflame
+                    and label == "Top bpfkleaktop Summary"
+                    and btTable
+                ):
+                    _flame_data = BpfMgr._buildFlameFromSummary(
+                        callTable, btTable, lambda n: n["bytes"]
+                    )
+                    BpfMgr._emitFlameSVG(
+                        _flame_data,
+                        "bpfkleaktop (bytes outstanding)",
+                        ".bpfkleaktop",
+                    )
+
+                if not printOut:
+                    return
 
                 # Print sorted by bytes descending #
                 _bt_filter = SysMgr.environList.get("BTFILTER", [])
@@ -137658,9 +142041,7 @@ class BpfMgr(object):
                 else:
                     time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
 
                 if not accu_mode:
@@ -137674,7 +142055,7 @@ class BpfMgr(object):
                         _print_alloc_top("bpfkleaktop", _actual)
                     BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -137685,17 +142066,20 @@ class BpfMgr(object):
         finally:
             if (
                 _print_alloc_top is not None
-                and (SysMgr.outPath or accu_mode)
                 and "NOSUMMARY" not in SysMgr.environList
             ):
-                _print_alloc_top(
-                    "Top bpfkleaktop Summary",
-                    (time.monotonic() - _t0) if _t0 else elapsed,
-                )
-                SysMgr.doPrint(pager=False)
-                SysMgr.clearPrint()
-                SysMgr.printProcBuffer()
-                SysMgr.clearProcBuffer()
+                _want_print = bool(SysMgr.outPath or accu_mode)
+                if _want_print or drawflame:
+                    _print_alloc_top(
+                        "Top bpfkleaktop Summary",
+                        (time.monotonic() - _t0) if _t0 else elapsed,
+                        printOut=_want_print,
+                    )
+                    if _want_print:
+                        SysMgr.doPrint(pager=False)
+                        SysMgr.clearPrint()
+                        SysMgr.printProcBuffer()
+                        SysMgr.clearProcBuffer()
             BpfMgr.detachAll()
 
     @staticmethod
@@ -137707,11 +142091,13 @@ class BpfMgr(object):
         summary_call = {}
         summary_bt = {}
         elapsed = 0
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
             BpfMgr.initFilters()  # TIDFILTER/PIDFILTER/THREADCOMMFILTER/PROCCOMMFILTER
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             show_interface = "SHOWINTERFACE" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
@@ -137851,9 +142237,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -137940,7 +142324,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -138038,7 +142422,7 @@ class BpfMgr(object):
                             )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -138070,6 +142454,15 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: max(1, n["ns"] // 1_000_000),
+                )
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfbinderlat (ms blocked)", ".bpfbinderlat"
+                )
             BpfMgr.detachAll()
 
     @staticmethod
@@ -138521,7 +142914,7 @@ class BpfMgr(object):
         """
         import glob, os
 
-        # Namespace bucket: first two dotted components (e.g. "com.hmg", "android.car")
+        # Namespace bucket: first two dotted components (e.g. "com.lge", "android.car")
         parts = interface_name.split(".")
         bucket = (
             parts[0] if len(parts) == 1 else "%s.%s" % (parts[0], parts[1])
@@ -138544,10 +142937,7 @@ class BpfMgr(object):
                 add(p)
 
         # --- Namespace-priority: most likely JAR tried first (fast hit) ---
-        if parts[0] in ("hmg",) or bucket in ("com.hmg",):
-            for d in BpfMgr._FRAMEWORK_DIRS:
-                add_glob("%s/hmg*.jar" % d)
-        elif parts[0] in ("lge",) or bucket in ("com.lge",):
+        if parts[0] in ("lge",) or bucket in ("com.lge",):
             for d in BpfMgr._FRAMEWORK_DIRS:
                 add_glob("%s/lge*.jar" % d)
         elif interface_name.startswith("android.car."):
@@ -139637,76 +144027,9 @@ class BpfMgr(object):
                     )
 
                     # Setup perf ring buffers #
-                    ct = SysMgr.getPkg("ctypes")
-                    libc = SysMgr.libcObj
-                    libc.syscall.restype = ct.c_long
-                    libc.mmap.restype = ct.c_uint64
-                    libc.mmap.argtypes = [
-                        ct.c_uint64,
-                        ct.c_uint64,
-                        ct.c_int,
-                        ct.c_int,
-                        ct.c_int,
-                        ct.c_uint64,
-                    ]
-                    try:
-                        page_size = os.sysconf("SC_PAGESIZE")
-                    except Exception:
-                        page_size = 4096
-                    n_data_pages = 64
-                    total_mmap_size = (1 + n_data_pages) * page_size
-                    PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-                    PERF_SAMPLE_RAW = 1 << 10
-                    perfEvents = SysMgr.getPerfEventList()
-                    nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-                    for cpu in cpu_list:
-                        attr = bytearray(112)
-                        struct.pack_into("<I", attr, 0, 1)
-                        struct.pack_into("<I", attr, 4, 112)
-                        struct.pack_into("<Q", attr, 8, 10)
-                        struct.pack_into("<Q", attr, 16, 1)
-                        struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                        struct.pack_into("<I", attr, 48, 1)
-                        attr_arr = (ct.c_uint8 * 112)(*attr)
-                        fd = int(
-                            libc.syscall(
-                                ct.c_long(nr_perf),
-                                attr_arr,
-                                ct.c_int(-1),
-                                ct.c_int(cpu),
-                                ct.c_int(-1),
-                                ct.c_long(0),
-                            )
-                        )
-                        if fd < 0:
-                            continue
-                        buf_addr = int(
-                            libc.mmap(
-                                ct.c_uint64(0),
-                                ct.c_uint64(total_mmap_size),
-                                ct.c_int(PROT_READ | PROT_WRITE),
-                                ct.c_int(MAP_SHARED),
-                                ct.c_int(fd),
-                                ct.c_uint64(0),
-                            )
-                        )
-                        if ct.c_long(buf_addr).value < 0:
-                            os.close(fd)
-                            continue
-                        libc.ioctl(
-                            ct.c_int(fd),
-                            ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                            ct.c_int(0),
-                        )
-                        BpfMgr.mapUpdate(
-                            tc_perf_fd,
-                            struct.pack("<I", cpu),
-                            struct.pack("<I", fd),
-                        )
-                        perf_fds.append(fd)
-                        mmap_bufs.append(
-                            (buf_addr, page_size, n_data_pages * page_size)
-                        )
+                    perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                        cpu_list, tc_perf_fd, warn_on_fail=False
+                    )
 
                     if not perf_fds:
                         SysMgr.printErr(
@@ -139724,106 +144047,64 @@ class BpfMgr(object):
                     )
                     SysMgr.printPipe("=" * SysMgr.lineLength)
 
-                    c_uint8 = ct.c_uint8
-                    c_uint64 = ct.c_uint64
-                    cast = ct.cast
-                    POINTER = ct.POINTER
                     PERF_RECORD_SAMPLE = 9
                     _time_time = time.time
                     _get_ts = BpfMgr.makeGetTs()
 
                     def drain_tc(buf_addr, pg_sz, data_sz):
-                        head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                        tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                        tail = tail_ptr[0]
-                        data_start = buf_addr + pg_sz
-
-                        def rb_read(off, n):
-                            pos = off % data_sz
-                            if pos + n <= data_sz:
-                                return bytes(
-                                    (c_uint8 * n).from_address(
-                                        data_start + pos
-                                    )
-                                )
-                            first = data_sz - pos
-                            buf = bytearray(n)
-                            buf[:first] = bytes(
-                                (c_uint8 * first).from_address(
-                                    data_start + pos
-                                )
-                            )
-                            buf[first:] = bytes(
-                                (c_uint8 * (n - first)).from_address(
-                                    data_start
-                                )
-                            )
-                            return bytes(buf)
-
-                        while tail + 8 <= head:
+                        for (
+                            rec_type,
+                            raw,
+                            raw_size,
+                            body,
+                        ) in BpfMgr._iterRingBufferRecords(
+                            buf_addr, pg_sz, data_sz
+                        ):
+                            if rec_type != PERF_RECORD_SAMPLE or raw_size < 32:
+                                continue
                             try:
-                                hdr = rb_read(tail, 8)
-                                rec_type, _misc, rec_size = struct.unpack(
-                                    "<IHH", hdr
+                                # Payload: [comm(16B)][delta_ns(8B)][pid_tgid(8B)]
+                                comm_b = (
+                                    raw[0:16]
+                                    .split(b"\x00")[0]
+                                    .decode("utf-8", errors="replace")
                                 )
+                                delta_ns, pid_tgid = struct.unpack_from(
+                                    "<QQ", raw, 16
+                                )
+                                tid = pid_tgid & 0xFFFFFFFF
+                                tgid = pid_tgid >> 32
+                                delta_ms = delta_ns / 1e6
+                                if SysMgr.jsonEnable:
+                                    SysMgr.printPipe(
+                                        UtilMgr.convDict2Str(
+                                            {
+                                                "time": SysMgr.getUptime(),
+                                                "pid": int(tgid),
+                                                "tid": int(tid),
+                                                "comm": comm_b,
+                                                "connect_lat_ms": float(
+                                                    delta_ms
+                                                ),
+                                                "elapsed_s": float(delta_ms)
+                                                / 1000.0,
+                                            },
+                                            pretty=False,
+                                        )
+                                    )
+                                else:
+                                    SysMgr.printPipe(
+                                        "  %s  %s(%d/%d)  connect_lat=%.3fms"
+                                        % (
+                                            _get_ts(),
+                                            comm_b[:12],
+                                            tid,
+                                            tgid,
+                                            delta_ms,
+                                        )
+                                    )
                             except Exception:
-                                break
-                            if rec_size < 8:
-                                break
-                            if rec_type == PERF_RECORD_SAMPLE:
-                                try:
-                                    body = rb_read(tail + 8, rec_size - 8)
-                                    raw_size = struct.unpack_from(
-                                        "<I", body, 0
-                                    )[0]
-                                    if raw_size >= 32:
-                                        raw = body[4 : 4 + raw_size]
-                                        # Payload: [comm(16B)][delta_ns(8B)][pid_tgid(8B)]
-                                        comm_b = (
-                                            raw[0:16]
-                                            .split(b"\x00")[0]
-                                            .decode("utf-8", errors="replace")
-                                        )
-                                        delta_ns, pid_tgid = (
-                                            struct.unpack_from("<QQ", raw, 16)
-                                        )
-                                        tid = pid_tgid & 0xFFFFFFFF
-                                        tgid = pid_tgid >> 32
-                                        delta_ms = delta_ns / 1e6
-                                        if SysMgr.jsonEnable:
-                                            SysMgr.printPipe(
-                                                UtilMgr.convDict2Str(
-                                                    {
-                                                        "time": SysMgr.getUptime(),
-                                                        "pid": int(tgid),
-                                                        "tid": int(tid),
-                                                        "comm": comm_b,
-                                                        "connect_lat_ms": float(
-                                                            delta_ms
-                                                        ),
-                                                        "elapsed_s": float(
-                                                            delta_ms
-                                                        )
-                                                        / 1000.0,
-                                                    },
-                                                    pretty=False,
-                                                )
-                                            )
-                                        else:
-                                            SysMgr.printPipe(
-                                                "  %s  %s(%d/%d)  connect_lat=%.3fms"
-                                                % (
-                                                    _get_ts(),
-                                                    comm_b[:12],
-                                                    tid,
-                                                    tgid,
-                                                    delta_ms,
-                                                )
-                                            )
-                                except Exception:
-                                    pass
-                            tail += rec_size
-                        tail_ptr[0] = tail
+                                pass
 
                     sel_mod = SysMgr.getPkg("select")
                     while True:
@@ -139879,14 +144160,7 @@ class BpfMgr(object):
 
             BpfMgr.attachTracepoint(probe_fd, "tcp", "tcp_probe")
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -139900,9 +144174,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -139963,7 +144235,7 @@ class BpfMgr(object):
                         )
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -140025,76 +144297,9 @@ class BpfMgr(object):
                 BpfMgr.attachTracepoint(prog_fd, "sock", "inet_sock_set_state")
 
                 # Setup perf ring buffers #
-                ct = SysMgr.getPkg("ctypes")
-                libc = SysMgr.libcObj
-                libc.syscall.restype = ct.c_long
-                libc.mmap.restype = ct.c_uint64
-                libc.mmap.argtypes = [
-                    ct.c_uint64,
-                    ct.c_uint64,
-                    ct.c_int,
-                    ct.c_int,
-                    ct.c_int,
-                    ct.c_uint64,
-                ]
-                try:
-                    page_size = os.sysconf("SC_PAGESIZE")
-                except Exception:
-                    page_size = 4096
-                n_data_pages = 64
-                total_mmap_size = (1 + n_data_pages) * page_size
-                PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-                PERF_SAMPLE_RAW = 1 << 10
-                perfEvents = SysMgr.getPerfEventList()
-                nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-                for cpu in cpu_list:
-                    attr = bytearray(112)
-                    struct.pack_into("<I", attr, 0, 1)
-                    struct.pack_into("<I", attr, 4, 112)
-                    struct.pack_into("<Q", attr, 8, 10)
-                    struct.pack_into("<Q", attr, 16, 1)
-                    struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                    struct.pack_into("<I", attr, 48, 1)
-                    attr_arr = (ct.c_uint8 * 112)(*attr)
-                    fd = int(
-                        libc.syscall(
-                            ct.c_long(nr_perf),
-                            attr_arr,
-                            ct.c_int(-1),
-                            ct.c_int(cpu),
-                            ct.c_int(-1),
-                            ct.c_long(0),
-                        )
-                    )
-                    if fd < 0:
-                        continue
-                    buf_addr = int(
-                        libc.mmap(
-                            ct.c_uint64(0),
-                            ct.c_uint64(total_mmap_size),
-                            ct.c_int(PROT_READ | PROT_WRITE),
-                            ct.c_int(MAP_SHARED),
-                            ct.c_int(fd),
-                            ct.c_uint64(0),
-                        )
-                    )
-                    if ct.c_long(buf_addr).value < 0:
-                        os.close(fd)
-                        continue
-                    libc.ioctl(
-                        ct.c_int(fd),
-                        ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                        ct.c_int(0),
-                    )
-                    BpfMgr.mapUpdate(
-                        perf_map_fd,
-                        struct.pack("<I", cpu),
-                        struct.pack("<I", fd),
-                    )
-                    perf_fds.append(fd)
-                    mmap_bufs.append(
-                        (buf_addr, page_size, n_data_pages * page_size)
-                    )
+                perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                    cpu_list, perf_map_fd, warn_on_fail=False
+                )
 
                 if not perf_fds:
                     SysMgr.printErr(
@@ -140127,10 +144332,6 @@ class BpfMgr(object):
                 )
                 SysMgr.printPipe("=" * SysMgr.lineLength)
 
-                c_uint8 = ct.c_uint8
-                c_uint64 = ct.c_uint64
-                cast = ct.cast
-                POINTER = ct.POINTER
                 PERF_RECORD_SAMPLE = 9
                 _time_time = time.time
                 _get_ts = BpfMgr.makeGetTs()
@@ -140144,112 +144345,78 @@ class BpfMgr(object):
                     )
 
                 def drain_ss(buf_addr, pg_sz, data_sz):
-                    head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                    tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                    tail = tail_ptr[0]
-                    data_start = buf_addr + pg_sz
-
-                    def rb_read(off, n):
-                        pos = off % data_sz
-                        if pos + n <= data_sz:
-                            return bytes(
-                                (c_uint8 * n).from_address(data_start + pos)
-                            )
-                        first = data_sz - pos
-                        buf = bytearray(n)
-                        buf[:first] = bytes(
-                            (c_uint8 * first).from_address(data_start + pos)
-                        )
-                        buf[first:] = bytes(
-                            (c_uint8 * (n - first)).from_address(data_start)
-                        )
-                        return bytes(buf)
-
-                    while tail + 8 <= head:
+                    for (
+                        rec_type,
+                        raw,
+                        raw_size,
+                        body,
+                    ) in BpfMgr._iterRingBufferRecords(
+                        buf_addr, pg_sz, data_sz
+                    ):
+                        if rec_type != PERF_RECORD_SAMPLE or raw_size < 48:
+                            continue
                         try:
-                            hdr = rb_read(tail, 8)
-                            rec_type, _misc, rec_size = struct.unpack(
-                                "<IHH", hdr
+                            # Payload:
+                            # [pid_tgid(8)][saddr(4)][daddr(4)]
+                            # [sport(4)][dport(4)][oldstate(4)][newstate(4)][comm(16)]
+                            pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
+                            tid = pid_tgid & 0xFFFFFFFF
+                            tgid = pid_tgid >> 32
+                            (
+                                saddr,
+                                daddr,
+                                sport,
+                                dport,
+                                oldst,
+                                newst,
+                            ) = struct.unpack_from("<IIIIII", raw, 8)
+                            comm_b = (
+                                raw[32:48]
+                                .split(b"\x00")[0]
+                                .decode("utf-8", errors="replace")
                             )
+                            old_name = TCP_STATES.get(oldst, str(oldst))
+                            new_name = TCP_STATES.get(newst, str(newst))
+                            src = "%s:%d" % (
+                                _fmt_ipv4_ss(saddr),
+                                sport,
+                            )
+                            dst = "%s:%d" % (
+                                _fmt_ipv4_ss(daddr),
+                                dport,
+                            )
+                            if SysMgr.jsonEnable:
+                                SysMgr.printPipe(
+                                    UtilMgr.convDict2Str(
+                                        {
+                                            "time": SysMgr.getUptime(),
+                                            "pid": tgid,
+                                            "tid": tid,
+                                            "comm": comm_b,
+                                            "src": src,
+                                            "dst": dst,
+                                            "old_state": old_name,
+                                            "new_state": new_name,
+                                        },
+                                        pretty=False,
+                                    )
+                                )
+                            else:
+                                SysMgr.printPipe(
+                                    "  %s  %s(%d/%d)  %-21s → %-21s  %s → %s"
+                                    % (
+                                        _get_ts(),
+                                        comm_b[:12],
+                                        tid,
+                                        tgid,
+                                        src[:21],
+                                        dst[:21],
+                                        old_name,
+                                        new_name,
+                                    )
+                                )
                         except Exception:
-                            break
-                        if rec_size < 8:
-                            break
-                        if rec_type == PERF_RECORD_SAMPLE:
-                            try:
-                                body = rb_read(tail + 8, rec_size - 8)
-                                raw_size = struct.unpack_from("<I", body, 0)[0]
-                                if raw_size >= 48:
-                                    raw = body[4 : 4 + raw_size]
-                                    # Payload:
-                                    # [pid_tgid(8)][saddr(4)][daddr(4)]
-                                    # [sport(4)][dport(4)][oldstate(4)][newstate(4)][comm(16)]
-                                    pid_tgid = struct.unpack_from(
-                                        "<Q", raw, 0
-                                    )[0]
-                                    tid = pid_tgid & 0xFFFFFFFF
-                                    tgid = pid_tgid >> 32
-                                    (
-                                        saddr,
-                                        daddr,
-                                        sport,
-                                        dport,
-                                        oldst,
-                                        newst,
-                                    ) = struct.unpack_from("<IIIIII", raw, 8)
-                                    comm_b = (
-                                        raw[32:48]
-                                        .split(b"\x00")[0]
-                                        .decode("utf-8", errors="replace")
-                                    )
-                                    old_name = TCP_STATES.get(
-                                        oldst, str(oldst)
-                                    )
-                                    new_name = TCP_STATES.get(
-                                        newst, str(newst)
-                                    )
-                                    src = "%s:%d" % (
-                                        _fmt_ipv4_ss(saddr),
-                                        sport,
-                                    )
-                                    dst = "%s:%d" % (
-                                        _fmt_ipv4_ss(daddr),
-                                        dport,
-                                    )
-                                    if SysMgr.jsonEnable:
-                                        SysMgr.printPipe(
-                                            UtilMgr.convDict2Str(
-                                                {
-                                                    "time": SysMgr.getUptime(),
-                                                    "pid": tgid,
-                                                    "tid": tid,
-                                                    "comm": comm_b,
-                                                    "src": src,
-                                                    "dst": dst,
-                                                    "old_state": old_name,
-                                                    "new_state": new_name,
-                                                },
-                                                pretty=False,
-                                            )
-                                        )
-                                    else:
-                                        SysMgr.printPipe(
-                                            "  %s  %s(%d/%d)  %-21s → %-21s  %s → %s"
-                                            % (
-                                                _get_ts(),
-                                                comm_b[:12],
-                                                tid,
-                                                tgid,
-                                                src[:21],
-                                                dst[:21],
-                                                old_name,
-                                                new_name,
-                                            )
-                                        )
-                            except Exception:
-                                pass
-                        tail += rec_size
-                    tail_ptr[0] = tail
+                            pass
 
                 sel_mod = SysMgr.getPkg("select")
                 _t_last = time.monotonic()
@@ -140297,14 +144464,7 @@ class BpfMgr(object):
 
             BpfMgr.attachTracepoint(prog_fd, "tcp", "tcp_retransmit_skb")
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
             prev_raw = {}  # key → (cumulative_count, comm)
 
@@ -140327,9 +144487,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -140444,7 +144602,7 @@ class BpfMgr(object):
 
                     SysMgr.addPrint(twoLine + "\n", 1)
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -141368,13 +145526,7 @@ class BpfMgr(object):
                         continue
                     pid = int(entry)
                     try:
-                        with open("/proc/%d/cmdline" % pid, "rb") as _f:
-                            data = _f.read(256)
-                        argv0 = (
-                            data.split(b"\x00")[0]
-                            .decode("utf-8", errors="replace")
-                            .strip()
-                        )
+                        argv0 = SysMgr.getCmdline(pid, retList=True)[0]
                         if argv0:
                             pid_cmdline[pid] = argv0
                     except Exception:
@@ -141677,86 +145829,9 @@ class BpfMgr(object):
             BpfMgr.attachTracepoint(snoop_fd, "binder", "binder_transaction")
 
             # Set up per-CPU perf ring buffers (same pattern as doBpfsnoopCmd) #
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            n_data_pages = 64
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-            PERF_SAMPLE_RAW = 1 << 10
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
-                struct.pack_into("<I", attr, 4, 112)
-                struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
-                struct.pack_into("<Q", attr, 16, 1)  # sample_period=1
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)  # wakeup_events=1
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: perf_event_open failed" % cpu,
-                        always=True,
-                    )
-                    continue
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: mmap failed" % cpu, always=True
-                    )
-                    os.close(fd)
-                    continue
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-                BpfMgr.mapUpdate(
-                    perf_map_fd,
-                    struct.pack("<I", cpu),
-                    struct.pack("<I", fd),
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=True
+            )
 
             if not perf_fds:
                 SysMgr.printErr(
@@ -141797,237 +145872,183 @@ class BpfMgr(object):
 
             def _get_tcomm(tid):
                 if tid not in tcomm_cache:
-                    c = SysMgr.readFile("/proc/%d/comm" % tid)
-                    tcomm_cache[tid] = c.strip() if c else "?"
+                    tcomm_cache[tid] = SysMgr.getComm(tid, default="?")
                 return tcomm_cache[tid]
 
             PERF_RECORD_SAMPLE = 9
             TF_ONE_WAY = 0x01
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
 
             def drain_one(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 36:
+                        continue
                     try:
-                        hdr = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
-                    except Exception:
-                        break
-                    if rec_size < 8:
-                        break
-                    if rec_type == PERF_RECORD_SAMPLE:
-                        try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 36:
-                                raw = body[4 : 4 + raw_size]
-                                # Payload layout (9×u32, 36 bytes):
-                                #   [from_proc][from_thread][to_proc][to_thread]
-                                #   [code][flags][call_type][data_size][debug_id]
-                                (
-                                    from_proc,
-                                    from_thread,
-                                    to_proc,
-                                    to_thread,
-                                    code,
-                                    flags,
-                                    call_type,
-                                    data_size,
-                                    debug_id,
-                                ) = struct.unpack("<IIIIIIIII", raw[:36])
-                                # -g / PROCCOMMFILTER: match by from_proc comm #
-                                from_comm = _get_comm(from_proc)
-                                if not BpfMgr._matchesFilter(
-                                    from_proc, from_proc, from_comm
-                                ):
-                                    tail += rec_size
-                                    continue
-                                if (
-                                    _proccomm_pattern
-                                    and not UtilMgr.isValidStr(
-                                        from_comm, [_proccomm_pattern]
-                                    )
-                                ):
-                                    tail += rec_size
-                                    continue
-                                ts = _get_ts()
-                                to_comm = _get_comm(to_proc)
-                                is_oneway = bool(flags & TF_ONE_WAY)
-                                if call_type == 1:
-                                    txn_type = "REPLY"
-                                elif is_oneway:
-                                    txn_type = "ONEWAY"
-                                else:
-                                    txn_type = "REQ"
-                                from_tcomm = (
-                                    _get_tcomm(from_thread)
-                                    if from_thread
-                                    else ""
-                                )
-                                to_tcomm = (
-                                    _get_tcomm(to_thread) if to_thread else ""
-                                )
-                                if from_thread and from_tcomm:
-                                    from_str = "%s(%d)/%s(%d)" % (
-                                        from_comm,
-                                        from_proc,
-                                        from_tcomm,
-                                        from_thread,
-                                    )
-                                else:
-                                    from_str = "%s(%d)" % (
-                                        from_comm,
-                                        from_proc,
-                                    )
-                                if to_thread and to_tcomm:
-                                    to_str = "%s(%d)/%s(%d)" % (
-                                        to_comm,
-                                        to_proc,
-                                        to_tcomm,
-                                        to_thread,
-                                    )
-                                else:
-                                    to_str = "%s(%d)" % (to_comm, to_proc)
-                                size_str = (
-                                    UtilMgr.convSize2Unit(data_size)
-                                    if data_size > 0
-                                    else "0B"
-                                )
-                                to_iface = ""
-                                if show_interface:
-                                    if (
-                                        _show_interface_bpf
-                                        and _server_iface_map_fd >= 0
-                                        and call_type != 1
-                                    ):
-                                        # REPLY txns skip kprobe, so no entry in server_iface_map
-                                        # Per-txn lookup: debug_id → unique slot, no overwrite
-                                        _iface_key = struct.pack(
-                                            "<I", debug_id
-                                        )
-                                        _iface_val = BpfMgr.mapLookup(
-                                            _server_iface_map_fd,
-                                            _iface_key,
-                                            272,
-                                        )
-                                        if _iface_val:
-                                            _ilen = struct.unpack_from(
-                                                "<I", _iface_val, 12
-                                            )[0]
-                                            if 0 < _ilen <= 128:
-                                                to_iface = (
-                                                    _iface_val[
-                                                        16 : 16 + _ilen * 2
-                                                    ]
-                                                    .decode(
-                                                        "utf-16-le",
-                                                        errors="replace",
-                                                    )
-                                                    .rstrip("\x00")
-                                                )
-                                            BpfMgr.mapDelete(
-                                                _server_iface_map_fd,
-                                                _iface_key,
-                                            )
-                                    else:
-                                        # Fallback: heuristic cache (when BPF path unavailable)
-                                        _iface_pid = (
-                                            from_proc
-                                            if call_type == 1
-                                            else to_proc
-                                        )
-                                        to_iface = (
-                                            BpfMgr._binder_iface_cache.get(
-                                                _iface_pid, ("", "")
-                                            )[1]
-                                        )
-                                if SysMgr.jsonEnable:
-                                    _jrec = {
-                                        "time": SysMgr.getUptime(),
-                                        "txn_id": debug_id,
-                                        "from_proc": from_proc,
-                                        "from_thread": from_thread,
-                                        "from_comm": from_comm,
-                                        "from_tcomm": from_tcomm,
-                                        "to_proc": to_proc,
-                                        "to_thread": to_thread,
-                                        "to_comm": to_comm,
-                                        "to_tcomm": to_tcomm,
-                                        "call_type": txn_type,
-                                        "code": code,
-                                        "data_size": data_size,
-                                    }
-                                    if show_interface:
-                                        _jrec["interface"] = to_iface
-                                        if to_iface:
-                                            _jrec["method"] = (
-                                                BpfMgr._getMethodName(
-                                                    to_iface, code
-                                                )
-                                                or ""
-                                            )
-                                    SysMgr.printPipe(
-                                        UtilMgr.convDict2Str(
-                                            _jrec,
-                                            pretty=False,
-                                        )
-                                    )
-                                else:
-                                    if to_iface:
-                                        _method = BpfMgr._getMethodName(
-                                            to_iface, code
-                                        )
-                                        iface_str = (
-                                            " [%s::%s]" % (to_iface, _method)
-                                            if _method
-                                            else " [%s]" % to_iface
-                                        )
-                                    else:
-                                        iface_str = ""
-                                    SysMgr.printPipe(
-                                        "  %s  %s → %s%s │ %s code:0x%04x %s #%d"
-                                        % (
-                                            ts,
-                                            from_str,
-                                            to_str,
-                                            iface_str,
-                                            txn_type,
-                                            code,
-                                            size_str,
-                                            debug_id,
-                                        ),
-                                        trim=False,
-                                    )
-                        except Exception:
-                            SysMgr.printWarn(
-                                "failed to process bpfbindersnoop record",
-                                reason=True,
+                        # Payload layout (9×u32, 36 bytes):
+                        #   [from_proc][from_thread][to_proc][to_thread]
+                        #   [code][flags][call_type][data_size][debug_id]
+                        (
+                            from_proc,
+                            from_thread,
+                            to_proc,
+                            to_thread,
+                            code,
+                            flags,
+                            call_type,
+                            data_size,
+                            debug_id,
+                        ) = struct.unpack("<IIIIIIIII", raw[:36])
+                        # -g / PROCCOMMFILTER: match by from_proc comm #
+                        from_comm = _get_comm(from_proc)
+                        if not BpfMgr._matchesFilter(
+                            from_proc, from_proc, from_comm
+                        ):
+                            continue
+                        if _proccomm_pattern and not UtilMgr.isValidStr(
+                            from_comm, [_proccomm_pattern]
+                        ):
+                            continue
+                        ts = _get_ts()
+                        to_comm = _get_comm(to_proc)
+                        is_oneway = bool(flags & TF_ONE_WAY)
+                        if call_type == 1:
+                            txn_type = "REPLY"
+                        elif is_oneway:
+                            txn_type = "ONEWAY"
+                        else:
+                            txn_type = "REQ"
+                        from_tcomm = (
+                            _get_tcomm(from_thread) if from_thread else ""
+                        )
+                        to_tcomm = _get_tcomm(to_thread) if to_thread else ""
+                        if from_thread and from_tcomm:
+                            from_str = "%s(%d)/%s(%d)" % (
+                                from_comm,
+                                from_proc,
+                                from_tcomm,
+                                from_thread,
                             )
-                    tail += rec_size
-                tail_ptr[0] = tail
+                        else:
+                            from_str = "%s(%d)" % (
+                                from_comm,
+                                from_proc,
+                            )
+                        if to_thread and to_tcomm:
+                            to_str = "%s(%d)/%s(%d)" % (
+                                to_comm,
+                                to_proc,
+                                to_tcomm,
+                                to_thread,
+                            )
+                        else:
+                            to_str = "%s(%d)" % (to_comm, to_proc)
+                        size_str = (
+                            UtilMgr.convSize2Unit(data_size)
+                            if data_size > 0
+                            else "0B"
+                        )
+                        to_iface = ""
+                        if show_interface:
+                            if (
+                                _show_interface_bpf
+                                and _server_iface_map_fd >= 0
+                                and call_type != 1
+                            ):
+                                # REPLY txns skip kprobe, so no entry in server_iface_map
+                                # Per-txn lookup: debug_id → unique slot, no overwrite
+                                _iface_key = struct.pack("<I", debug_id)
+                                _iface_val = BpfMgr.mapLookup(
+                                    _server_iface_map_fd,
+                                    _iface_key,
+                                    272,
+                                )
+                                if _iface_val:
+                                    _ilen = struct.unpack_from(
+                                        "<I", _iface_val, 12
+                                    )[0]
+                                    if 0 < _ilen <= 128:
+                                        to_iface = (
+                                            _iface_val[16 : 16 + _ilen * 2]
+                                            .decode(
+                                                "utf-16-le",
+                                                errors="replace",
+                                            )
+                                            .rstrip("\x00")
+                                        )
+                                    BpfMgr.mapDelete(
+                                        _server_iface_map_fd,
+                                        _iface_key,
+                                    )
+                            else:
+                                # Fallback: heuristic cache (when BPF path unavailable)
+                                _iface_pid = (
+                                    from_proc if call_type == 1 else to_proc
+                                )
+                                to_iface = BpfMgr._binder_iface_cache.get(
+                                    _iface_pid, ("", "")
+                                )[1]
+                        if SysMgr.jsonEnable:
+                            _jrec = {
+                                "time": SysMgr.getUptime(),
+                                "txn_id": debug_id,
+                                "from_proc": from_proc,
+                                "from_thread": from_thread,
+                                "from_comm": from_comm,
+                                "from_tcomm": from_tcomm,
+                                "to_proc": to_proc,
+                                "to_thread": to_thread,
+                                "to_comm": to_comm,
+                                "to_tcomm": to_tcomm,
+                                "call_type": txn_type,
+                                "code": code,
+                                "data_size": data_size,
+                            }
+                            if show_interface:
+                                _jrec["interface"] = to_iface
+                                if to_iface:
+                                    _jrec["method"] = (
+                                        BpfMgr._getMethodName(to_iface, code)
+                                        or ""
+                                    )
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(
+                                    _jrec,
+                                    pretty=False,
+                                )
+                            )
+                        else:
+                            if to_iface:
+                                _method = BpfMgr._getMethodName(to_iface, code)
+                                iface_str = (
+                                    " [%s::%s]" % (to_iface, _method)
+                                    if _method
+                                    else " [%s]" % to_iface
+                                )
+                            else:
+                                iface_str = ""
+                            SysMgr.printPipe(
+                                "  %s  %s → %s%s │ %s code:0x%04x %s #%d"
+                                % (
+                                    ts,
+                                    from_str,
+                                    to_str,
+                                    iface_str,
+                                    txn_type,
+                                    code,
+                                    size_str,
+                                    debug_id,
+                                ),
+                                trim=False,
+                            )
+                    except Exception:
+                        SysMgr.printWarn(
+                            "failed to process bpfbindersnoop record",
+                            reason=True,
+                        )
 
             sel_mod = SysMgr.getPkg("select")
             while True:
@@ -142151,14 +146172,7 @@ class BpfMgr(object):
                         )
                         _pool_show_iface_bpf = True
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -142258,9 +146272,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -142593,7 +146605,7 @@ class BpfMgr(object):
                     )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -142813,11 +146825,7 @@ class BpfMgr(object):
             proc_comm = _proc_comm_cache[tgid]
 
             if tid not in _thread_comm_cache:
-                try:
-                    with open("/proc/%d/comm" % tid) as _f:
-                        _thread_comm_cache[tid] = _f.read().strip()
-                except Exception:
-                    _thread_comm_cache[tid] = str(tid)
+                _thread_comm_cache[tid] = SysMgr.getComm(tid, default=str(tid))
             thread_comm = _thread_comm_cache[tid]
 
             if SysMgr.filterGroup:
@@ -142945,11 +146953,7 @@ class BpfMgr(object):
             if (
                 SysMgr.filterGroup or (comm_mode and comm_mode != "proc")
             ) and pid not in comm_cache:
-                try:
-                    with open("/proc/%d/comm" % pid) as _f:
-                        comm_cache[pid] = _f.read().strip()
-                except Exception:
-                    comm_cache[pid] = ""
+                comm_cache[pid] = SysMgr.getComm(pid, default="")
 
             # filter by -g <pid|comm>:
             # key[0:8] is always u64 pid_tgid; high 32 bits = TGID = userspace PID #
@@ -142965,11 +146969,7 @@ class BpfMgr(object):
                 _tgid = (struct.unpack_from("<Q", k, 0)[0] >> 32) & 0xFFFFFFFF
                 _tproc = _tgid_comm_cache.get(_tgid)
                 if _tproc is None:
-                    try:
-                        with open("/proc/%d/comm" % _tgid) as _f:
-                            _tproc = _f.read().strip()
-                    except Exception:
-                        _tproc = ""
+                    _tproc = SysMgr.getComm(_tgid, default="")
                     _tgid_comm_cache[_tgid] = _tproc
                 if not UtilMgr.isValidStr(_tproc, [_proccomm_pattern]):
                     continue
@@ -142991,11 +146991,7 @@ class BpfMgr(object):
                     ) & 0xFFFFFFFF
                     _pc = _tgid_comm_cache.get(_tgid)
                     if _pc is None:
-                        try:
-                            with open("/proc/%d/comm" % _tgid) as _f:
-                                _pc = _f.read().strip()
-                        except Exception:
-                            _pc = ""
+                        _pc = SysMgr.getComm(_tgid, default="")
                         _tgid_comm_cache[_tgid] = _pc
                     if _pc:
                         chain = (
@@ -143379,7 +147375,7 @@ class BpfMgr(object):
                 )
                 _stk_comm = (
                     v[8:24]
-                    .rstrip(b"\x00")
+                    .split(b"\x00", 1)[0]
                     .decode("utf-8", errors="replace")
                     .strip()
                 )
@@ -143401,7 +147397,7 @@ class BpfMgr(object):
                     tgid = tgid_extractor(k)
                     comm = (
                         v[8:24]
-                        .rstrip(b"\x00")
+                        .split(b"\x00", 1)[0]
                         .decode("utf-8", errors="replace")
                         .strip()
                     )
@@ -143420,7 +147416,7 @@ class BpfMgr(object):
                 if comm_mode and len(v) >= 24:
                     comm = (
                         v[8:24]
-                        .rstrip(b"\x00")
+                        .split(b"\x00", 1)[0]
                         .decode("utf-8", errors="replace")
                         .strip()
                     )
@@ -143474,7 +147470,21 @@ class BpfMgr(object):
             )
             freq = max(1, min(freq, 10000))
 
-            show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            _event_opt = (
+                ((SysMgr.environList.get("EVENT", [None]) or [None])[0] or "")
+                .strip()
+                .lower()
+            )
+            _faultstack = "FAULTSTACK" in SysMgr.environList or _event_opt in (
+                "page-fault-major",
+                "major-fault",
+            )
+
+            # major faults always interrupt userspace (ctx->regs is user-mode
+            # at fault time), so bpf_get_stackid() without BPF_F_USER_STACK
+            # always fails for the kernel stack; force user-stack collection
+            # so FAULTSTACK samples aren't discarded as empty chains
+            show_ustack = "ADDUSERSTACK" in SysMgr.environList or _faultstack
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
                 if SysMgr.depthLevel
@@ -143504,24 +147514,29 @@ class BpfMgr(object):
             if prog_fd < 0:
                 sys.exit(-1)
 
-            BpfMgr.attachSampler(prog_fd, freq)
-
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
+            if _faultstack:
+                # PERF_TYPE_SOFTWARE=1, PERF_COUNT_SW_PAGE_FAULTS_MAJ=6, period=1:
+                # major faults are disk-bound and fire far less often than the
+                # SW_CPU_CLOCK default, so per-event sampling stays low-overhead.
+                BpfMgr.attachSamplerEvent(prog_fd, 1, 6, 1)
             else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+                BpfMgr.attachSampler(prog_fd, freq)
+
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
 
-            SysMgr.printInfo(
-                "bpfstacktop: sampling at %dHz (interval=%ds)"
-                % (freq, interval)
-            )
+            if _faultstack:
+                SysMgr.printInfo(
+                    "bpfstacktop: sampling major page faults "
+                    "(interval=%ds)" % interval
+                )
+            else:
+                SysMgr.printInfo(
+                    "bpfstacktop: sampling at %dHz (interval=%ds)"
+                    % (freq, interval)
+                )
 
             prev_raw = {}
             sid_cache = {}
@@ -143549,9 +147564,7 @@ class BpfMgr(object):
                 if BpfMgr._tcpStopSleep(interval):
                     break
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -143578,7 +147591,7 @@ class BpfMgr(object):
                         comm_mode=BpfMgr._getCommMode(),
                     )
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -143622,13 +147635,14 @@ class BpfMgr(object):
                         flush=True,
                     )
                 else:
+                    _hz_tag = " [MAJFLT]" if _faultstack else " [%dHz]" % freq
                     BpfMgr._printStackTop(
                         "bpfstacktop",
                         ct,
                         bt,
                         total,
                         _actual,
-                        extra_hdr=" [%dHz] %s" % (freq, _sysStatStr),
+                        extra_hdr="%s %s" % (_hz_tag, _sysStatStr),
                     )
 
                 # accumulate for summary #
@@ -143678,7 +147692,7 @@ class BpfMgr(object):
                             )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -143705,785 +147719,15 @@ class BpfMgr(object):
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
             if drawflame and summary_call:
-                # Build full call chains from summary_bt so the flame graph
-                # shows the complete stack depth, not just the leaf function.
-                # summary_bt: {leaf: {bt_str: count}}
-                # bt_str is " <- "-joined callers above the leaf.
-                _flame_data = {}
-                for _leaf, _bt_chains in summary_bt.items():
-                    for _bts, _bc in _bt_chains.items():
-                        _chain = (_leaf + " <- " + _bts) if _bts else _leaf
-                        _flame_data[_chain] = _flame_data.get(_chain, 0) + _bc
-                # Include leaf-only entries that had no recorded backtrace.
-                for _leaf, _info in summary_call.items():
-                    if not summary_bt.get(_leaf):
-                        _flame_data[_leaf] = (
-                            _flame_data.get(_leaf, 0) + _info["cnt"]
-                        )
-                # resolve TCP override dir if set #
-                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
-                _out_dir = (
-                    _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: n if isinstance(n, int) else n["cnt"],
                 )
-                _svg = Debugger.drawFlameSample(
-                    _flame_data, "bpfstacktop", ".bpfstacktop", outDir=_out_dir
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfstacktop", ".bpfstacktop"
                 )
-                BpfMgr._emitDrawFile(_svg)
             BpfMgr._waitBpfAI(timeout=30)
-            BpfMgr.detachAll()
-
-    @staticmethod
-    def _getPyBinaryVersion(bin_path):
-        """Detect Python version from binary path basename.
-
-        Returns (major, minor) tuple, e.g. (3, 11), or (0, 0) if unknown.
-        """
-        import re as _re
-
-        bn = os.path.basename(bin_path).lower()
-        m = _re.search(r"python(\d+)[._](\d+)", bn)
-        if m:
-            return int(m.group(1)), int(m.group(2))
-        # e.g. "python3" or "python" — assume modern Python (3.11+)
-        if "python" in bn:
-            return (3, 11)
-        return (0, 0)
-
-    @staticmethod
-    def _vaToElfFileOffset(bin_path, va):
-        """Convert virtual address to ELF file offset.
-
-        For ET_DYN (PIE / shared libs), st_value is already file-relative.
-        For ET_EXEC (non-PIE executables), st_value is the absolute virtual
-        address; we convert it via the PT_LOAD segments.
-        """
-        try:
-            with open(bin_path, "rb") as _f:
-                hdr = _f.read(64)
-                if len(hdr) < 64 or hdr[:4] != b"\x7fELF":
-                    return va
-                e_type = struct.unpack_from("<H", hdr, 16)[0]
-                if e_type == 3:  # ET_DYN — PIE or shared lib, va is fine
-                    return va
-                # ET_EXEC: convert va → file offset via PT_LOAD segments
-                e_phoff = struct.unpack_from("<Q", hdr, 32)[0]
-                e_phentsize = struct.unpack_from("<H", hdr, 54)[0]
-                e_phnum = struct.unpack_from("<H", hdr, 56)[0]
-                _f.seek(e_phoff)
-                for _ in range(e_phnum):
-                    ph = _f.read(e_phentsize)
-                    if len(ph) < 56:
-                        break
-                    p_type = struct.unpack_from("<I", ph, 0)[0]
-                    if p_type != 1:  # PT_LOAD
-                        continue
-                    p_offset = struct.unpack_from("<Q", ph, 8)[0]
-                    p_vaddr = struct.unpack_from("<Q", ph, 16)[0]
-                    p_filesz = struct.unpack_from("<Q", ph, 32)[0]
-                    if p_vaddr <= va < p_vaddr + p_filesz:
-                        return va - p_vaddr + p_offset
-        except Exception:
-            pass
-        return va
-
-    @staticmethod
-    def _readPyCodeName(pid, f_code_ptr, minor):
-        """Read Python function name from PyCodeObject* (heap-allocated, safe after return).
-
-        Unlike _readPyFrameName, this skips the initial frame dereference because
-        f_code_ptr is already resolved by the BPF entry probe via probe_read_user.
-        PyCodeObject is long-lived (heap), so the pointer remains valid after the
-        uretprobe fires.
-
-        Returns function name string, or None on failure.
-        """
-        if not f_code_ptr or f_code_ptr < 0x1000:
-            return None
-        try:
-            mem_path = "/proc/%d/mem" % pid
-
-            def _rdm(addr, size):
-                try:
-                    with open(mem_path, "rb", 0) as _f:
-                        _f.seek(addr)
-                        d = _f.read(size)
-                        return d if len(d) == size else None
-                except Exception:
-                    return None
-
-            # co_qualname at byte offset 128 in PyCodeObject for all Python 3.11+
-            raw = _rdm(f_code_ptr + 128, 8)
-            if not raw:
-                return None
-            name_ptr = struct.unpack_from("<Q", raw, 0)[0]
-            if not name_ptr or name_ptr < 0x1000:
-                return None
-
-            # PyUnicodeObject header: ob_refcnt(Q) ob_type(Q) ob_size(Q) = 24 bytes
-            raw2 = _rdm(name_ptr, 24)
-            if not raw2:
-                return None
-            _, _, ob_size = struct.unpack("QQQ", raw2)
-            if ob_size <= 0 or ob_size > 4096:
-                return None
-
-            # String data offset: +40 for Python 3.12+, +48 for Python 3.11
-            str_off = 40 if minor >= 12 else 48
-            raw3 = _rdm(name_ptr + str_off, ob_size)
-            if not raw3:
-                return None
-            return raw3.decode("utf-8", errors="replace")
-        except Exception:
-            return None
-
-    @staticmethod
-    def _findPyResumeHandlerFileOff(
-        bin_path, eval_frame_file_off, py_minor=11
-    ):
-        """Find ELF file offsets of the Python 3.11 RESUME and RESUME_QUICK handlers.
-
-        Python 3.11 uses DISPATCH_INLINED (goto start_frame) for Python-to-Python
-        calls, so probing at _PyEval_EvalFrameDefault entry misses user-defined
-        function calls.  Probing at the RESUME opcode (151) handler fires for
-        EVERY Python frame evaluation — both initial entry and inlined calls —
-        because every Python function/module starts with a RESUME opcode.
-
-        After ~50 calls to any function, Python 3.11's adaptive specializer replaces
-        RESUME (opcode 151) with its quickened variant (opcode RESUME_OPCODE-1, stored
-        in _co_code_adaptive) so the RESUME handler never fires again for specialized
-        functions.  Both handlers use rbp as the frame pointer and rbp+f_code_off as
-        the f_code_ptr field, so the same BPF program works for both.
-
-        Algorithm (x86_64 ET_EXEC non-PIE binaries only):
-          1. Scan first 600 bytes of _PyEval_EvalFrameDefault for the computed-goto
-             dispatch instruction:  48 8b 3c cd [disp32]
-             (mov rdi, [disp32 + rcx*8], i.e. rdi = dispatch_table[opcode])
-          2. disp32 = dispatch table absolute VA.
-          3. Read dispatch_table[RESUME] and dispatch_table[RESUME-1] handler VAs.
-          4. Convert both handler VAs to ELF file offsets via _vaToElfFileOffset.
-
-        At both handlers, rbp holds the current _PyInterpreterFrame* (the
-        compiler assigns rbp to the frame local throughout _PyEval_EvalFrameDefault).
-        BPF reads rbp from pt_regs offset 32 (x86_64 kernel struct pt_regs layout).
-
-        Returns (resume_foff, resume_quick_foff) tuple of int file offsets,
-        or (0, 0) on failure/unsupported. Either element may be 0 if lookup fails.
-        """
-        if SysMgr.getArch() not in ("x64", "x86_64"):
-            return (
-                0,
-                0,
-            )  # Only implemented for x86_64 (SysMgr normalizes x86_64 → "x64")
-
-        # Verify non-PIE (ET_EXEC=2): for PIE the dispatch table has relocations
-        try:
-            with open(bin_path, "rb") as _f:
-                _hdr = _f.read(18)
-            if len(_hdr) < 18 or _hdr[:4] != b"\x7fELF":
-                return 0, 0
-            if struct.unpack_from("<H", _hdr, 16)[0] != 2:  # ET_EXEC
-                return 0, 0
-        except Exception:
-            return 0, 0
-
-        # RESUME opcode number: 151 in Python 3.11, 149 in Python 3.12+
-        # Its quickened variant is RESUME_OPCODE-1 (150 for 3.11, 148 for 3.12+).
-        RESUME_OPCODE = 151 if py_minor == 11 else 149
-        RESUME_QUICK_OPCODE = RESUME_OPCODE - 1
-        try:
-            # Read first 600 bytes of _PyEval_EvalFrameDefault
-            with open(bin_path, "rb") as _f:
-                _f.seek(eval_frame_file_off)
-                code = _f.read(600)
-
-            # Scan for:  48 8b 3c cd [disp32]
-            # REX.W(48) MOV(8b) ModRM=0x3c(rdi,SIB) SIB=0xcd(scale8,rcx,disp32)
-            dispatch_va = 0
-            for i in range(len(code) - 5):
-                if (
-                    code[i] == 0x48
-                    and code[i + 1] == 0x8B
-                    and code[i + 2] == 0x3C
-                    and code[i + 3] == 0xCD
-                ):
-                    disp32 = struct.unpack_from("<I", code, i + 4)[0]
-                    if disp32 > 0x10000:  # sanity: must be a real address
-                        dispatch_va = disp32
-                        break
-
-            if not dispatch_va:
-                return 0, 0
-
-            def _read_handler_foff(opcode):
-                entry_va = dispatch_va + opcode * 8
-                entry_foff = BpfMgr._vaToElfFileOffset(bin_path, entry_va)
-                with open(bin_path, "rb") as _f:
-                    _f.seek(entry_foff)
-                    _raw = _f.read(8)
-                if len(_raw) < 8:
-                    return 0
-                handler_va = struct.unpack_from("<Q", _raw)[0]
-                if not handler_va or handler_va < 0x10000:
-                    return 0
-                return BpfMgr._vaToElfFileOffset(bin_path, handler_va)
-
-            resume_foff = _read_handler_foff(RESUME_OPCODE)
-            resume_quick_foff = _read_handler_foff(RESUME_QUICK_OPCODE)
-            return resume_foff or 0, resume_quick_foff or 0
-        except Exception:
-            return 0, 0
-
-    @staticmethod
-    def _getPyDataSymbolVA(pid, lib_path, sym_name):
-        """Return runtime virtual address of a data symbol (e.g. _PyRuntime).
-
-        Uses FuncPerfMgr._findSymInElf which scans both .dynsym and .symtab,
-        supporting stripped binaries (where nm reports 'no symbols').
-
-        For non-PIE (ET_EXEC): st_value IS the absolute runtime VA directly.
-        For PIE/shared lib: st_value is relative → add load base from /proc/pid/maps.
-
-        Returns int VA, or None on failure.
-        """
-        try:
-            # FuncPerfMgr._findSymInElf scans .dynsym then .symtab
-            sym_va = FuncPerfMgr._findSymInElf(lib_path, sym_name)
-            if not sym_va:
-                return None
-
-            # Determine ELF type (PIE or not)
-            with open(lib_path, "rb") as _f:
-                hdr = _f.read(18)
-                if len(hdr) < 18 or hdr[:4] != b"\x7fELF":
-                    return None
-                e_type = struct.unpack_from("<H", hdr, 16)[0]
-                is_pie = e_type == 3  # ET_DYN = PIE or shared lib
-
-            if not is_pie:
-                # ET_EXEC: st_value is absolute VA, valid directly in process
-                return sym_va
-
-            # ET_DYN: st_value is relative to load base
-            # Find load base from /proc/pid/maps (first executable mapping of lib)
-            lib_real = os.path.realpath(lib_path)
-            with open("/proc/%d/maps" % pid) as _f:
-                for line in _f:
-                    parts = line.split()
-                    if len(parts) < 6 or "x" not in parts[1]:
-                        continue
-                    mapped_path = parts[5]
-                    if mapped_path != lib_path and (
-                        not os.path.exists(mapped_path)
-                        or os.path.realpath(mapped_path) != lib_real
-                    ):
-                        continue
-                    addr_start = int(parts[0].split("-")[0], 16)
-                    map_off = int(parts[2], 16)
-                    # load_base = addr_start - map_off (slide for PIE)
-                    load_base = addr_start - map_off
-                    return load_base + sym_va
-        except Exception:
-            pass
-        return None
-
-    @staticmethod
-    def _findPyBinaries(target_pid):
-        """Return list of (attach_pid, binary_path, major, minor) for Python uprobe attachment.
-
-        target_pid > 0: single process mode (attach_pid = target_pid).
-        target_pid <= 0: global mode (attach_pid = -1, scan /proc/*/exe).
-        Only returns Python 3.11+ binaries (required for frame-pointer convention).
-        """
-        py_binaries = []
-        if target_pid > 0:
-            try:
-                bin_path = os.path.realpath(
-                    "%s/%d/exe" % (SysMgr.procPath, target_pid)
-                )
-                if (
-                    os.path.exists(bin_path)
-                    and "python" in os.path.basename(bin_path).lower()
-                ):
-                    major, minor = BpfMgr._getPyBinaryVersion(bin_path)
-                    py_binaries.append((target_pid, bin_path, major, minor))
-            except Exception:
-                pass
-            # If the given PID is not itself a Python process (e.g. sudo wrapper),
-            # scan children of that PID for Python processes.
-            if not py_binaries:
-                try:
-                    for pid_dir in os.listdir(SysMgr.procPath):
-                        if not pid_dir.isdigit():
-                            continue
-                        try:
-                            status_path = "%s/%s/status" % (
-                                SysMgr.procPath,
-                                pid_dir,
-                            )
-                            ppid = None
-                            with open(status_path) as _sf:
-                                for _line in _sf:
-                                    if _line.startswith("PPid:"):
-                                        ppid = int(_line.split()[1])
-                                        break
-                            if ppid != target_pid:
-                                continue
-                            child_pid = int(pid_dir)
-                            child_exe = os.path.realpath(
-                                "%s/%s/exe" % (SysMgr.procPath, pid_dir)
-                            )
-                            if (
-                                "python"
-                                not in os.path.basename(child_exe).lower()
-                            ):
-                                continue
-                            major, minor = BpfMgr._getPyBinaryVersion(
-                                child_exe
-                            )
-                            py_binaries.append(
-                                (child_pid, child_exe, major, minor)
-                            )
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-        else:
-            seen_paths = set()
-            try:
-                for pid_dir in os.listdir(SysMgr.procPath):
-                    if not pid_dir.isdigit():
-                        continue
-                    try:
-                        exe = os.path.realpath(
-                            "%s/%s/exe" % (SysMgr.procPath, pid_dir)
-                        )
-                        bn = os.path.basename(exe).lower()
-                        if "python" not in bn:
-                            continue
-                        if exe not in seen_paths:
-                            seen_paths.add(exe)
-                            major, minor = BpfMgr._getPyBinaryVersion(exe)
-                            py_binaries.append((-1, exe, major, minor))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        return py_binaries
-
-    @staticmethod
-    def _resolvePyEvalOffset(py_binaries):
-        """Resolve _PyEval_EvalFrameDefault offsets for each Python 3.11+ binary.
-
-        Returns list of (binary_path, elf_file_offset, elf_va, attach_pid, major, minor).
-          elf_file_offset: file offset used for uprobe tracepoint registration
-          elf_va: ELF virtual address before file-offset conversion
-            - ET_EXEC (non-PIE): elf_va == runtime VA (use directly for hw breakpoint)
-            - ET_DYN (PIE): runtime VA = maps_load_base + elf_va
-        Skips Python < 3.11 (wrong calling convention: rsi is throwflag, not frame*).
-        Also tries libpython fallback for binaries that embed _PyEval in a .so.
-        """
-        binary_offsets = []
-        seen_libs = set()
-        for attach_pid, bin_path, major, minor in py_binaries:
-            # Skip Python < 3.11: arg2 is throwflag (int), not frame pointer
-            if (major, minor) != (0, 0) and (major, minor) < (3, 11):
-                SysMgr.printWarn(
-                    "bpf pytop/pytrace: skipping Python %d.%d binary '%s'"
-                    " (requires Python 3.11+ for frame-pointer in arg2)"
-                    % (major, minor, bin_path),
-                    always=True,
-                )
-                continue
-            try:
-                kind, lib_path, _, elf_off = BpfMgr._resolveUprobeArg(
-                    "%s:_PyEval_EvalFrameDefault" % bin_path
-                )
-                if (
-                    kind == "user"
-                    and elf_off is not None
-                    and lib_path not in seen_libs
-                ):
-                    elf_va = elf_off  # save VA before file-offset conversion
-                    elf_off = BpfMgr._vaToElfFileOffset(lib_path, elf_off)
-                    seen_libs.add(lib_path)
-                    binary_offsets.append(
-                        (lib_path, elf_off, elf_va, attach_pid, major, minor)
-                    )
-            except Exception:
-                # Try libpython fallback (Python embedded in .so)
-                if attach_pid > 0:
-                    try:
-                        lib_path = FileAnalyzer.getMapFilePath(
-                            attach_pid, "libpython"
-                        )
-                        if lib_path and lib_path not in seen_libs:
-                            kind2, lp2, _, off2 = BpfMgr._resolveUprobeArg(
-                                "%s:_PyEval_EvalFrameDefault" % lib_path
-                            )
-                            if kind2 == "user" and off2 is not None:
-                                elf_va2 = off2
-                                off2 = BpfMgr._vaToElfFileOffset(lp2, off2)
-                                seen_libs.add(lp2)
-                                binary_offsets.append(
-                                    (
-                                        lp2,
-                                        off2,
-                                        elf_va2,
-                                        attach_pid,
-                                        major,
-                                        minor,
-                                    )
-                                )
-                    except Exception:
-                        pass
-        return binary_offsets
-
-    @staticmethod
-    def doBpfPytraceCmd():
-        """BPF-based Python call tracer (pytrace -q BPF).
-
-        Attaches BPF uprobes to _PyEval_EvalFrameDefault (or RESUME handler) in all
-        Python 3.11+ binaries.  Reads f_code_ptr from the PyInterpreterFrame via
-        bpf_probe_read_user, then resolves the Python function name from
-        PyCodeObject.co_qualname via /proc/PID/mem.
-        Event (24B): {ktime_ns:u64, f_code_ptr:u64, pid_tgid:u64}
-        Uses bpf_perf_event_output (helper 25) with PERF_EVENT_ARRAY — same proven
-        mechanism as bpfsnoop — instead of ring buffer.
-        """
-        try:
-            BpfMgr.checkAvailable()
-            BpfMgr.initFilters()
-
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            # Determine target pid from -g (or -1 for global)
-            target_pid = -1
-            if SysMgr.filterGroup:
-                try:
-                    target_pid = int(SysMgr.filterGroup[0])
-                except (ValueError, TypeError):
-                    pass
-
-            py_binaries = BpfMgr._findPyBinaries(target_pid)
-            if not py_binaries:
-                SysMgr.printErr(
-                    "bpf pytrace: no Python 3.11+ process found"
-                    " (use -g PID to specify a running Python process)"
-                )
-                sys.exit(-1)
-
-            binary_offsets = BpfMgr._resolvePyEvalOffset(py_binaries)
-            if not binary_offsets:
-                SysMgr.printErr(
-                    "bpf pytrace: _PyEval_EvalFrameDefault not found in"
-                    " any Python binary (Python 3.11+ required)"
-                )
-                sys.exit(-1)
-
-            # Create BPF_MAP_TYPE_RINGBUF (type=27) — single shared ring buffer.
-            # Works reliably from uprobe context; avoids per-CPU perf event setup.
-            # Size must be a power-of-2 multiple of page_size.
-            ringbuf_size = 256 * page_size  # 1 MiB, power of 2
-            ringbuf_fd = BpfMgr.createMap(27, 0, 0, ringbuf_size, "pytrace_rb")
-            if ringbuf_fd < 0:
-                sys.exit(-1)
-
-            # Build tgid → (major, minor) map for Python frame reading
-            tgid_pyver = {}
-            for _bp, _off, _va, _ap, _mj, _mn in binary_offsets:
-                if _ap > 0:
-                    tgid_pyver[_ap] = (_mj, _mn)
-
-            # Load BPF emit program + attach via uprobe (tracefs PERF_TYPE_TRACEPOINT)
-            n_attached = 0
-            for (
-                bin_path,
-                elf_off,
-                elf_va,
-                attach_pid,
-                major,
-                minor,
-            ) in binary_offsets:
-                # f_code_off: offset of f_code in _PyInterpreterFrame
-                #   Python 3.11 → 32 (f_func, f_globals, f_builtins, f_locals, f_code)
-                #   Python 3.12+ → 0 (f_executable is the first field)
-                f_code_off = 32 if minor == 11 else 0
-
-                # Try to find the RESUME opcode handler for Python 3.11+ x86_64.
-                # Python 3.11 uses DISPATCH_INLINED (goto start_frame) for Python-to-Python
-                # calls, so probing at _PyEval_EvalFrameDefault entry misses user-defined
-                # function calls.  Probing at the RESUME opcode handler (first opcode in
-                # every Python frame) fires for ALL function calls including inlined ones.
-                # At the RESUME handler, rbp holds the _PyInterpreterFrame* (x86_64 pt_regs
-                # offset 32).  Function entry uses rsi/x1 (pt_regs offset 104/8).
-                #
-                # ENDBR64 (f3 0f 1e fa) handling: Python 3.11 binaries compiled with
-                # -fcf-protection=full start every function/handler with ENDBR64.
-                # Linux < 5.19 cannot uprobe ENDBR64 targets (arch_uprobe_analyze_insn
-                # returns -EILSEQ). Fix: advance probe offset by 4 bytes to skip ENDBR64.
-                # ENDBR64 does not modify any general-purpose registers, so RSI/RBP
-                # values at offset+4 are identical to those at the ENDBR64 instruction.
-                _ENDBR64 = b"\xf3\x0f\x1e\xfa"
-                # Try RESUME opcode handler (x86_64 non-PIE only): fires at every
-                # Python function call including DISPATCH_INLINED paths.
-                # Python 3.11's adaptive specializer replaces RESUME (opcode 151) with
-                # its quickened variant (opcode 150, stored in _co_code_adaptive) after
-                # ~50 calls per function.  Both handlers use rbp as the frame pointer,
-                # so we probe BOTH to cover fresh and already-specialized functions.
-                # Falls back to _PyEval_EvalFrameDefault entry (rsi holds frame ptr)
-                # if handler lookup fails or arch is not x86_64.
-                resume_foff, resume_quick_foff = (
-                    BpfMgr._findPyResumeHandlerFileOff(
-                        bin_path, elf_off, py_minor=minor
-                    )
-                )
-
-                # Build list of (probe_file_off, frame_reg_off) pairs to attach
-                _probe_sites = []
-                if resume_foff or resume_quick_foff:
-                    _rbp_frame_reg = 32  # rbp at pt_regs offset 32 = frame ptr
-                    for _foff in (resume_foff, resume_quick_foff):
-                        if not _foff:
-                            continue
-                        # Skip ENDBR64: advance by 4 if probe site starts with CET prefix.
-                        # Registers are unmodified by ENDBR64, so same frame_reg_off applies.
-                        try:
-                            with open(bin_path, "rb") as _ef:
-                                _ef.seek(_foff)
-                                if _ef.read(4) == _ENDBR64:
-                                    _foff += 4
-                        except Exception:
-                            pass
-                        _probe_sites.append((_foff, _rbp_frame_reg))
-                else:
-                    # Fallback: probe _PyEval_EvalFrameDefault entry; rsi = frame ptr
-                    _fallback_off = elf_off
-                    try:
-                        with open(bin_path, "rb") as _ef:
-                            _ef.seek(_fallback_off)
-                            if _ef.read(4) == _ENDBR64:
-                                _fallback_off += 4
-                    except Exception:
-                        pass
-                    _probe_sites.append((_fallback_off, None))
-
-                emit_insns_cache = (
-                    {}
-                )  # frame_reg_off → compiled insns (reuse if same)
-                for probe_file_off, frame_reg_off in _probe_sites:
-                    if frame_reg_off not in emit_insns_cache:
-                        emit_insns_cache[frame_reg_off] = (
-                            BpfMgr.genPyTraceEmitProg(
-                                ringbuf_fd,
-                                f_code_off=f_code_off,
-                                filter_tgid=(
-                                    target_pid if target_pid > 0 else 0
-                                ),
-                                exclude_tgid=os.getpid(),
-                                frame_reg_off=frame_reg_off,
-                            )
-                        )
-                    emit_insns = emit_insns_cache[frame_reg_off]
-                    SysMgr.printInfo(
-                        "bpf pytrace: probe at file+0x%x frame_reg_off=%s f_code_off=%d"
-                        % (probe_file_off, frame_reg_off, f_code_off)
-                    )
-                    try:
-                        e_fd = BpfMgr.loadProg(
-                            BpfMgr.BPF_PROG_TYPE_KPROBE,
-                            emit_insns,
-                            b"GPL",
-                            "pytrace_emit",
-                        )
-                        if e_fd < 0:
-                            raise Exception("loadProg returned %d" % e_fd)
-                        BpfMgr.attachUprobe(
-                            e_fd, bin_path, probe_file_off, retprobe=False
-                        )
-                        n_attached += 1
-                    except Exception as _e:
-                        SysMgr.printWarn(
-                            "bpf pytrace: uprobe attach failed for %s+0x%x: %s"
-                            % (bin_path, probe_file_off, _e),
-                            always=True,
-                        )
-
-            if n_attached == 0:
-                SysMgr.printErr(
-                    "bpf pytrace: no uprobes attached successfully"
-                )
-                sys.exit(-1)
-
-            # mmap the BPF ring buffer for userspace reading.
-            # Kernel enforces two separate mmaps for BPF_MAP_TYPE_RINGBUF:
-            #   1. Consumer page: PROT_READ|PROT_WRITE, offset=0, size=page_size
-            #   2. Producer page + data ring (mapped 2x): PROT_READ, offset=page_size
-            import mmap as _mmap_mod
-
-            EVT_SIZE = 24  # {ktime_ns:u64, f_code_ptr:u64, pid_tgid:u64}
-            BPF_RINGBUF_BUSY_BIT = 1 << 31
-            BPF_RINGBUF_DISCARD_BIT = 1 << 30
-            try:
-                rb_cons_mm = _mmap_mod.mmap(
-                    ringbuf_fd,
-                    page_size,
-                    _mmap_mod.MAP_SHARED,
-                    _mmap_mod.PROT_READ | _mmap_mod.PROT_WRITE,
-                    offset=0,
-                )
-                rb_prod_mm = _mmap_mod.mmap(
-                    ringbuf_fd,
-                    page_size + 2 * ringbuf_size,
-                    _mmap_mod.MAP_SHARED,
-                    _mmap_mod.PROT_READ,
-                    offset=page_size,
-                )
-            except OSError as _mmap_err:
-                SysMgr.printErr(
-                    "bpf pytrace: failed to mmap ring buffer: %s" % _mmap_err
-                )
-                sys.exit(-1)
-
-            total_secs = int(SysMgr.repeatInterval or 0)
-            start_time = time.time()
-
-            if not SysMgr.outPath:
-                SysMgr.setStream()
-
-            twoLine = "=" * SysMgr.lineLength
-            _pid_desc = str(target_pid) if target_pid > 0 else "all"
-            SysMgr.printInfo(
-                "bpf pytrace: tracing Python frames"
-                " (pid=%s, Ctrl-C to stop)" % _pid_desc
-            )
-            SysMgr.printPipe(twoLine)
-            SysMgr.printPipe(
-                "%-15s  %-6s  %-6s  %-16s  %s"
-                % ("TIME", "TID", "TGID", "COMM", "FUNC"),
-                trim=False,
-            )
-            SysMgr.printPipe(twoLine)
-
-            def _get_ts():
-                return time.strftime("%H:%M:%S.") + "%03d" % (
-                    (time.time() % 1) * 1000
-                )
-
-            _comm_cache = {}
-            _pytrace_name_cache = {}  # (tgid, f_code_ptr) → py_name
-            _self_pid = (
-                os.getpid()
-            )  # exclude guider's own events in global mode
-
-            def _process_event(raw):
-                """Process a single 24-byte pytrace event."""
-                f_code_ptr = struct.unpack_from("<Q", raw, 8)[0]
-                pid_tgid = struct.unpack_from("<Q", raw, 16)[0]
-                tid = pid_tgid & 0xFFFFFFFF
-                tgid = (pid_tgid >> 32) & 0xFFFFFFFF
-                if target_pid > 0 and tgid != target_pid:
-                    return
-                if tgid == _self_pid:
-                    return
-                if tgid not in _comm_cache:
-                    try:
-                        _comm_cache[tgid] = SysMgr.getComm(tgid) or str(tgid)
-                    except Exception:
-                        _comm_cache[tgid] = str(tgid)
-                comm = _comm_cache[tgid]
-                if not f_code_ptr or f_code_ptr < 0x1000:
-                    return  # probe_read_user failed in BPF; skip event
-                if tgid not in tgid_pyver:
-                    try:
-                        _exe = os.path.realpath(
-                            "%s/%d/exe" % (SysMgr.procPath, tgid)
-                        )
-                        tgid_pyver[tgid] = BpfMgr._getPyBinaryVersion(_exe)
-                    except Exception:
-                        tgid_pyver[tgid] = (3, 11)
-                        SysMgr.printWarn(
-                            "pytrace: cannot detect Python version for pid %d; assuming 3.11"
-                            % tgid
-                        )
-                fn_key = (tgid, f_code_ptr)
-                if fn_key not in _pytrace_name_cache:
-                    _, py_min = tgid_pyver.get(tgid, (3, 11))
-                    _pytrace_name_cache[fn_key] = (
-                        BpfMgr._readPyCodeName(tgid, f_code_ptr, py_min) or ""
-                    )
-                py_name = _pytrace_name_cache[fn_key]
-                SysMgr.printPipe(
-                    "%-15s  %-6d  %-6d  %-16s  %s"
-                    % (_get_ts(), tid, tgid, comm, py_name),
-                    trim=False,
-                )
-
-            def drain_ringbuf():
-                """Drain all available events from the BPF ring buffer."""
-                # producer_pos at offset 0 of producer page (rb_prod_mm start)
-                prod_pos = struct.unpack_from("<Q", rb_prod_mm, 0)[0]
-                # consumer_pos at offset 0 of consumer page (rb_cons_mm start)
-                cons_pos = struct.unpack_from("<Q", rb_cons_mm, 0)[0]
-                while cons_pos < prod_pos:
-                    # data ring starts at offset page_size in rb_prod_mm (mapped 2x)
-                    data_off = page_size + (cons_pos % ringbuf_size)
-                    len_flags = struct.unpack_from("<I", rb_prod_mm, data_off)[
-                        0
-                    ]
-                    if len_flags & BPF_RINGBUF_BUSY_BIT:
-                        break  # kernel still writing this record
-                    data_len = len_flags & ~(
-                        BPF_RINGBUF_BUSY_BIT | BPF_RINGBUF_DISCARD_BIT
-                    )
-                    if (
-                        not (len_flags & BPF_RINGBUF_DISCARD_BIT)
-                        and data_len >= EVT_SIZE
-                    ):
-                        try:
-                            payload = bytes(
-                                rb_prod_mm[
-                                    data_off + 8 : data_off + 8 + EVT_SIZE
-                                ]
-                            )
-                            _process_event(payload)
-                        except Exception:
-                            pass
-                    # advance: 8-byte header + data, aligned up to 8 bytes
-                    cons_pos += (8 + data_len + 7) & ~7
-                # update consumer_pos so kernel can reuse ring space
-                rb_cons_mm[0:8] = struct.pack("<Q", cons_pos)
-
-            while True:
-                try:
-                    time.sleep(0.1)
-                except (KeyboardInterrupt, OSError):
-                    break
-                if total_secs > 0 and (time.time() - start_time) >= total_secs:
-                    break
-                drain_ringbuf()
-            drain_ringbuf()  # flush remaining events before exit
-
-        except KeyboardInterrupt:
-            pass
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("bpf pytrace failed", reason=True)
-        finally:
             BpfMgr.detachAll()
 
     @staticmethod
@@ -144745,11 +147989,13 @@ class BpfMgr(object):
         summary_call = {}
         summary_bt = {}
         elapsed = 0
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
             BpfMgr.initFilters()
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
                 if SysMgr.depthLevel
@@ -144846,9 +148092,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -144876,7 +148120,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -144924,7 +148168,7 @@ class BpfMgr(object):
                         )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -144950,6 +148194,13 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: n if isinstance(n, int) else n["cnt"],
+                )
+                BpfMgr._emitFlameSVG(_flame_data, "bpfdroptop", ".bpfdroptop")
             BpfMgr.detachAll()
 
     @staticmethod
@@ -144999,14 +148250,7 @@ class BpfMgr(object):
 
             BpfMgr.attachTracepoint(prog_fd, "sched", "sched_switch")
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -145051,9 +148295,7 @@ class BpfMgr(object):
                 if BpfMgr._tcpStopSleep(interval):
                     break
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -145089,7 +148331,7 @@ class BpfMgr(object):
                         comm_mode=BpfMgr._getCommMode(),
                     )
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -145201,7 +148443,7 @@ class BpfMgr(object):
                             )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -145233,22 +148475,14 @@ class BpfMgr(object):
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
             if drawflame and summary_call:
-                # use ns values as weights for the flame graph #
-                _flame_data = {
-                    leaf: max(1, info["ns"] // 1_000_000)
-                    for leaf, info in summary_call.items()
-                }
-                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
-                _out_dir = (
-                    _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: max(1, n["ns"] // 1_000_000),
                 )
-                _wsvg = Debugger.drawFlameSample(
-                    _flame_data,
-                    "bpfwaittop (ms blocked)",
-                    ".bpfwaittop",
-                    outDir=_out_dir,
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfwaittop (ms blocked)", ".bpfwaittop"
                 )
-                BpfMgr._emitDrawFile(_wsvg)
             BpfMgr._waitBpfAI(timeout=30)
             BpfMgr.detachAll()
 
@@ -145258,6 +148492,7 @@ class BpfMgr(object):
         summary_call = {}
         summary_bt = {}
         elapsed = 0
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
             if "PROCCOMMFILTER" in SysMgr.environList:
@@ -145266,6 +148501,7 @@ class BpfMgr(object):
                 )
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
                 if SysMgr.depthLevel
@@ -145374,9 +148610,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -145417,7 +148651,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -145511,7 +148745,7 @@ class BpfMgr(object):
                             )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -145540,6 +148774,15 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: max(1, n["ns"] // 1_000_000),
+                )
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfblktop (ms blocked)", ".bpfblktop"
+                )
             BpfMgr.detachAll()
 
     @staticmethod
@@ -145891,6 +149134,7 @@ class BpfMgr(object):
         summary_bt = {}
         summary_total = 0
         elapsed = 0  # also set inside try; safety init for finally
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
 
@@ -145898,6 +149142,7 @@ class BpfMgr(object):
             add_ustack = "ADDUSERSTACK" in SysMgr.environList
             add_task_stack = "ADDTASKSTACK" in SysMgr.environList
             add_attr_stack = "ADDATTRSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
 
             # Determine which event types to capture with stacks (-q HIT/MISS/DIRTY).
             # Default when -H is given and no type specified: MISS only. #
@@ -146044,14 +149289,9 @@ class BpfMgr(object):
             BpfMgr.attachKprobe(dirty_fd, _dirty_sym, retprobe=False)
             BpfMgr.attachKprobe(dirty2_fd, "mark_buffer_dirty", retprobe=False)
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 1), 1)
-            else:
-                interval = 1
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams(
+                default_interval=1
+            )
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -146411,7 +149651,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -146442,7 +149682,7 @@ class BpfMgr(object):
                             )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -146500,6 +149740,15 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and stack_mode and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: n if isinstance(n, int) else n["cnt"],
+                )
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfcachetop", ".bpfcachetop"
+                )
             BpfMgr.detachAll()
 
     @staticmethod
@@ -146531,78 +149780,9 @@ class BpfMgr(object):
             BpfMgr.attachTracepoint(prog_fd, "sock", "inet_sock_set_state")
 
             # Setup perf ring buffers #
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            n_data_pages = 64
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-            PERF_SAMPLE_RAW = 1 << 10
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)
-                struct.pack_into("<I", attr, 4, 112)
-                struct.pack_into("<Q", attr, 8, 10)
-                struct.pack_into("<Q", attr, 16, 1)
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    continue
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    os.close(fd)
-                    continue
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-                BpfMgr.mapUpdate(
-                    perf_map_fd,
-                    struct.pack("<I", cpu),
-                    struct.pack("<I", fd),
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=False
+            )
 
             if not perf_fds:
                 SysMgr.printErr("bpftcplife: failed to open perf ring buffers")
@@ -146641,11 +149821,7 @@ class BpfMgr(object):
 
             def _get_proc_comm(tgid):
                 if tgid not in _proc_comm_cache:
-                    try:
-                        with open("/proc/%d/comm" % tgid) as _f:
-                            _proc_comm_cache[tgid] = _f.read().strip()
-                    except Exception:
-                        _proc_comm_cache[tgid] = ""
+                    _proc_comm_cache[tgid] = SysMgr.getComm(tgid, default="")
                 return _proc_comm_cache[tgid]
 
             _twoLine = "=" * SysMgr.lineLength
@@ -146665,134 +149841,100 @@ class BpfMgr(object):
             SysMgr.printPipe(_twoLine)
 
             PERF_RECORD_SAMPLE = 9
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
 
             def drain_tl(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(
+                    buf_addr, pg_sz, data_sz, eager_writeback=True
+                ):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 48:
+                        continue
                     try:
-                        hdr = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
+                        # Payload: [pid_tgid(8)][saddr(4)][daddr(4)]
+                        #          [sport(4)][dport(4)][oldstate(4)][newstate(4)][comm(16)]
+                        pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
+                        tid = pid_tgid & 0xFFFFFFFF
+                        tgid = pid_tgid >> 32
+                        saddr_i = struct.unpack_from("<I", raw, 8)[0]
+                        daddr_i = struct.unpack_from("<I", raw, 12)[0]
+                        sport = struct.unpack_from("<I", raw, 16)[0]
+                        dport = struct.unpack_from("<I", raw, 20)[0]
+                        oldstate = struct.unpack_from("<I", raw, 24)[0]
+                        # BPF comm = thread comm (bpf_get_current_comm) #
+                        tcomm = (
+                            raw[32:48]
+                            .split(b"\x00")[0]
+                            .decode("utf-8", errors="replace")
+                        )
+                        # Process comm from /proc/tgid/comm #
+                        pcomm = _get_proc_comm(tgid) or tcomm
+
+                        # Apply PROCCOMMFILTER (match against process comm) #
+                        if _pcomm_pat and not UtilMgr.isValidStr(
+                            pcomm, [_pcomm_pat]
+                        ):
+                            continue
+
+                        # oldstate==2(SYN_SENT)→CONNECT, oldstate==3(SYN_RECV)→ACCEPT #
+                        if oldstate == 2:
+                            direction = "CONNECT"
+                            laddr = _fmt_ip(saddr_i)
+                            raddr = _fmt_ip(daddr_i)
+                            lport = sport
+                            rport = dport
+                        elif oldstate == 3:
+                            direction = "ACCEPT"
+                            laddr = _fmt_ip(daddr_i)
+                            raddr = _fmt_ip(saddr_i)
+                            lport = dport
+                            rport = sport
+                        else:
+                            continue
+
+                        _task = "%s[%d]/%s[%d]" % (
+                            pcomm[:10],
+                            tgid,
+                            tcomm[:10],
+                            tid,
+                        )
+                        _la = "%s:%d" % (laddr, lport)
+                        _ra = "%s:%d" % (raddr, rport)
+
+                        if SysMgr.jsonEnable:
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(
+                                    {
+                                        "time": SysMgr.getUptime(),
+                                        "pid": int(tgid),
+                                        "tid": int(tid),
+                                        "pcomm": pcomm,
+                                        "tcomm": tcomm,
+                                        "direction": direction,
+                                        "laddr": laddr,
+                                        "lport": int(lport),
+                                        "raddr": raddr,
+                                        "rport": int(rport),
+                                    },
+                                    pretty=False,
+                                )
+                            )
+                        else:
+                            SysMgr.printPipe(
+                                hdr_fmt
+                                % (
+                                    _get_ts(),
+                                    direction,
+                                    _la,
+                                    _ra,
+                                    _task,
+                                )
+                            )
                     except Exception:
-                        break
-                    if rec_size < 8:
-                        break
-                    if rec_type == PERF_RECORD_SAMPLE:
-                        try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 48:
-                                raw = body[4 : 4 + raw_size]
-                                # Payload: [pid_tgid(8)][saddr(4)][daddr(4)]
-                                #          [sport(4)][dport(4)][oldstate(4)][newstate(4)][comm(16)]
-                                pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
-                                tid = pid_tgid & 0xFFFFFFFF
-                                tgid = pid_tgid >> 32
-                                saddr_i = struct.unpack_from("<I", raw, 8)[0]
-                                daddr_i = struct.unpack_from("<I", raw, 12)[0]
-                                sport = struct.unpack_from("<I", raw, 16)[0]
-                                dport = struct.unpack_from("<I", raw, 20)[0]
-                                oldstate = struct.unpack_from("<I", raw, 24)[0]
-                                # BPF comm = thread comm (bpf_get_current_comm) #
-                                tcomm = (
-                                    raw[32:48]
-                                    .split(b"\x00")[0]
-                                    .decode("utf-8", errors="replace")
-                                )
-                                # Process comm from /proc/tgid/comm #
-                                pcomm = _get_proc_comm(tgid) or tcomm
-
-                                # Apply PROCCOMMFILTER (match against process comm) #
-                                if _pcomm_pat and not UtilMgr.isValidStr(
-                                    pcomm, [_pcomm_pat]
-                                ):
-                                    tail_ptr[0] = tail + rec_size
-                                    tail += rec_size
-                                    continue
-
-                                # oldstate==2(SYN_SENT)→CONNECT, oldstate==3(SYN_RECV)→ACCEPT #
-                                if oldstate == 2:
-                                    direction = "CONNECT"
-                                    laddr = _fmt_ip(saddr_i)
-                                    raddr = _fmt_ip(daddr_i)
-                                    lport = sport
-                                    rport = dport
-                                elif oldstate == 3:
-                                    direction = "ACCEPT"
-                                    laddr = _fmt_ip(daddr_i)
-                                    raddr = _fmt_ip(saddr_i)
-                                    lport = dport
-                                    rport = sport
-                                else:
-                                    tail_ptr[0] = tail + rec_size
-                                    tail += rec_size
-                                    continue
-
-                                _task = "%s[%d]/%s[%d]" % (
-                                    pcomm[:10],
-                                    tgid,
-                                    tcomm[:10],
-                                    tid,
-                                )
-                                _la = "%s:%d" % (laddr, lport)
-                                _ra = "%s:%d" % (raddr, rport)
-
-                                if SysMgr.jsonEnable:
-                                    SysMgr.printPipe(
-                                        UtilMgr.convDict2Str(
-                                            {
-                                                "time": SysMgr.getUptime(),
-                                                "pid": int(tgid),
-                                                "tid": int(tid),
-                                                "pcomm": pcomm,
-                                                "tcomm": tcomm,
-                                                "direction": direction,
-                                                "laddr": laddr,
-                                                "lport": int(lport),
-                                                "raddr": raddr,
-                                                "rport": int(rport),
-                                            },
-                                            pretty=False,
-                                        )
-                                    )
-                                else:
-                                    SysMgr.printPipe(
-                                        hdr_fmt
-                                        % (
-                                            _get_ts(),
-                                            direction,
-                                            _la,
-                                            _ra,
-                                            _task,
-                                        )
-                                    )
-                        except Exception:
-                            pass
-                    tail_ptr[0] = tail + rec_size
-                    tail += rec_size
+                        pass
 
             import select as _select
 
@@ -147043,13 +150185,9 @@ class BpfMgr(object):
                                     if line.startswith("prog_id:"):
                                         prog_id = int(line[8:].strip())
                                         if comm is None:
-                                            try:
-                                                with open(
-                                                    "/proc/%s/comm" % pid_entry
-                                                ) as ch:
-                                                    comm = ch.read().strip()
-                                            except Exception:
-                                                comm = "?"
+                                            comm = SysMgr.getComm(
+                                                pid_entry, default="?"
+                                            )
                                         pid = int(pid_entry)
                                         procs = _entry(prog_id)["procs"]
                                         entry = (pid, comm)
@@ -147072,9 +150210,10 @@ class BpfMgr(object):
         try:
             BpfMgr.checkAvailable()
 
-            interval = 1
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
+            interval, total_time = BpfMgr._computeIntervalParams(
+                default_interval=1
+            )
+            elapsed = 0
 
             show_map = "SHOWMAP" in SysMgr.environList
             show_tag = "SHOWTAG" in SysMgr.environList
@@ -147170,9 +150309,8 @@ class BpfMgr(object):
 
             while True:
                 time.sleep(interval)
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
                 SysMgr.updateUptime()
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -147330,6 +150468,8 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
+                        break
                     continue
 
                 if SysMgr.jsonEnable:
@@ -147577,6 +150717,8 @@ class BpfMgr(object):
                     SysMgr.addPrint(twoLine + "\n", 1)
                 BpfMgr._flushBuf()
                 first = False
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
 
         except KeyboardInterrupt:
             pass
@@ -147661,85 +150803,9 @@ class BpfMgr(object):
                 sys.exit(-1)
 
             # Set up perf ring buffers (same as bpfbindersnoop pattern) #
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            n_data_pages = 64
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-            PERF_SAMPLE_RAW = 1 << 10
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
-                struct.pack_into("<I", attr, 4, 112)
-                struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
-                struct.pack_into("<Q", attr, 16, 1)
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: perf_event_open failed" % cpu,
-                        always=True,
-                    )
-                    continue
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: mmap failed" % cpu, always=True
-                    )
-                    os.close(fd)
-                    continue
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-                BpfMgr.mapUpdate(
-                    perf_map_fd,
-                    struct.pack("<I", cpu),
-                    struct.pack("<I", fd),
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=True
+            )
 
             if not perf_fds:
                 SysMgr.printErr(
@@ -147759,7 +150825,7 @@ class BpfMgr(object):
 
             lineLen = SysMgr.lineLength
             twoLine = "=" * lineLen
-            hdr_fmt = "%-8s %-8s %-20s %s"
+            hdr_fmt = "%8s %8s %-20s %s"
 
             SysMgr.printInfo(
                 "bpflsmopen: monitoring file opens via LSM hook '%s' (Ctrl-C to stop)"
@@ -147770,109 +150836,72 @@ class BpfMgr(object):
             SysMgr.printPipe(twoLine)
 
             PERF_RECORD_SAMPLE = 9
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
 
             def drain_one(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(
+                    buf_addr, pg_sz, data_sz, eager_writeback=True
+                ):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 24:
+                        continue
                     try:
-                        hdr = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
-                    except Exception:
-                        break
-                    if rec_size < 8:
-                        break
-                    if rec_type == PERF_RECORD_SAMPLE:
-                        try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 24:
-                                raw = body[4 : 4 + raw_size]
-                                # Payload: [u64 pid_tgid][comm[16]][filename[128]]
-                                pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
-                                tid = pid_tgid & 0xFFFFFFFF
-                                tgid = pid_tgid >> 32
-                                comm = (
-                                    raw[8:24]
-                                    .split(b"\x00")[0]
-                                    .decode("utf-8", errors="replace")
-                                )
-                                fname = ""
-                                if raw_size >= 152:
-                                    fname = (
-                                        raw[24:152]
-                                        .split(b"\x00")[0]
-                                        .decode("utf-8", errors="replace")
-                                    )
-
-                                # Apply -g / PROCCOMMFILTER #
-                                if not BpfMgr._matchesFilter(tgid, tgid, comm):
-                                    tail_ptr[0] = tail + rec_size
-                                    tail += rec_size
-                                    continue
-                                if (
-                                    _proccomm_pattern
-                                    and not UtilMgr.isValidStr(
-                                        comm, [_proccomm_pattern]
-                                    )
-                                ):
-                                    tail_ptr[0] = tail + rec_size
-                                    tail += rec_size
-                                    continue
-
-                                if SysMgr.jsonEnable:
-                                    SysMgr.printPipe(
-                                        UtilMgr.convDict2Str(
-                                            {
-                                                "time": SysMgr.getUptime(),
-                                                "pid": tgid,
-                                                "tid": tid,
-                                                "comm": comm,
-                                                "path": fname or "(unknown)",
-                                            },
-                                            pretty=False,
-                                        )
-                                    )
-                                else:
-                                    SysMgr.printPipe(
-                                        hdr_fmt
-                                        % (
-                                            tgid,
-                                            tid,
-                                            comm[:20],
-                                            fname or "(unknown)",
-                                        )
-                                    )
-                        except Exception:
-                            SysMgr.printWarn(
-                                "failed to process bpflsmopen record",
-                                reason=True,
+                        # Payload: [u64 pid_tgid][comm[16]][filename[128]]
+                        pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
+                        tid = pid_tgid & 0xFFFFFFFF
+                        tgid = pid_tgid >> 32
+                        comm = (
+                            raw[8:24]
+                            .split(b"\x00")[0]
+                            .decode("utf-8", errors="replace")
+                        )
+                        fname = ""
+                        if raw_size >= 152:
+                            fname = (
+                                raw[24:152]
+                                .split(b"\x00")[0]
+                                .decode("utf-8", errors="replace")
                             )
-                    tail_ptr[0] = tail + rec_size
-                    tail += rec_size
+
+                        # Apply -g / PROCCOMMFILTER #
+                        if not BpfMgr._matchesFilter(tgid, tgid, comm):
+                            continue
+                        if _proccomm_pattern and not UtilMgr.isValidStr(
+                            comm, [_proccomm_pattern]
+                        ):
+                            continue
+
+                        if SysMgr.jsonEnable:
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(
+                                    {
+                                        "time": SysMgr.getUptime(),
+                                        "pid": tgid,
+                                        "tid": tid,
+                                        "comm": comm,
+                                        "path": fname or "(unknown)",
+                                    },
+                                    pretty=False,
+                                )
+                            )
+                        else:
+                            SysMgr.printPipe(
+                                hdr_fmt
+                                % (
+                                    tgid,
+                                    tid,
+                                    comm[:20],
+                                    fname or "(unknown)",
+                                )
+                            )
+                    except Exception:
+                        SysMgr.printWarn(
+                            "failed to process bpflsmopen record",
+                            reason=True,
+                        )
 
             import select as _select
 
@@ -148065,6 +151094,7 @@ class BpfMgr(object):
         summary_call = {}  # {leaf: {"cnt": int, "path": str}}
         summary_bt = {}  # {leaf: {bt_str: int}}
         elapsed = 0
+        drawflame = False
         try:
             BpfMgr.checkAvailable()
             BpfMgr.initFilters()
@@ -148139,6 +151169,7 @@ class BpfMgr(object):
             # exception handler path (not meaningful) — skip them.
             show_kstack = SysMgr.depthLevel is not None
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
                 if SysMgr.depthLevel
@@ -148218,14 +151249,7 @@ class BpfMgr(object):
                     % (len(_wt_attached), len(_attach_targets))
                 )
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -148274,9 +151298,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -148309,7 +151331,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -148363,7 +151385,7 @@ class BpfMgr(object):
                         )
 
                 BpfMgr._flushBuf()
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -148389,6 +151411,15 @@ class BpfMgr(object):
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if drawflame and summary_call:
+                _flame_data = BpfMgr._buildFlameFromSummary(
+                    summary_call,
+                    summary_bt,
+                    lambda n: n if isinstance(n, int) else n["cnt"],
+                )
+                BpfMgr._emitFlameSVG(
+                    _flame_data, "bpfwatchtop", ".bpfwatchtop"
+                )
             BpfMgr.detachAll()
 
     @staticmethod
@@ -148508,6 +151539,10 @@ class BpfMgr(object):
         """Stream real-time hardware watchpoint hits via eBPF perf ring buffer."""
         perf_fds = []
         mmap_bufs = []
+        _summary_stack = {}
+        _need_summary = (
+            SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList
+        )
         try:
             BpfMgr.checkAvailable()
             BpfMgr.initFilters()
@@ -148681,86 +151716,9 @@ class BpfMgr(object):
             _addr_to_sym = {_a: _n for _a, _n, _t in _attached}
 
             # Set up per-CPU perf ring buffers #
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            n_data_pages = 64
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-            PERF_SAMPLE_RAW = 1 << 10
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
-                struct.pack_into("<I", attr, 4, 112)
-                struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
-                struct.pack_into("<Q", attr, 16, 1)  # sample_period=1
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)  # wakeup_events=1
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: perf_event_open failed" % cpu,
-                        always=True,
-                    )
-                    continue
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    SysMgr.printWarn(
-                        "skip cpu %d: mmap failed" % cpu, always=True
-                    )
-                    os.close(fd)
-                    continue
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-                BpfMgr.mapUpdate(
-                    perf_map_fd,
-                    struct.pack("<I", cpu),
-                    struct.pack("<I", fd),
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=True
+            )
 
             if not perf_fds:
                 SysMgr.printErr(
@@ -148786,7 +151744,7 @@ class BpfMgr(object):
             )
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "    %-15s %-7s %-7s %-16s %-6s %-12s %s"
+                "    %-15s %7s %7s %-16s %-6s %12s %s"
                 % (
                     "TIME",
                     "PID",
@@ -148811,207 +151769,184 @@ class BpfMgr(object):
             _get_ts = BpfMgr.makeGetTs()
 
             PERF_RECORD_SAMPLE = 9
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
 
             def drain_one(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 44:
+                        continue
                     try:
-                        hdr = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
+                        # Payload layout (44 bytes):
+                        #   [0:4]   u32 hit_type  (1=R,2=W,4=X)
+                        #   [4:12]  u64 hit_addr  (lo32@fp-40, hi32@fp-36)
+                        #   [12:16] u32 pid
+                        #   [16:20] u32 tgid
+                        #   [20:36] comm[16]
+                        #   [36:40] u32 kstack_id
+                        #   [40:44] u32 ustack_id
+                        hit_type_int = struct.unpack_from("<I", raw, 0)[0]
+                        hit_addr = struct.unpack_from("<Q", raw, 4)[0]
+                        pid = struct.unpack_from("<I", raw, 12)[0]
+                        tgid = struct.unpack_from("<I", raw, 16)[0]
+                        comm_raw = raw[20:36]
+                        kstack_id = struct.unpack_from("<i", raw, 36)[0]
+                        ustack_id = struct.unpack_from("<i", raw, 40)[0]
+                        comm = comm_raw.split(b"\x00")[0].decode(
+                            "utf-8", errors="replace"
+                        )
+                        access_str = _HW_TYPE_STR.get(hit_type_int, "?")
+                        ts = _get_ts()
+                        event_count[0] += 1
+                        if max_hits > 0 and event_count[0] >= max_hits:
+                            _max_hits_reached[0] = True
+
+                        # inter-hit interval per (hit_addr, pid, tgid)
+                        _ival_key = (hit_addr, pid, tgid)
+                        _now_m = time.monotonic()
+                        _last_m = _interval_ts.get(_ival_key)
+                        ival_str = (
+                            "%.6f" % (_now_m - _last_m)
+                            if _last_m is not None
+                            else "-"
+                        )
+                        _interval_ts[_ival_key] = _now_m
+
+                        # Resolve kernel stack (kernel-VA mode) or
+                        # user stack (user-VA mode) for call chain display
+                        frames = []
+                        if not _is_user_va and kstack_id >= 0:
+                            if kstack_id not in kstack_sid_cache:
+                                kstack_sid_cache[kstack_id] = (
+                                    BpfMgr.resolveKernelStack(
+                                        kstack_map_fd,
+                                        kstack_id,
+                                        max_depth=max_depth,
+                                    )
+                                )
+                            frames = kstack_sid_cache[kstack_id] or []
+
+                        # Top frame: use the exact hit_addr from the payload
+                        # to identify which symbol/address actually fired.
+                        if _is_user_va:
+                            _hit_sym = _addr_to_sym.get(hit_addr, "")
+                            if _hit_sym:
+                                top_frame = "%s(0x%x)" % (
+                                    _hit_sym,
+                                    hit_addr,
+                                )
+                            else:
+                                top_frame = "0x%x" % hit_addr
+                        else:
+                            top_frame = (
+                                frames[0]
+                                if frames
+                                else (
+                                    _addr_to_sym.get(
+                                        hit_addr, "0x%x" % hit_addr
+                                    )
+                                )
+                            )
+
+                        # Call Stack Summary accumulation for -o output
+                        if _need_summary:
+                            _label = "%s(%d)" % (comm[:16], tgid)
+                            if _is_user_va:
+                                _uframes_s = []
+                                if show_kstack and ustack_id >= 0:
+                                    if ustack_id not in ustack_sid_cache:
+                                        ustack_sid_cache[ustack_id] = (
+                                            BpfMgr.resolveUserStack(
+                                                ustack_map_fd,
+                                                ustack_id,
+                                                tgid,
+                                                max_depth,
+                                            )
+                                        )
+                                    _uframes_s = (
+                                        ustack_sid_cache[ustack_id] or []
+                                    )
+                                _chain = top_frame
+                                if _uframes_s:
+                                    _chain += " <- " + " <- ".join(_uframes_s)
+                            else:
+                                _chain = top_frame
+                                if show_kstack and len(frames) > 1:
+                                    _chain += " <- " + " <- ".join(frames[1:])
+                            _chain += " <- " + _label
+                            _summary_stack[_chain] = (
+                                _summary_stack.get(_chain, 0) + 1
+                            )
+
+                        if SysMgr.jsonEnable:
+                            _jwatch_stack = []
+                            if not _is_user_va:
+                                _jwatch_stack = frames
+                            _jevt = {
+                                "time": SysMgr.getUptime(),
+                                "pid": tgid,
+                                "tid": pid,
+                                "comm": comm[:16],
+                                "access": access_str,
+                                "frame": top_frame,
+                            }
+                            if _jwatch_stack:
+                                _jevt["stack"] = _jwatch_stack
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(_jevt, pretty=False)
+                            )
+                        else:
+                            SysMgr.printPipe(
+                                "    %-15s %7d %7d %-16s %-6s %12s %s"
+                                % (
+                                    ts,
+                                    tgid,
+                                    pid,
+                                    comm[:16],
+                                    access_str,
+                                    ival_str,
+                                    top_frame,
+                                )
+                            )
+                            # With -H: show user call chain (user-VA) or
+                            # kernel call chain (kernel-VA)
+                            if show_kstack:
+                                if _is_user_va and ustack_id >= 0:
+                                    if ustack_id not in ustack_sid_cache:
+                                        ustack_sid_cache[ustack_id] = (
+                                            BpfMgr.resolveUserStack(
+                                                ustack_map_fd,
+                                                ustack_id,
+                                                tgid,
+                                                max_depth,
+                                            )
+                                        )
+                                    uframes = ustack_sid_cache[ustack_id] or []
+                                    if uframes:
+                                        SysMgr.printPipe(
+                                            BpfMgr._wrapChain(
+                                                uframes,
+                                                "    %17s |  <- " % "",
+                                                "",
+                                                "    " + " " * 17 + "    <- ",
+                                                SysMgr.lineLength,
+                                            )
+                                        )
+                                elif not _is_user_va and len(frames) > 1:
+                                    SysMgr.printPipe(
+                                        BpfMgr._wrapChain(
+                                            frames[1:],
+                                            "    %17s |  <- " % "",
+                                            "",
+                                            "    " + " " * 17 + "    <- ",
+                                            SysMgr.lineLength,
+                                        )
+                                    )
                     except Exception:
-                        break
-                    if rec_size < 8:
-                        break
-                    if rec_type == PERF_RECORD_SAMPLE:
-                        try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 44:
-                                raw = body[4 : 4 + raw_size]
-                                # Payload layout (44 bytes):
-                                #   [0:4]   u32 hit_type  (1=R,2=W,4=X)
-                                #   [4:12]  u64 hit_addr  (lo32@fp-40, hi32@fp-36)
-                                #   [12:16] u32 pid
-                                #   [16:20] u32 tgid
-                                #   [20:36] comm[16]
-                                #   [36:40] u32 kstack_id
-                                #   [40:44] u32 ustack_id
-                                hit_type_int = struct.unpack_from(
-                                    "<I", raw, 0
-                                )[0]
-                                hit_addr = struct.unpack_from("<Q", raw, 4)[0]
-                                pid = struct.unpack_from("<I", raw, 12)[0]
-                                tgid = struct.unpack_from("<I", raw, 16)[0]
-                                comm_raw = raw[20:36]
-                                kstack_id = struct.unpack_from("<i", raw, 36)[
-                                    0
-                                ]
-                                ustack_id = struct.unpack_from("<i", raw, 40)[
-                                    0
-                                ]
-                                comm = comm_raw.split(b"\x00")[0].decode(
-                                    "utf-8", errors="replace"
-                                )
-                                access_str = _HW_TYPE_STR.get(
-                                    hit_type_int, "?"
-                                )
-                                ts = _get_ts()
-                                event_count[0] += 1
-                                if max_hits > 0 and event_count[0] >= max_hits:
-                                    _max_hits_reached[0] = True
-
-                                # inter-hit interval per (hit_addr, pid, tgid)
-                                _ival_key = (hit_addr, pid, tgid)
-                                _now_m = time.monotonic()
-                                _last_m = _interval_ts.get(_ival_key)
-                                ival_str = (
-                                    "%.6f" % (_now_m - _last_m)
-                                    if _last_m is not None
-                                    else "-"
-                                )
-                                _interval_ts[_ival_key] = _now_m
-
-                                # Resolve kernel stack (kernel-VA mode) or
-                                # user stack (user-VA mode) for call chain display
-                                frames = []
-                                if not _is_user_va and kstack_id >= 0:
-                                    if kstack_id not in kstack_sid_cache:
-                                        kstack_sid_cache[kstack_id] = (
-                                            BpfMgr.resolveKernelStack(
-                                                kstack_map_fd,
-                                                kstack_id,
-                                                max_depth=max_depth,
-                                            )
-                                        )
-                                    frames = kstack_sid_cache[kstack_id] or []
-
-                                # Top frame: use the exact hit_addr from the payload
-                                # to identify which symbol/address actually fired.
-                                if _is_user_va:
-                                    _hit_sym = _addr_to_sym.get(hit_addr, "")
-                                    if _hit_sym:
-                                        top_frame = "%s(0x%x)" % (
-                                            _hit_sym,
-                                            hit_addr,
-                                        )
-                                    else:
-                                        top_frame = "0x%x" % hit_addr
-                                else:
-                                    top_frame = (
-                                        frames[0]
-                                        if frames
-                                        else (
-                                            _addr_to_sym.get(
-                                                hit_addr, "0x%x" % hit_addr
-                                            )
-                                        )
-                                    )
-                                if SysMgr.jsonEnable:
-                                    _jwatch_stack = []
-                                    if not _is_user_va:
-                                        _jwatch_stack = frames
-                                    _jevt = {
-                                        "time": SysMgr.getUptime(),
-                                        "pid": tgid,
-                                        "tid": pid,
-                                        "comm": comm[:16],
-                                        "access": access_str,
-                                        "frame": top_frame,
-                                    }
-                                    if _jwatch_stack:
-                                        _jevt["stack"] = _jwatch_stack
-                                    SysMgr.printPipe(
-                                        UtilMgr.convDict2Str(
-                                            _jevt, pretty=False
-                                        )
-                                    )
-                                else:
-                                    SysMgr.printPipe(
-                                        "    %-15s %-7d %-7d %-16s %-6s %-12s %s"
-                                        % (
-                                            ts,
-                                            tgid,
-                                            pid,
-                                            comm[:16],
-                                            access_str,
-                                            ival_str,
-                                            top_frame,
-                                        )
-                                    )
-                                    # With -H: show user call chain (user-VA) or
-                                    # kernel call chain (kernel-VA)
-                                    if show_kstack:
-                                        if _is_user_va and ustack_id >= 0:
-                                            if (
-                                                ustack_id
-                                                not in ustack_sid_cache
-                                            ):
-                                                ustack_sid_cache[ustack_id] = (
-                                                    BpfMgr.resolveUserStack(
-                                                        ustack_map_fd,
-                                                        ustack_id,
-                                                        tgid,
-                                                        max_depth,
-                                                    )
-                                                )
-                                            uframes = (
-                                                ustack_sid_cache[ustack_id]
-                                                or []
-                                            )
-                                            if uframes:
-                                                SysMgr.printPipe(
-                                                    BpfMgr._wrapChain(
-                                                        uframes,
-                                                        "    %17s |  <- " % "",
-                                                        "",
-                                                        "    "
-                                                        + " " * 17
-                                                        + "    <- ",
-                                                        SysMgr.lineLength,
-                                                    )
-                                                )
-                                        elif (
-                                            not _is_user_va and len(frames) > 1
-                                        ):
-                                            SysMgr.printPipe(
-                                                BpfMgr._wrapChain(
-                                                    frames[1:],
-                                                    "    %17s |  <- " % "",
-                                                    "",
-                                                    "    "
-                                                    + " " * 17
-                                                    + "    <- ",
-                                                    SysMgr.lineLength,
-                                                )
-                                            )
-                        except Exception:
-                            pass
-                    tail += rec_size
-                tail_ptr[0] = tail
+                        pass
 
             sel_mod = SysMgr.getPkg("select")
             while True:
@@ -149041,6 +151976,8 @@ class BpfMgr(object):
                     os.close(fd)
                 except Exception:
                     pass
+            if _need_summary and _summary_stack:
+                BpfMgr.printKstackReport(_summary_stack, "Call Stack Summary")
             BpfMgr.detachAll()
 
     # -----------------------------------------------------------------------
@@ -149237,7 +152174,7 @@ class BpfMgr(object):
                     continue
                 try:
                     fd_dir = "/proc/%s/fd" % pid_s
-                    comm = open("/proc/%s/comm" % pid_s).read().strip()
+                    comm = SysMgr.getComm(pid_s, default="")
                     pid_i = int(pid_s)
                     for fn in os.listdir(fd_dir):
                         try:
@@ -149290,14 +152227,7 @@ class BpfMgr(object):
                 )
                 sys.exit(-1)
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
             prev = {}  # key_bytes → (pkts, bytes)
 
@@ -149330,9 +152260,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -149362,7 +152290,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -149475,7 +152403,7 @@ class BpfMgr(object):
                     SysMgr.addPrint(sep + "\n")
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -149484,7 +152412,7 @@ class BpfMgr(object):
         except:
             SysMgr.printErr("bpfpkttop failed", reason=True)
         finally:
-            if SysMgr.outPath:
+            if SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList:
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
             BpfMgr.detachAll()
@@ -149687,75 +152615,9 @@ class BpfMgr(object):
                 sys.exit(-1)
 
             # Set up per-CPU ring buffers (same as bpfbindersnoop)
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-            n_data_pages = 64
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-            PERF_SAMPLE_RAW = 1 << 10
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
-                struct.pack_into("<I", attr, 4, 112)
-                struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
-                struct.pack_into("<Q", attr, 16, 1)
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    continue
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    os.close(fd)
-                    continue
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-                BpfMgr.mapUpdate(
-                    perf_map_fd, struct.pack("<I", cpu), struct.pack("<I", fd)
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=False
+            )
 
             if not perf_fds:
                 SysMgr.printErr(
@@ -149795,7 +152657,7 @@ class BpfMgr(object):
             )
             SysMgr.printPipe(sep, flush=True)
             SysMgr.printPipe(
-                " %-15s  %-6s  %-22s -> %-22s  %6s  %-20s  %-20s"
+                " %-15s  %-6s  %-22s -> %-22s  %6s  %26s  %26s"
                 % (
                     "Time",
                     "Proto",
@@ -149810,135 +152672,93 @@ class BpfMgr(object):
             SysMgr.printPipe(sep, flush=True)
 
             PERF_RECORD_SAMPLE = 9
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
             _time_time = time.time
             _get_ts = BpfMgr.makeGetTs()
 
             def drain_one(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 32:
+                        continue
                     try:
-                        hdr = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack("<IHH", hdr)
+                        proto, saddr, daddr, ports, pkt_len = struct.unpack(
+                            "<IIIII", raw[:20]
+                        )
+
+                        sport = ports & 0xFFFF
+                        dport = (ports >> 16) & 0xFFFF
+                        sport_h = _socket.ntohs(sport)
+                        dport_h = _socket.ntohs(dport)
+                        src_ip = _socket.inet_ntoa(saddr.to_bytes(4, "little"))
+                        dst_ip = _socket.inet_ntoa(daddr.to_bytes(4, "little"))
+
+                        # Apply filters
+                        _skip_event = False
+                        if _proto_filter and proto != _proto_filter:
+                            _skip_event = True
+                        if not _skip_event and _port_filter:
+                            if (
+                                sport_h != _port_filter
+                                and dport_h != _port_filter
+                            ):
+                                _skip_event = True
+                        if not _skip_event and _src_filter:
+                            if not src_ip.startswith(_src_filter):
+                                _skip_event = True
+
+                        if not _skip_event:
+                            proto_name = PROTO_NAMES.get(proto, str(proto))
+                            if proto in (6, 17):
+                                src_str = "%s:%d" % (src_ip, sport_h)
+                                dst_str = "%s:%d" % (dst_ip, dport_h)
+                                _sp3 = _port_proc.get((proto, sport_h))
+                                _dp3 = _port_proc.get((proto, dport_h))
+                                src_proc = (
+                                    "%s(%d)" % _sp3 if _sp3 else "(remote)"
+                                )
+                                dst_proc = (
+                                    "%s(%d)" % _dp3 if _dp3 else "(remote)"
+                                )
+                            else:
+                                src_str = src_ip
+                                dst_str = dst_ip
+                                src_proc = dst_proc = "(remote)"
+                            if SysMgr.jsonEnable:
+                                SysMgr.printPipe(
+                                    UtilMgr.convDict2Str(
+                                        {
+                                            "time": SysMgr.getUptime(),
+                                            "proto": proto_name,
+                                            "src": src_str,
+                                            "dst": dst_str,
+                                            "pkt_len": int(pkt_len),
+                                            "src_proc": src_proc,
+                                            "dst_proc": dst_proc,
+                                        },
+                                        pretty=False,
+                                    ),
+                                    flush=True,
+                                )
+                            else:
+                                SysMgr.printPipe(
+                                    " %-15s  %-6s  %-22s -> %-22s  %6d  %26s  %26s"
+                                    % (
+                                        _get_ts(),
+                                        proto_name,
+                                        src_str,
+                                        dst_str,
+                                        pkt_len,
+                                        src_proc,
+                                        dst_proc,
+                                    ),
+                                    flush=True,
+                                )
                     except Exception:
-                        break
-                    if rec_size < 8:
-                        break
-                    if rec_type == PERF_RECORD_SAMPLE:
-                        try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 32:
-                                raw = body[4 : 4 + raw_size]
-                                proto, saddr, daddr, ports, pkt_len = (
-                                    struct.unpack("<IIIII", raw[:20])
-                                )
-
-                                sport = ports & 0xFFFF
-                                dport = (ports >> 16) & 0xFFFF
-                                sport_h = _socket.ntohs(sport)
-                                dport_h = _socket.ntohs(dport)
-                                src_ip = _socket.inet_ntoa(
-                                    saddr.to_bytes(4, "little")
-                                )
-                                dst_ip = _socket.inet_ntoa(
-                                    daddr.to_bytes(4, "little")
-                                )
-
-                                # Apply filters
-                                _skip_event = False
-                                if _proto_filter and proto != _proto_filter:
-                                    _skip_event = True
-                                if not _skip_event and _port_filter:
-                                    if (
-                                        sport_h != _port_filter
-                                        and dport_h != _port_filter
-                                    ):
-                                        _skip_event = True
-                                if not _skip_event and _src_filter:
-                                    if not src_ip.startswith(_src_filter):
-                                        _skip_event = True
-
-                                if not _skip_event:
-                                    proto_name = PROTO_NAMES.get(
-                                        proto, str(proto)
-                                    )
-                                    if proto in (6, 17):
-                                        src_str = "%s:%d" % (src_ip, sport_h)
-                                        dst_str = "%s:%d" % (dst_ip, dport_h)
-                                        _sp3 = _port_proc.get((proto, sport_h))
-                                        _dp3 = _port_proc.get((proto, dport_h))
-                                        src_proc = (
-                                            "%s(%d)" % _sp3
-                                            if _sp3
-                                            else "(remote)"
-                                        )
-                                        dst_proc = (
-                                            "%s(%d)" % _dp3
-                                            if _dp3
-                                            else "(remote)"
-                                        )
-                                    else:
-                                        src_str = src_ip
-                                        dst_str = dst_ip
-                                        src_proc = dst_proc = "(remote)"
-                                    if SysMgr.jsonEnable:
-                                        SysMgr.printPipe(
-                                            UtilMgr.convDict2Str(
-                                                {
-                                                    "time": SysMgr.getUptime(),
-                                                    "proto": proto_name,
-                                                    "src": src_str,
-                                                    "dst": dst_str,
-                                                    "pkt_len": int(pkt_len),
-                                                    "src_proc": src_proc,
-                                                    "dst_proc": dst_proc,
-                                                },
-                                                pretty=False,
-                                            ),
-                                            flush=True,
-                                        )
-                                    else:
-                                        SysMgr.printPipe(
-                                            " %-15s  %-6s  %-22s -> %-22s  %6d  %-20s  %-20s"
-                                            % (
-                                                _get_ts(),
-                                                proto_name,
-                                                src_str,
-                                                dst_str,
-                                                pkt_len,
-                                                src_proc,
-                                                dst_proc,
-                                            ),
-                                            flush=True,
-                                        )
-                        except Exception:
-                            pass
-                    tail += rec_size
-                tail_ptr[0] = tail
+                        pass
 
             _port_proc = {}
             _port_proc_ts = 0.0
@@ -150445,14 +153265,7 @@ class BpfMgr(object):
 
             BpfMgr.attachTracepoint(tp_fd, "tcp", "tcp_probe")
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
@@ -150471,9 +153284,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
                 if _samp_cond:
@@ -150517,7 +153328,7 @@ class BpfMgr(object):
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
-                    if total_time > 0 and elapsed >= total_time:
+                    if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
 
@@ -150603,7 +153414,7 @@ class BpfMgr(object):
                         SysMgr.addPrint("=" * W + "\n")
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -151391,12 +154202,9 @@ class BpfMgr(object):
                     _merge(tgid_sc, nr, s)
             # Use process comm from /proc/<tgid>/comm (main thread name)
             for tgid in proc_comm:
-                try:
-                    proc_comm[tgid] = (
-                        open("/proc/%d/comm" % tgid).read().strip()
-                    )
-                except Exception:
-                    pass
+                _c = SysMgr.getComm(tgid)
+                if _c:
+                    proc_comm[tgid] = _c
             groups = [
                 (tgid, proc_comm[tgid], proc_data[tgid]) for tgid in proc_data
             ]
@@ -151738,6 +154546,8 @@ class BpfMgr(object):
                     break
             if comm_label:
                 SysMgr.addPrint("%s%s\n" % (stack_prefix, comm_label))
+            if not SysMgr.addPrint("%s\n" % oneLine):
+                break
 
             # Accumulate into drawflame_data
             if drawflame_data is not None:
@@ -151793,7 +154603,7 @@ class BpfMgr(object):
             drawflame = "DRAWFLAME" in SysMgr.environList
             show_cmdline = "CMDLINE" in SysMgr.environList
             stack_mode = show_ustack or (comm_mode is not None)
-            drawflame_data = {} if drawflame else None
+            drawflame_data = {} if (drawflame or stack_mode) else None
 
             # ts_map: HASH key=u64(pid_tgid) val=16B [ktime_ns(8)+nr(8)]
             ts_map_fd = BpfMgr.createMap(
@@ -152152,7 +154962,7 @@ class BpfMgr(object):
                 for kb in del_keys:
                     BpfMgr.mapDelete(agg_map_fd, kb)
                 elapsed = time.time() - start_time
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
 
         except KeyboardInterrupt:
@@ -152208,23 +155018,25 @@ class BpfMgr(object):
                     SysMgr.addPrint("%s\n" % twoLine)
                     SysMgr.doPrint(pager=False)
                     SysMgr.clearPrint()
+                if (
+                    "NOSUMMARY" not in SysMgr.environList
+                    and stack_mode
+                    and drawflame_data
+                ):
+                    BpfMgr.printKstackReport(
+                        drawflame_data, "Call Stack Summary"
+                    )
                 # Always flush buffered interval output to file (incl. stack_mode)
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
             # DRAWFLAME: generate flamegraph SVG at end of run
             if drawflame:
-                _ssvg = None
-                _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
-                _out_dir = (
-                    _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
-                )
                 if stack_mode and drawflame_data:
                     # Stack mode: chain includes syscall + user frames + label
-                    _ssvg = Debugger.drawFlameSample(
+                    BpfMgr._emitFlameSVG(
                         drawflame_data,
                         "bpfsyscalltop stack (elapsed ms)",
                         ".bpfsyscalltop",
-                        outDir=_out_dir,
                     )
                 elif not stack_mode and cumulative:
                     # Standard mode: syscall name as leaf, elapsed ms as weight
@@ -152236,13 +155048,9 @@ class BpfMgr(object):
                         if s.get("count", 0) > 0
                     }
                     if _fd:
-                        _ssvg = Debugger.drawFlameSample(
-                            _fd,
-                            "bpfsyscalltop (elapsed ms)",
-                            ".bpfsyscalltop",
-                            outDir=_out_dir,
+                        BpfMgr._emitFlameSVG(
+                            _fd, "bpfsyscalltop (elapsed ms)", ".bpfsyscalltop"
                         )
-                BpfMgr._emitDrawFile(_ssvg)
             BpfMgr.detachAll()
 
     @staticmethod
@@ -152597,6 +155405,10 @@ class BpfMgr(object):
         """Stream real-time syscall events via raw_syscalls tracepoints (perf ring buffer)"""
         perf_fds = []
         mmap_bufs = []
+        _summary_stack = {}
+        _need_summary = (
+            SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList
+        )
         try:
             BpfMgr.checkAvailable()
 
@@ -152780,76 +155592,9 @@ class BpfMgr(object):
             BpfMgr.attachTracepoint(exit_fd, "raw_syscalls", "sys_exit")
 
             # Set up per-CPU perf ring buffers
-            ct = SysMgr.getPkg("ctypes")
-            libc = SysMgr.libcObj
-            libc.syscall.restype = ct.c_long
-            libc.mmap.restype = ct.c_uint64
-            libc.mmap.argtypes = [
-                ct.c_uint64,
-                ct.c_uint64,
-                ct.c_int,
-                ct.c_int,
-                ct.c_int,
-                ct.c_uint64,
-            ]
-            try:
-                page_size = os.sysconf("SC_PAGESIZE")
-            except Exception:
-                page_size = 4096
-
-            n_data_pages = 64
-            total_mmap_size = (1 + n_data_pages) * page_size
-            PROT_READ, PROT_WRITE, MAP_SHARED = 0x1, 0x2, 0x1
-            PERF_SAMPLE_RAW = 1 << 10
-            perfEvents = SysMgr.getPerfEventList()
-            nr_perf = SysMgr.getNrSyscall("sys_perf_event_open")
-
-            for cpu in cpu_list:
-                attr = bytearray(112)
-                struct.pack_into("<I", attr, 0, 1)  # PERF_TYPE_SOFTWARE
-                struct.pack_into("<I", attr, 4, 112)
-                struct.pack_into("<Q", attr, 8, 10)  # PERF_COUNT_SW_BPF_OUTPUT
-                struct.pack_into("<Q", attr, 16, 1)  # sample_period=1
-                struct.pack_into("<Q", attr, 24, PERF_SAMPLE_RAW)
-                struct.pack_into("<I", attr, 48, 1)  # wakeup_events=1
-                attr_arr = (ct.c_uint8 * 112)(*attr)
-                fd = int(
-                    libc.syscall(
-                        ct.c_long(nr_perf),
-                        attr_arr,
-                        ct.c_int(-1),
-                        ct.c_int(cpu),
-                        ct.c_int(-1),
-                        ct.c_long(0),
-                    )
-                )
-                if fd < 0:
-                    continue
-                buf_addr = int(
-                    libc.mmap(
-                        ct.c_uint64(0),
-                        ct.c_uint64(total_mmap_size),
-                        ct.c_int(PROT_READ | PROT_WRITE),
-                        ct.c_int(MAP_SHARED),
-                        ct.c_int(fd),
-                        ct.c_uint64(0),
-                    )
-                )
-                if ct.c_long(buf_addr).value < 0:
-                    os.close(fd)
-                    continue
-                libc.ioctl(
-                    ct.c_int(fd),
-                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    ct.c_int(0),
-                )
-                BpfMgr.mapUpdate(
-                    perf_map_fd, struct.pack("<I", cpu), struct.pack("<I", fd)
-                )
-                perf_fds.append(fd)
-                mmap_bufs.append(
-                    (buf_addr, page_size, n_data_pages * page_size)
-                )
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=False
+            )
 
             if not perf_fds:
                 SysMgr.printErr(
@@ -152902,12 +155647,12 @@ class BpfMgr(object):
                 if show_entry:
                     _hdr.append("%-1s" % "D")
                 if use_only_proc:
-                    _hdr.append("%-24s" % "COMM(TGID)")
+                    _hdr.append("%26s" % "COMM(TGID)")
                 else:
                     _hdr.extend(
                         [
-                            "%-24s" % "COMM(TID)",
-                            "%-24s" % "COMM(TGID)",
+                            "%26s" % "COMM(TID)",
+                            "%26s" % "COMM(TGID)",
                         ]
                     )
                 if show_proc_comm:
@@ -152919,12 +155664,12 @@ class BpfMgr(object):
                         ["%-22s" % "USER(UID)", "%-16s" % "GROUP(GID)"]
                     )
                 if show_core:
-                    _hdr.append("%-6s" % "CPU")
+                    _hdr.append("%6s" % "CPU")
                 _hdr.extend(
                     [
                         "%-24s" % "Syscall(SID)",
-                        "%-12s" % "Elapsed",
-                        "%-10s" % "RET",
+                        "%12s" % "Elapsed",
+                        "%10s" % "RET",
                     ]
                 )
                 _hdr.append("ARGS")
@@ -152932,546 +155677,462 @@ class BpfMgr(object):
                 SysMgr.printPipe("%s\n%s\n%s" % (twoLine, hdr, twoLine))
 
             PERF_RECORD_SAMPLE = 9
-            c_uint8 = ct.c_uint8
-            c_uint64 = ct.c_uint64
-            cast = ct.cast
-            POINTER = ct.POINTER
 
             _get_ts = BpfMgr.makeGetTs(microseconds=True)
 
             def drain_one(buf_addr, pg_sz, data_sz):
-                head = cast(buf_addr + 1024, POINTER(c_uint64))[0]
-                tail_ptr = cast(buf_addr + 1032, POINTER(c_uint64))
-                tail = tail_ptr[0]
-                data_start = buf_addr + pg_sz
-
-                def rb_read(off, n):
-                    pos = off % data_sz
-                    if pos + n <= data_sz:
-                        return bytes(
-                            (c_uint8 * n).from_address(data_start + pos)
-                        )
-                    first = data_sz - pos
-                    buf = bytearray(n)
-                    buf[:first] = bytes(
-                        (c_uint8 * first).from_address(data_start + pos)
-                    )
-                    buf[first:] = bytes(
-                        (c_uint8 * (n - first)).from_address(data_start)
-                    )
-                    return bytes(buf)
-
-                while tail + 8 <= head:
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 88:
+                        continue
                     try:
-                        hdr_bytes = rb_read(tail, 8)
-                        rec_type, _misc, rec_size = struct.unpack(
-                            "<IHH", hdr_bytes
+                        nr, tid, tgid, ret_val = struct.unpack_from(
+                            "<IIIi", raw, 0
                         )
-                    except Exception:
-                        break
-                    if rec_size < 8:
-                        break
-                    if rec_type == PERF_RECORD_SAMPLE:
-                        try:
-                            body = rb_read(tail + 8, rec_size - 8)
-                            raw_size = struct.unpack_from("<I", body, 0)[0]
-                            if raw_size >= 88:
-                                raw = body[4 : 4 + raw_size]
-                                nr, tid, tgid, ret_val = struct.unpack_from(
-                                    "<IIIi", raw, 0
+                        elapsed_ns = struct.unpack_from("<Q", raw, 16)[0]
+                        comm = (
+                            raw[24:40].rstrip(b"\x00").decode(errors="replace")
+                            or "?"
+                        )
+                        args = struct.unpack_from("<6Q", raw, 40)
+
+                        # Optional fields (offsets match BPF generators)
+                        uid = gid = cpu_val = 0
+                        if show_user and raw_size >= _user_off + 8:
+                            _ug = struct.unpack_from("<Q", raw, _user_off)[0]
+                            uid = _ug & 0xFFFFFFFF
+                            gid = _ug >> 32
+                        if show_core and raw_size >= _core_off + 8:
+                            cpu_val = struct.unpack_from("<I", raw, _core_off)[
+                                0
+                            ]
+
+                        # Detect entry event: elapsed_ns == UINT64_MAX sentinel
+                        _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
+                        is_entry = elapsed_ns == _UINT64_MAX
+
+                        # EXEC filter: only exec-related syscalls
+                        if exec_filter and exec_nrs and nr not in exec_nrs:
+                            continue
+                        # SIGNAME filter: only kill/tgkill/tkill (when -t not specified)
+                        if (
+                            show_signame
+                            and sig_nrs
+                            and not SysMgr.syscallList
+                            and nr not in sig_nrs
+                        ):
+                            continue
+                        # Syscall filter (-t)
+                        if (
+                            SysMgr.syscallList
+                            and not exec_filter
+                            and nr not in SysMgr.syscallList
+                        ):
+                            continue
+                        if (
+                            SysMgr.syscallExceptList
+                            and nr in SysMgr.syscallExceptList
+                        ):
+                            continue
+                        # -g / PROCCOMMFILTER
+                        if not BpfMgr._matchesFilter(tid, tgid, comm):
+                            continue
+                        if _proccomm_pattern and not UtilMgr.isValidStr(
+                            comm, [_proccomm_pattern]
+                        ):
+                            continue
+                        # ELAPFILTER: skip exit events outside threshold
+                        # (entry events have no elapsed, always pass)
+                        if not is_entry and (
+                            _elap_min_ns
+                            or _elap_max_ns
+                            or _elap_eq_ns is not None
+                        ):
+                            if not UtilMgr.checkElapFilter(
+                                elapsed_ns,
+                                _elap_min_ns,
+                                _elap_max_ns,
+                                _elap_eq_ns,
+                            ):
+                                continue
+                        # RETFILTER: skip exit events by return value
+                        if not is_entry and (
+                            _ret_gt is not None
+                            or _ret_lt is not None
+                            or _ret_eq is not None
+                        ):
+                            if not UtilMgr.checkRetFilter(
+                                ret_val, _ret_gt, _ret_lt, _ret_eq
+                            ):
+                                continue
+
+                        sc_name = SysMgr.getSyscallName(nr)
+                        ts = _get_ts()
+
+                        # ARGn filters
+                        if arg_filters:
+                            _pass = True
+                            for _ai, _op, _fv in arg_filters:
+                                _av = args[_ai] if _ai < len(args) else 0
+                                if _op == "eq" and _av != _fv:
+                                    _pass = False
+                                    break
+                                elif _op == "gt" and not (_av > _fv):
+                                    _pass = False
+                                    break
+                                elif _op == "lt" and not (_av < _fv):
+                                    _pass = False
+                                    break
+                                elif _op == "ne" and _av == _fv:
+                                    _pass = False
+                                    break
+                            if not _pass:
+                                continue
+
+                        # Build args string: trim trailing zeros, ", "-separated
+                        _arg_list = list(args)
+                        while _arg_list and _arg_list[-1] == 0:
+                            _arg_list.pop()
+                        args_str = (
+                            ", ".join("0x%x" % a for a in _arg_list)
+                            if _arg_list
+                            else "-"
+                        )
+
+                        # SIGNAME: decode signal number for kill/tgkill/tkill
+                        if show_signame and sc_name in {
+                            "kill",
+                            "tgkill",
+                            "tkill",
+                        }:
+                            if sc_name == "kill":
+                                _sn = (
+                                    int(args[1]) & 0xFF if len(args) > 1 else 0
                                 )
-                                elapsed_ns = struct.unpack_from("<Q", raw, 16)[
-                                    0
-                                ]
-                                comm = (
-                                    raw[24:40]
-                                    .rstrip(b"\x00")
-                                    .decode(errors="replace")
-                                    or "?"
+                                _snm = _SIG_NAMES.get(_sn, "SIG?")
+                                _tgt_cm = SysMgr.getComm(args[0]) or "?"
+                                args_str = "%s(%d), %s(%d)" % (
+                                    _tgt_cm,
+                                    args[0],
+                                    _snm,
+                                    _sn,
                                 )
-                                args = struct.unpack_from("<6Q", raw, 40)
-
-                                # Optional fields (offsets match BPF generators)
-                                uid = gid = cpu_val = 0
-                                if show_user and raw_size >= _user_off + 8:
-                                    _ug = struct.unpack_from(
-                                        "<Q", raw, _user_off
-                                    )[0]
-                                    uid = _ug & 0xFFFFFFFF
-                                    gid = _ug >> 32
-                                if show_core and raw_size >= _core_off + 8:
-                                    cpu_val = struct.unpack_from(
-                                        "<I", raw, _core_off
-                                    )[0]
-
-                                # Detect entry event: elapsed_ns == UINT64_MAX sentinel
-                                _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
-                                is_entry = elapsed_ns == _UINT64_MAX
-
-                                # EXEC filter: only exec-related syscalls
-                                if (
-                                    exec_filter
-                                    and exec_nrs
-                                    and nr not in exec_nrs
-                                ):
-                                    tail += rec_size
-                                    continue
-                                # SIGNAME filter: only kill/tgkill/tkill (when -t not specified)
-                                if (
-                                    show_signame
-                                    and sig_nrs
-                                    and not SysMgr.syscallList
-                                    and nr not in sig_nrs
-                                ):
-                                    tail += rec_size
-                                    continue
-                                # Syscall filter (-t)
-                                if (
-                                    SysMgr.syscallList
-                                    and not exec_filter
-                                    and nr not in SysMgr.syscallList
-                                ):
-                                    tail += rec_size
-                                    continue
-                                if (
-                                    SysMgr.syscallExceptList
-                                    and nr in SysMgr.syscallExceptList
-                                ):
-                                    tail += rec_size
-                                    continue
-                                # -g / PROCCOMMFILTER
-                                if not BpfMgr._matchesFilter(tid, tgid, comm):
-                                    tail += rec_size
-                                    continue
-                                if (
-                                    _proccomm_pattern
-                                    and not UtilMgr.isValidStr(
-                                        comm, [_proccomm_pattern]
-                                    )
-                                ):
-                                    tail += rec_size
-                                    continue
-                                # ELAPFILTER: skip exit events outside threshold
-                                # (entry events have no elapsed, always pass)
-                                if not is_entry and (
-                                    _elap_min_ns
-                                    or _elap_max_ns
-                                    or _elap_eq_ns is not None
-                                ):
-                                    if not UtilMgr.checkElapFilter(
-                                        elapsed_ns,
-                                        _elap_min_ns,
-                                        _elap_max_ns,
-                                        _elap_eq_ns,
-                                    ):
-                                        tail += rec_size
-                                        continue
-                                # RETFILTER: skip exit events by return value
-                                if not is_entry and (
-                                    _ret_gt is not None
-                                    or _ret_lt is not None
-                                    or _ret_eq is not None
-                                ):
-                                    if not UtilMgr.checkRetFilter(
-                                        ret_val, _ret_gt, _ret_lt, _ret_eq
-                                    ):
-                                        tail += rec_size
-                                        continue
-
-                                sc_name = SysMgr.getSyscallName(nr)
-                                ts = _get_ts()
-
-                                # ARGn filters
-                                if arg_filters:
-                                    _pass = True
-                                    for _ai, _op, _fv in arg_filters:
-                                        _av = (
-                                            args[_ai] if _ai < len(args) else 0
-                                        )
-                                        if _op == "eq" and _av != _fv:
-                                            _pass = False
-                                            break
-                                        elif _op == "gt" and not (_av > _fv):
-                                            _pass = False
-                                            break
-                                        elif _op == "lt" and not (_av < _fv):
-                                            _pass = False
-                                            break
-                                        elif _op == "ne" and _av == _fv:
-                                            _pass = False
-                                            break
-                                    if not _pass:
-                                        tail += rec_size
-                                        continue
-
-                                # Build args string: trim trailing zeros, ", "-separated
-                                _arg_list = list(args)
-                                while _arg_list and _arg_list[-1] == 0:
-                                    _arg_list.pop()
-                                args_str = (
-                                    ", ".join("0x%x" % a for a in _arg_list)
-                                    if _arg_list
-                                    else "-"
+                            elif sc_name == "tgkill":
+                                _sn = (
+                                    int(args[2]) & 0xFF if len(args) > 2 else 0
+                                )
+                                _snm = _SIG_NAMES.get(_sn, "SIG?")
+                                _tgt_cm = SysMgr.getComm(args[0]) or "?"
+                                args_str = "%s(%d), %s(%d)" % (
+                                    _tgt_cm,
+                                    args[0],
+                                    _snm,
+                                    _sn,
+                                )
+                            elif sc_name == "tkill":
+                                _sn = (
+                                    int(args[1]) & 0xFF if len(args) > 1 else 0
+                                )
+                                _snm = _SIG_NAMES.get(_sn, "SIG?")
+                                _tgt_cm = SysMgr.getComm(args[0]) or "?"
+                                args_str = "%s(%d), %s(%d)" % (
+                                    _tgt_cm,
+                                    args[0],
+                                    _snm,
+                                    _sn,
                                 )
 
-                                # SIGNAME: decode signal number for kill/tgkill/tkill
-                                if show_signame and sc_name in {
-                                    "kill",
-                                    "tgkill",
-                                    "tkill",
-                                }:
-                                    if sc_name == "kill":
-                                        _sn = (
-                                            int(args[1]) & 0xFF
-                                            if len(args) > 1
-                                            else 0
-                                        )
-                                        _snm = _SIG_NAMES.get(_sn, "SIG?")
-                                        _tgt_cm = (
-                                            SysMgr.getComm(args[0]) or "?"
-                                        )
-                                        args_str = "%s(%d), %s(%d)" % (
-                                            _tgt_cm,
-                                            args[0],
-                                            _snm,
-                                            _sn,
-                                        )
-                                    elif sc_name == "tgkill":
-                                        _sn = (
-                                            int(args[2]) & 0xFF
-                                            if len(args) > 2
-                                            else 0
-                                        )
-                                        _snm = _SIG_NAMES.get(_sn, "SIG?")
-                                        _tgt_cm = (
-                                            SysMgr.getComm(args[0]) or "?"
-                                        )
-                                        args_str = "%s(%d), %s(%d)" % (
-                                            _tgt_cm,
-                                            args[0],
-                                            _snm,
-                                            _sn,
-                                        )
-                                    elif sc_name == "tkill":
-                                        _sn = (
-                                            int(args[1]) & 0xFF
-                                            if len(args) > 1
-                                            else 0
-                                        )
-                                        _snm = _SIG_NAMES.get(_sn, "SIG?")
-                                        _tgt_cm = (
-                                            SysMgr.getComm(args[0]) or "?"
-                                        )
-                                        args_str = "%s(%d), %s(%d)" % (
-                                            _tgt_cm,
-                                            args[0],
-                                            _snm,
-                                            _sn,
-                                        )
-
-                                # EXEC: decode exit_group exit code and exec cmdline
-                                if exec_filter and sc_name == "exit_group":
-                                    args_str = "code=%d" % (
-                                        args[0] if args else 0
-                                    )
-                                elif exec_filter and sc_name in (
-                                    "execve",
-                                    "execveat",
-                                ):
-                                    if is_entry:
-                                        # Cache filename from /proc/mem before exec
-                                        _faddr = (
-                                            args[1]
-                                            if sc_name == "execveat"
-                                            else (args[0] if args else 0)
-                                        )
-                                        if _faddr and _faddr > 0x1000:
-                                            try:
-                                                _mfd = os.open(
-                                                    "/proc/%d/mem" % tgid,
-                                                    os.O_RDONLY,
-                                                )
-                                                _raw = os.pread(
-                                                    _mfd, 256, _faddr
-                                                )
-                                                os.close(_mfd)
-                                                _fname = _raw.split(b"\x00")[
-                                                    0
-                                                ].decode(
-                                                    "utf-8", errors="replace"
-                                                )
-                                                if _fname:
-                                                    _exec_entry_names[tid] = (
-                                                        _fname
-                                                    )
-                                            except Exception:
-                                                pass
-                                        # Entry: raw pointer args not useful
-                                        args_str = ""
-                                    elif not is_entry and ret_val == 0:
-                                        try:
-                                            with open(
-                                                "/proc/%d/cmdline" % tgid, "rb"
-                                            ) as _ef:
-                                                _ecmd = _ef.read(256)
-                                            _ecmd = (
-                                                _ecmd.replace(b"\x00", b" ")
-                                                .decode(
-                                                    "utf-8", errors="replace"
-                                                )
-                                                .strip()
-                                            )
-                                            if _ecmd:
-                                                args_str = _ecmd
-                                        except Exception:
-                                            pass
-                                        # Fallback: use cached entry filename
-                                        if not args_str or "0x" in args_str:
-                                            _cached = _exec_entry_names.pop(
-                                                tid, None
-                                            )
-                                            if _cached:
-                                                args_str = _cached
-                                            else:
-                                                # No meaningful info obtainable
-                                                args_str = ""
-                                        else:
-                                            _exec_entry_names.pop(tid, None)
-                                    else:
-                                        # exec failed (ret_val != 0): raw args not useful
-                                        _exec_entry_names.pop(tid, None)
-                                        args_str = ""
-
-                                if is_entry:
-                                    ev_dir = ">"
-                                    elapsed_s = "-"
-                                    ret_str = "-"
-                                else:
-                                    ev_dir = "<"
-                                    elapsed_s = "%.6f" % (elapsed_ns / 1e9)
-                                    ret_str = str(ret_val)
-
-                                # EXEC: resolve PPID from /proc
-                                ppid = 0
-                                if exec_filter:
+                        # EXEC: decode exit_group exit code and exec cmdline
+                        if exec_filter and sc_name == "exit_group":
+                            args_str = "code=%d" % (args[0] if args else 0)
+                        elif exec_filter and sc_name in (
+                            "execve",
+                            "execveat",
+                        ):
+                            if is_entry:
+                                # Cache filename from /proc/mem before exec
+                                _faddr = (
+                                    args[1]
+                                    if sc_name == "execveat"
+                                    else (args[0] if args else 0)
+                                )
+                                if _faddr and _faddr > 0x1000:
                                     try:
-                                        with open(
-                                            "/proc/%d/status" % tgid, "r"
-                                        ) as _sf:
-                                            for _sl in _sf:
-                                                if _sl.startswith("PPid:"):
-                                                    ppid = int(_sl.split()[1])
-                                                    break
+                                        _mfd = os.open(
+                                            "/proc/%d/mem" % tgid,
+                                            os.O_RDONLY,
+                                        )
+                                        _raw = os.pread(_mfd, 256, _faddr)
+                                        os.close(_mfd)
+                                        _fname = _raw.split(b"\x00")[0].decode(
+                                            "utf-8", errors="replace"
+                                        )
+                                        if _fname:
+                                            _exec_entry_names[tid] = _fname
                                     except Exception:
-                                        ppid = 0
-                                    # Format args as PARENTCOMM(PPID) / exec_str
-                                    if (
-                                        sc_name in ("execve", "execveat")
-                                        and not is_entry
-                                        and ret_val == 0
-                                    ):
-                                        if ppid:
-                                            _pcm = SysMgr.getComm(ppid) or "?"
-                                            if args_str:
-                                                args_str = "%s(%d) / %s" % (
-                                                    _pcm,
-                                                    ppid,
-                                                    args_str,
-                                                )
-                                            else:
-                                                args_str = "%s(%d)" % (
-                                                    _pcm,
-                                                    ppid,
-                                                )
-                                        # else ppid=0: keep args_str as-is (exec path only, or "")
-
-                                # CMDLINE: replace comm with full cmdline
-                                disp_comm = (
-                                    _getCmdline(
-                                        tgid,
-                                        cache=True,
-                                        save=True,
-                                        default=comm,
-                                    )
-                                    if show_cmdline
-                                    else comm
-                                )
-
-                                if SysMgr.jsonEnable:
-                                    _jsc_evt = {
-                                        "time": SysMgr.getUptime(),
-                                        "pid": int(tgid),
-                                        "tid": int(tid),
-                                        "comm": comm,
-                                        "syscall": sc_name,
-                                        "nr": int(nr),
-                                        "direction": ev_dir,
-                                        "elapsed_s": (
-                                            None
-                                            if is_entry
-                                            else float(elapsed_ns / 1e9)
-                                        ),
-                                        "ret": (
-                                            None if is_entry else int(ret_val)
-                                        ),
-                                        "args": ["0x%x" % a for a in args],
-                                    }
-                                    if show_user:
-                                        _jsc_evt["uid"] = uid
-                                        _jsc_evt["gid"] = gid
-                                        _jsc_evt["uid_name"] = _fmt_uid(uid)
-                                        _jsc_evt["gid_name"] = _fmt_uid(gid)
-                                    if show_core:
-                                        _jsc_evt["cpu"] = cpu_val
-                                    if (
-                                        not is_entry
-                                        and show_ustack
-                                        and ustack_map_fd >= 0
-                                        and raw_size >= _ustack_off + 8
-                                    ):
-                                        _ustack_id_j = struct.unpack_from(
-                                            "<q", raw, _ustack_off
-                                        )[0]
-                                        if _ustack_id_j >= 0:
-                                            _ukey_j = (_ustack_id_j, tid)
-                                            if _ukey_j not in _ustack_cache:
-                                                _ustack_cache[_ukey_j] = (
-                                                    BpfMgr.resolveUserStack(
-                                                        ustack_map_fd,
-                                                        _ustack_id_j,
-                                                        tid,
-                                                        _snoop_max_depth,
-                                                    )
-                                                )
-                                            _jsc_evt["stack"] = (
-                                                _ustack_cache[_ukey_j] or []
-                                            )
-                                    SysMgr.printPipe(
-                                        UtilMgr.convDict2Str(
-                                            _jsc_evt, pretty=False
-                                        )
-                                    )
-                                elif (
-                                    not mute_events
-                                    and (
-                                        not erronly
-                                        or (not is_entry and ret_val < 0)
-                                    )
-                                    and (
-                                        not onlyok
-                                        or (not is_entry and ret_val >= 0)
-                                    )
-                                ):
-                                    # Build output line dynamically
-                                    _parts = ["%-15s" % ts]
-                                    if show_entry:
-                                        _parts.append("%-1s" % ev_dir)
-                                    if use_only_proc:
-                                        _parts.append(
-                                            "%-24s"
-                                            % ("%s(%d)" % (disp_comm, tgid))
-                                        )
+                                        pass
+                                # Entry: raw pointer args not useful
+                                args_str = ""
+                            elif not is_entry and ret_val == 0:
+                                _ecmd = SysMgr.getCmdline(tgid)
+                                if _ecmd:
+                                    args_str = _ecmd
+                                # Fallback: use cached entry filename
+                                if not args_str or "0x" in args_str:
+                                    _cached = _exec_entry_names.pop(tid, None)
+                                    if _cached:
+                                        args_str = _cached
                                     else:
-                                        if tgid not in proc_comm_cache:
-                                            proc_comm_cache[tgid] = (
-                                                SysMgr.getComm(
-                                                    tgid, commCache=True
-                                                )
-                                                or "?"
-                                            )
-                                        _parts.extend(
-                                            [
-                                                "%-24s"
-                                                % (
-                                                    "%s(%d)" % (disp_comm, tid)
-                                                ),
-                                                "%-24s"
-                                                % (
-                                                    "%s(%d)"
-                                                    % (
-                                                        proc_comm_cache[tgid],
-                                                        tgid,
-                                                    )
-                                                ),
-                                            ]
-                                        )
-                                    if show_proc_comm:
-                                        if tgid not in proc_comm_cache:
-                                            proc_comm_cache[tgid] = (
-                                                SysMgr.getComm(
-                                                    tgid, commCache=True
-                                                )
-                                                or "?"
-                                            )
-                                        _parts.append(
-                                            "%-16s"
-                                            % proc_comm_cache[tgid][:16]
-                                        )
-                                    if exec_filter:
-                                        pass  # PPID shown inline in args_str
-                                    if show_user:
-                                        _parts.extend(
-                                            [
-                                                "%-22s" % _fmt_uid(uid),
-                                                "%-16s" % _fmt_uid(gid),
-                                            ]
-                                        )
-                                    if show_core:
-                                        _parts.append("%-6d" % cpu_val)
-                                    _parts.append(
-                                        "%-24s %-12s %-10s %s"
-                                        % (
-                                            "%s(%d)" % (sc_name[:20], nr),
-                                            elapsed_s,
-                                            ret_str,
+                                        # No meaningful info obtainable
+                                        args_str = ""
+                                else:
+                                    _exec_entry_names.pop(tid, None)
+                            else:
+                                # exec failed (ret_val != 0): raw args not useful
+                                _exec_entry_names.pop(tid, None)
+                                args_str = ""
+
+                        if is_entry:
+                            ev_dir = ">"
+                            elapsed_s = "-"
+                            ret_str = "-"
+                        else:
+                            ev_dir = "<"
+                            elapsed_s = "%.6f" % (elapsed_ns / 1e9)
+                            ret_str = str(ret_val)
+
+                        # EXEC: resolve PPID from /proc
+                        ppid = 0
+                        if exec_filter:
+                            _ppid_str = SysMgr.getPpid(tgid)
+                            ppid = int(_ppid_str) if _ppid_str else 0
+                            # Format args as PARENTCOMM(PPID) / exec_str
+                            if (
+                                sc_name in ("execve", "execveat")
+                                and not is_entry
+                                and ret_val == 0
+                            ):
+                                if ppid:
+                                    _pcm = SysMgr.getComm(ppid) or "?"
+                                    if args_str:
+                                        args_str = "%s(%d) / %s" % (
+                                            _pcm,
+                                            ppid,
                                             args_str,
                                         )
-                                    )
-                                    SysMgr.printPipe(" ".join(_parts))
-                                    if rate_enable:
-                                        _rate_count[0] += 1
+                                    else:
+                                        args_str = "%s(%d)" % (
+                                            _pcm,
+                                            ppid,
+                                        )
+                                # else ppid=0: keep args_str as-is (exec path only, or "")
 
-                                # ADDUSERSTACK: only for exit events, resolve user stack frames
-                                if (
-                                    not SysMgr.jsonEnable
-                                    and not is_entry
-                                    and show_ustack
-                                    and ustack_map_fd >= 0
-                                    and raw_size >= _ustack_off + 8
-                                ):
-                                    ustack_id = struct.unpack_from(
-                                        "<q", raw, _ustack_off
-                                    )[0]
-                                    if ustack_id >= 0:
-                                        _ukey = (ustack_id, tid)
-                                        if _ukey not in _ustack_cache:
-                                            _ustack_cache[_ukey] = (
-                                                BpfMgr.resolveUserStack(
-                                                    ustack_map_fd,
-                                                    ustack_id,
-                                                    tid,
-                                                    _snoop_max_depth,
-                                                )
-                                            )
-                                        frames = _ustack_cache[_ukey]
-                                        if frames:
-                                            _prefix = "%17s |  <- " % ""
-                                            _cont = " " * 21 + "<- "
-                                            _s = BpfMgr._wrapChain(
-                                                frames,
-                                                _prefix,
-                                                "",
-                                                _cont,
-                                                SysMgr.lineLength,
-                                            )
-                                            SysMgr.printPipe(_s.rstrip("\n"))
-                        except Exception:
-                            SysMgr.printWarn(
-                                "failed to process bpfsyscallsnoop record",
-                                reason=True,
+                        # CMDLINE: replace comm with full cmdline
+                        disp_comm = (
+                            _getCmdline(
+                                tgid,
+                                cache=True,
+                                save=True,
+                                default=comm,
                             )
-                    tail += rec_size
-                tail_ptr[0] = tail
+                            if show_cmdline
+                            else comm
+                        )
+
+                        # Call Stack Summary accumulation (independent of json/text output mode)
+                        if _need_summary and not is_entry:
+                            _sum_frames = []
+                            if (
+                                show_ustack
+                                and ustack_map_fd >= 0
+                                and raw_size >= _ustack_off + 8
+                            ):
+                                _sum_ustack_id = struct.unpack_from(
+                                    "<q", raw, _ustack_off
+                                )[0]
+                                if _sum_ustack_id >= 0:
+                                    _sum_ukey = (_sum_ustack_id, tid)
+                                    if _sum_ukey not in _ustack_cache:
+                                        _ustack_cache[_sum_ukey] = (
+                                            BpfMgr.resolveUserStack(
+                                                ustack_map_fd,
+                                                _sum_ustack_id,
+                                                tid,
+                                                _snoop_max_depth,
+                                            )
+                                        )
+                                    _sum_frames = (
+                                        _ustack_cache[_sum_ukey] or []
+                                    )
+                            _sum_chain = "%s(%d)" % (sc_name, nr)
+                            if _sum_frames:
+                                _sum_chain += " <- " + " <- ".join(_sum_frames)
+                            _sum_chain += " <- " + "%s(%d)" % (
+                                disp_comm,
+                                tid,
+                            )
+                            _summary_stack[_sum_chain] = (
+                                _summary_stack.get(_sum_chain, 0) + 1
+                            )
+
+                        if SysMgr.jsonEnable:
+                            _jsc_evt = {
+                                "time": SysMgr.getUptime(),
+                                "pid": int(tgid),
+                                "tid": int(tid),
+                                "comm": comm,
+                                "syscall": sc_name,
+                                "nr": int(nr),
+                                "direction": ev_dir,
+                                "elapsed_s": (
+                                    None
+                                    if is_entry
+                                    else float(elapsed_ns / 1e9)
+                                ),
+                                "ret": (None if is_entry else int(ret_val)),
+                                "args": ["0x%x" % a for a in args],
+                            }
+                            if show_user:
+                                _jsc_evt["uid"] = uid
+                                _jsc_evt["gid"] = gid
+                                _jsc_evt["uid_name"] = _fmt_uid(uid)
+                                _jsc_evt["gid_name"] = _fmt_uid(gid)
+                            if show_core:
+                                _jsc_evt["cpu"] = cpu_val
+                            if (
+                                not is_entry
+                                and show_ustack
+                                and ustack_map_fd >= 0
+                                and raw_size >= _ustack_off + 8
+                            ):
+                                _ustack_id_j = struct.unpack_from(
+                                    "<q", raw, _ustack_off
+                                )[0]
+                                if _ustack_id_j >= 0:
+                                    _ukey_j = (_ustack_id_j, tid)
+                                    if _ukey_j not in _ustack_cache:
+                                        _ustack_cache[_ukey_j] = (
+                                            BpfMgr.resolveUserStack(
+                                                ustack_map_fd,
+                                                _ustack_id_j,
+                                                tid,
+                                                _snoop_max_depth,
+                                            )
+                                        )
+                                    _jsc_evt["stack"] = (
+                                        _ustack_cache[_ukey_j] or []
+                                    )
+                            SysMgr.printPipe(
+                                UtilMgr.convDict2Str(_jsc_evt, pretty=False)
+                            )
+                        elif (
+                            not mute_events
+                            and (not erronly or (not is_entry and ret_val < 0))
+                            and (not onlyok or (not is_entry and ret_val >= 0))
+                        ):
+                            # Build output line dynamically
+                            _parts = ["%-15s" % ts]
+                            if show_entry:
+                                _parts.append("%-1s" % ev_dir)
+                            if use_only_proc:
+                                _parts.append(
+                                    "%26s" % ("%s(%d)" % (disp_comm, tgid))
+                                )
+                            else:
+                                if tgid not in proc_comm_cache:
+                                    proc_comm_cache[tgid] = (
+                                        SysMgr.getComm(tgid, commCache=True)
+                                        or "?"
+                                    )
+                                _parts.extend(
+                                    [
+                                        "%26s" % ("%s(%d)" % (disp_comm, tid)),
+                                        "%26s"
+                                        % (
+                                            "%s(%d)"
+                                            % (
+                                                proc_comm_cache[tgid],
+                                                tgid,
+                                            )
+                                        ),
+                                    ]
+                                )
+                            if show_proc_comm:
+                                if tgid not in proc_comm_cache:
+                                    proc_comm_cache[tgid] = (
+                                        SysMgr.getComm(tgid, commCache=True)
+                                        or "?"
+                                    )
+                                _parts.append(
+                                    "%-16s" % proc_comm_cache[tgid][:16]
+                                )
+                            if exec_filter:
+                                pass  # PPID shown inline in args_str
+                            if show_user:
+                                _parts.extend(
+                                    [
+                                        "%-22s" % _fmt_uid(uid),
+                                        "%-16s" % _fmt_uid(gid),
+                                    ]
+                                )
+                            if show_core:
+                                _parts.append("%6d" % cpu_val)
+                            _parts.append(
+                                "%-24s %12s %10s %s"
+                                % (
+                                    "%s(%d)" % (sc_name[:20], nr),
+                                    elapsed_s,
+                                    ret_str,
+                                    args_str,
+                                )
+                            )
+                            SysMgr.printPipe(" ".join(_parts))
+                            if rate_enable:
+                                _rate_count[0] += 1
+
+                        # ADDUSERSTACK: only for exit events, resolve user stack frames
+                        if (
+                            not SysMgr.jsonEnable
+                            and not is_entry
+                            and show_ustack
+                            and ustack_map_fd >= 0
+                            and raw_size >= _ustack_off + 8
+                        ):
+                            ustack_id = struct.unpack_from(
+                                "<q", raw, _ustack_off
+                            )[0]
+                            if ustack_id >= 0:
+                                _ukey = (ustack_id, tid)
+                                if _ukey not in _ustack_cache:
+                                    _ustack_cache[_ukey] = (
+                                        BpfMgr.resolveUserStack(
+                                            ustack_map_fd,
+                                            ustack_id,
+                                            tid,
+                                            _snoop_max_depth,
+                                        )
+                                    )
+                                frames = _ustack_cache[_ukey]
+                                if frames:
+                                    _prefix = "%17s |  <- " % ""
+                                    _cont = " " * 21 + "<- "
+                                    _s = BpfMgr._wrapChain(
+                                        frames,
+                                        _prefix,
+                                        "",
+                                        _cont,
+                                        SysMgr.lineLength,
+                                    )
+                                    SysMgr.printPipe(_s.rstrip("\n"))
+                    except Exception:
+                        SysMgr.printWarn(
+                            "failed to process bpfsyscallsnoop record",
+                            reason=True,
+                        )
 
             rate_enable = "RATE" in SysMgr.environList
             _rate_count = [0]
@@ -153517,6 +156178,8 @@ class BpfMgr(object):
                     os.close(fd)
                 except Exception:
                     pass
+            if _need_summary and _summary_stack:
+                BpfMgr.printKstackReport(_summary_stack, "Call Stack Summary")
             BpfMgr.detachAll()
 
     # ── BLF (Binary Logging Format) helpers ─────────────────────────────────
@@ -153952,8 +156615,8 @@ class BpfMgr(object):
             # Column format strings
             if multi_iface:
                 if show_load:
-                    fmt_hdr = "  %-8s  %-8s  %-20s  %6s  %7s  %10s  %7s  %4s  %6s  %-s"
-                    fmt_row = "  %-8s  %-8s  %-20s  %6d  %7s  %10s  %7s  %4d  %6s  %-s"
+                    fmt_hdr = "  %-8s  %10s  %-20s  %6s  %7s  %10s  %7s  %4s  %6s  %-s"
+                    fmt_row = "  %-8s  %10s  %-20s  %6d  %7s  %10s  %7s  %4d  %6s  %-s"
                     hdr_cols = fmt_hdr % (
                         "IFACE",
                         "CAN_ID",
@@ -153968,10 +156631,10 @@ class BpfMgr(object):
                     )
                 else:
                     fmt_hdr = (
-                        "  %-8s  %-8s  %-20s  %6s  %7s  %10s  %7s  %4s  %-s"
+                        "  %-8s  %10s  %-20s  %6s  %7s  %10s  %7s  %4s  %-s"
                     )
                     fmt_row = (
-                        "  %-8s  %-8s  %-20s  %6d  %7s  %10s  %7s  %4d  %-s"
+                        "  %-8s  %10s  %-20s  %6d  %7s  %10s  %7s  %4d  %-s"
                     )
                     hdr_cols = fmt_hdr % (
                         "IFACE",
@@ -153987,10 +156650,10 @@ class BpfMgr(object):
             else:
                 if show_load:
                     fmt_hdr = (
-                        "  %-8s  %-20s  %6s  %7s  %10s  %7s  %4s  %6s  %-s"
+                        "  %10s  %-20s  %6s  %7s  %10s  %7s  %4s  %6s  %-s"
                     )
                     fmt_row = (
-                        "  %-8s  %-20s  %6d  %7s  %10s  %7s  %4d  %6s  %-s"
+                        "  %10s  %-20s  %6d  %7s  %10s  %7s  %4d  %6s  %-s"
                     )
                     hdr_cols = fmt_hdr % (
                         "CAN_ID",
@@ -154004,8 +156667,8 @@ class BpfMgr(object):
                         "LAST_DATA",
                     )
                 else:
-                    fmt_hdr = "  %-8s  %-20s  %6s  %7s  %10s  %7s  %4s  %-s"
-                    fmt_row = "  %-8s  %-20s  %6d  %7s  %10s  %7s  %4d  %-s"
+                    fmt_hdr = "  %10s  %-20s  %6s  %7s  %10s  %7s  %4s  %-s"
+                    fmt_row = "  %10s  %-20s  %6d  %7s  %10s  %7s  %4d  %-s"
                     hdr_cols = fmt_hdr % (
                         "CAN_ID",
                         "NAME",
@@ -154541,7 +157204,7 @@ class BpfMgr(object):
                 hdr = "  %-15s" % "TIME"
                 if multi_iface:
                     hdr += "  %-8s" % "IFACE"
-                hdr += "  %-10s  %3s  %-23s  %s" % (
+                hdr += "  %10s  %3s  %-23s  %s" % (
                     "CAN_ID",
                     "DLC",
                     "DATA",
@@ -154602,7 +157265,7 @@ class BpfMgr(object):
                 line = "  %-15s" % ts_str
                 if multi_iface:
                     line += "  %-8s" % iface_name[:8]
-                line += "  %-10s  %3d  %-23s  %s" % (
+                line += "  %10s  %3d  %-23s  %s" % (
                     id_str,
                     dlc,
                     hex_str,
@@ -154819,20 +157482,12 @@ class BpfMgr(object):
     @staticmethod
     def _lmkLookupPidName(pid):
         """Best-effort lookup of process name by PID via /proc."""
+        comm = SysMgr.getComm(pid)
+        if comm:
+            return comm
         try:
-            with open("/proc/%d/comm" % pid, "rb") as f:
-                return (
-                    f.read()
-                    .rstrip(b"\n\x00")
-                    .decode("utf-8", errors="replace")
-                )
-        except Exception:
-            pass
-        try:
-            with open("/proc/%d/cmdline" % pid, "rb") as f:
-                raw = f.read(32).split(b"\x00")[0]
-                name = raw.decode("utf-8", errors="replace")
-                return name.rsplit("/", 1)[-1][:15] if name else ""
+            name = SysMgr.getCmdline(pid, retList=True)[0]
+            return name.rsplit("/", 1)[-1][:15] if name else ""
         except Exception:
             return ""
 
@@ -154894,7 +157549,7 @@ class BpfMgr(object):
                     if cmd != LMK_STAT_KILL_OCC:
                         return None
 
-                    # HMG custom protocol: >=87 bytes, reserved==0 at offset 4 #
+                    # Extended protocol variant: >=87 bytes, reserved==0 at offset 4 #
                     if len(data) >= 87:
                         reserved = _struct.unpack_from(i32u, data, 4)[0]
                         name_len_chk = _struct.unpack_from(i32u, data, 82)[0]
@@ -155114,7 +157769,7 @@ class BpfMgr(object):
             """Parse LMK_PROCKILL payload.
             Supports two layouts:
               - Standard (named): without pid (name@8, reason@24) or with pid (name@12, reason@28)
-              - Nameless (HMG/custom, 12 bytes): cmd@0, pid@4, uid@8 — no name field
+              - Nameless (extended/custom, 12 bytes): cmd@0, pid@4, uid@8 — no name field
             int64 free_mem/swap always native LE.
             """
             try:
@@ -155205,7 +157860,7 @@ class BpfMgr(object):
             Supports two layouts:
               - Standard (named, LE): without pid (name@8, oom@24, int64@28) or
                                      with pid (name@12, oom@28, int64@32)
-              - HMG/custom (BE, >=87 bytes): variable-length packet with name at the end:
+              - Extended/custom (BE, >=87 bytes): variable-length packet with name at the end:
                   cmd@0(4) + reserved@4(4)=0 + pid@8(4) + pad@12(4) +
                   reason@16(4) + pad@20(4) + rss_bytes@24(4) + 12B_zeros +
                   cache_bytes@40(4) + ts_ns@44(8BE) + uid@52(4) + oom_score@56(4) +
@@ -155222,7 +157877,7 @@ class BpfMgr(object):
                 if cmd != LMK_STAT_KILL_OCC:
                     return None
 
-                # HMG/custom protocol: >=87 bytes, reserved==0 at offset 4,
+                # Extended/custom protocol: >=87 bytes, reserved==0 at offset 4,
                 # name_len at offset 82 in range [0,512] — detect regardless of
                 # GETKILLCNT endian (event packets share same endian as GETKILLCNT) #
                 if len(data) >= 87:
@@ -155448,12 +158103,12 @@ class BpfMgr(object):
                         and reason_filter.lower() not in ev["reason"].lower()
                     ):
                         continue
-                    # HMG protocol (12-byte cmd=6): key by uid; standard: key by name #
-                    is_hmg_kill = len(data) == 12 and "pid" in ev
-                    pkey = ev["uid"] if is_hmg_kill else ev["name"]
+                    # Extended protocol (12-byte cmd=6): key by uid; standard: key by name #
+                    is_ext_kill = len(data) == 12 and "pid" in ev
+                    pkey = ev["uid"] if is_ext_kill else ev["name"]
                     pending_kill[pkey] = ev
-                    # HMG cmd=6 has no stats — wait for matching cmd=8 #
-                    if is_hmg_kill:
+                    # Extended-variant cmd=6 has no stats — wait for matching cmd=8 #
+                    if is_ext_kill:
                         continue
                     ts = _time.time()
                     lt = _time.localtime(ts)
@@ -155517,11 +158172,11 @@ class BpfMgr(object):
                         lt.tm_sec,
                         int((ts % 1) * 1e6),
                     )
-                    # HMG protocol has "pid" key and its own "reason"; standard uses name #
-                    is_hmg = "pid" in ev
-                    pkey = ev["uid"] if is_hmg else ev["name"]
+                    # Extended protocol has "pid" key and its own "reason"; standard uses name #
+                    is_ext = "pid" in ev
+                    pkey = ev["uid"] if is_ext else ev["name"]
                     kill_ev = pending_kill.pop(pkey, None)
-                    # HMG protocol provides reason in ev itself; standard needs kill_ev #
+                    # Extended protocol provides reason in ev itself; standard needs kill_ev #
                     ev_reason = ev.get("reason", "")
                     reason_str = (
                         ev_reason
@@ -155697,29 +158352,16 @@ class BpfMgr(object):
 
             BpfMgr.attachTracepoint(prog_fd, "signal", "signal_generate")
 
-            _r_cnt = max(int(SysMgr.repeatCnt or 1), 1)
-            if SysMgr.getOption("i"):
-                interval = max(int(SysMgr.intervalEnable), 1)
-            elif _r_cnt > 1:
-                interval = max(int(SysMgr.repeatInterval or 3), 1)
-            else:
-                interval = 3
-            total_time = int(SysMgr.repeatInterval or 0) * _r_cnt
+            interval, total_time = BpfMgr._computeIntervalParams()
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
             _comm_cache = {}  # {pid: comm}
 
             def _get_comm(pid):
-                if pid in _comm_cache:
-                    return _comm_cache[pid]
-                try:
-                    with open("/proc/%d/comm" % pid, "r") as _f:
-                        c = _f.read().strip()
-                except Exception:
-                    c = "?"
-                _comm_cache[pid] = c
-                return c
+                if pid not in _comm_cache:
+                    _comm_cache[pid] = SysMgr.getComm(pid, default="?")
+                return _comm_cache[pid]
 
             SysMgr.printInfo(
                 "bpfsigtop: monitoring signal attribution (interval=%ds)"
@@ -155782,9 +158424,7 @@ class BpfMgr(object):
             while True:
                 time.sleep(interval)
                 SysMgr.updateUptime()
-                _now = time.monotonic()
-                _actual = _now - _t_last
-                _t_last = _now
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
                 elapsed += _actual
                 _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
 
@@ -155886,7 +158526,7 @@ class BpfMgr(object):
 
                 BpfMgr._flushBuf()
 
-                if total_time > 0 and elapsed >= total_time:
+                if BpfMgr._checkLoopExit(total_time, elapsed):
                     break
         except KeyboardInterrupt:
             pass
@@ -155895,6 +158535,2463 @@ class BpfMgr(object):
         except Exception:
             SysMgr.printErr("bpfsigtop failed", reason=True)
         finally:
+            if SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doExectopCmd():
+        """bpfexectop: exec() top with timing via sched tracepoints (Linux+Android)."""
+        _summary_stack = {}
+        _need_summary = (
+            SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList
+        )
+        try:
+            BpfMgr.checkAvailable()
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base or not os.path.isdir("%s/sched" % tp_base):
+                SysMgr.printErr("bpfexectop: sched tracepoints not available")
+                sys.exit(-1)
+
+            show_ustack = "ADDUSERSTACK" in SysMgr.environList
+
+            # agg_map: key=tgid(u64/8B), val=40B [total_ns(8)+cnt(8)+comm(16)+ppid(4)+pad(4)]
+            # With ADDUSERSTACK: key=16B [tgid(8B)|ustack_id(4B)|pad(4B)]
+            agg_key_sz = 16 if show_ustack else 8
+            agg_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, agg_key_sz, 40, 8192, "exec_agg"
+            )
+            if agg_map_fd < 0:
+                sys.exit(-1)
+            max_udepth = min(SysMgr.depthLevel, 127) if show_ustack else 0
+            ustack_fd = -1
+            if show_ustack:
+                ustack_fd = BpfMgr.createStackTraceMap(16384, "exec_ustack")
+                if ustack_fd < 0:
+                    sys.exit(-1)
+
+            # ts_map val: 16B [ktime(8)|ppid(4)|pad/ustack_id(4)] always
+            ts_map_val_sz = 16
+            ts_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, ts_map_val_sz, 65536, "exec_ts"
+            )
+            if ts_map_fd < 0:
+                sys.exit(-1)
+            # fname_map: key=tgid(u64/8B), val=64B filename string
+            fname_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 64, 65536, "exec_fname"
+            )
+            if fname_map_fd < 0:
+                sys.exit(-1)
+
+            # Use sched_process_fork + sched_process_exec (Android + Linux compatible)
+            if show_ustack:
+                fork_insns = BpfMgr.genExecForkProgWithStack(
+                    ts_map_fd, ustack_fd
+                )
+            else:
+                fork_insns = BpfMgr.genExecForkProg(ts_map_fd)
+            fork_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                fork_insns,
+                b"GPL",
+                "exec_fork",
+            )
+            if fork_fd < 0:
+                sys.exit(-1)
+            BpfMgr.attachTracepoint(fork_fd, "sched", "sched_process_fork")
+
+            if show_ustack:
+                exec_insns = BpfMgr.genExecTopFromSchedProgWithStack(
+                    ts_map_fd, agg_map_fd, fname_map_fd
+                )
+            else:
+                exec_insns = BpfMgr.genExecTopFromSchedProg(
+                    ts_map_fd, agg_map_fd, fname_map_fd
+                )
+            exec_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, exec_insns, b"GPL", "exec_top"
+            )
+            if exec_fd < 0:
+                sys.exit(-1)
+            BpfMgr.attachTracepoint(exec_fd, "sched", "sched_process_exec")
+
+            interval, total_time = BpfMgr._computeIntervalParams()
+            elapsed = 0.0
+
+            _dbgObj = BpfMgr._initDbgObj()
+            _comm_cache = {}
+
+            def _get_comm(pid):
+                if pid not in _comm_cache:
+                    _comm_cache[pid] = SysMgr.getComm(pid, default="?")
+                return _comm_cache[pid]
+
+            def _get_ppid(tgid):
+                ppid = SysMgr.getPpid(tgid)
+                return int(ppid) if ppid else 0
+
+            def _get_exe(tgid):
+                return SysMgr.getExeName(tgid, verb=False) or ""
+
+            twoLine = "=" * SysMgr.lineLength
+            oneLine = "-" * SysMgr.lineLength
+
+            import ctypes as _ct
+
+            _NR_BPF = SysMgr.getNrSyscall("sys_bpf")
+            _BPF_MAP_GET_NEXT_KEY = 4
+            _KEY_SZ = agg_key_sz
+            _VAL_SZ = 40
+
+            # ELAPFILTER: filter by avg elapsed time
+            _elapMin, _elapMax, _elapEq = UtilMgr.parseElapFilter()
+            # CONDCNTBT/CONDCNTLT: filter by count
+            condCntBt = UtilMgr.getEnvironNum(
+                "CONDCNTBT", False, -1, False, isFloat=True
+            )
+            condCntLt = UtilMgr.getEnvironNum(
+                "CONDCNTLT", False, -1, False, isFloat=True
+            )
+
+            def _iter_keys(map_fd):
+                class _Attr(_ct.Structure):
+                    _fields_ = [
+                        ("map_fd", _ct.c_uint32),
+                        ("pad0", _ct.c_uint32),
+                        ("key", _ct.c_uint64),
+                        ("next_key", _ct.c_uint64),
+                        ("flags", _ct.c_uint64),
+                    ]
+
+                _cur = (_ct.c_uint8 * _KEY_SZ)()
+                _nxt = (_ct.c_uint8 * _KEY_SZ)()
+                _attr = _Attr()
+                _attr.map_fd = map_fd
+                _attr.key = 0
+                _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
+                _attr.flags = 0
+                ret = SysMgr.libcObj.syscall(
+                    _ct.c_long(_NR_BPF),
+                    _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
+                    _ct.byref(_attr),
+                    _ct.c_uint(_ct.sizeof(_attr)),
+                )
+                if ret != 0:
+                    return
+                while True:
+                    yield bytes(_nxt)
+                    _ct.memmove(_cur, _nxt, _KEY_SZ)
+                    _attr.key = _ct.cast(_cur, _ct.c_void_p).value
+                    _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
+                    ret = SysMgr.libcObj.syscall(
+                        _ct.c_long(_NR_BPF),
+                        _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
+                        _ct.byref(_attr),
+                        _ct.c_uint(_ct.sizeof(_attr)),
+                    )
+                    if ret != 0:
+                        break
+
+            _t_last = time.monotonic()
+            while True:
+                time.sleep(interval)
+                SysMgr.updateUptime()
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
+                _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
+
+                entries = []
+                keys_seen = []
+                for _kb in _iter_keys(agg_map_fd):
+                    _vb = BpfMgr.mapLookup(agg_map_fd, _kb, _VAL_SZ)
+                    if not _vb:
+                        continue
+                    tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                    ustack_id_s = (
+                        struct.unpack_from("<i", _kb, 8)[0]
+                        if show_ustack
+                        else -1
+                    )
+                    total_ns = struct.unpack_from("<Q", _vb, 0)[0]
+                    cnt = struct.unpack_from("<Q", _vb, 8)[0]
+                    if cnt == 0:
+                        continue
+                    # comm stored by BPF at exec time (16 bytes at offset 16)
+                    _cm = _vb[16:32]
+                    _cn = _cm.find(b"\x00")
+                    bpf_comm = _cm[: _cn if _cn >= 0 else 16].decode(
+                        "utf-8", errors="replace"
+                    )
+                    # ppid stored by BPF at exec time (4 bytes at offset 32)
+                    ppid_bpf = struct.unpack_from("<I", _vb, 32)[0]
+                    # fname from fname_map keyed by tgid (8B)
+                    _tgid_key = _kb[:8]
+                    _fb = BpfMgr.mapLookup(fname_map_fd, _tgid_key, 64)
+                    if _fb:
+                        _fn = _fb.find(b"\x00")
+                        fname_bpf = _fb[: _fn if _fn >= 0 else 64].decode(
+                            "utf-8", errors="replace"
+                        )
+                    else:
+                        fname_bpf = ""
+                    # -g filter
+                    if SysMgr.filterGroup and not UtilMgr.isValidStr(
+                        bpf_comm, SysMgr.filterGroup
+                    ):
+                        keys_seen.append(_kb)
+                        continue
+                    # CONDCNTBT/CONDCNTLT filter
+                    if condCntBt >= 0 and cnt < condCntBt:
+                        keys_seen.append(_kb)
+                        continue
+                    if condCntLt >= 0 and cnt > condCntLt:
+                        keys_seen.append(_kb)
+                        continue
+                    # ELAPFILTER: compare avg elapsed
+                    avg_ns = total_ns // cnt
+                    if not UtilMgr.checkElapFilter(
+                        avg_ns, _elapMin, _elapMax, _elapEq
+                    ):
+                        keys_seen.append(_kb)
+                        continue
+                    entries.append(
+                        (
+                            tgid,
+                            total_ns,
+                            cnt,
+                            bpf_comm,
+                            ustack_id_s,
+                            ppid_bpf,
+                            fname_bpf,
+                        )
+                    )
+                    keys_seen.append(_kb)
+
+                for _kb in keys_seen:
+                    BpfMgr.mapDelete(agg_map_fd, _kb)
+                    BpfMgr.mapDelete(fname_map_fd, _kb[:8])
+
+                entries.sort(key=lambda x: -x[2])
+
+                if _need_summary:
+                    for (
+                        _s_tgid,
+                        _s_total_ns,
+                        _s_cnt,
+                        _s_bpf_comm,
+                        _s_ustack_id,
+                        _s_ppid_bpf,
+                        _s_fname_bpf,
+                    ) in entries:
+                        _s_comm = _s_bpf_comm or _get_comm(_s_tgid)
+                        _s_ppid = _s_ppid_bpf or _get_ppid(_s_tgid)
+                        _s_frames = []
+                        if show_ustack and _s_ustack_id >= 0:
+                            # stack was captured at sched_process_fork, in the
+                            # PARENT's task context (before exec replaces the
+                            # child's memory) — resolve against ppid, not tgid
+                            _s_frames = (
+                                BpfMgr.resolveUserStack(
+                                    ustack_fd,
+                                    _s_ustack_id,
+                                    _s_ppid,
+                                    max_udepth,
+                                )
+                                or []
+                            )
+                        _s_chain = "%s(%d)" % (_s_comm[:16], _s_tgid)
+                        if _s_frames:
+                            _s_chain += " <- " + " <- ".join(_s_frames)
+                        _summary_stack[_s_chain] = (
+                            _summary_stack.get(_s_chain, 0) + _s_cnt
+                        )
+
+                if not SysMgr.jsonEnable:
+                    SysMgr.addPrint("[bpfexectop] %s\n" % _sysStatStr)
+                    SysMgr.addPrint(twoLine + "\n")
+                    if entries:
+                        SysMgr.addPrint(
+                            "%26s  %26s  %7s  %12s  %s\n"
+                            % (
+                                "PROCESS(PID)",
+                                "PARENT(PPID)",
+                                "COUNT",
+                                "AVG_ELAPSED",
+                                "FILENAME",
+                            )
+                        )
+                        SysMgr.addPrint(oneLine + "\n")
+                        for (
+                            tgid,
+                            total_ns,
+                            cnt,
+                            bpf_comm,
+                            ustack_id_s,
+                            ppid_bpf,
+                            fname_bpf,
+                        ) in entries[:30]:
+                            comm = bpf_comm or _get_comm(tgid)
+                            ppid = ppid_bpf or _get_ppid(tgid)
+                            pcomm = _get_comm(ppid) if ppid else "?"
+                            exe = fname_bpf or _get_exe(tgid)
+                            avg_s = total_ns / cnt / 1e9
+                            proc_str = ("%s(%d)" % (comm[:16], tgid))[:26]
+                            ppid_str = (
+                                ("%s(%d)" % (pcomm[:16], ppid))
+                                if ppid
+                                else "?(0)"
+                            )[:26]
+                            SysMgr.addPrint(
+                                "%26s  %26s  %7s  %12.6f  %-s\n"
+                                % (
+                                    proc_str,
+                                    ppid_str,
+                                    UtilMgr.convNum(cnt),
+                                    avg_s,
+                                    exe[:50],
+                                )
+                            )
+                            if show_ustack and ustack_id_s >= 0:
+                                # stack was captured at sched_process_fork, in the
+                                # PARENT's task context (before exec replaces the
+                                # child's memory) — resolve against ppid, not tgid
+                                _frames = BpfMgr.resolveUserStack(
+                                    ustack_fd, ustack_id_s, ppid, max_udepth
+                                )
+                                if _frames:
+                                    _line = BpfMgr._wrapChain(
+                                        _frames[:max_udepth],
+                                        "      <- ",
+                                        "",
+                                        "      <- ",
+                                        SysMgr.lineLength,
+                                    )
+                                    if _line:
+                                        SysMgr.addPrint(
+                                            _line, _line.count("\n")
+                                        )
+                            if not SysMgr.addPrint(oneLine + "\n"):
+                                break
+                    else:
+                        SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                    SysMgr.addPrint(twoLine + "\n")
+                else:
+                    _jevts = []
+                    for (
+                        tgid,
+                        total_ns,
+                        cnt,
+                        bpf_comm,
+                        ustack_id_s,
+                        ppid_bpf,
+                        fname_bpf,
+                    ) in entries:
+                        comm = bpf_comm or _get_comm(tgid)
+                        ppid = ppid_bpf or _get_ppid(tgid)
+                        avg_s = total_ns / cnt / 1e9 if cnt > 0 else 0.0
+                        exe = fname_bpf or _get_exe(tgid)
+                        _frames = []
+                        if show_ustack and ustack_id_s >= 0:
+                            _frames = BpfMgr.resolveUserStack(
+                                ustack_fd, ustack_id_s, ppid, max_udepth
+                            )
+                        _jevts.append(
+                            {
+                                "pid": tgid,
+                                "comm": comm,
+                                "ppid": ppid,
+                                "count": cnt,
+                                "avg_elapsed": round(avg_s, 6),
+                                "exe": exe,
+                                "stack": _frames,
+                            }
+                        )
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            {"time": SysMgr.uptime, "execs": _jevts},
+                            gpretty=True,
+                        ),
+                        flush=True,
+                    )
+
+                BpfMgr._flushBuf()
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfexectop failed", reason=True)
+        finally:
+            if _need_summary:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+                if _summary_stack:
+                    BpfMgr.printKstackReport(
+                        _summary_stack, "Call Stack Summary"
+                    )
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doExecsnoopCmd():
+        """bpfexecsnoop: stream exec() events via perf ring buffer."""
+        perf_fds = []
+        mmap_bufs = []
+        try:
+            BpfMgr.checkAvailable()
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base or not os.path.isdir("%s/sched" % tp_base):
+                SysMgr.printErr(
+                    "bpfexecsnoop: sched tracepoints not available"
+                )
+                sys.exit(-1)
+
+            cpu_list = BpfMgr._getOnlineCpus()
+            max_cpu = max(cpu_list) + 1
+            perf_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_PERF_EVENT_IDX, 4, 4, max_cpu, "exec_perf"
+            )
+            if perf_map_fd < 0:
+                sys.exit(-1)
+
+            insns = BpfMgr.genExecSnoopProg(perf_map_fd, max_cpu)
+            prog_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns, b"GPL", "exec_snoop"
+            )
+            if prog_fd < 0:
+                sys.exit(-1)
+
+            BpfMgr.attachTracepoint(prog_fd, "sched", "sched_process_exec")
+
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=False
+            )
+
+            if not perf_fds:
+                SysMgr.printErr("bpfexecsnoop: failed to open perf events")
+                sys.exit(-1)
+
+            total_secs = int(SysMgr.repeatInterval or 0)
+            start_time = time.time()
+
+            if not SysMgr.outPath:
+                SysMgr.setStream()
+
+            _dbgObj_snoop = BpfMgr._initDbgObj()
+            _sysStatStr_snoop = SysMgr.getStatVars(_dbgObj_snoop, 0.0)[-1]
+            twoLine = "=" * SysMgr.lineLength
+            oneLine = "-" * SysMgr.lineLength
+            SysMgr.printPipe("[bpfexecsnoop] %s" % _sysStatStr_snoop)
+            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe(
+                "%-15s  %26s  %26s  %s"
+                % ("TIME", "PROCESS(PID)", "PARENT(PPID)", "FILENAME")
+            )
+            SysMgr.printPipe(oneLine)
+
+            PERF_RECORD_SAMPLE = 9
+            _skip_self = "SKIPSELF" in SysMgr.environList
+            _my_pid = os.getpid()
+
+            def drain_one(buf_addr, pg_sz, data_sz):
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 64:
+                        continue
+                    try:
+                        # Layout: pid_tgid(8)+comm(16)+fname(40)
+                        pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
+                        comm_raw = raw[8:24]
+                        fname_raw = raw[24:64]
+                        tgid = pid_tgid >> 32
+                        if _skip_self and tgid == _my_pid:
+                            continue
+                        _cn = comm_raw.find(b"\x00")
+                        comm = comm_raw[: _cn if _cn >= 0 else 16].decode(
+                            "utf-8", errors="replace"
+                        )
+                        _fn = fname_raw.find(b"\x00")
+                        fname = fname_raw[: _fn if _fn >= 0 else 40].decode(
+                            "utf-8", errors="replace"
+                        )
+                        ts = BpfMgr.makeGetTs()()
+                        _ppid_str = SysMgr.getPpid(tgid)
+                        _ppid = int(_ppid_str) if _ppid_str else 0
+                        _pcomm = (
+                            SysMgr.getComm(_ppid, default="?") if _ppid else "?"
+                        )
+                        line = "%-15s  %26s  %26s  %s" % (
+                            ts,
+                            "%s(%d)" % (comm, tgid),
+                            "%s(%d)" % (_pcomm, _ppid) if _ppid else "?(0)",
+                            fname[:50],
+                        )
+                        SysMgr.printPipe(line, flush=True)
+                    except Exception:
+                        pass
+
+            sel_mod = SysMgr.getPkg("select")
+            SysMgr.printInfo(
+                "bpfexecsnoop: snooping exec() calls (Ctrl-C to stop)"
+            )
+            while True:
+                try:
+                    sel_mod.select(perf_fds, [], [], 0.2)
+                except (KeyboardInterrupt, OSError):
+                    break
+                if total_secs > 0 and (time.time() - start_time) >= total_secs:
+                    break
+                for buf_info in mmap_bufs:
+                    drain_one(*buf_info)
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfexecsnoop failed", reason=True)
+        finally:
+            for fd in perf_fds:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doMmaptopCmd():
+        """bpfmmaptop: monitor anonymous mmap() allocations per process using eBPF."""
+        entries = []
+        drawflame = False  # assigned properly inside try; False guards finally
+        try:
+            BpfMgr.checkAvailable()
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base:
+                SysMgr.printErr("bpfmmaptop: tracepoints not available")
+                sys.exit(-1)
+
+            # Detect tracepoint mode: per-syscall (syscalls/) or raw (raw_syscalls/)
+            _use_raw = not os.path.isdir("%s/syscalls" % tp_base)
+            if _use_raw and not os.path.isdir("%s/raw_syscalls" % tp_base):
+                SysMgr.printErr(
+                    "bpfmmaptop: neither syscalls nor raw_syscalls tracepoints available"
+                )
+                sys.exit(-1)
+            _nr_mmap = SysMgr.getNrSyscall("mmap") if _use_raw else -1
+            _nr_munmap = SysMgr.getNrSyscall("munmap") if _use_raw else -1
+
+            add_ustack = "ADDUSERSTACK" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
+            ustack_map_fd = -1
+            max_udepth = min(SysMgr.depthLevel, 127) if add_ustack else 0
+            if add_ustack:
+                ustack_map_fd = BpfMgr.createStackTraceMap(
+                    max_stacks=8192, name="mmap_usk"
+                )
+                if ustack_map_fd < 0:
+                    add_ustack = False
+                    ustack_map_fd = -1
+
+            # ts_map: pid_tgid → {ktime, len, ustack_id, pad}
+            ts_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 65536, "mmap_ts"
+            )
+            # alloc_map: ret_addr → {len, pid_tgid, ustack_id, pad}
+            alloc_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 65536, "mmap_alloc"
+            )
+            # agg_map: {pid_tgid, ustack_id, pad} → {outstanding, total, cnt}
+            agg_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 16, 24, 8192, "mmap_agg"
+            )
+            if ts_map_fd < 0 or alloc_map_fd < 0 or agg_map_fd < 0:
+                sys.exit(-1)
+
+            # entry prog (syscalls or raw_syscalls with NR filter)
+            insns_entry = BpfMgr.genMmapEntryProg(
+                ts_map_fd, ustack_map_fd, _nr_mmap
+            )
+            prog_entry = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                insns_entry,
+                b"GPL",
+                "mmap_ent",
+            )
+            if prog_entry < 0:
+                sys.exit(-1)
+            if _use_raw:
+                BpfMgr.attachTracepoint(
+                    prog_entry, "raw_syscalls", "sys_enter"
+                )
+            else:
+                BpfMgr.attachTracepoint(
+                    prog_entry, "syscalls", "sys_enter_mmap"
+                )
+
+            # exit prog
+            insns_exit = BpfMgr.genMmapExitProg(
+                ts_map_fd, alloc_map_fd, agg_map_fd, ustack_map_fd, _nr_mmap
+            )
+            prog_exit = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_exit, b"GPL", "mmap_ext"
+            )
+            if prog_exit < 0:
+                sys.exit(-1)
+            if _use_raw:
+                BpfMgr.attachTracepoint(prog_exit, "raw_syscalls", "sys_exit")
+            else:
+                BpfMgr.attachTracepoint(prog_exit, "syscalls", "sys_exit_mmap")
+
+            # munmap prog
+            insns_unmap = BpfMgr.genMunmapProg(
+                alloc_map_fd, agg_map_fd, _nr_munmap
+            )
+            prog_unmap = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_unmap, b"GPL", "munmap"
+            )
+            if prog_unmap < 0:
+                sys.exit(-1)
+            if _use_raw:
+                BpfMgr.attachTracepoint(
+                    prog_unmap, "raw_syscalls", "sys_enter"
+                )
+            else:
+                BpfMgr.attachTracepoint(
+                    prog_unmap, "syscalls", "sys_enter_munmap"
+                )
+
+            interval, total_time = BpfMgr._computeIntervalParams()
+            elapsed = 0.0
+
+            _dbgObj = BpfMgr._initDbgObj()
+            _comm_cache = {}
+
+            def _get_comm(pid_tgid):
+                tgid = pid_tgid >> 32
+                if tgid not in _comm_cache:
+                    _comm_cache[tgid] = SysMgr.getComm(tgid, default="?")
+                return _comm_cache[tgid]
+
+            twoLine = "=" * SysMgr.lineLength
+            oneLine = "-" * SysMgr.lineLength
+            SysMgr.printInfo(
+                "bpfmmaptop: monitoring anonymous mmap (interval=%ds)"
+                % interval
+            )
+
+            _KEY_SZ = 16
+
+            _t_last = time.monotonic()
+            while True:
+                time.sleep(interval)
+                SysMgr.updateUptime()
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
+                _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
+
+                # Read agg_map: {pid_tgid, ustack_id} → {outstanding, total, cnt}
+                # SHOWADDR: scan alloc_map to find most recent live address per tgid
+                _show_addr = "SHOWADDR" in SysMgr.environList
+                _addr_per_tgid = {}
+                if _show_addr:
+                    for _ab in BpfMgr._iterMapKeys(alloc_map_fd, 8):
+                        _av = BpfMgr.mapLookup(alloc_map_fd, _ab, 24)
+                        if not _av:
+                            continue
+                        _a_pid_tgid = struct.unpack_from("<Q", _av, 8)[0]
+                        _a_tgid = _a_pid_tgid >> 32
+                        _addr = struct.unpack_from("<Q", _ab)[0]
+                        _addr_per_tgid[_a_tgid] = _addr
+
+                entries = []
+                for _kb in BpfMgr._iterMapKeys(agg_map_fd, 16):
+                    _vb = BpfMgr.mapLookup(agg_map_fd, _kb, 24)
+                    if not _vb:
+                        continue
+                    pid_tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                    ustack_id = struct.unpack_from("<i", _kb, 8)[0]
+                    outstanding, total_bytes, cnt = struct.unpack_from(
+                        "<QQQ", _vb, 0
+                    )
+                    comm = _get_comm(pid_tgid)
+                    tgid = pid_tgid >> 32
+                    # -g comm/pid filter
+                    if (
+                        SysMgr.filterGroup
+                        and not UtilMgr.isValidStr(comm, SysMgr.filterGroup)
+                        and not UtilMgr.isValidStr(
+                            str(tgid), SysMgr.filterGroup
+                        )
+                    ):
+                        continue
+                    stack_str = ""
+                    if add_ustack and ustack_id >= 0:
+                        frames = BpfMgr.resolveUserStack(
+                            ustack_map_fd, ustack_id, tgid, max_udepth
+                        )
+                        if frames:
+                            stack_str = " <- ".join(frames[:max_udepth])
+                    _addr = _addr_per_tgid.get(tgid, 0)
+                    entries.append(
+                        (
+                            tgid,
+                            comm,
+                            outstanding,
+                            total_bytes,
+                            cnt,
+                            stack_str,
+                            _addr,
+                        )
+                    )
+
+                entries.sort(key=lambda x: -x[2])  # sort by outstanding bytes
+
+                if not SysMgr.jsonEnable:
+                    SysMgr.addPrint("[bpfmmaptop] %s\n" % _sysStatStr)
+                    SysMgr.addPrint(twoLine + "\n")
+                    if entries:
+                        if _show_addr:
+                            SysMgr.addPrint(
+                                "%26s  %18s  %12s  %12s  %8s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "ADDR",
+                                    "OUTSTANDING",
+                                    "TOTAL_MAPPED",
+                                    "COUNT",
+                                )
+                            )
+                        else:
+                            SysMgr.addPrint(
+                                "%26s  %12s  %12s  %8s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "OUTSTANDING",
+                                    "TOTAL_MAPPED",
+                                    "COUNT",
+                                )
+                            )
+                        SysMgr.addPrint(oneLine + "\n")
+                        for (
+                            tgid,
+                            comm,
+                            outstanding,
+                            total_bytes,
+                            cnt,
+                            stk,
+                            _a,
+                        ) in entries[:20]:
+                            proc_str = ("%s(%d)" % (comm[:16], tgid))[:26]
+                            if _show_addr:
+                                row = "%26s  %18s  %12s  %12s  %8s\n" % (
+                                    proc_str,
+                                    "0x%x" % _a if _a else "-",
+                                    UtilMgr.convSize2Unit(outstanding),
+                                    UtilMgr.convSize2Unit(total_bytes),
+                                    UtilMgr.convNum(cnt),
+                                )
+                            else:
+                                row = "%26s  %12s  %12s  %8s\n" % (
+                                    proc_str,
+                                    UtilMgr.convSize2Unit(outstanding),
+                                    UtilMgr.convSize2Unit(total_bytes),
+                                    UtilMgr.convNum(cnt),
+                                )
+                            if not SysMgr.addPrint(row, row.count("\n")):
+                                break
+                            if stk:
+                                _line = BpfMgr._wrapChain(
+                                    stk.split(" <- "),
+                                    "      <- ",
+                                    "",
+                                    "      <- ",
+                                    SysMgr.lineLength,
+                                )
+                                if _line and not SysMgr.addPrint(
+                                    _line, _line.count("\n")
+                                ):
+                                    break
+                            if not SysMgr.addPrint(oneLine + "\n"):
+                                break
+                    else:
+                        SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                    SysMgr.addPrint(twoLine + "\n")
+                else:
+                    _jevts = [
+                        {
+                            "pid": tgid,
+                            "comm": comm,
+                            "outstandingBytes": outstanding,
+                            "totalBytes": total_bytes,
+                            "count": cnt,
+                        }
+                        for tgid, comm, outstanding, total_bytes, cnt, _stk, _a in entries
+                    ]
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            {"time": SysMgr.uptime, "mmaps": _jevts},
+                            gpretty=True,
+                        ),
+                        flush=True,
+                    )
+
+                BpfMgr._flushBuf()
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfmmaptop failed", reason=True)
+        finally:
+            _need_summary = (
+                SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList
+            )
+            _flame_data = None
+            if entries and (drawflame or _need_summary):
+                _flame_data = BpfMgr._buildFlameFromEntries(
+                    entries, lambda comm, tgid, _extra: "%s(%d)" % (comm, tgid)
+                )
+                if drawflame:
+                    BpfMgr._emitFlameSVG(
+                        _flame_data, "bpfmmaptop", ".bpfmmaptop"
+                    )
+            if _need_summary:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+                if _flame_data:
+                    BpfMgr.printKstackReport(_flame_data, "Call Stack Summary")
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doHeaptopCmd():
+        """bpfheaptop: monitor heap allocations (malloc/calloc/realloc/free) via uprobe."""
+        entries = []
+        drawflame = False  # assigned properly inside try; False guards finally
+        try:
+            BpfMgr.checkAvailable()
+
+            # Find libc path from /proc/self/maps (prefer exact "libc.so" over "libc++.so")
+            libc_path = None
+            _libc_exact = (
+                []
+            )  # paths containing exactly "/libc." (not libc++ etc.)
+            _libc_other = []  # other libc-related paths (fallback)
+            try:
+                with open("/proc/self/maps", "r") as _mf:
+                    for _line in _mf:
+                        _cols = _line.strip().split()
+                        if len(_cols) < 6:
+                            continue
+                        _perm, _p = _cols[1], _cols[-1]
+                        if not _perm.startswith("r"):
+                            continue
+                        if "/libc." in _p and ".so" in _p:
+                            if _p not in _libc_exact:
+                                _libc_exact.append(_p)
+                        elif (
+                            "libc" in _p
+                            and ".so" in _p
+                            and _p not in _libc_other
+                        ):
+                            _libc_other.append(_p)
+            except Exception:
+                pass
+            # Pick the first real file (prefer exact /libc.so matches)
+            for _cand in _libc_exact + _libc_other:
+                _real = os.path.realpath(_cand)
+                if os.path.isfile(_real):
+                    libc_path = _real
+                    break
+            # Android fallback
+            if not libc_path:
+                for _fb in [
+                    "/system/lib64/libc.so",
+                    "/system/lib/libc.so",
+                    "/apex/com.android.runtime/lib64/bionic/libc.so",
+                ]:
+                    _real_fb = os.path.realpath(_fb)
+                    if os.path.isfile(_real_fb):
+                        libc_path = _real_fb
+                        break
+
+            if not libc_path:
+                SysMgr.printErr("bpfheaptop: cannot find libc path")
+                sys.exit(-1)
+
+            # Get function offsets from libc ELF using getSymOffset
+            def _get_off(sym):
+                try:
+                    syms = ElfAnalyzer.getSymOffset(sym, libc_path)
+                    return syms[0][0] if syms else None
+                except Exception:
+                    return None
+
+            malloc_off = _get_off("malloc")
+            calloc_off = _get_off("calloc")
+            realloc_off = _get_off("realloc")
+            memalign_off = _get_off("memalign")
+            free_off = _get_off("free")
+
+            if not malloc_off and not free_off:
+                SysMgr.printErr(
+                    "bpfheaptop: cannot find malloc/free in libc (%s)"
+                    % libc_path
+                )
+                sys.exit(-1)
+
+            add_ustack = "ADDUSERSTACK" in SysMgr.environList
+            add_mmap = "ADDMMAP" in SysMgr.environList
+            drawflame = "DRAWFLAME" in SysMgr.environList
+            mmap_ts_fd = mmap_alloc_fd = mmap_agg_fd = -1
+            _use_raw = False
+            _nr_mmap = _nr_munmap = -1
+            ustack_map_fd = -1
+            max_udepth = min(SysMgr.depthLevel, 127) if add_ustack else 0
+            if add_ustack:
+                ustack_map_fd = BpfMgr.createStackTraceMap(
+                    max_stacks=8192, name="heap_usk"
+                )
+                if ustack_map_fd < 0:
+                    add_ustack = False
+                    ustack_map_fd = -1
+
+            # ts_map: pid_tgid → {ktime, size, ustack_id, pad}
+            ts_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 65536, "heap_ts"
+            )
+            # alloc_map: ptr → {size, pid_tgid, ustack_id, pad}
+            alloc_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 65536, "heap_alloc"
+            )
+            # agg_map: {pid_tgid, ustack_id, pad} → {outstanding, total, cnt}
+            agg_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 16, 24, 8192, "heap_agg"
+            )
+            if ts_map_fd < 0 or alloc_map_fd < 0 or agg_map_fd < 0:
+                sys.exit(-1)
+
+            if add_mmap:
+                tp_base = SysMgr.getTraceEventPath()
+                if not tp_base:
+                    SysMgr.printWarn(
+                        "bpfheaptop: tracepoints unavailable, ADDMMAP disabled"
+                    )
+                    add_mmap = False
+                else:
+                    _use_raw = not os.path.isdir("%s/syscalls" % tp_base)
+                    if _use_raw and not os.path.isdir(
+                        "%s/raw_syscalls" % tp_base
+                    ):
+                        SysMgr.printWarn(
+                            "bpfheaptop: no syscall tracepoints, ADDMMAP disabled"
+                        )
+                        add_mmap = False
+                    else:
+                        _nr_mmap = (
+                            SysMgr.getNrSyscall("mmap") if _use_raw else -1
+                        )
+                        _nr_munmap = (
+                            SysMgr.getNrSyscall("munmap") if _use_raw else -1
+                        )
+                        mmap_ts_fd = BpfMgr.createMap(
+                            ConfigMgr.BPF_MAP_HASH_IDX,
+                            8,
+                            24,
+                            65536,
+                            "hmmap_ts",
+                        )
+                        mmap_alloc_fd = BpfMgr.createMap(
+                            ConfigMgr.BPF_MAP_HASH_IDX,
+                            8,
+                            24,
+                            65536,
+                            "hmmap_alloc",
+                        )
+                        mmap_agg_fd = BpfMgr.createMap(
+                            ConfigMgr.BPF_MAP_HASH_IDX,
+                            16,
+                            24,
+                            8192,
+                            "hmmap_agg",
+                        )
+                        if (
+                            mmap_ts_fd < 0
+                            or mmap_alloc_fd < 0
+                            or mmap_agg_fd < 0
+                        ):
+                            SysMgr.printWarn(
+                                "bpfheaptop: cannot create mmap maps, ADDMMAP disabled"
+                            )
+                            add_mmap = False
+
+            # Attach uprobes for malloc
+            if malloc_off:
+                insns_entry = BpfMgr.genHeapMallocEntryProg(
+                    ts_map_fd, ustack_map_fd
+                )
+                pf_entry = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE, insns_entry, b"GPL", "mal_ent"
+                )
+                if pf_entry >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_entry, libc_path, malloc_off, retprobe=False
+                    )
+                insns_ret = BpfMgr.genHeapMallocRetProg(
+                    ts_map_fd, alloc_map_fd, agg_map_fd
+                )
+                pf_ret = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE, insns_ret, b"GPL", "mal_ret"
+                )
+                if pf_ret >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_ret, libc_path, malloc_off, retprobe=True
+                    )
+
+            if calloc_off:
+                insns_calloc = BpfMgr.genHeapCallocEntryProg(
+                    ts_map_fd, ustack_map_fd
+                )
+                pf_calloc = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE,
+                    insns_calloc,
+                    b"GPL",
+                    "cal_ent",
+                )
+                if pf_calloc >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_calloc, libc_path, calloc_off, retprobe=False
+                    )
+                insns_calr = BpfMgr.genHeapCallocRetProg(
+                    ts_map_fd, alloc_map_fd, agg_map_fd
+                )
+                pf_calr = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE, insns_calr, b"GPL", "cal_ret"
+                )
+                if pf_calr >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_calr, libc_path, calloc_off, retprobe=True
+                    )
+
+            if realloc_off:
+                insns_realloc = BpfMgr.genHeapReallocEntryProg(
+                    ts_map_fd, alloc_map_fd, agg_map_fd, ustack_map_fd
+                )
+                pf_realloc = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE,
+                    insns_realloc,
+                    b"GPL",
+                    "real_ent",
+                )
+                if pf_realloc >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_realloc, libc_path, realloc_off, retprobe=False
+                    )
+                insns_realr = BpfMgr.genHeapReallocRetProg(
+                    ts_map_fd, alloc_map_fd, agg_map_fd
+                )
+                pf_realr = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE,
+                    insns_realr,
+                    b"GPL",
+                    "real_ret",
+                )
+                if pf_realr >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_realr, libc_path, realloc_off, retprobe=True
+                    )
+
+            if memalign_off:
+                insns_mem = BpfMgr.genHeapMemalignEntryProg(
+                    ts_map_fd, ustack_map_fd
+                )
+                pf_mem = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE, insns_mem, b"GPL", "mem_ent"
+                )
+                if pf_mem >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_mem, libc_path, memalign_off, retprobe=False
+                    )
+                insns_memr = BpfMgr.genHeapMallocRetProg(
+                    ts_map_fd, alloc_map_fd, agg_map_fd
+                )
+                pf_memr = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE, insns_memr, b"GPL", "mem_ret"
+                )
+                if pf_memr >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_memr, libc_path, memalign_off, retprobe=True
+                    )
+
+            if free_off:
+                insns_free = BpfMgr.genHeapFreeProg(alloc_map_fd, agg_map_fd)
+                pf_free = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_KPROBE,
+                    insns_free,
+                    b"GPL",
+                    "heap_free",
+                )
+                if pf_free >= 0:
+                    BpfMgr.attachUprobe(
+                        pf_free, libc_path, free_off, retprobe=False
+                    )
+
+            if add_mmap and mmap_ts_fd >= 0:
+                insns_mentry = BpfMgr.genMmapEntryProg(
+                    mmap_ts_fd, ustack_map_fd, _nr_mmap
+                )
+                prog_mentry = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                    insns_mentry,
+                    b"GPL",
+                    "hmmap_ent",
+                )
+                if prog_mentry >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            prog_mentry, "raw_syscalls", "sys_enter"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            prog_mentry, "syscalls", "sys_enter_mmap"
+                        )
+                insns_mexit = BpfMgr.genMmapExitProg(
+                    mmap_ts_fd,
+                    mmap_alloc_fd,
+                    mmap_agg_fd,
+                    ustack_map_fd,
+                    _nr_mmap,
+                )
+                prog_mexit = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                    insns_mexit,
+                    b"GPL",
+                    "hmmap_ext",
+                )
+                if prog_mexit >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            prog_mexit, "raw_syscalls", "sys_exit"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            prog_mexit, "syscalls", "sys_exit_mmap"
+                        )
+                insns_munmap = BpfMgr.genMunmapProg(
+                    mmap_alloc_fd, mmap_agg_fd, _nr_munmap
+                )
+                prog_munmap = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                    insns_munmap,
+                    b"GPL",
+                    "hmunmap",
+                )
+                if prog_munmap >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            prog_munmap, "raw_syscalls", "sys_enter"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            prog_munmap, "syscalls", "sys_enter_munmap"
+                        )
+
+            interval, total_time = BpfMgr._computeIntervalParams()
+            elapsed = 0.0
+
+            _dbgObj = BpfMgr._initDbgObj()
+            _comm_cache = {}
+
+            def _get_comm(pid_tgid):
+                tgid = pid_tgid >> 32
+                if tgid not in _comm_cache:
+                    _comm_cache[tgid] = SysMgr.getComm(tgid, default="?")
+                return _comm_cache[tgid]
+
+            twoLine = "=" * SysMgr.lineLength
+            oneLine = "-" * SysMgr.lineLength
+
+            SysMgr.printInfo(
+                "bpfheaptop: monitoring heap allocations via %s (interval=%ds)"
+                % (libc_path, interval)
+            )
+
+            _t_last = time.monotonic()
+            while True:
+                time.sleep(interval)
+                SysMgr.updateUptime()
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
+                _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
+
+                entries[:] = []
+                for _kb in BpfMgr._iterMapKeys(agg_map_fd, 16):
+                    _vb = BpfMgr.mapLookup(agg_map_fd, _kb, 24)
+                    if not _vb:
+                        continue
+                    pid_tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                    ustack_id = struct.unpack_from("<i", _kb, 8)[0]
+                    outstanding_s = struct.unpack_from("<q", _vb, 0)[0]
+                    outstanding = max(0, outstanding_s)
+                    total_bytes, cnt = struct.unpack_from("<QQ", _vb, 8)
+                    if cnt == 0:
+                        continue
+                    comm = _get_comm(pid_tgid)
+                    tgid = pid_tgid >> 32
+                    # -g comm/pid filter
+                    if (
+                        SysMgr.filterGroup
+                        and not UtilMgr.isValidStr(comm, SysMgr.filterGroup)
+                        and not UtilMgr.isValidStr(
+                            str(tgid), SysMgr.filterGroup
+                        )
+                    ):
+                        continue
+                    stack_str = ""
+                    if add_ustack and ustack_id >= 0:
+                        frames = BpfMgr.resolveUserStack(
+                            ustack_map_fd, ustack_id, tgid, max_udepth
+                        )
+                        if frames:
+                            stack_str = " <- ".join(frames[:max_udepth])
+                    entries.append(
+                        (
+                            tgid,
+                            comm,
+                            outstanding,
+                            total_bytes,
+                            cnt,
+                            stack_str,
+                            "MALLOC",
+                        )
+                    )
+
+                if add_mmap and mmap_agg_fd >= 0:
+                    for _kb in BpfMgr._iterMapKeys(mmap_agg_fd, 16):
+                        _vb = BpfMgr.mapLookup(mmap_agg_fd, _kb, 24)
+                        if not _vb:
+                            continue
+                        pid_tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                        ustack_id = struct.unpack_from("<i", _kb, 8)[0]
+                        outstanding_s = struct.unpack_from("<q", _vb, 0)[0]
+                        outstanding = max(0, outstanding_s)
+                        total_bytes, cnt = struct.unpack_from("<QQ", _vb, 8)
+                        if cnt == 0:
+                            continue
+                        comm = _get_comm(pid_tgid)
+                        tgid = pid_tgid >> 32
+                        if (
+                            SysMgr.filterGroup
+                            and not UtilMgr.isValidStr(
+                                comm, SysMgr.filterGroup
+                            )
+                            and not UtilMgr.isValidStr(
+                                str(tgid), SysMgr.filterGroup
+                            )
+                        ):
+                            continue
+                        stack_str = ""
+                        if add_ustack and ustack_id >= 0:
+                            frames = BpfMgr.resolveUserStack(
+                                ustack_map_fd, ustack_id, tgid, max_udepth
+                            )
+                            if frames:
+                                stack_str = " <- ".join(frames[:max_udepth])
+                        entries.append(
+                            (
+                                tgid,
+                                comm,
+                                outstanding,
+                                total_bytes,
+                                cnt,
+                                stack_str,
+                                "MMAP",
+                            )
+                        )
+
+                entries.sort(key=lambda x: -x[2])
+
+                _min_thresh = UtilMgr.getEnvironNum(
+                    "MINTHRESH", False, 0, False
+                )
+                if _min_thresh > 0:
+                    entries = [e for e in entries if e[2] >= _min_thresh]
+
+                oneLine = "-" * SysMgr.lineLength
+
+                if not SysMgr.jsonEnable:
+                    SysMgr.addPrint("[bpfheaptop] %s\n" % _sysStatStr)
+                    SysMgr.addPrint(twoLine + "\n")
+                    if entries:
+                        if add_mmap:
+                            SysMgr.addPrint(
+                                "%26s  %6s  %12s  %12s  %8s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "TYPE",
+                                    "OUTSTANDING",
+                                    "TOTAL_ALLOC",
+                                    "COUNT",
+                                )
+                            )
+                        else:
+                            SysMgr.addPrint(
+                                "%26s  %12s  %12s  %8s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "OUTSTANDING",
+                                    "TOTAL_ALLOC",
+                                    "COUNT",
+                                )
+                            )
+                        SysMgr.addPrint(oneLine + "\n")
+                        for (
+                            tgid,
+                            comm,
+                            outstanding,
+                            total_bytes,
+                            cnt,
+                            stk,
+                            _type,
+                        ) in entries[:20]:
+                            proc_str = ("%s(%d)" % (comm[:16], tgid))[:26]
+                            if add_mmap:
+                                row = "%26s  %6s  %12s  %12s  %8s\n" % (
+                                    proc_str,
+                                    _type,
+                                    UtilMgr.convSize2Unit(outstanding),
+                                    UtilMgr.convSize2Unit(total_bytes),
+                                    UtilMgr.convNum(cnt),
+                                )
+                            else:
+                                row = "%26s  %12s  %12s  %8s\n" % (
+                                    proc_str,
+                                    UtilMgr.convSize2Unit(outstanding),
+                                    UtilMgr.convSize2Unit(total_bytes),
+                                    UtilMgr.convNum(cnt),
+                                )
+                            if not SysMgr.addPrint(row, row.count("\n")):
+                                break
+                            if stk:
+                                _line = BpfMgr._wrapChain(
+                                    stk.split(" <- "),
+                                    "      <- ",
+                                    "",
+                                    "      <- ",
+                                    SysMgr.lineLength,
+                                )
+                                if _line and not SysMgr.addPrint(
+                                    _line, _line.count("\n")
+                                ):
+                                    break
+                            if not SysMgr.addPrint(oneLine + "\n"):
+                                break
+                    else:
+                        SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                    SysMgr.addPrint(twoLine + "\n")
+                else:
+                    _jevts = [
+                        {
+                            "pid": tgid,
+                            "comm": comm,
+                            "outstandingBytes": outstanding,
+                            "totalBytes": total_bytes,
+                            "allocCount": cnt,
+                            **({"type": _type} if add_mmap else {}),
+                        }
+                        for tgid, comm, outstanding, total_bytes, cnt, _stk, _type in entries
+                    ]
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            {"time": SysMgr.uptime, "heapAllocs": _jevts},
+                            gpretty=True,
+                        ),
+                        flush=True,
+                    )
+
+                BpfMgr._flushBuf()
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfheaptop failed", reason=True)
+        finally:
+            _need_summary = (
+                SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList
+            )
+            _flame_data = None
+            if entries and (drawflame or _need_summary):
+                _flame_data = BpfMgr._buildFlameFromEntries(
+                    entries,
+                    lambda comm, tgid, _type: (
+                        "%s(%d)[%s]" % (comm, tgid, _type)
+                        if add_mmap
+                        else "%s(%d)" % (comm, tgid)
+                    ),
+                )
+                if drawflame:
+                    BpfMgr._emitFlameSVG(
+                        _flame_data, "bpfheaptop", ".bpfheaptop"
+                    )
+            if _need_summary:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+                if _flame_data:
+                    BpfMgr.printKstackReport(_flame_data, "Call Stack Summary")
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doIotopCmd():
+        """bpfiotop: monitor per-process file I/O (read/write bytes and latency) via eBPF."""
+        try:
+            BpfMgr.checkAvailable()
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base:
+                SysMgr.printErr("bpfiotop: tracepoints not available")
+                sys.exit(-1)
+
+            # Detect tracepoint mode: per-syscall (syscalls/) or raw (raw_syscalls/)
+            _use_raw = not os.path.isdir("%s/syscalls" % tp_base)
+            if _use_raw and not os.path.isdir("%s/raw_syscalls" % tp_base):
+                SysMgr.printErr(
+                    "bpfiotop: neither syscalls nor raw_syscalls tracepoints available"
+                )
+                sys.exit(-1)
+            _nr_read = SysMgr.getNrSyscall("read") if _use_raw else -1
+            _nr_write = SysMgr.getNrSyscall("write") if _use_raw else -1
+
+            _only_read = "READONLY" in SysMgr.environList
+            _only_write = "WRITEONLY" in SysMgr.environList
+            _show_fd = "SHOWFD" in SysMgr.environList
+            _elap_min_ns, _elap_max_ns, _elap_eq_ns = UtilMgr.parseElapFilter()
+
+            # ts_map: pid_tgid → {ktime(8), fd(u32), rw(u32)}
+            ts_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 16, 65536, "io_ts"
+            )
+            # agg_map: {pid_tgid(8), fd(u32), pad(u32)} → 48B I/O stats
+            agg_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 16, 48, 8192, "io_agg"
+            )
+            if ts_map_fd < 0 or agg_map_fd < 0:
+                sys.exit(-1)
+
+            # read entry/exit
+            if not _only_write:
+                insns_re = BpfMgr.genVfsReadEntryProg(ts_map_fd, _nr_read)
+                pf_re = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_re, b"GPL", "rd_ent"
+                )
+                if pf_re >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            pf_re, "raw_syscalls", "sys_enter"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            pf_re, "syscalls", "sys_enter_read"
+                        )
+
+                insns_rx = BpfMgr.genVfsReadExitProg(
+                    ts_map_fd, agg_map_fd, _nr_read
+                )
+                pf_rx = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_rx, b"GPL", "rd_ext"
+                )
+                if pf_rx >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            pf_rx, "raw_syscalls", "sys_exit"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            pf_rx, "syscalls", "sys_exit_read"
+                        )
+
+            # write entry/exit
+            if not _only_read:
+                insns_we = BpfMgr.genVfsWriteEntryProg(ts_map_fd, _nr_write)
+                pf_we = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_we, b"GPL", "wr_ent"
+                )
+                if pf_we >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            pf_we, "raw_syscalls", "sys_enter"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            pf_we, "syscalls", "sys_enter_write"
+                        )
+
+                insns_wx = BpfMgr.genVfsWriteExitProg(
+                    ts_map_fd, agg_map_fd, _nr_write
+                )
+                pf_wx = BpfMgr.loadProg(
+                    BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_wx, b"GPL", "wr_ext"
+                )
+                if pf_wx >= 0:
+                    if _use_raw:
+                        BpfMgr.attachTracepoint(
+                            pf_wx, "raw_syscalls", "sys_exit"
+                        )
+                    else:
+                        BpfMgr.attachTracepoint(
+                            pf_wx, "syscalls", "sys_exit_write"
+                        )
+
+            # IOURING: optional io_uring_enter call count/latency tracking,
+            # additive to the READ/WRITE tracking above (opt-in only).
+            _iouring_enable = "IOURING" in SysMgr.environList
+            iou_agg_map_fd = -1
+            if _iouring_enable:
+                try:
+                    # IOURING has its own raw-vs-specific tracepoint decision:
+                    # the generic "syscalls" dir (used for READ/WRITE's
+                    # _use_raw above) can exist while the io_uring_enter
+                    # tracepoint subdirs are still absent, so check them
+                    # directly instead of reusing the shared _use_raw. #
+                    _iou_use_raw = _use_raw or not (
+                        os.path.isdir(
+                            "%s/syscalls/sys_enter_io_uring_enter" % tp_base
+                        )
+                        and os.path.isdir(
+                            "%s/syscalls/sys_exit_io_uring_enter" % tp_base
+                        )
+                    )
+                    _nr_iouring = (
+                        SysMgr.getNrSyscall("io_uring_enter")
+                        if _iou_use_raw
+                        else -1
+                    )
+
+                    iou_ts_map_fd = BpfMgr.createMap(
+                        ConfigMgr.BPF_MAP_HASH_IDX, 8, 8, 65536, "iou_ts"
+                    )
+                    # agg_map: pid_tgid(8) -> {total_ns(8), cnt(8), max_ns(8)}
+                    iou_agg_map_fd = BpfMgr.createMap(
+                        ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 8192, "iou_agg"
+                    )
+                    if iou_ts_map_fd < 0 or iou_agg_map_fd < 0:
+                        raise Exception("failed to create io_uring BPF maps")
+
+                    insns_ioe = BpfMgr.genIoUringEntryProg(
+                        iou_ts_map_fd, _nr_iouring
+                    )
+                    pf_ioe = BpfMgr.loadProg(
+                        BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                        insns_ioe,
+                        b"GPL",
+                        "iou_ent",
+                    )
+                    if pf_ioe >= 0:
+                        if _iou_use_raw:
+                            BpfMgr.attachTracepoint(
+                                pf_ioe, "raw_syscalls", "sys_enter"
+                            )
+                        else:
+                            BpfMgr.attachTracepoint(
+                                pf_ioe, "syscalls", "sys_enter_io_uring_enter"
+                            )
+
+                    insns_iox = BpfMgr.genIoUringExitProg(
+                        iou_ts_map_fd, iou_agg_map_fd, _nr_iouring
+                    )
+                    pf_iox = BpfMgr.loadProg(
+                        BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                        insns_iox,
+                        b"GPL",
+                        "iou_ext",
+                    )
+                    if pf_iox >= 0:
+                        if _iou_use_raw:
+                            BpfMgr.attachTracepoint(
+                                pf_iox, "raw_syscalls", "sys_exit"
+                            )
+                        else:
+                            BpfMgr.attachTracepoint(
+                                pf_iox, "syscalls", "sys_exit_io_uring_enter"
+                            )
+                except SystemExit:
+                    sys.exit(0)
+                except Exception:
+                    SysMgr.printWarn(
+                        "bpfiotop: IOURING tracking unavailable on this kernel, "
+                        "skipping (READ/WRITE tracking unaffected)",
+                        reason=True,
+                    )
+                    _iouring_enable = False
+                    iou_agg_map_fd = -1
+
+            interval, total_time = BpfMgr._computeIntervalParams()
+            elapsed = 0.0
+
+            _dbgObj = BpfMgr._initDbgObj()
+            _comm_cache = {}
+
+            def _get_comm(pid_tgid):
+                tgid = pid_tgid >> 32
+                if tgid not in _comm_cache:
+                    _comm_cache[tgid] = SysMgr.getComm(tgid, default="?")
+                return _comm_cache[tgid]
+
+            twoLine = "=" * SysMgr.lineLength
+            oneLine = "-" * SysMgr.lineLength
+
+            _t_last = time.monotonic()
+            while True:
+                time.sleep(interval)
+                SysMgr.updateUptime()
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
+                _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
+
+                # agg_map val: rd_bytes(8)+wr_bytes(8)+rd_ns(8)+wr_ns(8)+rd_cnt(u32)+wr_cnt(u32)+pad(8)
+                # SHOWFD: key is (tgid, fd); otherwise aggregate per tgid
+                tgid_stats = (
+                    {}
+                )  # {tgid or (tgid,fd): [rd_bytes, wr_bytes, rd_ns, wr_ns, rd_cnt, wr_cnt, comm, fd]}
+                keys_seen = []
+                for _kb in BpfMgr._iterMapKeys(agg_map_fd, 16):
+                    _vb = BpfMgr.mapLookup(agg_map_fd, _kb, 48)
+                    if not _vb:
+                        continue
+                    pid_tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                    tgid = pid_tgid >> 32
+                    _fd = struct.unpack_from("<I", _kb, 8)[0]
+                    rd_bytes, wr_bytes, rd_ns, wr_ns = struct.unpack_from(
+                        "<QQQQ", _vb, 0
+                    )
+                    rd_cnt, wr_cnt = struct.unpack_from("<II", _vb, 32)
+                    comm = _get_comm(pid_tgid)
+                    # -g filter
+                    if (
+                        SysMgr.filterGroup
+                        and not UtilMgr.isValidStr(comm, SysMgr.filterGroup)
+                        and not UtilMgr.isValidStr(
+                            str(tgid), SysMgr.filterGroup
+                        )
+                    ):
+                        keys_seen.append(_kb)
+                        continue
+                    _sk = (tgid, _fd) if _show_fd else tgid
+                    if _sk not in tgid_stats:
+                        tgid_stats[_sk] = [0, 0, 0, 0, 0, 0, comm, _fd]
+                    s = tgid_stats[_sk]
+                    s[0] += rd_bytes
+                    s[1] += wr_bytes
+                    s[2] += rd_ns
+                    s[3] += wr_ns
+                    s[4] += rd_cnt
+                    s[5] += wr_cnt
+                    keys_seen.append(_kb)
+
+                for _kb in keys_seen:
+                    BpfMgr.mapDelete(agg_map_fd, _kb)
+
+                if _show_fd:
+                    entries = [
+                        (k[0], s[6], s[0], s[1], s[2], s[3], s[4], s[5], s[7])
+                        for k, s in tgid_stats.items()
+                    ]
+                else:
+                    entries = [
+                        (k, s[6], s[0], s[1], s[2], s[3], s[4], s[5], s[7])
+                        for k, s in tgid_stats.items()
+                    ]
+                entries.sort(key=lambda x: -(x[2] + x[3]))
+
+                def _get_path(pid, fd_num):
+                    """Resolve fd number to file path via /proc/pid/fd symlink."""
+                    if fd_num < 0:
+                        return ""
+                    try:
+                        return os.readlink("/proc/%d/fd/%d" % (pid, fd_num))
+                    except Exception:
+                        return ""
+
+                if not SysMgr.jsonEnable:
+                    SysMgr.addPrint("[bpfiotop] %s\n" % _sysStatStr)
+                    SysMgr.addPrint(twoLine + "\n")
+                    if entries:
+                        if _show_fd:
+                            SysMgr.addPrint(
+                                "%26s  %6s  %8s  %8s  %8s  %8s  %12s  %12s  %-s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "FD",
+                                    "RD_KB",
+                                    "WR_KB",
+                                    "RD_CNT",
+                                    "WR_CNT",
+                                    "RD_ELAPSED",
+                                    "WR_ELAPSED",
+                                    "FILENAME",
+                                )
+                            )
+                        else:
+                            SysMgr.addPrint(
+                                "%26s  %8s  %8s  %8s  %8s  %12s  %12s  %-s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "RD_KB",
+                                    "WR_KB",
+                                    "RD_CNT",
+                                    "WR_CNT",
+                                    "RD_ELAPSED",
+                                    "WR_ELAPSED",
+                                    "FILENAME",
+                                )
+                            )
+                        SysMgr.addPrint(oneLine + "\n")
+                        _shown_cnt = 0
+                        for (
+                            tgid,
+                            comm,
+                            rd_bytes,
+                            wr_bytes,
+                            rd_ns,
+                            wr_ns,
+                            rd_cnt,
+                            wr_cnt,
+                            fd,
+                        ) in entries:
+                            if _shown_cnt >= 20:
+                                break
+                            proc_str = ("%s(%d)" % (comm[:16], tgid))[:26]
+                            rd_elap_s = rd_ns / 1e9 / rd_cnt if rd_cnt else 0.0
+                            wr_elap_s = wr_ns / 1e9 / wr_cnt if wr_cnt else 0.0
+                            max_elap_ns = int(max(rd_elap_s, wr_elap_s) * 1e9)
+                            if not UtilMgr.checkElapFilter(
+                                max_elap_ns,
+                                _elap_min_ns,
+                                _elap_max_ns,
+                                _elap_eq_ns,
+                            ):
+                                continue
+                            _shown_cnt += 1
+                            rd_elap = "%.6f" % rd_elap_s
+                            wr_elap = "%.6f" % wr_elap_s
+                            _path = _get_path(tgid, fd)
+                            if _show_fd:
+                                SysMgr.addPrint(
+                                    "%26s  %6d  %8s  %8s  %8s  %8s  %12s  %12s  %-s\n"
+                                    % (
+                                        proc_str,
+                                        fd,
+                                        UtilMgr.convSize2Unit(
+                                            rd_bytes // 1024
+                                        ),
+                                        UtilMgr.convSize2Unit(
+                                            wr_bytes // 1024
+                                        ),
+                                        UtilMgr.convNum(rd_cnt),
+                                        UtilMgr.convNum(wr_cnt),
+                                        rd_elap,
+                                        wr_elap,
+                                        _path[:50],
+                                    )
+                                )
+                            else:
+                                SysMgr.addPrint(
+                                    "%26s  %8s  %8s  %8s  %8s  %12s  %12s  %-s\n"
+                                    % (
+                                        proc_str,
+                                        UtilMgr.convSize2Unit(
+                                            rd_bytes // 1024
+                                        ),
+                                        UtilMgr.convSize2Unit(
+                                            wr_bytes // 1024
+                                        ),
+                                        UtilMgr.convNum(rd_cnt),
+                                        UtilMgr.convNum(wr_cnt),
+                                        rd_elap,
+                                        wr_elap,
+                                        _path[:50],
+                                    )
+                                )
+                        if _shown_cnt == 0:
+                            SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                    else:
+                        SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                    SysMgr.addPrint(twoLine + "\n")
+                else:
+                    _jevts = []
+                    for (
+                        tgid,
+                        comm,
+                        rd_bytes,
+                        wr_bytes,
+                        rd_ns,
+                        wr_ns,
+                        rd_cnt,
+                        wr_cnt,
+                        fd,
+                    ) in entries:
+                        rd_elap_s = rd_ns / 1e9 / rd_cnt if rd_cnt else 0.0
+                        wr_elap_s = wr_ns / 1e9 / wr_cnt if wr_cnt else 0.0
+                        max_elap_ns = int(max(rd_elap_s, wr_elap_s) * 1e9)
+                        if not UtilMgr.checkElapFilter(
+                            max_elap_ns,
+                            _elap_min_ns,
+                            _elap_max_ns,
+                            _elap_eq_ns,
+                        ):
+                            continue
+                        _jevts.append(
+                            {
+                                "pid": tgid,
+                                "comm": comm,
+                                "rdBytes": rd_bytes,
+                                "wrBytes": wr_bytes,
+                                "rdCount": rd_cnt,
+                                "wrCount": wr_cnt,
+                                "rdNs": rd_ns,
+                                "wrNs": wr_ns,
+                                **({"fd": fd} if _show_fd else {}),
+                                "filename": _get_path(tgid, fd),
+                            }
+                        )
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            {"time": SysMgr.uptime, "ioStats": _jevts},
+                            gpretty=True,
+                        ),
+                        flush=True,
+                    )
+
+                if _iouring_enable:
+                    _iou_keys = []
+                    iou_entries = []
+                    for _kb in BpfMgr._iterMapKeys(iou_agg_map_fd, 8):
+                        _vb = BpfMgr.mapLookup(iou_agg_map_fd, _kb, 24)
+                        if not _vb:
+                            continue
+                        pid_tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                        tgid = pid_tgid >> 32
+                        total_ns, cnt, max_ns = struct.unpack_from(
+                            "<QQQ", _vb, 0
+                        )
+                        comm = _get_comm(pid_tgid)
+                        if (
+                            SysMgr.filterGroup
+                            and not UtilMgr.isValidStr(
+                                comm, SysMgr.filterGroup
+                            )
+                            and not UtilMgr.isValidStr(
+                                str(tgid), SysMgr.filterGroup
+                            )
+                        ):
+                            _iou_keys.append(_kb)
+                            continue
+                        iou_entries.append((tgid, comm, cnt, total_ns, max_ns))
+                        _iou_keys.append(_kb)
+                    for _kb in _iou_keys:
+                        BpfMgr.mapDelete(iou_agg_map_fd, _kb)
+                    iou_entries.sort(key=lambda x: -x[3])
+
+                    if not SysMgr.jsonEnable:
+                        SysMgr.addPrint(
+                            "[bpfiotop] IOURING %s\n" % _sysStatStr
+                        )
+                        SysMgr.addPrint(oneLine + "\n")
+                        if iou_entries:
+                            SysMgr.addPrint(
+                                "%26s  %10s  %12s  %12s  %13s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "CNT",
+                                    "AVG_ELAPSED",
+                                    "MAX_ELAPSED",
+                                    "TOTAL_ELAPSED",
+                                )
+                            )
+                            SysMgr.addPrint(oneLine + "\n")
+                            for (
+                                tgid,
+                                comm,
+                                cnt,
+                                total_ns,
+                                max_ns,
+                            ) in iou_entries[:20]:
+                                avg_elap_s = (
+                                    total_ns / 1e9 / cnt if cnt else 0.0
+                                )
+                                proc_str = ("%s(%d)" % (comm[:16], tgid))[:26]
+                                SysMgr.addPrint(
+                                    "%26s  %10s  %12.6f  %12.6f  %13.6f\n"
+                                    % (
+                                        proc_str,
+                                        UtilMgr.convNum(cnt),
+                                        avg_elap_s,
+                                        max_ns / 1e9,
+                                        total_ns / 1e9,
+                                    )
+                                )
+                        else:
+                            SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                        SysMgr.addPrint(twoLine + "\n")
+                    else:
+                        _iou_jevts = [
+                            {
+                                "pid": tgid,
+                                "comm": comm,
+                                "count": cnt,
+                                "totalNs": total_ns,
+                                "maxNs": max_ns,
+                            }
+                            for tgid, comm, cnt, total_ns, max_ns in iou_entries
+                        ]
+                        SysMgr.printPipe(
+                            UtilMgr.convDict2Str(
+                                {
+                                    "time": SysMgr.uptime,
+                                    "ioUringStats": _iou_jevts,
+                                },
+                                gpretty=True,
+                            ),
+                            flush=True,
+                        )
+
+                BpfMgr._flushBuf()
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfiotop failed", reason=True)
+        finally:
+            if SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doUdptopCmd():
+        """bpfudptop: monitor per-process UDP traffic (send/recv bytes) via eBPF."""
+        try:
+            BpfMgr.checkAvailable()
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base:
+                SysMgr.printErr("bpfudptop: tracepoints not available")
+                sys.exit(-1)
+            _use_raw = not os.path.isdir("%s/syscalls" % tp_base)
+            if _use_raw and not os.path.isdir("%s/raw_syscalls" % tp_base):
+                SysMgr.printErr(
+                    "bpfudptop: neither syscalls nor raw_syscalls tracepoints available"
+                )
+                sys.exit(-1)
+            _nr_sendto = SysMgr.getNrSyscall("sendto") if _use_raw else -1
+            _nr_recvfrom = SysMgr.getNrSyscall("recvfrom") if _use_raw else -1
+            _show_port = "SHOWPORT" in SysMgr.environList
+            _dns_only = (
+                "DNS" in SysMgr.environList or "DNSONLY" in SysMgr.environList
+            )
+            _no_dns = "NODNS" in SysMgr.environList
+
+            # ts_map: pid_tgid → {ktime(8)+len(u32)+sockfd(u32)+dir(u32)+dport(u32)}
+            ts_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 65536, "udp_ts"
+            )
+            # agg_map: {pid_tgid(8)+sockfd(u32)+dir(u32)} → 40B UDP stats (incl. dport)
+            agg_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 16, 40, 8192, "udp_agg"
+            )
+            if ts_map_fd < 0 or agg_map_fd < 0:
+                sys.exit(-1)
+
+            # sendto entry/exit
+            insns_se = BpfMgr.genUdpSendEntryProg(ts_map_fd, _nr_sendto)
+            pf_se = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_se, b"GPL", "snd_ent"
+            )
+            if pf_se >= 0:
+                if _use_raw:
+                    BpfMgr.attachTracepoint(pf_se, "raw_syscalls", "sys_enter")
+                else:
+                    BpfMgr.attachTracepoint(
+                        pf_se, "syscalls", "sys_enter_sendto"
+                    )
+
+            insns_sx = BpfMgr.genUdpSendExitProg(
+                ts_map_fd, agg_map_fd, _nr_sendto
+            )
+            pf_sx = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_sx, b"GPL", "snd_ext"
+            )
+            if pf_sx >= 0:
+                if _use_raw:
+                    BpfMgr.attachTracepoint(pf_sx, "raw_syscalls", "sys_exit")
+                else:
+                    BpfMgr.attachTracepoint(
+                        pf_sx, "syscalls", "sys_exit_sendto"
+                    )
+
+            # recvfrom entry/exit
+            insns_re = BpfMgr.genUdpRecvEntryProg(ts_map_fd, _nr_recvfrom)
+            pf_re = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_re, b"GPL", "rcv_ent"
+            )
+            if pf_re >= 0:
+                if _use_raw:
+                    BpfMgr.attachTracepoint(pf_re, "raw_syscalls", "sys_enter")
+                else:
+                    BpfMgr.attachTracepoint(
+                        pf_re, "syscalls", "sys_enter_recvfrom"
+                    )
+
+            insns_rx = BpfMgr.genUdpRecvExitProg(
+                ts_map_fd, agg_map_fd, _nr_recvfrom
+            )
+            pf_rx = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns_rx, b"GPL", "rcv_ext"
+            )
+            if pf_rx >= 0:
+                if _use_raw:
+                    BpfMgr.attachTracepoint(pf_rx, "raw_syscalls", "sys_exit")
+                else:
+                    BpfMgr.attachTracepoint(
+                        pf_rx, "syscalls", "sys_exit_recvfrom"
+                    )
+
+            interval, total_time = BpfMgr._computeIntervalParams()
+            elapsed = 0.0
+
+            _dbgObj = BpfMgr._initDbgObj()
+            _comm_cache = {}
+
+            def _get_comm(pid_tgid):
+                tgid = pid_tgid >> 32
+                if tgid not in _comm_cache:
+                    _comm_cache[tgid] = SysMgr.getComm(tgid, default="?")
+                return _comm_cache[tgid]
+
+            twoLine = "=" * SysMgr.lineLength
+
+            SysMgr.printInfo(
+                "bpfudptop: monitoring UDP traffic (interval=%ds)" % interval
+            )
+
+            _t_last = time.monotonic()
+            while True:
+                time.sleep(interval)
+                SysMgr.updateUptime()
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
+                _sysStatStr = SysMgr.getStatVars(_dbgObj, _actual)[-1]
+
+                # agg_map val: tx_bytes(8)+rx_bytes(8)+tx_pkts(u32)+rx_pkts(u32)+tx_ns(8)+dport(u32)+pad(u32)
+                # NOTE: key by (tgid, sockfd), NOT tgid alone — a single process can
+                # own multiple UDP sockets (e.g. one DNS socket + one data socket),
+                # and merging them under one tgid row would pick an arbitrary sockfd
+                # for DNS/NODNS classification while summing bytes across sockets.
+                # dir=0(tx)/dir=1(rx) entries for the SAME sockfd are still merged.
+                # dport is captured in-kernel at sendto() entry (see genUdpSendEntryProg)
+                # rather than derived from /proc/net/udp's rem_address, because that
+                # column is only populated for connect()'d sockets and stays 0.0.0.0:0
+                # for plain sendto()-only sockets (e.g. typical DNS query sockets).
+                sock_stats = (
+                    {}
+                )  # {(tgid, sockfd): [tx_bytes, rx_bytes, tx_pkts, rx_pkts, tx_ns, comm, dport]}
+                keys_seen = []
+                for _kb in BpfMgr._iterMapKeys(agg_map_fd, 16):
+                    _vb = BpfMgr.mapLookup(agg_map_fd, _kb, 40)
+                    if not _vb:
+                        continue
+                    pid_tgid = struct.unpack_from("<Q", _kb, 0)[0]
+                    tgid = pid_tgid >> 32
+                    _sockfd = struct.unpack_from("<I", _kb, 8)[0]
+                    tx_bytes, rx_bytes = struct.unpack_from("<QQ", _vb, 0)
+                    tx_pkts, rx_pkts = struct.unpack_from("<II", _vb, 16)
+                    tx_ns = struct.unpack_from("<Q", _vb, 24)[0]
+                    dport = struct.unpack_from("<I", _vb, 32)[0]
+                    comm = _get_comm(pid_tgid)
+                    _skey = (tgid, _sockfd)
+                    if _skey not in sock_stats:
+                        sock_stats[_skey] = [0, 0, 0, 0, 0, comm, 0]
+                    s = sock_stats[_skey]
+                    s[0] += tx_bytes
+                    s[1] += rx_bytes
+                    s[2] += tx_pkts
+                    s[3] += rx_pkts
+                    s[4] += tx_ns
+                    if dport:
+                        s[6] = dport
+                    keys_seen.append(_kb)
+
+                for _kb in keys_seen:
+                    BpfMgr.mapDelete(agg_map_fd, _kb)
+
+                # resolve sockfd → inode → /proc/net/udp entry (LPORT display only;
+                # remote/DNS classification uses the BPF-captured dport above, since
+                # /proc/net/udp's rem_address is only populated for connect()'d sockets)
+                def _get_udp_ports(pid, sockfd):
+                    """Return (local_port, remote_port) from /proc/net/udp[6], 0 on fail."""
+                    try:
+                        _ino = 0
+                        with open("/proc/%d/fdinfo/%d" % (pid, sockfd)) as _f:
+                            for _ln in _f:
+                                if "ino:" in _ln:
+                                    _ino = int(_ln.split()[-1])
+                                    break
+                        if not _ino:
+                            return 0, 0
+                        for _udpf in ("/proc/net/udp", "/proc/net/udp6"):
+                            try:
+                                with open(_udpf) as _uf:
+                                    next(_uf)
+                                    for _ul in _uf:
+                                        _parts = _ul.split()
+                                        if (
+                                            len(_parts) > 9
+                                            and int(_parts[9]) == _ino
+                                        ):
+                                            _lport = int(
+                                                _parts[1].split(":")[1], 16
+                                            )
+                                            _rport = int(
+                                                _parts[2].split(":")[1], 16
+                                            )
+                                            return _lport, _rport
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    return 0, 0
+
+                entries = [
+                    (tgid, s[5], s[0], s[1], s[2], s[3], s[4], sockfd, s[6])
+                    for (tgid, sockfd), s in sock_stats.items()
+                ]
+                entries.sort(key=lambda x: -(x[2] + x[3]))
+
+                if not SysMgr.jsonEnable:
+                    SysMgr.addPrint("[bpfudptop] %s\n" % _sysStatStr)
+                    SysMgr.addPrint(twoLine + "\n")
+                    if entries:
+                        _flt = SysMgr.filterGroup
+                        _shown = [
+                            e
+                            for e in entries
+                            if (
+                                not _flt
+                                or UtilMgr.isValidStr(e[1], _flt)
+                                or UtilMgr.isValidStr(str(e[0]), _flt)
+                            )
+                        ]
+                        # DNS / NODNS filter: use dport captured in-kernel at sendto()
+                        # entry (see genUdpSendEntryProg) — /proc/net/udp's rem_address
+                        # is only populated for connect()'d sockets, so it cannot be
+                        # used here for plain sendto()-only sockets (e.g. DNS queries)
+                        if _dns_only or _no_dns:
+                            _dns_shown = []
+                            for _e in _shown:
+                                _is_dns = _e[8] == 53
+                                if _dns_only and not _is_dns:
+                                    continue
+                                if _no_dns and _is_dns:
+                                    continue
+                                _dns_shown.append(_e)
+                            _shown = _dns_shown
+                        if _show_port:
+                            SysMgr.addPrint(
+                                "%26s  %8s  %10s  %10s  %8s  %8s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "LPORT",
+                                    "TX_KB",
+                                    "RX_KB",
+                                    "TX_CNT",
+                                    "RX_CNT",
+                                )
+                            )
+                        else:
+                            SysMgr.addPrint(
+                                "%26s  %10s  %10s  %8s  %8s\n"
+                                % (
+                                    "PROCESS(PID)",
+                                    "TX_KB",
+                                    "RX_KB",
+                                    "TX_CNT",
+                                    "RX_CNT",
+                                )
+                            )
+                        SysMgr.addPrint(oneLine + "\n")
+                        for (
+                            tgid,
+                            comm,
+                            tx_bytes,
+                            rx_bytes,
+                            tx_pkts,
+                            rx_pkts,
+                            tx_ns,
+                            sockfd,
+                            _dp,
+                        ) in _shown[:20]:
+                            if _show_port:
+                                _lport, _rport = _get_udp_ports(tgid, sockfd)
+                                SysMgr.addPrint(
+                                    "%26s  %8s  %10s  %10s  %8s  %8s\n"
+                                    % (
+                                        ("%s(%d)" % (comm[:16], tgid))[:26],
+                                        str(_lport) if _lport else "-",
+                                        UtilMgr.convSize2Unit(
+                                            tx_bytes // 1024
+                                        ),
+                                        UtilMgr.convSize2Unit(
+                                            rx_bytes // 1024
+                                        ),
+                                        UtilMgr.convNum(tx_pkts),
+                                        UtilMgr.convNum(rx_pkts),
+                                    )
+                                )
+                            else:
+                                SysMgr.addPrint(
+                                    "%26s  %10s  %10s  %8s  %8s\n"
+                                    % (
+                                        ("%s(%d)" % (comm[:16], tgid))[:26],
+                                        UtilMgr.convSize2Unit(
+                                            tx_bytes // 1024
+                                        ),
+                                        UtilMgr.convSize2Unit(
+                                            rx_bytes // 1024
+                                        ),
+                                        UtilMgr.convNum(tx_pkts),
+                                        UtilMgr.convNum(rx_pkts),
+                                    )
+                                )
+                    else:
+                        SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+                    SysMgr.addPrint(twoLine + "\n")
+                else:
+                    _jevts = [
+                        {
+                            "pid": tgid,
+                            "comm": comm,
+                            "txBytes": tx_bytes,
+                            "rxBytes": rx_bytes,
+                            "txPkts": tx_pkts,
+                            "rxPkts": rx_pkts,
+                            "dport": _dp,
+                            "isDns": (_dp == 53),
+                        }
+                        for tgid, comm, tx_bytes, rx_bytes, tx_pkts, rx_pkts, _tx_ns, _sf, _dp in entries
+                    ]
+                    SysMgr.printPipe(
+                        UtilMgr.convDict2Str(
+                            {"time": SysMgr.uptime, "udpStats": _jevts},
+                            gpretty=True,
+                        ),
+                        flush=True,
+                    )
+
+                BpfMgr._flushBuf()
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfudptop failed", reason=True)
+        finally:
+            if SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+            BpfMgr.detachAll()
+
+    @staticmethod
+    def doUdpsnoopCmd():
+        """bpfudpsnoop: stream UDP sendto events via perf ring buffer (DNS-aware)."""
+        perf_fds = []
+        mmap_bufs = []
+        try:
+            BpfMgr.checkAvailable()
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base:
+                SysMgr.printErr("bpfudpsnoop: tracepoints not available")
+                sys.exit(-1)
+            _use_raw = not os.path.isdir("%s/syscalls" % tp_base)
+            if _use_raw and not os.path.isdir("%s/raw_syscalls" % tp_base):
+                SysMgr.printErr(
+                    "bpfudpsnoop: neither syscalls nor raw_syscalls tracepoints available"
+                )
+                sys.exit(-1)
+            _nr_sendto = SysMgr.getNrSyscall("sendto") if _use_raw else -1
+
+            cpu_list = BpfMgr._getOnlineCpus()
+            max_cpu = max(cpu_list) + 1
+            perf_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_PERF_EVENT_IDX, 4, 4, max_cpu, "udp_perf"
+            )
+            if perf_map_fd < 0:
+                sys.exit(-1)
+
+            insns = BpfMgr.genUdpDnsSnoopProg(perf_map_fd, max_cpu, _nr_sendto)
+            prog_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, insns, b"GPL", "udp_snoop"
+            )
+            if prog_fd < 0:
+                sys.exit(-1)
+
+            if _use_raw:
+                BpfMgr.attachTracepoint(prog_fd, "raw_syscalls", "sys_enter")
+            else:
+                BpfMgr.attachTracepoint(
+                    prog_fd, "syscalls", "sys_enter_sendto"
+                )
+
+            perf_fds, mmap_bufs = BpfMgr._setupPerfRingBuffers(
+                cpu_list, perf_map_fd, warn_on_fail=False
+            )
+
+            if not perf_fds:
+                SysMgr.printErr("bpfudpsnoop: failed to open perf events")
+                sys.exit(-1)
+
+            total_secs = int(SysMgr.repeatInterval or 0)
+            start_time = time.time()
+            _dns_only = (
+                "DNSONLY" in SysMgr.environList or "DNS" in SysMgr.environList
+            )
+            _no_dns = "NODNS" in SysMgr.environList
+
+            if not SysMgr.outPath:
+                SysMgr.setStream()
+
+            twoLine = "=" * SysMgr.lineLength
+            oneLine = "-" * SysMgr.lineLength
+            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe(
+                "%-15s  %26s  %8s  %6s  %6s  %-s"
+                % ("TIME", "PROCESS(PID)", "LEN", "DPORT", "SOCKFD", "DNS")
+            )
+            SysMgr.printPipe(oneLine)
+
+            PERF_RECORD_SAMPLE = 9
+
+            def _decode_dns_qname(dns_buf):
+                """Decode DNS qname from query section starting at byte 12."""
+                try:
+                    if len(dns_buf) < 13:
+                        return ""
+                    pos = 12
+                    labels = []
+                    while pos < len(dns_buf):
+                        length = dns_buf[pos]
+                        if length == 0:
+                            break
+                        if length > 63:
+                            break
+                        pos += 1
+                        if pos + length > len(dns_buf):
+                            if labels:
+                                labels.append("[...]")
+                            break
+                        labels.append(
+                            dns_buf[pos : pos + length].decode(
+                                "ascii", errors="replace"
+                            )
+                        )
+                        pos += length
+                    return ".".join(labels)
+                except Exception:
+                    return ""
+
+            def drain_one(buf_addr, pg_sz, data_sz):
+                for (
+                    rec_type,
+                    raw,
+                    raw_size,
+                    body,
+                ) in BpfMgr._iterRingBufferRecords(buf_addr, pg_sz, data_sz):
+                    if rec_type != PERF_RECORD_SAMPLE or raw_size < 64:
+                        continue
+                    try:
+                        # Payload layout (96B extended):
+                        #   [0..7]  pid_tgid, [8..23] comm, [24..27] len,
+                        #   [28..31] sockfd, [32..39] ktime,
+                        #   [40..41] dest_port (big-endian sin_port),
+                        #   [48..95] dns_buf (48B UDP payload)
+                        pid_tgid = struct.unpack_from("<Q", raw, 0)[0]
+                        comm_raw = raw[8:24]
+                        udp_len = struct.unpack_from("<I", raw, 24)[0]
+                        sockfd = struct.unpack_from("<I", raw, 28)[0]
+                        tgid = pid_tgid >> 32
+                        comm = comm_raw.rstrip(b"\x00").decode(
+                            "utf-8", errors="replace"
+                        )
+                        # dest_port: big-endian u16 at offset 40
+                        dest_port = 0
+                        if raw_size >= 42:
+                            dest_port = struct.unpack_from(">H", raw, 40)[0]
+                        # DNS qname from payload at offset 48
+                        dns_name = ""
+                        if dest_port == 53 and raw_size >= 96:
+                            dns_name = _decode_dns_qname(raw[48:96])
+                        # apply DNS filters
+                        if _dns_only and dest_port != 53:
+                            continue
+                        if _no_dns and dest_port == 53:
+                            continue
+                        ts = BpfMgr.makeGetTs()()
+                        proc_str = "%s(%d)" % (comm, tgid)
+                        dport_str = str(dest_port) if dest_port else "-"
+                        line = "%-15s  %26s  %8s  %6s  %6d  %-s" % (
+                            ts,
+                            proc_str,
+                            UtilMgr.convSize2Unit(udp_len),
+                            dport_str,
+                            sockfd,
+                            dns_name,
+                        )
+                        SysMgr.printPipe(line, flush=True)
+                    except Exception:
+                        pass
+
+            sel_mod = SysMgr.getPkg("select")
+            SysMgr.printInfo(
+                "bpfudpsnoop: snooping UDP sendto calls (Ctrl-C to stop)"
+            )
+            while True:
+                try:
+                    sel_mod.select(perf_fds, [], [], 0.2)
+                except (KeyboardInterrupt, OSError):
+                    break
+                if total_secs > 0 and (time.time() - start_time) >= total_secs:
+                    break
+                for buf_info in mmap_bufs:
+                    drain_one(*buf_info)
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            SysMgr.printErr("bpfudpsnoop failed", reason=True)
+        finally:
+            for fd in perf_fds:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
             BpfMgr.detachAll()
 
 
@@ -159357,8 +164454,10 @@ class DbusMgr(object):
                 _getDefaultTasks("dbus-daemon")
                 + _getDefaultTasks("dbus-broker")
             ):
-                SysMgr.printErr("failed to find D-Bus daemon")
-                if not SysMgr.forceEnable:
+                if SysMgr.forceEnable:
+                    SysMgr.printWarn("failed to find D-Bus daemon", True)
+                else:
+                    SysMgr.printErr("failed to find D-Bus daemon")
                     sys.exit(-1)
         else:
             # remove redundant tasks #
@@ -162988,10 +168087,14 @@ typedef struct {
 
                         # get reference address #
                         linkAddr = dobj.readWord(slotAddr)
-                        if not isinstance(linkAddr, (int, long)):
+                        if linkAddr is None:
+                            continue
+                        elif not isinstance(linkAddr, (int, long)):
                             linkAddr = UtilMgr.convWord2Str(
                                 linkAddr, dobj.wordSize
                             )
+                            if linkAddr is None:
+                                continue
 
                         # get dereference address #
                         if fcache.isInPlt(linkAddr):
@@ -166053,10 +171156,14 @@ typedef struct {
                     sys.exit(-1)
 
             # no symbol #
-            SysMgr.printErr("failed to find address for symbol '%s'" % value)
-
-            # quit #
-            if not SysMgr.forceEnable:
+            if SysMgr.forceEnable:
+                SysMgr.printWarn(
+                    "failed to find address for symbol '%s'" % value, True
+                )
+            else:
+                SysMgr.printErr(
+                    "failed to find address for symbol '%s'" % value
+                )
                 sys.exit(-1)
 
             return addrList, cmdList
@@ -170065,7 +175172,16 @@ typedef struct {
                 )
 
             # get start keyword #
-            if line.startswith(("[Top ", "[Trace ", "[Fperf ", "[Call ")):
+            if (
+                context
+                and line.startswith("[")
+                and not line.startswith(
+                    ("[Top ", "[Trace ", "[Fperf ", "[Call ")
+                )
+            ):
+                # a different section (e.g. Detailed Statistics) started #
+                return samples, title
+            elif line.startswith(("[Top ", "[Trace ", "[Fperf ", "[Call ")):
                 if " Summary]" not in line or context:
                     return samples, title
 
@@ -174208,6 +179324,21 @@ typedef struct {
         except:
             retstr = ""
 
+        if SysMgr.jsonEnable:
+            jsonData = {
+                "type": "exit",
+                "time": self.current,
+                "timediff": self.vdiff,
+                "pid": self.pid,
+                "comm": self.comm,
+                "retcode": ret,
+                "retstr": retstr.strip("()"),
+            }
+            SysMgr.printPipe(
+                str(UtilMgr.convDict2Str(jsonData, pretty=self.pretty))
+            )
+            return
+
         exitStr = "\n" + UtilMgr.convColor(
             "+++ exited %s with %s%s [%.6f] +++"
             % (tinfo, ret, retstr, self.vdiff),
@@ -174373,9 +179504,25 @@ typedef struct {
             sys.exit(-1)
 
         # print context #
-        if isSigMode and SysMgr.outPath:
+        if isSigMode and (SysMgr.outPath or SysMgr.jsonEnable):
             self.callList.append([name, self.current, str(sig)])
-            if SysMgr.streamEnable:
+
+            if SysMgr.jsonEnable:
+                jsonData = {
+                    "type": "signal",
+                    "time": self.current,
+                    "timediff": diff,
+                    "tid": self.pid,
+                    "comm": self.comm,
+                    "signal": name,
+                    "signum": sig,
+                    "alive": isAlive,
+                    "info": callItems,
+                }
+                SysMgr.printPipe(
+                    str(UtilMgr.convDict2Str(jsonData, pretty=self.pretty))
+                )
+            elif SysMgr.streamEnable:
                 print(callString)
         else:
             if warn:
@@ -179330,6 +184477,85 @@ typedef struct {
         )
 
     @staticmethod
+    def _buildMtraceLeakSummary(instance):
+        mtraceTotal = 0
+        mtraceHistory = []
+        mtraceStackMap = {}
+
+        if not instance.tgid:
+            try:
+                instance.tgid = long(SysMgr.getTgid(instance.pid))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+        srcPath = "%s/%s/maps" % (SysMgr.procPath, instance.tgid)
+        desPath = "%s/maps.%s" % (SysMgr.tmpPath, instance.tgid)
+        if os.path.exists(srcPath):
+            amap = TaskAnalyzer.getProcAnonMap(
+                instance.tgid, onlyStart=True, total=True
+            )
+            SysMgr.copyFile(srcPath, desPath)
+        elif os.path.exists(desPath):
+            amap = TaskAnalyzer.getProcAnonMap(
+                instance.tgid, onlyStart=True, fpath=desPath, total=True
+            )
+        else:
+            raise Exception("no process map")
+
+        sortedList = sorted(list(amap))
+        onlyRes = "ONLYRES" in SysMgr.environList
+
+        for addr in list(instance.mmapList):
+            addrList = []
+            for maddr in sortedList:
+                if amap[maddr]["size"] == 0:
+                    continue
+                offset = instance.mmapList[addr]["size"]
+                moffset = amap[maddr]["size"] << 10
+                mtotal = amap[maddr]["total"] << 10
+                if maddr > addr + offset:
+                    break
+                elif onlyRes:
+                    if addr <= maddr < maddr + moffset < addr + offset:
+                        addrList.append([maddr, moffset >> 10])
+                else:
+                    if maddr <= addr < addr + offset <= maddr + mtotal:
+                        addrList.append([addr, offset >> 10])
+                    elif addr <= maddr < maddr + mtotal <= addr + offset:
+                        addrList.append([maddr, mtotal >> 10])
+                    elif addr <= maddr < addr + offset <= maddr + mtotal:
+                        addrList.append([maddr, (addr + offset - maddr) >> 10])
+            if not addrList:
+                instance.mmapList.pop(addr, None)
+                continue
+
+            data = instance.mmapList[addr]
+            data["size"] = 0
+            for haddr, size in addrList:
+                data["size"] += size
+                stack = data["stack"] or ""
+                stack = " <- ".join(
+                    UtilMgr.cleanItem(
+                        list(map(str.strip, stack.split("<-"))), False
+                    )
+                )
+                instance.mmapList[addr]["stack"] = stack
+
+        for k, v in instance.mmapList.items():
+            msize = v["size"] << 10
+            mtraceTotal += msize
+            mstack = v["stack"]
+            if mstack not in mtraceStackMap:
+                mtraceStackMap[mstack] = mstack
+            mtraceHistory.append(
+                [v["time"], hex(k), msize, mtraceStackMap[mstack]]
+            )
+
+        return mtraceTotal, mtraceHistory
+
+    @staticmethod
     def printSummary(instance, nrTasks=0, sysResStr=""):
         def _printSystemStat():
             # save system info #
@@ -179375,6 +184601,47 @@ typedef struct {
                 )
         except:
             pass
+
+        # dump mtrace leak summary as JSON #
+        if (
+            SysMgr.jsonEnable
+            and SysMgr.outPath
+            and instance.mode == "syscall"
+            and instance.isMtraceMode
+        ):
+            try:
+                mtraceTotal, mtraceHistory = Debugger._buildMtraceLeakSummary(
+                    instance
+                )
+                jsonData = {
+                    "type": "mtrace",
+                    "comm": instance.comm,
+                    "pid": instance.pid,
+                    "start": instance.start,
+                    "total": mtraceTotal,
+                    "count": len(mtraceHistory),
+                    "history": [
+                        {
+                            "time": item[0],
+                            "addr": item[1],
+                            "size": item[2],
+                            "stack": item[3],
+                        }
+                        for item in mtraceHistory
+                    ],
+                }
+                SysMgr.printPipe(
+                    str(
+                        UtilMgr.convDict2Str(
+                            jsonData, pretty=not SysMgr.findOption("Q")
+                        )
+                    )
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+            return
 
         # check realtime mode #
         if not SysMgr.outPath or SysMgr.jsonEnable:
@@ -185159,82 +190426,6 @@ class ElfAnalyzer(object):
         "DW_AT_APPLE_property": 0x3FED,
     }
     DW_AT_MAP = {v: k for k, v in DW_AT.items()}
-
-    DW_LANG = {
-        "DW_LANG_C89": 0x0001,
-        "DW_LANG_C": 0x0002,
-        "DW_LANG_Ada83": 0x0003,
-        "DW_LANG_C_plus_plus": 0x0004,
-        "DW_LANG_Cobol74": 0x0005,
-        "DW_LANG_Cobol85": 0x0006,
-        "DW_LANG_Fortran77": 0x0007,
-        "DW_LANG_Fortran90": 0x0008,
-        "DW_LANG_Pascal83": 0x0009,
-        "DW_LANG_Modula2": 0x000A,
-        "DW_LANG_Java": 0x000B,
-        "DW_LANG_C99": 0x000C,
-        "DW_LANG_Ada95": 0x000D,
-        "DW_LANG_Fortran95": 0x000E,
-        "DW_LANG_PLI": 0x000F,
-        "DW_LANG_ObjC": 0x0010,
-        "DW_LANG_ObjC_plus_plus": 0x0011,
-        "DW_LANG_UPC": 0x0012,
-        "DW_LANG_D": 0x0013,
-        "DW_LANG_Python": 0x0014,
-        "DW_LANG_OpenCL": 0x0015,
-        "DW_LANG_Go": 0x0016,
-        "DW_LANG_Modula3": 0x0017,
-        "DW_LANG_Haskell": 0x0018,
-        "DW_LANG_C_plus_plus_03": 0x0019,
-        "DW_LANG_C_plus_plus_11": 0x001A,
-        "DW_LANG_OCaml": 0x001B,
-        "DW_LANG_Rust": 0x001C,
-        "DW_LANG_C11": 0x001D,
-        "DW_LANG_Swift": 0x001E,
-        "DW_LANG_Julia": 0x001F,
-        "DW_LANG_Dylan": 0x0020,
-        "DW_LANG_C_plus_plus_14": 0x0021,
-        "DW_LANG_Fortran03": 0x0022,
-        "DW_LANG_Fortran08": 0x0023,
-        "DW_LANG_RenderScript": 0x0024,
-        "DW_LANG_BLISS": 0x0025,
-        # Post-DWARF5 (DWARF WG registry, GCC 13+/LLVM 17+ confirmed)
-        "DW_LANG_Kotlin": 0x0026,
-        "DW_LANG_Zig": 0x0027,
-        "DW_LANG_Crystal": 0x0028,
-        "DW_LANG_C_plus_plus_17": 0x0029,
-        "DW_LANG_C_plus_plus_20": 0x002A,
-        "DW_LANG_C17": 0x002B,
-        "DW_LANG_Fortran18": 0x002C,
-        "DW_LANG_Ada2005": 0x002D,
-        "DW_LANG_Ada2012": 0x002E,
-        "DW_LANG_HIP": 0x002F,
-        "DW_LANG_Assembly": 0x0030,
-        "DW_LANG_C_sharp": 0x0031,
-        "DW_LANG_Mojo": 0x0032,
-        "DW_LANG_GLSL": 0x0033,
-        "DW_LANG_GLSL_ES": 0x0034,
-        "DW_LANG_HLSL": 0x0035,
-        "DW_LANG_OpenCL_C": 0x0036,
-        "DW_LANG_CPP_for_OpenCL": 0x0037,
-        "DW_LANG_SYCL": 0x0038,
-        "DW_LANG_C_plus_plus_23": 0x0039,
-        "DW_LANG_Odin": 0x003A,
-        "DW_LANG_P4": 0x003B,
-        "DW_LANG_Metal": 0x003C,
-        "DW_LANG_Nim": 0x003D,
-        "DW_LANG_V": 0x003E,
-        "DW_LANG_Mips_Assembler": 0x8001,
-        "DW_LANG_Upc": 0x8765,
-        "DW_LANG_HP_Bliss": 0x8003,
-        "DW_LANG_HP_Basic91": 0x8004,
-        "DW_LANG_HP_Pascal91": 0x8005,
-        "DW_LANG_HP_IMacro": 0x8006,
-        "DW_LANG_HP_Assembler": 0x8007,
-        "DW_LANG_GOOGLE_RenderScript": 0x8E57,
-        "DW_LANG_BORLAND_Delphi": 0xB000,
-    }
-    DW_LANG_MAP = {v: k for k, v in DW_LANG.items()}
 
     DW_LNCT = {
         "DW_LNCT_path": 0x1,
@@ -197598,10 +202789,7 @@ class TaskAnalyzer(object):
         self.reclaimFds(nrReq=0)
 
     def runIrqTop(self):
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         # run loop #
         while 1:
@@ -197614,15 +202802,12 @@ class TaskAnalyzer(object):
             # save irqs #
             self.saveIrqs(full=True)
             if self.prevIrqData:
-                if _samp_cond:
-                    _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                        _samp_cond,
-                        _samp_idle,
-                        _samp_nr_cores,
-                        SysMgr.intervalEnable,
-                    )
-                else:
-                    _cond_met = True
+                _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                    _samp_cond,
+                    _samp_idle,
+                    _samp_nr_cores,
+                    SysMgr.intervalEnable,
+                )
                 if _cond_met:
                     self.printIrqs()
 
@@ -197640,10 +202825,7 @@ class TaskAnalyzer(object):
                 time.sleep(waitTime)
 
     def runVmallocTop(self):
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         # run loop #
         while 1:
@@ -197653,15 +202835,9 @@ class TaskAnalyzer(object):
             # check repeat count #
             SysMgr.checkProgress()
 
-            if _samp_cond:
-                _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                    _samp_cond,
-                    _samp_idle,
-                    _samp_nr_cores,
-                    SysMgr.intervalEnable,
-                )
-            else:
-                _cond_met = True
+            _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                _samp_cond, _samp_idle, _samp_nr_cores, SysMgr.intervalEnable
+            )
 
             # print vmalloc info #
             if _cond_met:
@@ -197678,10 +202854,7 @@ class TaskAnalyzer(object):
                 time.sleep(waitTime)
 
     def runSlabTop(self):
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         # run loop #
         while 1:
@@ -197691,15 +202864,9 @@ class TaskAnalyzer(object):
             # check repeat count #
             SysMgr.checkProgress()
 
-            if _samp_cond:
-                _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                    _samp_cond,
-                    _samp_idle,
-                    _samp_nr_cores,
-                    SysMgr.intervalEnable,
-                )
-            else:
-                _cond_met = True
+            _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                _samp_cond, _samp_idle, _samp_nr_cores, SysMgr.intervalEnable
+            )
 
             # print slab info #
             if _cond_met:
@@ -197740,10 +202907,7 @@ class TaskAnalyzer(object):
         # get reset flag #
         reset = "RESET" in SysMgr.environList
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         while 1:
             # save timestamp #
@@ -197763,15 +202927,12 @@ class TaskAnalyzer(object):
                 SysMgr.gfxData = stats
 
             if SysMgr.prevGfxData:
-                if _samp_cond:
-                    _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                        _samp_cond,
-                        _samp_idle,
-                        _samp_nr_cores,
-                        SysMgr.intervalEnable,
-                    )
-                else:
-                    _cond_met = True
+                _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                    _samp_cond,
+                    _samp_idle,
+                    _samp_nr_cores,
+                    SysMgr.intervalEnable,
+                )
                 if _cond_met:
                     diff = AndroidMgr.diffGfxStats(
                         SysMgr.prevGfxData, SysMgr.gfxData
@@ -197811,10 +202972,7 @@ class TaskAnalyzer(object):
 
         prevOomKillCnt = -1
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         while 1:
             prevTime = time.time()
@@ -197943,15 +203101,9 @@ class TaskAnalyzer(object):
             procList.sort(key=lambda x: x[0], reverse=True)
 
             oomDispList = procList if SysMgr.showAll else procList[:20]
-            if _samp_cond:
-                _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                    _samp_cond,
-                    _samp_idle,
-                    _samp_nr_cores,
-                    SysMgr.intervalEnable,
-                )
-            else:
-                _cond_met = True
+            _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                _samp_cond, _samp_idle, _samp_nr_cores, SysMgr.intervalEnable
+            )
             if not _cond_met:
                 SysMgr.checkProgress()
                 SysMgr.runProfCmd("AFTER")
@@ -198091,10 +203243,7 @@ class TaskAnalyzer(object):
             elif SysMgr.hasMainArg():
                 swapout_target = SysMgr.getMainArg()
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         while 1:
             prevTime = time.time()
@@ -198256,15 +203405,9 @@ class TaskAnalyzer(object):
             procList.sort(key=lambda x: x[0], reverse=True)
 
             dispList = procList if SysMgr.showAll else procList[:20]
-            if _samp_cond:
-                _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                    _samp_cond,
-                    _samp_idle,
-                    _samp_nr_cores,
-                    SysMgr.intervalEnable,
-                )
-            else:
-                _cond_met = True
+            _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                _samp_cond, _samp_idle, _samp_nr_cores, SysMgr.intervalEnable
+            )
             if not _cond_met:
                 firstLoop = False
                 waitTime = max(
@@ -198441,10 +203584,7 @@ class TaskAnalyzer(object):
         leakHistory = {}
         leakComm = {}
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         while 1:
             prevTime = time.time()
@@ -198609,15 +203749,9 @@ class TaskAnalyzer(object):
 
             growthHeader = "GROWTH/tot" if showTotal else "GROWTH/min"
             dispList = leakList if SysMgr.showAll else leakList[:20]
-            if _samp_cond:
-                _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                    _samp_cond,
-                    _samp_idle,
-                    _samp_nr_cores,
-                    SysMgr.intervalEnable,
-                )
-            else:
-                _cond_met = True
+            _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                _samp_cond, _samp_idle, _samp_nr_cores, SysMgr.intervalEnable
+            )
             if not _cond_met:
                 waitTime = max(
                     0.000001, SysMgr.intervalEnable - (time.time() - prevTime)
@@ -198844,10 +203978,7 @@ class TaskAnalyzer(object):
             % (", ".join(targetGroup) if targetGroup else "cgroup2")
         )
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         # run loop #
         while 1:
@@ -198861,15 +203992,12 @@ class TaskAnalyzer(object):
             prevTime = time.time()
 
             if self.prevCpuData:
-                if _samp_cond:
-                    _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                        _samp_cond,
-                        _samp_idle,
-                        _samp_nr_cores,
-                        SysMgr.intervalEnable,
-                    )
-                else:
-                    _cond_met = True
+                _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                    _samp_cond,
+                    _samp_idle,
+                    _samp_nr_cores,
+                    SysMgr.intervalEnable,
+                )
                 # print system status #
                 if _cond_met:
                     self.printSystemStat(idIndex=True, targetList=["cgroup"])
@@ -198956,10 +204084,7 @@ class TaskAnalyzer(object):
         # get prof flag #
         printFlag = "PRINTDELAY" in SysMgr.environList
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         while 1:
             # save timestamp #
@@ -198979,15 +204104,9 @@ class TaskAnalyzer(object):
             if printFlag:
                 UtilMgr.printTime("saveFileStat")
 
-            if _samp_cond:
-                _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                    _samp_cond,
-                    _samp_idle,
-                    _samp_nr_cores,
-                    SysMgr.intervalEnable,
-                )
-            else:
-                _cond_met = True
+            _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                _samp_cond, _samp_idle, _samp_nr_cores, SysMgr.intervalEnable
+            )
 
             # print system status #
             if printFlag and _cond_met:
@@ -199033,10 +204152,7 @@ class TaskAnalyzer(object):
         # get prof flag #
         printFlag = "PRINTDELAY" in SysMgr.environList
 
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         # run loop #
         while 1:
@@ -199058,15 +204174,12 @@ class TaskAnalyzer(object):
 
             # print stats #
             if self.prevCpuData:
-                if _samp_cond:
-                    _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                        _samp_cond,
-                        _samp_idle,
-                        _samp_nr_cores,
-                        SysMgr.intervalEnable,
-                    )
-                else:
-                    _cond_met = True
+                _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                    _samp_cond,
+                    _samp_idle,
+                    _samp_nr_cores,
+                    SysMgr.intervalEnable,
+                )
                 if _cond_met:
                     # save timestamp #
                     if printFlag:
@@ -199194,10 +204307,7 @@ class TaskAnalyzer(object):
                 swapout_target = SysMgr.getMainArg()
 
         # parse sampling condition options once #
-        _samp_cond = BpfMgr._parseSampCond()
-        if _samp_cond:
-            _samp_idle = SysMgr.getIdleTime()
-            _samp_nr_cores = SysMgr.getNrCore() or 1
+        _samp_cond, _samp_idle, _samp_nr_cores = BpfMgr._initSampCond()
 
         # run loop #
         while 1:
@@ -199263,15 +204373,12 @@ class TaskAnalyzer(object):
 
             # print stats #
             if self.prevCpuData:
-                if _samp_cond:
-                    _cond_met, _samp_idle = BpfMgr._evalSampCond(
-                        _samp_cond,
-                        _samp_idle,
-                        _samp_nr_cores,
-                        SysMgr.intervalEnable,
-                    )
-                else:
-                    _cond_met = True
+                _cond_met, _samp_idle = BpfMgr._checkSampCondOrSkip(
+                    _samp_cond,
+                    _samp_idle,
+                    _samp_nr_cores,
+                    SysMgr.intervalEnable,
+                )
                 if _cond_met:
                     # save timestamp #
                     if printFlag:
@@ -200680,8 +205787,18 @@ class TaskAnalyzer(object):
 
                 for item, val in value.items():
                     if UtilMgr.isString(val):
-                        val = list(map(long, val.split()))
-                        usage = round(sum(val) / len(val), 1)
+                        # tokens are usually plain integers, but PSI usage
+                        # strings (e.g. psiUsage) use "some/full" (e.g. "1/0")
+                        # per interval — split those into both numbers
+                        numList = []
+                        for tok in val.split():
+                            if "/" in tok:
+                                numList += list(map(long, tok.split("/", 1)))
+                            else:
+                                numList.append(long(tok))
+                        if not numList:
+                            continue
+                        usage = round(sum(numList) / len(numList), 1)
                     else:
                         continue
 
@@ -200691,6 +205808,95 @@ class TaskAnalyzer(object):
                 avgList.setdefault(sname, value)
 
         return avgList
+
+    @staticmethod
+    def mergeDrawStats(inputList):
+        totalStat = {}
+
+        # get target list #
+        if "TARGETDRAW" in SysMgr.environList:
+            targetList = ",".join(SysMgr.environList["TARGETDRAW"]).split(",")
+        else:
+            targetList = ["*"]
+
+        for fname in inputList:
+            graphStats, chartStats = TaskAnalyzer.getStatsFile(
+                logFile=fname,
+                applyOpt=True,
+            )
+
+            # merge stats #
+            for n, v in graphStats.items():
+                # check system stat #
+                if not UtilMgr.isValidStr(n, targetList) or not v:
+                    continue
+
+                # handle storage and network usage #
+                if n in ("storageUsage", "networkUsage"):
+                    slist = {
+                        "read": [],
+                        "write": [],
+                        "recv": [],
+                        "tran": [],
+                    }
+                    for val in v.values():
+                        for key, sv in val.items():
+                            if key not in slist:
+                                continue
+
+                            if not slist[key]:
+                                slist[key] = sv
+                                continue
+
+                            slist[key] = [sum(x) for x in zip(slist[key], sv)]
+
+                    # set name #
+                    if slist["read"]:
+                        name = "storageUsage"
+                    else:
+                        name = "networkUsage"
+
+                    for key, sv in slist.items():
+                        if not sv:
+                            continue
+
+                        key = name + key[0].upper() + key[1:]
+
+                        # handle not merged list #
+                        if "EACHFILE" in SysMgr.environList:
+                            totalStat["%s@%s" % (key, name)] = sv
+                            continue
+
+                        if key not in totalStat:
+                            totalStat[key] = []
+
+                        totalStat[key] += sv
+
+                    continue
+                # handle gpu usage #
+                elif n == "gpuUsage":
+                    nv = []
+                    for val in v.values():
+                        nv += list(map(long, val.strip().split()))
+                    v = nv
+
+                # TODO: handle process stats with -g filter option #
+
+                # check type #
+                if not isinstance(v, list):
+                    continue
+
+                # handle not merged list #
+                if "EACHFILE" in SysMgr.environList:
+                    totalStat["%s@%s" % (n, fname)] = v
+                    continue
+
+                if n not in totalStat:
+                    totalStat[n] = []
+
+                totalStat[n] += v
+
+        return totalStat
 
     @staticmethod
     def drawHist(
@@ -200792,94 +205998,7 @@ class TaskAnalyzer(object):
 
         # parse stats #
         if inputFile:
-            totalStat = {}
-
-            # get target list #
-            if "TARGETDRAW" in SysMgr.environList:
-                targetList = ",".join(SysMgr.environList["TARGETDRAW"]).split(
-                    ","
-                )
-            else:
-                targetList = ["*"]
-
-            for fname in inputList:
-                graphStats, chartStats = TaskAnalyzer.getStatsFile(
-                    logFile=fname,
-                    applyOpt=True,
-                )
-
-                # merge stats #
-                for n, v in graphStats.items():
-                    # check system stat #
-                    if not UtilMgr.isValidStr(n, targetList) or not v:
-                        continue
-
-                    # handle storage and network usage #
-                    if n in ("storageUsage", "networkUsage"):
-                        slist = {
-                            "read": [],
-                            "write": [],
-                            "recv": [],
-                            "tran": [],
-                        }
-                        for val in v.values():
-                            for key, sv in val.items():
-                                if key not in slist:
-                                    continue
-
-                                if not slist[key]:
-                                    slist[key] = sv
-                                    continue
-
-                                slist[key] = [
-                                    sum(x) for x in zip(slist[key], sv)
-                                ]
-
-                        # set name #
-                        if slist["read"]:
-                            name = "storageUsage"
-                        else:
-                            name = "networkUsage"
-
-                        for key, sv in slist.items():
-                            if not sv:
-                                continue
-
-                            key = name + key[0].upper() + key[1:]
-
-                            # handle not merged list #
-                            if "EACHFILE" in SysMgr.environList:
-                                totalStat["%s@%s" % (key, name)] = sv
-                                continue
-
-                            if key not in totalStat:
-                                totalStat[key] = []
-
-                            totalStat[key] += sv
-
-                        continue
-                    # handle gpu usage #
-                    elif n == "gpuUsage":
-                        nv = []
-                        for val in v.values():
-                            nv += list(map(long, val.strip().split()))
-                        v = nv
-
-                    # TODO: handle process stats with -g filter option #
-
-                    # check type #
-                    if not isinstance(v, list):
-                        continue
-
-                    # handle not merged list #
-                    if "EACHFILE" in SysMgr.environList:
-                        totalStat["%s@%s" % (n, fname)] = v
-                        continue
-
-                    if n not in totalStat:
-                        totalStat[n] = []
-
-                    totalStat[n] += v
+            totalStat = TaskAnalyzer.mergeDrawStats(inputList)
 
             # split statDict to statList and nameList #
             for n, v in totalStat.items():
@@ -203821,6 +208940,24 @@ class TaskAnalyzer(object):
             yrange = ax.get_yticks().tolist()
             return yrange[0], yrange[-1]
 
+        def _getMinTimeline(graphStats):
+            timeline = None
+            for key, val in graphStats.items():
+                if not key.endswith("timeline"):
+                    continue
+                elif not timeline:
+                    timeline = val
+                elif len(timeline) > len(val):
+                    timeline = val
+            return timeline
+
+        def _splitGraphKey(key):
+            res = key.rsplit(":", 1)
+            if len(res) > 1:
+                return "%s:" % res[0], "[%s] " % res[0]
+            else:
+                return "", ""
+
         def _drawStack(
             timeline,
             stackedStats,
@@ -203939,14 +209076,7 @@ class TaskAnalyzer(object):
 
         def _drawEvent(graphStats, logEvents):
             # get minimum timeline #
-            timeline = None
-            for key, val in graphStats.items():
-                if not key.endswith("timeline"):
-                    continue
-                elif not timeline:
-                    timeline = val
-                elif len(timeline) > len(val):
-                    timeline = val
+            timeline = _getMinTimeline(graphStats)
             lent = len(timeline)
 
             # compute start_epoch for DATETIME mode #
@@ -204098,13 +209228,7 @@ class TaskAnalyzer(object):
                     continue
 
                 # get filename #
-                res = key.rsplit(":", 1)
-                if len(res) > 1:
-                    fname = "%s:" % res[0]
-                    prefix = "[%s] " % res[0]
-                else:
-                    fname = ""
-                    prefix = ""
+                fname, prefix = _splitGraphKey(key)
 
                 # get event table #
                 eventList = graphStats["%seventList" % fname][:lent]
@@ -204799,6 +209923,19 @@ class TaskAnalyzer(object):
                             va="center",
                         )
 
+        def _drawSystemdAndBottom(
+            graphStats, timeline, ax, xtype, nrTask, effectProcList
+        ):
+            self.figure = TaskAnalyzer.drawFigure()
+
+            # draw systemd events #
+            if not self.targetEventDrawn:
+                _drawTargetEvent(graphStats, timeline, ax)
+                _drawUnitEvent(graphStats, timeline, ax)
+                self.targetEventDrawn = True
+
+            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
+
         def _drawCpu(graphStats, xtype, pos, size, delay=False):
             # draw title #
             ax = subplot2grid((6, 1), (pos, 0), rowspan=size, colspan=1)
@@ -204814,14 +209951,7 @@ class TaskAnalyzer(object):
             gpuFilter = SysMgr.environList.get("GPUFILTER", [])
 
             # get minimum timeline #
-            timeline = None
-            for key, val in graphStats.items():
-                if not key.endswith("timeline"):
-                    continue
-                elif not timeline:
-                    timeline = val
-                elif len(timeline) > len(val):
-                    timeline = val
+            timeline = _getMinTimeline(graphStats)
             lent = len(timeline)
 
             # get stacked plot option #
@@ -204842,13 +209972,7 @@ class TaskAnalyzer(object):
                 if not key.endswith("timeline"):
                     continue
 
-                res = key.rsplit(":", 1)
-                if len(res) > 1:
-                    fname = "%s:" % res[0]
-                    prefix = "[%s] " % res[0]
-                else:
-                    fname = ""
-                    prefix = ""
+                fname, prefix = _splitGraphKey(key)
 
                 cpuUsage = graphStats["%scpuUsage" % fname][:lent]
                 cpuProcUsage = graphStats.get("%scpuProcUsage" % fname, {})
@@ -205499,16 +210623,9 @@ class TaskAnalyzer(object):
             # draw name #
             TaskAnalyzer.drawName(ax, name)
 
-            # draw base #
-            self.figure = TaskAnalyzer.drawFigure()
-
-            # draw systemd events #
-            if not self.targetEventDrawn:
-                _drawTargetEvent(graphStats, timeline, ax)
-                _drawUnitEvent(graphStats, timeline, ax)
-                self.targetEventDrawn = True
-
-            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
+            _drawSystemdAndBottom(
+                graphStats, timeline, ax, xtype, nrTask, effectProcList
+            )
 
         def _drawPrio(graphStats, xtype, pos, size):
             # draw title #
@@ -205521,14 +210638,7 @@ class TaskAnalyzer(object):
             hasLabel = "NOLABEL" not in SysMgr.environList
 
             # get minimum timeline #
-            timeline = None
-            for key, val in graphStats.items():
-                if not key.endswith("timeline"):
-                    continue
-                elif not timeline:
-                    timeline = val
-                elif len(timeline) > len(val):
-                    timeline = val
+            timeline = _getMinTimeline(graphStats)
             lent = len(timeline)
 
             # get stacked plot option #
@@ -205565,13 +210675,7 @@ class TaskAnalyzer(object):
                 if not key.endswith("timeline"):
                     continue
 
-                res = key.rsplit(":", 1)
-                if len(res) > 1:
-                    fname = "%s:" % res[0]
-                    prefix = "[%s] " % res[0]
-                else:
-                    fname = ""
-                    prefix = ""
+                fname, prefix = _splitGraphKey(key)
 
                 cpuProcPrio = graphStats["%scpuProcPrio" % fname]
 
@@ -205781,16 +210885,9 @@ class TaskAnalyzer(object):
             except:
                 pass
 
-            # draw base #
-            self.figure = TaskAnalyzer.drawFigure()
-
-            # draw systemd events #
-            if not self.targetEventDrawn:
-                _drawTargetEvent(graphStats, timeline, ax)
-                _drawUnitEvent(graphStats, timeline, ax)
-                self.targetEventDrawn = True
-
-            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
+            _drawSystemdAndBottom(
+                graphStats, timeline, ax, xtype, nrTask, effectProcList
+            )
 
         def _drawPsi(graphStats, xtype, pos, size):
             # draw title #
@@ -205806,14 +210903,7 @@ class TaskAnalyzer(object):
             hasLabel = "NOLABEL" not in SysMgr.environList
 
             # get minimum timeline #
-            timeline = None
-            for key, val in graphStats.items():
-                if not key.endswith("timeline"):
-                    continue
-                elif not timeline:
-                    timeline = val
-                elif len(timeline) > len(val):
-                    timeline = val
+            timeline = _getMinTimeline(graphStats)
             lent = len(timeline)
 
             # PSI resource colors #
@@ -205900,16 +210990,9 @@ class TaskAnalyzer(object):
             # draw name #
             TaskAnalyzer.drawName(ax, "PSI")
 
-            # draw base #
-            self.figure = TaskAnalyzer.drawFigure()
-
-            # draw systemd events #
-            if not self.targetEventDrawn:
-                _drawTargetEvent(graphStats, timeline, ax)
-                _drawUnitEvent(graphStats, timeline, ax)
-                self.targetEventDrawn = True
-
-            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
+            _drawSystemdAndBottom(
+                graphStats, timeline, ax, xtype, nrTask, effectProcList
+            )
 
         def _drawIo(graphStats, xtype, pos, size):
             def __drawSystemIo(
@@ -206061,14 +211144,7 @@ class TaskAnalyzer(object):
             suptitle(graphStats["graphTitle"], fontsize=8)
 
             # get minimum timeline #
-            timeline = None
-            for key, val in graphStats.items():
-                if not key.endswith("timeline"):
-                    continue
-                elif not timeline:
-                    timeline = val
-                elif len(timeline) > len(val):
-                    timeline = val
+            timeline = _getMinTimeline(graphStats)
             lent = len(timeline)
 
             # set visible total usage flag #
@@ -206095,13 +211171,7 @@ class TaskAnalyzer(object):
                 if not key.endswith("timeline"):
                     continue
 
-                res = key.rsplit(":", 1)
-                if len(res) > 1:
-                    fname = "%s:" % res[0]
-                    prefix = "[%s] " % res[0]
-                else:
-                    fname = ""
-                    prefix = ""
+                fname, prefix = _splitGraphKey(key)
 
                 blkRead = graphStats["%sblkRead" % fname][:lent]
                 blkWrite = graphStats["%sblkWrite" % fname][:lent]
@@ -206660,14 +211730,7 @@ class TaskAnalyzer(object):
             suptitle(graphStats["graphTitle"], fontsize=8)
 
             # get minimum timeline #
-            timeline = None
-            for key, val in graphStats.items():
-                if not key.endswith("timeline"):
-                    continue
-                elif not timeline:
-                    timeline = val
-                elif len(timeline) > len(val):
-                    timeline = val
+            timeline = _getMinTimeline(graphStats)
             lent = len(timeline)
 
             # add boundary line #
@@ -206692,13 +211755,7 @@ class TaskAnalyzer(object):
                     continue
 
                 # get prefix #
-                res = key.rsplit(":", 1)
-                if len(res) > 1:
-                    fname = "%s:" % res[0]
-                    prefix = "[%s] " % res[0]
-                else:
-                    fname = ""
-                    prefix = ""
+                fname, prefix = _splitGraphKey(key)
 
                 # get stats #
                 totalRam = graphStats["%stotalRam" % fname]
@@ -207383,16 +212440,9 @@ class TaskAnalyzer(object):
             # draw name #
             TaskAnalyzer.drawName(ax, "MEM")
 
-            # draw base #
-            self.figure = TaskAnalyzer.drawFigure()
-
-            # draw systemd events #
-            if not self.targetEventDrawn:
-                _drawTargetEvent(graphStats, timeline, ax)
-                _drawUnitEvent(graphStats, timeline, ax)
-                self.targetEventDrawn = True
-
-            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
+            _drawSystemdAndBottom(
+                graphStats, timeline, ax, xtype, nrTask, effectProcList
+            )
 
         def _drawMemDump(graphStats):
             # set convert size #
@@ -207410,13 +212460,7 @@ class TaskAnalyzer(object):
                     continue
 
                 # get prefix #
-                res = key.rsplit(":", 1)
-                if len(res) > 1:
-                    fname = "%s:" % res[0]
-                    prefix = "[%s] " % res[0]
-                else:
-                    fname = ""
-                    prefix = ""
+                fname, prefix = _splitGraphKey(key)
 
                 # get stats #
                 totalRam = graphStats["%stotalRam" % fname]
@@ -207470,14 +212514,7 @@ class TaskAnalyzer(object):
                         ax.set_title(mtype, fontsize=5)
 
                         # get minimum timeline #
-                        timeline = None
-                        for key, val in graphStats.items():
-                            if not key.endswith("timeline"):
-                                continue
-                            elif not timeline:
-                                timeline = val
-                            elif len(timeline) > len(val):
-                                timeline = val
+                        timeline = _getMinTimeline(graphStats)
                         lent = len(timeline)
 
                         # add boundary line #
@@ -208463,94 +213500,7 @@ class TaskAnalyzer(object):
 
         # parse stats #
         if inputFile:
-            totalStat = {}
-
-            # get target list #
-            if "TARGETDRAW" in SysMgr.environList:
-                targetList = ",".join(SysMgr.environList["TARGETDRAW"]).split(
-                    ","
-                )
-            else:
-                targetList = ["*"]
-
-            for fname in inputList:
-                graphStats, chartStats = TaskAnalyzer.getStatsFile(
-                    logFile=fname,
-                    applyOpt=True,
-                )
-
-                # merge stats #
-                for n, v in graphStats.items():
-                    # check system stat #
-                    if not UtilMgr.isValidStr(n, targetList) or not v:
-                        continue
-
-                    # handle storage and network usage #
-                    if n in ("storageUsage", "networkUsage"):
-                        slist = {
-                            "read": [],
-                            "write": [],
-                            "recv": [],
-                            "tran": [],
-                        }
-                        for val in v.values():
-                            for key, sv in val.items():
-                                if key not in slist:
-                                    continue
-
-                                if not slist[key]:
-                                    slist[key] = sv
-                                    continue
-
-                                slist[key] = [
-                                    sum(x) for x in zip(slist[key], sv)
-                                ]
-
-                        # set name #
-                        if slist["read"]:
-                            name = "storageUsage"
-                        else:
-                            name = "networkUsage"
-
-                        for key, sv in slist.items():
-                            if not sv:
-                                continue
-
-                            key = name + key[0].upper() + key[1:]
-
-                            # handle not merged list #
-                            if "EACHFILE" in SysMgr.environList:
-                                totalStat["%s@%s" % (key, name)] = sv
-                                continue
-
-                            if key not in totalStat:
-                                totalStat[key] = []
-
-                            totalStat[key] += sv
-
-                        continue
-                    # handle gpu usage #
-                    elif n == "gpuUsage":
-                        nv = []
-                        for val in v.values():
-                            nv += list(map(long, val.strip().split()))
-                        v = nv
-
-                    # TODO: handle process stats with -g filter option #
-
-                    # check type #
-                    if not isinstance(v, list):
-                        continue
-
-                    # handle not merged list #
-                    if "EACHFILE" in SysMgr.environList:
-                        totalStat["%s@%s" % (n, fname)] = v
-                        continue
-
-                    if n not in totalStat:
-                        totalStat[n] = []
-
-                    totalStat[n] += v
+            totalStat = TaskAnalyzer.mergeDrawStats(inputList)
 
             # split statDict to statList and nameList #
             for n, v in totalStat.items():
@@ -208917,7 +213867,7 @@ class TaskAnalyzer(object):
             nrCore = graphStats["nrCore"]
             maxCore = max(nrCore) if nrCore else 1
             if SysMgr.gpuEnable:
-                gpuUsage = graphStats.get("%sgpuUsage" % fname, {})
+                gpuUsage = graphStats.get("gpuUsage", {})
             else:
                 gpuUsage = {}
 
@@ -220956,8 +225906,7 @@ function isAutoNamedPlot(name) {{
                     pid = value["tgid"]
 
                 SysMgr.addPrint(
-                    "%16s(%7s/%7s): "
-                    % (value["comm"][:16], key, value["tgid"])
+                    "%16s(%7s/%7s): " % (value["comm"][:16], key, pid)
                     + timeLine
                     + "\n"
                 )
@@ -232751,12 +237700,19 @@ function isAutoNamedPlot(name) {{
         try:
             fd = "%sFd" % name
             self.procData[tid][fd] = self.prevProcData[tid][fd]
+            retryCnt = 0
             while 1:
                 self.prevProcData[tid][fd].seek(0)
                 buf = self.procData[tid][fd].readlines()
                 # retry to read for shared descriptor #
                 if buf or not retry:
                     break
+                # fail-safe: avoid an infinite busy loop if the
+                # shared descriptor never yields data #
+                retryCnt += 1
+                if retryCnt >= 1000:
+                    break
+                time.sleep(0.0001)
         except SystemExit:
             sys.exit(0)
         except:
@@ -232927,12 +237883,19 @@ function isAutoNamedPlot(name) {{
             try:
                 prevFd = self.prevProcData[tid]["statFd"]
                 self.procData[tid]["statFd"] = prevFd
+                retryCnt = 0
                 while 1:
                     os.lseek(prevFd, 0, 0)
                     statBuf = os.read(prevFd, 1024)
                     # retry to read for shared descriptor #
                     if statBuf:
                         break
+                    # fail-safe: avoid an infinite busy loop if the
+                    # shared descriptor never yields data #
+                    retryCnt += 1
+                    if retryCnt >= 1000:
+                        break
+                    time.sleep(0.0001)
                 self.prevProcData[tid]["alive"] = True
             except SystemExit:
                 sys.exit(0)
@@ -241458,6 +246421,7 @@ function isAutoNamedPlot(name) {{
         rateLimit = opts.get("rateLimit", 60)
         dryRun = opts.get("dryRun", False)
         maxCmd = opts.get("maxCmd", 3)
+        timeout = opts.get("timeout", None)
         ctxDepth = opts.get("ctxDepth", 10)
         auditLog = opts.get("auditLog", None)
         allowRun = opts.get("allowRun", False)
@@ -241547,6 +246511,9 @@ function isAutoNamedPlot(name) {{
                     kwargs = {}
                     if resolvedModel:
                         kwargs["model"] = resolvedModel
+                    # per-call LLM request timeout override (inline TIMEOUT:<s>) #
+                    if timeout:
+                        kwargs["requestTimeout"] = timeout
                     # credentials: inline/global opts > env (set by _loadConfigSettings or user)
                     resolvedApiKey = apiKey or os.getenv("CUSTOM_API_KEY")
                     resolvedBaseUrl = baseUrl or os.getenv("CUSTOM_BASE_URL")
@@ -242272,6 +247239,14 @@ function isAutoNamedPlot(name) {{
             SysMgr.thrEvtHist = {}
         # TERM/KILL #
         elif ocmd in ("TERM", "KILL"):
+            # check allowance option #
+            if not "ALLOWRUN" in SysMgr.environList:
+                SysMgr.printErr(
+                    "remote %s is not allowed"
+                    % ("terminate" if ocmd == "TERM" else "kill")
+                )
+                return None
+
             # get target info #
             target = UtilMgr.lstrip(cmd, ocmd)
             if target.startswith(":"):
@@ -248217,6 +253192,10 @@ def main(args=None):
 
     # init environment #
     SysMgr.initEnvironment()
+
+    # CONTINUOUS MODE (process-relaunch rotation for bpf*top family) #
+    if "CONTINUOUS" in SysMgr.environList and SysMgr.runContinuousMode():
+        sys.exit(0)
 
     # launch commands #
     SysMgr.checkCmdMode()

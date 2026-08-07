@@ -119,7 +119,7 @@ def systemMonitor(
         command:    guider sub-command name (e.g. "ttop")
         duration:   monitoring duration in seconds (default 5)
         interval:   sampling interval in seconds (default 1)
-        target:     optional process name or PID to filter (-e)
+        target:     optional process name or PID to filter (-g)
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["systemMonitor"]:
@@ -160,7 +160,7 @@ def bpfTrace(
         command:    guider sub-command name (e.g. "bpfstacktop")
         duration:   tracing duration in seconds (default 10)
         interval:   display interval in seconds (default 1)
-        target:     optional process name or PID to filter (-e)
+        target:     optional process name or PID to filter (-g)
         func_name:  kernel function name for bpftop/bpfsnoop (passed as positional arg)
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["LAT", "ADDUSERSTACK"])
         device_id:  Android device serial for bpfbinder* commands (adb -s <device_id>)
@@ -189,20 +189,29 @@ def ftraceProfile(
     duration: int = 3,
     interval: int = 1,
     target: str = "",
+    input_file: str = "",
     extra_opts: list[str] | None = None,
 ) -> str:
     """
-    ftrace / perf-based kernel function profiling (requires root, kernel ≥4.4).
-    At most 1 ftrace command runs concurrently (tracefs semaphore enforced).
+    ftrace / perf / ptrace-based function profiling and tracing.
+    Genuine ftrace commands require root and kernel ≥4.4 and are serialized to
+    1 concurrent run (tracefs semaphore); ptrace-based commands (utrace, btrace,
+    strace, pytrace, sigtrace) and perf-based commands (utop, ptop, fperf, stat)
+    need neither. filerec/genrec are not ftrace-based either (no root/kernel
+    requirement for genrec; filerec still needs root for /proc access).
 
     Commands: trtop, tptop, bpfmarktop, funcrec, btop, utop, ktop, ptop,
-              fperf, utrace, btrace, iorec, filerec, sysrec, logtrace, stat
+              fperf, utrace, strace, pytrace, btrace, sigtrace, iorec, filerec,
+              genrec, rec, report, sysrec, logtrace, stat
 
     Args:
         command:    guider sub-command name (e.g. "trtop")
         duration:   profiling duration in seconds (default 3)
         interval:   display interval in seconds (default 1)
-        target:     optional process name or PID to filter (-e)
+        target:     optional process name or PID to filter (-g)
+        input_file: path to a .dat file previously recorded by rec/funcrec/
+                    iorec/sysrec/genrec, for offline analysis (-I); required
+                    by "report"
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["ftraceProfile"]:
@@ -212,6 +221,7 @@ def ftraceProfile(
         duration=duration,
         interval=interval,
         target_pid=target or None,
+        input_file=input_file or None,
         extra_opts=list(extra_opts or []),
     )
     return _wrap(result)
@@ -238,7 +248,7 @@ def networkTrace(
         command:    guider sub-command name (e.g. "bpftcpretrans")
         duration:   tracing duration in seconds (default 10)
         interval:   display interval in seconds (default 1)
-        target:     optional process name or PID to filter (-e)
+        target:     optional process name or PID to filter (-g)
         extra_opts: list of -q KEY[:VALUE] option strings
     """
     if command not in _ALLOWED["networkTrace"]:
@@ -271,7 +281,8 @@ def androidPerf(
     Requires adb connection for most commands.
 
     Commands: perfetto, bdtop, attop, gfxtop, andtop, bugrec, mdtop,
-              andcmd, hprof, scrcap, logand, lmksnoop, cantop, cansnoop
+              andcmd, hprof, scrcap, logand, lmksnoop, cantop, cansnoop, sperf,
+              getprop, watchprop, bugrep, scrrec, printboot
 
     Args:
         command:     guider sub-command name (e.g. "perfetto")
@@ -280,9 +291,12 @@ def androidPerf(
         device_id:   Android device serial (adb -s <device_id>); leave empty for default
         input_file:  path to existing trace file for offline analysis (-I)
         extra_opts:  list of -q KEY[:VALUE] option strings (e.g. ["PERF:5s", "CPUFREQ"])
-        sub_command: positional sub-command for andcmd
-                     (e.g. "getselinux", "getpkglist", "getproclist",
-                           "getbinderstats", "getappstat", "getpkgattr")
+        sub_command: positional main argument, reused across several commands:
+                     - andcmd: sub-command (e.g. "getselinux", "getpkglist",
+                       "getproclist", "getbinderstats", "getappstat", "getpkgattr")
+                     - getprop: property name/wildcard (e.g. "ro.build.*")
+                     - watchprop: property name/wildcard, optionally "|value"
+                     - bugrep: optional output directory
                      Ignored for other commands.
     """
     if command not in _ALLOWED["androidPerf"]:
@@ -313,13 +327,13 @@ def memoryAnalyze(
     """
     Memory analysis: duplicate mapping detection, leak tracking, OOM monitoring.
 
-    Commands: checkdup, leaktop, leaktrace, mtrace, dump
+    Commands: checkdup, leaktop, leaktrace, mtrace, dump, mem
 
     Args:
         command:    guider sub-command name (e.g. "checkdup")
         duration:   monitoring duration in seconds (default 5); 0 for one-shot
         interval:   display interval in seconds (default 1)
-        target:     optional process name or PID to filter (-e)
+        target:     optional process name or PID to filter (-g)
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["SKIPEXMAPPED"])
     """
     if command not in _ALLOWED["memoryAnalyze"]:
@@ -337,11 +351,20 @@ def memoryAnalyze(
 # ---------------------------------------------------------------------------
 # 7. visualize
 # ---------------------------------------------------------------------------
+_DRAWAVG_COMMANDS = {"drawavg", "drawcpuavg", "drawmemavg", "drawvssavg", "drawrssavg"}
+
+
 @mcp.tool()
 def visualize(
     command: str,
-    input_file: str,
+    input_file: str = "",
+    input_files: list[str] | None = None,
+    target: str = "",
     extra_opts: list[str] | None = None,
+    draw_format: str = "",
+    draw_layout: str = "",
+    top_number: int = 0,
+    output_dir: str = "",
 ) -> str:
     """
     Generate performance graphs and visualizations from recorded data files.
@@ -349,23 +372,63 @@ def visualize(
     Commands: draw, drawtime, drawcpu, drawmem, drawnet, drawdisk,
               drawflame, drawflamediff, drawscatter, drawhist, drawviolin,
               drawstack, drawbitmap, drawconn, drawpsi, drawreq, drawrss,
-              drawdiff, convert
+              drawdiff, drawdelay, drawio, drawleak, drawpri, drawvss, convert,
+              drawavg, drawcpuavg, drawmemavg, drawvssavg, drawrssavg
+
+    Note: drawconn does NOT read a data file — it's a live scan of the
+    current IPC pipe/socket connections. Pass an optional PID via `target`
+    to focus the graph on one process; leave both input_file and target
+    empty to show all connections.
+
+    The drawavg-family commands (drawavg, drawcpuavg, drawmemavg, drawvssavg,
+    drawrssavg) average data across MULTIPLE recorded files and require
+    `input_files` (a list of >= 2 paths) instead of `input_file`.
+
+    Every other command requires input_file.
 
     Args:
-        command:    guider sub-command name (e.g. "drawflame")
-        input_file: path to the recorded data file (-I); REQUIRED
-        extra_opts: list of -q KEY[:VALUE] option strings
+        command:     guider sub-command name (e.g. "drawflame")
+        input_file:  path to the recorded data file (-I); required for every
+                     command except drawconn and the drawavg-family
+        input_files: list of >= 2 recorded data file paths, passed as
+                     positional args; required for the drawavg-family commands
+        target:      optional PID to focus on; used only by drawconn
+                     (ignored by every other command)
+        extra_opts:  list of -q KEY[:VALUE] option strings
+        draw_format: image output format (-F): svg/png/pdf/ps/eps/html
+        draw_layout: graph layout spec (-L), e.g. "C:CPU|M:Memory". Only the
+                     generic "draw" command reads this; every single-purpose
+                     draw* command hardcodes its own layout and ignores it.
+        top_number:  top-N number to show in the graph (-T). Has no effect on
+                     drawmem/drawmemavg, whose default view has no per-process
+                     top-N panel; use drawcpu/drawvss/drawrss for that.
+        output_dir:  directory to write the generated graph file to (-o)
     """
     if command not in _ALLOWED["visualize"]:
         return _wrong_tool_error(command, "visualize")
-    if not input_file:
-        return _wrap({"ok": False, "error": "input_file is required for visualize commands"})
-    result = adapter.run(
-        command,
-        input_file=input_file,
-        extra_opts=list(extra_opts or []),
-        json_output=False,  # visualization produces HTML/SVG output files
-    )
+
+    common_kwargs = {
+        "extra_opts": list(extra_opts or []),
+        "draw_format": draw_format or None,
+        "draw_layout": draw_layout or None,
+        "top_number": top_number or None,
+        "output_dir": output_dir or None,
+        "json_output": False,  # visualization produces HTML/SVG output files
+    }
+
+    if command == "drawconn":
+        result = adapter.run(command, main_arg=target or None, **common_kwargs)
+    elif command in _DRAWAVG_COMMANDS:
+        if not input_files or len(input_files) < 2:
+            return _wrap({
+                "ok": False,
+                "error": f"'{command}' requires input_files with at least 2 file paths",
+            })
+        result = adapter.run(command, input_files=input_files, **common_kwargs)
+    else:
+        if not input_file:
+            return _wrap({"ok": False, "error": "input_file is required for visualize commands"})
+        result = adapter.run(command, input_file=input_file, **common_kwargs)
     return _wrap(result)
 
 
@@ -377,21 +440,30 @@ def logAnalyze(
     command: str,
     duration: int = 10,
     interval: int = 1,
+    target: str = "",
     input_file: str = "",
     extra_opts: list[str] | None = None,
+    json_output: bool = False,
 ) -> str:
     """
     Log streaming and analysis (kernel messages, DLT, journald, Android logcat, etc.).
 
-    Commands: logkmsg, logdlt, logjrl, logsys, convlog,
-              printand, printkmsg, printdlt, printjrl, printtrace
+    Commands: logand, logdlt, logjrl, logkmsg, logsys, logtrace, convlog,
+              printand, printkmsg, printdlt, printjrl, printtrace, printsyslog
+
+    Note: logand/logdlt/logjrl/logkmsg/logsys/logtrace WRITE a single message
+    to their log sink and never produce JSON. printand/printkmsg/printdlt/
+    printjrl/printtrace/printsyslog READ/stream the log source and support
+    json_output=True and target (-g) filtering.
 
     Args:
-        command:    guider sub-command name (e.g. "logkmsg")
-        duration:   streaming duration in seconds for live logs (default 10)
-        interval:   sampling interval in seconds for streaming logs (default 1)
-        input_file: path to existing log file for offline analysis (-I)
-        extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["FILTER:tag"])
+        command:     guider sub-command name (e.g. "printkmsg")
+        duration:    streaming duration in seconds for live logs (default 10)
+        interval:    sampling interval in seconds for streaming logs (default 1)
+        target:      optional process/tag name or PID to filter (-g); printX only
+        input_file:  path to existing log file for offline analysis (-I)
+        extra_opts:  list of -q KEY[:VALUE] option strings (e.g. ["FILTER:tag"])
+        json_output: request JSON output (-J); only the printX read commands support it
     """
     if command not in _ALLOWED["logAnalyze"]:
         return _wrong_tool_error(command, "logAnalyze")
@@ -399,9 +471,10 @@ def logAnalyze(
         command,
         duration=duration,
         interval=interval,
+        target_pid=target or None,
         input_file=input_file or None,
         extra_opts=list(extra_opts or []),
-        json_output=False,  # log commands produce text output
+        json_output=json_output,
     )
     return _wrap(result)
 
@@ -419,6 +492,7 @@ def runCommand(
     device_id: str = "",
     extra_opts: list[str] | None = None,
     json_output: bool = True,
+    main_arg: str = "",
 ) -> str:
     """
     Generic guider command runner — for any whitelisted command not covered by
@@ -428,11 +502,14 @@ def runCommand(
         command:     guider sub-command name
         duration:    run duration in seconds (ignored for non-streaming commands)
         interval:    sampling interval in seconds (default 1)
-        target:      optional process name or PID to filter (-e)
+        target:      optional process name or PID to filter (-g)
         input_file:  input file path for offline analysis (-I)
         device_id:   Android device serial
         extra_opts:  list of -q KEY[:VALUE] option strings
         json_output: request JSON output with -J flag (default True)
+        main_arg:    positional argument the command itself takes, e.g.
+                     "250" (cputest CPU%), "1G" (memtest size),
+                     "read:FILE" (iotest path), "tcp:IP:PORT" (nettest target)
     """
     if command in BLOCKED_COMMANDS:
         return _wrap({"ok": False, "error": f"command '{command}' is blocked"})
@@ -448,6 +525,7 @@ def runCommand(
         device_id=device_id or None,
         extra_opts=list(extra_opts or []),
         json_output=json_output,
+        main_arg=main_arg or None,
     )
     return _wrap(result)
 

@@ -39,6 +39,9 @@ _CALL_SEM = threading.Semaphore(MAX_CONCURRENT_CALLS)
 _SAFE_DEVICE_ID = re.compile(r'^[a-zA-Z0-9:._-]+$')
 _SAFE_IFACE = re.compile(r'^[a-zA-Z0-9_.-]{1,16}$')
 
+# guider's -F image output format values (drawSubStr help block)
+_SAFE_DRAW_FORMAT = {"svg", "png", "pdf", "ps", "eps", "html"}
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,11 +102,16 @@ class GuiderAdapter:
         interval: int = 1,
         extra_opts: list[str] | None = None,
         input_file: str | None = None,
+        input_files: list[str] | None = None,
         target_pid: str | None = None,
         device_id: str | None = None,
         timeout_sec: int | None = None,
         json_output: bool = True,
         main_arg: str | None = None,
+        draw_format: str | None = None,
+        draw_layout: str | None = None,
+        top_number: int | None = None,
+        output_dir: str | None = None,
     ) -> dict[str, Any]:
         """
         Run a guider command and return a structured result envelope.
@@ -114,11 +122,18 @@ class GuiderAdapter:
             interval:     sampling interval in seconds (-i N)
             extra_opts:   list of extra -q KEY[:VALUE] strings
             input_file:   -I <file> for offline analysis commands
+            input_files:  positional multi-file input for drawavg-family commands
+                          (e.g. drawavg/drawcpuavg/drawmemavg/drawvssavg/drawrssavg,
+                          which require >= 2 files); mutually exclusive with input_file
             target_pid:   -e <pid/name> for per-process targeting
             device_id:    Android device serial (validated)
             timeout_sec:  wall-clock timeout; defaults to duration+30
             json_output:  append -J flag for JSON output
             main_arg:     positional argument after command (e.g. function name for bpftop)
+            draw_format:  -F <fmt> image output format (svg/png/pdf/ps/eps/html)
+            draw_layout:  -L <RES:PER> graph layout spec for draw commands
+            top_number:   -T <N> top-N number for draw commands
+            output_dir:   -o <dir> output directory for draw commands
 
         Returns:
             dict with keys: ok, command, timestamp, duration_sec,
@@ -179,6 +194,42 @@ class GuiderAdapter:
                 return envelope
             input_file = real_input
 
+        # validate input_files paths (must exist, realpath check each; fail closed)
+        if input_files:
+            real_inputs: list[str] = []
+            for f in input_files:
+                real_f = os.path.realpath(f)
+                if not os.path.exists(real_f):
+                    envelope["error"] = f"input_files entry not found: {f}"
+                    return envelope
+                real_inputs.append(real_f)
+            input_files = real_inputs
+
+        # validate draw_format against guider's supported -F values
+        if draw_format and draw_format.lower() not in _SAFE_DRAW_FORMAT:
+            envelope["error"] = (
+                f"invalid draw_format '{draw_format}' "
+                f"(allowed: {sorted(_SAFE_DRAW_FORMAT)})"
+            )
+            return envelope
+
+        # validate output_dir (same allow-list as FILE/PATH/DIR -q values:
+        # /tmp/ or an already-existing path)
+        if output_dir:
+            real_out = os.path.realpath(output_dir)
+            if not (real_out.startswith("/tmp/") or os.path.exists(real_out)):
+                envelope["error"] = f"output_dir not accessible: {output_dir}"
+                return envelope
+            if real_out.startswith("/tmp/") and not os.path.exists(real_out):
+                try:
+                    os.makedirs(real_out, exist_ok=True)
+                except OSError as exc:
+                    envelope["error"] = (
+                        f"failed to create output_dir '{output_dir}': {exc}"
+                    )
+                    return envelope
+            output_dir = real_out
+
         # determine duration
         run_duration: int | None = None
         if meta["streaming"]:
@@ -201,10 +252,15 @@ class GuiderAdapter:
             interval=interval,
             extra_opts=safe_opts,
             input_file=input_file,
+            input_files=input_files,
             target_pid=target_pid,
             device_id=device_id,
             json_output=json_output,
             main_arg=main_arg,
+            draw_format=draw_format,
+            draw_layout=draw_layout,
+            top_number=top_number,
+            output_dir=output_dir,
         )
         logger.debug("exec: %s", " ".join(cmd))
 
@@ -259,14 +315,28 @@ class GuiderAdapter:
             if err:
                 stderr_text = err.decode("utf-8", errors="replace").strip()
                 if stderr_text:
-                    # Filter known-harmless terminal probe lines (stty on non-tty stdin)
+                    # Filter known-harmless lines:
+                    # - stty probe output on non-tty stdin
+                    # - guider's generic "please report guider.err" notice,
+                    #   which its Tee-wrapper emits with an "[ERROR]" prefix
+                    #   on the FIRST stderr write of the process regardless
+                    #   of cause (e.g. a harmless MatplotlibDeprecationWarning),
+                    #   so its mere presence doesn't indicate real failure
                     filtered = "\n".join(
                         line for line in stderr_text.splitlines()
                         if "stty:" not in line
+                        and "guider/issues" not in line
                     ).strip()
                     if filtered:
                         filtered = GuiderAdapter._ANSI_ESCAPE.sub('', filtered)
                         envelope["warnings"].append(f"stderr: {filtered[:500]}")
+                        # guider's own printErr() writes fatal errors to stderr
+                        # with an "[ERROR]" prefix but most call paths still
+                        # exit 0 (SysMgr.doExit defaults exitCode to 0) — treat
+                        # that as a real failure instead of a silent success.
+                        if envelope["ok"] and "[ERROR]" in filtered:
+                            envelope["ok"] = False
+                            envelope["error"] = filtered[:500]
 
         except Exception as exc:  # pylint: disable=broad-except
             envelope["error"] = str(exc)
@@ -323,6 +393,11 @@ class GuiderAdapter:
         device_id: str | None,
         json_output: bool,
         main_arg: str | None = None,
+        input_files: list[str] | None = None,
+        draw_format: str | None = None,
+        draw_layout: str | None = None,
+        top_number: int | None = None,
+        output_dir: str | None = None,
     ) -> list[str]:
         """Construct the subprocess argument list.
 
@@ -333,7 +408,12 @@ class GuiderAdapter:
         # Bug-0b: visualize/file commands use a positional FILE arg, not -I FILE.
         # Auto-promote input_file to main_arg when the command takes a file
         # as positional argument and no explicit main_arg was given.
-        if meta.get("output_type") == "file" and input_file and not main_arg:
+        if (
+            meta.get("output_type") == "file"
+            and input_file
+            and not main_arg
+            and not input_files
+        ):
             main_arg = input_file
             input_file = None
 
@@ -359,8 +439,11 @@ class GuiderAdapter:
         else:
             cmd = [self._guider_path, command]
 
+        # positional multi-file input (drawavg-family: >= 2 files, no -I/comma-join)
+        if input_files:
+            cmd += input_files
         # positional main argument (e.g. function name for bpftop/bpfsnoop)
-        if main_arg:
+        elif main_arg:
             cmd.append(main_arg)
 
         # Bug-0a: -i (interval) is interpreted as an input file path by guider
@@ -376,13 +459,25 @@ class GuiderAdapter:
         if input_file:
             cmd += ["-I", input_file]
 
-        # target pid/name
+        # target pid/name (guider's task-filter flag is -g, not -e;
+        # -e is "enable options", an unrelated per-command flag-character string)
         if target_pid:
-            cmd += ["-e", str(target_pid)]
+            cmd += ["-g", str(target_pid)]
 
         # android device (for non-android_only commands that still use -d)
         if device_id:
             cmd += ["-d", device_id]
+
+        # draw command options (guider's own -d "disable options" char-flag string
+        # is unrelated to the adapter's Android-device-serial -d above)
+        if draw_format:
+            cmd += ["-F", draw_format]
+        if draw_layout:
+            cmd += ["-L", draw_layout]
+        if top_number is not None:
+            cmd += ["-T", str(top_number)]
+        if output_dir:
+            cmd += ["-o", output_dir]
 
         # extra -q options (already sanitised)
         for opt in extra_opts:
@@ -428,7 +523,7 @@ class GuiderAdapter:
             guider_args += ["-R", f"{duration}s"]
 
         if target_pid:
-            guider_args += ["-e", str(target_pid)]
+            guider_args += ["-g", str(target_pid)]
 
         for opt in extra_opts:
             guider_args += ["-q", opt]
