@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260807"
+__revision__ = "260809"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9412,6 +9412,19 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             return "?"
+
+    @staticmethod
+    def convEpoch2Clock(epoch):
+        """Convert epoch seconds to local 'HH:MM:SS.mmmmmm' string"""
+        import time as _time
+
+        lt = _time.localtime(epoch)
+        return "%02d:%02d:%02d.%06d" % (
+            lt.tm_hour,
+            lt.tm_min,
+            lt.tm_sec,
+            int((epoch % 1) * 1e6),
+        )
 
     @staticmethod
     def convTime2Sec(time, remainder=False):
@@ -33006,6 +33019,41 @@ class LLMMgr(object):
     _llmContextConfig = {}  # guider.conf [llm].CONTEXT config
     _askrunConfig = {}  # guider.conf [llm].ASKRUN config
 
+    # short aliases accepted via -q LLMMODEL:<alias> for the claude/
+    # custom-claude providers, resolved to concrete Anthropic API model ids.
+    # exact-match only -- must not substring-match real model ids (e.g.
+    # "claude-3-5-sonnet-20241022" already contains "sonnet") #
+    _CLAUDE_MODEL_ALIASES = {
+        "opus": "claude-opus-5",
+        "sonnet": "claude-sonnet-5",
+        "haiku": "claude-haiku-4-5-20251001",
+    }
+
+    @staticmethod
+    def _resolveClaudeModel(model):
+        """Resolve a short Claude model alias (opus/sonnet/haiku) to its
+        concrete API model id; any other value is returned unchanged."""
+        if not model:
+            return model
+        return LLMMgr._CLAUDE_MODEL_ALIASES.get(model.strip().lower(), model)
+
+    @staticmethod
+    def _initPeriodicAI():
+        """Enable periodic LLM summarization if AIPERIODIC/LLMPERIOD is set.
+
+        Shared by one-shot systat and the ctop live-monitoring loop so both
+        entry points arm SysMgr.llmPeriodicInterval/llmPeriodicTs the same
+        way; TaskAnalyzer.handleThresholdEvents() polls those two fields."""
+        llmPeriodOpt = LLMMgr._getEnvironValue(
+            "AIPERIODIC"
+        ) or LLMMgr._getEnvironValue("LLMPERIOD")
+        if llmPeriodOpt:
+            try:
+                SysMgr.llmPeriodicInterval = int(llmPeriodOpt)
+                SysMgr.llmPeriodicTs = 0
+            except:
+                pass
+
     class LLMResponse:
         """Unified format for LLM responses"""
 
@@ -33069,6 +33117,13 @@ class LLMMgr(object):
             )
             # Temperature: use provided value, env var, or default
             envTemp = os.getenv("LLM_TEMPERATURE")
+            # True only if the caller (or -q LLMTEMPERATURE / config / env)
+            # explicitly requested a temperature; False means self.temperature
+            # is just DEFAULT_TEMPERATURE's fallback value. Some newer models
+            # reject an explicitly-sent temperature that differs from their
+            # server-side default, so providers that hit this should only
+            # send "temperature" on the wire when this flag is True.
+            self.temperatureExplicit = temperature is not None or bool(envTemp)
             self.temperature = (
                 temperature
                 if temperature is not None
@@ -33699,10 +33754,8 @@ class LLMMgr(object):
             temperature=None,
             requestTimeout=None,
         ):
-            self.model = (
-                model
-                or os.getenv("CLAUDE_MODEL")
-                or "claude-3-5-sonnet-20241022"
+            self.model = LLMMgr._resolveClaudeModel(
+                model or os.getenv("CLAUDE_MODEL") or "claude-sonnet-5"
             )
             self.baseUrl = (
                 baseUrl
@@ -33764,6 +33817,9 @@ class LLMMgr(object):
             Returns:
                 LLMResponse with content, model, usage stats, and cache stats
             """
+            sendTemperature = (
+                temperature is not None or self.temperatureExplicit
+            )
             if temperature is None:
                 temperature = self.temperature
 
@@ -33815,9 +33871,10 @@ class LLMMgr(object):
                 _streamKwargs = dict(
                     model=self.model,
                     max_tokens=maxTokens,
-                    temperature=temperature,
                     messages=messages,
                 )
+                if sendTemperature:
+                    _streamKwargs["temperature"] = temperature
                 if self.cacheSystemPrompt and not self.enableCache:
                     _streamKwargs["system"] = self.cacheSystemPrompt
                 with client.messages.stream(**_streamKwargs) as stream:
@@ -33852,9 +33909,10 @@ class LLMMgr(object):
             _createKwargs = dict(
                 model=self.model,
                 max_tokens=maxTokens,
-                temperature=temperature,
                 messages=messages,
             )
+            if sendTemperature:
+                _createKwargs["temperature"] = temperature
             if self.cacheSystemPrompt and not self.enableCache:
                 _createKwargs["system"] = self.cacheSystemPrompt
             response = client.messages.create(**_createKwargs)
@@ -33887,6 +33945,9 @@ class LLMMgr(object):
             )
 
         def chat(self, message, maxTokens=4096, temperature=None, **kwargs):
+            sendTemperature = (
+                temperature is not None or self.temperatureExplicit
+            )
             if temperature is None:
                 temperature = self.temperature
 
@@ -33921,9 +33982,10 @@ class LLMMgr(object):
                 _streamKwargs = dict(
                     model=self.model,
                     max_tokens=maxTokens,
-                    temperature=temperature,
                     messages=messages,
                 )
+                if sendTemperature:
+                    _streamKwargs["temperature"] = temperature
                 if self.cacheSystemPrompt and not self.enableCache:
                     _streamKwargs["system"] = self.cacheSystemPrompt
                 with client.messages.stream(**_streamKwargs) as stream:
@@ -33956,9 +34018,10 @@ class LLMMgr(object):
             _createKwargs2 = dict(
                 model=self.model,
                 max_tokens=maxTokens,
-                temperature=temperature,
                 messages=messages,
             )
+            if sendTemperature:
+                _createKwargs2["temperature"] = temperature
             if self.cacheSystemPrompt and not self.enableCache:
                 _createKwargs2["system"] = self.cacheSystemPrompt
             response = client.messages.create(**_createKwargs2)
@@ -34380,7 +34443,7 @@ class LLMMgr(object):
                     "requests package is required. Install: pip install requests"
                 )
 
-            self.model = (
+            self.model = LLMMgr._resolveClaudeModel(
                 model
                 or os.getenv("CUSTOM_CLAUDE_MODEL")
                 or os.getenv("CUSTOM_MODEL")
@@ -36298,7 +36361,7 @@ class LLMMgr(object):
     @staticmethod
     def _loadConfigSettings():
         """
-        Load LLM settings from guider.conf (only if -C option specified)
+        Load LLM settings from guider.conf (only if a config file was loaded)
 
         Priority: -q option > config file > environment variable
 
@@ -36306,11 +36369,7 @@ class LLMMgr(object):
             dict: Settings dictionary with keys: provider, model, cache, system
                   Returns empty dict if config not loaded or no llm section
         """
-        # Only load if -C option was used to specify config file
-        if not hasattr(SysMgr, "confFileName") or not SysMgr.confFileName:
-            return {}
-
-        # Check if config file was actually loaded
+        # Check if config file was actually loaded #
         if not hasattr(ConfigMgr, "confData") or not ConfigMgr.confData:
             return {}
 
@@ -37921,6 +37980,8 @@ class LLMMgr(object):
         "gemini-1.5-pro": (1.25, 5.0),
         "gemini-1.5-flash": (0.075, 0.3),
         "gemini-2.0-flash": (0.1, 0.4),
+        "gemini-2.5-flash": (0.3, 2.5),
+        "gemini-2.5-pro": (1.25, 10.0),
         "gemini": (1.25, 5.0),
     }
 
@@ -51136,6 +51197,18 @@ Commands:
             return (customNrCrash, dirList) if retDir else customNrCrash
 
     @staticmethod
+    def _connectLmkdSocket(timeout=1.0):
+        """Connect to the lmkd control socket (AF_UNIX SEQPACKET).
+
+        Raises on failure — callers wrap this in their own try/except.
+        """
+        _sock = SysMgr.getPkg("socket")
+        s = _sock.socket(_sock.AF_UNIX, _sock.SOCK_SEQPACKET)
+        s.settimeout(timeout)
+        s.connect("/dev/socket/lmkd")
+        return s
+
+    @staticmethod
     def getLmkdKillCount(min_adj=0, max_adj=999):
         """Query lmkd LMK_GETKILLCNT(cmd=4) via /dev/socket/lmkd.
 
@@ -51144,15 +51217,12 @@ Commands:
         and caches the result in SysMgr._lmkdFmt.
         min_adj/max_adj: adj range for kill count (default 0-999 = all).
         """
-        _sock = SysMgr.getPkg("socket")
         _struct = SysMgr.getPkg("struct")
 
         def _query(fmt):
             try:
                 rfmt = ">Ii" if ">" in fmt else "<ii"
-                s = _sock.socket(_sock.AF_UNIX, _sock.SOCK_SEQPACKET)
-                s.settimeout(0.5)
-                s.connect("/dev/socket/lmkd")
+                s = SysMgr._connectLmkdSocket(0.5)
                 s.send(_struct.pack(fmt, 4, min_adj, max_adj))
                 resp = s.recv(64)
                 s.close()
@@ -53663,6 +53733,11 @@ Commands:
 
             # set threshold handle flag #
             SysMgr.thresholdEnable = True
+
+            # enable periodic LLM summarization if AIPERIODIC/LLMPERIOD is set;
+            # placed after parseAnalOption/applySelfInit above so this also
+            # honors AIPERIODIC set via the config file's [init].OPTION #
+            LLMMgr._initPeriodicAI()
 
             # disable color and encoding #
             SysMgr.colorEnable = False
@@ -74494,7 +74569,7 @@ Examples:
         # {0:1} {1:1} {3:1} -q JSONREPORT, ASKAI, SKIPSVG
         # {0:1} {1:1} {3:1} -q JSONREPORT, ASKAI:"Identify the root cause of ANR", SKIPSVG
         # {0:1} {1:1} {3:1} -q JSONREPORT, ASKAI, LLMPROVIDER:claude, SKIPSVG
-        # {0:1} {1:1} {3:1} -q JSONREPORT, ASKAI, LLMPROVIDER:claude, LLMMODEL:claude-opus-4-6, SKIPSVG
+        # {0:1} {1:1} {3:1} -q JSONREPORT, ASKAI, LLMPROVIDER:claude, LLMMODEL:opus, SKIPSVG
 
     - {2:1} with compression
         # {0:1} {1:1} {3:1} -q COMPFLAME
@@ -74912,7 +74987,7 @@ Examples:
         # {0:1} {1:1} "report*.out" -J -q ASKAI:"Identify performance bottlenecks"
         # {0:1} {1:1} "report*.out" -J -q ASKAI, LLMKEYS:cpuProcUsage:blkProcUsage
         # {0:1} {1:1} "report*.out" -J -q ASKAI, LLMPROVIDER:claude
-        # {0:1} {1:1} "report*.out" -J -q ASKAI, LLMPROVIDER:claude, LLMMODEL:claude-opus-4-6
+        # {0:1} {1:1} "report*.out" -J -q ASKAI, LLMPROVIDER:claude, LLMMODEL:opus
 
     - {2:1} after converting the unique physical memory (RSS-TEXT-SHM)
         # {0:1} {1:1} "report*.out" -q EXCEPTSHM
@@ -78917,7 +78992,7 @@ Examples:
         # {0:1} {1:1} CMD_ASKRUN
         # {0:1} {1:1} "CMD_ASKRUN:Diagnose and remediate CPU overload#MAXCMD:2"
         # {0:1} {1:1} "CMD_ASKRUN:Diagnose memory pressure#TIMEOUT:60,DRYRUN:true"
-        # {0:1} {1:1} "CMD_ASKRUN:Analyze anomaly#PROVIDER:claude,MODEL:claude-opus-4-6"
+        # {0:1} {1:1} "CMD_ASKRUN:Analyze anomaly#PROVIDER:claude,MODEL:opus"
 
     - Notify CMD_ASKMULTI event {2:1} to query multiple LLM providers in parallel
         # {0:1} {1:1} "CMD_ASKMULTI:Analyze this event#PROVIDERS:claude:gemini"
@@ -79164,9 +79239,9 @@ FILE:
 Options:
     Check COMMAND with --help (e.g. {1:1} top --help)
     -C  <PATH>  set config file (guider.conf)
-                    threshold : alert rules for CPU/MEM/IO/NET/BPF with commands
-                    llm       : provider, model, apiKey, baseUrl for AI analysis
-                    context   : system prompt customization for LLM
+        threshold : alert rules for CPU/MEM/IO/NET/BPF with commands
+        llm       : provider, model, apiKey, baseUrl for AI analysis
+        context   : system prompt customization for LLM
                     """.format(
                             SysMgr.getCmdString(),
                             cmd,
@@ -112368,15 +112443,7 @@ Key Value List:
             SysMgr.reportEnable = True
 
         # enable periodic LLM summarization if LLMPERIOD or AIPERIODIC is set #
-        llmPeriodOpt = LLMMgr._getEnvironValue(
-            "AIPERIODIC"
-        ) or LLMMgr._getEnvironValue("LLMPERIOD")
-        if llmPeriodOpt:
-            try:
-                SysMgr.llmPeriodicInterval = int(llmPeriodOpt)
-                SysMgr.llmPeriodicTs = 0
-            except:
-                pass
+        LLMMgr._initPeriodicAI()
 
         # save static system info #
         SysMgr.saveSysStats()
@@ -136200,6 +136267,40 @@ class BpfMgr(object):
         printer("%s\n" % ("=" * lineLen))
 
     @staticmethod
+    def _printBacktraceChains(bts, conv, maxlen=None):
+        """Print sorted {bt_str: count} backtrace chains for one leaf/key row.
+
+        Shared by _printBpftopTop and _printStackTop, which both aggregate
+        simple count-per-chain maps (unlike _printLatencyTop's ns/io_cnt dicts).
+        Returns True if printing was cut short (caller should stop iterating).
+        """
+        if not bts:
+            return False
+        maxlen = maxlen or SysMgr.lineLength
+        _bt_filter = SysMgr.environList.get("BTFILTER", [])
+        _bt_ignfilter = SysMgr.environList.get("IGNBTFILTER", [])
+        bt_total = sum(bts.values())
+        for bt_str, bt_cnt in sorted(bts.items(), key=lambda x: -x[1]):
+            if _bt_filter and not UtilMgr.isValidStr(bt_str, _bt_filter):
+                continue
+            if _bt_ignfilter and UtilMgr.isValidStr(bt_str, _bt_ignfilter):
+                continue
+            bt_pct = 100.0 * bt_cnt / bt_total if bt_total else 0
+            prefix = "{:>17} |  <- ".format("%.1f%%" % bt_pct)
+            cont = " " * 21 + "<- "
+            line = BpfMgr._wrapChain(
+                bt_str.split(" <- "),
+                prefix,
+                " <Cnt: %s>" % conv(bt_cnt),
+                cont,
+                maxlen,
+            )
+            if line:
+                if not SysMgr.addPrint(line, line.count("\n")):
+                    return True
+        return False
+
+    @staticmethod
     def _wrapChain(frames, prefix, suffix, cont, maxlen):
         """Join frames with ' <- ', wrapping at maxlen. Returns newline-terminated string."""
         if not frames:
@@ -136533,8 +136634,6 @@ class BpfMgr(object):
                     if _tg not in _tgid_bpf_comm:
                         _tgid_bpf_comm[_tg] = _c
 
-        _bt_filter = SysMgr.environList.get("BTFILTER", [])
-        _bt_ignfilter = SysMgr.environList.get("IGNBTFILTER", [])
         _cut = False
         for key, cnt in sorted(disp_counts.items(), key=lambda x: -x[1]):
             if _cut:
@@ -136590,31 +136689,8 @@ class BpfMgr(object):
                 break
 
             if disp_stacks and key in disp_stacks:
-                bts = disp_stacks[key]
-                bt_total = sum(bts.values())
-                for bt_str, bt_cnt in sorted(bts.items(), key=lambda x: -x[1]):
-                    if _bt_filter and not UtilMgr.isValidStr(
-                        bt_str, _bt_filter
-                    ):
-                        continue
-                    if _bt_ignfilter and UtilMgr.isValidStr(
-                        bt_str, _bt_ignfilter
-                    ):
-                        continue
-                    bt_pct = 100.0 * bt_cnt / bt_total if bt_total else 0
-                    prefix = "{:>17} |  <- ".format("%.1f%%" % bt_pct)
-                    cont = " " * 21 + "<- "
-                    line = BpfMgr._wrapChain(
-                        bt_str.split(" <- "),
-                        prefix,
-                        " <Cnt: %s>" % conv(bt_cnt),
-                        cont,
-                        SysMgr.lineLength,
-                    )
-                    if line:
-                        if not SysMgr.addPrint(line, line.count("\n")):
-                            _cut = True
-                            break
+                if BpfMgr._printBacktraceChains(disp_stacks[key], conv):
+                    _cut = True
 
             if _cut:
                 break
@@ -136668,17 +136744,7 @@ class BpfMgr(object):
     @staticmethod
     def _matchesFilter(pid, tgid, comm):
         """Return True if pid/tgid/comm satisfies the -g filter (or no filter active)."""
-        if not SysMgr.filterGroup:
-            return True
-        for _f in SysMgr.filterGroup:
-            try:
-                if int(_f) in (pid, tgid):
-                    return True
-            except (ValueError, TypeError):
-                pass
-            if UtilMgr.isValidStr(comm, [_f]):
-                return True
-        return False
+        return TaskAnalyzer.checkFilter(comm, pid, tgid=tgid)
 
     @staticmethod
     def _findLibPath(lib_name):
@@ -136748,16 +136814,24 @@ class BpfMgr(object):
     def _findApkPath(pid):
         """Return a list of unique .apk paths from /proc/pid/maps, or empty list."""
         _seen = []
+        fd = FileAnalyzer.getMapFd(pid)
+        if not fd:
+            return _seen
         try:
-            with open("/proc/%d/maps" % pid) as _f:
-                for _line in _f:
-                    _parts = _line.strip().split(None, 5)
-                    if len(_parts) == 6 and _parts[5].endswith(".apk"):
-                        _p = _parts[5]
-                        if _p not in _seen:
-                            _seen.append(_p)
+            for _line in fd.readlines():
+                mdict = FileAnalyzer.parseMapLine(_line)
+                if (
+                    mdict
+                    and mdict["binName"]
+                    and mdict["binName"].endswith(".apk")
+                ):
+                    _p = mdict["binName"]
+                    if _p not in _seen:
+                        _seen.append(_p)
         except (OSError, IOError):
             pass
+        finally:
+            fd.close()
         return _seen
 
     @staticmethod
@@ -136767,23 +136841,31 @@ class BpfMgr(object):
         Prefers an exact 'libart.so' match; falls back to any libart*.so.
         """
         _fallback = None
+        fd = FileAnalyzer.getMapFd(pid)
+        if not fd:
+            return None
         try:
-            with open("/proc/%d/maps" % pid) as _f:
-                for _line in _f:
-                    _parts = _line.strip().split(None, 5)
-                    if len(_parts) < 6 or "x" not in _parts[1]:
-                        continue
-                    _bn = os.path.basename(_parts[5])
-                    if _bn == "libart.so":
-                        return _parts[5]
-                    if (
-                        _bn.startswith("libart")
-                        and _bn.endswith(".so")
-                        and _fallback is None
-                    ):
-                        _fallback = _parts[5]
+            for _line in fd.readlines():
+                mdict = FileAnalyzer.parseMapLine(_line)
+                if (
+                    not mdict
+                    or not mdict["binName"]
+                    or "x" not in mdict["perm"]
+                ):
+                    continue
+                _bn = os.path.basename(mdict["binName"])
+                if _bn == "libart.so":
+                    return mdict["binName"]
+                if (
+                    _bn.startswith("libart")
+                    and _bn.endswith(".so")
+                    and _fallback is None
+                ):
+                    _fallback = mdict["binName"]
         except (OSError, IOError):
             pass
+        finally:
+            fd.close()
         return _fallback
 
     @staticmethod
@@ -136807,8 +136889,14 @@ class BpfMgr(object):
             "_ZN3art11interpreterL7Execute",  # local linkage (most common)
             "_ZN3art11interpreter7Execute",  # non-local/weak variant
         ]
+        # onlyFunc=False: libart.so is also probed by _findArtNterpOffset/
+        # _findArtNterpFastPaths for the SAME cached ElfAnalyzer object, whose
+        # symbol table is merged only once (lazily, on first getOffsetBySymbol
+        # call) and cached thereafter regardless of onlyFunc.  Requesting the
+        # onlyFunc=False superset here guarantees the cache is safe for all
+        # three consumers no matter which one merges it first. #
         for _pfx in _art_execute_prefixes:
-            _matches = elf.getOffsetBySymbol(_pfx, start=True, onlyFunc=True)
+            _matches = elf.getOffsetBySymbol(_pfx, start=True, onlyFunc=False)
             if _matches:
                 if isinstance(_matches, str):
                     return int(_matches, 16)
@@ -136818,7 +136906,7 @@ class BpfMgr(object):
                         return int(_off_hex, 16)
 
         # Fallback: substring match on 'Execute' — pick smallest offset (entry)
-        _matches = elf.getOffsetBySymbol("Execute", inc=True, onlyFunc=True)
+        _matches = elf.getOffsetBySymbol("Execute", inc=True, onlyFunc=False)
         if not _matches:
             raise RuntimeError(
                 "Execute symbol not found in '%s'" % libart_path
@@ -136844,7 +136932,8 @@ class BpfMgr(object):
 
         In Android 12+, ART uses Nterp (assembly interpreter) which bypasses
         the C++ Execute function.  The entry symbols are LOCAL/HIDDEN and must
-        be found in SYMTAB (not DYNSYM), so we scan the ELF directly.
+        be found in SYMTAB (not DYNSYM); ElfAnalyzer's merged symbol table
+        covers both.
 
         Preferred order:
           1. ExecuteNterpWithClinitImpl   (handles class-init + Nterp)
@@ -136852,86 +136941,17 @@ class BpfMgr(object):
 
         Returns int file offset, or None if not found (device uses old Execute path).
         """
-        import struct as _st
+        elf = ElfAnalyzer.getObject(libart_path)
+        if not elf:
+            return None
 
-        try:
-            with open(libart_path, "rb") as _f:
-                _hdr = _f.read(64)
-                if _hdr[:4] != b"\x7fELF":
-                    return None
-                _bits = _hdr[4]  # 1=32-bit, 2=64-bit
-                _le = _hdr[5] == 1  # 1=LE, 2=BE
-                _e_fmt = "<" if _le else ">"
-                if _bits == 2:
-                    # ELF64 header: e_shoff at 40 (8B), e_shentsize/e_shnum/e_shstrndx at 58/60/62 (2B each)
-                    (_e_shoff,) = _st.unpack_from(_e_fmt + "Q", _hdr, 40)
-                    (_e_shentsize, _e_shnum, _e_shstrndx) = _st.unpack_from(
-                        _e_fmt + "HHH", _hdr, 58
-                    )
-                    _sh_fmt = _e_fmt + "IIQQQQIIQQ"
-                    _sh_sz = 64
-                else:
-                    return None  # 32-bit not needed on Android AArch64
-
-                # Read section headers
-                _f.seek(_e_shoff)
-                _shdrs = [
-                    _st.unpack(_sh_fmt, _f.read(_sh_sz))
-                    for _ in range(_e_shnum)
-                ]
-                # Find .symtab and its string table
-                _symtab_sh = None
-                _strtab_sh = None
-                for _sh in _shdrs:
-                    if _sh[0] == 0:
-                        continue
-                    if _sh[1] == 2 and _symtab_sh is None:  # SHT_SYMTAB
-                        _symtab_sh = _sh
-                        _strtab_sh = _shdrs[_sh[6]]  # sh_link = strtab index
-                if _symtab_sh is None:
-                    return None
-
-                # Read symbol table and string table
-                _f.seek(_symtab_sh[4])  # sh_offset
-                _raw_sym = _f.read(_symtab_sh[5])  # sh_size
-                _f.seek(_strtab_sh[4])
-                _strtab = _f.read(_strtab_sh[5])
-
-                # Parse 64-bit symbols: Elf64_Sym = 24 bytes
-                _sym_fmt = _e_fmt + "IBBHQQ"
-                _sym_sz = 24
-                _candidates = {}
-                _want = {
-                    b"ExecuteNterpWithClinitImpl": 1,
-                    b"ExecuteNterpImpl": 2,
-                }
-                for _i in range(len(_raw_sym) // _sym_sz):
-                    _s = _st.unpack_from(_sym_fmt, _raw_sym, _i * _sym_sz)
-                    _name_off, _info, _other, _shndx, _value, _size = _s
-                    _name_end = _strtab.index(b"\x00", _name_off)
-                    _name = _strtab[_name_off:_name_end]
-                    if _name in _want and _value != 0:
-                        pri = _want[_name]
-                        if (
-                            pri not in _candidates
-                            or _value < _candidates[pri][0]
-                        ):
-                            _candidates[pri] = (_value, _name.decode())
-
-                # Return highest-priority found symbol
-                for _pri in sorted(_candidates):
-                    _va, _sname = _candidates[_pri]
-                    # Convert virtual address to file offset via section headers
-                    for _sh in _shdrs:
-                        if _sh[1] == 0:
-                            continue
-                        _sh_addr = _sh[3]  # sh_addr
-                        _sh_off = _sh[4]  # sh_offset
-                        _sh_size = _sh[5]  # sh_size
-                        if _sh_addr <= _va < _sh_addr + _sh_size:
-                            return int(_va - _sh_addr + _sh_off)
-        except Exception:
-            pass
+        # onlyFunc=False: some Nterp entry labels are STT_NOTYPE in the ELF.
+        # (_findArtExecuteOffset also merges this same cached object with
+        # onlyFunc=False, so the shared table always includes these.) #
+        for _name in ("ExecuteNterpWithClinitImpl", "ExecuteNterpImpl"):
+            _off_hex = elf.getOffsetBySymbol(_name, onlyFunc=False)
+            if _off_hex and isinstance(_off_hex, str) and _off_hex != "0x0":
+                return int(_off_hex, 16)
         return None
 
     @staticmethod
@@ -136945,78 +136965,24 @@ class BpfMgr(object):
 
         Returns list of (name, file_offset) tuples, or [] if not found.
         """
-        import struct as _st
+        _want = (
+            "nterp_to_nterp_static_non_range",
+            "nterp_to_nterp_static_range",
+            "nterp_to_nterp_instance_non_range",
+            "nterp_to_nterp_instance_range",
+            "nterp_to_nterp_string_init_non_range",
+            "nterp_to_nterp_string_init_range",
+        )
+        elf = ElfAnalyzer.getObject(libart_path)
+        if not elf:
+            return []
 
-        _want = {
-            b"nterp_to_nterp_static_non_range",
-            b"nterp_to_nterp_static_range",
-            b"nterp_to_nterp_instance_non_range",
-            b"nterp_to_nterp_instance_range",
-            b"nterp_to_nterp_string_init_non_range",
-            b"nterp_to_nterp_string_init_range",
-        }
+        # onlyFunc=False: these are raw asm dispatch labels, often STT_NOTYPE #
         results = []
-        try:
-            with open(libart_path, "rb") as _f:
-                _hdr = _f.read(64)
-                if _hdr[:4] != b"\x7fELF":
-                    return []
-                _bits = _hdr[4]
-                _le = _hdr[5] == 1
-                _e_fmt = "<" if _le else ">"
-                if _bits != 2:
-                    return []
-                (_e_shoff,) = _st.unpack_from(_e_fmt + "Q", _hdr, 40)
-                (_e_shentsize, _e_shnum, _e_shstrndx) = _st.unpack_from(
-                    _e_fmt + "HHH", _hdr, 58
-                )
-                _sh_fmt = _e_fmt + "IIQQQQIIQQ"
-                _sh_sz = 64
-                _f.seek(_e_shoff)
-                _shdrs = [
-                    _st.unpack(_sh_fmt, _f.read(_sh_sz))
-                    for _ in range(_e_shnum)
-                ]
-                _symtab_sh = None
-                _strtab_sh = None
-                for _sh in _shdrs:
-                    if _sh[0] == 0:
-                        continue
-                    if _sh[1] == 2 and _symtab_sh is None:  # SHT_SYMTAB
-                        _symtab_sh = _sh
-                        _strtab_sh = _shdrs[_sh[6]]
-                if _symtab_sh is None:
-                    return []
-                _f.seek(_symtab_sh[4])
-                _raw_sym = _f.read(_symtab_sh[5])
-                _f.seek(_strtab_sh[4])
-                _strtab = _f.read(_strtab_sh[5])
-                _sym_fmt = _e_fmt + "IBBHQQ"
-                _sym_sz = 24
-                _found = {}
-                for _i in range(len(_raw_sym) // _sym_sz):
-                    _s = _st.unpack_from(_sym_fmt, _raw_sym, _i * _sym_sz)
-                    _name_off, _info, _other, _shndx, _value, _size = _s
-                    if _value == 0:
-                        continue
-                    _name_end = _strtab.index(b"\x00", _name_off)
-                    _name = _strtab[_name_off:_name_end]
-                    if _name in _want:
-                        _found[_name] = _value
-                for _name, _va in _found.items():
-                    for _sh in _shdrs:
-                        if _sh[1] == 0:
-                            continue
-                        _sh_addr = _sh[3]
-                        _sh_off = _sh[4]
-                        _sh_size = _sh[5]
-                        if _sh_addr <= _va < _sh_addr + _sh_size:
-                            results.append(
-                                (_name.decode(), int(_va - _sh_addr + _sh_off))
-                            )
-                            break
-        except Exception:
-            pass
+        for _name in _want:
+            _off_hex = elf.getOffsetBySymbol(_name, onlyFunc=False)
+            if _off_hex and isinstance(_off_hex, str) and _off_hex != "0x0":
+                results.append((_name, int(_off_hex, 16)))
         return results
 
     @staticmethod
@@ -137094,23 +137060,13 @@ class BpfMgr(object):
         # class_defs: size+off at header offset 96
         cdef_sz, cdef_off = struct.unpack_from("<II", data, 96)
 
-        def _uleb(pos):
-            v, s = 0, 0
-            while True:
-                b = data[pos]
-                pos += 1
-                v |= (b & 0x7F) << s
-                if not (b & 0x80):
-                    return v, pos
-                s += 7
-
         def _str(idx):
             if idx >= sid_sz:
                 return ""
             off = struct.unpack_from("<I", data, sid_off + idx * 4)[0]
-            _, p = _uleb(off)
-            end = data.index(b"\x00", p)
-            return data[p:end].decode("utf-8", errors="replace")
+            _, sz = UtilMgr.decodeULEB128(data, off)
+            end = data.index(b"\x00", off + sz)
+            return data[off + sz : end].decode("utf-8", errors="replace")
 
         def _desc(idx):
             if idx >= tid_sz:
@@ -146653,9 +146609,6 @@ class BpfMgr(object):
         if not SysMgr.addPrint(col_hdr, col_hdr.count("\n")):
             return
 
-        _bt_filter = SysMgr.environList.get("BTFILTER", [])
-        _bt_ignfilter = SysMgr.environList.get("IGNBTFILTER", [])
-
         _cut = False
         for leaf, info in sorted(
             callTable.items(), key=lambda x: -x[1]["cnt"]
@@ -146678,27 +146631,10 @@ class BpfMgr(object):
             if not SysMgr.addPrint(row, row.count("\n")):
                 break
 
-            bts = btTable.get(leaf, {})
-            bt_total = sum(bts.values())
-            for bt_str, bt_cnt in sorted(bts.items(), key=lambda x: -x[1]):
-                if _bt_filter and not UtilMgr.isValidStr(bt_str, _bt_filter):
-                    continue
-                if _bt_ignfilter and UtilMgr.isValidStr(bt_str, _bt_ignfilter):
-                    continue
-                bt_pct = 100.0 * bt_cnt / bt_total if bt_total else 0
-                prefix = "{:>17} |  <- ".format("%.1f%%" % bt_pct)
-                cont = " " * 21 + "<- "
-                line = BpfMgr._wrapChain(
-                    bt_str.split(" <- "),
-                    prefix,
-                    " <Cnt: %s>" % conv(bt_cnt),
-                    cont,
-                    maxlen,
-                )
-                if line:
-                    if not SysMgr.addPrint(line, line.count("\n")):
-                        _cut = True
-                        break
+            if BpfMgr._printBacktraceChains(
+                btTable.get(leaf, {}), conv, maxlen
+            ):
+                _cut = True
 
             if _cut:
                 break
@@ -157214,14 +157150,7 @@ class BpfMgr(object):
                 SysMgr.printPipe(hdr)
                 SysMgr.printPipe(oneLine, flush=True)
 
-            def _fmt_ts(t):
-                lt = time.localtime(t)
-                return "%02d:%02d:%02d.%06d" % (
-                    lt.tm_hour,
-                    lt.tm_min,
-                    lt.tm_sec,
-                    int((t % 1) * 1e6),
-                )
+            _fmt_ts = UtilMgr.convEpoch2Clock
 
             def _emit_frame(can_id_raw, dlc_raw, data, iface_name, ts_wall):
                 is_eff = bool(can_id_raw & 0x80000000)
@@ -157499,21 +157428,15 @@ class BpfMgr(object):
         mem_cached_kb: Cached   — file page cache (lmkd other_file approx)
         mem_avail_kb : MemAvailable — kernel estimate of usable memory
         """
-        free = cached = avail = 0
         try:
-            with open("/proc/meminfo", "rb") as _f:
-                for _line in _f:
-                    if _line.startswith(b"MemFree:"):
-                        free = int(_line.split()[1])
-                    elif _line.startswith(b"Cached:"):
-                        cached = int(_line.split()[1])
-                    elif _line.startswith(b"MemAvailable:"):
-                        avail = int(_line.split()[1])
-                    if free and cached and avail:
-                        break
+            memDict = SysMgr.getMemDict()
         except Exception:
-            pass
-        return free, cached, avail
+            memDict = {}
+        return (
+            memDict.get("MemFree", 0),
+            memDict.get("Cached", 0),
+            memDict.get("MemAvailable", 0),
+        )
 
     @staticmethod
     def _startLmkLogThread(maxN=200):
@@ -157526,7 +157449,6 @@ class BpfMgr(object):
         SysMgr.lmkEventLog = _collections.deque(maxlen=maxN)
 
         def _worker():
-            _sock = SysMgr.getPkg("socket")
             _struct = SysMgr.getPkg("struct")
             _select = SysMgr.getPkg("select")
             _time = SysMgr.getPkg("time")
@@ -157641,9 +157563,7 @@ class BpfMgr(object):
             for _retry in range(3):
                 sock = None
                 try:
-                    sock = _sock.socket(_sock.AF_UNIX, _sock.SOCK_SEQPACKET)
-                    sock.settimeout(5)
-                    sock.connect("/dev/socket/lmkd")
+                    sock = SysMgr._connectLmkdSocket(5)
                     # ensure endian detection #
                     SysMgr.getLmkdKillCount()
                     fmt = SysMgr._lmkdFmt or ">Iii"
@@ -157696,7 +157616,6 @@ class BpfMgr(object):
     @staticmethod
     def doLmksnoopCmd():
         """Stream LMK kill events in real-time via lmkd UDS socket (Android only)."""
-        _sock = SysMgr.getPkg("socket")
         _struct = SysMgr.getPkg("struct")
         _select = SysMgr.getPkg("select")
         _time = SysMgr.getPkg("time")
@@ -157731,9 +157650,7 @@ class BpfMgr(object):
 
         def _connect_lmkd():
             try:
-                s = _sock.socket(_sock.AF_UNIX, _sock.SOCK_SEQPACKET)
-                s.settimeout(1.0)
-                s.connect("/dev/socket/lmkd")
+                s = SysMgr._connectLmkdSocket(1.0)
                 s.setblocking(False)
                 return s
             except Exception:
@@ -158111,13 +158028,7 @@ class BpfMgr(object):
                     if is_ext_kill:
                         continue
                     ts = _time.time()
-                    lt = _time.localtime(ts)
-                    ts_str = "%02d:%02d:%02d.%06d" % (
-                        lt.tm_hour,
-                        lt.tm_min,
-                        lt.tm_sec,
-                        int((ts % 1) * 1e6),
-                    )
+                    ts_str = UtilMgr.convEpoch2Clock(ts)
                     pid = ev.get("pid", 0)
                     proc_str = (
                         "%s(%d)" % (ev["name"], pid) if pid else ev["name"]
@@ -158165,13 +158076,7 @@ class BpfMgr(object):
                     if uid_filter is not None and ev["uid"] != uid_filter:
                         continue
                     ts = _time.time()
-                    lt = _time.localtime(ts)
-                    ts_str = "%02d:%02d:%02d.%06d" % (
-                        lt.tm_hour,
-                        lt.tm_min,
-                        lt.tm_sec,
-                        int((ts % 1) * 1e6),
-                    )
+                    ts_str = UtilMgr.convEpoch2Clock(ts)
                     # Extended protocol has "pid" key and its own "reason"; standard uses name #
                     is_ext = "pid" in ev
                     pkey = ev["uid"] if is_ext else ev["name"]
@@ -158368,57 +158273,11 @@ class BpfMgr(object):
                 % interval
             )
 
-            # Use ctypes for BPF_MAP_GET_NEXT_KEY iteration
-            import ctypes as _ct
-
-            _NR_BPF = SysMgr.getNrSyscall("sys_bpf")
-            _BPF_MAP_GET_NEXT_KEY = 4
             _KEY_SZ = 20
 
             def _iter_hash_keys(map_fd):
                 """Yield all keys from a BPF HASH map via BPF_MAP_GET_NEXT_KEY."""
-
-                class _Attr(_ct.Structure):
-                    _fields_ = [
-                        ("map_fd", _ct.c_uint32),
-                        ("pad0", _ct.c_uint32),
-                        ("key", _ct.c_uint64),
-                        ("next_key", _ct.c_uint64),
-                        ("flags", _ct.c_uint64),
-                    ]
-
-                _cur = (_ct.c_uint8 * _KEY_SZ)()
-                _nxt = (_ct.c_uint8 * _KEY_SZ)()
-                _attr = _Attr()
-                _attr.map_fd = map_fd
-                _attr.key = 0  # NULL = start
-                _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
-                _attr.flags = 0
-
-                # First call with NULL key
-                ret = SysMgr.libcObj.syscall(
-                    _ct.c_long(_NR_BPF),
-                    _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
-                    _ct.byref(_attr),
-                    _ct.c_uint(_ct.sizeof(_attr)),
-                )
-                if ret != 0:
-                    return
-
-                while True:
-                    yield bytes(_nxt)
-                    # Copy nxt → cur for next call
-                    _ct.memmove(_cur, _nxt, _KEY_SZ)
-                    _attr.key = _ct.cast(_cur, _ct.c_void_p).value
-                    _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
-                    ret = SysMgr.libcObj.syscall(
-                        _ct.c_long(_NR_BPF),
-                        _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
-                        _ct.byref(_attr),
-                        _ct.c_uint(_ct.sizeof(_attr)),
-                    )
-                    if ret != 0:
-                        break
+                return BpfMgr._iterMapKeys(map_fd, _KEY_SZ)
 
             _t_last = time.monotonic()
             while True:
@@ -158639,10 +158498,6 @@ class BpfMgr(object):
             twoLine = "=" * SysMgr.lineLength
             oneLine = "-" * SysMgr.lineLength
 
-            import ctypes as _ct
-
-            _NR_BPF = SysMgr.getNrSyscall("sys_bpf")
-            _BPF_MAP_GET_NEXT_KEY = 4
             _KEY_SZ = agg_key_sz
             _VAL_SZ = 40
 
@@ -158657,43 +158512,7 @@ class BpfMgr(object):
             )
 
             def _iter_keys(map_fd):
-                class _Attr(_ct.Structure):
-                    _fields_ = [
-                        ("map_fd", _ct.c_uint32),
-                        ("pad0", _ct.c_uint32),
-                        ("key", _ct.c_uint64),
-                        ("next_key", _ct.c_uint64),
-                        ("flags", _ct.c_uint64),
-                    ]
-
-                _cur = (_ct.c_uint8 * _KEY_SZ)()
-                _nxt = (_ct.c_uint8 * _KEY_SZ)()
-                _attr = _Attr()
-                _attr.map_fd = map_fd
-                _attr.key = 0
-                _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
-                _attr.flags = 0
-                ret = SysMgr.libcObj.syscall(
-                    _ct.c_long(_NR_BPF),
-                    _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
-                    _ct.byref(_attr),
-                    _ct.c_uint(_ct.sizeof(_attr)),
-                )
-                if ret != 0:
-                    return
-                while True:
-                    yield bytes(_nxt)
-                    _ct.memmove(_cur, _nxt, _KEY_SZ)
-                    _attr.key = _ct.cast(_cur, _ct.c_void_p).value
-                    _attr.next_key = _ct.cast(_nxt, _ct.c_void_p).value
-                    ret = SysMgr.libcObj.syscall(
-                        _ct.c_long(_NR_BPF),
-                        _ct.c_int(_BPF_MAP_GET_NEXT_KEY),
-                        _ct.byref(_attr),
-                        _ct.c_uint(_ct.sizeof(_attr)),
-                    )
-                    if ret != 0:
-                        break
+                return BpfMgr._iterMapKeys(map_fd, _KEY_SZ)
 
             _t_last = time.monotonic()
             while True:
@@ -159027,7 +158846,9 @@ class BpfMgr(object):
                         _ppid_str = SysMgr.getPpid(tgid)
                         _ppid = int(_ppid_str) if _ppid_str else 0
                         _pcomm = (
-                            SysMgr.getComm(_ppid, default="?") if _ppid else "?"
+                            SysMgr.getComm(_ppid, default="?")
+                            if _ppid
+                            else "?"
                         )
                         line = "%-15s  %26s  %26s  %s" % (
                             ts,
@@ -160219,10 +160040,7 @@ class BpfMgr(object):
                     """Resolve fd number to file path via /proc/pid/fd symlink."""
                     if fd_num < 0:
                         return ""
-                    try:
-                        return os.readlink("/proc/%d/fd/%d" % (pid, fd_num))
-                    except Exception:
-                        return ""
+                    return SysMgr.getFdName(pid, fd_num) or ""
 
                 if not SysMgr.jsonEnable:
                     SysMgr.addPrint("[bpfiotop] %s\n" % _sysStatStr)
@@ -199456,7 +199274,7 @@ class TaskAnalyzer(object):
     }
 
     @staticmethod
-    def checkFilter(comm, pid, filterGroup=None):
+    def checkFilter(comm, pid, filterGroup=None, tgid=None):
         # check no filter #
         if filterGroup is None:
             if not SysMgr.filterGroup:
@@ -199466,16 +199284,36 @@ class TaskAnalyzer(object):
         # remove * for new tasks #
         comm = comm.lstrip("*")
 
+        def _numMatch(items):
+            # numeric filter items may match either pid or tgid #
+            if tgid is None:
+                return False
+            for cond in items:
+                try:
+                    if int(cond) in (pid, tgid):
+                        return True
+                except (ValueError, TypeError):
+                    pass
+            return False
+
         # fast path: no exclusion items (common case, avoids list allocation) #
         if not any(idx.startswith("^") for idx in filterGroup):
-            return UtilMgr.isValidStr(comm, filterGroup) or pid in filterGroup
+            return (
+                UtilMgr.isValidStr(comm, filterGroup)
+                or pid in filterGroup
+                or _numMatch(filterGroup)
+            )
 
         # slow path: separate inclusions from exclusions #
         inclusions = []
         for idx in filterGroup:
             if idx.startswith("^"):
                 cond = idx[1:]
-                if pid == cond or UtilMgr.isValidStr(comm, [cond]):
+                if (
+                    pid == cond
+                    or UtilMgr.isValidStr(comm, [cond])
+                    or _numMatch([cond])
+                ):
                     return False
             else:
                 inclusions.append(idx)
@@ -199485,7 +199323,11 @@ class TaskAnalyzer(object):
             return True
 
         # check filter #
-        return UtilMgr.isValidStr(comm, inclusions) or pid in inclusions
+        return (
+            UtilMgr.isValidStr(comm, inclusions)
+            or pid in inclusions
+            or _numMatch(inclusions)
+        )
 
     @staticmethod
     def getSummaryData(fname, incHdr=False, update=False):
@@ -229125,13 +228967,7 @@ function isAutoNamedPlot(name) {{
                 uname = str(uid)
             ts = ev.get("timestamp", 0)
             try:
-                lt = time.localtime(ts)
-                ts_str = "%02d:%02d:%02d.%06d" % (
-                    lt.tm_hour,
-                    lt.tm_min,
-                    lt.tm_sec,
-                    int((ts % 1) * 1e6),
-                )
+                ts_str = UtilMgr.convEpoch2Clock(ts)
             except Exception:
                 ts_str = "-"
             if jsonEvents is not None:
@@ -246323,6 +246159,32 @@ function isAutoNamedPlot(name) {{
         )
     )
 
+    # inline parameter hints for allow-listed commands that take arguments;
+    # any command not listed here is presented to the LLM as a bare name.
+    # kept as a small dict instead of inline text so the prompt below is
+    # generated from _LLM_ALLOW_CMDS and can't silently drift out of sync #
+    _LLM_CMD_PARAM_HINTS = {
+        "SLEEP": "SLEEP:<SEC>",
+        "INTERVAL": "INTERVAL:<SEC>",
+        "BUFFER": "BUFFER:<SIZE>",
+        "AUTOSCHED": "AUTOSCHED:<POLICY>:<PRI>",
+        "AUTOIONICE": "AUTOIONICE:<CLASS>:<PRIO>",
+        "AUTOOMADJ": "AUTOOMADJ:<ADJ>",
+        "AUTOSIGNAL": "AUTOSIGNAL:<SIG>",
+        "AUTONICE": "AUTONICE:<NICE>",
+        "AUTOLIMITCPU": "AUTOLIMITCPU:<PCT>",
+    }
+
+    # NOTE: built with an explicit loop, not a comprehension -- comprehension
+    # bodies get their own scope in Python 3 and can't see the class-body
+    # names (_LLM_CMD_PARAM_HINTS/_LLM_ALLOW_CMDS) defined just above #
+    _cmdListParts = []
+    for _cmd in _LLM_ALLOW_CMDS:
+        _cmdListParts.append(_LLM_CMD_PARAM_HINTS.get(_cmd, _cmd))
+    _cmdListParts.sort()
+    _LLM_ALLOWED_CMD_LIST_STR = " ".join(_cmdListParts)
+    del _cmdListParts, _cmd
+
     # commands always blocked (affect guider lifecycle / destructive)
     _LLM_BLOCK_CMDS = frozenset(
         (
@@ -246359,10 +246221,8 @@ function isAutoNamedPlot(name) {{
         "medium=notable issue, low=informational.\n"
         "  subsystems — known types: cpu sched mem io net binder irq gpu bpf.\n"
         "  commands   — choose 0-3 from this list only: "
-        "SAVE SAVERAW SAVEMIN SAVECPU SAVEMEM SAVEBLOCK SNAPSHOT GETDUMP GETSUM GETINFO "
-        "RESET CLEAR PAUSE SLEEP:<SEC> DISABLE ENABLE INTERVAL:<SEC> BUFFER:<SIZE> "
-        "AUTOSCHED:<POLICY>:<PRI> AUTOIONICE:<CLASS>:<PRIO> AUTOOMADJ:<ADJ> "
-        "AUTOSIGNAL:<SIG> AUTONICE:<NICE> AUTOLIMITCPU:<PCT> WEBHOOK CORR.\n"
+        + _LLM_ALLOWED_CMD_LIST_STR
+        + ".\n"
         "  CPU spikes: prefer AUTOLIMITCPU:<PCT> or AUTOSCHED:B:0 (background class).\n"
         "  OOM risk: prefer AUTOOMADJ:1000 (mark as least-important).\n"
         "  Evidence capture: SAVE (stats), SNAPSHOT (full state), GETDUMP (ANR/crash).\n"
@@ -246589,9 +246449,10 @@ function isAutoNamedPlot(name) {{
                                 break
                         _max_total = int(_askrun_cfg.get("MAX_AUTO_CMDS", 3))
                         _existing = set(parsed.get("commands") or [])
+                        _remaining = max(0, _max_total - len(_existing))
                         _new_cmds = [
                             c for c in _auto_cmds if c not in _existing
-                        ][:_max_total]
+                        ][:_remaining]
                         _validated = [
                             c
                             for c in _new_cmds
@@ -247583,8 +247444,12 @@ function isAutoNamedPlot(name) {{
             for _prov in providers:
                 _opts = dict(_baseOpts)
                 _opts["provider"] = _prov
+                # give each provider its own dedup/rate-limit key -- otherwise
+                # _runLLMAskThread's pending-guard (keyed on this 4th arg)
+                # marks the event pending on the first provider and silently
+                # skips every subsequent one #
                 TaskAnalyzer._runLLMAskThread(
-                    "ASKAI", prompt, _opts, source, {}
+                    "ASKAI", prompt, _opts, "%s:%s" % (source, _prov), {}
                 )
         # AUTOSCHED #
         elif ocmd == "AUTOSCHED":
