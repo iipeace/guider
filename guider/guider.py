@@ -76678,12 +76678,12 @@ Options:
     -I  <DIR>                   set input path
     -a                          show all attributes
     -g  <WORD>                  set filter
-    -c  <COMMAND>               set command
-    -i  <SEC>                   set interval
     -q  <NAME{:VALUE}>          set environment variables
     -J                          print in JSON format
     -H  <LEVEL>                 set function depth level
     -Q                          print all rows in a stream
+    -i  <SEC>                   set interval
+    -W  <SEC>                   wait before starting
                         """
                     )
 
@@ -76695,9 +76695,14 @@ Examples:
     - {2:1} with files
         # {0:1} {1:1} {3:1} -a
 
-    - {2:1} after sorting per-directory
+    - {2:1} repeatedly at a fixed interval
+        # {0:1} {1:1} {3:1} -i 5
+
+    - {2:1} after waiting before starting
+        # {0:1} {1:1} {3:1} -W 5
+
+    - {2:1} after sorting per-directory by size
         # {0:1} {1:1} {3:1} -q SORT:SIZE
-        # {0:1} {1:1} {3:1} -q SORT:TYPE
 
     - {2:1} after sorting all files
         # {0:1} {1:1} {3:1} -q SORT:SIZE -a -g "*"
@@ -76711,16 +76716,24 @@ Examples:
     - {2:1} with time info
         # {0:1} {1:1} {3:1} -q TIMEINFO
 
+    - {2:1} with owner user info
+        # {0:1} {1:1} {3:1} -q USERINFO
+
+    - {2:1} with permission info
+        # {0:1} {1:1} {3:1} -q PERMINFO
+
+    - {2:1} with SELinux/AppArmor security label
+        # {0:1} {1:1} {3:1} -q SECURITY
+
+    - {2:1} hiding size/count meta info
+        # {0:1} {1:1} {3:1} -q NOMETA
+
     - {2:1} using full size without size unit
         # {0:1} {1:1} {3:1} -q FULLSIZE
 
     - {2:1} after saving specific directory info to a file
         # {0:1} printdir /data -J -a -o data.out -q FULLSIZE
         # {0:1} {1:1} "data.out, /tmp" -a
-
-    - {2:1} for specific directories with waiting interval
-        # {0:1} {1:1} "test1, test1" -i 100
-        # {0:1} {1:1} {3:1} -i 100
 
     - {2:1} in 2-depth
         # {0:1} {1:1} {3:1} -H 2
@@ -76742,10 +76755,6 @@ Examples:
 
     - {2:1} with dirs whose total size is lesser than 100MB
         # {0:1} {1:1} {3:1} -q DIRSIZECOND:LT:100M
-
-    - {2:1} and apply specific commands
-        # {0:1} {1:1} {3:1} -a -g test -q ONLYDIR -c "rm -rf TARGET"
-        # {0:1} {1:1} {3:1} -a -q ONLYFILE -c "cat TARGET > /dev/null"
                     """.format(
                         cmd,
                         mode,
@@ -91623,8 +91632,21 @@ Key Value List:
             # get size unit option #
             sizeUnit = "FULLSIZE" not in SysMgr.environList
 
+            # remove pager #
+            if SysMgr.intervalEnable:
+                SysMgr.streamEnable = True
+
             # print dir diff #
-            SysMgr.printDirDiff(rootList, maxLevel=maxLevel, sizeUnit=sizeUnit)
+            while 1:
+                SysMgr.printDirDiff(
+                    rootList, maxLevel=maxLevel, sizeUnit=sizeUnit
+                )
+
+                # wait interval #
+                if SysMgr.intervalEnable:
+                    time.sleep(SysMgr.intervalEnable)
+                else:
+                    break
 
         # PRINTCGROUP MODE #
         elif SysMgr.checkMode("printcg"):
@@ -103910,9 +103932,30 @@ Key Value List:
 
         # get abspath option #
         if "ABSPATH" in SysMgr.environList:
-            convAbs = os.path.realpath
+            convAbs = lambda x: os.path.realpath(os.path.expanduser(x))
         else:
-            convAbs = lambda x: x
+            convAbs = os.path.expanduser
+
+        # get sort option #
+        sortMode = None
+        if "SORT" in SysMgr.environList:
+            sortList = list(map(str.upper, SysMgr.environList["SORT"]))
+            if "SIZE" in sortList:
+                sortMode = "SIZE"
+            elif "TYPE" in sortList:
+                sortMode = "TYPE"
+
+        # get nometa option #
+        noMeta = "NOMETA" in SysMgr.environList
+
+        def _sortKey(item):
+            name, val = item
+            if sortMode == "SIZE" and isinstance(val, dict) and "_size_" in val:
+                return (0, -val["_size_"], name)
+            elif sortMode == "TYPE" and isinstance(val, dict):
+                return (0, 0 if "_subDirs_" in val else 1, name)
+            else:
+                return (1, name)
 
         def _getDiff(name1, dict1, name2, dict2, depth=0):
             diff = {}
@@ -103972,7 +104015,7 @@ Key Value List:
                 return other[name] if name in other else {}
 
             printed = False
-            for name, val in sorted(cur.items()):
+            for name, val in sorted(cur.items(), key=_sortKey):
                 if name in ("_subFiles_", "_subDirs_"):
                     pass
                 else:
@@ -103993,71 +104036,88 @@ Key Value List:
 
                     attrList = []
 
-                    # size #
-                    if "_size_" in val:
-                        size = val["_size_"]
-                        if (
-                            name in other
-                            and "_size_" in other[name]
-                            and size != other[name]["_size_"]
-                        ) or name not in other:
-                            if name in other:
-                                osize = other[name]["_size_"]
-                                if before:
-                                    beforeSize = size
-                                    afterSize = osize
+                    if not noMeta:
+                        # size #
+                        if "_size_" in val:
+                            size = val["_size_"]
+                            if (
+                                name in other
+                                and "_size_" in other[name]
+                                and size != other[name]["_size_"]
+                            ) or name not in other:
+                                if name in other:
+                                    osize = other[name]["_size_"]
+                                    if before:
+                                        beforeSize = size
+                                        afterSize = osize
+                                    else:
+                                        beforeSize = osize
+                                        afterSize = size
                                 else:
-                                    beforeSize = osize
-                                    afterSize = size
-                            else:
-                                if before:
-                                    beforeSize = size
-                                    afterSize = 0
+                                    if before:
+                                        beforeSize = size
+                                        afterSize = 0
+                                    else:
+                                        beforeSize = 0
+                                        afterSize = size
+
+                                sizeDiff = afterSize - beforeSize
+                                if sizeDiff > 0:
+                                    sizeDiffOp = "+"
+                                    sizeDiffColor = "CYAN"
                                 else:
-                                    beforeSize = 0
-                                    afterSize = size
+                                    sizeDiffOp = ""
+                                    sizeDiffColor = "WARNING"
 
-                            sizeDiff = afterSize - beforeSize
-                            if sizeDiff > 0:
-                                sizeDiffOp = "+"
-                                sizeDiffColor = "CYAN"
-                            else:
-                                sizeDiffOp = ""
-                                sizeDiffColor = "WARNING"
+                                if sizeDiff:
+                                    sizeChange = "%s->%s" % (
+                                        convSize(beforeSize),
+                                        convSize(afterSize),
+                                    )
+                                    sizeDiff = UtilMgr.convColor(
+                                        sizeDiffOp + convSize(sizeDiff),
+                                        sizeDiffColor,
+                                    )
+                                    sizeDiff = "(%s)" % sizeDiff
+                                else:
+                                    sizeChange = convSize(size)
+                                    sizeDiff = ""
 
-                            if sizeDiff:
-                                sizeChange = "%s->%s" % (
-                                    convSize(beforeSize),
-                                    convSize(afterSize),
+                                attrList.append(
+                                    "SIZE: %s%s" % (sizeChange, sizeDiff)
                                 )
-                                sizeDiff = UtilMgr.convColor(
-                                    sizeDiffOp + convSize(sizeDiff),
-                                    sizeDiffColor,
-                                )
-                                sizeDiff = "(%s)" % sizeDiff
+
+                        # times #
+                        if "_times_" in val:
+                            attrList += val["_times_"]
+
+                        # user #
+                        if "_user_" in val:
+                            attrList.append("USER: %s" % val["_user_"])
+
+                        # permission #
+                        if "_perm_" in val:
+                            attrList.append("PERM: %s" % val["_perm_"])
+
+                        # security #
+                        secVal = val.get("security") or val.get(
+                            "_security_"
+                        )
+                        if secVal:
+                            attrList.append("SECURITY: %s" % secVal)
+
+                        # attributes #
+                        for item in ("_subFiles_", "_subDirs_"):
+                            if item == "_subFiles_":
+                                iname = "DIR"
                             else:
-                                sizeChange = convSize(size)
-                                sizeDiff = ""
+                                iname = "FILE"
 
-                            attrList.append(
-                                "SIZE: %s%s" % (sizeChange, sizeDiff)
-                            )
-
-                    # times #
-                    if "_times_" in val:
-                        attrList += val["_times_"]
-
-                    # attributes #
-                    for item in ("_subFiles_", "_subDirs_"):
-                        if item == "_subFiles_":
-                            iname = "DIR"
-                        else:
-                            iname = "FILE"
-
-                        if item in val:
-                            attrList.append(
-                                "%s: %s" % (iname, convNum(len(val[item])))
-                            )
+                            if item in val:
+                                attrList.append(
+                                    "%s: %s"
+                                    % (iname, convNum(len(val[item])))
+                                )
 
                     if attrList:
                         rname += " <%s>" % ", ".join(attrList)
@@ -104121,20 +104181,8 @@ Key Value List:
 
             retList.append([root, ret])
 
-            try:
-                if idx >= len(rootList) - 1:
-                    break
-
-                if SysMgr.intervalEnable:
-                    SysMgr.printStat(
-                        "wait until %s seconds"
-                        % UtilMgr.convNum(SysMgr.intervalEnable)
-                    )
-                    SysMgr.waitEvent(timeout=SysMgr.intervalEnable)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+            if idx >= len(rootList) - 1:
+                break
 
         # recover jsonEnable #
         SysMgr.jsonEnable = origJsonEnable
@@ -104243,6 +104291,9 @@ Key Value List:
 
     @staticmethod
     def printDirs(path=".", maxLevel=-1, retVal=False, sizeUnit=True):
+        # convert home directory #
+        path = os.path.expanduser(path)
+
         # define functions #
         if sizeUnit:
             convSize = UtilMgr.convSize2Unit
@@ -104284,11 +104335,23 @@ Key Value List:
         exDirFilter = SysMgr.environList.get("EXDIRFILTER")
         exFileFilter = SysMgr.environList.get("EXFILEFILTER")
 
-        def _getDirsJson(result, parentPath, level, maxLevel):
+        # get security option #
+        secEnabled = "SECURITY" in SysMgr.environList
+
+        # stat module for merged type/permission checks #
+        import stat as _stat
+
+        # cache for SORT:SIZE real-size lookups, shared across the whole #
+        # traversal so each path's recursive size is computed only once #
+        # instead of being recomputed by every ancestor directory's sort #
+        realSizeCache = {}
+
+        def _getDirsJson(result, parentPath, level, maxLevel, parentAbsPath=None):
             # get subdir #
             try:
                 fileList = os.listdir(parentPath)
-                parentAbsPath = "%s" % (convAbs(parentPath))
+                if parentAbsPath is None:
+                    parentAbsPath = "%s" % (convAbs(parentPath))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -104326,14 +104389,24 @@ Key Value List:
                 subAbsPath = convAbs(fullPath)
 
                 # security #
-                if "SECURITY" in SysMgr.environList:
+                if secEnabled:
                     sec = SysMgr.getFileAttr(fullPath)
                     secStr = sec if sec else "N/A"
                 else:
                     secStr = ""
 
+                # check entry type with a single stat call #
+                try:
+                    st = os.stat(fullPath)
+                    isEntryDir = _stat.S_ISDIR(st.st_mode)
+                    isEntryFile = _stat.S_ISREG(st.st_mode)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    isEntryDir = isEntryFile = False
+
                 # check dir #
-                if os.path.isdir(fullPath):
+                if isEntryDir:
                     totalDir += 1
                     totalSize += blockSize
 
@@ -104372,6 +104445,10 @@ Key Value List:
                     if times:
                         info["_times_"] = times
 
+                    user = _getUser(fullPath)
+                    if user:
+                        info["_user_"] = user
+
                     result[parentAbsPath]["_subDirs_"][subAbsPath] = info
 
                     totalInfo = _getDirsJson(
@@ -104379,6 +104456,7 @@ Key Value List:
                         fullPath,
                         level + 1,
                         maxLevel,
+                        subAbsPath,
                     )
 
                     # check dir total size #
@@ -104390,7 +104468,7 @@ Key Value List:
                         totalDir += totalInfo[1]
                         totalFile += totalInfo[2]
 
-                elif os.path.isfile(fullPath):
+                elif isEntryFile:
                     # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isValidStr(subPath):
@@ -104408,7 +104486,7 @@ Key Value List:
                     ):
                         size = 0
                     else:
-                        size = os.stat(fullPath).st_size
+                        size = st.st_size
 
                     if size < blockSize:
                         totalSize += blockSize
@@ -104428,11 +104506,6 @@ Key Value List:
                     ):
                         continue
 
-                    # get time info #
-                    times = _getTimes(fullPath)
-                    if times:
-                        result[parentAbsPath]["_times_"] = times
-
                     if "_subFiles_" not in result[parentAbsPath]:
                         result[parentAbsPath]["_subFiles_"] = {}
 
@@ -104449,6 +104522,19 @@ Key Value List:
                         result[parentAbsPath]["_subFiles_"][subAbsPath][
                             "_perm_"
                         ] = perm
+
+                    # get time info #
+                    times = _getTimes(fullPath)
+                    if times:
+                        result[parentAbsPath]["_subFiles_"][subAbsPath][
+                            "_times_"
+                        ] = times
+
+                    user = _getUser(fullPath)
+                    if user:
+                        result[parentAbsPath]["_subFiles_"][subAbsPath][
+                            "_user_"
+                        ] = user
 
             # save stats for dir #
             result[parentAbsPath]["_size_"] = convSize(totalSize)
@@ -104475,8 +104561,6 @@ Key Value List:
                 return ""
             try:
                 mode = os.stat(fullPath).st_mode
-                import stat as _stat
-
                 sym = _stat.filemode(mode)
                 octal = "%o" % (mode & 0o777)
                 return "%s(%s)" % (sym, octal)
@@ -104601,7 +104685,14 @@ Key Value List:
                 return True
 
         def _getDirs(
-            parentPath, fileList, prefix, result, level, maxLevel, sortRes
+            parentPath,
+            fileList,
+            prefix,
+            result,
+            level,
+            maxLevel,
+            sortRes,
+            headerIndex=None,
         ):
             totalSize = 0
             totalFile = 0
@@ -104627,6 +104718,39 @@ Key Value List:
             # check including link option #
             incLink = "INCLINK" in SysMgr.environList
 
+            def _getRealSize(path):
+                # get real recursive size for sorting (files: content size, #
+                # dirs: block size + real size of all descendants). #
+                # memoized in realSizeCache: both this dir's own SORT:SIZE #
+                # pass and every ancestor dir's SORT:SIZE pass need the #
+                # same descendant's size, so compute each path once only #
+                if path in realSizeCache:
+                    return realSizeCache[path]
+                try:
+                    if not incLink and os.path.islink(path):
+                        size = 0
+                    elif os.path.isdir(path):
+                        total = blockSize
+                        try:
+                            with os.scandir(path) as it:
+                                for entry in it:
+                                    total += _getRealSize(entry.path)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
+                        size = total
+                    elif os.path.isfile(path):
+                        size = os.stat(path).st_size
+                    else:
+                        size = 0
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    size = 0
+                realSizeCache[path] = size
+                return size
+
             # sort #
             sortVal = None
             if "SORT" in SysMgr.environList:
@@ -104635,10 +104759,8 @@ Key Value List:
                 if "SIZE" in sortList:
                     sortVal = "SIZE"
                     fileList.sort(
-                        key=lambda name: (
-                            os.path.getsize("%s/%s" % (parentPath, name))
-                            if os.path.exists("%s/%s" % (parentPath, name))
-                            else 0
+                        key=lambda name: _getRealSize(
+                            os.path.join(parentPath, name)
                         ),
                         reverse=True,
                     )
@@ -104664,7 +104786,7 @@ Key Value List:
                 fullPath = os.path.join(parentPath, subPath)
 
                 # security #
-                if "SECURITY" in SysMgr.environList:
+                if secEnabled:
                     sec = SysMgr.getFileAttr(fullPath)
                     sec = sec if sec else "N/A"
                     secStr = " (%s)" % convColor(sec, "YELLOW")
@@ -104678,10 +104800,22 @@ Key Value List:
                 else:
                     permStr = ""
 
+                # check entry type with a single stat call #
+                try:
+                    st = os.stat(fullPath)
+                    isEntryDir = _stat.S_ISDIR(st.st_mode)
+                    isEntryFile = _stat.S_ISREG(st.st_mode)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    st = None
+                    isEntryDir = isEntryFile = False
+
                 # check dir #
-                if os.path.isdir(fullPath):
+                if isEntryDir:
                     totalDir += 1
                     isTarget = False
+                    childHeaderIdx = None
 
                     # apply filter #
                     if SysMgr.filterGroup:
@@ -104731,6 +104865,7 @@ Key Value List:
                             secStr,
                         )
                         if not depthFilter or depthFilter > level:
+                            childHeaderIdx = len(result)
                             result.append(string)
 
                     # apply command #
@@ -104767,6 +104902,7 @@ Key Value List:
                             level + 1,
                             maxLevel,
                             sortRes,
+                            childHeaderIdx,
                         )
 
                         # add to stat #
@@ -104776,7 +104912,7 @@ Key Value List:
                         if isTarget:
                             totalDir += rlist[1]
                 # check file #
-                elif os.path.isfile(fullPath):
+                elif isEntryFile:
                     size = ""
 
                     # apply filter #
@@ -104788,7 +104924,7 @@ Key Value List:
                         # get size #
                         try:
                             if blockSize:
-                                size = os.stat(fullPath).st_size
+                                size = st.st_size
                                 totalSize += size
                             else:
                                 size = 0
@@ -104849,7 +104985,7 @@ Key Value List:
                         elif not incLink and os.path.islink(fullPath):
                             size = 0
                         elif not size:
-                            size = os.stat(fullPath).st_size
+                            size = st.st_size
                             if size < blockSize:
                                 totalSize += blockSize
                             else:
@@ -104903,7 +105039,7 @@ Key Value List:
                         sizeStr = convSize(size)
 
                         # link #
-                        nrLink = os.stat(fullPath).st_nlink
+                        nrLink = st.st_nlink
                         if nrLink > 1:
                             linkStr = ", LINK: %s" % nrLink
                         elif os.path.islink(fullPath):
@@ -104975,10 +105111,14 @@ Key Value List:
                     convNum(totalFile),
                 )
 
-            # add summary by reverse traverse #
+            # add summary to this dir's own header line #
             if level == 0:
                 result[0] += summary
+            elif headerIndex is not None:
+                result[headerIndex] += summary
             else:
+                # fall back to reverse scan when the caller doesn't know #
+                # this dir's header index (e.g. depthFilter/filterGroup) #
                 tprefix = "%s-[%s]" % (
                     prefix[:-2],
                     os.path.basename(parentPath),
