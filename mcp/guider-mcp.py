@@ -14,6 +14,7 @@ or via .mcp.json stdio transport (Claude Code picks this up automatically).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -28,7 +29,15 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 from guider_adapter import get_adapter
-from guider_catalog import CATALOG, BLOCKED_COMMANDS, get_tool_commands, validate_catalog
+from guider_catalog import (
+    CATALOG,
+    BLOCKED_COMMANDS,
+    MCP_TOOL_NAMES,
+    get_tool_commands,
+    get_all_tool_commands,
+    validate_catalog,
+    validate_openai_function_defs,
+)
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -63,14 +72,19 @@ adapter = get_adapter()
 for _issue in validate_catalog():
     logger.warning("catalog: %s", _issue)
 
-# Pre-built frozensets of allowed commands per tool (avoid repeated O(n) scans)
+# Validate openapi/function_definitions_openai.json against CATALOG at startup
+for _issue in validate_openai_function_defs():
+    logger.warning("catalog: %s", _issue)
+
+# Pre-built frozensets of allowed commands per tool (avoid repeated O(n) scans).
+# runCommand/guiderHelp are excluded — they don't gate on a fixed command enum
+# (runCommand is a CATALOG pass-through, guiderHelp takes no `command` arg).
 _ALLOWED: dict[str, frozenset] = {
     t: frozenset(get_tool_commands(t))
-    for t in [
-        "systemMonitor", "bpfTrace", "ftraceProfile", "networkTrace",
-        "androidPerf", "memoryAnalyze", "visualize", "logAnalyze",
-    ]
+    for t in MCP_TOOL_NAMES
+    if t not in ("runCommand", "guiderHelp")
 }
+assert set(_ALLOWED) == set(MCP_TOOL_NAMES) - {"runCommand", "guiderHelp"}
 
 # Reverse index: command name → correct MCP tool name (for helpful error messages)
 _CMD_TO_TOOL: dict[str, str] = {cmd: meta["mcp_tool"] for cmd, meta in CATALOG.items()}
@@ -86,6 +100,11 @@ def _wrap(result: dict[str, Any]) -> str:
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
+def _err(msg: str) -> str:
+    """Serialise a simple {"ok": False, "error": msg} envelope."""
+    return _wrap({"ok": False, "error": msg})
+
+
 def _wrong_tool_error(command: str, tool_name: str) -> str:
     """Return a structured error pointing to the correct MCP tool."""
     correct = _CMD_TO_TOOL.get(command)
@@ -94,13 +113,17 @@ def _wrong_tool_error(command: str, tool_name: str) -> str:
         if correct
         else " Use guiderHelp() to list available commands."
     )
-    return _wrap({"ok": False, "error": f"'{command}' is not in {tool_name}.{hint}"})
+    return _err(f"'{command}' is not in {tool_name}.{hint}")
 
 
 # ---------------------------------------------------------------------------
 # 1. systemMonitor
 # ---------------------------------------------------------------------------
-@mcp.tool()
+# NOTE: no @mcp.tool() here — FastMCP's Tool.from_function() snapshots
+# fn.__doc__ into an immutable Tool.description at decoration time, so
+# registering before the <<COMMANDS>> docstring patch below would freeze
+# the placeholder forever. Registration happens after patching, at the
+# bottom of this file.
 def systemMonitor(
     command: str,
     duration: int = 5,
@@ -111,9 +134,7 @@ def systemMonitor(
     """
     System-wide resource monitoring (CPU, memory, IO, threads, containers, etc.).
 
-    Commands: top, ttop, atop, mtop, vtop, wtop, ftop, disktop,
-              irqtop, swaptop, slabtop, kstop, stacktop, ctop, cgtop,
-              contop, oomtop, pytop, rtop
+    Commands: <<COMMANDS>>
 
     Args:
         command:    guider sub-command name (e.g. "ttop")
@@ -137,7 +158,6 @@ def systemMonitor(
 # ---------------------------------------------------------------------------
 # 2. bpfTrace
 # ---------------------------------------------------------------------------
-@mcp.tool()
 def bpfTrace(
     command: str,
     duration: int = 10,
@@ -150,11 +170,7 @@ def bpfTrace(
     """
     eBPF-based kernel/user tracing (requires CAP_BPF or root, kernel ≥5.8).
 
-    Commands: bpftop, bpfsnoop, bpfstacktop, bpfwaittop, bpfblktop,
-              bpfrunqtop, bpfreclaimtop, bpflocktop, bpfbinderlat,
-              bpfbindersnoop, bpfbinderpool, bpfsyscalltop, bpfsyscallsnoop,
-              bpfwatch, bpfwatchtop, bpfwqtop, bpfcachetop, bpfkleaktop,
-              bpflsmopen, bpfprogtop, bpfsigtop, irqlattop
+    Commands: <<COMMANDS>>
 
     Args:
         command:    guider sub-command name (e.g. "bpfstacktop")
@@ -183,7 +199,6 @@ def bpfTrace(
 # ---------------------------------------------------------------------------
 # 3. ftraceProfile
 # ---------------------------------------------------------------------------
-@mcp.tool()
 def ftraceProfile(
     command: str,
     duration: int = 3,
@@ -200,9 +215,7 @@ def ftraceProfile(
     need neither. filerec/genrec are not ftrace-based either (no root/kernel
     requirement for genrec; filerec still needs root for /proc access).
 
-    Commands: trtop, tptop, bpfmarktop, funcrec, btop, utop, ktop, ptop,
-              fperf, utrace, strace, pytrace, btrace, sigtrace, iorec, filerec,
-              genrec, rec, report, sysrec, logtrace, stat
+    Commands: <<COMMANDS>>
 
     Args:
         command:    guider sub-command name (e.g. "trtop")
@@ -230,7 +243,6 @@ def ftraceProfile(
 # ---------------------------------------------------------------------------
 # 4. networkTrace
 # ---------------------------------------------------------------------------
-@mcp.tool()
 def networkTrace(
     command: str,
     duration: int = 10,
@@ -241,8 +253,7 @@ def networkTrace(
     """
     Network performance tracing (TCP retransmits, packet drops, latency, etc.).
 
-    Commands: ntop, bpftcpretrans, bpftcplife, bpfdroptop, bpftcplat,
-              bpfpkttop, bpfpktsnoop, bpfnetlat, dbustop
+    Commands: <<COMMANDS>>
 
     Args:
         command:    guider sub-command name (e.g. "bpftcpretrans")
@@ -266,7 +277,6 @@ def networkTrace(
 # ---------------------------------------------------------------------------
 # 5. androidPerf
 # ---------------------------------------------------------------------------
-@mcp.tool()
 def androidPerf(
     command: str,
     duration: int = 3,
@@ -275,14 +285,13 @@ def androidPerf(
     input_file: str = "",
     extra_opts: list[str] | None = None,
     sub_command: str = "",
+    target: str = "",
 ) -> str:
     """
     Android performance analysis (Perfetto, Binder, ATrace, logcat, CAN, etc.).
     Requires adb connection for most commands.
 
-    Commands: perfetto, bdtop, attop, gfxtop, andtop, bugrec, mdtop,
-              andcmd, hprof, scrcap, logand, lmksnoop, cantop, cansnoop, sperf,
-              getprop, watchprop, bugrep, scrrec, printboot
+    Commands: <<COMMANDS>>
 
     Args:
         command:     guider sub-command name (e.g. "perfetto")
@@ -298,6 +307,7 @@ def androidPerf(
                      - watchprop: property name/wildcard, optionally "|value"
                      - bugrep: optional output directory
                      Ignored for other commands.
+        target:      process name or PID to filter (-g); required by sperf/hprof
     """
     if command not in _ALLOWED["androidPerf"]:
         return _wrong_tool_error(command, "androidPerf")
@@ -309,6 +319,7 @@ def androidPerf(
         input_file=input_file or None,
         extra_opts=list(extra_opts or []),
         main_arg=sub_command or None,
+        target_pid=target or None,
     )
     return _wrap(result)
 
@@ -316,7 +327,6 @@ def androidPerf(
 # ---------------------------------------------------------------------------
 # 6. memoryAnalyze
 # ---------------------------------------------------------------------------
-@mcp.tool()
 def memoryAnalyze(
     command: str,
     duration: int = 3,
@@ -327,11 +337,11 @@ def memoryAnalyze(
     """
     Memory analysis: duplicate mapping detection, leak tracking, OOM monitoring.
 
-    Commands: checkdup, leaktop, leaktrace, mtrace, dump, mem
+    Commands: <<COMMANDS>>
 
     Args:
         command:    guider sub-command name (e.g. "checkdup")
-        duration:   monitoring duration in seconds (default 5); 0 for one-shot
+        duration:   monitoring duration in seconds (default 3); 0 for one-shot
         interval:   display interval in seconds (default 1)
         target:     optional process name or PID to filter (-g)
         extra_opts: list of -q KEY[:VALUE] option strings (e.g. ["SKIPEXMAPPED"])
@@ -354,7 +364,6 @@ def memoryAnalyze(
 _DRAWAVG_COMMANDS = {"drawavg", "drawcpuavg", "drawmemavg", "drawvssavg", "drawrssavg"}
 
 
-@mcp.tool()
 def visualize(
     command: str,
     input_file: str = "",
@@ -369,11 +378,7 @@ def visualize(
     """
     Generate performance graphs and visualizations from recorded data files.
 
-    Commands: draw, drawtime, drawcpu, drawmem, drawnet, drawdisk,
-              drawflame, drawflamediff, drawscatter, drawhist, drawviolin,
-              drawstack, drawbitmap, drawconn, drawpsi, drawreq, drawrss,
-              drawdiff, drawdelay, drawio, drawleak, drawpri, drawvss, convert,
-              drawavg, drawcpuavg, drawmemavg, drawvssavg, drawrssavg
+    Commands: <<COMMANDS>>
 
     Note: drawconn does NOT read a data file — it's a live scan of the
     current IPC pipe/socket connections. Pass an optional PID via `target`
@@ -420,14 +425,11 @@ def visualize(
         result = adapter.run(command, main_arg=target or None, **common_kwargs)
     elif command in _DRAWAVG_COMMANDS:
         if not input_files or len(input_files) < 2:
-            return _wrap({
-                "ok": False,
-                "error": f"'{command}' requires input_files with at least 2 file paths",
-            })
+            return _err(f"'{command}' requires input_files with at least 2 file paths")
         result = adapter.run(command, input_files=input_files, **common_kwargs)
     else:
         if not input_file:
-            return _wrap({"ok": False, "error": "input_file is required for visualize commands"})
+            return _err("input_file is required for visualize commands")
         result = adapter.run(command, input_file=input_file, **common_kwargs)
     return _wrap(result)
 
@@ -435,7 +437,6 @@ def visualize(
 # ---------------------------------------------------------------------------
 # 8. logAnalyze
 # ---------------------------------------------------------------------------
-@mcp.tool()
 def logAnalyze(
     command: str,
     duration: int = 10,
@@ -448,8 +449,7 @@ def logAnalyze(
     """
     Log streaming and analysis (kernel messages, DLT, journald, Android logcat, etc.).
 
-    Commands: logand, logdlt, logjrl, logkmsg, logsys, logtrace, convlog,
-              printand, printkmsg, printdlt, printjrl, printtrace, printsyslog
+    Commands: <<COMMANDS>>
 
     Note: logand/logdlt/logjrl/logkmsg/logsys/logtrace WRITE a single message
     to their log sink and never produce JSON. printand/printkmsg/printdlt/
@@ -511,14 +511,13 @@ def runCommand(
                      "250" (cputest CPU%), "1G" (memtest size),
                      "read:FILE" (iotest path), "tcp:IP:PORT" (nettest target)
     """
-    if command in BLOCKED_COMMANDS:
-        return _wrap({"ok": False, "error": f"command '{command}' is blocked"})
-    if command not in CATALOG:
-        return _wrap({"ok": False, "error": f"unknown command '{command}'. Use guiderHelp to list."})
-    meta = CATALOG[command]
+    # No pre-check here — adapter.run() already validates against BLOCKED_COMMANDS
+    # and CATALOG and returns a proper error envelope (single source of truth,
+    # avoids the error-message drift a duplicate check here previously caused).
+    meta = CATALOG.get(command)
     result = adapter.run(
         command,
-        duration=duration if meta.get("streaming") else None,
+        duration=duration if meta and meta.get("streaming") else None,
         interval=interval,
         target_pid=target or None,
         input_file=input_file or None,
@@ -548,7 +547,7 @@ def guiderHelp(
     if tool_name:
         # runCommand is a pass-through for any CATALOG command — no dedicated mcp_tool tag
         if tool_name == "runCommand":
-            return json.dumps({
+            return _wrap({
                 "ok": True,
                 "tool": "runCommand",
                 "description": (
@@ -559,17 +558,13 @@ def guiderHelp(
                 ),
                 "blocked_commands": sorted(BLOCKED_COMMANDS),
                 "total_available": len(CATALOG),
-            }, ensure_ascii=False)
+            })
         cmds = get_tool_commands(tool_name)
         if not cmds:
-            return json.dumps({
+            return _wrap({
                 "ok": False,
                 "error": f"unknown mcp_tool '{tool_name}'",
-                "valid_tools": [
-                    "systemMonitor", "bpfTrace", "ftraceProfile", "networkTrace",
-                    "androidPerf", "memoryAnalyze", "visualize", "logAnalyze",
-                    "runCommand", "guiderHelp",
-                ],
+                "valid_tools": list(MCP_TOOL_NAMES),
             })
         results = {cmd: CATALOG[cmd] for cmd in cmds}
     elif query:
@@ -580,22 +575,18 @@ def guiderHelp(
             if q in cmd or q in meta.get("description", "").lower()
         }
     else:
-        # Return summary grouped by mcp_tool
-        grouped: dict[str, list[str]] = {}
-        for cmd, meta in CATALOG.items():
-            t = meta["mcp_tool"]
-            grouped.setdefault(t, []).append(cmd)
-        return json.dumps({
+        # Return summary grouped by mcp_tool (single source of truth — CATALOG)
+        return _wrap({
             "ok": True,
             "total_commands": len(CATALOG),
-            "mcp_tools": grouped,
+            "mcp_tools": get_all_tool_commands(),
             "usage": (
                 "Call guiderHelp(tool_name='bpfTrace') to list BPF commands, "
                 "or guiderHelp(query='tcp') to search by keyword."
             ),
-        }, ensure_ascii=False)
+        })
 
-    return json.dumps({
+    return _wrap({
         "ok": True,
         "count": len(results),
         "commands": {
@@ -611,7 +602,58 @@ def guiderHelp(
             }.items() if v != ""}
             for cmd, meta in results.items()
         },
-    }, ensure_ascii=False)
+    })
+
+
+# ---------------------------------------------------------------------------
+# Patch tool docstrings with live command lists from the CATALOG (single
+# source of truth) instead of hand-maintained text, which has drifted before,
+# THEN register each function as an MCP tool. Order matters: FastMCP's
+# Tool.from_function() snapshots fn.__doc__ into an immutable Tool.description
+# at decoration time, so decorating before patching would freeze the
+# <<COMMANDS>> placeholder forever (confirmed live with the installed mcp
+# package — this was a real no-op bug, not just a style nit). Patching first
+# and decorating via a plain call afterward keeps a single docstring source
+# while ensuring the registered description matches it exactly.
+# ---------------------------------------------------------------------------
+_DOCSTRING_PATCH_TOOLS = (
+    systemMonitor, bpfTrace, ftraceProfile, networkTrace,
+    androidPerf, memoryAnalyze, visualize, logAnalyze,
+)
+for _tool_func in _DOCSTRING_PATCH_TOOLS:
+    _tool_name = _tool_func.__name__
+    _commands_str = ", ".join(sorted(get_tool_commands(_tool_name)))
+    _tool_func.__doc__ = _tool_func.__doc__.replace("<<COMMANDS>>", _commands_str)
+    globals()[_tool_name] = mcp.tool()(_tool_func)
+
+# Defensive backstop: check what FastMCP actually registered, not just the
+# patched __doc__ — a __doc__-only check is structurally blind to the
+# decoration-order bug above (the __doc__ can look correct even when the
+# frozen Tool.description still has the placeholder). Safe to call
+# asyncio.run() here: this runs at import time, before mcp.run() starts an
+# event loop in the __main__ block below.
+async def _verify_registered_descriptions():
+    _registered = {t.name: t for t in await mcp.list_tools()}
+    for _tool_func in _DOCSTRING_PATCH_TOOLS:
+        _tool_name = _tool_func.__name__
+        _tool = _registered.get(_tool_name)
+        _desc = _tool.description if _tool else ""
+        if not _tool:
+            logger.warning("docstring: %s not found in registered tools", _tool_name)
+            continue
+        if "<<COMMANDS>>" in (_desc or ""):
+            logger.warning(
+                "docstring: %s registered with unresolved <<COMMANDS>> placeholder",
+                _tool_name,
+            )
+        for _cmd in get_tool_commands(_tool_name):
+            if _cmd not in (_desc or ""):
+                logger.warning(
+                    "docstring: %s missing from %s's registered description",
+                    _cmd, _tool_name,
+                )
+
+asyncio.run(_verify_registered_descriptions())
 
 
 # ---------------------------------------------------------------------------

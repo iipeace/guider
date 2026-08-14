@@ -36,7 +36,13 @@ except ImportError:
     sys.exit(1)
 
 from guider_adapter import get_adapter
-from guider_catalog import CATALOG, get_tool_commands
+from guider_catalog import (
+    CATALOG,
+    BLOCKED_COMMANDS,
+    MCP_TOOL_NAMES,
+    get_tool_commands,
+    get_catalog_entry,
+)
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
@@ -98,6 +104,7 @@ class AndroidPerfRequest(BaseModel):
     device_id: str = Field("", description="Android device serial")
     input_file: str = Field("", description="trace file for offline analysis")
     extra_opts: list[str] = Field(default_factory=list)
+    target: str = Field("", description="process name or PID to filter (-g); required by sperf/hprof")
 
 
 class MemoryAnalyzeRequest(BaseModel):
@@ -211,6 +218,7 @@ def android_perf(req: AndroidPerfRequest) -> dict:
         device_id=req.device_id or None,
         input_file=req.input_file or None,
         extra_opts=req.extra_opts,
+        target_pid=req.target or None,
     )
 
 
@@ -253,12 +261,11 @@ def log_analyze(req: LogAnalyzeRequest) -> dict:
 
 @app.post("/runCommand")
 def run_command(req: RunCommandRequest) -> dict:
-    from guider_catalog import BLOCKED_COMMANDS
     if req.command in BLOCKED_COMMANDS:
         raise HTTPException(status_code=403, detail=f"command '{req.command}' is blocked")
-    if req.command not in CATALOG:
+    meta = get_catalog_entry(req.command)
+    if meta is None:
         raise HTTPException(status_code=400, detail=f"unknown command '{req.command}'")
-    meta = CATALOG[req.command]
     return adapter.run(
         req.command,
         duration=req.duration if (req.duration > 0 and meta.get("streaming")) else None,
@@ -276,14 +283,9 @@ def guider_help(
     query: str = Query("", description="keyword filter"),
     tool_name: str = Query("", description="MCP tool name to list"),
 ) -> dict:
-    valid_tools = [
-        "systemMonitor", "bpfTrace", "ftraceProfile", "networkTrace",
-        "androidPerf", "memoryAnalyze", "visualize", "logAnalyze",
-        "runCommand", "guiderHelp",
-    ]
+    valid_tools = list(MCP_TOOL_NAMES)
     if tool_name:
-        if tool_name not in valid_tools:
-            raise HTTPException(status_code=400, detail=f"unknown tool '{tool_name}'")
+        _check_command(tool_name, valid_tools)
         cmds = get_tool_commands(tool_name)
         results = {cmd: CATALOG[cmd] for cmd in cmds}
     elif query:

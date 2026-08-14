@@ -4,6 +4,8 @@ guider_catalog.py — Command metadata catalog for Guider MCP integration.
 Each entry defines execution constraints, output type, and MCP tool mapping.
 """
 
+import os
+
 # ---------------------------------------------------------------------------
 # Schema fields:
 #   requires_root   bool   — needs CAP_SYS_ADMIN / CAP_BPF / root
@@ -2705,7 +2707,10 @@ BLOCKED_COMMANDS: set = {
     # concern as the "remote command whitelist" mentioned below under
     # server/cli (that's guider's own IPC command bus); this is local ptrace.
     "remote",
-    # LLM loop prevention
+    # LLM loop prevention. Note: "askai"/"askrun"/"aiperiodic" are not actual
+    # guider.py top-level commands (they're -q option keys, see BLOCKED_OPTS
+    # below) — listed here defensively/redundantly so a future cleanup of
+    # this set doesn't mistake BLOCKED_OPTS as the only enforcement point.
     "ask", "chat", "embed", "rag",
     "askai", "askrun", "aiperiodic",
     # Smoke-test meta-command: launches every registered command in turn,
@@ -2750,6 +2755,18 @@ BLOCKED_OPTS: set = {
     "EXITCMD", "PRINTCMD",
     # File manipulation
     "DUPOUTPATH", "OUTFILEUSER", "OUTFILEPERM",
+    # Arbitrary process/command execution (createCmdProcess/createProcess or a
+    # nested guider.py re-exec that fully bypasses this filter)
+    "RUNCMDLIST", "EVENTCMD", "GUIDERCMD", "WATCHLOGCMD",
+    # Registers a signal handler whose value is fed straight into
+    # handleEventCmd() — the same generic event-command dispatcher every
+    # option above ultimately reaches. This makes REGSIGCMD a meta-gateway:
+    # blocking individual option names does not stop a value like
+    # "SIGUSR1:RUNCMDLIST:evil" from smuggling in any other event-command,
+    # blocked or not. Inspecting/parsing the value itself is out of scope
+    # here (false-positive risk, needs its own design) — tracked as a known
+    # residual gap, not something this set can close on its own.
+    "REGSIGCMD",
 }
 
 
@@ -2758,10 +2775,24 @@ _TOOL_COMMANDS: dict = {}
 for _cmd, _meta in CATALOG.items():
     _TOOL_COMMANDS.setdefault(_meta["mcp_tool"], []).append(_cmd)
 
+# Canonical list of MCP tool names exposed by mcp/guider-mcp.py. Every command
+# in CATALOG maps to one of these via mcp_tool (see _TOOL_COMMANDS above);
+# "guiderHelp" is the one tool with no CATALOG-driven command enum of its own,
+# so it's appended explicitly. Kept here as the single source of truth so
+# guider-mcp.py's _ALLOWED dict and the openapi JSON's guiderHelp.tool_name
+# enum can both be validated/generated against it instead of hand-duplicating
+# the same 10 names.
+MCP_TOOL_NAMES = tuple(sorted(_TOOL_COMMANDS)) + ("guiderHelp",)
+
 
 def get_tool_commands(mcp_tool: str) -> list:
     """Return all command names assigned to the given MCP tool (O(1) lookup)."""
     return _TOOL_COMMANDS.get(mcp_tool, [])
+
+
+def get_all_tool_commands() -> dict:
+    """Return a shallow copy of the full mcp_tool -> [commands] index."""
+    return dict(_TOOL_COMMANDS)
 
 
 def get_catalog_entry(command: str) -> dict | None:
@@ -2807,13 +2838,119 @@ def validate_catalog() -> list[str]:
                 f"[semaphore] '{cmd}' has semaphore=True but requires_root=False"
             )
 
+    _overlap = set(CATALOG) & BLOCKED_COMMANDS
+    if _overlap:
+        issues.append(f"[blocked_overlap] commands in both CATALOG and BLOCKED_COMMANDS: {sorted(_overlap)}")
+
+    return issues
+
+
+def validate_openai_function_defs() -> list[str]:
+    """
+    Validate that openapi/function_definitions_openai.json's per-tool command
+    enum arrays match get_tool_commands() for the same tool (i.e. that the
+    hand-maintained OpenAI function-calling schema hasn't drifted from CATALOG).
+
+    The JSON file is located relative to this file's own location
+    (os.path.dirname(__file__)/../openapi/function_definitions_openai.json) so
+    this works regardless of checkout location. If the file can't be found or
+    parsed, validation is skipped with a note instead of raising.
+
+    Returns a list of issue strings (empty = all clear).
+    """
+    import json as _json
+
+    issues: list[str] = []
+
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _json_path = os.path.normpath(
+        os.path.join(_here, "..", "openapi", "function_definitions_openai.json")
+    )
+
+    if not os.path.isfile(_json_path):
+        return [
+            f"[openai_defs] SKIPPED: {_json_path} not found "
+            f"(cannot validate against CATALOG)"
+        ]
+
+    try:
+        with open(_json_path, "r") as _f:
+            _defs = _json.load(_f)
+    except (OSError, ValueError) as e:
+        return [f"[openai_defs] SKIPPED: failed to load {_json_path}: {e}"]
+
+    _tools_to_check = (
+        "systemMonitor", "bpfTrace", "ftraceProfile", "networkTrace",
+        "androidPerf", "memoryAnalyze", "visualize", "logAnalyze",
+    )
+
+    _by_name = {}
+    for _entry in _defs if isinstance(_defs, list) else []:
+        _fn = _entry.get("function", {}) if isinstance(_entry, dict) else {}
+        _name = _fn.get("name")
+        if _name:
+            _by_name[_name] = _fn
+
+    for _tool in _tools_to_check:
+        _fn = _by_name.get(_tool)
+        if _fn is None:
+            issues.append(f"[openai_defs] '{_tool}' has no matching function definition in {_json_path}")
+            continue
+
+        _cmd_prop = _fn.get("parameters", {}).get("properties", {}).get("command", {})
+        _enum = _cmd_prop.get("enum")
+        if _enum is None:
+            issues.append(f"[openai_defs] '{_tool}' function definition has no 'command.enum' field")
+            continue
+
+        _expected = set(get_tool_commands(_tool))
+        _actual = set(_enum)
+
+        _missing = _expected - _actual
+        _extra = _actual - _expected
+        if _missing:
+            issues.append(
+                f"[openai_defs] '{_tool}' enum is missing commands present in CATALOG: {sorted(_missing)}"
+            )
+        if _extra:
+            issues.append(
+                f"[openai_defs] '{_tool}' enum has stale/extra commands not in CATALOG: {sorted(_extra)}"
+            )
+
+    # guiderHelp's tool_name.enum should list exactly the 10 MCP tool names
+    # (the other 8 command enums above are per-tool CATALOG command lists;
+    # this one is the list of tool names itself, so it's checked against
+    # MCP_TOOL_NAMES instead of get_tool_commands()).
+    _help_fn = _by_name.get("guiderHelp")
+    if _help_fn is None:
+        issues.append(f"[openai_defs] 'guiderHelp' has no matching function definition in {_json_path}")
+    else:
+        _tool_name_prop = _help_fn.get("parameters", {}).get("properties", {}).get("tool_name", {})
+        _tool_name_enum = _tool_name_prop.get("enum")
+        if _tool_name_enum is None:
+            issues.append(f"[openai_defs] 'guiderHelp' function definition has no 'tool_name.enum' field")
+        else:
+            _expected = set(MCP_TOOL_NAMES)
+            _actual = set(_tool_name_enum)
+
+            _missing = _expected - _actual
+            _extra = _actual - _expected
+            if _missing:
+                issues.append(
+                    f"[openai_defs] 'guiderHelp' tool_name.enum is missing MCP tool names: {sorted(_missing)}"
+                )
+            if _extra:
+                issues.append(
+                    f"[openai_defs] 'guiderHelp' tool_name.enum has stale/extra tool names not in MCP_TOOL_NAMES: {sorted(_extra)}"
+                )
+
     return issues
 
 
 if __name__ == "__main__":
     import sys as _sys
 
-    issues = validate_catalog()
+    issues = validate_catalog() + validate_openai_function_defs()
     if issues:
         print(f"CATALOG validation: {len(issues)} issue(s) found:")
         for issue in issues:

@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260809"
+__revision__ = "260814"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33157,6 +33157,24 @@ class LLMMgr(object):
             )
 
         @staticmethod
+        def _requirePkg(pkgObj, pkgName):
+            """
+            Raise a uniform ImportError if a dynamically-imported SDK
+            package/module is missing (i.e. pkgObj is falsy).
+
+            Args:
+                pkgObj: The imported module/package object to check
+                    (falsy/None if the import failed).
+                pkgName: The pip package name to report in the message.
+            """
+            if not pkgObj:
+                raise ImportError(
+                    "{0} package required. Install: pip install {0}".format(
+                        pkgName
+                    )
+                )
+
+        @staticmethod
         def _extractText(result):
             """
             Extract text content from LLM API response dict.
@@ -33215,6 +33233,73 @@ class LLMMgr(object):
 
             return ""
 
+        @staticmethod
+        def _buildCacheStats(
+            cacheCreation, cacheRead, totalPrompt, discountRate
+        ):
+            """
+            Build the standard cache-stats dict shared by every provider.
+            Callers extract (cacheCreation, cacheRead, totalPrompt) using
+            their own provider-specific response shape, then hand off the
+            arithmetic/dict-shape to this single implementation.
+            """
+            cacheHit = cacheRead > 0
+            savingsPercent = (
+                (cacheRead / totalPrompt * discountRate)
+                if (cacheHit and totalPrompt > 0)
+                else 0.0
+            )
+            return {
+                "cache_creation_tokens": cacheCreation,
+                "cache_read_tokens": cacheRead,
+                "cache_hit": cacheHit,
+                "cost_savings_percent": round(savingsPercent, 1),
+            }
+
+        def _applyCachingToHistory(self, history):
+            """
+            Add cache_control to appropriate messages in conversation history.
+            Dynamically selects the cache point based on history length and
+            content size to maximize cache efficiency.
+            """
+            n = len(history)
+            if n < 2:
+                return history  # Too short to benefit from caching
+
+            # Dynamic cache point strategy:
+            # - Short conversations (2-5 msgs): cache at midpoint to ensure enough stable prefix
+            # - Long conversations (6+): cache at len-2 to maximize stable prefix hits
+            if n <= 5:
+                cachePoint = max(0, n // 2)
+            else:
+                cachePoint = n - 2
+
+            cachedHistory = []
+            for i, msg in enumerate(history):
+                if i == cachePoint:
+                    msgContent = msg.get("content", "")
+                    if isinstance(msgContent, str):
+                        # Add cache control to this message
+                        cachedHistory.append(
+                            {
+                                "role": msg["role"],
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": msgContent,
+                                        "cache_control": {"type": "ephemeral"},
+                                    }
+                                ],
+                            }
+                        )
+                    else:
+                        # Already structured content, append as-is
+                        cachedHistory.append(msg)
+                else:
+                    cachedHistory.append(msg)
+
+            return cachedHistory
+
         def analyze(
             self,
             data,
@@ -33261,8 +33346,9 @@ class LLMMgr(object):
                 "history": self.history,
             }
 
-            with open(filePath, "w") as f:
-                json_mod.dump(session, f, ensure_ascii=False, indent=2)
+            content = json_mod.dumps(session, ensure_ascii=False, indent=2)
+            if not SysMgr.writeFile(filePath, content, verb=False):
+                raise IOError("failed to write session file '%s'" % filePath)
 
             return len(self.history)
 
@@ -33280,8 +33366,10 @@ class LLMMgr(object):
             if not json_mod:
                 raise ImportError("json module not available")
 
-            with open(filePath, "r") as f:
-                session = json_mod.load(f)
+            content = SysMgr.readFile(filePath, verb=False)
+            if content is None:
+                raise IOError("failed to read session file '%s'" % filePath)
+            session = json_mod.loads(content)
 
             self.history = session.get("history", [])
             return len(self.history)
@@ -33389,8 +33477,8 @@ class LLMMgr(object):
 
             # Load caching configuration from environment if not provided
             if enableCache is None:
-                enableCache = (
-                    os.getenv("GEMINI_ENABLE_CACHE", "false").lower() == "true"
+                enableCache = LLMMgr._parseBoolValue(
+                    os.getenv("GEMINI_ENABLE_CACHE")
                 )
             if cacheSystemPrompt is None:
                 cacheSystemPrompt = os.getenv("GEMINI_CACHE_SYSTEM_PROMPT")
@@ -33411,6 +33499,24 @@ class LLMMgr(object):
         def _getApiKeyFromEnv(self):
             """Get Gemini API key from environment variables (GEMINI_API_KEY or GOOGLE_API_KEY)"""
             return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
+        def _buildClient(self):
+            """Build a new Google Gemini SDK client instance"""
+            genai = self._genai
+            self._requirePkg(genai, "google-genai")
+
+            types = self._genai_types
+            self._requirePkg(types, "google-genai")
+
+            # Create client with configuration
+            client_kwargs = {"api_key": self.apiKey}
+            if self.baseUrl:
+                # Configure custom base URL using http_options
+                client_kwargs["http_options"] = types.HttpOptions(
+                    base_url=self.baseUrl
+                )
+
+            return genai.Client(**client_kwargs)
 
         def analyze(
             self,
@@ -33435,27 +33541,8 @@ class LLMMgr(object):
             if temperature is None:
                 temperature = self.temperature
 
-            genai = self._genai
-            if not genai:
-                raise ImportError(
-                    "google-genai package required. Install: pip install google-genai"
-                )
-
+            client = self._buildClient()
             types = self._genai_types
-            if not types:
-                raise ImportError(
-                    "google-genai package required. Install: pip install google-genai"
-                )
-
-            # Create client with configuration
-            client_kwargs = {"api_key": self.apiKey}
-            if self.baseUrl:
-                # Configure custom base URL using http_options
-                client_kwargs["http_options"] = types.HttpOptions(
-                    base_url=self.baseUrl
-                )
-
-            client = genai.Client(**client_kwargs)
 
             fullPrompt = self._formatPrompt(data, prompt)
 
@@ -33570,21 +33657,8 @@ class LLMMgr(object):
             if temperature is None:
                 temperature = self.temperature
 
-            genai = self._genai
+            client = self._buildClient()
             types = self._genai_types
-            if not genai or not types:
-                raise ImportError(
-                    "google-genai package required. Install: pip install google-genai"
-                )
-
-            # Create client with configuration
-            client_kwargs = {"api_key": self.apiKey}
-            if self.baseUrl:
-                client_kwargs["http_options"] = types.HttpOptions(
-                    base_url=self.baseUrl
-                )
-
-            client = genai.Client(**client_kwargs)
 
             # Convert history format from old to new
             converted_history = []
@@ -33715,7 +33789,6 @@ class LLMMgr(object):
 
             usage = response.usage_metadata
             cachedTokens = getattr(usage, "cached_content_token_count", 0)
-            cacheHit = cachedTokens > 0
 
             # Per-model accurate discount rates:
             # Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
@@ -33726,18 +33799,12 @@ class LLMMgr(object):
                 discountRate = 75.0
 
             totalPrompt = usage.prompt_token_count
-            savingsPercent = (
-                (cachedTokens / totalPrompt * discountRate)
-                if totalPrompt > 0
-                else 0.0
+            return self._buildCacheStats(
+                0,  # Gemini implicit mode doesn't report creation
+                cachedTokens,
+                totalPrompt,
+                discountRate,
             )
-
-            return {
-                "cache_creation_tokens": 0,  # Gemini implicit mode doesn't report creation
-                "cache_read_tokens": cachedTokens,
-                "cache_hit": cacheHit,
-                "cost_savings_percent": round(savingsPercent, 1),
-            }
 
     class ClaudeLLM(BaseLLM):
         """Anthropic Claude API client"""
@@ -33771,8 +33838,8 @@ class LLMMgr(object):
 
             # Load caching configuration from environment if not provided
             if enableCache is None:
-                enableCache = (
-                    os.getenv("CLAUDE_ENABLE_CACHE", "false").lower() == "true"
+                enableCache = LLMMgr._parseBoolValue(
+                    os.getenv("CLAUDE_ENABLE_CACHE")
                 )
             if cacheSystemPrompt is None:
                 cacheSystemPrompt = os.getenv("CLAUDE_CACHE_SYSTEM_PROMPT")
@@ -33794,6 +33861,18 @@ class LLMMgr(object):
                 or os.getenv("CLAUDE_API_KEY")
                 or os.getenv("ANTHROPIC_AUTH_TOKEN")
             )
+
+        def _buildClient(self):
+            """Build a new Anthropic Claude SDK client instance"""
+            anthropic_mod = self._anthropic
+            self._requirePkg(anthropic_mod, "anthropic")
+            Anthropic = anthropic_mod.Anthropic
+
+            clientKwargs = {"api_key": self.apiKey}
+            if self.baseUrl:
+                clientKwargs["base_url"] = self.baseUrl
+
+            return Anthropic(**clientKwargs)
 
         def analyze(
             self,
@@ -33823,21 +33902,10 @@ class LLMMgr(object):
             if temperature is None:
                 temperature = self.temperature
 
-            anthropic_mod = self._anthropic
-            if not anthropic_mod:
-                raise ImportError(
-                    "anthropic package required. Install: pip install anthropic"
-                )
-            Anthropic = anthropic_mod.Anthropic
-
-            clientKwargs = {"api_key": self.apiKey}
-            if self.baseUrl:
-                clientKwargs["base_url"] = self.baseUrl
-
             # Check streaming flag
             useStream = LLMMgr._isStreamEnabled()
 
-            client = Anthropic(**clientKwargs)
+            client = self._buildClient()
             fullPrompt = self._formatPrompt(data, prompt)
 
             # Build messages with optional caching
@@ -33885,6 +33953,8 @@ class LLMMgr(object):
                 sys.stdout.write("\n")
                 sys.stdout.flush()
                 analyzeText = "".join(accumulated)
+                if not analyzeText:
+                    raise ValueError("Empty response content from API")
                 finalMsg = stream.get_final_message()
                 cacheStats = self._extractClaudeCacheStats(finalMsg)
                 self.lastCacheStats = cacheStats
@@ -33925,14 +33995,15 @@ class LLMMgr(object):
                 raise ValueError("Empty response content from API")
 
             # Add to history if history mode is enabled
+            claudeText = self._extractText(response)
             if self.useHistoryForAnalyze:
                 self.history.extend(messages)
                 self.history.append(
-                    {"role": "assistant", "content": response.content[0].text}
+                    {"role": "assistant", "content": claudeText}
                 )
 
             return LLMMgr.LLMResponse(
-                content=response.content[0].text,
+                content=claudeText,
                 model=self.model,
                 usage={
                     "prompt_tokens": response.usage.input_tokens,
@@ -33954,18 +34025,7 @@ class LLMMgr(object):
             # Check streaming flag
             useStream = LLMMgr._isStreamEnabled()
 
-            anthropic_mod = self._anthropic
-            if not anthropic_mod:
-                raise ImportError(
-                    "anthropic package required. Install: pip install anthropic"
-                )
-            Anthropic = anthropic_mod.Anthropic
-
-            clientKwargs = {"api_key": self.apiKey}
-            if self.baseUrl:
-                clientKwargs["base_url"] = self.baseUrl
-
-            client = Anthropic(**clientKwargs)
+            client = self._buildClient()
 
             # Build messages with user turn (without mutating history yet)
             userMsg = {"role": "user", "content": message}
@@ -33996,6 +34056,8 @@ class LLMMgr(object):
                 sys.stdout.write("\n")
                 sys.stdout.flush()
                 assistantMessage = "".join(accumulated)
+                if not assistantMessage:
+                    raise ValueError("Empty response content from API")
                 finalMsg = stream.get_final_message()
                 cacheStats = self._extractClaudeCacheStats(finalMsg)
                 self.lastCacheStats = cacheStats
@@ -34035,7 +34097,7 @@ class LLMMgr(object):
 
             # Add user message and assistant response to history
             self.history.append(userMsg)
-            assistantMessage = response.content[0].text
+            assistantMessage = self._extractText(response)
             self._appendAssistantReply(assistantMessage)
 
             return LLMMgr.LLMResponse(
@@ -34051,50 +34113,6 @@ class LLMMgr(object):
                 cacheStats=cacheStats,
             )
 
-        def _applyCachingToHistory(self, history):
-            """
-            Add cache_control to appropriate messages in conversation history.
-            Dynamically selects the cache point based on history length and
-            content size to maximize cache efficiency.
-            """
-            n = len(history)
-            if n < 2:
-                return history  # Too short to benefit from caching
-
-            # Dynamic cache point strategy:
-            # - Short conversations (2-5 msgs): cache at midpoint to ensure enough stable prefix
-            # - Long conversations (6+): cache at len-2 to maximize stable prefix hits
-            if n <= 5:
-                cachePoint = max(0, n // 2)
-            else:
-                cachePoint = n - 2
-
-            cachedHistory = []
-            for i, msg in enumerate(history):
-                if i == cachePoint:
-                    msgContent = msg.get("content", "")
-                    if isinstance(msgContent, str):
-                        # Add cache control to this message
-                        cachedHistory.append(
-                            {
-                                "role": msg["role"],
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": msgContent,
-                                        "cache_control": {"type": "ephemeral"},
-                                    }
-                                ],
-                            }
-                        )
-                    else:
-                        # Already structured content, append as-is
-                        cachedHistory.append(msg)
-                else:
-                    cachedHistory.append(msg)
-
-            return cachedHistory
-
         def _extractClaudeCacheStats(self, response):
             """Extract cache statistics from Claude response"""
             if not hasattr(response, "usage"):
@@ -34105,20 +34123,23 @@ class LLMMgr(object):
             cacheRead = getattr(usage, "cache_read_input_tokens", 0)
             totalPrompt = getattr(usage, "input_tokens", 0)
 
-            cacheHit = cacheRead > 0
             # Claude: 90% discount on cache-read tokens (accurate per-token ratio)
-            savingsPercent = (
-                (cacheRead / totalPrompt * 90.0)
-                if (cacheHit and totalPrompt > 0)
-                else 0.0
+            return self._buildCacheStats(
+                cacheCreation, cacheRead, totalPrompt, 90.0
             )
 
-            return {
-                "cache_creation_tokens": cacheCreation,
-                "cache_read_tokens": cacheRead,
-                "cache_hit": cacheHit,
-                "cost_savings_percent": round(savingsPercent, 1),
-            }
+        def _extractText(self, response):
+            """Concatenate text from all "text" content blocks.
+
+            response.content[0] is not always the text block - extended
+            thinking prepends a ThinkingBlock (no .text attribute) before
+            the TextBlock, so indexing [0] directly can raise AttributeError.
+            """
+            return "".join(
+                block.text
+                for block in response.content
+                if getattr(block, "type", None) == "text"
+            )
 
     class OpenAILLM(BaseLLM):
         """OpenAI API client"""
@@ -34146,8 +34167,8 @@ class LLMMgr(object):
 
             # Load caching configuration from environment if not provided
             if enableCache is None:
-                enableCache = (
-                    os.getenv("OPENAI_ENABLE_CACHE", "false").lower() == "true"
+                enableCache = LLMMgr._parseBoolValue(
+                    os.getenv("OPENAI_ENABLE_CACHE")
                 )
             if cacheSystemPrompt is None:
                 cacheSystemPrompt = os.getenv("OPENAI_CACHE_SYSTEM_PROMPT")
@@ -34165,6 +34186,18 @@ class LLMMgr(object):
         def _getApiKeyFromEnv(self):
             """Get OpenAI API key from environment variable (OPENAI_API_KEY)"""
             return os.getenv("OPENAI_API_KEY")
+
+        def _buildClient(self):
+            """Build a new OpenAI SDK client instance"""
+            openai_mod = self._openai
+            self._requirePkg(openai_mod, "openai")
+            OpenAI = openai_mod.OpenAI
+
+            clientKwargs = {"api_key": self.apiKey}
+            if self.baseUrl:
+                clientKwargs["base_url"] = self.baseUrl
+
+            return OpenAI(**clientKwargs)
 
         def analyze(
             self,
@@ -34189,21 +34222,10 @@ class LLMMgr(object):
             if temperature is None:
                 temperature = self.temperature
 
-            openai_mod = self._openai
-            if not openai_mod:
-                raise ImportError(
-                    "openai package required. Install: pip install openai"
-                )
-            OpenAI = openai_mod.OpenAI
-
-            clientKwargs = {"api_key": self.apiKey}
-            if self.baseUrl:
-                clientKwargs["base_url"] = self.baseUrl
-
             # Check streaming flag
             useStream = LLMMgr._isStreamEnabled()
 
-            client = OpenAI(**clientKwargs)
+            client = self._buildClient()
             fullPrompt = self._formatPrompt(data, prompt)
 
             # Build messages with optional system prompt
@@ -34228,6 +34250,9 @@ class LLMMgr(object):
             if useStream:
                 # Streaming mode
                 createKwargs["stream"] = True
+                # OpenAI only includes usage in a stream chunk when this is
+                # explicitly requested; without it chunk.usage is always None.
+                createKwargs["stream_options"] = {"include_usage": True}
                 accumulated = []
                 promptTokens = 0
                 completionTokens = 0
@@ -34266,6 +34291,11 @@ class LLMMgr(object):
 
             response = client.chat.completions.create(**createKwargs)
 
+            if not response.choices:
+                raise ValueError(
+                    "Empty response from API (no choices returned)"
+                )
+
             # Extract cache stats
             cacheStats = self._extractOpenAICacheStats(response)
             self.lastCacheStats = cacheStats
@@ -34299,18 +34329,7 @@ class LLMMgr(object):
             # Check streaming flag
             useStream = LLMMgr._isStreamEnabled()
 
-            openai_mod = self._openai
-            if not openai_mod:
-                raise ImportError(
-                    "openai package required. Install: pip install openai"
-                )
-            OpenAI = openai_mod.OpenAI
-
-            clientKwargs = {"api_key": self.apiKey}
-            if self.baseUrl:
-                clientKwargs["base_url"] = self.baseUrl
-
-            client = OpenAI(**clientKwargs)
+            client = self._buildClient()
 
             # Build messages with user turn (without mutating history yet)
             userMsg = {"role": "user", "content": message}
@@ -34329,6 +34348,9 @@ class LLMMgr(object):
             if useStream:
                 # Streaming mode
                 createKwargs["stream"] = True
+                # OpenAI only includes usage in a stream chunk when this is
+                # explicitly requested; without it chunk.usage is always None.
+                createKwargs["stream_options"] = {"include_usage": True}
                 accumulated = []
                 promptTokens = 0
                 completionTokens = 0
@@ -34366,6 +34388,11 @@ class LLMMgr(object):
             # Send messages to API (non-streaming)
             response = client.chat.completions.create(**createKwargs)
 
+            if not response.choices:
+                raise ValueError(
+                    "Empty response from API (no choices returned)"
+                )
+
             # Extract cache stats
             cacheStats = self._extractOpenAICacheStats(response)
             self.lastCacheStats = cacheStats
@@ -34399,20 +34426,10 @@ class LLMMgr(object):
                 return None
 
             cachedTokens = getattr(promptTokensDetails, "cached_tokens", 0)
-            cacheHit = cachedTokens > 0
 
             # OpenAI: 50% discount on cached tokens (accurate per provider pricing)
             totalPrompt = usage.prompt_tokens
-            savingsPercent = (
-                (cachedTokens / totalPrompt * 50.0) if totalPrompt > 0 else 0.0
-            )
-
-            return {
-                "cache_creation_tokens": 0,  # OpenAI doesn't report this
-                "cache_read_tokens": cachedTokens,
-                "cache_hit": cacheHit,
-                "cost_savings_percent": round(savingsPercent, 1),
-            }
+            return self._buildCacheStats(0, cachedTokens, totalPrompt, 50.0)
 
     # ============================================================================
     # HTTP-based custom API classes
@@ -34438,10 +34455,7 @@ class LLMMgr(object):
             requestTimeout=None,
         ):
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package is required. Install: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             self.model = LLMMgr._resolveClaudeModel(
                 model
@@ -34466,9 +34480,8 @@ class LLMMgr(object):
 
             # Load caching configuration from environment if not provided
             if enableCache is None:
-                enableCache = (
-                    os.getenv("CUSTOM_CLAUDE_ENABLE_CACHE", "false").lower()
-                    == "true"
+                enableCache = LLMMgr._parseBoolValue(
+                    os.getenv("CUSTOM_CLAUDE_ENABLE_CACHE")
                 )
             if cacheSystemPrompt is None:
                 cacheSystemPrompt = os.getenv(
@@ -34533,30 +34546,23 @@ class LLMMgr(object):
                                     sys.stdout.write(text)
                                     sys.stdout.flush()
                                     accumulated.append(text)
+                            elif evtType == "message_start":
+                                # input_tokens only ever appears here; the
+                                # later message_delta.usage carries only
+                                # output_tokens, so merge rather than
+                                # overwrite.
+                                usageData.update(
+                                    evt.get("message", {}).get("usage", {})
+                                )
                             elif evtType == "message_delta":
-                                usageData = evt.get("usage", {})
+                                usageData.update(evt.get("usage", {}))
                         except:
                             pass
             else:
                 # Server returned regular JSON (stream flag ignored)
                 try:
                     result = response.json()
-                    contentList = result.get("content", [])
-                    textParts = [
-                        b.get("text", "")
-                        for b in contentList
-                        if isinstance(b, dict) and b.get("type") == "text"
-                    ]
-                    text = "\n".join(p for p in textParts if p)
-                    if not text and contentList:
-                        for b in contentList:
-                            if isinstance(b, dict) and b.get("text"):
-                                text = b["text"]
-                                break
-                    if not text:
-                        text = (
-                            result.get("text") or result.get("response") or ""
-                        )
+                    text = self._extractText(result)
                     if text:
                         sys.stdout.write(text)
                         sys.stdout.flush()
@@ -34588,8 +34594,8 @@ class LLMMgr(object):
             # Get requests module dynamically
             requests_mod = SysMgr.getPkg("requests", isExit=False)
             if not requests_mod:
-                print(
-                    "[WARNING] requests package not available, cannot detect caching support"
+                SysMgr.printWarn(
+                    "requests package not available, cannot detect caching support"
                 )
                 return False
 
@@ -34624,26 +34630,26 @@ class LLMMgr(object):
 
                 # If no error and successful response, server supports caching
                 if response.status_code in [200, 201]:
-                    print(
-                        "[INFO] Custom Claude server supports prompt caching"
+                    SysMgr.printInfo(
+                        "Custom Claude server supports prompt caching"
                     )
                     return True
                 else:
-                    print(
-                        "[INFO] Custom Claude server does not support caching (status: {0})".format(
+                    SysMgr.printInfo(
+                        "Custom Claude server does not support caching (status: {0})".format(
                             response.status_code
                         )
                     )
                     return False
 
             except requests_mod.Timeout:
-                print(
-                    "[WARNING] Caching detection timeout, assuming no support"
+                SysMgr.printWarn(
+                    "Caching detection timeout, assuming no support"
                 )
                 return False
             except Exception as e:
-                print(
-                    "[WARNING] Caching detection failed, assuming no support: {0}".format(
+                SysMgr.printWarn(
+                    "Caching detection failed, assuming no support: {0}".format(
                         e
                     )
                 )
@@ -34662,62 +34668,10 @@ class LLMMgr(object):
             cacheRead = usage.get("cache_read_input_tokens", 0)
             totalPrompt = usage.get("input_tokens", 0)
 
-            cacheHit = cacheRead > 0
             # Claude: 90% discount on cache-read tokens (accurate per-token ratio)
-            savingsPercent = (
-                (cacheRead / totalPrompt * 90.0)
-                if (cacheHit and totalPrompt > 0)
-                else 0.0
+            return self._buildCacheStats(
+                cacheCreation, cacheRead, totalPrompt, 90.0
             )
-
-            return {
-                "cache_creation_tokens": cacheCreation,
-                "cache_read_tokens": cacheRead,
-                "cache_hit": cacheHit,
-                "cost_savings_percent": round(savingsPercent, 1),
-            }
-
-        def _applyCachingToHistory(self, history):
-            """
-            Add cache_control to appropriate messages in conversation history.
-            Dynamically selects the cache point based on history length to
-            maximize cache efficiency.
-            """
-            n = len(history)
-            if n < 2:
-                return history  # Too short to benefit from caching
-
-            # Dynamic cache point strategy:
-            # - Short conversations (2-5 msgs): cache at midpoint
-            # - Long conversations (6+): cache at len-2 to maximize stable prefix hits
-            if n <= 5:
-                cachePoint = max(0, n // 2)
-            else:
-                cachePoint = n - 2
-
-            cachedHistory = []
-            for i, msg in enumerate(history):
-                if i == cachePoint:
-                    msgContent = msg.get("content", "")
-                    if isinstance(msgContent, str):
-                        cachedHistory.append(
-                            {
-                                "role": msg["role"],
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": msgContent,
-                                        "cache_control": {"type": "ephemeral"},
-                                    }
-                                ],
-                            }
-                        )
-                    else:
-                        cachedHistory.append(msg)
-                else:
-                    cachedHistory.append(msg)
-
-            return cachedHistory
 
         def analyze(
             self,
@@ -34735,10 +34689,7 @@ class LLMMgr(object):
                 temperature = self.temperature
             # Get requests module dynamically
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package required for CustomClaudeLLM. Install with: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             fullPrompt = self._formatPrompt(data, prompt)
             url = "{}/claude/messages".format(self.baseUrl.rstrip("/"))
@@ -34844,22 +34795,7 @@ class LLMMgr(object):
             self.lastCacheStats = cacheStats
 
             # Extract text from Claude response format
-            contentList = result.get("content", [])
-            textParts = [
-                b.get("text", "")
-                for b in contentList
-                if isinstance(b, dict) and b.get("type") == "text"
-            ]
-            analyzeContent = "\n".join(p for p in textParts if p)
-            if not analyzeContent and contentList:
-                for b in contentList:
-                    if isinstance(b, dict) and b.get("text"):
-                        analyzeContent = b["text"]
-                        break
-            if not analyzeContent:
-                analyzeContent = (
-                    result.get("text") or result.get("response") or ""
-                )
+            analyzeContent = self._extractText(result)
 
             # Add to history if history mode is enabled
             if self.useHistoryForAnalyze:
@@ -34899,10 +34835,7 @@ class LLMMgr(object):
                 temperature = self.temperature
             # Get requests module dynamically
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package required for CustomClaudeLLM. Install with: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             url = "{}/claude/messages".format(self.baseUrl.rstrip("/"))
             headers = self._buildHeaders()
@@ -34989,22 +34922,7 @@ class LLMMgr(object):
             self.lastCacheStats = cacheStats
 
             # Extract text from Claude response format
-            contentList = result.get("content", [])
-            textParts = [
-                b.get("text", "")
-                for b in contentList
-                if isinstance(b, dict) and b.get("type") == "text"
-            ]
-            assistantMessage = "\n".join(p for p in textParts if p)
-            if not assistantMessage and contentList:
-                for b in contentList:
-                    if isinstance(b, dict) and b.get("text"):
-                        assistantMessage = b["text"]
-                        break
-            if not assistantMessage:
-                assistantMessage = (
-                    result.get("text") or result.get("response") or ""
-                )
+            assistantMessage = self._extractText(result)
 
             self.history.append(userMsg)
             self._appendAssistantReply(assistantMessage)
@@ -35047,10 +34965,7 @@ class LLMMgr(object):
             requestTimeout=None,
         ):
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package is required. Install: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             self.model = (
                 model
@@ -35100,6 +35015,10 @@ class LLMMgr(object):
             """Get API key from environment variable"""
             return os.getenv("CUSTOM_API_KEY")
 
+        def _buildHeaders(self):
+            """Build request headers (Gemini auth is via query param, not headers)"""
+            return {"Content-Type": "application/json"}
+
         def _parseGeminiStreamBuffer(self, response):
             """Collect iter_content chunks, parse Gemini JSON array, stream to stdout.
             Returns (text, usageMeta) tuple."""
@@ -35142,7 +35061,6 @@ class LLMMgr(object):
 
             usage = result["usageMetadata"]
             cachedTokens = usage.get("cachedContentTokenCount", 0)
-            cacheHit = cachedTokens > 0
 
             # Per-model accurate discount rates:
             # Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
@@ -35153,18 +35071,12 @@ class LLMMgr(object):
                 discountRate = 75.0
 
             totalPrompt = usage.get("promptTokenCount", 0)
-            savingsPercent = (
-                (cachedTokens / totalPrompt * discountRate)
-                if totalPrompt > 0
-                else 0.0
+            return self._buildCacheStats(
+                0,  # Gemini implicit mode doesn't report creation
+                cachedTokens,
+                totalPrompt,
+                discountRate,
             )
-
-            return {
-                "cache_creation_tokens": 0,  # Gemini implicit mode doesn't report creation
-                "cache_read_tokens": cachedTokens,
-                "cache_hit": cacheHit,
-                "cost_savings_percent": round(savingsPercent, 1),
-            }
 
         def analyze(
             self,
@@ -35185,14 +35097,11 @@ class LLMMgr(object):
 
             # Get requests module dynamically
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package required for CustomGeminiLLM. Install with: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             fullPrompt = self._formatPrompt(data, prompt)
             params = {"key": self.apiKey}
-            headers = {"Content-Type": "application/json"}
+            headers = self._buildHeaders()
 
             payload = {
                 "contents": [
@@ -35225,6 +35134,8 @@ class LLMMgr(object):
                 contentText, usageMeta = self._parseGeminiStreamBuffer(
                     response
                 )
+                if not contentText:
+                    raise ValueError("Gemini API returned no content parts")
                 if self.useHistoryForAnalyze:
                     self.history.append(
                         {"role": "user", "parts": [{"text": fullPrompt}]}
@@ -35318,13 +35229,10 @@ class LLMMgr(object):
 
             # Get requests module dynamically
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package required for CustomGeminiLLM. Install with: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             params = {"key": self.apiKey}
-            headers = {"Content-Type": "application/json"}
+            headers = self._buildHeaders()
 
             # Build payload with user turn (without mutating history yet)
             userMsg = {"role": "user", "parts": [{"text": message}]}
@@ -35358,6 +35266,8 @@ class LLMMgr(object):
                 contentText, usageMeta = self._parseGeminiStreamBuffer(
                     response
                 )
+                if not contentText:
+                    raise ValueError("Gemini API returned no content parts")
                 self.history.append(userMsg)
                 self.history.append(
                     {"role": "model", "parts": [{"text": contentText}]}
@@ -35500,6 +35410,13 @@ class LLMMgr(object):
             """Get API key from environment variable"""
             return os.getenv("CUSTOM_API_KEY")
 
+        def _buildHeaders(self):
+            """Build request headers with auth"""
+            return {
+                "api-key": self.apiKey,
+                "Content-Type": "application/json",
+            }
+
         def _parseOpenAISSEStream(self, response):
             """Parse OpenAI-compatible SSE stream, stream tokens to stdout.
             Returns (text, promptTokens, completionTokens) tuple."""
@@ -35557,20 +35474,15 @@ class LLMMgr(object):
                 return None
 
             cachedTokens = promptTokensDetails.get("cached_tokens", 0)
-            cacheHit = cachedTokens > 0
 
             # OpenAI: 50% discount on cached tokens (accurate per provider pricing)
             totalPrompt = usage.get("prompt_tokens", 0)
-            savingsPercent = (
-                (cachedTokens / totalPrompt * 50.0) if totalPrompt > 0 else 0.0
+            return self._buildCacheStats(
+                0,  # OpenAI doesn't report this
+                cachedTokens,
+                totalPrompt,
+                50.0,
             )
-
-            return {
-                "cache_creation_tokens": 0,  # OpenAI doesn't report this
-                "cache_read_tokens": cachedTokens,
-                "cache_hit": cacheHit,
-                "cost_savings_percent": savingsPercent,
-            }
 
         def analyze(
             self,
@@ -35588,10 +35500,7 @@ class LLMMgr(object):
                 temperature = self.temperature
 
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package is required. Install: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             fullPrompt = self._formatPrompt(data, prompt)
 
@@ -35600,10 +35509,7 @@ class LLMMgr(object):
                 self.baseUrl.rstrip("/"), self.model
             )
 
-            headers = {
-                "api-key": self.apiKey,
-                "Content-Type": "application/json",
-            }
+            headers = self._buildHeaders()
 
             # Build messages with optional system prompt for caching
             messages = []
@@ -35622,6 +35528,10 @@ class LLMMgr(object):
                 "stream": useStream,
                 "messages": messages,
             }
+            if useStream:
+                # This is an OpenAI-compatible endpoint: usage is only
+                # included in a stream chunk when explicitly requested.
+                payload["stream_options"] = {"include_usage": True}
 
             # Add extended retention if requested (24 hours)
             if self.enableCache and self.cacheTTL == 86400:
@@ -35716,20 +35626,14 @@ class LLMMgr(object):
             useStream = LLMMgr._isStreamEnabled()
 
             requests_mod = SysMgr.getPkg("requests", isExit=False)
-            if not requests_mod:
-                raise ImportError(
-                    "requests package is required. Install: pip install requests"
-                )
+            self._requirePkg(requests_mod, "requests")
 
             # Azure OpenAI style endpoint
             url = "{0}/openai/deployments/{1}/chat/completions".format(
                 self.baseUrl.rstrip("/"), self.model
             )
 
-            headers = {
-                "api-key": self.apiKey,
-                "Content-Type": "application/json",
-            }
+            headers = self._buildHeaders()
 
             # Build messages with user turn (without mutating history yet)
             userMsg = {"role": "user", "content": message}
@@ -35749,6 +35653,10 @@ class LLMMgr(object):
                 "stream": useStream,
                 "messages": messages,
             }
+            if useStream:
+                # This is an OpenAI-compatible endpoint: usage is only
+                # included in a stream chunk when explicitly requested.
+                payload["stream_options"] = {"include_usage": True}
 
             # Add extended retention if requested (24 hours)
             if self.enableCache and self.cacheTTL == 86400:
@@ -35981,7 +35889,12 @@ class LLMMgr(object):
             response.raise_for_status()
             result = response.json()
 
-            embeddings = [item["embedding"] for item in result.get("data", [])]
+            # the API does not guarantee data[] is returned in request order;
+            # each item carries its own "index" so callers can restore it
+            data = sorted(
+                result.get("data", []), key=lambda item: item.get("index", 0)
+            )
+            embeddings = [item["embedding"] for item in data]
             usage = result.get("usage")
 
             return LLMMgr.EmbeddingResponse(
@@ -36064,7 +35977,7 @@ class LLMMgr(object):
                 config=config,
             )
 
-            embeddings = [list(e.values) for e in result.embeddings]
+            embeddings = [list(e.values) for e in (result.embeddings or [])]
 
             return LLMMgr.EmbeddingResponse(
                 embeddings=embeddings,
@@ -36343,7 +36256,7 @@ class LLMMgr(object):
         streamOpt = LLMMgr._getEnvironValue("LLMSTREAM") or os.getenv(
             "LLM_STREAM"
         )
-        return streamOpt in ("1", "true", "yes") if streamOpt else False
+        return LLMMgr._parseBoolValue(streamOpt)
 
     @staticmethod
     def _printDataSize(data):
@@ -36799,7 +36712,7 @@ class LLMMgr(object):
             sys.exit(1)
 
     @staticmethod
-    def _buildContextExtras(ctx_cfg):
+    def _buildContextExtras(ctx_cfg, inst=None):
         """Collect additional system data based on guider.conf CONTEXT config."""
         if not ctx_cfg:
             return {}
@@ -36808,7 +36721,9 @@ class LLMMgr(object):
         # MEMINFO: select fields from /proc/meminfo
         if "MEMINFO" in ctx_cfg:
             try:
-                mem = SysMgr.getMemDict()
+                mem = (
+                    inst and getattr(inst, "memData", None)
+                ) or SysMgr.getMemDict()
                 fields = ctx_cfg["MEMINFO"]
                 if fields is True or str(fields).lower() == "true":
                     fields = [
@@ -36841,43 +36756,38 @@ class LLMMgr(object):
         if ctx_cfg.get("DISKSTATS"):
             try:
                 result = {}
-                with open("%s/diskstats" % SysMgr.procPath, "r") as f:
-                    for line in f:
-                        parts = line.split()
-                        if len(parts) < 14:
-                            continue
-                        dev = parts[2]
-                        reads, writes = int(parts[3]), int(parts[7])
-                        io_ms = int(parts[12])
-                        if reads + writes > 0:
-                            result[dev] = {
-                                "reads_total": reads,
-                                "writes_total": writes,
-                                "io_ms": io_ms,
-                            }
+                for line in SysMgr.diskStats or []:
+                    parts = line.split()
+                    if len(parts) < 14:
+                        continue
+                    dev = parts[2]
+                    reads, writes = int(parts[3]), int(parts[7])
+                    io_ms = int(parts[12])
+                    if reads + writes > 0:
+                        result[dev] = {
+                            "reads_total": reads,
+                            "writes_total": writes,
+                            "io_ms": io_ms,
+                        }
                 extras["diskstats"] = result
             except Exception:
                 pass
 
-        # CPUSTAT: /proc/stat per-CPU
+        # CPUSTAT: per-CPU usage from already-cached inst.cpuData
         if ctx_cfg.get("CPUSTAT"):
             try:
                 result = {}
-                with open("%s/stat" % SysMgr.procPath, "r") as f:
-                    for line in f:
-                        if not line.startswith("cpu"):
-                            break
-                        parts = line.split()
-                        if parts[0] == "cpu":
-                            continue
-                        vals = [int(x) for x in parts[1:]]
-                        total = sum(vals)
-                        idle = vals[3]
-                        result[parts[0]] = (
-                            round(100.0 * (total - idle) / total, 1)
-                            if total
-                            else 0.0
-                        )
+                cpuData = (inst and getattr(inst, "cpuData", None)) or {}
+                for key, vals in cpuData.items():
+                    if key == "all" or not isinstance(vals, dict):
+                        continue
+                    total = sum(vals.values())
+                    idle = vals.get("idle", 0)
+                    result["cpu%s" % key] = (
+                        round(100.0 * (total - idle) / total, 1)
+                        if total
+                        else 0.0
+                    )
                 extras["cpustat"] = result
             except Exception:
                 pass
@@ -36891,8 +36801,10 @@ class LLMMgr(object):
                     else 10
                 )
                 irqs = {}
-                with open("%s/interrupts" % SysMgr.procPath, "r") as f:
-                    lines = f.readlines()
+                content = SysMgr.readFile(
+                    "%s/interrupts" % SysMgr.procPath, verb=False
+                )
+                lines = content.splitlines() if content else []
                 for line in lines[1:]:
                     parts = line.split()
                     if len(parts) < 2:
@@ -36918,8 +36830,10 @@ class LLMMgr(object):
         if ctx_cfg.get("SOFTIRQS"):
             try:
                 result = {}
-                with open("%s/softirqs" % SysMgr.procPath, "r") as f:
-                    lines = f.readlines()
+                content = SysMgr.readFile(
+                    "%s/softirqs" % SysMgr.procPath, verb=False
+                )
+                lines = content.splitlines() if content else []
                 for line in lines[1:]:
                     parts = line.split()
                     if len(parts) < 2:
@@ -36937,12 +36851,14 @@ class LLMMgr(object):
                 fields = ctx_cfg["VMSTAT"]
                 is_all = fields is True or str(fields).lower() == "true"
                 result = {}
-                with open("%s/vmstat" % SysMgr.procPath, "r") as f:
-                    for line in f:
-                        parts = line.split()
-                        if len(parts) == 2:
-                            if is_all or parts[0] in fields:
-                                result[parts[0]] = int(parts[1])
+                content = SysMgr.readFile(
+                    "%s/vmstat" % SysMgr.procPath, verb=False
+                )
+                for line in content.splitlines() if content else []:
+                    parts = line.split()
+                    if len(parts) == 2:
+                        if is_all or parts[0] in fields:
+                            result[parts[0]] = int(parts[1])
                 extras["vmstat"] = result
             except Exception:
                 pass
@@ -36950,26 +36866,22 @@ class LLMMgr(object):
         # BUDDYINFO: /proc/buddyinfo
         if ctx_cfg.get("BUDDYINFO"):
             try:
-                with open("%s/buddyinfo" % SysMgr.procPath, "r") as f:
-                    extras["buddyinfo"] = [
-                        l.strip() for l in f.readlines() if l.strip()
-                    ]
+                content = SysMgr.readFile(
+                    "%s/buddyinfo" % SysMgr.procPath, verb=False
+                )
+                extras["buddyinfo"] = [
+                    l.strip()
+                    for l in (content.splitlines() if content else [])
+                    if l.strip()
+                ]
             except Exception:
                 pass
 
-        # PSI: /proc/pressure/{cpu,memory,io}
+        # PSI: reuse already-cached SysMgr.psiData (parsed /proc/pressure/*)
         if ctx_cfg.get("PSI"):
             try:
-                result = {}
-                for res in ("cpu", "memory", "io"):
-                    ppath = "%s/pressure/%s" % (SysMgr.procPath, res)
-                    try:
-                        with open(ppath) as f:
-                            result[res] = f.read().strip()
-                    except Exception:
-                        pass
-                if result:
-                    extras["psi_detail"] = result
+                if SysMgr.psiData:
+                    extras["psi_detail"] = SysMgr.psiData
             except Exception:
                 pass
 
@@ -36979,8 +36891,10 @@ class LLMMgr(object):
                 names = ctx_cfg["SLABINFO"]
                 is_all = names is True or str(names).lower() == "true"
                 result = {}
-                with open("%s/slabinfo" % SysMgr.procPath, "r") as f:
-                    lines = f.readlines()
+                content = SysMgr.readFile(
+                    "%s/slabinfo" % SysMgr.procPath, verb=False
+                )
+                lines = content.splitlines() if content else []
                 for line in lines[2:]:
                     parts = line.split()
                     if not parts:
@@ -37004,8 +36918,9 @@ class LLMMgr(object):
                     "/proc/binder/stats",
                 ):
                     if os.path.exists(bpath):
-                        with open(bpath) as f:
-                            extras["binder"] = f.read()[:3000]
+                        content = SysMgr.readFile(bpath, verb=False)
+                        if content is not None:
+                            extras["binder"] = content[:3000]
                         break
             except Exception:
                 pass
@@ -37025,8 +36940,9 @@ class LLMMgr(object):
                         cpu_dir,
                     )
                     if os.path.isfile(freq_path):
-                        with open(freq_path) as f:
-                            result[cpu_dir] = int(f.read().strip()) // 1000
+                        content = SysMgr.readFile(freq_path, verb=False)
+                        if content is not None:
+                            result[cpu_dir] = int(content.strip()) // 1000
                 extras["cpufreq"] = result
             except Exception:
                 pass
@@ -37116,17 +37032,11 @@ class LLMMgr(object):
                     p.strip() for p in os.getenv("LLM_PROVIDERS").split(":")
                 ]
 
-            # Priority: -q > config > env
-            provider = (
-                LLMMgr._getEnvironValue("LLMPROVIDER")
-                or configSettings.get("provider")
-                or os.getenv("LLM_PROVIDER")
+            # Priority: -q > config > env > auto-detect
+            provider, _resolvedKwargs = LLMMgr._resolveAskProvider(
+                {}, configSettings
             )
-            model = (
-                LLMMgr._getEnvironValue("LLMMODEL")
-                or configSettings.get("model")
-                or os.getenv("LLM_MODEL")
-            )
+            model = _resolvedKwargs.get("model")
 
             enableCache = LLMMgr._resolveCache(configSettings)
             temperature = LLMMgr._resolveTemperature(configSettings)
@@ -37144,8 +37054,19 @@ class LLMMgr(object):
                     data, prompt, providers, model, enableCache, temperature
                 )
 
-            # Case 2: Single provider with multiple models
-            elif provider:
+            # Case 2: no provider available even after auto-detect
+            elif not provider:
+                SysMgr.printErr("no LLM provider available")
+                SysMgr.printWarn(
+                    "Set environment variables:\n"
+                    "  LLM_PROVIDER=claude\n"
+                    "  or -q LLMPROVIDER:claude\n"
+                    "  or set API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)"
+                )
+                return 1
+
+            # Case 3: single provider, possibly with multiple models
+            else:
                 models = LLMMgr._getProviderModels(provider, configSettings)
 
                 if models and len(models) > 1:
@@ -37161,30 +37082,6 @@ class LLMMgr(object):
                     data,
                     prompt,
                     provider,
-                    model,
-                    enableCache,
-                    temperature,
-                    dataSource,
-                    systemPrompt,
-                )
-
-            # Case 3: Auto-detect
-            else:
-                detectedProviders = LLMMgr._detectProviders()
-                if not detectedProviders:
-                    SysMgr.printErr("no LLM provider available")
-                    SysMgr.printWarn(
-                        "Set environment variables:\n"
-                        "  LLM_PROVIDER=claude\n"
-                        "  or -q LLMPROVIDER:claude\n"
-                        "  or set API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)"
-                    )
-                    return 1
-
-                return LLMMgr._askSingle(
-                    data,
-                    prompt,
-                    detectedProviders[0],
                     model,
                     enableCache,
                     temperature,
@@ -37232,33 +37129,22 @@ class LLMMgr(object):
             # 2. Load config settings (only if -C specified)
             configSettings = LLMMgr._loadConfigSettings()
 
-            # 3. Get provider with priority: -q > config > env
-            provider = (
-                LLMMgr._getEnvironValue("LLMPROVIDER")
-                or configSettings.get("provider")
-                or os.getenv("LLM_PROVIDER")
+            # 3. Get provider with priority: -q > config > env > auto-detect
+            provider, _resolvedKwargs = LLMMgr._resolveAskProvider(
+                {}, configSettings
             )
             if not provider:
-                # Auto-detect
-                providers = LLMMgr._detectProviders()
-                if not providers:
-                    SysMgr.printErr("no LLM provider available")
-                    SysMgr.printWarn(
-                        "Set:\n"
-                        "  LLM_PROVIDER=claude\n"
-                        "  or -q LLMPROVIDER:claude\n"
-                        "  or API keys"
-                    )
-                    sys.exit(1)
-                provider = providers[0]
-                SysMgr.printInfo("using provider: {0}".format(provider))
+                SysMgr.printErr("no LLM provider available")
+                SysMgr.printWarn(
+                    "Set:\n"
+                    "  LLM_PROVIDER=claude\n"
+                    "  or -q LLMPROVIDER:claude\n"
+                    "  or API keys"
+                )
+                sys.exit(1)
 
             # 4. Get model, system prompt, session with priority: -q > config > env
-            model = (
-                LLMMgr._getEnvironValue("LLMMODEL")
-                or configSettings.get("model")
-                or os.getenv("LLM_MODEL")
-            )
+            model = _resolvedKwargs.get("model")
             systemPrompt = (
                 LLMMgr._getEnvironValue("LLMSYSTEM")
                 or configSettings.get("system")
@@ -37279,6 +37165,12 @@ class LLMMgr(object):
 
             # 7. Get LLM instance
             llm = LLMMgr.getLLM(provider, **kwargs)
+
+            # streaming mode already writes response tokens straight to
+            # stdout inside llm.chat(); the "Assistant: <content>" prints
+            # below must be skipped in that case to avoid showing the
+            # same response twice.
+            useStream = LLMMgr._isStreamEnabled()
 
             # 8. Set system prompt
             if systemPrompt:
@@ -37332,10 +37224,14 @@ class LLMMgr(object):
                 SysMgr.printPipe("You: {0}\n".format(initialMessage))
 
                 try:
+                    if useStream:
+                        sys.stdout.write("\nAssistant: ")
+                        sys.stdout.flush()
                     response = llm.chat(initialMessage)
-                    SysMgr.printPipe(
-                        "\nAssistant: {0}\n".format(response.content)
-                    )
+                    if not useStream:
+                        SysMgr.printPipe(
+                            "\nAssistant: {0}\n".format(response.content)
+                        )
 
                     LLMMgr._printResponseInfo(response, compact=True)
                 except Exception as e:
@@ -37395,10 +37291,16 @@ class LLMMgr(object):
                             msg = "[File: {0}]\n```\n{1}\n```".format(
                                 loadPath, content
                             )
+                            if useStream:
+                                sys.stdout.write("\nAssistant: ")
+                                sys.stdout.flush()
                             response = llm.chat(msg)
-                            SysMgr.printPipe(
-                                "\nAssistant: {0}\n".format(response.content)
-                            )
+                            if not useStream:
+                                SysMgr.printPipe(
+                                    "\nAssistant: {0}\n".format(
+                                        response.content
+                                    )
+                                )
                             LLMMgr._printResponseInfo(response, compact=True)
                         except Exception as e:
                             SysMgr.printErr("load failed: {0}".format(str(e)))
@@ -37413,10 +37315,16 @@ class LLMMgr(object):
                             msg = "Current system snapshot:\n```json\n{0}\n```".format(
                                 SysMgr.getPkg("json").dumps(ctx, indent=2)
                             )
+                            if useStream:
+                                sys.stdout.write("\nAssistant: ")
+                                sys.stdout.flush()
                             response = llm.chat(msg)
-                            SysMgr.printPipe(
-                                "\nAssistant: {0}\n".format(response.content)
-                            )
+                            if not useStream:
+                                SysMgr.printPipe(
+                                    "\nAssistant: {0}\n".format(
+                                        response.content
+                                    )
+                                )
                             LLMMgr._printResponseInfo(response, compact=True)
                         except Exception as e:
                             SysMgr.printErr(
@@ -37482,11 +37390,15 @@ class LLMMgr(object):
                             )
                         continue
 
+                    if useStream:
+                        sys.stdout.write("\nAssistant: ")
+                        sys.stdout.flush()
                     response = llm.chat(userInput)
 
-                    SysMgr.printPipe(
-                        "\nAssistant: {0}\n".format(response.content)
-                    )
+                    if not useStream:
+                        SysMgr.printPipe(
+                            "\nAssistant: {0}\n".format(response.content)
+                        )
 
                     LLMMgr._printResponseInfo(response, compact=True)
 
@@ -37843,6 +37755,16 @@ class LLMMgr(object):
                 for batchStart in range(0, len(chunks), BATCH_SIZE):
                     batch = chunks[batchStart : batchStart + BATCH_SIZE]
                     resp = embedder.embed(batch, dimensions=dimensions)
+                    if len(resp.embeddings) != len(batch):
+                        SysMgr.printErr(
+                            "embedding count mismatch: sent {0} chunks but "
+                            "got {1} embeddings back (batch starting at "
+                            "{2}); aborting to avoid misaligning chunks "
+                            "with embeddings".format(
+                                len(batch), len(resp.embeddings), batchStart
+                            )
+                        )
+                        sys.exit(1)
                     allEmbeddings.extend(resp.embeddings)
                     SysMgr.printInfo(
                         "  embedded {0}/{1}".format(
@@ -37916,30 +37838,21 @@ class LLMMgr(object):
 
             # Load config and resolve LLM provider
             configSettings = LLMMgr._loadConfigSettings()
-            provider = (
-                LLMMgr._getEnvironValue("LLMPROVIDER")
-                or configSettings.get("provider")
-                or os.getenv("LLM_PROVIDER")
+            provider, _resolvedKwargs = LLMMgr._resolveAskProvider(
+                {}, configSettings
             )
-            model = (
-                LLMMgr._getEnvironValue("LLMMODEL")
-                or configSettings.get("model")
-                or os.getenv("LLM_MODEL")
-            )
+            model = _resolvedKwargs.get("model")
             enableCache = LLMMgr._resolveCache(configSettings)
             temperature = LLMMgr._resolveTemperature(configSettings)
 
             if not provider:
-                detectedProviders = LLMMgr._detectProviders()
-                if not detectedProviders:
-                    SysMgr.printErr("no LLM provider available")
-                    SysMgr.printWarn(
-                        "Set environment variables:\n"
-                        "  LLM_PROVIDER=custom-openai\n"
-                        "  or -q LLMPROVIDER:custom-openai"
-                    )
-                    sys.exit(1)
-                provider = detectedProviders[0]
+                SysMgr.printErr("no LLM provider available")
+                SysMgr.printWarn(
+                    "Set environment variables:\n"
+                    "  LLM_PROVIDER=custom-openai\n"
+                    "  or -q LLMPROVIDER:custom-openai"
+                )
+                sys.exit(1)
 
             SysMgr.printInfo("generating answer with: {0}".format(provider))
 
@@ -38084,16 +37997,10 @@ class LLMMgr(object):
         """
         try:
             configSettings = LLMMgr._loadConfigSettings()
-            provider = (
-                LLMMgr._getEnvironValue("LLMPROVIDER")
-                or configSettings.get("provider")
-                or os.getenv("LLM_PROVIDER")
+            provider, _resolvedKwargs = LLMMgr._resolveAskProvider(
+                {}, configSettings
             )
-            model = (
-                LLMMgr._getEnvironValue("LLMMODEL")
-                or configSettings.get("model")
-                or os.getenv("LLM_MODEL")
-            )
+            model = _resolvedKwargs.get("model")
             enableCache = LLMMgr._resolveCache(configSettings)
             temperature = LLMMgr._resolveTemperature(configSettings)
             systemPrompt = (
@@ -38103,11 +38010,8 @@ class LLMMgr(object):
             )
 
             if not provider:
-                detectedProviders = LLMMgr._detectProviders()
-                if not detectedProviders:
-                    SysMgr.printErr("no LLM provider available")
-                    return 1
-                provider = detectedProviders[0]
+                SysMgr.printErr("no LLM provider available")
+                return 1
 
             kwargs = LLMMgr._buildLlmKwargs(model, enableCache, temperature)
 
@@ -38131,6 +38035,9 @@ class LLMMgr(object):
                     )
 
             # Run analysis or chat
+            # streaming mode already writes response text straight to stdout
+            # inside llm.analyze()/llm.chat(); skip the content print below.
+            useStream = LLMMgr._isStreamEnabled()
             if data is not None:
                 response = llm.analyze(data, prompt)
             else:
@@ -38157,10 +38064,11 @@ class LLMMgr(object):
                     trim=False,
                 )
             else:
-                SysMgr.printPipe("\n" + twoLine)
-                SysMgr.printPipe("Response:")
-                SysMgr.printPipe(twoLine)
-                SysMgr.printPipe(response.content, trim=False)
+                if not useStream:
+                    SysMgr.printPipe("\n" + twoLine)
+                    SysMgr.printPipe("Response:")
+                    SysMgr.printPipe(twoLine)
+                    SysMgr.printPipe(response.content, trim=False)
                 LLMMgr._printResponseInfo(response)
 
             # Save session
@@ -38234,6 +38142,9 @@ class LLMMgr(object):
             )
 
             # If no data provided, use chat mode (direct question)
+            # streaming mode already writes response text straight to stdout
+            # inside llm.chat()/llm.analyze(); skip the content print below.
+            useStream = LLMMgr._isStreamEnabled()
             if data is None:
                 response = llm.chat(prompt)
             else:
@@ -38265,11 +38176,12 @@ class LLMMgr(object):
                     trim=False,
                 )
             else:
-                # trim=False to preserve full LLM response content
-                SysMgr.printPipe("\n" + twoLine)
-                SysMgr.printPipe("Response:")
-                SysMgr.printPipe(twoLine)
-                SysMgr.printPipe(response.content, trim=False)
+                if not useStream:
+                    # trim=False to preserve full LLM response content
+                    SysMgr.printPipe("\n" + twoLine)
+                    SysMgr.printPipe("Response:")
+                    SysMgr.printPipe(twoLine)
+                    SysMgr.printPipe(response.content, trim=False)
                 LLMMgr._printResponseInfo(response)
 
             return 0
@@ -38321,22 +38233,11 @@ class LLMMgr(object):
 
             # resolve provider/model/settings (same priority as askWithData)
             configSettings = LLMMgr._loadConfigSettings()
-            provider = (
-                LLMMgr._getEnvironValue("LLMPROVIDER")
-                or configSettings.get("provider")
-                or os.getenv("LLM_PROVIDER")
+            provider, _resolvedKwargs = LLMMgr._resolveAskProvider(
+                {}, configSettings
             )
-            model = (
-                LLMMgr._getEnvironValue("LLMMODEL")
-                or configSettings.get("model")
-                or os.getenv("LLM_MODEL")
-            )
-            cacheOpt = LLMMgr._getEnvironValue("LLMCACHE")
-            enableCache = LLMMgr._parseBoolValue(
-                cacheOpt
-                or configSettings.get("cache")
-                or os.getenv("LLM_CACHE")
-            )
+            model = _resolvedKwargs.get("model")
+            enableCache = LLMMgr._resolveCache(configSettings)
             temperature = LLMMgr._resolveTemperature(configSettings)
             systemPrompt = (
                 LLMMgr._getEnvironValue("LLMSYSTEM")
@@ -38345,11 +38246,8 @@ class LLMMgr(object):
             )
 
             if not provider:
-                detected = LLMMgr._detectProviders()
-                if not detected:
-                    SysMgr.printErr("no LLM provider available")
-                    return 1
-                provider = detected[0]
+                SysMgr.printErr("no LLM provider available")
+                return 1
 
             kwargs = LLMMgr._buildLlmKwargs(model, enableCache, temperature)
 
@@ -38369,6 +38267,9 @@ class LLMMgr(object):
             )
 
             # single-chunk shortcut (no map-reduce needed)
+            # streaming mode already writes response text straight to stdout
+            # inside llm.chat(); skip the content print below.
+            useStream = LLMMgr._isStreamEnabled()
             if len(chunks) == 1:
                 SysMgr.printInfo(
                     "file fits in single chunk, using direct analysis"
@@ -38380,10 +38281,11 @@ class LLMMgr(object):
                 )
                 if not response:
                     return 1
-                SysMgr.printPipe("\n" + twoLine)
-                SysMgr.printPipe("Response:")
-                SysMgr.printPipe(twoLine)
-                SysMgr.printPipe(response.content, trim=False)
+                if not useStream:
+                    SysMgr.printPipe("\n" + twoLine)
+                    SysMgr.printPipe("Response:")
+                    SysMgr.printPipe(twoLine)
+                    SysMgr.printPipe(response.content, trim=False)
                 LLMMgr._printResponseInfo(response)
                 return 0
 
@@ -38466,14 +38368,17 @@ class LLMMgr(object):
                 return 1
 
             # print final result
-            SysMgr.printPipe("\n" + twoLine)
-            SysMgr.printPipe(
-                "Map-Reduce Analysis: {0} ({1} chunks)".format(
-                    filePath, UtilMgr.convNum(len(chunks))
+            # streaming mode already writes response text straight to stdout
+            # inside llm.chat(); skip the content print below.
+            if not useStream:
+                SysMgr.printPipe("\n" + twoLine)
+                SysMgr.printPipe(
+                    "Map-Reduce Analysis: {0} ({1} chunks)".format(
+                        filePath, UtilMgr.convNum(len(chunks))
+                    )
                 )
-            )
-            SysMgr.printPipe(twoLine)
-            SysMgr.printPipe(finalResponse.content, trim=False)
+                SysMgr.printPipe(twoLine)
+                SysMgr.printPipe(finalResponse.content, trim=False)
 
             SysMgr.printPipe("\n" + oneLine)
             reduceTokens = (
@@ -38535,6 +38440,9 @@ class LLMMgr(object):
         )
 
         results = {}
+        # streaming mode already writes response text straight to stdout
+        # inside llm.chat()/llm.analyze(); skip the content print below.
+        useStream = LLMMgr._isStreamEnabled()
 
         for model in models:
             displayName = "{0} - {1}".format(provider, model)
@@ -38559,16 +38467,19 @@ class LLMMgr(object):
                     LLMMgr._lastResponse = response.content
 
                 if not SysMgr.jsonEnable:
-                    # Print response inline (text mode)
-                    SysMgr.printPipe("\n" + twoLine)
-                    SysMgr.printPipe("[{0}]".format(displayName))
-                    SysMgr.printPipe(twoLine)
-
-                    if response:
-                        SysMgr.printPipe(response.content, trim=False)
-                        LLMMgr._printResponseInfo(response, compact=True)
-                    else:
+                    if not response:
+                        SysMgr.printPipe("\n" + twoLine)
+                        SysMgr.printPipe("[{0}]".format(displayName))
+                        SysMgr.printPipe(twoLine)
                         SysMgr.printPipe("Failed")
+                    else:
+                        if not useStream:
+                            # Print response inline (text mode)
+                            SysMgr.printPipe("\n" + twoLine)
+                            SysMgr.printPipe("[{0}]".format(displayName))
+                            SysMgr.printPipe(twoLine)
+                            SysMgr.printPipe(response.content, trim=False)
+                        LLMMgr._printResponseInfo(response, compact=True)
 
             except Exception as e:
                 results[displayName] = None
@@ -38644,6 +38555,9 @@ class LLMMgr(object):
         )
 
         results = {}
+        # streaming mode already writes response text straight to stdout
+        # inside llm.chat()/llm.analyze(); skip the content print below.
+        useStream = LLMMgr._isStreamEnabled()
 
         for provider in providers:
             try:
@@ -38679,16 +38593,19 @@ class LLMMgr(object):
                     LLMMgr._lastResponse = response.content
 
                 if not SysMgr.jsonEnable:
-                    # Print response inline (text mode)
-                    SysMgr.printPipe("\n" + twoLine)
-                    SysMgr.printPipe("[{0}]".format(provider))
-                    SysMgr.printPipe(twoLine)
-
-                    if response:
-                        SysMgr.printPipe(response.content, trim=False)
-                        LLMMgr._printResponseInfo(response, compact=True)
-                    else:
+                    if not response:
+                        SysMgr.printPipe("\n" + twoLine)
+                        SysMgr.printPipe("[{0}]".format(provider))
+                        SysMgr.printPipe(twoLine)
                         SysMgr.printPipe("Failed")
+                    else:
+                        if not useStream:
+                            # Print response inline (text mode)
+                            SysMgr.printPipe("\n" + twoLine)
+                            SysMgr.printPipe("[{0}]".format(provider))
+                            SysMgr.printPipe(twoLine)
+                            SysMgr.printPipe(response.content, trim=False)
+                        LLMMgr._printResponseInfo(response, compact=True)
 
             except Exception as e:
                 results[provider] = None
@@ -38834,6 +38751,92 @@ class LLMMgr(object):
             providers.append("gemini")
 
         return providers
+
+    @staticmethod
+    def _resolveAskProvider(opts, configSettings, timeout=None):
+        """
+        Resolve provider/model/credentials the same way for every LLM
+        trigger path (ASKAI/ASKRUN/ASKMULTI/AIPERIODIC/BPF-triggered).
+        Priority: inline opt > -q LLM* > guider.conf > env > auto-detect.
+
+        Returns:
+            tuple: (provider, kwargs) where kwargs is ready to pass to
+                   LLMMgr.getLLM(provider, **kwargs)
+        """
+        provider = (
+            opts.get("provider")
+            or LLMMgr._getEnvironValue("LLMPROVIDER")
+            or configSettings.get("provider")
+            or os.getenv("LLM_PROVIDER")
+        )
+        if not provider:
+            detected = LLMMgr._detectProviders()
+            provider = detected[0] if detected else None
+
+        model = (
+            opts.get("model")
+            or LLMMgr._getEnvironValue("LLMMODEL")
+            or configSettings.get("model")
+            or os.getenv("LLM_MODEL")
+        )
+
+        kwargs = {}
+        if model:
+            kwargs["model"] = model
+        if timeout:
+            kwargs["requestTimeout"] = timeout
+        apiKey = opts.get("apiKey") or os.getenv("CUSTOM_API_KEY")
+        baseUrl = opts.get("baseUrl") or os.getenv("CUSTOM_BASE_URL")
+        if apiKey:
+            kwargs["apiKey"] = apiKey
+        if baseUrl:
+            kwargs["baseUrl"] = baseUrl
+        return provider, kwargs
+
+    @staticmethod
+    def _buildLLMOptsFromEnv(opts=None):
+        """
+        Fill missing LLM opts from global -q options (LLMRATELIMIT,
+        LLMDRYRUN, LLMMAXCMD, LLMCTXDEPTH, LLMAUDITLOG, ALLOWRUN,
+        LLMALLOWCMD, LLMCUSTOM_API_KEY, LLMCUSTOM_BASE_URL). Existing
+        keys in opts are preserved (explicit/inline values win).
+
+        Returns:
+            dict: opts dict with env-derived defaults filled in
+        """
+        opts = dict(opts) if opts else {}
+        envList = SysMgr.environList
+        _envVal = LLMMgr._getEnvironValue
+
+        if "LLMRATELIMIT" in envList and "rateLimit" not in opts:
+            try:
+                opts["rateLimit"] = int(_envVal("LLMRATELIMIT"))
+            except:
+                pass
+        if "LLMDRYRUN" in envList and "dryRun" not in opts:
+            opts["dryRun"] = LLMMgr._parseBoolValue(_envVal("LLMDRYRUN"))
+        if "LLMMAXCMD" in envList and "maxCmd" not in opts:
+            try:
+                opts["maxCmd"] = int(_envVal("LLMMAXCMD"))
+            except:
+                pass
+        if "LLMCTXDEPTH" in envList and "ctxDepth" not in opts:
+            try:
+                opts["ctxDepth"] = int(_envVal("LLMCTXDEPTH"))
+            except:
+                pass
+        if "LLMAUDITLOG" in envList and "auditLog" not in opts:
+            opts["auditLog"] = _envVal("LLMAUDITLOG")
+        if "ALLOWRUN" in envList and "allowRun" not in opts:
+            opts["allowRun"] = True
+        if "LLMALLOWCMD" in envList and "extraAllow" not in opts:
+            raw = _envVal("LLMALLOWCMD") or ""
+            opts["extraAllow"] = set(raw.split(":")) if raw else None
+        if "LLMCUSTOM_API_KEY" in envList and "apiKey" not in opts:
+            opts["apiKey"] = _envVal("LLMCUSTOM_API_KEY")
+        if "LLMCUSTOM_BASE_URL" in envList and "baseUrl" not in opts:
+            opts["baseUrl"] = _envVal("LLMCUSTOM_BASE_URL")
+        return opts
 
 
 class AndroidMgr(object):
@@ -56957,7 +56960,9 @@ Commands:
 
         # Memory
         try:
-            mem = SysMgr.getMemDict()
+            mem = (
+                inst and getattr(inst, "memData", None)
+            ) or SysMgr.getMemDict()
             total_kb = mem.get("MemTotal", 0)
             avail_kb = mem.get("MemAvailable", mem.get("MemFree", 0))
             result["mem_total_mb"] = total_kb >> 10
@@ -56972,17 +56977,10 @@ Commands:
 
         # Network
         try:
-            ns = SysMgr.netstat
-            pns = SysMgr.prevNetstat
-            if (
-                isinstance(ns, list)
-                and isinstance(pns, list)
-                and len(ns) == 2
-                and len(pns) == 2
-                and isinstance(ns[0], (int, float))
-            ):
-                result["net_rx_bytes"] = ns[0] - pns[0]
-                result["net_tx_bytes"] = ns[1] - pns[1]
+            net = getattr(inst, "reportData", {}).get("net", {})
+            if "inbound" in net and "outbound" in net:
+                result["net_rx_bytes"] = net["inbound"]
+                result["net_tx_bytes"] = net["outbound"]
         except SystemExit:
             sys.exit(0)
         except:
@@ -57011,20 +57009,11 @@ Commands:
 
         # Disk I/O — aggregate read/write across all mounted devices
         try:
-            storage = getattr(inst, "storageData", {})
-            if storage:
-                total_read = sum(
-                    v.get("read", 0)
-                    for v in storage.values()
-                    if isinstance(v, dict)
-                )
-                total_write = sum(
-                    v.get("write", 0)
-                    for v in storage.values()
-                    if isinstance(v, dict)
-                )
-                result["disk_read_mb"] = round(total_read, 1)
-                result["disk_write_mb"] = round(total_write, 1)
+            storage = getattr(SysMgr.sysInstance, "storageData", None) or {}
+            total = storage.get("total", {})
+            if total:
+                result["disk_read_mb"] = round(total.get("read", 0), 1)
+                result["disk_write_mb"] = round(total.get("write", 0), 1)
         except SystemExit:
             sys.exit(0)
         except:
@@ -78927,6 +78916,12 @@ Commands:
                           PROVIDER:<name>      override LLM provider
                           MODEL:<name>         override LLM model
                           FEEDBACK:<sec>       re-check effect N sec after execution
+                          SAVE{{:<path>}}        write a standalone report file with the
+                                               prompt+response (ASKRUN adds analysis/
+                                               severity/commands); bare flag auto-names
+                                               the file under -o path or "."; a directory
+                                               value auto-names inside it; any other value
+                                               is used as the literal file path
                         Global -q options: LLMRATELIMIT, LLMDRYRUN, LLMMAXCMD,
                           LLMCTXDEPTH, LLMAUDITLOG, LLMALLOWCMD
                         """.format(
@@ -78996,12 +78991,14 @@ Examples:
         # {0:1} {1:1} CMD_ASKAI
         # {0:1} {1:1} "CMD_ASKAI:Explain the root cause of this CPU spike"
         # {0:1} {1:1} "CMD_ASKAI:Identify top memory consumers#TIMEOUT:30,CTXDEPTH:15"
+        # {0:1} {1:1} "CMD_ASKAI:Explain the root cause of this CPU spike#TIMEOUT:30,SAVE"
 
     - Notify CMD_ASKRUN event {2:1} to request LLM analysis and auto-execute safe commands
         # {0:1} {1:1} CMD_ASKRUN
         # {0:1} {1:1} "CMD_ASKRUN:Diagnose and remediate CPU overload#MAXCMD:2"
         # {0:1} {1:1} "CMD_ASKRUN:Diagnose memory pressure#TIMEOUT:60,DRYRUN:true"
         # {0:1} {1:1} "CMD_ASKRUN:Analyze anomaly#PROVIDER:claude,MODEL:opus"
+        # {0:1} {1:1} "CMD_ASKRUN:Diagnose memory pressure#MAXCMD:2,SAVE:/data/guider"
 
     - Notify CMD_ASKMULTI event {2:1} to query multiple LLM providers in parallel
         # {0:1} {1:1} "CMD_ASKMULTI:Analyze this event#PROVIDERS:claude:gemini"
@@ -87764,11 +87761,25 @@ Key Value List:
                 return SysMgr.inputFile + append
 
     @staticmethod
-    def setReportPath(outPath, cmd, event=None):
-        # set default event name #
-        if not event:
-            event = "CUSTOM"
+    def buildReportFilename(
+        nrReport, uptime, event, cmd, timeinfo, nrRun=None
+    ):
+        """Shared guider_<nrRun>_<nrReport>_<uptime>_<event>_<cmd>_<timeinfo>.out
+        naming formula, used by both setReportPath (SAVE-family reports) and
+        TaskAnalyzer._writeLLMReport (ASKAI/ASKRUN #SAVE reports) so the two
+        report kinds stay structurally identical instead of duplicating the
+        format string in two places."""
+        return "guider_%05d_%05d_%s_%s_%s_%s.out" % (
+            SysMgr.nrRun if nrRun is None else nrRun,
+            nrReport,
+            uptime,
+            event or "CUSTOM",
+            cmd,
+            timeinfo,
+        )
 
+    @staticmethod
+    def setReportPath(outPath, cmd, event=None):
         # get time #
         timeinfo = UtilMgr.getTime("UTCTIME" in SysMgr.environList) or long(
             SysMgr.uptime
@@ -87811,14 +87822,15 @@ Key Value List:
             targetDir = os.path.dirname(SysMgr.outPath)
 
         # set output path #
-        SysMgr.outPath = "%s/guider_%05d_%05d_%s_%s_%s_%s.out" % (
+        SysMgr.outPath = "%s/%s" % (
             targetDir,
-            SysMgr.nrRun,
-            SysMgr.nrReport,
-            SysMgr.getUptime(conv=True).replace(":", ""),
-            event,
-            cmd.replace(":", ""),
-            timeinfo,
+            SysMgr.buildReportFilename(
+                SysMgr.nrReport,
+                SysMgr.getUptime(conv=True).replace(":", ""),
+                event,
+                cmd.replace(":", ""),
+                timeinfo,
+            ),
         )
 
     @staticmethod
@@ -103950,7 +103962,11 @@ Key Value List:
 
         def _sortKey(item):
             name, val = item
-            if sortMode == "SIZE" and isinstance(val, dict) and "_size_" in val:
+            if (
+                sortMode == "SIZE"
+                and isinstance(val, dict)
+                and "_size_" in val
+            ):
                 return (0, -val["_size_"], name)
             elif sortMode == "TYPE" and isinstance(val, dict):
                 return (0, 0 if "_subDirs_" in val else 1, name)
@@ -104100,9 +104116,7 @@ Key Value List:
                             attrList.append("PERM: %s" % val["_perm_"])
 
                         # security #
-                        secVal = val.get("security") or val.get(
-                            "_security_"
-                        )
+                        secVal = val.get("security") or val.get("_security_")
                         if secVal:
                             attrList.append("SECURITY: %s" % secVal)
 
@@ -104115,8 +104129,7 @@ Key Value List:
 
                             if item in val:
                                 attrList.append(
-                                    "%s: %s"
-                                    % (iname, convNum(len(val[item])))
+                                    "%s: %s" % (iname, convNum(len(val[item])))
                                 )
 
                     if attrList:
@@ -104346,7 +104359,9 @@ Key Value List:
         # instead of being recomputed by every ancestor directory's sort #
         realSizeCache = {}
 
-        def _getDirsJson(result, parentPath, level, maxLevel, parentAbsPath=None):
+        def _getDirsJson(
+            result, parentPath, level, maxLevel, parentAbsPath=None
+        ):
             # get subdir #
             try:
                 fileList = os.listdir(parentPath)
@@ -128199,8 +128214,18 @@ class BpfMgr(object):
     @staticmethod
     def _triggerBpfAI(cmd_name, data_json, prompt, opts=None):
         """Trigger ASKAI analysis from a BPF command (async daemon thread)."""
-        # early exit if LLM is not configured (zero overhead)
-        if not (SysMgr.environList.get("LLMPROVIDER") or SysMgr.confFileName):
+        # early exit if LLM is not configured (zero overhead) -- mirrors the
+        # env vars LLMMgr._detectProviders() checks, without loading the
+        # config file #
+        if not (
+            SysMgr.environList.get("LLMPROVIDER")
+            or os.getenv("LLM_PROVIDER")
+            or os.getenv("ANTHROPIC_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+            or os.getenv("CUSTOM_API_KEY")
+        ):
             return
         import threading as _threading
 
@@ -128234,22 +128259,14 @@ class BpfMgr(object):
                     + "\n\n"
                     + UtilMgr.convDict2Str(data_json)
                 )
-                provider = (
-                    opts.get("provider")
-                    or SysMgr.environList.get("LLMPROVIDER", [None])[0]
-                    or configSettings.get("provider")
+                provider, llm_kwargs = LLMMgr._resolveAskProvider(
+                    opts, configSettings
                 )
-                model = (
-                    opts.get("model")
-                    or SysMgr.environList.get("LLMMODEL", [None])[0]
-                    or configSettings.get("model")
-                )
-                llm_kwargs = {}
-                if model:
-                    llm_kwargs["model"] = model
                 llm = LLMMgr.getLLM(provider, **llm_kwargs)
                 resp = llm.chat(full_prompt)
-                if resp and resp.content:
+                # streaming mode already writes response text straight to
+                # stdout inside llm.chat(); skip the content print below.
+                if resp and resp.content and not LLMMgr._isStreamEnabled():
                     SysMgr.printInfo(
                         "[AI/%s] %s" % (cmd_name, resp.content[:800])
                     )
@@ -246214,7 +246231,7 @@ function isAutoNamedPlot(name) {{
         if LLMMgr._llmContextConfig:
             try:
                 ctx["extended"] = LLMMgr._buildContextExtras(
-                    LLMMgr._llmContextConfig
+                    LLMMgr._llmContextConfig, inst
                 )
             except Exception:
                 pass
@@ -246397,13 +246414,129 @@ function isAutoNamedPlot(name) {{
         json = SysMgr.getPkg("json")
         if not json:
             return
+        SysMgr.writeFile(
+            logPath, json.dumps(entry) + "\n", append=True, verb=False
+        )
+
+    @staticmethod
+    def _writeLLMReport(
+        askType,
+        event,
+        prompt,
+        responseText,
+        saveOpt,
+        provider=None,
+        model=None,
+        parsed=None,
+        executedCmds=None,
+        blockedCmds=None,
+        triggerUptime=None,
+        triggerTimeinfo=None,
+        triggerReportNum=None,
+    ):
+        """Write a standalone human-readable ASKAI/ASKRUN report file.
+
+        Triggered by the #SAVE inline option; independent of LLMAUDITLOG
+        (which only appends a compact JSONL summary) and of handleSaveCmd's
+        fork+global-outPath report mechanism (not needed here since this is
+        a single one-shot file write, same pattern as CMD_SNAPSHOT).
+
+        The auto filename reuses SysMgr.buildReportFilename() - the same
+        naming formula setReportPath uses for SAVE-family reports - plus a
+        trailing _<pid>, so a #SAVE report and a co-triggered SAVE report
+        for the same event are structurally identical (nrRun/uptime/event/
+        timeinfo line up; report-number, SAVE-vs-ASKAI/ASKRUN slot, and pid
+        are the only fields that differ). The pid is this writer's own
+        os.getpid() - this never forks like handleSaveCmd does, so it won't
+        match a co-triggered SAVE report's forked-child pid, but it still
+        identifies which guider process wrote this specific report.
+
+        triggerUptime/triggerTimeinfo/triggerReportNum are all captured
+        synchronously at dispatch time (the same calls/counter increment
+        setReportPath and handleSaveCmd make) so they line up with a
+        co-triggered SAVE report regardless of command order - triggerReportNum
+        in particular comes from TaskAnalyzer sharing the same SysMgr.nrReport
+        counter, so whichever of SAVE/ASKAI dispatches first in the command
+        list simply claims the lower of two consecutive numbers.
+        """
         try:
-            with open(logPath, "a") as f:
-                f.write(json.dumps(entry) + "\n")
+            ts = (triggerUptime or SysMgr.getUptime(conv=True)).replace(
+                ":", ""
+            )
+            timeinfo = triggerTimeinfo or UtilMgr.getTime(
+                "UTCTIME" in SysMgr.environList
+            )
+            reportNum = (
+                triggerReportNum
+                if triggerReportNum is not None
+                else SysMgr.nrReport
+            )
+            fname = SysMgr.buildReportFilename(
+                reportNum,
+                ts,
+                event,
+                askType.upper(),
+                timeinfo,
+            )
+            # append the writer's own PID, same spirit as the PID suffix
+            # SAVE's forked child appends to its own report filename - this
+            # never forks like SAVE does, so it's just the current process,
+            # not a value expected to match a co-triggered SAVE report's #
+            base, ext = os.path.splitext(fname)
+            fname = "%s_%d%s" % (base, os.getpid(), ext)
+
+            # resolve target path: bare flag -> auto path, dir -> auto name
+            # inside it, otherwise treat as the literal file path #
+            if not saveOpt or saveOpt == "true":
+                path = os.path.join(SysMgr.outPath or ".", fname)
+            elif os.path.isdir(saveOpt):
+                path = os.path.join(saveOpt, fname)
+            else:
+                path = saveOpt
+
+            lines = [
+                "[LLM Report]",
+                "%-12s: %s" % ("Timestamp", SysMgr.dateTime),
+                "%-12s: %s" % ("Event", event or "-"),
+                "%-12s: %s" % ("Type", askType),
+            ]
+            if provider:
+                lines.append("%-12s: %s" % ("Provider", provider))
+            if model:
+                lines.append("%-12s: %s" % ("Model", model))
+            lines += [
+                "",
+                "[Prompt]",
+                prompt or "-",
+                "",
+                "[Response]",
+                responseText or "-",
+            ]
+
+            if askType == "ASKRUN" and parsed:
+                lines += [
+                    "",
+                    "[Analysis]",
+                    "%-12s: %s"
+                    % ("Severity", parsed.get("severity", "unknown")),
+                    "%-12s: %s" % ("Subsystems", parsed.get("subsystems", [])),
+                    "%-12s: %s"
+                    % ("Confidence", parsed.get("confidence", "-")),
+                    "%-12s: %s" % ("Rationale", parsed.get("rationale", "-")),
+                    "",
+                    "[Commands]",
+                    "%-12s: %s" % ("Executed", executedCmds or []),
+                    "%-12s: %s" % ("Blocked", blockedCmds or []),
+                ]
+
+            content = "\n".join(lines) + "\n"
+            if not SysMgr.writeFile(path, content, verb=False):
+                raise IOError("failed to write LLM report file '%s'" % path)
+            SysMgr.printInfo("saved LLM %s report to '%s'" % (askType, path))
         except SystemExit:
             sys.exit(0)
-        except:
-            pass
+        except Exception as ex:
+            SysMgr.printErr("failed to save LLM report: %s" % str(ex), True)
 
     @staticmethod
     def _runLLMAskThread(askType, prompt, opts, event, eventData):
@@ -246431,6 +246564,9 @@ function isAutoNamedPlot(name) {{
         feedback = opts.get("feedback", 0)
         apiKey = opts.get("apiKey", None)
         baseUrl = opts.get("baseUrl", None)
+        triggerUptime = opts.get("triggerUptime", None)
+        triggerTimeinfo = opts.get("triggerTimeinfo", None)
+        triggerReportNum = opts.get("triggerReportNum", None)
 
         # rate-limit check
         now = time.time()
@@ -246489,38 +246625,16 @@ function isAutoNamedPlot(name) {{
                 try:
                     configSettings = LLMMgr._loadConfigSettings()
 
-                    # provider: inline opt > -q LLMPROVIDER > config > env > auto-detect
-                    resolvedProvider = (
-                        provider
-                        or LLMMgr._getEnvironValue("LLMPROVIDER")
-                        or configSettings.get("provider")
-                        or os.getenv("LLM_PROVIDER")
+                    resolvedProvider, kwargs = LLMMgr._resolveAskProvider(
+                        {
+                            "provider": provider,
+                            "model": model,
+                            "apiKey": apiKey,
+                            "baseUrl": baseUrl,
+                        },
+                        configSettings,
+                        timeout=timeout,
                     )
-                    if not resolvedProvider:
-                        detected = LLMMgr._detectProviders()
-                        resolvedProvider = detected[0] if detected else None
-
-                    # model: inline opt > -q LLMMODEL > config > env
-                    resolvedModel = (
-                        model
-                        or LLMMgr._getEnvironValue("LLMMODEL")
-                        or configSettings.get("model")
-                        or os.getenv("LLM_MODEL")
-                    )
-
-                    kwargs = {}
-                    if resolvedModel:
-                        kwargs["model"] = resolvedModel
-                    # per-call LLM request timeout override (inline TIMEOUT:<s>) #
-                    if timeout:
-                        kwargs["requestTimeout"] = timeout
-                    # credentials: inline/global opts > env (set by _loadConfigSettings or user)
-                    resolvedApiKey = apiKey or os.getenv("CUSTOM_API_KEY")
-                    resolvedBaseUrl = baseUrl or os.getenv("CUSTOM_BASE_URL")
-                    if resolvedApiKey:
-                        kwargs["apiKey"] = resolvedApiKey
-                    if resolvedBaseUrl:
-                        kwargs["baseUrl"] = resolvedBaseUrl
 
                     llm = LLMMgr.getLLM(resolvedProvider, **kwargs)
                     if sysPrompt:
@@ -246542,7 +246656,11 @@ function isAutoNamedPlot(name) {{
                     return
 
                 responseText = response.content
-                SysMgr.printInfo("[LLM:%s] %s" % (askType, responseText))
+                # when streaming is on, llm.chat() already wrote this text
+                # to stdout token-by-token; printing it again here would
+                # duplicate it in the log/terminal.
+                if not LLMMgr._isStreamEnabled():
+                    SysMgr.printInfo("[LLM:%s] %s" % (askType, responseText))
 
                 # ASKRUN: parse JSON and execute allowed commands
                 executedCmds = []
@@ -246571,10 +246689,9 @@ function isAutoNamedPlot(name) {{
                     if (
                         parsed
                         and _askrun_cfg
-                        and str(
-                            _askrun_cfg.get("AUTO_ESCALATE", "false")
-                        ).lower()
-                        == "true"
+                        and LLMMgr._parseBoolValue(
+                            _askrun_cfg.get("AUTO_ESCALATE")
+                        )
                     ):
                         _sev = parsed.get("severity", "medium")
                         _subs = parsed.get("subsystems") or []
@@ -246673,7 +246790,14 @@ function isAutoNamedPlot(name) {{
                             % (str(executedCmds), fbCtxStr)
                         )
                         fbResp = llm.chat(fbPrompt)
-                        if fbResp and fbResp.content:
+                        # streaming mode already writes response text
+                        # straight to stdout inside llm.chat(); skip the
+                        # content print below.
+                        if (
+                            fbResp
+                            and fbResp.content
+                            and not LLMMgr._isStreamEnabled()
+                        ):
                             SysMgr.printInfo(
                                 "[LLM:FEEDBACK] %s" % fbResp.content
                             )
@@ -246705,6 +246829,29 @@ function isAutoNamedPlot(name) {{
                         _auditEntry["analysis"] = parsed.get("analysis", "")
                     TaskAnalyzer._llmAuditLog(auditLog, _auditEntry)
 
+                # SAVE report (independent of LLMAUDITLOG) #
+                saveOpt = opts.get("save")
+                if saveOpt:
+                    TaskAnalyzer._writeLLMReport(
+                        askType,
+                        event,
+                        prompt,
+                        responseText,
+                        saveOpt,
+                        provider=resolvedProvider,
+                        model=(
+                            kwargs.get("model")
+                            if isinstance(kwargs, dict)
+                            else None
+                        ),
+                        parsed=parsed if askType == "ASKRUN" else None,
+                        executedCmds=executedCmds,
+                        blockedCmds=blockedCmds,
+                        triggerUptime=triggerUptime,
+                        triggerTimeinfo=triggerTimeinfo,
+                        triggerReportNum=triggerReportNum,
+                    )
+
             except SystemExit:
                 sys.exit(0)
             except Exception as ex:
@@ -246717,6 +246864,10 @@ function isAutoNamedPlot(name) {{
         t = _threading.Thread(target=_worker, name="llm-%s" % event)
         t.daemon = True
         t.start()
+        # track thread so callers can join before process exit, same as
+        # BpfMgr._triggerBpfAI's llmAiThreads bookkeeping
+        SysMgr.llmAiThreads.append(t)
+        SysMgr.addExitFunc(BpfMgr._waitBpfAI, [30], redundant=False)
 
     def _getGovState(self, source):
         # return (evtConf, govState, autoTarget, excludeList, targetList) for governor commands #
@@ -247367,50 +247518,33 @@ function isAutoNamedPlot(name) {{
                             opts["apiKey"] = v
                         elif k == "BASEURL":
                             opts["baseUrl"] = v
+                        elif k == "SAVE":
+                            # bare flag -> "true" (auto path), else explicit path #
+                            opts["save"] = v
 
             # apply global -q options as defaults (inline opts take priority) #
-            envList = SysMgr.environList
-
-            def _envVal(key):
-                v = envList.get(key)
-                if not v:
-                    return None
-                return v[0] if isinstance(v, list) else v
-
-            if "LLMRATELIMIT" in envList and "rateLimit" not in opts:
-                try:
-                    opts["rateLimit"] = int(_envVal("LLMRATELIMIT"))
-                except:
-                    pass
-            if "LLMDRYRUN" in envList and "dryRun" not in opts:
-                v = _envVal("LLMDRYRUN") or "false"
-                opts["dryRun"] = v.lower() in ("true", "1", "yes")
-            if "LLMMAXCMD" in envList and "maxCmd" not in opts:
-                try:
-                    opts["maxCmd"] = int(_envVal("LLMMAXCMD"))
-                except:
-                    pass
-            if "LLMCTXDEPTH" in envList and "ctxDepth" not in opts:
-                try:
-                    opts["ctxDepth"] = int(_envVal("LLMCTXDEPTH"))
-                except:
-                    pass
-            if "LLMAUDITLOG" in envList and "auditLog" not in opts:
-                opts["auditLog"] = _envVal("LLMAUDITLOG")
-            if "ALLOWRUN" in envList:
-                opts["allowRun"] = True
-            if "LLMALLOWCMD" in envList:
-                raw = _envVal("LLMALLOWCMD") or ""
-                opts["extraAllow"] = set(raw.split(":")) if raw else None
-            if "LLMCUSTOM_API_KEY" in envList and "apiKey" not in opts:
-                opts["apiKey"] = _envVal("LLMCUSTOM_API_KEY")
-            if "LLMCUSTOM_BASE_URL" in envList and "baseUrl" not in opts:
-                opts["baseUrl"] = _envVal("LLMCUSTOM_BASE_URL")
+            opts = LLMMgr._buildLLMOptsFromEnv(opts)
 
             # print message #
             SysMgr.printInfo(
                 "requesting LLM %s for event '%s' %s" % (ocmd, source, ctxstr)
             )
+
+            # capture the trigger-time uptime/timeinfo/report-number (same
+            # calls/counter handleSaveCmd's setReportPath makes) so a #SAVE
+            # report is named with the same
+            # guider_<nrRun>_<nrReport>_<uptime>_<event>_<type>_<timeinfo>.out
+            # shape as a co-triggered SAVE report. Sharing SysMgr.nrReport
+            # (rather than trying to copy SAVE's own value) means whichever
+            # of SAVE/ASKAI dispatches first in the command list just claims
+            # the lower of two consecutive numbers - correct either way,
+            # with no dependency on command order #
+            opts["triggerUptime"] = SysMgr.getUptime(conv=True)
+            opts["triggerTimeinfo"] = UtilMgr.getTime(
+                "UTCTIME" in SysMgr.environList
+            )
+            SysMgr.nrReport += 1
+            opts["triggerReportNum"] = SysMgr.nrReport
 
             # launch async LLM request (non-blocking) #
             TaskAnalyzer._runLLMAskThread(ocmd, prompt, opts, source, {})
@@ -247496,14 +247630,14 @@ function isAutoNamedPlot(name) {{
                     "active_events": dict(SysMgr.thrEvtCntList),
                 }
                 try:
-                    snap["psi"] = {}
-                    for _res in ("cpu", "memory", "io"):
-                        with open("/proc/pressure/%s" % _res) as _f:
-                            snap["psi"][_res] = _f.read()
+                    if SysMgr.psiData:
+                        snap["psi"] = SysMgr.psiData
                 except:
                     pass
-                with open(path, "w") as _f:
-                    _f.write(json.dumps(snap, indent=2))
+                if not SysMgr.writeFile(
+                    path, json.dumps(snap, indent=2), verb=False
+                ):
+                    raise IOError("failed to write snapshot file '%s'" % path)
                 SysMgr.printInfo("saved snapshot to '%s' %s" % (path, ctxstr))
             except SystemExit:
                 sys.exit(0)
@@ -247547,40 +247681,7 @@ function isAutoNamedPlot(name) {{
                 % (", ".join(providers), source, ctxstr)
             )
             # build base opts from global env vars (mirrors ASKAI handler) #
-            _el = SysMgr.environList
-
-            def _ev(k):
-                v = _el.get(k)
-                return (v[0] if isinstance(v, list) else v) if v else None
-
-            _baseOpts = {}
-            if "LLMRATELIMIT" in _el:
-                try:
-                    _baseOpts["rateLimit"] = int(_ev("LLMRATELIMIT"))
-                except:
-                    pass
-            if "LLMDRYRUN" in _el:
-                _baseOpts["dryRun"] = (
-                    _ev("LLMDRYRUN") or "false"
-                ).lower() in ("true", "1", "yes")
-            if "LLMMAXCMD" in _el:
-                try:
-                    _baseOpts["maxCmd"] = int(_ev("LLMMAXCMD"))
-                except:
-                    pass
-            if "LLMCTXDEPTH" in _el:
-                try:
-                    _baseOpts["ctxDepth"] = int(_ev("LLMCTXDEPTH"))
-                except:
-                    pass
-            if "LLMAUDITLOG" in _el:
-                _baseOpts["auditLog"] = _ev("LLMAUDITLOG")
-            if "ALLOWRUN" in _el:
-                _baseOpts["allowRun"] = True
-            if "LLMCUSTOM_API_KEY" in _el:
-                _baseOpts["apiKey"] = _ev("LLMCUSTOM_API_KEY")
-            if "LLMCUSTOM_BASE_URL" in _el:
-                _baseOpts["baseUrl"] = _ev("LLMCUSTOM_BASE_URL")
+            _baseOpts = LLMMgr._buildLLMOptsFromEnv()
             for _prov in providers:
                 _opts = dict(_baseOpts)
                 _opts["provider"] = _prov
@@ -248734,6 +248835,15 @@ function isAutoNamedPlot(name) {{
                     _shortcut_expanded = True
                 # handle embedded commands #
                 else:
+                    # strip a redundant CMD_ prefix (same convention the
+                    # event-notify/IPC path already applies via
+                    # UtilMgr.lstrip(event, "CMD_")) so a literal
+                    # "CMD_ASKAI:..."/"CMD_SAVE"/etc. embedded directly in a
+                    # command list dispatches the same way it would via
+                    # "guider event CMD_ASKAI:..." instead of silently
+                    # falling through to the shell-exec fallback below #
+                    if cmd.startswith("CMD_"):
+                        cmd = UtilMgr.lstrip(cmd, "CMD_")
                     ret = self.handleEventCmd(cmd, event, False)
                     # general commands #
                     if ret is True:
@@ -248965,7 +249075,7 @@ function isAutoNamedPlot(name) {{
                     TaskAnalyzer._runLLMAskThread(
                         "ASKAI",
                         "Summarize monitoring session: events fired, trends, anomalies.",
-                        {},
+                        LLMMgr._buildLLMOptsFromEnv(),
                         "_periodic_summary",
                         self.reportData,
                     )

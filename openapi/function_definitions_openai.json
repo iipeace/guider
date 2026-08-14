@@ -3,14 +3,14 @@
     "type": "function",
     "function": {
       "name": "systemMonitor",
-      "description": "Monitor system-wide CPU, memory, IO, threads, and other resources using guider. Available commands: top, ttop, atop, mtop, vtop, wtop, ftop, ntop, disktop, irqtop, swaptop, slabtop, kstop, stacktop, ctop, cgtop, contop, oomtop, pytop, rtop, sigtop, dbustop.",
+      "description": "Monitor system-wide CPU, memory, IO, threads, and other resources using guider. Available commands: top, ttop, atop, mtop, vtop, wtop, ftop, disktop, irqtop, swaptop, slabtop, stacktop, ctop, cgtop, contop, oomtop, pytop, rtop.",
       "parameters": {
         "type": "object",
         "properties": {
           "command": {
             "type": "string",
             "description": "guider sub-command (e.g. 'ttop' for thread CPU, 'mtop' for memory, 'disktop' for disk IO)",
-            "enum": ["top","ttop","atop","mtop","vtop","wtop","ftop","ntop","disktop","irqtop","swaptop","slabtop","kstop","stacktop","ctop","cgtop","contop","oomtop","pytop","rtop","sigtop","dbustop"]
+            "enum": ["top","ttop","atop","mtop","vtop","wtop","ftop","disktop","irqtop","swaptop","slabtop","stacktop","ctop","cgtop","contop","oomtop","pytop","rtop"]
           },
           "duration": {
             "type": "integer",
@@ -49,7 +49,7 @@
           "command": {
             "type": "string",
             "description": "guider BPF sub-command",
-            "enum": ["bpftop","bpfsnoop","bpfstacktop","bpfwaittop","bpfblktop","bpfrunqtop","bpfreclaimtop","bpftcpretrans","bpfdroptop","bpftcplat","bpflocktop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","bpfsyscalltop","bpfsyscallsnoop","bpfpkttop","bpfpktsnoop","bpfnetlat","bpfwatch","bpfwatchtop","bpfwqtop","bpfcachetop","bpfkleaktop","bpflsmopen","bpfprogtop","irqlattop"]
+            "enum": ["bpfsigtop","bpftop","bpfsnoop","bpfstacktop","bpfwaittop","bpfexectop","bpfexecsnoop","bpfmmaptop","bpfheaptop","bpfiotop","bpfblktop","bpfrunqtop","bpfreclaimtop","bpflocktop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","bpfsyscalltop","bpfsyscallsnoop","bpfwatch","bpfwatchtop","bpfwqtop","bpfcachetop","bpfkleaktop","bpflsmopen","bpfprogtop","irqlattop"]
           },
           "duration": {
             "type": "integer",
@@ -92,7 +92,7 @@
           "command": {
             "type": "string",
             "description": "guider ftrace sub-command",
-            "enum": ["trtop","tptop","bpfmarktop","funcrec","btop","utop","ktop","ptop","fperf","utrace","btrace","iorec","filerec","sysrec","stat"]
+            "enum": ["kstop","trtop","tptop","bpfmarktop","funcrec","btop","utop","ktop","ptop","fperf","utrace","strace","pytrace","btrace","iorec","filerec","genrec","rec","report","sysrec","stat","sigtrace","logtrace","systop"]
           },
           "duration": {
             "type": "integer",
@@ -129,7 +129,7 @@
           "command": {
             "type": "string",
             "description": "guider network sub-command",
-            "enum": ["ntop","bpftcpretrans","bpftcplife","bpfdroptop","bpftcplat","bpfpkttop","bpfpktsnoop","bpfnetlat","dbustop"]
+            "enum": ["ntop","bpftcpretrans","bpftcplife","bpfdroptop","bpftcplat","bpfudptop","bpfudpsnoop","bpfpkttop","bpfpktsnoop","bpfnetlat","dbustop"]
           },
           "duration": {
             "type": "integer",
@@ -152,14 +152,14 @@
     "type": "function",
     "function": {
       "name": "androidPerf",
-      "description": "Android performance analysis: Perfetto traces, Binder IPC (bdtop/bpfbinderlat/snoop/pool), ATrace (attop), GPU frames (gfxtop), logcat (logand), CAN bus (cantop/cansnoop), bug reports (bugrec), Java heap profiles (hprof), and system commands (andcmd).",
+      "description": "Android performance analysis: Perfetto traces, Binder transaction top (bdtop), ATrace (attop), GPU frames (gfxtop), logcat (logand), CAN bus (cantop/cansnoop), bug reports (bugrec/bugrep), Java heap profiles (hprof), LMK kill events (lmksnoop), stack dumps (dumpstack), system properties (getprop/watchprop), boot info (printboot), and system commands (andcmd).",
       "parameters": {
         "type": "object",
         "properties": {
           "command": {
             "type": "string",
             "description": "guider Android sub-command",
-            "enum": ["perfetto","bdtop","attop","gfxtop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","andtop","bugrec","mdtop","andcmd","hprof","scrcap","logand","cantop","cansnoop"]
+            "enum": ["sperf","perfetto","bdtop","attop","gfxtop","andtop","bugrec","mdtop","andcmd","hprof","scrcap","logand","lmksnoop","cantop","cansnoop","dumpstack","getprop","watchprop","bugrep","scrrec","printboot"]
           },
           "duration": {"type": "integer", "default": 5, "minimum": 1, "maximum": 300},
           "interval": {"type": "integer", "default": 1},
@@ -176,6 +176,10 @@
             "type": "array",
             "items": {"type": "string"},
             "description": "e.g. ['PERF:5s','CPUFREQ','ANALYZEJANK'] for perfetto"
+          },
+          "target": {
+            "type": "string",
+            "description": "process name or PID to filter (-g); required by sperf/hprof"
           }
         },
         "required": ["command"]
@@ -186,14 +190,14 @@
     "type": "function",
     "function": {
       "name": "memoryAnalyze",
-      "description": "Memory analysis: detect duplicate mappings (checkdup), track user-space leaks (leaktop/leaktrace/mtrace), monitor OOM (oomtop), virtual memory (vtop), slab allocator (slabtop), memory top (mtop), and process memory dump.",
+      "description": "Memory analysis: detect duplicate mappings (checkdup), track user-space leaks (leaktop/leaktrace/mtrace), per-process page-level memory info (mem), and process memory dump (dump).",
       "parameters": {
         "type": "object",
         "properties": {
           "command": {
             "type": "string",
             "description": "guider memory sub-command",
-            "enum": ["mtop","checkdup","bpfreclaimtop","leaktop","leaktrace","mtrace","oomtop","vtop","dump","slabtop"]
+            "enum": ["checkdup","mem","leaktop","leaktrace","mtrace","dump"]
           },
           "duration": {"type": "integer", "default": 5, "minimum": 0, "maximum": 300},
           "interval": {"type": "integer", "default": 1},
@@ -212,14 +216,14 @@
     "type": "function",
     "function": {
       "name": "visualize",
-      "description": "Generate performance graphs from recorded guider data files. Commands: draw (combined), drawcpu/mem/net/disk (per metric), drawflame (flame graph), drawflamediff (diff flame), drawscatter/hist/violin/stack/bitmap (statistics), drawconn (flow graph), drawpsi (pressure stall), drawreq (latency), drawrss (resident set), drawgantt (timeline), drawdiff, convert.",
+      "description": "Generate performance graphs from recorded guider data files. Commands: draw (combined), drawcpu/mem/net/disk (per metric), drawflame (flame graph), drawflamediff (diff flame), drawscatter/hist/violin/stack/bitmap (statistics), drawconn (flow graph), drawpsi (pressure stall), drawreq (latency), drawrss/vss (memory size), drawdelay (scheduling delay), drawio (block I/O), drawleak (memory leak), drawpri (thread priority), averaged variants (drawavg/drawcpuavg/drawmemavg/drawvssavg/drawrssavg), drawdiff, convert.",
       "parameters": {
         "type": "object",
         "properties": {
           "command": {
             "type": "string",
             "description": "guider visualization sub-command",
-            "enum": ["draw","drawtime","drawcpu","drawmem","drawnet","drawdisk","drawflame","drawflamediff","drawscatter","drawhist","drawviolin","drawstack","drawbitmap","drawconn","drawpsi","drawreq","drawrss","drawgantt","drawdiff","convert"]
+            "enum": ["draw","drawtime","drawcpu","drawmem","drawnet","drawdisk","drawflame","drawflamediff","drawscatter","drawhist","drawviolin","drawstack","drawbitmap","drawconn","drawpsi","drawreq","drawrss","drawdiff","drawdelay","drawio","drawleak","drawpri","drawvss","drawavg","drawcpuavg","drawmemavg","drawvssavg","drawrssavg","convert"]
           },
           "input_file": {
             "type": "string",
@@ -238,14 +242,14 @@
     "type": "function",
     "function": {
       "name": "logAnalyze",
-      "description": "Log streaming and analysis. Live streaming: logkmsg (kernel), logdlt (DLT), logjrl (journald), logsys (syslog), logtrace (ftrace), logand (Android). Offline analysis: printkmsg/printdlt/printjrl/printtrace/printand. Format conversion: convlog.",
+      "description": "Log streaming and analysis. Live streaming: logkmsg (kernel), logdlt (DLT), dlttop (DLT aggregated top), logjrl (journald), logsys (syslog). Offline analysis: printkmsg/printdlt/printjrl/printtrace/printand/printsyslog. Format conversion: convlog.",
       "parameters": {
         "type": "object",
         "properties": {
           "command": {
             "type": "string",
             "description": "guider log sub-command",
-            "enum": ["logand","logkmsg","logdlt","logjrl","logsys","logtrace","convlog","printand","printkmsg","printdlt","printjrl","printtrace"]
+            "enum": ["logkmsg","logdlt","dlttop","logjrl","logsys","convlog","printand","printkmsg","printdlt","printjrl","printtrace","printsyslog"]
           },
           "duration": {"type": "integer", "default": 10, "minimum": 1, "maximum": 300},
           "input_file": {"type": "string", "description": "log file for offline analysis"},
@@ -263,7 +267,7 @@
     "type": "function",
     "function": {
       "name": "runCommand",
-      "description": "Generic guider command runner for any whitelisted command not covered by specialized tools. Blocked: kill, exec, LLM-loop options (ASKAI, ASKRUN, AIPERIODIC). Use guiderHelp to discover available commands.",
+      "description": "Generic guider command runner for any whitelisted command not covered by specialized tools. Blocked commands (rejected outright): kill/tkill/freeze/pause/hook/cgroup/swapout/limitcpu*/limitmem*/limitpid/limitread/limitwrite/setafnt/setcpu/setsched/setprop/sysrq/exec/rlimit/remote/ask/chat/embed/rag/cmdtest/server/cli/fserver/hserver/send/event/start/stop/mount/umount. Blocked -q option keys (stripped from otherwise-allowed commands): ASKAI/ASKRUN/AIPERIODIC/LLMPROVIDER/LLMMODEL (LLM loop), EXITCMD/PRINTCMD (command execution), DUPOUTPATH/OUTFILEUSER/OUTFILEPERM (file manipulation), RUNCMDLIST/EVENTCMD/GUIDERCMD/WATCHLOGCMD/REGSIGCMD (arbitrary process/command execution). Use guiderHelp to discover available commands.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -298,7 +302,7 @@
           "tool_name": {
             "type": "string",
             "description": "MCP tool name to list commands for",
-            "enum": ["systemMonitor","bpfTrace","ftraceProfile","networkTrace","androidPerf","memoryAnalyze","visualize","logAnalyze","runCommand","guiderHelp"]
+            "enum": ["androidPerf","bpfTrace","ftraceProfile","logAnalyze","memoryAnalyze","networkTrace","runCommand","systemMonitor","visualize","guiderHelp"]
           }
         },
         "required": []

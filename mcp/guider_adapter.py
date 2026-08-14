@@ -125,7 +125,7 @@ class GuiderAdapter:
             input_files:  positional multi-file input for drawavg-family commands
                           (e.g. drawavg/drawcpuavg/drawmemavg/drawvssavg/drawrssavg,
                           which require >= 2 files); mutually exclusive with input_file
-            target_pid:   -e <pid/name> for per-process targeting
+            target_pid:   -g <pid/name> for per-process targeting
             device_id:    Android device serial (validated)
             timeout_sec:  wall-clock timeout; defaults to duration+30
             json_output:  append -J flag for JSON output
@@ -158,7 +158,7 @@ class GuiderAdapter:
 
         meta = get_catalog_entry(command)
         if meta is None:
-            envelope["error"] = f"unknown command '{command}'"
+            envelope["error"] = f"unknown command '{command}'. Use guiderHelp to list."
             return envelope
 
         # validate extra_opts
@@ -188,8 +188,8 @@ class GuiderAdapter:
 
         # validate input_file path (must exist, realpath check)
         if input_file:
-            real_input = os.path.realpath(input_file)
-            if not os.path.exists(real_input):
+            real_input = self._check_input_exists(input_file)
+            if real_input is None:
                 envelope["error"] = f"input_file not found: {input_file}"
                 return envelope
             input_file = real_input
@@ -198,8 +198,8 @@ class GuiderAdapter:
         if input_files:
             real_inputs: list[str] = []
             for f in input_files:
-                real_f = os.path.realpath(f)
-                if not os.path.exists(real_f):
+                real_f = self._check_input_exists(f)
+                if real_f is None:
                     envelope["error"] = f"input_files entry not found: {f}"
                     return envelope
                 real_inputs.append(real_f)
@@ -217,7 +217,7 @@ class GuiderAdapter:
         # /tmp/ or an already-existing path)
         if output_dir:
             real_out = os.path.realpath(output_dir)
-            if not (real_out.startswith("/tmp/") or os.path.exists(real_out)):
+            if not self._is_accessible_path(output_dir):
                 envelope["error"] = f"output_dir not accessible: {output_dir}"
                 return envelope
             if real_out.startswith("/tmp/") and not os.path.exists(real_out):
@@ -439,53 +439,22 @@ class GuiderAdapter:
         else:
             cmd = [self._guider_path, command]
 
-        # positional multi-file input (drawavg-family: >= 2 files, no -I/comma-join)
-        if input_files:
-            cmd += input_files
-        # positional main argument (e.g. function name for bpftop/bpfsnoop)
-        elif main_arg:
-            cmd.append(main_arg)
-
-        # Bug-0a: -i (interval) is interpreted as an input file path by guider
-        # for non-streaming commands — only add it for live streaming commands.
-        if meta.get("streaming"):
-            cmd += ["-i", str(interval)]
-
-        # duration (-R Ns) for streaming commands
-        if duration is not None:
-            cmd += ["-R", f"{duration}s"]
-
-        # input file
-        if input_file:
-            cmd += ["-I", input_file]
-
-        # target pid/name (guider's task-filter flag is -g, not -e;
-        # -e is "enable options", an unrelated per-command flag-character string)
-        if target_pid:
-            cmd += ["-g", str(target_pid)]
-
-        # android device (for non-android_only commands that still use -d)
-        if device_id:
-            cmd += ["-d", device_id]
-
-        # draw command options (guider's own -d "disable options" char-flag string
-        # is unrelated to the adapter's Android-device-serial -d above)
-        if draw_format:
-            cmd += ["-F", draw_format]
-        if draw_layout:
-            cmd += ["-L", draw_layout]
-        if top_number is not None:
-            cmd += ["-T", str(top_number)]
-        if output_dir:
-            cmd += ["-o", output_dir]
-
-        # extra -q options (already sanitised)
-        for opt in extra_opts:
-            cmd += ["-q", opt]
-
-        # JSON output flag
-        if json_output:
-            cmd += ["-J"]
+        cmd += self._build_common_args(
+            streaming=meta.get("streaming", False),
+            interval=interval,
+            duration=duration,
+            main_arg=main_arg,
+            input_files=input_files,
+            input_file=input_file,
+            target_pid=target_pid,
+            device_id=device_id,
+            draw_format=draw_format,
+            draw_layout=draw_layout,
+            top_number=top_number,
+            output_dir=output_dir,
+            extra_opts=extra_opts,
+            json_output=json_output,
+        )
 
         return cmd
 
@@ -512,29 +481,127 @@ class GuiderAdapter:
             guider_args += ["env", f"LD_LIBRARY_PATH={self._ANDROID_PYTHON_LIB}"]
         guider_args += [self._ANDROID_PYTHON_PATH, self._ANDROID_GUIDER_PATH, command]
 
-        if main_arg:
-            guider_args.append(main_arg)
-
-        # Bug-0a: only add -i for streaming/live commands
-        if streaming:
-            guider_args += ["-i", str(interval)]
-
-        if duration is not None:
-            guider_args += ["-R", f"{duration}s"]
-
-        if target_pid:
-            guider_args += ["-g", str(target_pid)]
-
-        for opt in extra_opts:
-            guider_args += ["-q", opt]
-
-        if json_output:
-            guider_args.append("-J")
+        guider_args += self._build_common_args(
+            streaming=streaming,
+            interval=interval,
+            duration=duration,
+            main_arg=main_arg,
+            input_files=None,
+            input_file=None,
+            target_pid=target_pid,
+            device_id=None,
+            draw_format=None,
+            draw_layout=None,
+            top_number=None,
+            output_dir=None,
+            extra_opts=extra_opts,
+            json_output=json_output,
+        )
 
         # Bug-2: use shlex.join so options with spaces (e.g. "FILTER:my app")
         # are properly quoted when passed through the adb shell.
         cmd.append(shlex.join(guider_args))
         return cmd
+
+    @staticmethod
+    def _build_common_args(
+        *,
+        streaming: bool,
+        interval: int,
+        duration: int | None,
+        main_arg: str | None,
+        input_files: list[str] | None,
+        input_file: str | None,
+        target_pid: str | None,
+        device_id: str | None,
+        draw_format: str | None,
+        draw_layout: str | None,
+        top_number: int | None,
+        output_dir: str | None,
+        extra_opts: list[str],
+        json_output: bool,
+    ) -> list[str]:
+        """Build the guider CLI argument list shared by host and adb execution.
+
+        Callers prepend their own process-launch prefix (``[python3, guider.py,
+        CMD]`` for host execution, or the ``env ... python3 guider.py CMD``
+        prefix for adb execution) and pass ``None``/empty values for any
+        argument their call site doesn't support, so the result matches
+        exactly what each original inline implementation produced.
+        """
+        args: list[str] = []
+
+        # positional multi-file input (drawavg-family: >= 2 files, no -I/comma-join)
+        if input_files:
+            args += input_files
+        # positional main argument (e.g. function name for bpftop/bpfsnoop)
+        elif main_arg:
+            args.append(main_arg)
+
+        # Bug-0a: -i (interval) is interpreted as an input file path by guider
+        # for non-streaming commands — only add it for live streaming commands.
+        if streaming:
+            args += ["-i", str(interval)]
+
+        # duration (-R Ns) for streaming commands
+        if duration is not None:
+            args += ["-R", f"{duration}s"]
+
+        # input file
+        if input_file:
+            args += ["-I", input_file]
+
+        # target pid/name (guider's task-filter flag is -g, not -e;
+        # -e is "enable options", an unrelated per-command flag-character string)
+        if target_pid:
+            args += ["-g", str(target_pid)]
+
+        # android device (for non-android_only commands that still use -d)
+        if device_id:
+            args += ["-d", device_id]
+
+        # draw command options (guider's own -d "disable options" char-flag string
+        # is unrelated to the adapter's Android-device-serial -d above)
+        if draw_format:
+            args += ["-F", draw_format]
+        if draw_layout:
+            args += ["-L", draw_layout]
+        if top_number is not None:
+            args += ["-T", str(top_number)]
+        if output_dir:
+            args += ["-o", output_dir]
+
+        # extra -q options (already sanitised). guider.py's own SysMgr.parseOption()
+        # rejects a SECOND occurrence of the same flag letter as "redundant use", so
+        # multiple settings must be passed as ONE -q flag with comma-separated
+        # KEY:VALUE items (SysMgr.parseEnvironVars -> UtilMgr.splitString). Escape
+        # literal commas in values so they survive splitString's "\," unescape.
+        if extra_opts:
+            args += ["-q", ",".join(opt.replace(",", r"\,") for opt in extra_opts)]
+
+        # JSON output flag
+        if json_output:
+            args += ["-J"]
+
+        return args
+
+    @staticmethod
+    def _is_accessible_path(path: str) -> bool:
+        """Allow a path if it resolves under /tmp/ or already exists on disk.
+
+        Shared predicate for output_dir validation and FILE/PATH/DIR -q option
+        values. realpath is used (not abspath) so symlinks are resolved before
+        the /tmp/ prefix check and existence check, matching the original
+        behavior of both call sites.
+        """
+        real = os.path.realpath(path)
+        return real.startswith("/tmp/") or os.path.exists(real)
+
+    @staticmethod
+    def _check_input_exists(path: str) -> str | None:
+        """Resolve path and return it if it exists on disk, else None."""
+        real = os.path.realpath(path)
+        return real if os.path.exists(real) else None
 
     def _filter_opts(self, opts: list[str], warnings: list[str]) -> list[str]:
         """Remove blocked -q options and validate FILE/PATH values."""
@@ -548,9 +615,8 @@ class GuiderAdapter:
             if any(t in key for t in ("FILE", "PATH", "DIR")):
                 value_part = opt[len(key) + 1:] if ":" in opt else ""
                 if value_part:
-                    real = os.path.realpath(value_part)
                     # Allow /tmp/guider_mcp_* and readable existing paths
-                    if not (real.startswith("/tmp/") or os.path.exists(real)):
+                    if not self._is_accessible_path(value_part):
                         warnings.append(f"path not accessible: {opt}")
                         continue
             safe.append(opt)
