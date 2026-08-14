@@ -60518,6 +60518,12 @@ Commands:
                 )
                 return
             else:
+                # back up the outgoing threshold data (same convention as
+                # every other thrData reset site) so a COMMAND-dict
+                # shortcut or CMD_ prefix lookup right after a RELOAD can
+                # still find a name defined only in the config being
+                # replaced #
+                SysMgr.prevThrData = SysMgr.thrData
                 SysMgr.thrData = confData
 
             # check permission #
@@ -96144,10 +96150,10 @@ Key Value List:
         if not SysMgr.isSignalAvailable():
             return
 
-        SysMgr.setSignal(signal.SIGINT, signal.SIG_DFL)
-        SysMgr.setSignal(signal.SIGQUIT, signal.SIG_DFL)
-        SysMgr.setSignal(signal.SIGCHLD, signal.SIG_DFL)
-        SysMgr.setSignal(signal.SIGPIPE, signal.SIG_DFL)
+        SysMgr.setSignalUnlessRegistered(signal.SIGINT, signal.SIG_DFL)
+        SysMgr.setSignalUnlessRegistered(signal.SIGQUIT, signal.SIG_DFL)
+        SysMgr.setSignalUnlessRegistered(signal.SIGCHLD, signal.SIG_DFL)
+        SysMgr.setSignalUnlessRegistered(signal.SIGPIPE, signal.SIG_DFL)
 
         SysMgr.applyIgnoreSignals()
 
@@ -96158,10 +96164,10 @@ Key Value List:
 
         SysMgr.setCommonSignal()
 
-        SysMgr.setSignal(signal.SIGINT, SysMgr.exitHandler)
-        SysMgr.setSignal(signal.SIGQUIT, SysMgr.exitHandler)
-        SysMgr.setSignal(signal.SIGPIPE, signal.SIG_IGN)
-        SysMgr.setSignal(signal.SIGHUP, signal.SIG_IGN)
+        SysMgr.setSignalUnlessRegistered(signal.SIGINT, SysMgr.exitHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGQUIT, SysMgr.exitHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGPIPE, signal.SIG_IGN)
+        SysMgr.setSignalUnlessRegistered(signal.SIGHUP, signal.SIG_IGN)
 
         SysMgr.applyIgnoreSignals()
 
@@ -96177,14 +96183,22 @@ Key Value List:
         if not SysMgr.isSignalAvailable():
             return
 
-        SysMgr.setSignal(signal.SIGCHLD, SysMgr.chldHandler)
-        SysMgr.setSignal(signal.SIGWINCH, SysMgr.winchHandler)
-        SysMgr.setSignal(signal.SIGCONT, SysMgr.fgHandler)
-        SysMgr.setSignal(signal.SIGTSTP, SysMgr.bgHandler)
-        SysMgr.setSignal(signal.SIGTTIN, SysMgr.bgHandler)
-        SysMgr.setSignal(signal.SIGTTOU, signal.SIG_IGN)
-        SysMgr.setSignal(signal.SIGUSR1, SysMgr.defaultHandler)
-        SysMgr.setSignal(signal.SIGUSR2, SysMgr.defaultHandler)
+        # every call here goes through setSignalUnlessRegistered() so a
+        # REGSIGCMD:<SIG>:<cmd> registration for any of these (all reachable
+        # via REGSIGCMD - ConfigMgr.SIG_LIST has no exclusions) survives
+        # this function being called again well after REGSIGCMD processing,
+        # e.g. every setNormalSignal() during real top/ctop/record startup.
+        # SysMgr.defaultHandler on SIGUSR1/SIGUSR2 specifically exists to
+        # stop their POSIX-default "terminate the process" action from
+        # killing guider on an unrelated/accidental signal #
+        SysMgr.setSignalUnlessRegistered(signal.SIGCHLD, SysMgr.chldHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGWINCH, SysMgr.winchHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGCONT, SysMgr.fgHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGTSTP, SysMgr.bgHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGTTIN, SysMgr.bgHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGTTOU, signal.SIG_IGN)
+        SysMgr.setSignalUnlessRegistered(signal.SIGUSR1, SysMgr.defaultHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGUSR2, SysMgr.defaultHandler)
 
     @staticmethod
     def setIgnoreSignal(thread=False):
@@ -96307,10 +96321,24 @@ Key Value List:
         signal.signal(num, handler)
 
     @staticmethod
+    def setSignalUnlessRegistered(sig, handler):
+        """Like setSignal(), but skips if a REGSIGCMD config already
+        claimed this signal for a real user command (SysMgr.sigCmdList) -
+        otherwise guider's own periodic re-registration (setCommonSignal/
+        setNormalSignal/setStopHandler/setDefaultSignal/setSimpleSignal,
+        all called again well after REGSIGCMD processing during real
+        top/ctop/record startup) would silently clobber it."""
+        if sig in SysMgr.sigCmdList:
+            return
+        SysMgr.setSignal(sig, handler)
+
+    @staticmethod
     def setStopHandler():
-        SysMgr.setSignal(signal.SIGINT, SysMgr.stopHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGINT, SysMgr.stopHandler)
         if "HANDLESIGTERM" in SysMgr.environList:
-            SysMgr.setSignal(signal.SIGTERM, SysMgr.stopHandler)
+            SysMgr.setSignalUnlessRegistered(
+                signal.SIGTERM, SysMgr.stopHandler
+            )
 
     @staticmethod
     def setNormalSignal():
@@ -96320,9 +96348,9 @@ Key Value List:
         SysMgr.setCommonSignal()
 
         SysMgr.setStopHandler()
-        SysMgr.setSignal(signal.SIGALRM, SysMgr.alarmHandler)
-        SysMgr.setSignal(signal.SIGQUIT, SysMgr.newHandler)
-        SysMgr.setSignal(signal.SIGPIPE, signal.SIG_IGN)
+        SysMgr.setSignalUnlessRegistered(signal.SIGALRM, SysMgr.alarmHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGQUIT, SysMgr.newHandler)
+        SysMgr.setSignalUnlessRegistered(signal.SIGPIPE, signal.SIG_IGN)
 
         SysMgr.applyIgnoreSignals()
 
@@ -246433,6 +246461,7 @@ function isAutoNamedPlot(name) {{
         triggerUptime=None,
         triggerTimeinfo=None,
         triggerReportNum=None,
+        feedbackText=None,
     ):
         """Write a standalone human-readable ASKAI/ASKRUN report file.
 
@@ -246458,6 +246487,12 @@ function isAutoNamedPlot(name) {{
         in particular comes from TaskAnalyzer sharing the same SysMgr.nrReport
         counter, so whichever of SAVE/ASKAI dispatches first in the command
         list simply claims the lower of two consecutive numbers.
+
+        feedbackText, when given, is ASKRUN's FEEDBACK:<s> follow-up
+        response (_runLLMAskThread's feedback loop) and is appended as its
+        own [Feedback] section after [Commands] - without this the
+        follow-up verification was only ever printed to console, never
+        persisted here or in the LLMAUDITLOG entry.
         """
         try:
             ts = (triggerUptime or SysMgr.getUptime(conv=True)).replace(
@@ -246528,6 +246563,9 @@ function isAutoNamedPlot(name) {{
                     "%-12s: %s" % ("Executed", executedCmds or []),
                     "%-12s: %s" % ("Blocked", blockedCmds or []),
                 ]
+
+            if feedbackText:
+                lines += ["", "[Feedback]", feedbackText]
 
             content = "\n".join(lines) + "\n"
             if not SysMgr.writeFile(path, content, verb=False):
@@ -246769,7 +246807,8 @@ function isAutoNamedPlot(name) {{
                             "[LLM] could not parse JSON from ASKRUN response"
                         )
 
-                # optional feedback loop
+                # optional feedback loop #
+                fbResponseText = None
                 if (
                     feedback > 0
                     and askType == "ASKRUN"
@@ -246790,16 +246829,14 @@ function isAutoNamedPlot(name) {{
                             % (str(executedCmds), fbCtxStr)
                         )
                         fbResp = llm.chat(fbPrompt)
+                        if fbResp and fbResp.content:
+                            fbResponseText = fbResp.content
                         # streaming mode already writes response text
                         # straight to stdout inside llm.chat(); skip the
                         # content print below.
-                        if (
-                            fbResp
-                            and fbResp.content
-                            and not LLMMgr._isStreamEnabled()
-                        ):
+                        if fbResponseText and not LLMMgr._isStreamEnabled():
                             SysMgr.printInfo(
-                                "[LLM:FEEDBACK] %s" % fbResp.content
+                                "[LLM:FEEDBACK] %s" % fbResponseText
                             )
                     except SystemExit:
                         sys.exit(0)
@@ -246827,6 +246864,8 @@ function isAutoNamedPlot(name) {{
                             "confidence", None
                         )
                         _auditEntry["analysis"] = parsed.get("analysis", "")
+                    if fbResponseText:
+                        _auditEntry["feedback"] = fbResponseText
                     TaskAnalyzer._llmAuditLog(auditLog, _auditEntry)
 
                 # SAVE report (independent of LLMAUDITLOG) #
@@ -246850,6 +246889,7 @@ function isAutoNamedPlot(name) {{
                         triggerUptime=triggerUptime,
                         triggerTimeinfo=triggerTimeinfo,
                         triggerReportNum=triggerReportNum,
+                        feedbackText=fbResponseText,
                     )
 
             except SystemExit:
@@ -246936,6 +246976,17 @@ function isAutoNamedPlot(name) {{
             return [long(pid)]
 
     def handleEventCmd(self, cmd, source, user, fork=True):
+        # strip a redundant CMD_ prefix once, here, so every ocmd-matching
+        # branch below sees a normalized bare command regardless of caller.
+        # Previously only the event-notify/IPC path stripped this itself
+        # (UtilMgr.lstrip(event, "CMD_")), so a literal CMD_-prefixed string
+        # reaching handleEventCmd through any other route (threshold
+        # command lists, COMMAND-dict shortcut values, correlation groups,
+        # REGSIGCMD, etc.) fell through every branch unmatched and got
+        # shell-exec'd instead of dispatched #
+        if cmd.startswith("CMD_"):
+            cmd = UtilMgr.lstrip(cmd, "CMD_")
+
         # RESTART #
         if cmd.startswith("RESTART"):
             # print message #
@@ -247665,6 +247716,7 @@ function isAutoNamedPlot(name) {{
             rest = UtilMgr.lstrip(cmd, "ASKMULTI")
             prompt = ""
             providers = []
+            saveOpt = None
             if rest.startswith(":"):
                 rest = rest[1:]
                 parts = rest.split("#", 1)
@@ -247672,8 +247724,19 @@ function isAutoNamedPlot(name) {{
                 if len(parts) > 1:
                     for kv in parts[1].split(","):
                         kv = kv.strip()
-                        if kv.upper().startswith("PROVIDERS:"):
-                            providers = kv.split(":", 1)[1].split(":")
+                        if not kv:
+                            continue
+                        if ":" in kv:
+                            k, v = kv.split(":", 1)
+                        else:
+                            k, v = kv, "true"
+                        k = k.strip().upper()
+                        v = v.strip()
+                        if k == "PROVIDERS":
+                            providers = [p for p in v.split(":") if p]
+                        elif k == "SAVE":
+                            # bare flag -> "true" (auto path), else explicit path #
+                            saveOpt = v
             if not providers:
                 providers = ["claude", "openai", "gemini"]
             SysMgr.printInfo(
@@ -247682,9 +247745,23 @@ function isAutoNamedPlot(name) {{
             )
             # build base opts from global env vars (mirrors ASKAI handler) #
             _baseOpts = LLMMgr._buildLLMOptsFromEnv()
+            if saveOpt:
+                _baseOpts["save"] = saveOpt
+            # capture the trigger-time uptime/timeinfo/report-number once for
+            # the whole ASKMULTI dispatch (same calls/counter setReportPath
+            # and the ASKAI/ASKRUN branch use) so every provider's #SAVE
+            # report for this one event shares the same report-number/
+            # timestamp family instead of each claiming its own #
+            _triggerUptime = SysMgr.getUptime(conv=True)
+            _triggerTimeinfo = UtilMgr.getTime("UTCTIME" in SysMgr.environList)
+            SysMgr.nrReport += 1
+            _triggerReportNum = SysMgr.nrReport
             for _prov in providers:
                 _opts = dict(_baseOpts)
                 _opts["provider"] = _prov
+                _opts["triggerUptime"] = _triggerUptime
+                _opts["triggerTimeinfo"] = _triggerTimeinfo
+                _opts["triggerReportNum"] = _triggerReportNum
                 # give each provider its own dedup/rate-limit key -- otherwise
                 # _runLLMAskThread's pending-guard (keyed on this 4th arg)
                 # marks the event pending on the first provider and silently
@@ -248835,15 +248912,10 @@ function isAutoNamedPlot(name) {{
                     _shortcut_expanded = True
                 # handle embedded commands #
                 else:
-                    # strip a redundant CMD_ prefix (same convention the
-                    # event-notify/IPC path already applies via
-                    # UtilMgr.lstrip(event, "CMD_")) so a literal
-                    # "CMD_ASKAI:..."/"CMD_SAVE"/etc. embedded directly in a
-                    # command list dispatches the same way it would via
-                    # "guider event CMD_ASKAI:..." instead of silently
-                    # falling through to the shell-exec fallback below #
-                    if cmd.startswith("CMD_"):
-                        cmd = UtilMgr.lstrip(cmd, "CMD_")
+                    # handleEventCmd itself strips a redundant CMD_ prefix
+                    # now, so a literal "CMD_ASKAI:..."/"CMD_SAVE"/etc. here
+                    # dispatches correctly without needing to be normalized
+                    # in this loop too #
                     ret = self.handleEventCmd(cmd, event, False)
                     # general commands #
                     if ret is True:
@@ -248958,6 +249030,10 @@ function isAutoNamedPlot(name) {{
                     cmd = SysMgr.thrData["COMMAND"][cmd]
                 elif cmd in SysMgr.prevThrData.get("COMMAND", {}):
                     cmd = SysMgr.prevThrData["COMMAND"][cmd]
+                # handleEventCmd itself strips a redundant CMD_ prefix now,
+                # so a literal "CMD_ASKAI:..."/"CMD_SAVE"/etc. (whether
+                # written directly or resolved from a COMMAND-dict shortcut
+                # whose value itself has the prefix) dispatches correctly #
                 try:
                     self.handleEventCmd(cmd, group_name, False)
                 except SystemExit:
