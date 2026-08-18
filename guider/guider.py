@@ -70958,25 +70958,32 @@ Options:
     -q  ARGnSTR                 read ARGn as a kernel string pointer and display the
                                 string content instead of hex value (n=1..5)
                                 uses bpf_probe_read_str; string length set by STRLEN (default 120B)
+                                add :<pattern> to filter (e.g. ARG1STR:*error*); prefix ! to negate
+                                (e.g. ARG1STR:!*error*)
     -q  ARGnPTRSTR              read ARGn as a pointer to a kernel struct whose first field
                                 is a char* (e.g. struct filename* where ->name is at offset 0)
                                 double-dereferences: arg → inner char* → string (n=1..5)
                                 use for do_execveat_common* ARG2 (struct filename*)
+                                add :<pattern> to filter, prefix ! to negate (same as ARGnSTR)
     -q  ARGnUSTR                read ARGn as a user-space string pointer (n=1..5)
                                 uses bpf_probe_read_user_str (Linux 5.5+)
                                 for user-space pointers (e.g. Android atrace tracing_mark_write)
+                                add :<pattern> to filter, prefix ! to negate (same as ARGnSTR)
     -q  ARGnFDNO                resolve ARGn as an integer file descriptor to its file path (n=1..5)
                                 reads /proc/<tgid>/fd/<fd> at event time; shows path or hex on error
                                 add :<pattern> to filter output (e.g. ARG1FDNO:*shadow*)
+                                prefix ! to negate (e.g. ARG1FDNO:!*shadow*)
     -q  ARGnFDPATH              resolve ARGn as a struct file* to its full path via BPF (n=1..5)
                                 walks dentry parent chain up to 7 levels with mount-boundary crossing
                                 self-mounted filesystems (sockets, pipes, eventfds) show only leaf name
                                 requires Linux 5.5+; add :<pattern> to filter (e.g. ARG1FDPATH:*shadow*)
+                                prefix ! to negate (e.g. ARG1FDPATH:!*shadow*)
     -q  ARGn:<VAL>              show only events where ARGn == VAL  (n=1..5)
     -q  ARGnGT:<VAL>            show only events where ARGn >  VAL
     -q  ARGnLT:<VAL>            show only events where ARGn <  VAL
     -q  ARGnNE:<VAL>            show only events where ARGn != VAL
-                                (VAL supports hex: 0x1234 or decimal)
+                                (VAL supports hex: 0x1234 or decimal; numeric only — for string/
+                                wildcard matching use ARGnSTR/ARGnFDNO/ARGnFDPATH's :<pattern> instead)
     -q  MUTE                    suppress per-event output; show only final summary
     -q  PRINTSUMMARY            print call count summary on exit (default: only with -o)
     -q  SHOWRET                 also emit exit/return events (D="<"); shows elapsed time and ret val
@@ -70995,6 +71002,9 @@ Options:
     -q  ARGnDATA:<SIZE>         read SIZE bytes (1-128) from pointer at ARGn via probe_read_user
                                 and display as hex+ASCII dump (e.g. -q ARG2DATA:64)
                                 not compatible with ARGnSTR/USTR/PATH modes
+    -q  ARGnDATAFILTER:<PAT>    filter ARGnDATA dumps by pattern match on the decoded bytes
+                                separate key from ARGnDATA since ":" there is already SIZE
+                                (e.g. -q ARG2DATA:64,ARG2DATAFILTER:*SSH*); prefix ! to negate
     -q  HWBRK                   use hardware execution breakpoint instead of kprobe/uprobe
                                 kernel: resolves via /proc/kallsyms; user: requires -q PIDFILTER:<PID>
                                 limited to ~4 HW breakpoints per CPU; single function recommended
@@ -71041,8 +71051,24 @@ Notes:
     - ARGnFDNO resolves an integer fd to its path via /proc/<tgid>/fd/<fd> at event time
     - ARGnFDPATH resolves a struct file* to full path via 7-level BPF dentry walk (Linux 5.5+)
       with mount-boundary crossing; self-mounted filesystems show only leaf name
-    - ARGnFDNO/ARGnFDPATH support :<pattern> filter (e.g. -q ARG1FDPATH:*shadow*)
-    - ARGn filter and ARGnSTR/ARGnPTRSTR/ARGnFDNO/ARGnFDPATH can be combined (filter uses raw value)
+    - ARGnSTR/ARGnUSTR/ARGnPTRSTR/ARGnFDNO/ARGnFDPATH all support :<pattern> filter
+      (e.g. -q ARG1FDPATH:*shadow*); prefix pattern with ! to negate (e.g. ARG1FDPATH:!*shadow*)
+      interactive bash treats a bare "!" as a history-expansion trigger; escaping it as
+      \\! inside double quotes (e.g. "ARG1FDPATH:\\!*shadow*") leaves the backslash in the
+      value bash actually passes through, so a leading "\\!" is also accepted as negation
+      (same effect as "!"); to avoid this entirely, either single-quote the whole -q value
+      (bash still expands "!" inside single quotes) or run "set +H" first, then use a
+      plain '!pattern' with no backslash
+    - the same ARGn option can repeat with different :<pattern> values to combine filters
+      (e.g. -q "ARG1FDPATH:!*ptmx,ARG1FDPATH:!*fanotify*" excludes BOTH); repeated negative
+      patterns AND together (excluded if it matches any one of them), repeated positive
+      patterns OR together (shown if it matches any one of them) — mixing positive and
+      negative patterns on the same ARGn applies the negative exclusion first, then
+      requires a positive match if any positive pattern was also given
+    - ARGn/ARGnGT/ARGnLT/ARGnNE are numeric-only and compare the raw argument value; they
+      cannot be combined with ARGnSTR/ARGnFDPATH's :<pattern> to filter on the converted
+      string — use that option's own :<pattern>/!<pattern> instead (e.g. ARG1FDPATH:!*ptmx*
+      instead of ARG1NE:*ptmx*, which silently warns and drops the filter since VAL isn't numeric)
     - Multiple ARG filters are ANDed together
     - SHOWRET: exit events show ELAPSED (seconds) and RET (hex); ELAPFILTER/RETFILTER suppress
       entry events when active; "=" operator for exact match
@@ -71057,6 +71083,7 @@ Notes:
     - uprobe: use 'libname.so:func' or '/path/to/lib.so:func'; wildcards not supported
     - uprobe: ARGnSTR auto-converts to ARGnUSTR; ARGnFDPATH not supported in uprobe mode
     - ARGnDATA: max 128B per arg; not compatible with ARGnSTR/USTR modes; shown as hex+ASCII dump
+    - ARGnDATAFILTER: matches the dumped bytes decoded permissively as text; prefix ! to negate
     - STRLEN: BPF stack is 512B total; actual slot size = min(STRLEN, (512-128)/n_active_args)
       non-printable/binary bytes are escaped as \\xNN via repr() in ARGS output
     - HWBRK: hardware breakpoint (no kprobe overhead); user-space requires -q PIDFILTER:<PID>
@@ -139068,36 +139095,59 @@ class BpfMgr(object):
             if "ADDTASKSTACK" in SysMgr.environList
             else "comm" if "ADDCOMMSTACK" in SysMgr.environList else None
         )
+
+        # str_filters: :<pattern> filter shared by ARGnSTR/ARGnUSTR/ARGnPTRSTR/ARGnFDPATH.
+        # All four resolve into the same arg_strs[] slot at event time, so one pattern
+        # dict keyed by arg idx covers them; prefix pattern with "!" to negate.
+        # Each dict value is a LIST — repeating "-q ARG1FDPATH:pat1,ARG1FDPATH:pat2"
+        # accumulates both (environList already collects same-key values into a list);
+        # _pat_ok ORs positive patterns and ANDs negative ones together.
+        def _collect_pats(key):
+            _vals = SysMgr.environList.get(key)
+            return [v for v in _vals if v != "SET"] if _vals else []
+
+        str_filters = {}
         str_arg_mask = 0
         for _i in range(1, 6):
-            if ("ARG%dSTR" % _i) in SysMgr.environList:
+            _key = "ARG%dSTR" % _i
+            if _key in SysMgr.environList:
                 str_arg_mask |= 1 << (_i - 1)
+                _pats = _collect_pats(_key)
+                if _pats:
+                    str_filters.setdefault(_i - 1, []).extend(_pats)
         str_uarg_mask = 0
         for _i in range(1, 6):
-            if ("ARG%dUSTR" % _i) in SysMgr.environList:
+            _key = "ARG%dUSTR" % _i
+            if _key in SysMgr.environList:
                 str_uarg_mask |= 1 << (_i - 1)
+                _pats = _collect_pats(_key)
+                if _pats:
+                    str_filters.setdefault(_i - 1, []).extend(_pats)
         ptrstr_arg_mask = 0
         for _i in range(1, 6):
-            if ("ARG%dPTRSTR" % _i) in SysMgr.environList:
+            _key = "ARG%dPTRSTR" % _i
+            if _key in SysMgr.environList:
                 ptrstr_arg_mask |= 1 << (_i - 1)
+                _pats = _collect_pats(_key)
+                if _pats:
+                    str_filters.setdefault(_i - 1, []).extend(_pats)
         fdno_arg_mask = 0
         fdno_filters = {}
         for _i in range(1, 6):
             _key = "ARG%dFDNO" % _i
             if _key in SysMgr.environList:
                 fdno_arg_mask |= 1 << (_i - 1)
-                _v = SysMgr.environList[_key]
-                if _v and _v[0] != "SET":
-                    fdno_filters[_i - 1] = _v[0]
+                _pats = _collect_pats(_key)
+                if _pats:
+                    fdno_filters.setdefault(_i - 1, []).extend(_pats)
         path_arg_mask = 0
-        path_filters = {}
         for _i in range(1, 6):
             _key = "ARG%dFDPATH" % _i
             if _key in SysMgr.environList:
                 path_arg_mask |= 1 << (_i - 1)
-                _v = SysMgr.environList[_key]
-                if _v and _v[0] != "SET":
-                    path_filters[_i - 1] = _v[0]
+                _pats = _collect_pats(_key)
+                if _pats:
+                    str_filters.setdefault(_i - 1, []).extend(_pats)
         # ARGnDATA:SIZE — raw buffer dump from pointer arg (max 128B per arg) #
         data_arg_specs = []  # [(arg_idx_0based, size), ...]
         for _i in range(1, 6):
@@ -139109,6 +139159,16 @@ class BpfMgr(object):
                 except (ValueError, TypeError):
                     _sz = 64
                 data_arg_specs.append((_i - 1, min(max(_sz, 1), 128)))
+        # ARGnDATAFILTER:<pattern> — separate key from ARGnDATA:<SIZE> since the
+        # latter's ":" suffix is already used for the dump size; matched against
+        # the dumped bytes decoded permissively as text. Prefix "!" to negate.
+        data_filters = {}
+        for _i in range(1, 6):
+            _key = "ARG%dDATAFILTER" % _i
+            if _key in SysMgr.environList:
+                _pats = _collect_pats(_key)
+                if _pats:
+                    data_filters.setdefault(_i - 1, []).extend(_pats)
         # STRLEN:N — configurable string slot size for ARGnSTR/USTR/PTRSTR/FDPATH.
         # Default 120; rounded up to multiple of 8; capped per BPF stack budget.
         _strlen_v = SysMgr.environList.get("STRLEN")
@@ -139162,6 +139222,31 @@ class BpfMgr(object):
                     return "%s(%d)" % (nm, n)
             return str(n)
 
+        def _pat_ok(value, pats):
+            # str_filters/fdno_filters/data_filters: leading "!" negates a pattern.
+            # Also accept a leading "\!" as-is: interactive bash's history expansion
+            # treats a bare "!" as an event trigger, so users naturally type "\!" to
+            # escape it — but inside double quotes bash does NOT strip that backslash,
+            # so the literal 2-char "\!" is what actually reaches this parser.
+            # pats may repeat the same ARGn option (e.g. "ARG1FDPATH:!a,ARG1FDPATH:!b")
+            # — positive patterns OR together (whitelist: match any), negative patterns
+            # AND together (blacklist: excluded if it matches any of them).
+            if not pats:
+                return True
+            pos, neg = [], []
+            for _p in pats:
+                if _p[:2] == "\\!":
+                    _p = _p[1:]
+                if _p[:1] == "!":
+                    neg.append(_p[1:])
+                else:
+                    pos.append(_p)
+            if neg and value and UtilMgr.isValidStr(value, neg):
+                return False
+            if pos:
+                return bool(value) and UtilMgr.isValidStr(value, pos)
+            return True
+
         try:
             BpfMgr.checkAvailable()
             BpfMgr.initFilters()
@@ -139195,6 +139280,8 @@ class BpfMgr(object):
                     "  guider bpfsnoop tracing_mark_write -q ARG2USTR      # Android atrace\n"
                     "  guider bpfsnoop ksys_write -q ARG1FDNO               # int fd -> file path\n"
                     "  guider bpfsnoop vfs_write -q ARG1FDPATH             # struct file* -> full path (5 levels)\n"
+                    "  guider bpfsnoop vfs_open -q ARG1FDPATH:'!*ptmx'      # exclude paths ending in ptmx\n"
+                    "  guider bpfsnoop ksys_read -q ARG2DATA:64,ARG2DATAFILTER:'*SSH*'  # dump + content filter\n"
                     "  guider bpfsnoop -q 'ARTINTERP:com.foo.Bar->method,PIDFILTER:PID'  # ART interp"
                 )
                 sys.exit(-1)
@@ -139912,6 +139999,12 @@ class BpfMgr(object):
                 try:
                     return int(SysMgr.environList[key][0], 0)
                 except (ValueError, TypeError):
+                    SysMgr.printWarn(
+                        "bpfsnoop: -q %s only supports numeric values; "
+                        "for string/wildcard matching use ARGnSTR/ARGnFDNO/"
+                        "ARGnFDPATH's :<pattern> (prefix ! to negate)" % key,
+                        True,
+                    )
                     return None
 
             arg_filters = []  # [(arg_idx 0-based, op_str, value), ...]
@@ -140435,31 +140528,34 @@ class BpfMgr(object):
                                                 except OSError:
                                                     _fp = None
                                                 _fdno_paths[_ai] = _fp
-                                                if _ai in fdno_filters:
-                                                    if (
-                                                        not _fp
-                                                        or not UtilMgr.isValidStr(
-                                                            _fp,
-                                                            [
-                                                                fdno_filters[
-                                                                    _ai
-                                                                ]
-                                                            ],
-                                                        )
-                                                    ):
-                                                        _skip_event = True
-                                                        break
-                                            elif arg_strs[_ai] is not None:
-                                                _pat = path_filters.get(_ai)
                                                 if (
-                                                    _pat
-                                                    and not UtilMgr.isValidStr(
-                                                        arg_strs[_ai],
-                                                        [_pat],
+                                                    _ai in fdno_filters
+                                                    and not _pat_ok(
+                                                        _fp, fdno_filters[_ai]
                                                     )
                                                 ):
                                                     _skip_event = True
                                                     break
+                                            elif arg_strs[
+                                                _ai
+                                            ] is not None and not _pat_ok(
+                                                arg_strs[_ai],
+                                                str_filters.get(_ai),
+                                            ):
+                                                _skip_event = True
+                                                break
+                                    if not _skip_event and data_filters:
+                                        for _dai, _dbs in _data_dumps:
+                                            _dpat = data_filters.get(_dai - 1)
+                                            if _dpat and not _pat_ok(
+                                                _dbs.decode(
+                                                    "utf-8",
+                                                    errors="replace",
+                                                ),
+                                                _dpat,
+                                            ):
+                                                _skip_event = True
+                                                break
                                     if not _skip_event:
                                         # ARG output: string/fdname if ARGxSTR/ARGxFDNAME, fd path if ARGxFDNO, else hex #
                                         # Exit events: use cached entry (args, strs) if available, else "-" #
