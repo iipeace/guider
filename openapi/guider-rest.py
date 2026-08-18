@@ -9,6 +9,8 @@ Usage:
     pip install fastapi uvicorn
     python3 guider-rest.py [--port 8080] [--host 0.0.0.0]
     # OpenAPI spec: http://localhost:8080/openapi.json
+    # WARNING: this server has NO authentication. --host 0.0.0.0 exposes
+    # its command-execution endpoints to every host on the network.
 """
 
 from __future__ import annotations
@@ -331,6 +333,15 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8080, help="bind port (default 8080)")
     parser.add_argument("--reload", action="store_true", help="auto-reload on file changes")
     args = parser.parse_args()
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"WARNING: binding to {args.host} exposes this server's "
+            "command-execution endpoints to the network. This server "
+            "has NO authentication - anyone who can reach it can run "
+            "any whitelisted guider command.",
+            file=sys.stderr,
+        )
 
     print(f"Starting Guider REST API on http://{args.host}:{args.port}")
     print(f"OpenAPI spec: http://{args.host}:{args.port}/openapi.json")

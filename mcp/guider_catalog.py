@@ -4,6 +4,8 @@ guider_catalog.py — Command metadata catalog for Guider MCP integration.
 Each entry defines execution constraints, output type, and MCP tool mapping.
 """
 
+from __future__ import annotations
+
 import os
 
 # ---------------------------------------------------------------------------

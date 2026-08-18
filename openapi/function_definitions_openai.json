@@ -26,7 +26,7 @@
           },
           "target": {
             "type": "string",
-            "description": "process name or PID to filter (guider -e option)"
+            "description": "process name or PID to filter (guider -g option)"
           },
           "extra_opts": {
             "type": "array",

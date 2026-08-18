@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260814"
+__revision__ = "260818"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33013,6 +33013,12 @@ class LLMMgr(object):
 
     # Class-level state
     _instances = {}
+    # guards check-then-create on _instances so two threads racing to
+    # create the first instance for a given (provider, kwargs) cache key
+    # can't each build a separate, wasted instance; created here (at
+    # class-definition time, before any thread can exist) rather than
+    # lazily to avoid a second race around creating the lock itself #
+    _instancesLock = __import__("threading").Lock()
     _defaultProvider = None
     _enabled = False
     _lastResponse = None  # Last LLM response content for programmatic access
@@ -33054,6 +33060,47 @@ class LLMMgr(object):
             except:
                 pass
 
+    @staticmethod
+    def _postWithRetry(requestsMod, url, maxRetry, **kwargs):
+        """POST with bounded retry+backoff for transient failures only.
+
+        Retries on connection/timeout errors and 429/5xx status codes
+        (with exponential backoff, capped at 8s); any other status
+        (e.g. 4xx client errors) is returned immediately on the first
+        attempt so the caller's existing raise_for_status()/`if not
+        response.ok` check fires exactly as before. Safe to retry here
+        because callers check the status before consuming/streaming the
+        response body, so a retry never causes duplicate output.
+
+        Shared by BaseLLM (via its self.maxRetry-bound instance wrapper)
+        and BaseEmbedder subclasses, since both use the same raw-HTTP
+        request shape but don't share a common base class."""
+        import time as _time
+
+        lastExc = None
+        for attempt in range(maxRetry):
+            try:
+                response = requestsMod.post(url, **kwargs)
+            except (
+                requestsMod.exceptions.Timeout,
+                requestsMod.exceptions.ConnectionError,
+            ) as e:
+                lastExc = e
+                if attempt < maxRetry - 1:
+                    _time.sleep(min(2**attempt, 8))
+                    continue
+                raise
+            if (
+                response.status_code in (429, 500, 502, 503, 504)
+                and attempt < maxRetry - 1
+            ):
+                _time.sleep(min(2**attempt, 8))
+                continue
+            return response
+        if lastExc:
+            raise lastExc
+        return response
+
     class LLMResponse:
         """Unified format for LLM responses"""
 
@@ -33077,6 +33124,10 @@ class LLMMgr(object):
         DEFAULT_MAX_HISTORY = 100
         # Default temperature (0.0=deterministic, 1.0=creative)
         DEFAULT_TEMPERATURE = 0.7
+        # Default retry attempts for transient HTTP failures (Custom*LLM
+        # raw-HTTP subclasses only; the official-SDK subclasses get their
+        # own retry behavior from the SDK itself)
+        DEFAULT_MAX_RETRY = 3
 
         def __init__(
             self,
@@ -33086,6 +33137,14 @@ class LLMMgr(object):
             maxHistory=None,
             temperature=None,
         ):
+            import threading as _threading
+
+            # serializes chat()/analyze() on THIS instance only, so
+            # concurrent threshold events that happen to share one cached
+            # LLM instance (same provider/model/config -> same getLLM()
+            # cache key) can't interleave self.history reads/appends and
+            # corrupt or drop a turn; distinct instances are unaffected #
+            self._lock = _threading.RLock()
             self.apiKey = apiKey or self._getApiKeyFromEnv()
             if not skipKeyCheck and not self.apiKey:
                 raise ValueError(
@@ -33129,11 +33188,40 @@ class LLMMgr(object):
                 if temperature is not None
                 else (float(envTemp) if envTemp else self.DEFAULT_TEMPERATURE)
             )
+            # Max retry attempts: use -q LLMMAXRETRY, env var, or default
+            llmMaxRetryOpt = LLMMgr._getEnvironValue("LLMMAXRETRY")
+            envMaxRetry = os.getenv("LLM_MAX_RETRY")
+            self.maxRetry = (
+                (int(llmMaxRetryOpt) if llmMaxRetryOpt else None)
+                or (int(envMaxRetry) if envMaxRetry else None)
+                or self.DEFAULT_MAX_RETRY
+            )
+
+        def _postWithRetry(self, requestsMod, url, **kwargs):
+            """Instance-friendly wrapper around LLMMgr._postWithRetry() so
+            existing call sites keep using self.maxRetry implicitly."""
+            return LLMMgr._postWithRetry(
+                requestsMod, url, self.maxRetry, **kwargs
+            )
 
         def _trimHistory(self):
             """Trim history to maxHistory limit, keeping the most recent messages"""
             if len(self.history) > self.maxHistory:
                 trimmed = len(self.history) - self.maxHistory
+                # advance to the next "user"-role entry so a multi-message
+                # turn never gets split - analyze(useHistoryForAnalyze=True)
+                # can record a cache-priming/system message ahead of the
+                # real user prompt for a single turn (unlike chat(), which
+                # always appends exactly one user + one assistant message
+                # per turn), so a blind count-based slice could otherwise
+                # leave self.history starting with a dangling assistant/
+                # model reply, which providers with strict role alternation
+                # (e.g. Claude) would reject on the next chat() call #
+                while (
+                    trimmed < len(self.history)
+                    and self.history[trimmed].get("role") != "user"
+                ):
+                    trimmed += 1
                 self.history = self.history[trimmed:]
                 SysMgr.printWarn(
                     "history trimmed: removed {0} old messages (limit: {1})".format(
@@ -33142,6 +33230,15 @@ class LLMMgr(object):
                 )
 
         def _appendAssistantReply(self, assistantMessage):
+            # a technically-successful (HTTP 200 / no exception) call can
+            # still yield empty/None text - e.g. a content-filtered or
+            # tool-call-only completion (OpenAI sets message.content to
+            # None for those). Writing that into history poisons every
+            # later turn sent back to the provider, and for OpenAI a
+            # content:null assistant message without tool_calls can make
+            # the provider reject the NEXT request outright #
+            if not assistantMessage:
+                raise ValueError("Empty response content from API")
             self.history.append(
                 {"role": "assistant", "content": assistantMessage}
             )
@@ -33371,6 +33468,19 @@ class LLMMgr(object):
                 raise IOError("failed to read session file '%s'" % filePath)
             session = json_mod.loads(content)
 
+            # provider-specific history shapes are incompatible (e.g.
+            # Gemini's {"role": "model", "parts": [...]} vs Claude/OpenAI's
+            # {"role": "assistant", "content": ...}) - loading a mismatched
+            # session would otherwise silently corrupt self.history and
+            # only surface as a confusing SDK/API error on the next chat()
+            savedProvider = session.get("provider")
+            if savedProvider and savedProvider != self.__class__.__name__:
+                raise ValueError(
+                    "session '{0}' was saved by '{1}', not '{2}'".format(
+                        filePath, savedProvider, self.__class__.__name__
+                    )
+                )
+
             self.history = session.get("history", [])
             return len(self.history)
 
@@ -33508,13 +33618,17 @@ class LLMMgr(object):
             types = self._genai_types
             self._requirePkg(types, "google-genai")
 
-            # Create client with configuration
-            client_kwargs = {"api_key": self.apiKey}
+            # Create client with configuration. The SDK does NOT retry
+            # transient failures by default - HttpOptions.retry_options
+            # is None unless set explicitly, which hard-wires tenacity to
+            # stop_after_attempt(1) (zero retries) internally #
+            httpOptionsKwargs = {"retry_options": types.HttpRetryOptions()}
             if self.baseUrl:
-                # Configure custom base URL using http_options
-                client_kwargs["http_options"] = types.HttpOptions(
-                    base_url=self.baseUrl
-                )
+                httpOptionsKwargs["base_url"] = self.baseUrl
+            client_kwargs = {
+                "api_key": self.apiKey,
+                "http_options": types.HttpOptions(**httpOptionsKwargs),
+            }
 
             return genai.Client(**client_kwargs)
 
@@ -33538,108 +33652,111 @@ class LLMMgr(object):
             Returns:
                 LLMResponse with content, model, usage stats, and cache stats
             """
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
 
-            client = self._buildClient()
-            types = self._genai_types
+                client = self._buildClient()
+                types = self._genai_types
 
-            fullPrompt = self._formatPrompt(data, prompt)
+                fullPrompt = self._formatPrompt(data, prompt)
 
-            # Configure generation with optional system instruction and temperature
-            configKwargs = {"temperature": temperature}
-            if self.cacheSystemPrompt:
-                configKwargs["system_instruction"] = self.cacheSystemPrompt
-            config = types.GenerateContentConfig(**configKwargs)
+                # Configure generation with optional system instruction and temperature
+                configKwargs = {"temperature": temperature}
+                if self.cacheSystemPrompt:
+                    configKwargs["system_instruction"] = self.cacheSystemPrompt
+                config = types.GenerateContentConfig(**configKwargs)
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            if useStream:
-                # Streaming mode
-                accumulated = []
-                lastChunk = None
-                for chunk in client.models.generate_content_stream(
+                if useStream:
+                    # Streaming mode
+                    accumulated = []
+                    lastChunk = None
+                    for chunk in client.models.generate_content_stream(
+                        model=self.model, contents=fullPrompt, config=config
+                    ):
+                        if chunk.text:
+                            sys.stdout.write(chunk.text)
+                            sys.stdout.flush()
+                            accumulated.append(chunk.text)
+                        lastChunk = chunk
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    analyzeText = "".join(accumulated)
+                    cacheStats = (
+                        self._extractGeminiCacheStats(lastChunk)
+                        if lastChunk
+                        else None
+                    )
+                    self.lastCacheStats = cacheStats
+                    if self.useHistoryForAnalyze:
+                        self.history.append(
+                            {"role": "user", "parts": [{"text": fullPrompt}]}
+                        )
+                        self.history.append(
+                            {"role": "model", "parts": [{"text": analyzeText}]}
+                        )
+                        self._trimHistory()
+                    usage = (
+                        getattr(lastChunk, "usage_metadata", None)
+                        if lastChunk
+                        else None
+                    )
+                    return LLMMgr.LLMResponse(
+                        content=analyzeText,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": (
+                                getattr(usage, "prompt_token_count", 0)
+                                if usage
+                                else 0
+                            ),
+                            "completion_tokens": (
+                                getattr(usage, "candidates_token_count", 0)
+                                if usage
+                                else 0
+                            ),
+                            "total_tokens": (
+                                getattr(usage, "total_token_count", 0)
+                                if usage
+                                else 0
+                            ),
+                        },
+                        rawResponse=lastChunk,
+                        cacheStats=cacheStats,
+                    )
+
+                response = client.models.generate_content(
                     model=self.model, contents=fullPrompt, config=config
-                ):
-                    if chunk.text:
-                        sys.stdout.write(chunk.text)
-                        sys.stdout.flush()
-                        accumulated.append(chunk.text)
-                    lastChunk = chunk
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                analyzeText = "".join(accumulated)
-                cacheStats = (
-                    self._extractGeminiCacheStats(lastChunk)
-                    if lastChunk
-                    else None
                 )
+
+                # Extract cache statistics
+                cacheStats = self._extractGeminiCacheStats(response)
                 self.lastCacheStats = cacheStats
+
+                # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
                     self.history.append(
                         {"role": "user", "parts": [{"text": fullPrompt}]}
                     )
                     self.history.append(
-                        {"role": "model", "parts": [{"text": analyzeText}]}
+                        {"role": "model", "parts": [{"text": response.text}]}
                     )
-                usage = (
-                    getattr(lastChunk, "usage_metadata", None)
-                    if lastChunk
-                    else None
-                )
+                    self._trimHistory()
+
                 return LLMMgr.LLMResponse(
-                    content=analyzeText,
+                    content=response.text,
                     model=self.model,
                     usage={
-                        "prompt_tokens": (
-                            getattr(usage, "prompt_token_count", 0)
-                            if usage
-                            else 0
-                        ),
-                        "completion_tokens": (
-                            getattr(usage, "candidates_token_count", 0)
-                            if usage
-                            else 0
-                        ),
-                        "total_tokens": (
-                            getattr(usage, "total_token_count", 0)
-                            if usage
-                            else 0
-                        ),
+                        "prompt_tokens": response.usage_metadata.prompt_token_count,
+                        "completion_tokens": response.usage_metadata.candidates_token_count,
+                        "total_tokens": response.usage_metadata.total_token_count,
                     },
-                    rawResponse=lastChunk,
+                    rawResponse=response,
                     cacheStats=cacheStats,
                 )
-
-            response = client.models.generate_content(
-                model=self.model, contents=fullPrompt, config=config
-            )
-
-            # Extract cache statistics
-            cacheStats = self._extractGeminiCacheStats(response)
-            self.lastCacheStats = cacheStats
-
-            # Add to history if history mode is enabled
-            if self.useHistoryForAnalyze:
-                self.history.append(
-                    {"role": "user", "parts": [{"text": fullPrompt}]}
-                )
-                self.history.append(
-                    {"role": "model", "parts": [{"text": response.text}]}
-                )
-
-            return LLMMgr.LLMResponse(
-                content=response.text,
-                model=self.model,
-                usage={
-                    "prompt_tokens": response.usage_metadata.prompt_token_count,
-                    "completion_tokens": response.usage_metadata.candidates_token_count,
-                    "total_tokens": response.usage_metadata.total_token_count,
-                },
-                rawResponse=response,
-                cacheStats=cacheStats,
-            )
 
         def chat(self, message, temperature=None, **kwargs):
             """
@@ -33654,125 +33771,139 @@ class LLMMgr(object):
             Returns:
                 LLMResponse with content, model, usage stats, and cache stats
             """
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
 
-            client = self._buildClient()
-            types = self._genai_types
+                client = self._buildClient()
+                types = self._genai_types
 
-            # Convert history format from old to new
-            converted_history = []
-            for msg in self.history:
-                parts = []
-                for part in msg.get("parts", []):
-                    if "text" in part:
-                        # pylint: disable-next=too-many-function-args
-                        # pylint: disable-next=missing-kwoa
-                        parts.append(types.Part.from_text(part["text"]))
-                converted_history.append(
-                    types.Content(role=msg["role"], parts=parts)
-                )
-
-            # Create chat with configuration including temperature
-            configKwargs = {"temperature": temperature}
-            if self.cacheSystemPrompt:
-                configKwargs["system_instruction"] = self.cacheSystemPrompt
-            config = types.GenerateContentConfig(**configKwargs)
-
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
-
-            if useStream:
-                # Streaming mode: use generate_content_stream directly
-                allContents = converted_history + [
-                    types.Content(
-                        role="user", parts=[types.Part.from_text(message)]
+                # Convert history format from old to new
+                converted_history = []
+                for msg in self.history:
+                    parts = []
+                    for part in msg.get("parts", []):
+                        if "text" in part:
+                            # pylint: disable-next=too-many-function-args
+                            # pylint: disable-next=missing-kwoa
+                            parts.append(types.Part.from_text(part["text"]))
+                    converted_history.append(
+                        types.Content(role=msg["role"], parts=parts)
                     )
-                ]
-                accumulated = []
-                lastChunk = None
-                for chunk in client.models.generate_content_stream(
-                    model=self.model, contents=allContents, config=config
-                ):
-                    if chunk.text:
-                        sys.stdout.write(chunk.text)
-                        sys.stdout.flush()
-                        accumulated.append(chunk.text)
-                    lastChunk = chunk
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                responseText = "".join(accumulated)
-                cacheStats = (
-                    self._extractGeminiCacheStats(lastChunk)
-                    if lastChunk
-                    else None
+
+                # Create chat with configuration including temperature
+                configKwargs = {"temperature": temperature}
+                if self.cacheSystemPrompt:
+                    configKwargs["system_instruction"] = self.cacheSystemPrompt
+                config = types.GenerateContentConfig(**configKwargs)
+
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
+
+                if useStream:
+                    # Streaming mode: use generate_content_stream directly
+                    allContents = converted_history + [
+                        types.Content(
+                            role="user", parts=[types.Part.from_text(message)]
+                        )
+                    ]
+                    accumulated = []
+                    lastChunk = None
+                    for chunk in client.models.generate_content_stream(
+                        model=self.model, contents=allContents, config=config
+                    ):
+                        if chunk.text:
+                            sys.stdout.write(chunk.text)
+                            sys.stdout.flush()
+                            accumulated.append(chunk.text)
+                        lastChunk = chunk
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    responseText = "".join(accumulated)
+                    cacheStats = (
+                        self._extractGeminiCacheStats(lastChunk)
+                        if lastChunk
+                        else None
+                    )
+                    self.lastCacheStats = cacheStats
+                    # a stream that closes with zero text deltas (e.g.
+                    # content-filtered or tool-call-only) still reaches
+                    # here without raising - guard before poisoning
+                    # history with an empty model turn #
+                    if not responseText:
+                        raise ValueError(
+                            "Empty response content from Gemini API"
+                        )
+                    self.history.append(
+                        {"role": "user", "parts": [{"text": message}]}
+                    )
+                    self.history.append(
+                        {"role": "model", "parts": [{"text": responseText}]}
+                    )
+                    self._trimHistory()
+                    usage = (
+                        getattr(lastChunk, "usage_metadata", None)
+                        if lastChunk
+                        else None
+                    )
+                    return LLMMgr.LLMResponse(
+                        content=responseText,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": (
+                                getattr(usage, "prompt_token_count", 0)
+                                if usage
+                                else 0
+                            ),
+                            "completion_tokens": (
+                                getattr(usage, "candidates_token_count", 0)
+                                if usage
+                                else 0
+                            ),
+                            "total_tokens": (
+                                getattr(usage, "total_token_count", 0)
+                                if usage
+                                else 0
+                            ),
+                        },
+                        rawResponse=lastChunk,
+                        cacheStats=cacheStats,
+                    )
+
+                chat = client.chats.create(
+                    model=self.model, history=converted_history, config=config
                 )
+
+                # Send message
+                response = chat.send_message(message)
+
+                # Extract cache statistics
+                cacheStats = self._extractGeminiCacheStats(response)
                 self.lastCacheStats = cacheStats
+
+                if not response.text:
+                    raise ValueError("Empty response content from Gemini API")
+
+                # Add user message and assistant response to history
                 self.history.append(
                     {"role": "user", "parts": [{"text": message}]}
                 )
                 self.history.append(
-                    {"role": "model", "parts": [{"text": responseText}]}
+                    {"role": "model", "parts": [{"text": response.text}]}
                 )
                 self._trimHistory()
-                usage = (
-                    getattr(lastChunk, "usage_metadata", None)
-                    if lastChunk
-                    else None
-                )
+
                 return LLMMgr.LLMResponse(
-                    content=responseText,
+                    content=response.text,
                     model=self.model,
                     usage={
-                        "prompt_tokens": (
-                            getattr(usage, "prompt_token_count", 0)
-                            if usage
-                            else 0
-                        ),
-                        "completion_tokens": (
-                            getattr(usage, "candidates_token_count", 0)
-                            if usage
-                            else 0
-                        ),
-                        "total_tokens": (
-                            getattr(usage, "total_token_count", 0)
-                            if usage
-                            else 0
-                        ),
+                        "prompt_tokens": response.usage_metadata.prompt_token_count,
+                        "completion_tokens": response.usage_metadata.candidates_token_count,
+                        "total_tokens": response.usage_metadata.total_token_count,
                     },
-                    rawResponse=lastChunk,
+                    rawResponse=response,
                     cacheStats=cacheStats,
                 )
-
-            chat = client.chats.create(
-                model=self.model, history=converted_history, config=config
-            )
-
-            # Send message
-            response = chat.send_message(message)
-
-            # Extract cache statistics
-            cacheStats = self._extractGeminiCacheStats(response)
-            self.lastCacheStats = cacheStats
-
-            # Add user message and assistant response to history
-            self.history.append({"role": "user", "parts": [{"text": message}]})
-            self.history.append(
-                {"role": "model", "parts": [{"text": response.text}]}
-            )
-            self._trimHistory()
-
-            return LLMMgr.LLMResponse(
-                content=response.text,
-                model=self.model,
-                usage={
-                    "prompt_tokens": response.usage_metadata.prompt_token_count,
-                    "completion_tokens": response.usage_metadata.candidates_token_count,
-                    "total_tokens": response.usage_metadata.total_token_count,
-                },
-                rawResponse=response,
-                cacheStats=cacheStats,
-            )
 
         def _extractGeminiCacheStats(self, response):
             """
@@ -33792,8 +33923,12 @@ class LLMMgr(object):
 
             # Per-model accurate discount rates:
             # Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
+            # "-latest" version-less aliases (gemini-flash-latest,
+            # gemini-pro-latest, gemini-flash-lite-latest) currently all
+            # resolve to 2.5-series models too - revisit if Google ever
+            # repoints them at a non-2.5 generation #
             model = getattr(self, "model", "")
-            if "2.5" in model:
+            if "2.5" in model or "latest" in model:
                 discountRate = 90.0
             else:
                 discountRate = 75.0
@@ -33896,222 +34031,287 @@ class LLMMgr(object):
             Returns:
                 LLMResponse with content, model, usage stats, and cache stats
             """
-            sendTemperature = (
-                temperature is not None or self.temperatureExplicit
-            )
-            if temperature is None:
-                temperature = self.temperature
-
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
-
-            client = self._buildClient()
-            fullPrompt = self._formatPrompt(data, prompt)
-
-            # Build messages with optional caching
-            messages = []
-
-            # Add cached system prompt if enabled and meets minimum token requirement
-            if (
-                self.enableCache
-                and self.cacheSystemPrompt
-                and self._shouldCache(self.cacheSystemPrompt)
-            ):
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": self.cacheSystemPrompt,
-                                "cache_control": {"type": "ephemeral"},
-                            }
-                        ],
-                    }
+            with self._lock:
+                sendTemperature = (
+                    temperature is not None or self.temperatureExplicit
                 )
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Add data analysis prompt
-            messages.append({"role": "user", "content": fullPrompt})
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            if useStream:
-                # Streaming mode
-                accumulated = []
-                _streamKwargs = dict(
+                client = self._buildClient()
+                fullPrompt = self._formatPrompt(data, prompt)
+
+                # Build messages with optional caching
+                messages = []
+
+                # Add cached system prompt if enabled and meets minimum token requirement
+                if (
+                    self.enableCache
+                    and self.cacheSystemPrompt
+                    and self._shouldCache(self.cacheSystemPrompt)
+                ):
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": self.cacheSystemPrompt,
+                                    "cache_control": {"type": "ephemeral"},
+                                }
+                            ],
+                        }
+                    )
+
+                # Add data analysis prompt
+                messages.append({"role": "user", "content": fullPrompt})
+
+                if useStream:
+                    # Streaming mode
+                    accumulated = []
+                    _streamKwargs = dict(
+                        model=self.model,
+                        max_tokens=maxTokens,
+                        messages=messages,
+                    )
+                    if sendTemperature:
+                        _streamKwargs["temperature"] = temperature
+                    if self.cacheSystemPrompt and not self.enableCache:
+                        _streamKwargs["system"] = self.cacheSystemPrompt
+                    with client.messages.stream(**_streamKwargs) as stream:
+                        for text in stream.text_stream:
+                            sys.stdout.write(text)
+                            sys.stdout.flush()
+                            accumulated.append(text)
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    analyzeText = "".join(accumulated)
+                    if not analyzeText:
+                        raise ValueError("Empty response content from API")
+                    finalMsg = stream.get_final_message()
+                    cacheStats = self._extractClaudeCacheStats(finalMsg)
+                    self.lastCacheStats = cacheStats
+                    # Claude's input_tokens excludes cache tokens, unlike
+                    # OpenAI/Gemini's prompt-token counts - fold them back
+                    # in here so cost estimation (which reads prompt_tokens)
+                    # doesn't silently treat cached tokens as free #
+                    cachedTokens = (
+                        cacheStats.get("cache_creation_tokens", 0)
+                        + cacheStats.get("cache_read_tokens", 0)
+                        if cacheStats
+                        else 0
+                    )
+                    if self.useHistoryForAnalyze:
+                        self.history.extend(messages)
+                        self.history.append(
+                            {"role": "assistant", "content": analyzeText}
+                        )
+                        self._trimHistory()
+                    return LLMMgr.LLMResponse(
+                        content=analyzeText,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": finalMsg.usage.input_tokens
+                            + cachedTokens,
+                            "completion_tokens": finalMsg.usage.output_tokens,
+                            "total_tokens": finalMsg.usage.input_tokens
+                            + cachedTokens
+                            + finalMsg.usage.output_tokens,
+                        },
+                        rawResponse=finalMsg,
+                        cacheStats=cacheStats,
+                    )
+
+                _createKwargs = dict(
                     model=self.model,
                     max_tokens=maxTokens,
                     messages=messages,
                 )
                 if sendTemperature:
-                    _streamKwargs["temperature"] = temperature
+                    _createKwargs["temperature"] = temperature
                 if self.cacheSystemPrompt and not self.enableCache:
-                    _streamKwargs["system"] = self.cacheSystemPrompt
-                with client.messages.stream(**_streamKwargs) as stream:
-                    for text in stream.text_stream:
-                        sys.stdout.write(text)
-                        sys.stdout.flush()
-                        accumulated.append(text)
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                analyzeText = "".join(accumulated)
-                if not analyzeText:
-                    raise ValueError("Empty response content from API")
-                finalMsg = stream.get_final_message()
-                cacheStats = self._extractClaudeCacheStats(finalMsg)
+                    _createKwargs["system"] = self.cacheSystemPrompt
+                response = client.messages.create(**_createKwargs)
+
+                # Extract cache stats
+                cacheStats = self._extractClaudeCacheStats(response)
                 self.lastCacheStats = cacheStats
+                cachedTokens = (
+                    cacheStats.get("cache_creation_tokens", 0)
+                    + cacheStats.get("cache_read_tokens", 0)
+                    if cacheStats
+                    else 0
+                )
+
+                if not response.content:
+                    raise ValueError("Empty response content from API")
+
+                # Add to history if history mode is enabled
+                claudeText = self._extractText(response)
                 if self.useHistoryForAnalyze:
                     self.history.extend(messages)
                     self.history.append(
-                        {"role": "assistant", "content": analyzeText}
+                        {"role": "assistant", "content": claudeText}
                     )
+                    self._trimHistory()
+
                 return LLMMgr.LLMResponse(
-                    content=analyzeText,
+                    content=claudeText,
                     model=self.model,
                     usage={
-                        "prompt_tokens": finalMsg.usage.input_tokens,
-                        "completion_tokens": finalMsg.usage.output_tokens,
-                        "total_tokens": finalMsg.usage.input_tokens
-                        + finalMsg.usage.output_tokens,
+                        "prompt_tokens": response.usage.input_tokens
+                        + cachedTokens,
+                        "completion_tokens": response.usage.output_tokens,
+                        "total_tokens": response.usage.input_tokens
+                        + cachedTokens
+                        + response.usage.output_tokens,
                     },
-                    rawResponse=finalMsg,
+                    rawResponse=response,
                     cacheStats=cacheStats,
                 )
 
-            _createKwargs = dict(
-                model=self.model,
-                max_tokens=maxTokens,
-                messages=messages,
-            )
-            if sendTemperature:
-                _createKwargs["temperature"] = temperature
-            if self.cacheSystemPrompt and not self.enableCache:
-                _createKwargs["system"] = self.cacheSystemPrompt
-            response = client.messages.create(**_createKwargs)
+        def chat(self, message, maxTokens=4096, temperature=None, **kwargs):
+            with self._lock:
+                sendTemperature = (
+                    temperature is not None or self.temperatureExplicit
+                )
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Extract cache stats
-            cacheStats = self._extractClaudeCacheStats(response)
-            self.lastCacheStats = cacheStats
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            if not response.content:
-                raise ValueError("Empty response content from API")
+                client = self._buildClient()
 
-            # Add to history if history mode is enabled
-            claudeText = self._extractText(response)
-            if self.useHistoryForAnalyze:
-                self.history.extend(messages)
-                self.history.append(
-                    {"role": "assistant", "content": claudeText}
+                # Unlike analyze() (which rebuilds "messages" from scratch
+                # every call), chat() accumulates real multi-turn history,
+                # so the cached system-prompt turn only needs inserting
+                # once, at the very start of the conversation - otherwise
+                # (mirroring analyze()'s "system=" fallback below) it would
+                # never be sent at all while caching is enabled #
+                if (
+                    self.enableCache
+                    and self.cacheSystemPrompt
+                    and not self.history
+                    and self._shouldCache(self.cacheSystemPrompt)
+                ):
+                    self.history.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": self.cacheSystemPrompt,
+                                    "cache_control": {"type": "ephemeral"},
+                                }
+                            ],
+                        }
+                    )
+
+                # Build messages with user turn (without mutating history yet)
+                userMsg = {"role": "user", "content": message}
+                pendingHistory = self.history + [userMsg]
+                messages = (
+                    self._applyCachingToHistory(pendingHistory)
+                    if self.enableCache
+                    else pendingHistory
                 )
 
-            return LLMMgr.LLMResponse(
-                content=claudeText,
-                model=self.model,
-                usage={
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens
-                    + response.usage.output_tokens,
-                },
-                rawResponse=response,
-                cacheStats=cacheStats,
-            )
+                if useStream:
+                    # Streaming mode: print tokens as they arrive
+                    accumulated = []
+                    _streamKwargs = dict(
+                        model=self.model,
+                        max_tokens=maxTokens,
+                        messages=messages,
+                    )
+                    if sendTemperature:
+                        _streamKwargs["temperature"] = temperature
+                    if self.cacheSystemPrompt and not self.enableCache:
+                        _streamKwargs["system"] = self.cacheSystemPrompt
+                    with client.messages.stream(**_streamKwargs) as stream:
+                        for text in stream.text_stream:
+                            sys.stdout.write(text)
+                            sys.stdout.flush()
+                            accumulated.append(text)
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    assistantMessage = "".join(accumulated)
+                    if not assistantMessage:
+                        raise ValueError("Empty response content from API")
+                    finalMsg = stream.get_final_message()
+                    cacheStats = self._extractClaudeCacheStats(finalMsg)
+                    self.lastCacheStats = cacheStats
+                    cachedTokens = (
+                        cacheStats.get("cache_creation_tokens", 0)
+                        + cacheStats.get("cache_read_tokens", 0)
+                        if cacheStats
+                        else 0
+                    )
+                    self.history.append(userMsg)
+                    self._appendAssistantReply(assistantMessage)
+                    return LLMMgr.LLMResponse(
+                        content=assistantMessage,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": finalMsg.usage.input_tokens
+                            + cachedTokens,
+                            "completion_tokens": finalMsg.usage.output_tokens,
+                            "total_tokens": finalMsg.usage.input_tokens
+                            + cachedTokens
+                            + finalMsg.usage.output_tokens,
+                        },
+                        rawResponse=finalMsg,
+                        cacheStats=cacheStats,
+                    )
 
-        def chat(self, message, maxTokens=4096, temperature=None, **kwargs):
-            sendTemperature = (
-                temperature is not None or self.temperatureExplicit
-            )
-            if temperature is None:
-                temperature = self.temperature
-
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
-
-            client = self._buildClient()
-
-            # Build messages with user turn (without mutating history yet)
-            userMsg = {"role": "user", "content": message}
-            pendingHistory = self.history + [userMsg]
-            messages = (
-                self._applyCachingToHistory(pendingHistory)
-                if self.enableCache
-                else pendingHistory
-            )
-
-            if useStream:
-                # Streaming mode: print tokens as they arrive
-                accumulated = []
-                _streamKwargs = dict(
+                # Send messages to API (non-streaming)
+                _createKwargs2 = dict(
                     model=self.model,
                     max_tokens=maxTokens,
                     messages=messages,
                 )
                 if sendTemperature:
-                    _streamKwargs["temperature"] = temperature
+                    _createKwargs2["temperature"] = temperature
                 if self.cacheSystemPrompt and not self.enableCache:
-                    _streamKwargs["system"] = self.cacheSystemPrompt
-                with client.messages.stream(**_streamKwargs) as stream:
-                    for text in stream.text_stream:
-                        sys.stdout.write(text)
-                        sys.stdout.flush()
-                        accumulated.append(text)
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                assistantMessage = "".join(accumulated)
-                if not assistantMessage:
-                    raise ValueError("Empty response content from API")
-                finalMsg = stream.get_final_message()
-                cacheStats = self._extractClaudeCacheStats(finalMsg)
+                    _createKwargs2["system"] = self.cacheSystemPrompt
+                response = client.messages.create(**_createKwargs2)
+
+                # Extract cache stats
+                cacheStats = self._extractClaudeCacheStats(response)
                 self.lastCacheStats = cacheStats
+                cachedTokens = (
+                    cacheStats.get("cache_creation_tokens", 0)
+                    + cacheStats.get("cache_read_tokens", 0)
+                    if cacheStats
+                    else 0
+                )
+
+                if not response.content:
+                    raise ValueError("Empty response content from API")
+
+                # Add user message and assistant response to history
                 self.history.append(userMsg)
+                assistantMessage = self._extractText(response)
                 self._appendAssistantReply(assistantMessage)
+
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
                     usage={
-                        "prompt_tokens": finalMsg.usage.input_tokens,
-                        "completion_tokens": finalMsg.usage.output_tokens,
-                        "total_tokens": finalMsg.usage.input_tokens
-                        + finalMsg.usage.output_tokens,
+                        "prompt_tokens": response.usage.input_tokens
+                        + cachedTokens,
+                        "completion_tokens": response.usage.output_tokens,
+                        "total_tokens": response.usage.input_tokens
+                        + cachedTokens
+                        + response.usage.output_tokens,
                     },
-                    rawResponse=finalMsg,
+                    rawResponse=response,
                     cacheStats=cacheStats,
                 )
-
-            # Send messages to API (non-streaming)
-            _createKwargs2 = dict(
-                model=self.model,
-                max_tokens=maxTokens,
-                messages=messages,
-            )
-            if sendTemperature:
-                _createKwargs2["temperature"] = temperature
-            if self.cacheSystemPrompt and not self.enableCache:
-                _createKwargs2["system"] = self.cacheSystemPrompt
-            response = client.messages.create(**_createKwargs2)
-
-            # Extract cache stats
-            cacheStats = self._extractClaudeCacheStats(response)
-            self.lastCacheStats = cacheStats
-
-            if not response.content:
-                raise ValueError("Empty response content from API")
-
-            # Add user message and assistant response to history
-            self.history.append(userMsg)
-            assistantMessage = self._extractText(response)
-            self._appendAssistantReply(assistantMessage)
-
-            return LLMMgr.LLMResponse(
-                content=assistantMessage,
-                model=self.model,
-                usage={
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens
-                    + response.usage.output_tokens,
-                },
-                rawResponse=response,
-                cacheStats=cacheStats,
-            )
 
         def _extractClaudeCacheStats(self, response):
             """Extract cache statistics from Claude response"""
@@ -34121,7 +34321,15 @@ class LLMMgr(object):
             usage = response.usage
             cacheCreation = getattr(usage, "cache_creation_input_tokens", 0)
             cacheRead = getattr(usage, "cache_read_input_tokens", 0)
-            totalPrompt = getattr(usage, "input_tokens", 0)
+            # Claude's input_tokens EXCLUDES cache_creation/cache_read
+            # tokens (unlike OpenAI/Gemini, whose prompt-token counts
+            # already include them) - fold them in here so totalPrompt
+            # means the same "true total prompt size" for every provider,
+            # otherwise cacheRead/totalPrompt in _buildCacheStats can
+            # exceed 1.0 and print a >100% savings percentage #
+            totalPrompt = (
+                cacheCreation + cacheRead + getattr(usage, "input_tokens", 0)
+            )
 
             # Claude: 90% discount on cache-read tokens (accurate per-token ratio)
             return self._buildCacheStats(
@@ -34219,200 +34427,227 @@ class LLMMgr(object):
             Returns:
                 LLMResponse with content, model, usage stats, and cache stats
             """
-            if temperature is None:
-                temperature = self.temperature
-
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
-
-            client = self._buildClient()
-            fullPrompt = self._formatPrompt(data, prompt)
-
-            # Build messages with optional system prompt
-            messages = []
-            if self.cacheSystemPrompt:
-                messages.append(
-                    {"role": "system", "content": self.cacheSystemPrompt}
+            with self._lock:
+                # some newer models (o1/o3/o1-mini/o1-preview reasoning
+                # models) reject an explicitly-sent temperature outright,
+                # so only send it when the caller (or -q LLMTEMPERATURE/
+                # config/env) actually asked for one - mirrors ClaudeLLM's
+                # identical sendTemperature guard #
+                sendTemperature = (
+                    temperature is not None or self.temperatureExplicit
                 )
-            messages.append({"role": "user", "content": fullPrompt})
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Prepare create kwargs with optional extended cache retention
-            createKwargs = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": temperature,
-            }
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            # Add extended retention if caching enabled and TTL is 24 hours
-            if self.enableCache and self.cacheTTL == 86400:
-                createKwargs["prompt_cache_retention"] = "24h"
+                client = self._buildClient()
+                fullPrompt = self._formatPrompt(data, prompt)
 
-            if useStream:
-                # Streaming mode
-                createKwargs["stream"] = True
-                # OpenAI only includes usage in a stream chunk when this is
-                # explicitly requested; without it chunk.usage is always None.
-                createKwargs["stream_options"] = {"include_usage": True}
-                accumulated = []
-                promptTokens = 0
-                completionTokens = 0
-                for chunk in client.chat.completions.create(**createKwargs):
-                    delta = chunk.choices[0].delta if chunk.choices else None
-                    if delta and delta.content:
-                        sys.stdout.write(delta.content)
-                        sys.stdout.flush()
-                        accumulated.append(delta.content)
-                    if hasattr(chunk, "usage") and chunk.usage:
-                        promptTokens = (
-                            getattr(chunk.usage, "prompt_tokens", 0) or 0
+                # Build messages with optional system prompt
+                messages = []
+                if self.cacheSystemPrompt:
+                    messages.append(
+                        {"role": "system", "content": self.cacheSystemPrompt}
+                    )
+                messages.append({"role": "user", "content": fullPrompt})
+
+                # Prepare create kwargs with optional extended cache retention
+                createKwargs = {
+                    "model": self.model,
+                    "messages": messages,
+                }
+                if sendTemperature:
+                    createKwargs["temperature"] = temperature
+
+                # Add extended retention if caching enabled and TTL is 24 hours
+                if self.enableCache and self.cacheTTL == 86400:
+                    createKwargs["prompt_cache_retention"] = "24h"
+
+                if useStream:
+                    # Streaming mode
+                    createKwargs["stream"] = True
+                    # OpenAI only includes usage in a stream chunk when this is
+                    # explicitly requested; without it chunk.usage is always None.
+                    createKwargs["stream_options"] = {"include_usage": True}
+                    accumulated = []
+                    promptTokens = 0
+                    completionTokens = 0
+                    for chunk in client.chat.completions.create(
+                        **createKwargs
+                    ):
+                        delta = (
+                            chunk.choices[0].delta if chunk.choices else None
                         )
-                        completionTokens = (
-                            getattr(chunk.usage, "completion_tokens", 0) or 0
+                        if delta and delta.content:
+                            sys.stdout.write(delta.content)
+                            sys.stdout.flush()
+                            accumulated.append(delta.content)
+                        if hasattr(chunk, "usage") and chunk.usage:
+                            promptTokens = (
+                                getattr(chunk.usage, "prompt_tokens", 0) or 0
+                            )
+                            completionTokens = (
+                                getattr(chunk.usage, "completion_tokens", 0)
+                                or 0
+                            )
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    analyzeContent = "".join(accumulated)
+                    if self.useHistoryForAnalyze:
+                        self.history.extend(messages)
+                        self.history.append(
+                            {"role": "assistant", "content": analyzeContent}
                         )
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                analyzeContent = "".join(accumulated)
+                        self._trimHistory()
+                    return LLMMgr.LLMResponse(
+                        content=analyzeContent,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": promptTokens,
+                            "completion_tokens": completionTokens,
+                            "total_tokens": promptTokens + completionTokens,
+                        },
+                        rawResponse=None,
+                        cacheStats=None,
+                    )
+
+                response = client.chat.completions.create(**createKwargs)
+
+                if not response.choices:
+                    raise ValueError(
+                        "Empty response from API (no choices returned)"
+                    )
+
+                # Extract cache stats
+                cacheStats = self._extractOpenAICacheStats(response)
+                self.lastCacheStats = cacheStats
+
+                # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
                     self.history.extend(messages)
                     self.history.append(
-                        {"role": "assistant", "content": analyzeContent}
+                        {
+                            "role": "assistant",
+                            "content": response.choices[0].message.content,
+                        }
                     )
+                    self._trimHistory()
+
                 return LLMMgr.LLMResponse(
-                    content=analyzeContent,
+                    content=response.choices[0].message.content,
                     model=self.model,
                     usage={
-                        "prompt_tokens": promptTokens,
-                        "completion_tokens": completionTokens,
-                        "total_tokens": promptTokens + completionTokens,
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
                     },
-                    rawResponse=None,
-                    cacheStats=None,
+                    rawResponse=response,
+                    cacheStats=cacheStats,
                 )
-
-            response = client.chat.completions.create(**createKwargs)
-
-            if not response.choices:
-                raise ValueError(
-                    "Empty response from API (no choices returned)"
-                )
-
-            # Extract cache stats
-            cacheStats = self._extractOpenAICacheStats(response)
-            self.lastCacheStats = cacheStats
-
-            # Add to history if history mode is enabled
-            if self.useHistoryForAnalyze:
-                self.history.extend(messages)
-                self.history.append(
-                    {
-                        "role": "assistant",
-                        "content": response.choices[0].message.content,
-                    }
-                )
-
-            return LLMMgr.LLMResponse(
-                content=response.choices[0].message.content,
-                model=self.model,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                },
-                rawResponse=response,
-                cacheStats=cacheStats,
-            )
 
         def chat(self, message, temperature=None, **kwargs):
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                sendTemperature = (
+                    temperature is not None or self.temperatureExplicit
+                )
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            client = self._buildClient()
+                client = self._buildClient()
 
-            # Build messages with user turn (without mutating history yet)
-            userMsg = {"role": "user", "content": message}
+                # Build messages with user turn (without mutating history yet)
+                userMsg = {"role": "user", "content": message}
 
-            # Prepare create kwargs with optional extended cache retention
-            createKwargs = {
-                "model": self.model,
-                "messages": self.history + [userMsg],
-                "temperature": temperature,
-            }
+                # Prepare create kwargs with optional extended cache retention
+                createKwargs = {
+                    "model": self.model,
+                    "messages": self.history + [userMsg],
+                }
+                if sendTemperature:
+                    createKwargs["temperature"] = temperature
 
-            # Add extended retention if caching enabled and TTL is 24 hours
-            if self.enableCache and self.cacheTTL == 86400:
-                createKwargs["prompt_cache_retention"] = "24h"
+                # Add extended retention if caching enabled and TTL is 24 hours
+                if self.enableCache and self.cacheTTL == 86400:
+                    createKwargs["prompt_cache_retention"] = "24h"
 
-            if useStream:
-                # Streaming mode
-                createKwargs["stream"] = True
-                # OpenAI only includes usage in a stream chunk when this is
-                # explicitly requested; without it chunk.usage is always None.
-                createKwargs["stream_options"] = {"include_usage": True}
-                accumulated = []
-                promptTokens = 0
-                completionTokens = 0
-                for chunk in client.chat.completions.create(**createKwargs):
-                    delta = chunk.choices[0].delta if chunk.choices else None
-                    if delta and delta.content:
-                        sys.stdout.write(delta.content)
-                        sys.stdout.flush()
-                        accumulated.append(delta.content)
-                    # Some providers return usage in final chunk
-                    if hasattr(chunk, "usage") and chunk.usage:
-                        promptTokens = (
-                            getattr(chunk.usage, "prompt_tokens", 0) or 0
+                if useStream:
+                    # Streaming mode
+                    createKwargs["stream"] = True
+                    # OpenAI only includes usage in a stream chunk when this is
+                    # explicitly requested; without it chunk.usage is always None.
+                    createKwargs["stream_options"] = {"include_usage": True}
+                    accumulated = []
+                    promptTokens = 0
+                    completionTokens = 0
+                    for chunk in client.chat.completions.create(
+                        **createKwargs
+                    ):
+                        delta = (
+                            chunk.choices[0].delta if chunk.choices else None
                         )
-                        completionTokens = (
-                            getattr(chunk.usage, "completion_tokens", 0) or 0
-                        )
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                assistantMessage = "".join(accumulated)
+                        if delta and delta.content:
+                            sys.stdout.write(delta.content)
+                            sys.stdout.flush()
+                            accumulated.append(delta.content)
+                        # Some providers return usage in final chunk
+                        if hasattr(chunk, "usage") and chunk.usage:
+                            promptTokens = (
+                                getattr(chunk.usage, "prompt_tokens", 0) or 0
+                            )
+                            completionTokens = (
+                                getattr(chunk.usage, "completion_tokens", 0)
+                                or 0
+                            )
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    assistantMessage = "".join(accumulated)
+                    self.history.append(userMsg)
+                    self._appendAssistantReply(assistantMessage)
+                    return LLMMgr.LLMResponse(
+                        content=assistantMessage,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": promptTokens,
+                            "completion_tokens": completionTokens,
+                            "total_tokens": promptTokens + completionTokens,
+                        },
+                        rawResponse=None,
+                        cacheStats=None,
+                    )
+
+                # Send messages to API (non-streaming)
+                response = client.chat.completions.create(**createKwargs)
+
+                if not response.choices:
+                    raise ValueError(
+                        "Empty response from API (no choices returned)"
+                    )
+
+                # Extract cache stats
+                cacheStats = self._extractOpenAICacheStats(response)
+                self.lastCacheStats = cacheStats
+
+                # Add user message and assistant response to history
                 self.history.append(userMsg)
+                assistantMessage = response.choices[0].message.content
                 self._appendAssistantReply(assistantMessage)
+
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
                     usage={
-                        "prompt_tokens": promptTokens,
-                        "completion_tokens": completionTokens,
-                        "total_tokens": promptTokens + completionTokens,
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
                     },
-                    rawResponse=None,
-                    cacheStats=None,
+                    rawResponse=response,
+                    cacheStats=cacheStats,
                 )
-
-            # Send messages to API (non-streaming)
-            response = client.chat.completions.create(**createKwargs)
-
-            if not response.choices:
-                raise ValueError(
-                    "Empty response from API (no choices returned)"
-                )
-
-            # Extract cache stats
-            cacheStats = self._extractOpenAICacheStats(response)
-            self.lastCacheStats = cacheStats
-
-            # Add user message and assistant response to history
-            self.history.append(userMsg)
-            assistantMessage = response.choices[0].message.content
-            self._appendAssistantReply(assistantMessage)
-
-            return LLMMgr.LLMResponse(
-                content=assistantMessage,
-                model=self.model,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                },
-                rawResponse=response,
-                cacheStats=cacheStats,
-            )
 
         def _extractOpenAICacheStats(self, response):
             """Extract cache statistics from OpenAI response"""
@@ -34666,7 +34901,11 @@ class LLMMgr(object):
             usage = result["usage"]
             cacheCreation = usage.get("cache_creation_input_tokens", 0)
             cacheRead = usage.get("cache_read_input_tokens", 0)
-            totalPrompt = usage.get("input_tokens", 0)
+            # see the sibling SDK-based _extractClaudeCacheStats for why
+            # cache tokens must be folded into totalPrompt here #
+            totalPrompt = (
+                cacheCreation + cacheRead + usage.get("input_tokens", 0)
+            )
 
             # Claude: 90% discount on cache-read tokens (accurate per-token ratio)
             return self._buildCacheStats(
@@ -34685,69 +34924,115 @@ class LLMMgr(object):
             Analyze data with optional prompt caching support
             If caching is enabled and server supports it, caches the system prompt
             """
-            if temperature is None:
-                temperature = self.temperature
-            # Get requests module dynamically
-            requests_mod = SysMgr.getPkg("requests", isExit=False)
-            self._requirePkg(requests_mod, "requests")
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
+                # Get requests module dynamically
+                requests_mod = SysMgr.getPkg("requests", isExit=False)
+                self._requirePkg(requests_mod, "requests")
 
-            fullPrompt = self._formatPrompt(data, prompt)
-            url = "{}/claude/messages".format(self.baseUrl.rstrip("/"))
-            headers = self._buildHeaders()
+                fullPrompt = self._formatPrompt(data, prompt)
+                url = "{}/claude/messages".format(self.baseUrl.rstrip("/"))
+                headers = self._buildHeaders()
 
-            # Build messages with optional caching
-            messages = []
+                # Build messages with optional caching
+                messages = []
+                cachedSystemInjected = False
 
-            # Add cached system prompt if enabled and supported
-            if (
-                self.enableCache
-                and self.serverSupportsCaching
-                and self.cacheSystemPrompt
-            ):
-                if self._shouldCache(self.cacheSystemPrompt):
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": self.cacheSystemPrompt,
-                                    "cache_control": {"type": "ephemeral"},
-                                }
-                            ],
-                        }
+                # Add cached system prompt if enabled and supported
+                if (
+                    self.enableCache
+                    and self.serverSupportsCaching
+                    and self.cacheSystemPrompt
+                ):
+                    if self._shouldCache(self.cacheSystemPrompt):
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": self.cacheSystemPrompt,
+                                        "cache_control": {"type": "ephemeral"},
+                                    }
+                                ],
+                            }
+                        )
+                        cachedSystemInjected = True
+
+                # Add main analysis prompt
+                messages.append({"role": "user", "content": fullPrompt})
+
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
+
+                payload = {
+                    "model": self.model,
+                    "max_tokens": maxTokens,
+                    "temperature": temperature,
+                    "messages": messages,
+                    "stream": useStream,
+                }
+
+                # Add system prompt as top-level field (Claude API
+                # requirement) - unless it was already injected above as a
+                # cached message turn, since sending it both ways would
+                # double the token cost and defeat the point of caching it
+                if self.cacheSystemPrompt and not cachedSystemInjected:
+                    payload["system"] = self.cacheSystemPrompt
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("request url: {0}".format(url))
+                    SysMgr.printWarn("request payload: {0}".format(payload))
+
+                if useStream:
+                    # Streaming mode (SSE or JSON fallback via _parseStreamResponse)
+                    response = self._postWithRetry(
+                        requests_mod,
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=self.requestTimeout,
+                        stream=True,
+                    )
+                    if not response.ok:
+                        raise RuntimeError(
+                            "{0} {1}: {2}".format(
+                                response.status_code,
+                                response.reason,
+                                response.text,
+                            )
+                        )
+                    analyzeContent, usageData = self._parseStreamResponse(
+                        response
+                    )
+                    if self.useHistoryForAnalyze:
+                        self.history.extend(messages)
+                        self.history.append(
+                            {"role": "assistant", "content": analyzeContent}
+                        )
+                        self._trimHistory()
+                    return LLMMgr.LLMResponse(
+                        content=analyzeContent,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": usageData.get("input_tokens", 0),
+                            "completion_tokens": usageData.get(
+                                "output_tokens", 0
+                            ),
+                            "total_tokens": usageData.get("input_tokens", 0)
+                            + usageData.get("output_tokens", 0),
+                        },
+                        rawResponse=None,
+                        cacheStats=None,
                     )
 
-            # Add main analysis prompt
-            messages.append({"role": "user", "content": fullPrompt})
-
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
-
-            payload = {
-                "model": self.model,
-                "max_tokens": maxTokens,
-                "temperature": temperature,
-                "messages": messages,
-                "stream": useStream,
-            }
-
-            # Add system prompt as top-level field (Claude API requirement)
-            if self.cacheSystemPrompt:
-                payload["system"] = self.cacheSystemPrompt
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("request url: {0}".format(url))
-                SysMgr.printWarn("request payload: {0}".format(payload))
-
-            if useStream:
-                # Streaming mode (SSE or JSON fallback via _parseStreamResponse)
-                response = requests_mod.post(
+                response = self._postWithRetry(
+                    requests_mod,
                     url,
                     headers=headers,
                     json=payload,
                     timeout=self.requestTimeout,
-                    stream=True,
                 )
                 if not response.ok:
                     raise RuntimeError(
@@ -34757,125 +35042,143 @@ class LLMMgr(object):
                             response.text,
                         )
                     )
-                analyzeContent, usageData = self._parseStreamResponse(response)
+                result = response.json()
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("raw response: {0}".format(result))
+
+                # Extract cache statistics
+                cacheStats = self._extractClaudeCacheStats(result)
+                self.lastCacheStats = cacheStats
+                cachedTokens = (
+                    cacheStats.get("cache_creation_tokens", 0)
+                    + cacheStats.get("cache_read_tokens", 0)
+                    if cacheStats
+                    else 0
+                )
+
+                # Extract text from Claude response format
+                analyzeContent = self._extractText(result)
+
+                # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
                     self.history.extend(messages)
                     self.history.append(
-                        {"role": "assistant", "content": analyzeContent}
+                        {
+                            "role": "assistant",
+                            "content": analyzeContent,
+                        }
                     )
+                    self._trimHistory()
+
                 return LLMMgr.LLMResponse(
                     content=analyzeContent,
                     model=self.model,
                     usage={
-                        "prompt_tokens": usageData.get("input_tokens", 0),
-                        "completion_tokens": usageData.get("output_tokens", 0),
-                        "total_tokens": usageData.get("input_tokens", 0)
-                        + usageData.get("output_tokens", 0),
+                        "prompt_tokens": result.get("usage", {}).get(
+                            "input_tokens", 0
+                        )
+                        + cachedTokens,
+                        "completion_tokens": result.get("usage", {}).get(
+                            "output_tokens", 0
+                        ),
+                        "total_tokens": (
+                            result.get("usage", {}).get("input_tokens", 0)
+                            + cachedTokens
+                            + result.get("usage", {}).get("output_tokens", 0)
+                        ),
                     },
-                    rawResponse=None,
-                    cacheStats=None,
+                    rawResponse=result,
+                    cacheStats=cacheStats,
                 )
-
-            response = requests_mod.post(
-                url, headers=headers, json=payload, timeout=self.requestTimeout
-            )
-            if not response.ok:
-                raise RuntimeError(
-                    "{0} {1}: {2}".format(
-                        response.status_code, response.reason, response.text
-                    )
-                )
-            result = response.json()
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("raw response: {0}".format(result))
-
-            # Extract cache statistics
-            cacheStats = self._extractClaudeCacheStats(result)
-            self.lastCacheStats = cacheStats
-
-            # Extract text from Claude response format
-            analyzeContent = self._extractText(result)
-
-            # Add to history if history mode is enabled
-            if self.useHistoryForAnalyze:
-                self.history.extend(messages)
-                self.history.append(
-                    {
-                        "role": "assistant",
-                        "content": analyzeContent,
-                    }
-                )
-
-            return LLMMgr.LLMResponse(
-                content=analyzeContent,
-                model=self.model,
-                usage={
-                    "prompt_tokens": result.get("usage", {}).get(
-                        "input_tokens", 0
-                    ),
-                    "completion_tokens": result.get("usage", {}).get(
-                        "output_tokens", 0
-                    ),
-                    "total_tokens": (
-                        result.get("usage", {}).get("input_tokens", 0)
-                        + result.get("usage", {}).get("output_tokens", 0)
-                    ),
-                },
-                rawResponse=result,
-                cacheStats=cacheStats,
-            )
 
         def chat(self, message, maxTokens=4096, temperature=None, **kwargs):
             """
             Chat with conversation history and optional prompt caching
             If caching is enabled and server supports it, caches conversation prefix
             """
-            if temperature is None:
-                temperature = self.temperature
-            # Get requests module dynamically
-            requests_mod = SysMgr.getPkg("requests", isExit=False)
-            self._requirePkg(requests_mod, "requests")
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
+                # Get requests module dynamically
+                requests_mod = SysMgr.getPkg("requests", isExit=False)
+                self._requirePkg(requests_mod, "requests")
 
-            url = "{}/claude/messages".format(self.baseUrl.rstrip("/"))
-            headers = self._buildHeaders()
+                url = "{}/claude/messages".format(self.baseUrl.rstrip("/"))
+                headers = self._buildHeaders()
 
-            # Build messages with user turn (without mutating history yet)
-            userMsg = {"role": "user", "content": message}
-            pendingHistory = self.history + [userMsg]
+                # Build messages with user turn (without mutating history yet)
+                userMsg = {"role": "user", "content": message}
+                pendingHistory = self.history + [userMsg]
 
-            # Apply caching to history if enabled and supported
-            messages = pendingHistory
-            if self.enableCache and self.serverSupportsCaching:
-                messages = self._applyCachingToHistory(pendingHistory)
+                # Apply caching to history if enabled and supported
+                messages = pendingHistory
+                if self.enableCache and self.serverSupportsCaching:
+                    messages = self._applyCachingToHistory(pendingHistory)
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            payload = {
-                "model": self.model,
-                "max_tokens": maxTokens,
-                "temperature": temperature,
-                "messages": messages,
-                "stream": useStream,
-            }
+                payload = {
+                    "model": self.model,
+                    "max_tokens": maxTokens,
+                    "temperature": temperature,
+                    "messages": messages,
+                    "stream": useStream,
+                }
 
-            # Add system prompt as top-level field (Claude API requirement)
-            if self.cacheSystemPrompt:
-                payload["system"] = self.cacheSystemPrompt
+                # Add system prompt as top-level field (Claude API requirement)
+                if self.cacheSystemPrompt:
+                    payload["system"] = self.cacheSystemPrompt
 
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("request url: {0}".format(url))
-                SysMgr.printWarn("request payload: {0}".format(payload))
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("request url: {0}".format(url))
+                    SysMgr.printWarn("request payload: {0}".format(payload))
 
-            if useStream:
-                # Streaming mode (SSE or JSON fallback via _parseStreamResponse)
-                response = requests_mod.post(
+                if useStream:
+                    # Streaming mode (SSE or JSON fallback via _parseStreamResponse)
+                    response = self._postWithRetry(
+                        requests_mod,
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=self.requestTimeout,
+                        stream=True,
+                    )
+                    if not response.ok:
+                        raise RuntimeError(
+                            "{0} {1}: {2}".format(
+                                response.status_code,
+                                response.reason,
+                                response.text,
+                            )
+                        )
+                    assistantMessage, usageData = self._parseStreamResponse(
+                        response
+                    )
+                    self.history.append(userMsg)
+                    self._appendAssistantReply(assistantMessage)
+                    return LLMMgr.LLMResponse(
+                        content=assistantMessage,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": usageData.get("input_tokens", 0),
+                            "completion_tokens": usageData.get(
+                                "output_tokens", 0
+                            ),
+                            "total_tokens": usageData.get("input_tokens", 0)
+                            + usageData.get("output_tokens", 0),
+                        },
+                        rawResponse=None,
+                        cacheStats=None,
+                    )
+
+                response = self._postWithRetry(
+                    requests_mod,
                     url,
                     headers=headers,
                     json=payload,
                     timeout=self.requestTimeout,
-                    stream=True,
                 )
                 if not response.ok:
                     raise RuntimeError(
@@ -34885,66 +35188,47 @@ class LLMMgr(object):
                             response.text,
                         )
                     )
-                assistantMessage, usageData = self._parseStreamResponse(
-                    response
+                result = response.json()
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("raw response: {0}".format(result))
+
+                # Extract cache statistics
+                cacheStats = self._extractClaudeCacheStats(result)
+                self.lastCacheStats = cacheStats
+                cachedTokens = (
+                    cacheStats.get("cache_creation_tokens", 0)
+                    + cacheStats.get("cache_read_tokens", 0)
+                    if cacheStats
+                    else 0
                 )
+
+                # Extract text from Claude response format
+                assistantMessage = self._extractText(result)
+
                 self.history.append(userMsg)
                 self._appendAssistantReply(assistantMessage)
+
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
                     usage={
-                        "prompt_tokens": usageData.get("input_tokens", 0),
-                        "completion_tokens": usageData.get("output_tokens", 0),
-                        "total_tokens": usageData.get("input_tokens", 0)
-                        + usageData.get("output_tokens", 0),
+                        "prompt_tokens": result.get("usage", {}).get(
+                            "input_tokens", 0
+                        )
+                        + cachedTokens,
+                        "completion_tokens": result.get("usage", {}).get(
+                            "output_tokens", 0
+                        ),
+                        "total_tokens": (
+                            result.get("usage", {}).get("input_tokens", 0)
+                            + cachedTokens
+                            + result.get("usage", {}).get("output_tokens", 0)
+                        ),
                     },
-                    rawResponse=None,
-                    cacheStats=None,
+                    rawResponse=result,
+                    cacheStats=cacheStats,
                 )
-
-            response = requests_mod.post(
-                url, headers=headers, json=payload, timeout=self.requestTimeout
-            )
-            if not response.ok:
-                raise RuntimeError(
-                    "{0} {1}: {2}".format(
-                        response.status_code, response.reason, response.text
-                    )
-                )
-            result = response.json()
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("raw response: {0}".format(result))
-
-            # Extract cache statistics
-            cacheStats = self._extractClaudeCacheStats(result)
-            self.lastCacheStats = cacheStats
-
-            # Extract text from Claude response format
-            assistantMessage = self._extractText(result)
-
-            self.history.append(userMsg)
-            self._appendAssistantReply(assistantMessage)
-
-            return LLMMgr.LLMResponse(
-                content=assistantMessage,
-                model=self.model,
-                usage={
-                    "prompt_tokens": result.get("usage", {}).get(
-                        "input_tokens", 0
-                    ),
-                    "completion_tokens": result.get("usage", {}).get(
-                        "output_tokens", 0
-                    ),
-                    "total_tokens": (
-                        result.get("usage", {}).get("input_tokens", 0)
-                        + result.get("usage", {}).get("output_tokens", 0)
-                    ),
-                },
-                rawResponse=result,
-                cacheStats=cacheStats,
-            )
 
     class CustomGeminiLLM(BaseLLM):
         """
@@ -35033,18 +35317,24 @@ class LLMMgr(object):
                 if not isinstance(results, list):
                     results = [results]
                 for res in results:
-                    parts = (
-                        res.get("candidates", [{}])[0]
-                        .get("content", {})
-                        .get("parts", [])
-                    )
+                    usageMeta = res.get("usageMetadata", usageMeta)
+                    # "candidates" can be present-but-empty (e.g. a
+                    # safety-filtered or finish-reason-only chunk), which
+                    # a get(..., [{}]) default doesn't cover since that
+                    # default only applies when the key is absent - index
+                    # into it directly would raise IndexError and, since
+                    # this whole loop is wrapped in a bare except below,
+                    # silently drop every remaining chunk in the array #
+                    candidates = res.get("candidates") or []
+                    if not candidates:
+                        continue
+                    parts = candidates[0].get("content", {}).get("parts", [])
                     for part in parts:
                         text = part.get("text", "")
                         if text:
                             sys.stdout.write(text)
                             sys.stdout.flush()
                             accumulated.append(text)
-                    usageMeta = res.get("usageMetadata", usageMeta)
             except:
                 pass
             sys.stdout.write("\n")
@@ -35064,8 +35354,12 @@ class LLMMgr(object):
 
             # Per-model accurate discount rates:
             # Gemini 2.5: 90% discount, Gemini 2.0: 75% discount, others: 75%
+            # "-latest" version-less aliases (gemini-flash-latest,
+            # gemini-pro-latest, gemini-flash-lite-latest) currently all
+            # resolve to 2.5-series models too - revisit if Google ever
+            # repoints them at a non-2.5 generation #
             model = getattr(self, "model", "")
-            if "2.5" in model:
+            if "2.5" in model or "latest" in model:
                 discountRate = 90.0
             else:
                 discountRate = 75.0
@@ -35089,53 +35383,146 @@ class LLMMgr(object):
             Analyze data with optional system instruction caching
             Gemini uses implicit caching automatically when systemInstruction is provided
             """
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            # Get requests module dynamically
-            requests_mod = SysMgr.getPkg("requests", isExit=False)
-            self._requirePkg(requests_mod, "requests")
+                # Get requests module dynamically
+                requests_mod = SysMgr.getPkg("requests", isExit=False)
+                self._requirePkg(requests_mod, "requests")
 
-            fullPrompt = self._formatPrompt(data, prompt)
-            params = {"key": self.apiKey}
-            headers = self._buildHeaders()
+                fullPrompt = self._formatPrompt(data, prompt)
+                params = {"key": self.apiKey}
+                headers = self._buildHeaders()
 
-            payload = {
-                "contents": [
-                    {"role": "user", "parts": [{"text": fullPrompt}]}
-                ],
-                "generationConfig": {"temperature": temperature},
-            }
-
-            # Add system instruction if caching is enabled
-            if self.enableCache and self.cacheSystemPrompt:
-                payload["systemInstruction"] = {
-                    "parts": [{"text": self.cacheSystemPrompt}]
+                payload = {
+                    "contents": [
+                        {"role": "user", "parts": [{"text": fullPrompt}]}
+                    ],
+                    "generationConfig": {"temperature": temperature},
                 }
 
-            if useStream:
-                url = "{0}/models/{1}:streamGenerateContent".format(
+                # Add system instruction if caching is enabled
+                if self.enableCache and self.cacheSystemPrompt:
+                    payload["systemInstruction"] = {
+                        "parts": [{"text": self.cacheSystemPrompt}]
+                    }
+
+                if useStream:
+                    url = "{0}/models/{1}:streamGenerateContent".format(
+                        self.baseUrl.rstrip("/"), self.model
+                    )
+                    if SysMgr.warnEnable:
+                        SysMgr.printWarn("request url: {0}".format(url))
+                    response = self._postWithRetry(
+                        requests_mod,
+                        url,
+                        headers=headers,
+                        params=params,
+                        json=payload,
+                        timeout=self.requestTimeout,
+                        stream=True,
+                    )
+                    if not response.ok:
+                        # avoid raise_for_status() here - its message embeds
+                        # response.url, which includes the ?key=<apiKey> query
+                        # param and would leak the raw key into any generic
+                        # exception-message log line #
+                        raise RuntimeError(
+                            "{0} {1}: {2}".format(
+                                response.status_code,
+                                response.reason,
+                                response.text,
+                            )
+                        )
+                    contentText, usageMeta = self._parseGeminiStreamBuffer(
+                        response
+                    )
+                    if not contentText:
+                        raise ValueError(
+                            "Gemini API returned no content parts"
+                        )
+                    if self.useHistoryForAnalyze:
+                        self.history.append(
+                            {"role": "user", "parts": [{"text": fullPrompt}]}
+                        )
+                        self.history.append(
+                            {"role": "model", "parts": [{"text": contentText}]}
+                        )
+                        self._trimHistory()
+                    cacheStats = self._extractGeminiCacheStats(
+                        {"usageMetadata": usageMeta}
+                    )
+                    self.lastCacheStats = cacheStats
+                    return LLMMgr.LLMResponse(
+                        content=contentText,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": usageMeta.get(
+                                "promptTokenCount", 0
+                            ),
+                            "completion_tokens": usageMeta.get(
+                                "candidatesTokenCount", 0
+                            ),
+                            "total_tokens": usageMeta.get(
+                                "totalTokenCount", 0
+                            ),
+                        },
+                        rawResponse=None,
+                        cacheStats=cacheStats,
+                    )
+
+                url = "{0}/models/{1}:generateContent".format(
                     self.baseUrl.rstrip("/"), self.model
                 )
+
                 if SysMgr.warnEnable:
                     SysMgr.printWarn("request url: {0}".format(url))
-                response = requests_mod.post(
+                    SysMgr.printWarn("request payload: {0}".format(payload))
+
+                response = self._postWithRetry(
+                    requests_mod,
                     url,
                     headers=headers,
                     params=params,
                     json=payload,
                     timeout=self.requestTimeout,
-                    stream=True,
                 )
-                response.raise_for_status()
-                contentText, usageMeta = self._parseGeminiStreamBuffer(
-                    response
+                if not response.ok:
+                    # avoid raise_for_status() here - see the streaming branch
+                    # above for why (its message would embed the ?key=<apiKey>
+                    # query param via response.url) #
+                    raise RuntimeError(
+                        "{0} {1}: {2}".format(
+                            response.status_code,
+                            response.reason,
+                            response.text,
+                        )
+                    )
+                result = response.json()
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("raw response: {0}".format(result))
+
+                candidates = result.get("candidates", [])
+                if not candidates:
+                    raise ValueError("Gemini API returned no candidates")
+                contentParts = (
+                    candidates[0].get("content", {}).get("parts", [])
                 )
-                if not contentText:
+                if not contentParts:
                     raise ValueError("Gemini API returned no content parts")
+                contentText = contentParts[0].get("text", "")
+                usage = result.get("usageMetadata", {})
+
+                # Extract cache statistics
+                cacheStats = self._extractGeminiCacheStats(result)
+                self.lastCacheStats = cacheStats
+
+                # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
                     self.history.append(
                         {"role": "user", "parts": [{"text": fullPrompt}]}
@@ -35143,206 +35530,183 @@ class LLMMgr(object):
                     self.history.append(
                         {"role": "model", "parts": [{"text": contentText}]}
                     )
-                cacheStats = self._extractGeminiCacheStats(
-                    {"usageMetadata": usageMeta}
-                )
-                self.lastCacheStats = cacheStats
+                    self._trimHistory()
+
                 return LLMMgr.LLMResponse(
                     content=contentText,
                     model=self.model,
                     usage={
-                        "prompt_tokens": usageMeta.get("promptTokenCount", 0),
-                        "completion_tokens": usageMeta.get(
+                        "prompt_tokens": usage.get("promptTokenCount", 0),
+                        "completion_tokens": usage.get(
                             "candidatesTokenCount", 0
                         ),
-                        "total_tokens": usageMeta.get("totalTokenCount", 0),
+                        "total_tokens": usage.get("totalTokenCount", 0),
                     },
-                    rawResponse=None,
+                    rawResponse=result,
                     cacheStats=cacheStats,
                 )
-
-            url = "{0}/models/{1}:generateContent".format(
-                self.baseUrl.rstrip("/"), self.model
-            )
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("request url: {0}".format(url))
-                SysMgr.printWarn("request payload: {0}".format(payload))
-
-            response = requests_mod.post(
-                url,
-                headers=headers,
-                params=params,
-                json=payload,
-                timeout=self.requestTimeout,
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("raw response: {0}".format(result))
-
-            candidates = result.get("candidates", [])
-            if not candidates:
-                raise ValueError("Gemini API returned no candidates")
-            contentParts = candidates[0].get("content", {}).get("parts", [])
-            if not contentParts:
-                raise ValueError("Gemini API returned no content parts")
-            contentText = contentParts[0].get("text", "")
-            usage = result.get("usageMetadata", {})
-
-            # Extract cache statistics
-            cacheStats = self._extractGeminiCacheStats(result)
-            self.lastCacheStats = cacheStats
-
-            # Add to history if history mode is enabled
-            if self.useHistoryForAnalyze:
-                self.history.append(
-                    {"role": "user", "parts": [{"text": fullPrompt}]}
-                )
-                self.history.append(
-                    {"role": "model", "parts": [{"text": contentText}]}
-                )
-
-            return LLMMgr.LLMResponse(
-                content=contentText,
-                model=self.model,
-                usage={
-                    "prompt_tokens": usage.get("promptTokenCount", 0),
-                    "completion_tokens": usage.get("candidatesTokenCount", 0),
-                    "total_tokens": usage.get("totalTokenCount", 0),
-                },
-                rawResponse=result,
-                cacheStats=cacheStats,
-            )
 
         def chat(self, message, temperature=None, **kwargs):
             """
             Chat with conversation history and optional system instruction caching
             Gemini implicitly caches systemInstruction across requests
             """
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            # Get requests module dynamically
-            requests_mod = SysMgr.getPkg("requests", isExit=False)
-            self._requirePkg(requests_mod, "requests")
+                # Get requests module dynamically
+                requests_mod = SysMgr.getPkg("requests", isExit=False)
+                self._requirePkg(requests_mod, "requests")
 
-            params = {"key": self.apiKey}
-            headers = self._buildHeaders()
+                params = {"key": self.apiKey}
+                headers = self._buildHeaders()
 
-            # Build payload with user turn (without mutating history yet)
-            userMsg = {"role": "user", "parts": [{"text": message}]}
+                # Build payload with user turn (without mutating history yet)
+                userMsg = {"role": "user", "parts": [{"text": message}]}
 
-            payload = {
-                "contents": self.history + [userMsg],
-                "generationConfig": {"temperature": temperature},
-            }
-
-            # Add system instruction if caching is enabled
-            if self.enableCache and self.cacheSystemPrompt:
-                payload["systemInstruction"] = {
-                    "parts": [{"text": self.cacheSystemPrompt}]
+                payload = {
+                    "contents": self.history + [userMsg],
+                    "generationConfig": {"temperature": temperature},
                 }
 
-            if useStream:
-                url = "{0}/models/{1}:streamGenerateContent".format(
+                # Add system instruction if caching is enabled
+                if self.enableCache and self.cacheSystemPrompt:
+                    payload["systemInstruction"] = {
+                        "parts": [{"text": self.cacheSystemPrompt}]
+                    }
+
+                if useStream:
+                    url = "{0}/models/{1}:streamGenerateContent".format(
+                        self.baseUrl.rstrip("/"), self.model
+                    )
+                    if SysMgr.warnEnable:
+                        SysMgr.printWarn("request url: {0}".format(url))
+                    response = self._postWithRetry(
+                        requests_mod,
+                        url,
+                        headers=headers,
+                        params=params,
+                        json=payload,
+                        timeout=self.requestTimeout,
+                        stream=True,
+                    )
+                    if not response.ok:
+                        # avoid raise_for_status() here - its message embeds
+                        # response.url, which includes the ?key=<apiKey> query
+                        # param and would leak the raw key into any generic
+                        # exception-message log line #
+                        raise RuntimeError(
+                            "{0} {1}: {2}".format(
+                                response.status_code,
+                                response.reason,
+                                response.text,
+                            )
+                        )
+                    contentText, usageMeta = self._parseGeminiStreamBuffer(
+                        response
+                    )
+                    if not contentText:
+                        raise ValueError(
+                            "Gemini API returned no content parts"
+                        )
+                    self.history.append(userMsg)
+                    self.history.append(
+                        {"role": "model", "parts": [{"text": contentText}]}
+                    )
+                    self._trimHistory()
+                    cacheStats = self._extractGeminiCacheStats(
+                        {"usageMetadata": usageMeta}
+                    )
+                    self.lastCacheStats = cacheStats
+                    return LLMMgr.LLMResponse(
+                        content=contentText,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": usageMeta.get(
+                                "promptTokenCount", 0
+                            ),
+                            "completion_tokens": usageMeta.get(
+                                "candidatesTokenCount", 0
+                            ),
+                            "total_tokens": usageMeta.get(
+                                "totalTokenCount", 0
+                            ),
+                        },
+                        rawResponse=None,
+                        cacheStats=cacheStats,
+                    )
+
+                url = "{0}/models/{1}:generateContent".format(
                     self.baseUrl.rstrip("/"), self.model
                 )
+
                 if SysMgr.warnEnable:
                     SysMgr.printWarn("request url: {0}".format(url))
-                response = requests_mod.post(
+                    SysMgr.printWarn("request payload: {0}".format(payload))
+
+                response = self._postWithRetry(
+                    requests_mod,
                     url,
                     headers=headers,
                     params=params,
                     json=payload,
                     timeout=self.requestTimeout,
-                    stream=True,
                 )
-                response.raise_for_status()
-                contentText, usageMeta = self._parseGeminiStreamBuffer(
-                    response
+                if not response.ok:
+                    # avoid raise_for_status() here - see the streaming branch
+                    # above for why (its message would embed the ?key=<apiKey>
+                    # query param via response.url) #
+                    raise RuntimeError(
+                        "{0} {1}: {2}".format(
+                            response.status_code,
+                            response.reason,
+                            response.text,
+                        )
+                    )
+                result = response.json()
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("raw response: {0}".format(result))
+
+                # Add model response to history
+                candidates = result.get("candidates", [])
+                if not candidates:
+                    raise ValueError("Gemini API returned no candidates")
+                contentParts = (
+                    candidates[0].get("content", {}).get("parts", [])
                 )
-                if not contentText:
+                if not contentParts:
                     raise ValueError("Gemini API returned no content parts")
+                contentText = contentParts[0].get("text", "")
                 self.history.append(userMsg)
                 self.history.append(
                     {"role": "model", "parts": [{"text": contentText}]}
                 )
                 self._trimHistory()
-                cacheStats = self._extractGeminiCacheStats(
-                    {"usageMetadata": usageMeta}
-                )
+
+                usage = result.get("usageMetadata", {})
+
+                # Extract cache statistics
+                cacheStats = self._extractGeminiCacheStats(result)
                 self.lastCacheStats = cacheStats
+
                 return LLMMgr.LLMResponse(
                     content=contentText,
                     model=self.model,
                     usage={
-                        "prompt_tokens": usageMeta.get("promptTokenCount", 0),
-                        "completion_tokens": usageMeta.get(
+                        "prompt_tokens": usage.get("promptTokenCount", 0),
+                        "completion_tokens": usage.get(
                             "candidatesTokenCount", 0
                         ),
-                        "total_tokens": usageMeta.get("totalTokenCount", 0),
+                        "total_tokens": usage.get("totalTokenCount", 0),
                     },
-                    rawResponse=None,
+                    rawResponse=result,
                     cacheStats=cacheStats,
                 )
-
-            url = "{0}/models/{1}:generateContent".format(
-                self.baseUrl.rstrip("/"), self.model
-            )
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("request url: {0}".format(url))
-                SysMgr.printWarn("request payload: {0}".format(payload))
-
-            response = requests_mod.post(
-                url,
-                headers=headers,
-                params=params,
-                json=payload,
-                timeout=self.requestTimeout,
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("raw response: {0}".format(result))
-
-            # Add model response to history
-            candidates = result.get("candidates", [])
-            if not candidates:
-                raise ValueError("Gemini API returned no candidates")
-            contentParts = candidates[0].get("content", {}).get("parts", [])
-            if not contentParts:
-                raise ValueError("Gemini API returned no content parts")
-            contentText = contentParts[0].get("text", "")
-            self.history.append(userMsg)
-            self.history.append(
-                {"role": "model", "parts": [{"text": contentText}]}
-            )
-            self._trimHistory()
-
-            usage = result.get("usageMetadata", {})
-
-            # Extract cache statistics
-            cacheStats = self._extractGeminiCacheStats(result)
-            self.lastCacheStats = cacheStats
-
-            return LLMMgr.LLMResponse(
-                content=contentText,
-                model=self.model,
-                usage={
-                    "prompt_tokens": usage.get("promptTokenCount", 0),
-                    "completion_tokens": usage.get("candidatesTokenCount", 0),
-                    "total_tokens": usage.get("totalTokenCount", 0),
-                },
-                rawResponse=result,
-                cacheStats=cacheStats,
-            )
 
     class CustomOpenAILLM(BaseLLM):
         """
@@ -35496,242 +35860,256 @@ class LLMMgr(object):
             Analyze data with optional prompt caching support
             OpenAI uses implicit caching automatically for gpt-4o+ models
             """
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
 
-            requests_mod = SysMgr.getPkg("requests", isExit=False)
-            self._requirePkg(requests_mod, "requests")
+                requests_mod = SysMgr.getPkg("requests", isExit=False)
+                self._requirePkg(requests_mod, "requests")
 
-            fullPrompt = self._formatPrompt(data, prompt)
+                fullPrompt = self._formatPrompt(data, prompt)
 
-            # Azure OpenAI style endpoint
-            url = "{0}/openai/deployments/{1}/chat/completions".format(
-                self.baseUrl.rstrip("/"), self.model
-            )
-
-            headers = self._buildHeaders()
-
-            # Build messages with optional system prompt for caching
-            messages = []
-            if self.enableCache and self.cacheSystemPrompt:
-                messages.append(
-                    {"role": "system", "content": self.cacheSystemPrompt}
+                # Azure OpenAI style endpoint
+                url = "{0}/openai/deployments/{1}/chat/completions".format(
+                    self.baseUrl.rstrip("/"), self.model
                 )
-            messages.append({"role": "user", "content": fullPrompt})
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                headers = self._buildHeaders()
 
-            payload = {
-                "max_tokens": maxTokens,
-                "temperature": temperature,
-                "stream": useStream,
-                "messages": messages,
-            }
-            if useStream:
-                # This is an OpenAI-compatible endpoint: usage is only
-                # included in a stream chunk when explicitly requested.
-                payload["stream_options"] = {"include_usage": True}
+                # Build messages with optional system prompt for caching
+                messages = []
+                if self.enableCache and self.cacheSystemPrompt:
+                    messages.append(
+                        {"role": "system", "content": self.cacheSystemPrompt}
+                    )
+                messages.append({"role": "user", "content": fullPrompt})
 
-            # Add extended retention if requested (24 hours)
-            if self.enableCache and self.cacheTTL == 86400:
-                payload["prompt_cache_retention"] = "24h"
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("request url: {0}".format(url))
-                SysMgr.printWarn("request payload: {0}".format(payload))
+                payload = {
+                    "max_tokens": maxTokens,
+                    "temperature": temperature,
+                    "stream": useStream,
+                    "messages": messages,
+                }
+                if useStream:
+                    # This is an OpenAI-compatible endpoint: usage is only
+                    # included in a stream chunk when explicitly requested.
+                    payload["stream_options"] = {"include_usage": True}
 
-            if useStream:
-                # SSE streaming mode
-                response = requests_mod.post(
+                # Add extended retention if requested (24 hours)
+                if self.enableCache and self.cacheTTL == 86400:
+                    payload["prompt_cache_retention"] = "24h"
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("request url: {0}".format(url))
+                    SysMgr.printWarn("request payload: {0}".format(payload))
+
+                if useStream:
+                    # SSE streaming mode
+                    response = self._postWithRetry(
+                        requests_mod,
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=self.requestTimeout,
+                        stream=True,
+                    )
+                    response.raise_for_status()
+                    assistantContent, promptTokens, completionTokens = (
+                        self._parseOpenAISSEStream(response)
+                    )
+                    if self.useHistoryForAnalyze:
+                        self.history.extend(messages)
+                        self.history.append(
+                            {"role": "assistant", "content": assistantContent}
+                        )
+                        self._trimHistory()
+                    return LLMMgr.LLMResponse(
+                        content=assistantContent,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": promptTokens,
+                            "completion_tokens": completionTokens,
+                            "total_tokens": promptTokens + completionTokens,
+                        },
+                        rawResponse=None,
+                        cacheStats=None,
+                    )
+
+                response = self._postWithRetry(
+                    requests_mod,
                     url,
                     headers=headers,
                     json=payload,
                     timeout=self.requestTimeout,
-                    stream=True,
                 )
                 response.raise_for_status()
-                assistantContent, promptTokens, completionTokens = (
-                    self._parseOpenAISSEStream(response)
-                )
+                result = response.json()
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("raw response: {0}".format(result))
+
+                # Extract cache statistics
+                cacheStats = self._extractOpenAICacheStats(result)
+                self.lastCacheStats = cacheStats
+
+                assistantContent = self._extractText(result)
+
+                # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
                     self.history.extend(messages)
                     self.history.append(
-                        {"role": "assistant", "content": assistantContent}
+                        {
+                            "role": "assistant",
+                            "content": assistantContent,
+                        }
                     )
+                    self._trimHistory()
+
                 return LLMMgr.LLMResponse(
                     content=assistantContent,
                     model=self.model,
                     usage={
-                        "prompt_tokens": promptTokens,
-                        "completion_tokens": completionTokens,
-                        "total_tokens": promptTokens + completionTokens,
+                        "prompt_tokens": result.get("usage", {}).get(
+                            "prompt_tokens", 0
+                        ),
+                        "completion_tokens": result.get("usage", {}).get(
+                            "completion_tokens", 0
+                        ),
+                        "total_tokens": result.get("usage", {}).get(
+                            "total_tokens", 0
+                        ),
                     },
-                    rawResponse=None,
-                    cacheStats=None,
+                    rawResponse=result,
+                    cacheStats=cacheStats,
                 )
-
-            response = requests_mod.post(
-                url, headers=headers, json=payload, timeout=self.requestTimeout
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("raw response: {0}".format(result))
-
-            # Extract cache statistics
-            cacheStats = self._extractOpenAICacheStats(result)
-            self.lastCacheStats = cacheStats
-
-            assistantContent = self._extractText(result)
-
-            # Add to history if history mode is enabled
-            if self.useHistoryForAnalyze:
-                self.history.extend(messages)
-                self.history.append(
-                    {
-                        "role": "assistant",
-                        "content": assistantContent,
-                    }
-                )
-
-            return LLMMgr.LLMResponse(
-                content=assistantContent,
-                model=self.model,
-                usage={
-                    "prompt_tokens": result.get("usage", {}).get(
-                        "prompt_tokens", 0
-                    ),
-                    "completion_tokens": result.get("usage", {}).get(
-                        "completion_tokens", 0
-                    ),
-                    "total_tokens": result.get("usage", {}).get(
-                        "total_tokens", 0
-                    ),
-                },
-                rawResponse=result,
-                cacheStats=cacheStats,
-            )
 
         def chat(self, message, maxTokens=4096, temperature=None, **kwargs):
             """
             Chat with conversation history and optional prompt caching
             OpenAI implicitly caches system prompts across requests
             """
-            if temperature is None:
-                temperature = self.temperature
+            with self._lock:
+                if temperature is None:
+                    temperature = self.temperature
 
-            # Check streaming flag
-            useStream = LLMMgr._isStreamEnabled()
+                # Check streaming flag
+                useStream = LLMMgr._isStreamEnabled()
 
-            requests_mod = SysMgr.getPkg("requests", isExit=False)
-            self._requirePkg(requests_mod, "requests")
+                requests_mod = SysMgr.getPkg("requests", isExit=False)
+                self._requirePkg(requests_mod, "requests")
 
-            # Azure OpenAI style endpoint
-            url = "{0}/openai/deployments/{1}/chat/completions".format(
-                self.baseUrl.rstrip("/"), self.model
-            )
-
-            headers = self._buildHeaders()
-
-            # Build messages with user turn (without mutating history yet)
-            userMsg = {"role": "user", "content": message}
-            pendingHistory = self.history + [userMsg]
-
-            # Build messages with optional system prompt
-            messages = []
-            if self.enableCache and self.cacheSystemPrompt:
-                messages.append(
-                    {"role": "system", "content": self.cacheSystemPrompt}
+                # Azure OpenAI style endpoint
+                url = "{0}/openai/deployments/{1}/chat/completions".format(
+                    self.baseUrl.rstrip("/"), self.model
                 )
-            messages.extend(pendingHistory)
 
-            payload = {
-                "max_tokens": maxTokens,
-                "temperature": temperature,
-                "stream": useStream,
-                "messages": messages,
-            }
-            if useStream:
-                # This is an OpenAI-compatible endpoint: usage is only
-                # included in a stream chunk when explicitly requested.
-                payload["stream_options"] = {"include_usage": True}
+                headers = self._buildHeaders()
 
-            # Add extended retention if requested (24 hours)
-            if self.enableCache and self.cacheTTL == 86400:
-                payload["prompt_cache_retention"] = "24h"
+                # Build messages with user turn (without mutating history yet)
+                userMsg = {"role": "user", "content": message}
+                pendingHistory = self.history + [userMsg]
 
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("request url: {0}".format(url))
-                SysMgr.printWarn("request payload: {0}".format(payload))
+                # Build messages with optional system prompt
+                messages = []
+                if self.enableCache and self.cacheSystemPrompt:
+                    messages.append(
+                        {"role": "system", "content": self.cacheSystemPrompt}
+                    )
+                messages.extend(pendingHistory)
 
-            if useStream:
-                # SSE streaming mode
-                response = requests_mod.post(
+                payload = {
+                    "max_tokens": maxTokens,
+                    "temperature": temperature,
+                    "stream": useStream,
+                    "messages": messages,
+                }
+                if useStream:
+                    # This is an OpenAI-compatible endpoint: usage is only
+                    # included in a stream chunk when explicitly requested.
+                    payload["stream_options"] = {"include_usage": True}
+
+                # Add extended retention if requested (24 hours)
+                if self.enableCache and self.cacheTTL == 86400:
+                    payload["prompt_cache_retention"] = "24h"
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("request url: {0}".format(url))
+                    SysMgr.printWarn("request payload: {0}".format(payload))
+
+                if useStream:
+                    # SSE streaming mode
+                    response = self._postWithRetry(
+                        requests_mod,
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=self.requestTimeout,
+                        stream=True,
+                    )
+                    response.raise_for_status()
+                    assistantMessage, promptTokens, completionTokens = (
+                        self._parseOpenAISSEStream(response)
+                    )
+                    self.history.append(userMsg)
+                    self._appendAssistantReply(assistantMessage)
+                    return LLMMgr.LLMResponse(
+                        content=assistantMessage,
+                        model=self.model,
+                        usage={
+                            "prompt_tokens": promptTokens,
+                            "completion_tokens": completionTokens,
+                            "total_tokens": promptTokens + completionTokens,
+                        },
+                        rawResponse=None,
+                        cacheStats=None,
+                    )
+
+                response = self._postWithRetry(
+                    requests_mod,
                     url,
                     headers=headers,
                     json=payload,
                     timeout=self.requestTimeout,
-                    stream=True,
                 )
                 response.raise_for_status()
-                assistantMessage, promptTokens, completionTokens = (
-                    self._parseOpenAISSEStream(response)
-                )
+                result = response.json()
+
+                if SysMgr.warnEnable:
+                    SysMgr.printWarn("raw response: {0}".format(result))
+
+                # Extract cache statistics
+                cacheStats = self._extractOpenAICacheStats(result)
+                self.lastCacheStats = cacheStats
+
+                # Add user message and assistant response to history
                 self.history.append(userMsg)
+                assistantMessage = self._extractText(result)
                 self._appendAssistantReply(assistantMessage)
+
                 return LLMMgr.LLMResponse(
                     content=assistantMessage,
                     model=self.model,
                     usage={
-                        "prompt_tokens": promptTokens,
-                        "completion_tokens": completionTokens,
-                        "total_tokens": promptTokens + completionTokens,
+                        "prompt_tokens": result.get("usage", {}).get(
+                            "prompt_tokens", 0
+                        ),
+                        "completion_tokens": result.get("usage", {}).get(
+                            "completion_tokens", 0
+                        ),
+                        "total_tokens": result.get("usage", {}).get(
+                            "total_tokens", 0
+                        ),
                     },
-                    rawResponse=None,
-                    cacheStats=None,
+                    rawResponse=result,
+                    cacheStats=cacheStats,
                 )
 
-            response = requests_mod.post(
-                url, headers=headers, json=payload, timeout=self.requestTimeout
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            if SysMgr.warnEnable:
-                SysMgr.printWarn("raw response: {0}".format(result))
-
-            # Extract cache statistics
-            cacheStats = self._extractOpenAICacheStats(result)
-            self.lastCacheStats = cacheStats
-
-            # Add user message and assistant response to history
-            self.history.append(userMsg)
-            assistantMessage = self._extractText(result)
-            self._appendAssistantReply(assistantMessage)
-
-            return LLMMgr.LLMResponse(
-                content=assistantMessage,
-                model=self.model,
-                usage={
-                    "prompt_tokens": result.get("usage", {}).get(
-                        "prompt_tokens", 0
-                    ),
-                    "completion_tokens": result.get("usage", {}).get(
-                        "completion_tokens", 0
-                    ),
-                    "total_tokens": result.get("usage", {}).get(
-                        "total_tokens", 0
-                    ),
-                },
-                rawResponse=result,
-                cacheStats=cacheStats,
-            )
-
-    # ============================================================================
-    # Embeddings
-    # ============================================================================
+        # ============================================================================
+        # Embeddings
+        # ============================================================================
 
     class EmbeddingResponse:
         """Unified format for embedding responses"""
@@ -35769,6 +36147,15 @@ class LLMMgr(object):
                 or (int(envTimeout) if envTimeout else None)
                 or self.DEFAULT_REQUEST_TIMEOUT
             )
+            # Max retry attempts: use -q LLMMAXRETRY, env var, or default
+            # (same 3-tier resolution as BaseLLM.maxRetry)
+            llmMaxRetryOpt = LLMMgr._getEnvironValue("LLMMAXRETRY")
+            envMaxRetry = os.getenv("LLM_MAX_RETRY")
+            self.maxRetry = (
+                (int(llmMaxRetryOpt) if llmMaxRetryOpt else None)
+                or (int(envMaxRetry) if envMaxRetry else None)
+                or LLMMgr.BaseLLM.DEFAULT_MAX_RETRY
+            )
 
         def _getApiKeyFromEnv(self):
             raise NotImplementedError
@@ -35778,6 +36165,13 @@ class LLMMgr(object):
 
         def embed(self, inputText, dimensions=None, encodingFormat="float"):
             raise NotImplementedError
+
+        def _postWithRetry(self, requestsMod, url, **kwargs):
+            """Instance-friendly wrapper around LLMMgr._postWithRetry();
+            see BaseLLM._postWithRetry for the shared implementation."""
+            return LLMMgr._postWithRetry(
+                requestsMod, url, self.maxRetry, **kwargs
+            )
 
         @staticmethod
         def cosineSimilarity(vecA, vecB):
@@ -35883,8 +36277,12 @@ class LLMMgr(object):
             if dimensions is not None:
                 payload["dimensions"] = dimensions
 
-            response = requests_mod.post(
-                url, headers=headers, json=payload, timeout=self.requestTimeout
+            response = self._postWithRetry(
+                requests_mod,
+                url,
+                headers=headers,
+                json=payload,
+                timeout=self.requestTimeout,
             )
             response.raise_for_status()
             result = response.json()
@@ -35909,8 +36307,10 @@ class LLMMgr(object):
         Embeddings client for Google Gemini (google-genai SDK).
 
         Supported models:
-            text-embedding-004  (768-dim, default)
-            gemini-embedding-001
+            gemini-embedding-001  (default)
+            text-embedding-004    (retired by Google - kept only for
+                                    explicit GEMINI_EMBED_MODEL overrides
+                                    on accounts that still have access)
         """
 
         def __init__(
@@ -35937,7 +36337,11 @@ class LLMMgr(object):
             return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
         def _getDefaultModel(self):
-            return os.getenv("GEMINI_EMBED_MODEL") or "text-embedding-004"
+            # "text-embedding-004" (the old default) has been retired by
+            # Google - every call without an explicit model override now
+            # 404s against the live API, so the default must point at a
+            # model still in service #
+            return os.getenv("GEMINI_EMBED_MODEL") or "gemini-embedding-001"
 
         def embed(self, inputText, dimensions=None, encodingFormat="float"):
             """
@@ -35959,9 +36363,16 @@ class LLMMgr(object):
             types = self._genai_types
 
             client_kwargs = {"api_key": self.apiKey}
-            if self.baseUrl and types:
+            if types:
+                # the SDK does NOT retry transient failures by default -
+                # HttpOptions.retry_options is None unless set explicitly,
+                # which hard-wires tenacity to stop_after_attempt(1)
+                # (zero retries) internally #
+                httpOptionsKwargs = {"retry_options": types.HttpRetryOptions()}
+                if self.baseUrl:
+                    httpOptionsKwargs["base_url"] = self.baseUrl
                 client_kwargs["http_options"] = types.HttpOptions(
-                    base_url=self.baseUrl
+                    **httpOptionsKwargs
                 )
             client = genai.Client(**client_kwargs)
 
@@ -35979,10 +36390,31 @@ class LLMMgr(object):
 
             embeddings = [list(e.values) for e in (result.embeddings or [])]
 
+            # usage/statistics fields are Vertex-API-only and Optional
+            # even there, so extraction must be getattr-safe - the
+            # Gemini Developer API (the common path) legitimately returns
+            # None for both #
+            tokenCounts = [
+                getattr(getattr(e, "statistics", None), "token_count", None)
+                for e in (result.embeddings or [])
+            ]
+            tokenCounts = [t for t in tokenCounts if t is not None]
+            billableChars = getattr(
+                getattr(result, "metadata", None),
+                "billable_character_count",
+                None,
+            )
+            usage = None
+            if tokenCounts or billableChars is not None:
+                usage = {
+                    "total_tokens": sum(tokenCounts) if tokenCounts else None,
+                    "billable_character_count": billableChars,
+                }
+
             return LLMMgr.EmbeddingResponse(
                 embeddings=embeddings,
                 model=self.model,
-                usage=None,
+                usage=usage,
                 rawResponse=result,
             )
 
@@ -36073,14 +36505,15 @@ class LLMMgr(object):
         if not provider:
             provider = LLMMgr._defaultProvider or "claude"
         cacheKey = (provider, frozenset(kwargs.items()))
-        if cacheKey not in LLMMgr._instances:
-            llm = LLMMgr.LLMFactory.create(provider, **kwargs)
-            LLMMgr._instances[cacheKey] = llm
-        else:
-            SysMgr.printWarn(
-                "reusing cached LLM instance: {0}".format(provider)
-            )
-        return LLMMgr._instances[cacheKey]
+        with LLMMgr._instancesLock:
+            if cacheKey not in LLMMgr._instances:
+                llm = LLMMgr.LLMFactory.create(provider, **kwargs)
+                LLMMgr._instances[cacheKey] = llm
+            else:
+                SysMgr.printWarn(
+                    "reusing cached LLM instance: {0}".format(provider)
+                )
+            return LLMMgr._instances[cacheKey]
 
     @staticmethod
     def loadDataForAsk():
@@ -36307,6 +36740,9 @@ class LLMMgr(object):
         if "CACHE" in confData and confData["CACHE"]:
             settings["cache"] = confData["CACHE"]
 
+        if "TEMPERATURE" in confData and confData["TEMPERATURE"]:
+            settings["temperature"] = confData["TEMPERATURE"]
+
         if "SYSTEM" in confData and confData["SYSTEM"]:
             settings["system"] = confData["SYSTEM"]
 
@@ -36332,13 +36768,13 @@ class LLMMgr(object):
         if "CUSTOM_BASE_URL" in confData and confData["CUSTOM_BASE_URL"]:
             os.environ["CUSTOM_BASE_URL"] = confData["CUSTOM_BASE_URL"]
 
-        # Load CONTEXT and ASKRUN sections
-        ctx_cfg = confData.get("CONTEXT", {})
-        if ctx_cfg:
-            LLMMgr._llmContextConfig = ctx_cfg
-        askrun_cfg = confData.get("ASKRUN", {})
-        if askrun_cfg:
-            LLMMgr._askrunConfig = askrun_cfg
+        # Load CONTEXT and ASKRUN sections - always assign (even when
+        # empty) so removing/emptying a section in guider.conf and
+        # RELOADing actually clears the old in-memory config instead of
+        # silently keeping it (e.g. AUTO_ESCALATE staying on after an
+        # operator removes the ASKRUN section expecting it to turn off) #
+        LLMMgr._llmContextConfig = confData.get("CONTEXT", {})
+        LLMMgr._askrunConfig = confData.get("ASKRUN", {})
 
         return settings
 
@@ -36452,6 +36888,7 @@ class LLMMgr(object):
             LLMCACHE:1          - Enable caching
             LLMTEMPERATURE:0.7  - Sampling temperature (0.0-2.0)
             LLMTIMEOUT:<sec>    - Request timeout in seconds (default: 60)
+            LLMMAXRETRY:<n>     - Max retries on 429/5xx/timeout, raw-HTTP providers only (default: 3)
             LLMTEXTFILE:path    - Text/log file to analyze (auto-routes to chunk analysis)
             LLMSESSION:path     - Session file to load/save for ask continuity
             LLMSTREAM:1         - Enable streaming output
@@ -37051,7 +37488,14 @@ class LLMMgr(object):
             # Case 1: Multiple providers
             if providers:
                 return LLMMgr._askMultipleProviders(
-                    data, prompt, providers, model, enableCache, temperature
+                    data,
+                    prompt,
+                    providers,
+                    model,
+                    enableCache,
+                    temperature,
+                    systemPrompt,
+                    configSettings,
                 )
 
             # Case 2: no provider available even after auto-detect
@@ -37077,6 +37521,7 @@ class LLMMgr(object):
                         models,
                         enableCache,
                         temperature,
+                        systemPrompt,
                     )
                 return LLMMgr._askSingle(
                     data,
@@ -37108,6 +37553,7 @@ class LLMMgr(object):
             LLMCACHE:1          - Enable caching
             LLMTEMPERATURE:0.7  - Sampling temperature (0.0-2.0)
             LLMTIMEOUT:<sec>    - Request timeout in seconds (default: 60)
+            LLMMAXRETRY:<n>     - Max retries on 429/5xx/timeout, raw-HTTP providers only (default: 3)
             LLMSESSION:path     - Session file to load (resume previous conversation)
 
         Interactive commands:
@@ -37237,12 +37683,38 @@ class LLMMgr(object):
                 except Exception as e:
                     SysMgr.printErr("chat error: {0}".format(str(e)))
 
+            def _msgText(msg):
+                """Extract the real text from a history entry, unwrapping
+                the list-of-content-block shape some providers use (e.g.
+                Claude's cache_control-tagged messages) instead of
+                stringifying the raw structure - shared by "history" and
+                "search" below so they stay consistent."""
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    return content[0].get("text", "") if content else ""
+                elif not isinstance(content, str):
+                    return str(content)
+                return content
+
             # 11. Interactive loop
             while True:
                 try:
                     sys.stdout.write("You: ")
                     sys.stdout.flush()
-                    userInput = sys.stdin.readline().strip()
+                    rawInput = sys.stdin.readline()
+                    # unlike input(), readline() returns "" (no trailing
+                    # newline at all) on true EOF instead of raising
+                    # EOFError - a blank Enter press still returns "\n".
+                    # Without this check, a closed/redirected stdin (e.g.
+                    # `guider chat < /dev/null`, a CI harness) makes every
+                    # subsequent readline() return "" immediately, and the
+                    # old code below (`if not userInput: continue`) treated
+                    # that identically to a blank line - a 100%-CPU
+                    # infinite spin instead of a clean exit #
+                    if rawInput == "":
+                        SysMgr.printPipe("\nBye!")
+                        break
+                    userInput = rawInput.strip()
 
                     if not userInput:
                         continue
@@ -37256,7 +37728,10 @@ class LLMMgr(object):
                         SysMgr.printPipe("\n[Conversation history cleared]\n")
                         continue
 
-                    if userInput.lower().startswith("save"):
+                    if (
+                        userInput.lower() == "save"
+                        or userInput.lower().startswith("save ")
+                    ):
                         parts = userInput.split(None, 1)
                         savePath = (
                             parts[1].strip() if len(parts) > 1 else sessionFile
@@ -37335,26 +37810,24 @@ class LLMMgr(object):
                     if userInput.lower() == "history":
                         for i, msg in enumerate(llm.history):
                             role = msg.get("role", "?")
-                            content = msg.get("content", "")
-                            if isinstance(content, list):
-                                content = (
-                                    content[0].get("text", "")
-                                    if content
-                                    else ""
-                                )
-                            elif not isinstance(content, str):
-                                content = str(content)
+                            content = _msgText(msg)
                             preview = content[:80].replace("\n", " ")
                             SysMgr.printPipe(
                                 "  [{0}] {1}: {2}".format(i, role, preview)
                             )
                         continue
 
-                    if userInput.lower().startswith("search "):
+                    if (
+                        userInput.lower() == "search"
+                        or userInput.lower().startswith("search ")
+                    ):
                         term = userInput[7:].strip().lower()
+                        if not term:
+                            SysMgr.printPipe("\n[Usage: search <TERM>]\n")
+                            continue
                         found = False
                         for i, msg in enumerate(llm.history):
-                            content = str(msg.get("content", ""))
+                            content = _msgText(msg)
                             if term in content.lower():
                                 SysMgr.printPipe(
                                     "  [{0}] {1}".format(i, content[:100])
@@ -37366,7 +37839,10 @@ class LLMMgr(object):
                             )
                         continue
 
-                    if userInput.lower().startswith("report"):
+                    if (
+                        userInput.lower() == "report"
+                        or userInput.lower().startswith("report ")
+                    ):
                         parts = userInput.split(None, 1)
                         reportPath = (
                             parts[1].strip()
@@ -37469,10 +37945,29 @@ class LLMMgr(object):
             elif embedFile:
                 with open(embedFile, "r", encoding="utf-8") as f:
                     raw = f.read()
+                # EMBEDFILE is documented to accept JSON too - only act on
+                # the two unambiguous shapes (a JSON array of strings
+                # becomes the batch input, a bare JSON string becomes the
+                # single input); anything else (invalid JSON, or a valid
+                # but ambiguous shape like a dict) falls through to the
+                # existing plain-text/line-based handling unchanged #
+                parsedJson = None
+                try:
+                    json_mod_embed = SysMgr.getPkg("json", isExit=False)
+                    if json_mod_embed:
+                        parsedJson = json_mod_embed.loads(raw)
+                except (ValueError, TypeError):
+                    parsedJson = None
                 batch = LLMMgr._parseBoolValue(
                     LLMMgr._getEnvironValue("EMBEDBATCH")
                 )
-                if batch:
+                if isinstance(parsedJson, list) and all(
+                    isinstance(x, str) for x in parsedJson
+                ):
+                    inputText = parsedJson
+                elif isinstance(parsedJson, str):
+                    inputText = parsedJson
+                elif batch:
                     inputText = [
                         line for line in raw.splitlines() if line.strip()
                     ]
@@ -37642,6 +38137,12 @@ class LLMMgr(object):
 
             # 3. Load or build vector index
             indexData = None  # list of {"text": str, "embedding": list[float]}
+            # meta of a freshly-*loaded* index only (stays None when the
+            # index is built fresh this run, or loaded in legacy bare-list
+            # form) - used below to guard against querying with a
+            # different embedding model/dimension than the index was
+            # built with #
+            loadedMeta = None
 
             if ragIndex and os.path.isfile(ragIndex) and not ragForce:
                 SysMgr.printInfo("loading index: {0}".format(ragIndex))
@@ -37653,9 +38154,8 @@ class LLMMgr(object):
                 # legacy format: a bare list, no fingerprint available,
                 # so it is trusted as-is (unchanged prior behavior) #
                 if isinstance(loadedIndex, dict) and "chunks" in loadedIndex:
-                    savedFingerprint = loadedIndex.get("meta", {}).get(
-                        "docsFingerprint"
-                    )
+                    loadedMeta = loadedIndex.get("meta", {})
+                    savedFingerprint = loadedMeta.get("docsFingerprint")
                     curFingerprint = (
                         LLMMgr._computeDocsFingerprint(ragDocs)
                         if ragDocs
@@ -37726,12 +38226,18 @@ class LLMMgr(object):
                 chunks = []
                 start = 0
                 textLen = len(combinedText)
+                # clamp the step to at least 1 - RAGCHUNK/RAGOVERLAP are
+                # free-form user-supplied integers (-q RAGCHUNK:/RAGOVERLAP:)
+                # with no cross-validation; if overlap >= chunkSize this
+                # would otherwise never advance, hanging forever while
+                # appending the same chunk repeatedly #
+                step = max(1, chunkSize - overlap)
                 while start < textLen:
                     end = min(start + chunkSize, textLen)
                     chunk = combinedText[start:end].strip()
                     if chunk:
                         chunks.append(chunk)
-                    start += chunkSize - overlap
+                    start += step
 
                 SysMgr.printInfo(
                     "chunked into {0} pieces (size={1}, overlap={2})".format(
@@ -37792,6 +38298,11 @@ class LLMMgr(object):
                                         if ragDocs
                                         else None
                                     ),
+                                    "embedDimensions": (
+                                        len(allEmbeddings[0])
+                                        if allEmbeddings
+                                        else None
+                                    ),
                                 },
                                 "chunks": indexData,
                             },
@@ -37807,6 +38318,25 @@ class LLMMgr(object):
                 sys.exit(0)
             queryVec = queryResp.embeddings[0]
 
+            # a loaded (not freshly-built) index with recorded dimensions
+            # must match this query's embedder, or cosineSimilarity()'s
+            # zip(vecA, vecB) would silently truncate to the shorter
+            # vector and return a meaningless-but-plausible-looking score
+            # for every chunk instead of erroring #
+            if loadedMeta:
+                indexDimensions = loadedMeta.get("embedDimensions")
+                if indexDimensions and len(queryVec) != indexDimensions:
+                    SysMgr.printErr(
+                        "query embedding dimension ({0}) does not match "
+                        "the index's stored dimension ({1}) - the index "
+                        "was built with a different EMBEDMODEL/"
+                        "EMBEDPROVIDER/EMBEDDIM; rebuild it with RAGFORCE "
+                        "or matching embed options".format(
+                            len(queryVec), indexDimensions
+                        )
+                    )
+                    sys.exit(1)
+
             # 5. Cosine similarity search
             scored = []
             for item in indexData:
@@ -37819,7 +38349,7 @@ class LLMMgr(object):
 
             SysMgr.printInfo(
                 "top {0} chunks retrieved (best score: {1:.4f})".format(
-                    UtilMgr.convNum(topK),
+                    UtilMgr.convNum(len(topChunks)),
                     topChunks[0][0] if topChunks else 0.0,
                 )
             )
@@ -37888,6 +38418,12 @@ class LLMMgr(object):
         "gpt-4o-mini": (0.15, 0.6),
         "gpt-4o": (2.5, 10.0),
         "gpt-4-turbo": (10.0, 30.0),
+        # legacy preview IDs priced like gpt-4-turbo, not the generic
+        # gpt-4 tier below (they'd otherwise be ~3x overestimated since
+        # none of them contain the "turbo" substring) #
+        "gpt-4-1106-preview": (10.0, 30.0),
+        "gpt-4-0125-preview": (10.0, 30.0),
+        "gpt-4-vision-preview": (10.0, 30.0),
         "gpt-4": (30.0, 60.0),
         "gpt-3.5": (0.5, 1.5),
         "gemini-1.5-pro": (1.25, 5.0),
@@ -38357,14 +38893,30 @@ class LLMMgr(object):
                 "Per-segment summaries:\n\n{2}"
             ).format(len(chunks), prompt, "\n\n".join(summaries))
 
+            def _printRawSummariesFallback():
+                # the per-chunk map phase already paid for and produced
+                # these summaries; show them instead of discarding
+                # everything just because the final synthesis call failed #
+                SysMgr.printPipe("\n" + twoLine)
+                SysMgr.printPipe(
+                    "Synthesis failed - showing {0} raw per-chunk "
+                    "summaries instead:".format(
+                        UtilMgr.convNum(len(summaries))
+                    )
+                )
+                SysMgr.printPipe(twoLine)
+                SysMgr.printPipe("\n\n".join(summaries), trim=False)
+
             try:
                 finalResponse = llm.chat(reducePrompt)
             except Exception as e:
                 SysMgr.printErr("synthesis failed: {0}".format(str(e)))
+                _printRawSummariesFallback()
                 return 1
 
             if not finalResponse or not finalResponse.content:
                 SysMgr.printErr("synthesis returned no content")
+                _printRawSummariesFallback()
                 return 1
 
             # print final result
@@ -38414,7 +38966,13 @@ class LLMMgr(object):
 
     @staticmethod
     def _askMultipleModels(
-        data, prompt, provider, models, enableCache, temperature=None
+        data,
+        prompt,
+        provider,
+        models,
+        enableCache,
+        temperature=None,
+        systemPrompt=None,
     ):
         """
         Ask single provider with multiple models
@@ -38426,6 +38984,7 @@ class LLMMgr(object):
             models: List of model names
             enableCache: Enable caching
             temperature: Sampling temperature (optional)
+            systemPrompt: System/role prompt (optional)
 
         Returns:
             int: Exit code
@@ -38455,6 +39014,10 @@ class LLMMgr(object):
 
                 # Get LLM instance
                 llm = LLMMgr.getLLM(provider, **kwargs)
+
+                # Apply system prompt if provided (mirrors _askSingle)
+                if systemPrompt:
+                    llm.setCacheSystemPrompt(systemPrompt)
 
                 # If no data, use chat mode
                 if data is None:
@@ -38531,7 +39094,14 @@ class LLMMgr(object):
 
     @staticmethod
     def _askMultipleProviders(
-        data, prompt, providers, model, enableCache, temperature=None
+        data,
+        prompt,
+        providers,
+        model,
+        enableCache,
+        temperature=None,
+        systemPrompt=None,
+        configSettings=None,
     ):
         """
         Ask multiple providers for comparison
@@ -38540,9 +39110,13 @@ class LLMMgr(object):
             data: Data to analyze
             prompt: Analysis instruction
             providers: List of provider names
-            model: Model override (optional)
+            model: Model override (optional, used as a fallback for any
+                provider without its own configSettings["models"] entry)
             enableCache: Enable caching
             temperature: Sampling temperature (optional)
+            systemPrompt: System/role prompt (optional)
+            configSettings: Config dict from _loadConfigSettings(), used to
+                look up a per-provider model via _getProviderModels()
 
         Returns:
             int: Exit code
@@ -38561,12 +39135,26 @@ class LLMMgr(object):
 
         for provider in providers:
             try:
+                # Per-provider model override (-q LLMMODEL / config
+                # MODELS[provider] / env *_MODELS), falling back to the
+                # single shared `model` when none is configured for this
+                # provider - otherwise every provider in the comparison
+                # would silently get the same (possibly invalid-for-them)
+                # model string #
+                providerModels = LLMMgr._getProviderModels(
+                    provider, configSettings
+                )
+                providerModel = providerModels[0] if providerModels else model
                 kwargs = LLMMgr._buildLlmKwargs(
-                    model, enableCache, temperature
+                    providerModel, enableCache, temperature
                 )
 
                 # Get LLM instance
                 llm = LLMMgr.getLLM(provider, **kwargs)
+
+                # Apply system prompt if provided (mirrors _askSingle)
+                if systemPrompt:
+                    llm.setCacheSystemPrompt(systemPrompt)
 
                 # Display provider, model, temperature, and cache info
                 modelInfo = llm.model if hasattr(llm, "model") else "default"
@@ -38831,7 +39419,15 @@ class LLMMgr(object):
             opts["allowRun"] = True
         if "LLMALLOWCMD" in envList and "extraAllow" not in opts:
             raw = _envVal("LLMALLOWCMD") or ""
-            opts["extraAllow"] = set(raw.split(":")) if raw else None
+            # _validateLLMCommand() always uppercases the command it
+            # checks, so this set must be normalized the same way or a
+            # lowercase LLMALLOWCMD value (matching the docs' own example
+            # style) would never match and silently allow nothing #
+            opts["extraAllow"] = (
+                set(v.strip().upper() for v in raw.split(":") if v.strip())
+                if raw
+                else None
+            )
         if "LLMCUSTOM_API_KEY" in envList and "apiKey" not in opts:
             opts["apiKey"] = _envVal("LLMCUSTOM_API_KEY")
         if "LLMCUSTOM_BASE_URL" in envList and "baseUrl" not in opts:
@@ -64303,6 +64899,7 @@ Usage:
           [threshold] NOTHRESHOLD | APPLYALL | UPDATETHRESHOLD:<path>
                      SAVELMKLOG[:<N>]
           [ai]       ASKAI[:<PROMPT>] | AIPERIODIC:<SEC> | LLMDRYRUN | ALLOWRUN
+                     RUNTIMEOUT:<sec> (bound RUN's wait, unset = wait forever)
                      LLMPROVIDER:<NAME> | LLMMODEL:<NAME> | LLMRATELIMIT:<SEC>
                      LLMMAXCMD:<n> | LLMCTXDEPTH:<n>
                      LLMAUDITLOG:<path> | LLMALLOWCMD:<cmds>
@@ -66484,6 +67081,7 @@ Options:
           LLMCACHE:1              - Enable prompt caching
           LLMTEMPERATURE:<float>  - Sampling temperature (0.0-2.0, default: 0.7)
           LLMTIMEOUT:<sec>        - Request timeout in seconds (default: 60)
+          LLMMAXRETRY:<n>         - Max retries on 429/5xx/timeout, raw-HTTP providers only (default: 3)
           LLMJSON:1               - Output response as JSON
     -C  <PATH>                  set config file for LLM settings
     -v                          verbose
@@ -66611,6 +67209,7 @@ Options:
           LLMCACHE:1              - Enable prompt caching
           LLMTEMPERATURE:<float>  - Sampling temperature (0.0-2.0, default: 0.7)
           LLMTIMEOUT:<sec>        - Request timeout in seconds (default: 60)
+          LLMMAXRETRY:<n>         - Max retries on 429/5xx/timeout, raw-HTTP providers only (default: 3)
           LLMSESSION:<path>       - Load saved session file to resume conversation
     -C  <PATH>                  set config file for LLM settings
     -v                          verbose
@@ -74038,6 +74637,7 @@ Report options:
     -q  ASKAI[:<PROMPT>]        ask AI to analyze profiling results (injects result into flamegraph SVG)
     -q  LLMPROVIDER:<PROVIDER>  set LLM provider (e.g. claude, openai)
     -q  LLMTIMEOUT:<SEC>        set LLM request timeout in seconds
+    -q  LLMMAXRETRY:<N>         set max retries on transient HTTP failures (raw-HTTP providers only)
     -q  KEEPRECFILE             keep raw perf.data file (gzip-compressed on exit)
     -q  SAVESAMPLE              save raw perf script output to .sample.gz then exit
     -q  FROMSAMPLE              reprocess saved .sample[.gz] instead of re-recording
@@ -114462,15 +115062,22 @@ Key Value List:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr(
+            # log and return like the sibling setPriority() does - an
+            # unconditional sys.exit(-1) here used to propagate all the
+            # way up (SystemExit is deliberately re-raised by every
+            # `except SystemExit: sys.exit(0)` frame above this one) and
+            # kill the entire guider process on a single bad ioprio value
+            # (e.g. AUTOIONICE:be:99 - the kernel rejects priorities >=8
+            # for BE/RT classes) #
+            SysMgr.printWarn(
                 (
                     "failed to set the I/O schedling priority "
                     "for %s(%s) to %s(%s)[%s]"
                 )
                 % (comm, pid, ioclass, pri, nmWho),
-                True,
+                always=True,
+                reason=True,
             )
-            sys.exit(-1)
 
     @staticmethod
     def getSchedPolicy(sched):
@@ -128242,9 +128849,18 @@ class BpfMgr(object):
     @staticmethod
     def _triggerBpfAI(cmd_name, data_json, prompt, opts=None):
         """Trigger ASKAI analysis from a BPF command (async daemon thread)."""
+        # load config first - a no-op read of the already-in-memory
+        # ConfigMgr.confData (not a disk re-read) when no -C config file
+        # was ever loaded, so this stays effectively zero-overhead for
+        # users who never configured LLM at all. This must run BEFORE the
+        # early-exit gate below: it's the only place that exports
+        # guider.conf's [llm] PROVIDER/API_KEYS section into os.environ,
+        # so a provider configured purely via guider.conf (no env var, no
+        # -q LLMPROVIDER) was previously invisible to the gate and this
+        # trigger silently never fired for the whole session #
+        LLMMgr._loadConfigSettings()
         # early exit if LLM is not configured (zero overhead) -- mirrors the
-        # env vars LLMMgr._detectProviders() checks, without loading the
-        # config file #
+        # env vars LLMMgr._detectProviders() checks #
         if not (
             SysMgr.environList.get("LLMPROVIDER")
             or os.getenv("LLM_PROVIDER")
@@ -246194,6 +246810,24 @@ function isAutoNamedPlot(name) {{
                 "failed to send request '%s'" % SysMgr.remoteServObj.request
             )
 
+    # maps a threshold event's resource-category prefix (the fixed label
+    # checkThreshold() passes as its "event" arg, e.g. "CPU_<attr>_<item>")
+    # to the SysMgr.topProcs() sort key that actually reflects what
+    # triggered it - anything not listed here (NETIN/NETOUT/FD/SOCK/
+    # battery/TIME/task events etc) has no matching topProcs dimension at
+    # all and falls back to "cpu", identical to the old hardcoded behavior #
+    _LLM_TOPPROC_SORT_MAP = {
+        "CPU": "cpu",
+        "CORE": "cpu",
+        "LOAD": "cpu",
+        "MEM": "mem",
+        "GPUMEM": "mem",
+        "SWAP": "mem",
+        "IO": "io",
+        "STORAGE": "io",
+        "BLKLAT": "io",
+    }
+
     @staticmethod
     def _collectLLMEventContext(
         event, eventData, ctxDepth=10, historyWindow=5
@@ -246202,6 +246836,16 @@ function isAutoNamedPlot(name) {{
         Delegates to SysMgr.sysSnapshot() and SysMgr.topProcs() to avoid
         duplicating the collection logic in the funcall handler.
         historyWindow: number of recent intervalData ticks to include."""
+        # clamp here (the single real consumer) rather than at each
+        # CTXDEPTH/LLMCTXDEPTH parse site, so a huge/bad value never
+        # embeds hundreds of processes verbatim into the LLM prompt #
+        ctxDepth = max(1, min(ctxDepth, 50))
+        # pick a top_processes sort key that actually reflects what
+        # triggered this event (e.g. a MEM-pressure event gets a
+        # mem-sorted list) instead of always defaulting to cpu #
+        topProcSort = TaskAnalyzer._LLM_TOPPROC_SORT_MAP.get(
+            str(event).split("_", 1)[0], "cpu"
+        )
         ctx = {
             "event": {
                 "name": event,
@@ -246210,7 +246854,7 @@ function isAutoNamedPlot(name) {{
                 "details": eventData or {},
             },
             "system": SysMgr.sysSnapshot(),
-            "top_processes": SysMgr.topProcs(ctxDepth, "cpu"),
+            "top_processes": SysMgr.topProcs(ctxDepth, topProcSort),
             "active_events": list(SysMgr.thrEvtList.keys()),
         }
         # add time-series metric history from intervalData
@@ -246336,13 +246980,19 @@ function isAutoNamedPlot(name) {{
             "AUTOSCHED",
             "AUTOIONICE",
             "AUTOOMADJ",
-            "AUTOSIGNAL",
             "AUTONICE",
             "AUTOLIMITCPU",
             "AUTORESTORE",
             "AUTOSWAPOUT",
         )
     )
+    # AUTOSIGNAL is deliberately NOT in the set above - it sends an
+    # arbitrary LLM-chosen signal (SIGKILL included) to whatever
+    # processes _getGovTargets() picks, which is not scoped to guider's
+    # own workers the way KILL/TERM are. It needs the same allowRun
+    # opt-in gate those get (enforced separately in
+    # _validateLLMCommand() below), so it must not be unconditionally
+    # allowed OR advertised to the LLM as always-available here #
 
     # inline parameter hints for allow-listed commands that take arguments;
     # any command not listed here is presented to the LLM as a bare name.
@@ -246355,7 +247005,6 @@ function isAutoNamedPlot(name) {{
         "AUTOSCHED": "AUTOSCHED:<POLICY>:<PRI>",
         "AUTOIONICE": "AUTOIONICE:<CLASS>:<PRIO>",
         "AUTOOMADJ": "AUTOOMADJ:<ADJ>",
-        "AUTOSIGNAL": "AUTOSIGNAL:<SIG>",
         "AUTONICE": "AUTONICE:<NICE>",
         "AUTOLIMITCPU": "AUTOLIMITCPU:<PCT>",
     }
@@ -246415,6 +247064,62 @@ function isAutoNamedPlot(name) {{
     )
 
     @staticmethod
+    def _isWebhookTargetSafe(cmd):
+        """Reject WEBHOOK targets that are classic SSRF destinations -
+        non-http(s) schemes, or hosts that resolve to a loopback/
+        private/link-local/reserved/multicast/unspecified address
+        (this covers the 169.254.169.254 cloud-metadata endpoint too,
+        since that range is link-local). Best-effort only: a DNS
+        answer can still change between this check and the actual
+        request (classic TOCTOU/rebinding), but it blocks an LLM from
+        simply naming an internal target outright. Fails closed (False)
+        on any parse/resolution error #
+        """
+        rest = UtilMgr.lstrip(cmd, "WEBHOOK:")
+        if not rest or rest == cmd:
+            return False
+        url = rest.split("#", 1)[0].strip()
+        urllibParse = SysMgr.getPkg("urllib.parse", isExit=False)
+        if not urllibParse:
+            return False
+        try:
+            parsed = urllibParse.urlsplit(url)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return False
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        socket = SysMgr.getPkg("socket", isExit=False)
+        ipaddress = SysMgr.getPkg("ipaddress", isExit=False)
+        if not socket or not ipaddress:
+            return False
+        try:
+            addrs = set(
+                info[4][0]
+                for info in socket.getaddrinfo(parsed.hostname, None)
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return False
+        for addr in addrs:
+            try:
+                ip = ipaddress.ip_address(addr.split("%")[0])
+            except:
+                return False
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            ):
+                return False
+        return True
+
+    @staticmethod
     def _validateLLMCommand(cmd, allowRun=False, extraAllow=None):
         """Validate a command against the whitelist.
 
@@ -246424,11 +247129,56 @@ function isAutoNamedPlot(name) {{
         ocmd = cmd.split(":", 1)[0].split("#", 1)[0].upper()
         if ocmd in TaskAnalyzer._LLM_BLOCK_CMDS:
             return False
+        # AUTOSWAPOUT's optional ":<TARGET>" argument bypasses
+        # _getGovTargets() entirely and resolves an arbitrary name/PID via
+        # SysMgr.getTids() instead - the LLM is never told this syntax
+        # exists (no _LLM_CMD_PARAM_HINTS entry, unlike every other AUTO*
+        # command that takes an argument) and has no legitimate reason to
+        # send it, so only the bare form is allowed from this validator.
+        # The handler itself still supports ":<TARGET>" unchanged, since
+        # that's documented, legitimate behavior for human-configured
+        # (non-LLM) threshold command lists, which never call this
+        # function #
+        if ocmd == "AUTOSWAPOUT" and ":" in cmd.split("#", 1)[0]:
+            return False
+        # WEBHOOK's destination URL comes straight from the LLM's own
+        # argument with no restriction in the handler (by design, so a
+        # human-authored guider.conf webhook can point anywhere, e.g.
+        # an internal Slack/PagerDuty gateway) - an LLM given the same
+        # unconditional allow could point it at a cloud metadata
+        # endpoint or any internal host and have live system telemetry
+        # POSTed there. Block classic SSRF targets on the LLM-suggested
+        # path only; human-configured commands never call this
+        # function, so their unrestricted behavior is unaffected #
+        if ocmd == "WEBHOOK" and not TaskAnalyzer._isWebhookTargetSafe(cmd):
+            return False
+        # SAVE-family's real syntax is CMD_SAVE{:TICK@NAME#PATH} -
+        # handleSaveCmd()'s own cmd.rsplit("#", 1) reads everything
+        # after the LAST "#" as an output-path override, and
+        # SysMgr.setReportPath() assigns that string straight into
+        # SysMgr.outPath with no base-dir join and no traversal check
+        # (unlike SNAPSHOT's "label", which is only a filename
+        # fragment). Every other command's trailing "#..." text is
+        # just an inert log comment, so this is scoped to SAVE-family
+        # only. #PATH is legitimate, documented behavior for
+        # human-authored guider.conf SAVE commands, which never call
+        # this validator - only the LLM-suggested path is restricted
+        # to the bare (no "#") form, which still writes safely under
+        # the configured SysMgr.outPath #
+        if (
+            ocmd in ("SAVE", "SAVERAW", "SAVEMIN") or ocmd in ConfigMgr.RESSET
+        ) and "#" in cmd:
+            return False
         if ocmd in TaskAnalyzer._LLM_ALLOW_CMDS:
             return True
         if ocmd in ConfigMgr.RESSET:
             return True
-        if allowRun and ocmd in ("RUN", "KILL", "TERM"):
+        # AUTOSIGNAL sends an arbitrary LLM-chosen signal (SIGKILL
+        # included, per its own doc/error text) to every process
+        # _getGovTargets() picks - not scoped to guider's own workers -
+        # so it needs the SAME allowRun opt-in gate as RUN/KILL/TERM,
+        # not the unconditional allow the rest of _LLM_ALLOW_CMDS gets #
+        if allowRun and ocmd in ("RUN", "KILL", "TERM", "AUTOSIGNAL"):
             return True
         if extraAllow and ocmd in extraAllow:
             return True
@@ -246786,8 +247536,33 @@ function isAutoNamedPlot(name) {{
                                         if inst and hasattr(
                                             inst, "handleEventCmd"
                                         ):
+                                            # _validateLLMCommand() just
+                                            # approved this via its own
+                                            # .upper()-normalized ocmd, but
+                                            # handleEventCmd()'s dispatch
+                                            # does NOT uppercase (it's
+                                            # shared with human-authored
+                                            # guider.conf threshold
+                                            # commands, which are always
+                                            # written in canonical case) -
+                                            # so a non-canonical-case LLM
+                                            # reply (e.g. "save") would
+                                            # pass validation here but
+                                            # match no elif branch and
+                                            # silently no-op. Normalize
+                                            # only the command-name prefix
+                                            # before dispatch, leaving the
+                                            # ':'/'#'-delimited argument
+                                            # or comment text untouched #
+                                            _ocmdRaw = c.split(":", 1)[
+                                                0
+                                            ].split("#", 1)[0]
+                                            _dispatchCmd = (
+                                                _ocmdRaw.upper()
+                                                + c[len(_ocmdRaw) :]
+                                            )
                                             inst.handleEventCmd(
-                                                c, "LLM", False
+                                                _dispatchCmd, "LLM", False
                                             )
                                         executedCmds.append(c)
                                     except SystemExit:
@@ -246849,6 +247624,9 @@ function isAutoNamedPlot(name) {{
                         "ts": SysMgr.dateTime,
                         "event": event,
                         "askType": askType,
+                        "provider": resolvedProvider,
+                        "model": response.model,
+                        "usage": response.usage,
                         "dryrun": _dryRun,
                         "cmds_executed": executedCmds,
                         "cmds_blocked": blockedCmds,
@@ -247002,8 +247780,15 @@ function isAutoNamedPlot(name) {{
         # set event name #
         name = "USER" if user else source
 
-        # set context string #
-        ctxstr = "by '%s' command from %s event" % (cmd, name)
+        # set context string - use only the part before any #KEY:VALUE
+        # inline-options suffix, since ASKAI/ASKRUN support APIKEY:<key>/
+        # BASEURL:<url> overrides there and ctxstr feeds nearly every log
+        # message in this function; using the raw cmd here would print a
+        # real API key to console/logs on every single dispatch #
+        ctxstr = "by '%s' command from %s event" % (
+            cmd.split("#", 1)[0],
+            name,
+        )
 
         # set command name #
         ocmd = cmd.split(":", 1)[0].split("#", 1)[0]
@@ -247514,10 +248299,63 @@ function isAutoNamedPlot(name) {{
             if pid < 0:
                 return None
 
+            # RUNTIMEOUT is opt-in (unset by default) - the default
+            # behavior stays "wait until it finishes", matching the
+            # previous os.wait() semantics exactly except for which
+            # child gets reaped (see below) #
+            runTimeout = None
+            if "RUNTIMEOUT" in SysMgr.environList:
+                try:
+                    runTimeout = float(SysMgr.environList["RUNTIMEOUT"])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    runTimeout = None
+
             # ignore signals and wait for children #
             SysMgr.setIgnoreSignal()
-            os.wait()
-            SysMgr.setNormalSignal()
+            try:
+                # os.wait() reaps whichever child exits first, not
+                # necessarily THIS pid - if guider has any other child
+                # outstanding at the same moment, os.wait() could reap
+                # that one instead and leave the real RUN child as an
+                # unreaped zombie forever. Wait on the specific pid
+                # instead; RUNTIMEOUT additionally bounds how long
+                # we'll wait before giving up and killing it #
+                if runTimeout is None:
+                    os.waitpid(pid, 0)
+                else:
+                    deadline = time.time() + runTimeout
+                    while True:
+                        try:
+                            waited, _ = os.waitpid(pid, os.WNOHANG)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            break
+                        if waited == pid:
+                            break
+                        if time.time() >= deadline:
+                            SysMgr.printWarn(
+                                "RUN command '%s' exceeded "
+                                "RUNTIMEOUT(%ss), killing pid %s"
+                                % (fullcmd, runTimeout, pid)
+                            )
+                            try:
+                                os.kill(pid, signal.SIGKILL)
+                                os.waitpid(pid, 0)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                pass
+                            break
+                        time.sleep(0.2)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+            finally:
+                SysMgr.setNormalSignal()
         # ASKAI / ASKRUN #
         elif ocmd in ("ASKAI", "ASKRUN"):
             # parse prompt and inline options after ASKAI:<PROMPT>#<OPTIONS> #
@@ -247660,6 +248498,14 @@ function isAutoNamedPlot(name) {{
         elif ocmd == "SNAPSHOT":
             rest = UtilMgr.lstrip(cmd, "SNAPSHOT")
             label = rest[1:].strip() if rest.startswith(":") else ""
+            # label feeds straight into the output filename below with
+            # no path-separator check - a "../"-laden label (from an
+            # LLM-suggested SNAPSHOT:../../etc/cron.d/pwn, since
+            # SNAPSHOT is unconditionally LLM-allowed) would otherwise
+            # let os.path.join()'s result escape outDir entirely. No
+            # legitimate label needs a path separator, so just strip
+            # them rather than reject the whole command #
+            label = label.replace("/", "_").replace("\\", "_")
             json = SysMgr.getPkg("json")
             if not json:
                 SysMgr.printErr("json module not available for SNAPSHOT")
@@ -247972,7 +248818,18 @@ function isAutoNamedPlot(name) {{
                     tcomm = proc.get("comm", "")
                     try:
                         os.kill(long(tpid), sigNum)
-                        if sigNum == signal.SIGSTOP:
+                        # any of these 4 signals stops the target by
+                        # default (no custom handler) - not just SIGSTOP -
+                        # so AUTORESTORE's SIGCONT sweep (which only
+                        # covers pids in "frozen") must track all of them
+                        # or e.g. AUTOSIGNAL:SIGTSTP leaves the target
+                        # permanently stopped, AUTORESTORE never runs #
+                        if sigNum in (
+                            signal.SIGSTOP,
+                            signal.SIGTSTP,
+                            signal.SIGTTIN,
+                            signal.SIGTTOU,
+                        ):
                             frozen.add(tpid)
                         elif sigNum == signal.SIGCONT:
                             frozen.discard(tpid)
@@ -248059,10 +248916,15 @@ function isAutoNamedPlot(name) {{
         elif ocmd == "AUTOLIMITCPU":
             try:
                 pct = long(UtilMgr.lstrip(cmd, "AUTOLIMITCPU:"))
+                if pct < 0 or pct > 100:
+                    raise ValueError("out of range")
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("wrong AUTOLIMITCPU format %s" % ctxstr)
+                SysMgr.printErr(
+                    "wrong AUTOLIMITCPU format %s (use percent 0~100 "
+                    "e.g. AUTOLIMITCPU:50)" % ctxstr
+                )
                 return None
 
             govState, procs = self._govSetup(source)
@@ -249048,7 +249910,32 @@ function isAutoNamedPlot(name) {{
         # check exit condition #
         if not SysMgr.thresholdEnable:
             return
-        elif not SysMgr.thrEvtList and not self.reportData["event"]:
+
+        # periodic LLM summarization (LLMPERIOD) - deliberately evaluated
+        # before the active-event early-return below, since it's meant to
+        # fire on a fixed wall-clock interval independent of whether any
+        # threshold condition is CURRENTLY active (this block used to sit
+        # after that early-return, making it unreachable for anyone who
+        # configured AIPERIODIC/LLMPERIOD without also having a threshold
+        # rule actively firing - the opposite of its documented behavior).
+        # Rate-limiting/re-entrancy is still handled by _runLLMAskThread's
+        # own SysMgr.llmEventRateTs/llmEventPending guards #
+        if SysMgr.llmPeriodicInterval > 0:
+            try:
+                now = time.time()
+                if now - SysMgr.llmPeriodicTs >= SysMgr.llmPeriodicInterval:
+                    SysMgr.llmPeriodicTs = now
+                    TaskAnalyzer._runLLMAskThread(
+                        "ASKAI",
+                        "Summarize monitoring session: events fired, trends, anomalies.",
+                        LLMMgr._buildLLMOptsFromEnv(),
+                        "_periodic_summary",
+                        self.reportData,
+                    )
+            except:
+                pass
+
+        if not SysMgr.thrEvtList and not self.reportData["event"]:
             return
 
         # print events #
@@ -249141,22 +250028,6 @@ function isAutoNamedPlot(name) {{
         # print event description #
         estr = UtilMgr.convDict2Str(self.reportData["event"], ignore=True)
         SysMgr.printWarn("%s" % estr)
-
-        # periodic LLM summarization (LLMPERIOD) #
-        if SysMgr.llmPeriodicInterval > 0:
-            try:
-                now = time.time()
-                if now - SysMgr.llmPeriodicTs >= SysMgr.llmPeriodicInterval:
-                    SysMgr.llmPeriodicTs = now
-                    TaskAnalyzer._runLLMAskThread(
-                        "ASKAI",
-                        "Summarize monitoring session: events fired, trends, anomalies.",
-                        LLMMgr._buildLLMOptsFromEnv(),
-                        "_periodic_summary",
-                        self.reportData,
-                    )
-            except:
-                pass
 
     def checkResourceThreshold(self):
         if not SysMgr.thrData:

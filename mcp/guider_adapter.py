@@ -42,6 +42,24 @@ _SAFE_IFACE = re.compile(r'^[a-zA-Z0-9_.-]{1,16}$')
 # guider's -F image output format values (drawSubStr help block)
 _SAFE_DRAW_FORMAT = {"svg", "png", "pdf", "ps", "eps", "html"}
 
+# andcmd's sub_command is a positional main_arg, not a "-q KEY:VALUE"
+# option, so it is invisible to BLOCKED_OPTS/_filter_opts() below, and
+# "andcmd" itself is a normal cataloged command so BLOCKED_COMMANDS never
+# sees it either. guider.py's AndroidMgr.checkAndCmd() accepts ANY value
+# in ConfigMgr.ANDCMDLIST (50+ entries), most of which are state-mutating
+# (INSTALLPKG, GRANTPERM/REVOKEPERM, BROADCAST, CLEARDATA, SETSETTINGS,
+# ...) — restrict this adapter to the read-only diagnostic subset the
+# andcmd catalog entry actually documents (guider_catalog.py's
+# "main_arg_desc" for andcmd)
+_ANDCMD_ALLOWED_SUBCOMMANDS = {
+    "GETSELINUX",
+    "GETPKGLIST",
+    "GETPROCLIST",
+    "GETBINDERSTATS",
+    "GETAPPSTAT",
+    "GETPKGATTR",
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -160,6 +178,20 @@ class GuiderAdapter:
         if meta is None:
             envelope["error"] = f"unknown command '{command}'. Use guiderHelp to list."
             return envelope
+
+        # andcmd's sub-command is a positional arg, not a "-q" option, so
+        # it bypasses BLOCKED_OPTS entirely — enforce its own allowlist
+        # here (see _ANDCMD_ALLOWED_SUBCOMMANDS comment above). Normalize
+        # the same way guider.py's own AndroidMgr.checkAndCmd() does
+        # (split on ":" first, then upper()) so casing can't bypass this.
+        if command == "andcmd":
+            sub_key = (main_arg or "").split(":", 1)[0].strip().upper()
+            if sub_key not in _ANDCMD_ALLOWED_SUBCOMMANDS:
+                envelope["error"] = (
+                    f"andcmd sub-command '{main_arg}' is not permitted "
+                    f"(allowed: {sorted(_ANDCMD_ALLOWED_SUBCOMMANDS)})"
+                )
+                return envelope
 
         # validate extra_opts
         warnings: list[str] = []
