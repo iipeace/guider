@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260818"
+__revision__ = "260819"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33204,10 +33204,33 @@ class LLMMgr(object):
                 requestsMod, url, self.maxRetry, **kwargs
             )
 
+        @staticmethod
+        def _isCachePrimingTurn(entry):
+            """Detect ClaudeLLM's one-time system-prompt-as-history-turn
+            (a single content block carrying an explicit cache_control
+            marker) so _trimHistory() can keep it pinned at history[0]
+            instead of silently evicting and never being able to restore
+            it (chat()'s insertion is gated on "history is empty")."""
+            if not isinstance(entry, dict) or entry.get("role") != "user":
+                return False
+            content = entry.get("content")
+            if not isinstance(content, list) or len(content) != 1:
+                return False
+            block = content[0]
+            return isinstance(block, dict) and "cache_control" in block
+
         def _trimHistory(self):
             """Trim history to maxHistory limit, keeping the most recent messages"""
             if len(self.history) > self.maxHistory:
-                trimmed = len(self.history) - self.maxHistory
+                pinned = (
+                    1
+                    if self.history
+                    and LLMMgr.BaseLLM._isCachePrimingTurn(self.history[0])
+                    else 0
+                )
+                rest = self.history[pinned:]
+                keep = max(0, self.maxHistory - pinned)
+                trimmed = len(rest) - keep
                 # advance to the next "user"-role entry so a multi-message
                 # turn never gets split - analyze(useHistoryForAnalyze=True)
                 # can record a cache-priming/system message ahead of the
@@ -33218,11 +33241,10 @@ class LLMMgr(object):
                 # model reply, which providers with strict role alternation
                 # (e.g. Claude) would reject on the next chat() call #
                 while (
-                    trimmed < len(self.history)
-                    and self.history[trimmed].get("role") != "user"
+                    trimmed < len(rest) and rest[trimmed].get("role") != "user"
                 ):
                     trimmed += 1
-                self.history = self.history[trimmed:]
+                self.history = self.history[:pinned] + rest[trimmed:]
                 SysMgr.printWarn(
                     "history trimmed: removed {0} old messages (limit: {1})".format(
                         trimmed, self.maxHistory
@@ -33340,6 +33362,17 @@ class LLMMgr(object):
             their own provider-specific response shape, then hand off the
             arithmetic/dict-shape to this single implementation.
             """
+            # every official SDK models these as Optional[int] = None, so
+            # a field can be genuinely PRESENT but None (e.g. Gemini's
+            # cached_content_token_count when a request doesn't hit the
+            # cache - the common case) - the callers' own getattr(...,0)/
+            # .get(...,0) only substitutes a default when the field is
+            # missing entirely, not when it's present-but-None, so
+            # without this normalization "cacheRead > 0" below raises
+            # TypeError and discards an already-successful API response #
+            cacheCreation = cacheCreation or 0
+            cacheRead = cacheRead or 0
+            totalPrompt = totalPrompt or 0
             cacheHit = cacheRead > 0
             savingsPercent = (
                 (cacheRead / totalPrompt * discountRate)
@@ -33691,7 +33724,15 @@ class LLMMgr(object):
                         else None
                     )
                     self.lastCacheStats = cacheStats
+                    # chat() already guards against this (round 38) -
+                    # analyze() never did, so a content-filtered/empty
+                    # stream could poison history the same way when
+                    # useHistoryForAnalyze is set #
                     if self.useHistoryForAnalyze:
+                        if not analyzeText:
+                            raise ValueError(
+                                "Empty response content from Gemini API"
+                            )
                         self.history.append(
                             {"role": "user", "parts": [{"text": fullPrompt}]}
                         )
@@ -33738,6 +33779,10 @@ class LLMMgr(object):
 
                 # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
+                    if not response.text:
+                        raise ValueError(
+                            "Empty response content from Gemini API"
+                        )
                     self.history.append(
                         {"role": "user", "parts": [{"text": fullPrompt}]}
                     )
@@ -34047,11 +34092,21 @@ class LLMMgr(object):
                 # Build messages with optional caching
                 messages = []
 
-                # Add cached system prompt if enabled and meets minimum token requirement
+                # Add cached system prompt if enabled and meets minimum
+                # token requirement. When useHistoryForAnalyze persists
+                # this turn into self.history below, skip re-adding it
+                # once it's already pinned at history[0] - otherwise a
+                # fresh duplicate would be appended (and sent to the API)
+                # on every single analyze() call instead of just once #
                 if (
                     self.enableCache
                     and self.cacheSystemPrompt
                     and self._shouldCache(self.cacheSystemPrompt)
+                    and not (
+                        self.useHistoryForAnalyze
+                        and self.history
+                        and self._isCachePrimingTurn(self.history[0])
+                    )
                 ):
                     messages.append(
                         {
@@ -34563,10 +34618,27 @@ class LLMMgr(object):
                 # Build messages with user turn (without mutating history yet)
                 userMsg = {"role": "user", "content": message}
 
+                # unlike analyze() (which already does this), chat()
+                # never sent cacheSystemPrompt at all - callers relying
+                # on setCacheSystemPrompt() (e.g. TaskAnalyzer's ASKRUN
+                # system prompt, which spells out the allowed-command
+                # list and required JSON output format) silently got no
+                # system-role message whatsoever for this provider,
+                # leaving the model to respond with no instructions on
+                # format/scope. Mirror analyze()'s handling here without
+                # touching self.history, so the system prompt isn't
+                # persisted across turns any more than Claude/Gemini's
+                # own system-param handling persists theirs #
+                messages = list(self.history) + [userMsg]
+                if self.cacheSystemPrompt:
+                    messages = [
+                        {"role": "system", "content": self.cacheSystemPrompt}
+                    ] + messages
+
                 # Prepare create kwargs with optional extended cache retention
                 createKwargs = {
                     "model": self.model,
-                    "messages": self.history + [userMsg],
+                    "messages": messages,
                 }
                 if sendTemperature:
                     createKwargs["temperature"] = temperature
@@ -35006,7 +35078,14 @@ class LLMMgr(object):
                     analyzeContent, usageData = self._parseStreamResponse(
                         response
                     )
+                    # chat() already guards against this via
+                    # _appendAssistantReply() (round 38) - analyze()
+                    # never did, so an empty stream could poison
+                    # history the same way when useHistoryForAnalyze
+                    # is set #
                     if self.useHistoryForAnalyze:
+                        if not analyzeContent:
+                            raise ValueError("Empty response content from API")
                         self.history.extend(messages)
                         self.history.append(
                             {"role": "assistant", "content": analyzeContent}
@@ -35062,6 +35141,8 @@ class LLMMgr(object):
 
                 # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
+                    if not analyzeContent:
+                        raise ValueError("Empty response content from API")
                     self.history.extend(messages)
                     self.history.append(
                         {
@@ -35405,8 +35486,13 @@ class LLMMgr(object):
                     "generationConfig": {"temperature": temperature},
                 }
 
-                # Add system instruction if caching is enabled
-                if self.enableCache and self.cacheSystemPrompt:
+                # send whenever a system prompt is set, regardless of
+                # caching - Gemini's REST systemInstruction field has
+                # nothing to do with response caching, and gating it
+                # behind enableCache (default False) silently dropped
+                # ASKRUN's system prompt whenever this provider was
+                # selected, the same bug class fixed for OpenAILLM #
+                if self.cacheSystemPrompt:
                     payload["systemInstruction"] = {
                         "parts": [{"text": self.cacheSystemPrompt}]
                     }
@@ -35573,8 +35659,9 @@ class LLMMgr(object):
                     "generationConfig": {"temperature": temperature},
                 }
 
-                # Add system instruction if caching is enabled
-                if self.enableCache and self.cacheSystemPrompt:
+                # see the identical comment in analyze() above - send
+                # whenever set, regardless of caching #
+                if self.cacheSystemPrompt:
                     payload["systemInstruction"] = {
                         "parts": [{"text": self.cacheSystemPrompt}]
                     }
@@ -35876,9 +35963,13 @@ class LLMMgr(object):
 
                 headers = self._buildHeaders()
 
-                # Build messages with optional system prompt for caching
+                # send whenever a system prompt is set, regardless of
+                # caching - gating this behind enableCache (default
+                # False) silently dropped ASKRUN's system prompt
+                # whenever this provider was selected, the same bug
+                # class fixed for the official OpenAILLM class #
                 messages = []
-                if self.enableCache and self.cacheSystemPrompt:
+                if self.cacheSystemPrompt:
                     messages.append(
                         {"role": "system", "content": self.cacheSystemPrompt}
                     )
@@ -35920,7 +36011,14 @@ class LLMMgr(object):
                     assistantContent, promptTokens, completionTokens = (
                         self._parseOpenAISSEStream(response)
                     )
+                    # chat() already guards against this via
+                    # _appendAssistantReply() (round 38) - analyze()
+                    # never did, so an empty stream could poison
+                    # history the same way when useHistoryForAnalyze
+                    # is set #
                     if self.useHistoryForAnalyze:
+                        if not assistantContent:
+                            raise ValueError("Empty response content from API")
                         self.history.extend(messages)
                         self.history.append(
                             {"role": "assistant", "content": assistantContent}
@@ -35959,6 +36057,8 @@ class LLMMgr(object):
 
                 # Add to history if history mode is enabled
                 if self.useHistoryForAnalyze:
+                    if not assistantContent:
+                        raise ValueError("Empty response content from API")
                     self.history.extend(messages)
                     self.history.append(
                         {
@@ -36012,9 +36112,10 @@ class LLMMgr(object):
                 userMsg = {"role": "user", "content": message}
                 pendingHistory = self.history + [userMsg]
 
-                # Build messages with optional system prompt
+                # see the identical comment in analyze() above - send
+                # whenever set, regardless of caching #
                 messages = []
-                if self.enableCache and self.cacheSystemPrompt:
+                if self.cacheSystemPrompt:
                     messages.append(
                         {"role": "system", "content": self.cacheSystemPrompt}
                     )
@@ -36292,7 +36393,22 @@ class LLMMgr(object):
             data = sorted(
                 result.get("data", []), key=lambda item: item.get("index", 0)
             )
-            embeddings = [item["embedding"] for item in data]
+            if not data:
+                raise ValueError("Empty embedding response from API")
+            embeddings = []
+            for item in data:
+                vec = item.get("embedding")
+                if not vec:
+                    # an empty vector would otherwise pass through
+                    # silently (BaseEmbedder.cosineSimilarity() treats
+                    # a zero vector as a safe 0.0 score, not an error),
+                    # so a failed embedding call would just look like
+                    # a permanently-irrelevant RAG chunk with no signal
+                    # that anything went wrong. Fail loud instead #
+                    raise ValueError(
+                        "Empty or malformed embedding response from API"
+                    )
+                embeddings.append(vec)
             usage = result.get("usage")
 
             return LLMMgr.EmbeddingResponse(
@@ -36388,7 +36504,24 @@ class LLMMgr(object):
                 config=config,
             )
 
-            embeddings = [list(e.values) for e in (result.embeddings or [])]
+            # an empty embeddings list, or an item with no/empty
+            # .values, would otherwise pass through silently
+            # (BaseEmbedder.cosineSimilarity() treats a zero vector as
+            # a safe 0.0 score, not an error), so a failed embedding
+            # call would just look like a permanently-irrelevant RAG
+            # chunk with no signal that anything went wrong. Fail
+            # loud instead #
+            if not result.embeddings:
+                raise ValueError("Empty embedding response from Gemini API")
+            embeddings = []
+            for e in result.embeddings:
+                vals = getattr(e, "values", None)
+                if not vals:
+                    raise ValueError(
+                        "Empty or malformed embedding response from "
+                        "Gemini API"
+                    )
+                embeddings.append(list(vals))
 
             # usage/statistics fields are Vertex-API-only and Optional
             # even there, so extraction must be getattr-safe - the
@@ -37179,13 +37312,20 @@ class LLMMgr(object):
             except Exception:
                 pass
 
-        # DMESG: kernel messages via SysMgr.getKmsg
+        # DMESG: kernel messages via LogMgr.getKmsg (this referenced the
+        # non-existent SysMgr.getKmsg until now, so DMESG context was
+        # silently a permanent no-op - always AttributeError, swallowed
+        # by the except below) #
         if "DMESG" in ctx_cfg:
             try:
                 n = int(ctx_cfg["DMESG"])
-                extras["dmesg"] = (
-                    SysMgr.getKmsg(n) or []  # pylint: disable=no-member
-                )
+                # kernel message bodies can embed attacker-influenceable
+                # unbounded text (e.g. long filenames in a segfault/OOM/
+                # audit log line), unlike the kernel-truncated comm field,
+                # so cap each line before it reaches the LLM prompt #
+                extras["dmesg"] = [
+                    line[:500] for line in (LogMgr.getKmsg(n) or [])
+                ]
             except Exception:
                 pass
 
@@ -37216,7 +37356,11 @@ class LLMMgr(object):
                 result = {}
                 cpuData = (inst and getattr(inst, "cpuData", None)) or {}
                 for key, vals in cpuData.items():
-                    if key == "all" or not isinstance(vals, dict):
+                    # cpuData also carries non-per-CPU single-field
+                    # counters (ctxt/intr/softirq/processes/...) keyed
+                    # by name with no "idle" field - only integer keys
+                    # are real per-CPU core stat dicts #
+                    if not isinstance(key, int) or not isinstance(vals, dict):
                         continue
                     total = sum(vals.values())
                     idle = vals.get("idle", 0)
@@ -37855,11 +37999,30 @@ class LLMMgr(object):
                                 "with: Executive Summary, Key Findings, Recommendations. "
                                 "Use markdown formatting."
                             )
-                            with open(reportPath, "w") as f:
-                                f.write(response.content)
+                            # show the generated report before ever
+                            # trying to save it - unlike every other
+                            # REPL command, this one used to be the
+                            # ONLY place the assistant's reply was
+                            # never printed, so a later save failure
+                            # (e.g. reportPath's directory doesn't
+                            # exist) silently discarded content that
+                            # already cost a real API call #
                             SysMgr.printPipe(
-                                "\n[Report saved: {0}]\n".format(reportPath)
+                                "\n{0}\n".format(response.content)
                             )
+                            if SysMgr.writeFile(
+                                reportPath, response.content, verb=False
+                            ):
+                                SysMgr.printPipe(
+                                    "\n[Report saved: {0}]\n".format(
+                                        reportPath
+                                    )
+                                )
+                            else:
+                                SysMgr.printErr(
+                                    "failed to save report to '{0}' "
+                                    "(content shown above)".format(reportPath)
+                                )
                         except Exception as e:
                             SysMgr.printErr(
                                 "report failed: {0}".format(str(e))
@@ -39331,11 +39494,25 @@ class LLMMgr(object):
                 providers.append("custom-claude")
                 providers.append("custom-gemini")
                 providers.append("custom-openai")
-        if os.getenv("ANTHROPIC_API_KEY"):
+        # require the SDK to actually be importable too, not just the
+        # API key env var - otherwise a stale/unrelated key (e.g. set
+        # for some other tool) for a provider whose SDK isn't
+        # installed would shadow a fully-configured, working provider
+        # later in this same list, turning an avoidable ImportError
+        # into the only outcome auto-detection ever produces.
+        # SysMgr.getPkg() caches the import, so this costs nothing
+        # extra when the real instance is constructed later #
+        if os.getenv("ANTHROPIC_API_KEY") and SysMgr.getPkg(
+            "anthropic", isExit=False
+        ):
             providers.append("claude")
-        if os.getenv("OPENAI_API_KEY"):
+        if os.getenv("OPENAI_API_KEY") and SysMgr.getPkg(
+            "openai", isExit=False
+        ):
             providers.append("openai")
-        if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+        if (
+            os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        ) and SysMgr.getPkg("google.genai", isExit=False):
             providers.append("gemini")
 
         return providers
@@ -39375,6 +39552,27 @@ class LLMMgr(object):
             kwargs["requestTimeout"] = timeout
         apiKey = opts.get("apiKey") or os.getenv("CUSTOM_API_KEY")
         baseUrl = opts.get("baseUrl") or os.getenv("CUSTOM_BASE_URL")
+        if not apiKey and provider:
+            # standard (non-custom) providers resolve their own key
+            # from a provider-specific env var once, at construction
+            # time, and hold it in self.apiKey for the cached
+            # instance's whole lifetime - since apiKey wasn't part of
+            # getLLM()'s cache key for these providers, rotating a key
+            # in guider.conf (which gets re-written into these same
+            # env vars on every call) had no effect on an already-
+            # cached instance until some OTHER kwarg also changed or
+            # the process restarted. Snapshot each provider's PRIMARY
+            # env var here too (not the full fallback chain each
+            # class's own _getApiKeyFromEnv() checks, to avoid
+            # duplicating that logic) so a changed key usually busts
+            # the cache and a fresh instance picks it up #
+            _primaryEnvVar = {
+                "claude": "ANTHROPIC_API_KEY",
+                "gemini": "GEMINI_API_KEY",
+                "openai": "OPENAI_API_KEY",
+            }.get(provider.lower())
+            if _primaryEnvVar:
+                apiKey = os.getenv(_primaryEnvVar)
         if apiKey:
             kwargs["apiKey"] = apiKey
         if baseUrl:
@@ -45763,7 +45961,7 @@ trigger_config {
 
             # get default and psutil stats #
             name = stats.get("comm", "?")
-            serviceList[name] = {"pid": pid}
+            serviceList[name] = {"pid": long(pid)}
             service = serviceList[name]
             service["status"] = "running"
             service["comm"] = procData[pid].get("comm", "?")
@@ -45842,7 +46040,15 @@ trigger_config {
         # get sort attr #
         if "SORT" in SysMgr.environList:
             sortval = SysMgr.environList["SORT"][0].lower()
-            if sortval not in ("cpu", "rss", "pid", "status", "comm", "name"):
+            if sortval not in (
+                "boot",
+                "cpu",
+                "rss",
+                "pid",
+                "status",
+                "comm",
+                "name",
+            ):
                 SysMgr.printErr("no sort value '%s'" % sortval)
                 sys.exit(0)
         else:
@@ -45850,9 +46056,15 @@ trigger_config {
 
         # print boot time #
         printed = False
+        # use a type-matching default per sort key so mixed present/absent #
+        # values (e.g. str fields defaulting to int 0) never crash sorted() #
+        sortDefault = "" if sortval in ("status", "comm", "name") else 0
         for name, v in sorted(
             serviceList.items(),
-            key=lambda x: (x[1].get(sortval, 0), x[1].get("status", "")),
+            key=lambda x: (
+                x[1].get(sortval, sortDefault),
+                x[1].get("status", ""),
+            ),
         ):
             namestr = name
             pid = v.get("pid", "")
@@ -83680,6 +83892,7 @@ Key Value List:
                     "memtop",
                     "ntop",
                     "overlay",
+                    "printboot",
                     "ps",
                     "pslist",
                     "remove",
@@ -84314,6 +84527,14 @@ Key Value List:
 
                 # print process list #
                 SysMgr.doPs()
+
+            elif mainCmd == "printboot":
+                # set output (jsonEnable/SORT are already applied from
+                # the '-J'/'-q SORT:<key>' options via parseAnalOption) #
+                _setOutput(connObj)
+
+                # print boot service info #
+                AndroidMgr.doPrintBoot()
 
             elif mainCmd in ("memtop", "memmon"):
                 if not cmdOpt:
@@ -246951,7 +247172,7 @@ function isAutoNamedPlot(name) {{
             },
             "system": SysMgr.sysSnapshot(),
             "top_processes": SysMgr.topProcs(ctxDepth, topProcSort),
-            "active_events": list(SysMgr.thrEvtList.keys()),
+            "active_events": list(dict(SysMgr.thrEvtList).keys()),
         }
         # add time-series metric history from intervalData
         try:
@@ -247265,6 +247486,30 @@ function isAutoNamedPlot(name) {{
             ocmd in ("SAVE", "SAVERAW", "SAVEMIN") or ocmd in ConfigMgr.RESSET
         ) and "#" in cmd:
             return False
+        # a bare (no duration) PAUSE waits until a human sends RESTART -
+        # but RESTART is unconditionally in _LLM_BLOCK_CMDS above, so
+        # the LLM itself can NEVER undo a PAUSE it triggers; a bare
+        # SLEEP is worse still, looping forever with no wake condition
+        # at all. Either one permanently wedges the entire threshold/
+        # ASKRUN dispatcher (see the printEnable/waitEnable gate near
+        # the top of this function) with zero LLM-reachable recovery -
+        # a categorically bigger blast radius than the rest of
+        # _LLM_ALLOW_CMDS gets. The timed form (PAUSE:<N>/SLEEP:<N>) is
+        # self-bounding (and, since the fix above, self-restoring) so
+        # it stays allowed; only the bare/indefinite form is blocked
+        # here, using the exact same bare-detection the handler itself
+        # uses #
+        if ocmd in ("PAUSE", "SLEEP"):
+            # bare-detection must be case-insensitive since this
+            # validator (unlike the handler) is called on the LLM's
+            # raw, non-canonical-case string BEFORE dispatch-time
+            # normalization - comparing against the already-upper()ed
+            # "ocmd" above requires upper()ing "cmd" the same way #
+            _cmdUpper = cmd.upper()
+            _duration = UtilMgr.lstrip(_cmdUpper, "PAUSE:")
+            _duration = UtilMgr.lstrip(_duration, "SLEEP:")
+            if _cmdUpper == ocmd or not _duration:
+                return False
         if ocmd in TaskAnalyzer._LLM_ALLOW_CMDS:
             return True
         if ocmd in ConfigMgr.RESSET:
@@ -247285,12 +247530,29 @@ function isAutoNamedPlot(name) {{
         """Append a JSONL audit record to the audit log file."""
         if not logPath:
             return
-        json = SysMgr.getPkg("json")
-        if not json:
-            return
-        SysMgr.writeFile(
-            logPath, json.dumps(entry) + "\n", append=True, verb=False
-        )
+        # audit logging is best-effort, not load-bearing - this call
+        # sits in the same try block as the #SAVE report write in the
+        # caller, so an unguarded exception here (e.g. a non-JSON-
+        # serializable value ending up in entry) would propagate up
+        # and silently skip that unrelated, already-due report too.
+        # writeFile()'s own failures are also surfaced here instead of
+        # vanishing silently (it returns False rather than raising) #
+        try:
+            json = SysMgr.getPkg("json")
+            if not json:
+                return
+            if not SysMgr.writeFile(
+                logPath, json.dumps(entry) + "\n", append=True, verb=False
+            ):
+                SysMgr.printWarn(
+                    "failed to write LLM audit log entry to '%s'" % logPath
+                )
+        except SystemExit:
+            sys.exit(0)
+        except Exception as ex:
+            SysMgr.printWarn(
+                "failed to write LLM audit log entry: %s" % str(ex)
+            )
 
     @staticmethod
     def _writeLLMReport(
@@ -247724,6 +247986,13 @@ function isAutoNamedPlot(name) {{
                         "model": response.model,
                         "usage": response.usage,
                         "dryrun": _dryRun,
+                        # the raw LLM response text - previously the
+                        # only content this entry ever got was the
+                        # ASKRUN-specific "analysis" field below, so an
+                        # ASKAI (informational-only) entry recorded
+                        # nothing but metadata: no trace of what the
+                        # LLM actually said #
+                        "response": responseText,
                         "cmds_executed": executedCmds,
                         "cmds_blocked": blockedCmds,
                     }
@@ -248261,6 +248530,33 @@ function isAutoNamedPlot(name) {{
             if not SysMgr.loadConfig(path):
                 return None
 
+            # re-apply <init>.OPTION (e.g. AIPERIODIC/LLMPERIOD) so a
+            # RELOAD actually picks up changes to it; this mirrors the
+            # startup-time application at process init, which otherwise
+            # only ever runs once and leaves these values stale until
+            # the process is restarted. Deliberately NOT re-calling
+            # SysMgr.applySelfInit() here: it also re-arms CHILDWATCHDOG,
+            # which spawns its own infinite worker thread, and doing
+            # that on every RELOAD would leak a duplicate watchdog
+            # thread each time rather than just refresh a value #
+            init = SysMgr.getConfigItem("init")
+            if init:
+                opt = init.get("OPTION")
+                if opt and isinstance(opt, str):
+                    opt = opt.strip()
+                    if opt and not opt.startswith("-"):
+                        _parts = [
+                            p.strip().rstrip(",")
+                            for p in opt.replace(",", " ").split()
+                            if p.strip().rstrip(",")
+                        ]
+                        opt = "-q " + ",".join(_parts)
+                    if opt:
+                        SysMgr.printInfo("apply new option list '%s'" % opt)
+                        SysMgr.newOption = opt
+                        SysMgr.parseAnalOption(opt)
+            LLMMgr._initPeriodicAI()
+
             # reload threshold config #
             SysMgr.applyThreshold()
         # PAUSE #
@@ -248309,6 +248605,18 @@ function isAutoNamedPlot(name) {{
                     duration -= 1
                     if duration == 0:
                         SysMgr.printInfo("wake up from sleep mode " + ctxstr)
+                        # a timed PAUSE must actually resume monitoring
+                        # once its duration elapses - nothing else ever
+                        # reset these flags, so even a finite
+                        # "PAUSE:N" previously left the entire
+                        # threshold/ASKRUN dispatcher permanently
+                        # gated closed (see the printEnable/waitEnable
+                        # check near the top of this function) exactly
+                        # like an un-timed PAUSE #
+                        if ocmd == "PAUSE":
+                            SysMgr.printEnable = True
+                            SysMgr.logEnable = True
+                            SysMgr.waitEnable = False
                         return True
 
                 self.checkServer()
@@ -248675,7 +248983,18 @@ function isAutoNamedPlot(name) {{
                         k = k.strip().upper()
                         v = v.strip()
                         if k == "PROVIDERS":
-                            providers = [p for p in v.split(":") if p]
+                            # normalize case here so e.g. "Claude" and
+                            # "claude" dedupe/cache as the same
+                            # provider - LLMFactory.create() already
+                            # lower()s before dispatch so the actual
+                            # API call was always correct, but the
+                            # raw, un-normalized string was used as
+                            # both the rate-limit/dedup key ("%s:%s" %
+                            # (source, _prov) below) and the getLLM()
+                            # cache key, so mixed-case duplicates
+                            # bypassed dedup and wasted a second
+                            # cached instance #
+                            providers = [p.lower() for p in v.split(":") if p]
                         elif k == "SAVE":
                             # bare flag -> "true" (auto path), else explicit path #
                             saveOpt = v
