@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260819"
+__revision__ = "260820"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -1108,7 +1108,7 @@ class ConfigMgr(object):
         "aarch64": 280,
         "arm": 386,
         "x86": 357,
-        "riscv64": 214,
+        "riscv64": 280,
     }
 
     # BPF helper function IDs (linux/bpf.h) #
@@ -3925,7 +3925,7 @@ class ConfigMgr(object):
         "sys_sched_rr_get_interval_time64",
     ]
 
-    # common syscalls from 424 ~ 469 #
+    # common syscalls from 424 ~ 472 #
     SYSCALL_COMMON = [
         "sys_pidfd_send_signal",
         "sys_io_uring_setup",
@@ -3973,6 +3973,9 @@ class ConfigMgr(object):
         "sys_open_tree_attr",
         "sys_file_getattr",
         "sys_file_setattr",
+        "sys_listns",
+        "sys_rseq_slice_yield",
+        "sys_fchroot",
     ]
 
     # 64bit syscalls #
@@ -5446,6 +5449,7 @@ class ConfigMgr(object):
 
     # syscall for riscv64 #
     SYSCALL_RISCV64 = list(SYSCALL_64)
+    SYSCALL_RISCV64[258] = "riscv_hwprobe"
     SYSCALL_RISCV64[259] = "riscv_flush_icache"
 
     # default syscall list #
@@ -6519,7 +6523,7 @@ class ConfigMgr(object):
 
     @staticmethod
     def getMmapId():
-        if SysMgr.arch == "arm":
+        if SysMgr.arch in ("arm", "x86"):
             return SysMgr.getNrSyscall("sys_mmap2")
         else:
             return SysMgr.getNrSyscall("sys_mmap")
@@ -7267,22 +7271,27 @@ class UtilMgr(object):
 
         # print objects #
         jsonData = {}
+        warnings = SysMgr.getPkg("warnings", False)
         for obj in objList:
             try:
                 itemDict = {}
-                for attr in attrs:
-                    if not hasattr(obj, attr):
-                        continue
+                with warnings.catch_warnings():
+                    # ignore noise from deprecated attrs of reflected objects #
+                    warnings.simplefilter("ignore", DeprecationWarning)
 
-                    val = getattr(obj, attr)
-                    if not isinstance(val, (str, long, bytes)):
-                        continue
+                    for attr in attrs:
+                        if not hasattr(obj, attr):
+                            continue
 
-                    itemDict[attr] = getattr(obj, attr)
+                        val = getattr(obj, attr)
+                        if not isinstance(val, (str, long, bytes)):
+                            continue
 
-                repName = (
-                    getattr(obj, rep) if rep and hasattr(obj, rep) else ""
-                )
+                        itemDict[attr] = val
+
+                    repName = (
+                        getattr(obj, rep) if rep and hasattr(obj, rep) else ""
+                    )
                 if nameFilter and not UtilMgr.isValidStr(repName, nameFilter):
                     continue
                 elif SysMgr.jsonEnable:
@@ -28643,7 +28652,7 @@ class LogMgr(object):
 
     # android data #
     andStat = {}
-    andIntMsg = []
+    andIntMsg = {"cnt": 0, "comm": {}}
     andData = {"cnt": 0, "comm": {}, "tag": {}}
     andLevData = {}
     andSubLevData = {}
@@ -28687,6 +28696,10 @@ class LogMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr("failed to open '%s'" % target, True)
+                # fall back to the real stderr so write() doesn't recurse #
+                # forever through __getattr__ over a missing self.terminal #
+                self.terminal = sys.__stderr__
+                self.error = True
 
     def write(self, message):
         if not message:
@@ -28753,6 +28766,9 @@ class LogMgr(object):
                 pass
         try:
             if hasattr(self, "notified") and not self.notified:
+                # set before printErr() so its recursive write() call #
+                # doesn't re-enter this branch #
+                self.notified = True
                 SysMgr.printErr(
                     (
                         "please report '%s' to "
@@ -28762,7 +28778,6 @@ class LogMgr(object):
                     if self.errFd
                     else "error"
                 )
-                self.notified = True
 
             # write log to the file #
             if self.errFd:
@@ -28782,41 +28797,59 @@ class LogMgr(object):
     def _lock(fd, lock=True):
         # pylint: disable=undefined-variable
         if not SysMgr.isLinux:
-            return
+            return True
 
-        if lock:
-            lname = "lock"
-        else:
-            lname = "unlock"
+        if not lock:
+            # unlock: nothing to release if we never acquired it #
+            if fd not in LogMgr.lockStat:
+                return True
+            try:
+                if SysMgr.importPkgItems("fcntl", isExit=False):
+                    lockf(fd, LOCK_UN, 1, 0, 0)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                name = fd.name if fd else "logger"
+                reason = SysMgr.getErrMsg()
+                print(
+                    "\n[ERROR] failed to unlock for %s because %s"
+                    % (name, reason)
+                )
+            # clear the held flag only when actually released #
+            LogMgr.lockStat.pop(fd, None)
+            return True
 
-        # TODO: this is not thread-safety #
+        # lock: already held by this process -> reentrant call, fail closed #
         if fd in LogMgr.lockStat:
             if SysMgr.warnEnable:
                 print(
                     UtilMgr.convColor(
-                        ("\n[ERROR] tried to %s %s again" % (lname, fd)), "RED"
+                        ("\n[ERROR] tried to lock %s while still held" % fd),
+                        "RED",
                     )
                 )
-            return
+            return False
 
-        # save lock status #
+        # held until the matching unlock call, not just for the duration #
+        # of this lockf() call #
         LogMgr.lockStat[fd] = True
 
         try:
             if SysMgr.importPkgItems("fcntl", isExit=False):
-                lockf(fd, LOCK_EX if lock else LOCK_UN, 1, 0, 0)
+                lockf(fd, LOCK_EX, 1, 0, 0)
         except SystemExit:
             sys.exit(0)
         except:
+            # actual acquisition failed, so undo the held flag too #
+            LogMgr.lockStat.pop(fd, None)
             name = fd.name if fd else "logger"
             reason = SysMgr.getErrMsg()
             print(
-                "\n[ERROR] failed to %s for %s because %s"
-                % (lname, name, reason)
+                "\n[ERROR] failed to lock for %s because %s" % (name, reason)
             )
+            return False
 
-        # remove lock status #
-        LogMgr.lockStat.pop(fd, None)
+        return True
 
     @staticmethod
     def lock(fd):
@@ -29157,7 +29190,7 @@ class LogMgr(object):
     @staticmethod
     def parseBinderData(data):
         task = data.get("tgid" if SysMgr.processEnable else "thread")
-        if task.startswith("-"):
+        if not task or task.startswith("-"):
             task = data.get("thread")
         tid = data.get("thread")
         func = data.get("func")
@@ -29384,7 +29417,7 @@ class LogMgr(object):
 
         # save task count #
         tid = data.get("tgid" if SysMgr.processEnable else "thread")
-        if tid[0] == "-":
+        if not tid or tid[0] == "-":
             tid = data.get("thread")
         if tid not in funcStat:
             funcStat[tid] = {"cnt": 0, "comm": data.get("comm")}
@@ -29615,7 +29648,7 @@ class LogMgr(object):
                     pid = "0"
                 else:
                     pid = values.get("pid")
-                    if pid.startswith("-"):
+                    if not pid or pid.startswith(("<.", "-")):
                         pid = tid
 
                 # save first values #
@@ -29702,15 +29735,15 @@ class LogMgr(object):
                         return False
 
                 if condMinLt != -1:
-                    if callCnt > condMinLt:
+                    if timeMin > condMinLt:
                         return False
 
                 if condAvgLt != -1:
-                    if callCnt > condAvgLt:
+                    if timeAvg > condAvgLt:
                         return False
 
                 if condMaxLt != -1:
-                    if callCnt > condMaxLt:
+                    if timeMax > condMaxLt:
                         return False
 
             return True
@@ -30777,7 +30810,7 @@ class LogMgr(object):
                     ):
                         taskInfo = d.get("comm") + "-" + d.get("thread")
                         procInfo = comm + "-" + tgid
-                        log = log.replace(taskInfo, procInfo)
+                        log = log.replace(taskInfo, procInfo, 1)
                         lenDiff = len(log) - origLen
                         if lenDiff > 0:
                             log = log[lenDiff:]
@@ -30918,25 +30951,12 @@ class LogMgr(object):
     @staticmethod
     def printAndSummary():
         # define summary data #
-        total = 0
-        msgs = {}
         convNum = UtilMgr.convNum
 
-        # summarize messages #
-        for intval in LogMgr.andIntMsg:
-            total += intval.pop("cnt", 0)
-
-            for comm, tags in intval["comm"].items():
-                # set default comm dict #
-                msgs.setdefault(comm, {"cnt": 0})
-                msgs[comm]["cnt"] += tags.pop("cnt", 0)
-
-                for tag, items in tags.items():
-                    if tag in ("cnt", "per"):
-                        continue
-                    # set default tag dict #
-                    msgs[comm].setdefault(tag, {"cnt": 0})
-                    msgs[comm][tag]["cnt"] += items.pop("cnt", 0)
+        # read cumulative totals (non-destructive: this can be called #
+        # more than once per session, e.g. via the SIGRTMIN+5 request) #
+        total = LogMgr.andIntMsg.get("cnt", 0)
+        msgs = LogMgr.andIntMsg.get("comm", {})
 
         if total == 0:
             return
@@ -31144,7 +31164,15 @@ class LogMgr(object):
 
         # save log data #
         LogMgr.andTotalTime += SysMgr.uptimeDiff
-        LogMgr.andIntMsg.append(UtilMgr.deepcopy(LogMgr.andData))
+        LogMgr.andIntMsg["cnt"] += LogMgr.andData.get("cnt", 0)
+        for comm, tags in LogMgr.andData["comm"].items():
+            sumComm = LogMgr.andIntMsg["comm"].setdefault(comm, {"cnt": 0})
+            sumComm["cnt"] += tags.get("cnt", 0)
+            for tag, items in tags.items():
+                if tag in ("cnt", "per"):
+                    continue
+                sumComm.setdefault(tag, {"cnt": 0})
+                sumComm[tag]["cnt"] += items.get("cnt", 0)
 
         # initialize log data #
         LogMgr.andData = {"cnt": 0, "comm": {}, "tag": {}}
@@ -32562,14 +32590,17 @@ class LogMgr(object):
             return None
 
         logs = []
-        while 1:
-            try:
-                data = os.read(fd, SysMgr.PAGESIZE).decode()
-                logs.append(data)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                break
+        try:
+            while 1:
+                try:
+                    data = os.read(fd, SysMgr.PAGESIZE).decode()
+                    logs.append(data)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    break
+        finally:
+            os.close(fd)
 
         # convert logs #
         retList = []
@@ -32934,6 +32965,11 @@ class LogMgr(object):
         # set default level #
         if level is None:
             level = LogMgr.LOG_NOTICE
+        elif UtilMgr.isNumber(level):
+            level = long(level)
+        else:
+            SysMgr.printErr("invalid log level: %s" % level)
+            return -1
 
         # write message #
         SysMgr.libcObj.syslog(level, msg.encode())
@@ -32948,6 +32984,11 @@ class LogMgr(object):
         # set default priority #
         if level is None:
             level = LogMgr.ANDROID_LOG_INFO
+        elif UtilMgr.isNumber(level):
+            level = long(level)
+        else:
+            SysMgr.printErr("invalid log level: %s" % level)
+            return -1
 
         # load liblog library #
         try:
@@ -32987,6 +33028,11 @@ class LogMgr(object):
         # set default level #
         if level is None:
             level = LogMgr.LOG_NOTICE
+        elif UtilMgr.isNumber(level):
+            level = long(level)
+        else:
+            SysMgr.printErr("invalid log level: %s" % level)
+            return -1
 
         # print message #
         return SysMgr.systemdObj.sd_journal_print(level, msg.encode())
@@ -33059,6 +33105,12 @@ class LLMMgr(object):
                 SysMgr.llmPeriodicTs = 0
             except:
                 pass
+        else:
+            # AIPERIODIC/LLMPERIOD was removed from config entirely (as
+            # opposed to just never having been set) - explicitly disable
+            # rather than leaving a stale nonzero interval from an earlier
+            # RELOAD armed forever #
+            SysMgr.llmPeriodicInterval = 0
 
     @staticmethod
     def _postWithRetry(requestsMod, url, maxRetry, **kwargs):
@@ -33240,8 +33292,9 @@ class LLMMgr(object):
                 # leave self.history starting with a dangling assistant/
                 # model reply, which providers with strict role alternation
                 # (e.g. Claude) would reject on the next chat() call #
-                while (
-                    trimmed < len(rest) and rest[trimmed].get("role") != "user"
+                while trimmed < len(rest) and (
+                    not isinstance(rest[trimmed], dict)
+                    or rest[trimmed].get("role") != "user"
                 ):
                     trimmed += 1
                 self.history = self.history[:pinned] + rest[trimmed:]
@@ -33474,6 +33527,9 @@ class LLMMgr(object):
                 "provider": self.__class__.__name__,
                 "model": getattr(self, "model", None),
                 "history": self.history,
+                "enableCache": getattr(self, "enableCache", None),
+                "cacheSystemPrompt": getattr(self, "cacheSystemPrompt", None),
+                "temperature": getattr(self, "temperature", None),
             }
 
             content = json_mod.dumps(session, ensure_ascii=False, indent=2)
@@ -33515,6 +33571,17 @@ class LLMMgr(object):
                 )
 
             self.history = session.get("history", [])
+            # restore caching/temperature settings so the session is
+            # actually resumed as documented, not just its history -
+            # only touch these if the saved file actually has the key,
+            # so an older session file (saved before this field existed)
+            # leaves the current live instance's settings untouched #
+            if "enableCache" in session:
+                self.enableCache = session["enableCache"]
+            if "cacheSystemPrompt" in session:
+                self.cacheSystemPrompt = session["cacheSystemPrompt"]
+            if "temperature" in session:
+                self.temperature = session["temperature"]
             return len(self.history)
 
         def setHistoryMode(self, enabled):
@@ -33655,7 +33722,16 @@ class LLMMgr(object):
             # transient failures by default - HttpOptions.retry_options
             # is None unless set explicitly, which hard-wires tenacity to
             # stop_after_attempt(1) (zero retries) internally #
-            httpOptionsKwargs = {"retry_options": types.HttpRetryOptions()}
+            httpOptionsKwargs = {
+                "retry_options": types.HttpRetryOptions(),
+                # HttpOptions.timeout is milliseconds; left unset it
+                # defaults to None, which httpx resolves to "no timeout
+                # at all" (not even a connect timeout) rather than some
+                # SDK-side default - unlike the official Claude/OpenAI
+                # SDKs, a hung Gemini endpoint would otherwise never
+                # return #
+                "timeout": int(self.requestTimeout * 1000),
+            }
             if self.baseUrl:
                 httpOptionsKwargs["base_url"] = self.baseUrl
             client_kwargs = {
@@ -34048,7 +34124,10 @@ class LLMMgr(object):
             self._requirePkg(anthropic_mod, "anthropic")
             Anthropic = anthropic_mod.Anthropic
 
-            clientKwargs = {"api_key": self.apiKey}
+            clientKwargs = {
+                "api_key": self.apiKey,
+                "timeout": self.requestTimeout,
+            }
             if self.baseUrl:
                 clientKwargs["base_url"] = self.baseUrl
 
@@ -34456,7 +34535,10 @@ class LLMMgr(object):
             self._requirePkg(openai_mod, "openai")
             OpenAI = openai_mod.OpenAI
 
-            clientKwargs = {"api_key": self.apiKey}
+            clientKwargs = {
+                "api_key": self.apiKey,
+                "timeout": self.requestTimeout,
+            }
             if self.baseUrl:
                 clientKwargs["base_url"] = self.baseUrl
 
@@ -36823,6 +36905,39 @@ class LLMMgr(object):
             "LLM_STREAM"
         )
         return LLMMgr._parseBoolValue(streamOpt)
+
+    @staticmethod
+    def _acquireLLMConcurrencySlot():
+        """Try to claim one slot in the global cap on concurrent in-flight
+        LLM worker threads (across ALL events/BPF triggers combined, not
+        just one event's own rate limit). Returns True if a slot was
+        claimed (caller must release it when done), False if the cap is
+        currently saturated. Sized via -q LLMMAXCONCURRENT (default 5);
+        the semaphore itself is created lazily on first use - a benign
+        race on first creation (same pattern as SysMgr._lmkLogLock) can
+        at worst let the very first couple of concurrent callers create
+        two separate semaphores, briefly allowing a slightly higher
+        effective cap, which is harmless."""
+        if SysMgr.llmConcurrencySem is None:
+            maxConcurrentOpt = LLMMgr._getEnvironValue("LLMMAXCONCURRENT")
+            try:
+                maxConcurrent = (
+                    int(maxConcurrentOpt) if maxConcurrentOpt else 5
+                )
+            except:
+                maxConcurrent = 5
+            SysMgr.llmConcurrencySem = SysMgr.getPkg(
+                "threading"
+            ).BoundedSemaphore(max(1, maxConcurrent))
+        return SysMgr.llmConcurrencySem.acquire(blocking=False)
+
+    @staticmethod
+    def _releaseLLMConcurrencySlot():
+        if SysMgr.llmConcurrencySem is not None:
+            try:
+                SysMgr.llmConcurrencySem.release()
+            except ValueError:
+                pass
 
     @staticmethod
     def _printDataSize(data):
@@ -46059,10 +46174,20 @@ trigger_config {
         # use a type-matching default per sort key so mixed present/absent #
         # values (e.g. str fields defaulting to int 0) never crash sorted() #
         sortDefault = "" if sortval in ("status", "comm", "name") else 0
+        # CPU/RSS are resource-usage metrics: users expect the heaviest #
+        # consumers first (descending), unlike boot/pid/etc which read #
+        # naturally in ascending order. negate the numeric key instead of #
+        # sorted(..., reverse=True) so the status secondary-key still #
+        # breaks ties in ascending order. #
+        descKeys = ("cpu", "rss")
         for name, v in sorted(
             serviceList.items(),
             key=lambda x: (
-                x[1].get(sortval, sortDefault),
+                (
+                    -x[1].get(sortval, sortDefault)
+                    if sortval in descKeys
+                    else x[1].get(sortval, sortDefault)
+                ),
                 x[1].get("status", ""),
             ),
         ):
@@ -46077,8 +46202,13 @@ trigger_config {
             runtime = v.get("runtime", 0)
             cpu = v.get("cpu", 0)
             cpu = UtilMgr.convNum(cpu) if cpu else 0
-            rss = v.get("rss", 0)
-            rss = UtilMgr.convSize2Unit(rss, unit="M") if rss else 0
+            # keep the JSON/sort value as a plain MB number, matching cpu's #
+            # plain numeric string above; convSize2Unit()'s "M"-suffixed text #
+            # (e.g. "44.8M") is only for the human-readable console line below, #
+            # since a unit-suffixed string can't be parsed as a number by #
+            # JSON consumers (e.g. HPerf silently rendered every RSS as 0) #
+            rssRaw = v.get("rss", 0)
+            rss = round(rssRaw / 1048576.0, 1) if rssRaw else 0
 
             # apply cmdline #
             cmdline = ""
@@ -46105,7 +46235,7 @@ trigger_config {
 
                 runtime = runtime or ""
                 cpu = cpu or ""
-                rss = rss or ""
+                rss = ("%sM" % rss) if rss else ""
 
             _printer(
                 "{0:>10.3f} {1:>10} {2:>10} {3:>7} {4:>11} {5:<1}".format(
@@ -50987,6 +51117,10 @@ class SysMgr(object):
     limitRepDirSize = 0
     nrRun = 0
     nrReport = 0
+    # guards "nrReport += 1" (load/add/store, not atomic under the GIL)
+    # against two different threshold events' LLM-worker threads racing
+    # on the same counter and producing a duplicate report filename #
+    _nrReportLock = __import__("threading").Lock()
     nrProcMemReport = 6
 
     # watermark constants #
@@ -51176,6 +51310,15 @@ class SysMgr(object):
     eventCommandList = {}
     llmEventPending = {}
     llmEventRateTs = {}
+    llmConcurrencySem = None  # lazily-created global cap on concurrent
+    # in-flight LLM worker threads across ALL events combined (per-event
+    # rate-limiting alone can't stop many DIFFERENT threshold rules from
+    # firing simultaneously during a real incident) #
+    llmEventFailStreak = {}  # {event: consecutive LLM-call failure count}
+    llmEventPruneTs = 0  # throttles the llmEventRateTs/llmEventFailStreak
+    # stale-entry sweep to once per hour (task-scoped threshold rules
+    # embed a live pid in their event name, so a crash-looping process
+    # mints a permanent new key on every restart - see handleThresholdEvents) #
     llmPeriodicTs = 0  # timestamp of last periodic LLM summary
     llmPeriodicInterval = 0  # interval in seconds (0 = disabled)
     llmAiThreads = []  # list of active AI analysis threads (for join at exit)
@@ -51761,7 +51904,9 @@ Commands:
 
     @staticmethod
     def writeErr(fd, log):
-        LogMgr.lock(fd)
+        if not LogMgr.lock(fd):
+            # already held (reentrant) -> skip rather than interleave writes #
+            return
 
         try:
             fd.write(log)
@@ -52884,8 +53029,11 @@ Commands:
                 )
             # xz (lzma) #
             elif UtilMgr.isXzFile(fname, fd):
+                lzma = SysMgr.getPkg("lzma", False)
+                if not lzma:
+                    raise ImportError("no lzma module available")
                 param = fd or fname
-                fd = SysMgr.getPkg("lzma", False).open(param, perm)
+                fd = lzma.open(param, perm)
             # raw data #
             elif raw:
                 return open(fname, perm)
@@ -52964,7 +53112,25 @@ Commands:
         )
         if keepArgs:
             if not flist:
-                SysMgr.printErr("no target file from '%s'" % path.rstrip("/*"))
+                errMsg = "no target file from '%s'" % path.rstrip("/*")
+                SysMgr.printErr(errMsg)
+                # when this runs as a TCP-server-spawned drawflame child (e.g. #
+                # ALLANR/ALLTOMBSTONE with nothing found), printErr() alone only #
+                # reaches this child's stderr, which the server's relay loop #
+                # never captures - only stdout is piped back to the client #
+                # (see the isDrawMode branch in the request dispatcher). that #
+                # leaves the client with zero bytes and a generic "no data #
+                # received" error instead of the real reason. Print the same #
+                # {"error": ...} shape the dispatcher's own _sendErrMsg() uses #
+                # to stdout so the relay loop forwards it - guarded on isatty() #
+                # so a local interactive run's terminal output is unaffected #
+                try:
+                    if not sys.stdout.isatty():
+                        print('{"error": %s}' % errMsg)
+                except SystemExit:
+                    raise
+                except:
+                    pass
                 sys.exit(0)
             sys.argv = sys.argv[:2] + flist + sys.argv[2:]
         elif isinstance(flist, list) and len(flist) > 0:
@@ -54549,6 +54715,11 @@ Commands:
             # placed after parseAnalOption/applySelfInit above so this also
             # honors AIPERIODIC set via the config file's [init].OPTION #
             LLMMgr._initPeriodicAI()
+
+            # ensure a clean shutdown (Ctrl-C, normal completion) restores
+            # any process frozen/throttled by AUTOSIGNAL/AUTOLIMITCPU/etc,
+            # since nothing else would ever undo it otherwise #
+            SysMgr.addExitFunc(SysMgr.restoreAllGovState)
 
             # disable color and encoding #
             SysMgr.colorEnable = False
@@ -59239,6 +59410,33 @@ Commands:
             "SELFOOMADJ: restored oom_score_adj to %d"
             % SysMgr.selfOomOrigScore
         )
+
+    @staticmethod
+    def restoreAllGovState():
+        """Restore any OTHER process still frozen/throttled by
+        AUTOSIGNAL/AUTOLIMITCPU/AUTOIONICE/AUTOSCHED/AUTOOMADJ when
+        guider itself exits cleanly (Ctrl-C, normal completion,
+        sys.exit()). Without this, nothing else would ever send a
+        SIGSTOP'd target SIGCONT again, or terminate an orphaned
+        AUTOLIMITCPU watchdog - a monitoring tool shutting down should
+        not permanently break production processes it only meant to
+        temporarily observe/mitigate. Reuses the same already-verified
+        AUTORESTORE path the per-tick restoreOnClear check already
+        calls, so this is a no-op registered unconditionally (cheap
+        early-out when govStateMap is empty) rather than a new signal
+        handler risking interference with in-flight SDK calls."""
+        if not SysMgr.govStateMap:
+            return
+        inst = getattr(SysMgr, "topInstance", None)
+        if not inst or not hasattr(inst, "handleEventCmd"):
+            return
+        for ename in list(SysMgr.govStateMap.keys()):
+            try:
+                inst.handleEventCmd("AUTORESTORE", ename, False)
+            except SystemExit:
+                pass
+            except Exception:
+                pass
 
     @staticmethod
     def _startChildWatchdog(cfg):
@@ -83722,7 +83920,8 @@ Key Value List:
                     "bugrec",
                     "bugrep",
                 ):
-                    SysMgr.nrReport += 1
+                    with SysMgr._nrReportLock:
+                        SysMgr.nrReport += 1
 
                 return
 
@@ -106436,8 +106635,11 @@ Key Value List:
                         )
                         continue
                     else:
+                        lzma = SysMgr.getPkg("lzma", False)
+                        if not lzma:
+                            raise ImportError("no lzma module available")
                         param = fd or path
-                        fd = SysMgr.getPkg("lzma", False).open(param)
+                        fd = lzma.open(param)
                 # z (zlib) #
                 elif UtilMgr.isZlibFile(path, fd):
                     fd = fd or open(path, "rb")
@@ -113476,6 +113678,11 @@ Key Value List:
         # enable periodic LLM summarization if LLMPERIOD or AIPERIODIC is set #
         LLMMgr._initPeriodicAI()
 
+        # ensure a clean shutdown (Ctrl-C, normal completion) restores any
+        # process frozen/throttled by AUTOSIGNAL/AUTOLIMITCPU/etc, since
+        # nothing else would ever undo it otherwise #
+        SysMgr.addExitFunc(SysMgr.restoreAllGovState)
+
         # save static system info #
         SysMgr.saveSysStats()
 
@@ -117701,7 +117908,7 @@ Key Value List:
             else:
                 # heap events #
                 if SysMgr.heapEnable:
-                    if SysMgr.arch == "arm":
+                    if SysMgr.arch in ("arm", "x86"):
                         mmapId = SysMgr.getNrSyscall("sys_mmap2")
                     else:
                         mmapId = SysMgr.getNrSyscall("sys_mmap")
@@ -117849,7 +118056,7 @@ Key Value List:
                 ecmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
                 rcmd += "id == %s || " % SysMgr.getNrSyscall(syscall)
 
-            if SysMgr.arch == "aarch64":
+            if SysMgr.arch in ("aarch64", "riscv64"):
                 syscallList = ("sys_recvfrom", "sys_recvmmsg", "sys_recvmsg")
             elif SysMgr.arch == "arm":
                 syscallList = (
@@ -128003,11 +128210,26 @@ class BpfMgr(object):
                 continue
 
             # Enable the perf event #
-            libc.ioctl(
-                ct.c_int(fd),
-                ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                ct.c_int(0),
-            )
+            if (
+                libc.ioctl(
+                    ct.c_int(fd),
+                    ct.c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
+                    ct.c_int(0),
+                )
+                < 0
+            ):
+                if warn_on_fail:
+                    SysMgr.printWarn(
+                        "skip cpu %d: %sPERF_EVENT_IOC_ENABLE failed"
+                        % (cpu, warn_label),
+                        always=True,
+                    )
+                try:
+                    libc.munmap(buf_addr, total_mmap_size)
+                except Exception:
+                    pass
+                os.close(fd)
+                continue
 
             # Populate PERF_EVENT_ARRAY map at key=cpu with this fd #
             BpfMgr.mapUpdate(
@@ -128265,6 +128487,7 @@ class BpfMgr(object):
                         )
                         < 0
                     ):
+                        os.close(fd)
                         raise Exception(
                             "PERF_EVENT_IOC_SET_BPF failed for cpu=%d" % cpu
                         )
@@ -128278,6 +128501,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_ENABLE failed for cpu=%d" % cpu
                     )
@@ -128371,6 +128595,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_SET_BPF failed for cpu=%d" % cpu
                     )
@@ -128382,6 +128607,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_ENABLE failed for cpu=%d" % cpu
                     )
@@ -128573,6 +128799,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_SET_BPF failed for cpu=%d" % cpu
                     )
@@ -128584,6 +128811,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_ENABLE failed for cpu=%d" % cpu
                     )
@@ -128733,6 +128961,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_SET_BPF failed for cpu=%d" % cpu
                     )
@@ -128744,6 +128973,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_ENABLE failed for cpu=%d" % cpu
                     )
@@ -128806,6 +129036,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_SET_BPF failed for cpu=%d" % cpu
                     )
@@ -128817,6 +129048,7 @@ class BpfMgr(object):
                     )
                     < 0
                 ):
+                    os.close(fd)
                     raise Exception(
                         "PERF_EVENT_IOC_ENABLE failed for cpu=%d" % cpu
                     )
@@ -128930,16 +129162,30 @@ class BpfMgr(object):
                             "perf_event_open(BREAKPOINT) failed for cpu=%d%s"
                             % (fd_cpu, _reason)
                         )
-                libc.ioctl(
-                    c_int(fd),
-                    c_uint(perfEvents["PERF_EVENT_IOC_SET_BPF"]),
-                    c_uint(prog_fd),
-                )
-                libc.ioctl(
-                    c_int(fd),
-                    c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
-                    c_int(0),
-                )
+                if (
+                    libc.ioctl(
+                        c_int(fd),
+                        c_uint(perfEvents["PERF_EVENT_IOC_SET_BPF"]),
+                        c_uint(prog_fd),
+                    )
+                    < 0
+                ):
+                    os.close(fd)
+                    raise Exception(
+                        "PERF_EVENT_IOC_SET_BPF failed for 0x%x" % bp_addr
+                    )
+                if (
+                    libc.ioctl(
+                        c_int(fd),
+                        c_uint(perfEvents["PERF_EVENT_IOC_ENABLE"]),
+                        c_int(0),
+                    )
+                    < 0
+                ):
+                    os.close(fd)
+                    raise Exception(
+                        "PERF_EVENT_IOC_ENABLE failed for 0x%x" % bp_addr
+                    )
                 BpfMgr._openFds.append(fd)
 
             try:
@@ -129139,6 +129385,13 @@ class BpfMgr(object):
         SysMgr.llmEventRateTs[event] = now
 
         def _worker():
+            if not LLMMgr._acquireLLMConcurrencySlot():
+                SysMgr.printWarn(
+                    "[AI/%s] max concurrent LLM calls reached, skipping "
+                    "this trigger" % cmd_name
+                )
+                SysMgr.llmEventPending.pop(event, None)
+                return
             try:
                 # load config (including API key env var setup)
                 configSettings = LLMMgr._loadConfigSettings()
@@ -129172,12 +129425,18 @@ class BpfMgr(object):
                 )
             finally:
                 SysMgr.llmEventPending.pop(event, None)
+                LLMMgr._releaseLLMConcurrencySlot()
 
         t = _threading.Thread(
             target=_worker, name="llm-%s" % cmd_name, daemon=True
         )
         t.start()
-        # Track thread so callers can join before process exit
+        # Track thread so callers can join before process exit; prune
+        # already-finished threads first so this list doesn't grow
+        # unbounded over a long-running session with frequent triggers #
+        SysMgr.llmAiThreads = [
+            _lt for _lt in SysMgr.llmAiThreads if _lt.is_alive()
+        ]
         SysMgr.llmAiThreads.append(t)
 
     @staticmethod
@@ -138842,6 +139101,14 @@ class BpfMgr(object):
                                     _bc = struct.unpack("<Q", _bval)[0]
                                     if _bc > 0:
                                         _ahist[_b] = _bc
+                                        # reset bucket so next interval
+                                        # reads a delta, not the running
+                                        # cumulative total #
+                                        BpfMgr.mapUpdate(
+                                            arg_hist_map_fd,
+                                            _bkey,
+                                            struct.pack("<Q", 0),
+                                        )
                             if _ahist:
                                 for _b, _bc in _ahist.items():
                                     total_arg_hists[fn][_b] = (
@@ -139207,6 +139474,11 @@ class BpfMgr(object):
                             if cnt > 0:
                                 hist[bucket] = cnt
                                 total_cnt += cnt
+                                # reset bucket so next interval reads a
+                                # delta, not the running cumulative total #
+                                BpfMgr.mapUpdate(
+                                    hist_map_fd, key, struct.pack("<Q", 0)
+                                )
                     if hist and total_cnt > 0:
                         for b, c in hist.items():
                             total_hists[fn][b] = total_hists[fn].get(b, 0) + c
@@ -141239,6 +141511,11 @@ class BpfMgr(object):
                             if cnt > 0:
                                 hist[bucket] = cnt
                                 total_cnt += cnt
+                                # reset bucket so next interval reads a
+                                # delta, not the running cumulative total #
+                                BpfMgr.mapUpdate(
+                                    hist_map_fd, key, struct.pack("<Q", 0)
+                                )
                     if total_cnt > 0:
                         irq_hists[irq] = (hist, total_cnt)
 
@@ -141567,7 +141844,10 @@ class BpfMgr(object):
             if _samp_cond:
                 _samp_idle = SysMgr.getIdleTime()
                 _samp_nr_cores = SysMgr.getNrCore() or 1
-                _samp_prev_hist = {}
+            # BPF hist_map counters are cumulative (never reset in-kernel),
+            # so every interval's display value must be the delta from the
+            # last read, not the raw cumulative snapshot #
+            _prev_hist = {}
 
             _t_last = time.monotonic()
             while True:
@@ -141587,25 +141867,25 @@ class BpfMgr(object):
                         if cnt > 0:
                             hist[bucket] = cnt
 
-                # conditional sampling: compute display_hist #
+                display_hist = {
+                    b: hist[b] - _prev_hist.get(b, 0)
+                    for b in hist
+                    if hist[b] > _prev_hist.get(b, 0)
+                }
+                _prev_hist = dict(hist)
+
+                # conditional sampling: skip display/accumulation on
+                # suppressed ticks (the snapshot above is still updated
+                # every iteration regardless) #
                 if _samp_cond:
                     _cond_met, _samp_idle = BpfMgr._evalSampCond(
                         _samp_cond, _samp_idle, _samp_nr_cores, _actual
                     )
                     if not _cond_met:
-                        _samp_prev_hist = dict(hist)
                         BpfMgr._flushBuf()
                         if BpfMgr._checkLoopExit(total_time, elapsed):
                             break
                         continue
-                    display_hist = {
-                        b: hist[b] - _samp_prev_hist.get(b, 0)
-                        for b in hist
-                        if hist[b] > _samp_prev_hist.get(b, 0)
-                    }
-                    _samp_prev_hist = dict(hist)
-                else:
-                    display_hist = hist
 
                 # accumulate for summary #
                 for b, c in display_hist.items():
@@ -144092,7 +144372,15 @@ class BpfMgr(object):
 
     @staticmethod
     def _saveTxnCache():
-        """Persist current _txn_code_cache to disk (JSON, string-keyed)."""
+        """Persist current _txn_code_cache to disk (JSON, string-keyed).
+
+        Only successful (non-empty) resolutions are persisted. A failed
+        resolution (None/{}) may be transient (dexdump error, JAR briefly
+        locked during OTA, etc.) so it's kept in the in-memory cache for
+        this process only -- persisting it would permanently block
+        resolution for that interface on this device with no way to
+        self-heal.
+        """
         import json
 
         cache_path = BpfMgr._txn_cache_path
@@ -144100,10 +144388,9 @@ class BpfMgr(object):
             return
         try:
             data = {
-                iface: (
-                    {str(k): v for k, v in codes.items()} if codes else None
-                )
+                iface: {str(k): v for k, v in codes.items()}
                 for iface, codes in BpfMgr._txn_code_cache.items()
+                if codes
             }
             with open(cache_path, "w") as f:
                 json.dump(data, f)
@@ -144947,7 +145234,7 @@ class BpfMgr(object):
         Returns dict with key 'srtt' (u32, in microseconds).
         Defaults: srtt=104 (Linux 4.15+).
         """
-        defaults = {"srtt": 100}
+        defaults = {"srtt": 104}
         tp_path = SysMgr.getTraceEventPath()
         if not tp_path:
             return defaults
@@ -151361,6 +151648,9 @@ class BpfMgr(object):
                 _samp_idle = SysMgr.getIdleTime()
                 _samp_nr_cores = SysMgr.getNrCore() or 1
 
+            _holders = {}
+            _holders_ts = 0.0
+
             while True:
                 time.sleep(interval)
                 _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
@@ -151378,8 +151668,6 @@ class BpfMgr(object):
                     boot_ns = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
                 except Exception:
                     boot_ns = 0
-
-                holders = BpfMgr._scanProgHolders()
 
                 prog_list = []
                 for prog_id in BpfMgr._iterBpfProgIds():
@@ -151525,6 +151813,11 @@ class BpfMgr(object):
                     if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
+
+                if _now - _holders_ts >= 2.0:
+                    _holders = BpfMgr._scanProgHolders()
+                    _holders_ts = _now
+                holders = _holders
 
                 if SysMgr.jsonEnable:
                     _jprogs = []
@@ -153310,6 +153603,9 @@ class BpfMgr(object):
                 _samp_idle = SysMgr.getIdleTime()
                 _samp_nr_cores = SysMgr.getNrCore() or 1
 
+            _port_proc = {}
+            _port_proc_ts = 0.0
+
             _t_last = time.monotonic()
             while True:
                 time.sleep(interval)
@@ -153340,13 +153636,16 @@ class BpfMgr(object):
 
                 flows.sort(key=lambda x: x[2], reverse=True)
 
-                port_proc = BpfMgr._buildPortProcMap()
-
                 if not _cond_met:
                     BpfMgr._flushBuf()
                     if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
+
+                if _now - _port_proc_ts >= 2.0:
+                    _port_proc = BpfMgr._buildPortProcMap()
+                    _port_proc_ts = _now
+                port_proc = _port_proc
 
                 if SysMgr.jsonEnable:
                     _jflows = []
@@ -157530,17 +157829,40 @@ class BpfMgr(object):
 
     @staticmethod
     def _canDecodeDbc(sig, data_bytes):
-        """Extract and scale a DBC signal from raw CAN data bytes (little-endian)."""
+        """Extract and scale a DBC signal from raw CAN data bytes.
+
+        sig["le"] selects the DBC byte order: True = Intel/little-endian
+        (@1), False = Motorola/big-endian (@0). DBC "start bit" numbering
+        is always byte-major/LSB-within-byte (bit N = byte N//8, position
+        N%8 counted from that byte's LSB); Intel signals grow toward
+        increasing bit numbers from start_bit (their LSB), while Motorola
+        signals give start_bit as their MSB and grow via the MSB-first
+        "zigzag" numbering (byte0 bit7..bit0, then byte1 bit7..bit0, ...).
+        """
         start, length = sig["start"], sig["length"]
         raw = 0
-        for i in range(length):
-            byte_idx = (start + i) // 8
-            bit_idx = (start + i) % 8
-            if (
-                byte_idx < len(data_bytes)
-                and (data_bytes[byte_idx] >> bit_idx) & 1
-            ):
-                raw |= 1 << i
+        if sig.get("le", True):
+            for i in range(length):
+                byte_idx = (start + i) // 8
+                bit_idx = (start + i) % 8
+                if (
+                    byte_idx < len(data_bytes)
+                    and (data_bytes[byte_idx] >> bit_idx) & 1
+                ):
+                    raw |= 1 << i
+        else:
+            # start_bit is the signal's MSB in Motorola bit numbering;
+            # convert to a linear MSB-first bit index, then walk MSB->LSB #
+            msb_lin = (start // 8) * 8 + (7 - start % 8)
+            for i in range(length):
+                lin = msb_lin + i
+                byte_idx = lin // 8
+                bit_idx = 7 - (lin % 8)
+                if (
+                    byte_idx < len(data_bytes)
+                    and (data_bytes[byte_idx] >> bit_idx) & 1
+                ):
+                    raw |= 1 << (length - 1 - i)
         if sig["signed"] and length > 0 and (raw >> (length - 1)):
             raw -= 1 << length
         return raw * sig["factor"] + sig["offset"]
@@ -159934,6 +160256,7 @@ class BpfMgr(object):
             PERF_RECORD_SAMPLE = 9
             _skip_self = "SKIPSELF" in SysMgr.environList
             _my_pid = os.getpid()
+            _get_ts = BpfMgr.makeGetTs()
 
             def drain_one(buf_addr, pg_sz, data_sz):
                 for (
@@ -159960,7 +160283,7 @@ class BpfMgr(object):
                         fname = fname_raw[: _fn if _fn >= 0 else 40].decode(
                             "utf-8", errors="replace"
                         )
-                        ts = BpfMgr.makeGetTs()()
+                        ts = _get_ts()
                         _ppid_str = SysMgr.getPpid(tgid)
                         _ppid = int(_ppid_str) if _ppid_str else 0
                         _pcomm = (
@@ -161823,6 +162146,7 @@ class BpfMgr(object):
             SysMgr.printPipe(oneLine)
 
             PERF_RECORD_SAMPLE = 9
+            _get_ts = BpfMgr.makeGetTs()
 
             def _decode_dns_qname(dns_buf):
                 """Decode DNS qname from query section starting at byte 12."""
@@ -161888,7 +162212,7 @@ class BpfMgr(object):
                             continue
                         if _no_dns and dest_port == 53:
                             continue
-                        ts = BpfMgr.makeGetTs()()
+                        ts = _get_ts()
                         proc_str = "%s(%d)" % (comm, tgid)
                         dport_str = str(dest_port) if dest_port else "-"
                         line = "%-15s  %26s  %8s  %6s  %6d  %-s" % (
@@ -190893,7 +191217,6 @@ class ElfAnalyzer(object):
         166: "STMicroelectronics STxP7x family of configurable and extensible RISC processors",
         167: "Andes Technology compact code size embedded RISC processor family",
         168: "Cyan Technology eCOG1X family",
-        168: "Cyan Technology eCOG1X family",
         169: "Dallas Semiconductor MAXQ30 Core Micro-controllers",
         170: "New Japan Radio (NJR) 16-bit DSP Processor",
         171: "M2000 Reconfigurable RISC Microprocessor",
@@ -200056,7 +200379,10 @@ Section header string table index: %d
 
             # decompress data #
             newpath = path + (" (%s)" % secName)
-            mdata = SysMgr.getPkg("lzma", False).decompress(ddata)
+            lzma = SysMgr.getPkg("lzma", False)
+            if not lzma:
+                raise ImportError("no lzma module available")
+            mdata = lzma.decompress(ddata)
             dfd = MemoryFile(name=newpath, data=mdata)
 
             # parse ELF data #
@@ -234050,7 +234376,7 @@ function isAutoNamedPlot(name) {{
                     and self.wakeupData["valid"] > 0
                 ):
                     self.wakeupData["valid"] -= 1
-                elif SysMgr.arch != "aarch64" and nr in (
+                elif SysMgr.arch not in ("aarch64", "riscv64") and nr in (
                     SysMgr.getNrSyscall("sys_poll"),
                     SysMgr.getNrSyscall("sys_select"),
                     SysMgr.getNrSyscall("sys_epoll_wait"),
@@ -247145,6 +247471,21 @@ function isAutoNamedPlot(name) {{
         "BLKLAT": "io",
     }
 
+    # psi/CGROUP events don't carry their resource category in the first
+    # "_"-delimited segment like CPU_/MEM_/IO_ do - checkThreshold() builds
+    # their ename as "<event>_<attr>_<item>" where the real resource (a
+    # PSI resource name or cgroup subsystem name) is the SECOND segment,
+    # so a first-segment-only lookup always misses these and silently
+    # falls back to cpu even though the real resource is known #
+    _LLM_TOPPROC_SORT_SUBMAP = {
+        "cpu": "cpu",
+        "cpuset": "cpu",
+        "cpuacct": "cpu",
+        "memory": "mem",
+        "io": "io",
+        "blkio": "io",
+    }
+
     @staticmethod
     def _collectLLMEventContext(
         event, eventData, ctxDepth=10, historyWindow=5
@@ -247160,9 +247501,15 @@ function isAutoNamedPlot(name) {{
         # pick a top_processes sort key that actually reflects what
         # triggered this event (e.g. a MEM-pressure event gets a
         # mem-sorted list) instead of always defaulting to cpu #
-        topProcSort = TaskAnalyzer._LLM_TOPPROC_SORT_MAP.get(
-            str(event).split("_", 1)[0], "cpu"
-        )
+        _evtParts = str(event).split("_")
+        if _evtParts[0].lower() in ("psi", "cgroup") and len(_evtParts) > 1:
+            topProcSort = TaskAnalyzer._LLM_TOPPROC_SORT_SUBMAP.get(
+                _evtParts[1].lower(), "cpu"
+            )
+        else:
+            topProcSort = TaskAnalyzer._LLM_TOPPROC_SORT_MAP.get(
+                _evtParts[0], "cpu"
+            )
         ctx = {
             "event": {
                 "name": event,
@@ -247736,6 +248083,14 @@ function isAutoNamedPlot(name) {{
         SysMgr.llmEventRateTs[event] = now
 
         def _worker():
+            if not LLMMgr._acquireLLMConcurrencySlot():
+                SysMgr.printWarn(
+                    "[LLM] max concurrent LLM calls reached, skipping "
+                    "event '%s' for this trigger (will retry on the "
+                    "next qualifying threshold crossing)" % event
+                )
+                SysMgr.llmEventPending.pop(event, None)
+                return
             try:
                 # capture outer-scope values as local vars (avoids UnboundLocalError
                 # if severity router's conditional assignment is not executed)
@@ -247793,13 +248148,35 @@ function isAutoNamedPlot(name) {{
                         "[LLM] request failed for event '%s': %s"
                         % (event, str(ex))
                     )
+                    _streak = SysMgr.llmEventFailStreak.get(event, 0) + 1
+                    SysMgr.llmEventFailStreak[event] = _streak
+                    if _streak >= 3:
+                        SysMgr.printErr(
+                            "[LLM:PERSISTENT-FAILURE] event '%s' has "
+                            "failed %d consecutive times, last error: %s"
+                            % (event, _streak, str(ex))
+                        )
                     return
 
                 if not response or not response.content:
                     SysMgr.printWarn(
                         "[LLM] empty response for event '%s'" % event
                     )
+                    _streak = SysMgr.llmEventFailStreak.get(event, 0) + 1
+                    SysMgr.llmEventFailStreak[event] = _streak
+                    if _streak >= 3:
+                        SysMgr.printErr(
+                            "[LLM:PERSISTENT-FAILURE] event '%s' has "
+                            "failed %d consecutive times, last error: "
+                            "empty response" % (event, _streak)
+                        )
                     return
+
+                # a usable response arrived - reset any consecutive-
+                # failure streak so a transient blip that then recovers
+                # doesn't keep re-triggering the persistent-failure
+                # warning on some later, unrelated failure #
+                SysMgr.llmEventFailStreak.pop(event, None)
 
                 responseText = response.content
                 # when streaming is on, llm.chat() already wrote this text
@@ -247815,7 +248192,21 @@ function isAutoNamedPlot(name) {{
                     parsed = TaskAnalyzer._parseLLMResponse(responseText)
                     # severity router: adjust maxCmd and dryRun based on severity
                     if parsed:
-                        severity = parsed.get("severity", "medium")
+                        # the system prompt only describes the expected
+                        # severity values in prose, not as an enforced
+                        # JSON-schema enum, so a real LLM response can
+                        # plausibly drift in casing/whitespace ("Medium",
+                        # "high ") or vocabulary ("moderate") without
+                        # otherwise deviating from instructions - normalize
+                        # once here and write it back so every downstream
+                        # read (auto-escalation, report display) sees the
+                        # same value #
+                        severity = (
+                            str(parsed.get("severity", "medium"))
+                            .strip()
+                            .lower()
+                        )
+                        parsed["severity"] = severity
                         if "maxCmd" not in opts:
                             opts["maxCmd"] = {
                                 "critical": 5,
@@ -247824,53 +248215,85 @@ function isAutoNamedPlot(name) {{
                                 "low": 0,
                             }.get(severity, 1)
                             _maxCmd = opts["maxCmd"]
-                        if "dryRun" not in opts and severity in (
-                            "low",
-                            "medium",
+                        # fail SAFE by default: only a value explicitly
+                        # recognized as "high"/"critical" skips dry-run -
+                        # anything else (low/medium/an unrecognized new
+                        # word) defaults to dry-run instead of silently
+                        # falling through to real execution, which the
+                        # previous whitelist-style check ("in low/medium")
+                        # did for any value it didn't recognize #
+                        if "dryRun" not in opts and severity not in (
+                            "high",
+                            "critical",
                         ):
                             opts["dryRun"] = True
                             _dryRun = True
-                    # auto-escalation based on guider.conf ASKRUN config
-                    _askrun_cfg = LLMMgr._askrunConfig
-                    if (
-                        parsed
-                        and _askrun_cfg
-                        and LLMMgr._parseBoolValue(
-                            _askrun_cfg.get("AUTO_ESCALATE")
+                    # auto-escalation based on guider.conf ASKRUN config -
+                    # isolated in its own try/except so a malformed config
+                    # shape (e.g. ASKRUN/SEVERITY_ACTIONS/SUBSYSTEM_ACTIONS
+                    # not actually a dict - a plausible operator mistake,
+                    # like writing "ASKRUN": "false" instead of
+                    # "AUTO_ESCALATE": "false") only disables escalation
+                    # for this dispatch instead of aborting the LLM's own,
+                    # already-successfully-received valid response before
+                    # the real command-execution loop below ever runs #
+                    try:
+                        _askrun_cfg = LLMMgr._askrunConfig
+                        if (
+                            parsed
+                            and _askrun_cfg
+                            and LLMMgr._parseBoolValue(
+                                _askrun_cfg.get("AUTO_ESCALATE")
+                            )
+                        ):
+                            _sev = parsed.get("severity", "medium")
+                            _subs = parsed.get("subsystems") or []
+                            _auto_cmds = []
+                            _sev_actions = _askrun_cfg.get(
+                                "SEVERITY_ACTIONS", {}
+                            )
+                            _auto_cmds += list(_sev_actions.get(_sev, []))
+                            _sub_actions = _askrun_cfg.get(
+                                "SUBSYSTEM_ACTIONS", {}
+                            )
+                            for _sub in _subs:
+                                _sub_cmds = _sub_actions.get(_sub, [])
+                                if _sub_cmds:
+                                    _auto_cmds += _sub_cmds
+                                    break
+                            _max_total = int(
+                                _askrun_cfg.get("MAX_AUTO_CMDS", 3)
+                            )
+                            _existing = set(parsed.get("commands") or [])
+                            _remaining = max(0, _max_total - len(_existing))
+                            _new_cmds = [
+                                c for c in _auto_cmds if c not in _existing
+                            ][:_remaining]
+                            _validated = [
+                                c
+                                for c in _new_cmds
+                                if TaskAnalyzer._validateLLMCommand(
+                                    c, allowRun, extraAllow
+                                )
+                            ]
+                            if _validated:
+                                SysMgr.printInfo(
+                                    "[LLM] auto-escalate (%s): %s"
+                                    % (_sev, _validated)
+                                )
+                                parsed.setdefault("commands", [])
+                                for _vc in reversed(_validated):
+                                    parsed["commands"].insert(0, _vc)
+                    except SystemExit:
+                        sys.exit(0)
+                    except Exception as ex:
+                        SysMgr.printWarn(
+                            "[LLM:CONFIG] ASKRUN auto-escalation config in "
+                            "guider.conf is malformed (expected dict-shaped "
+                            "ASKRUN/SEVERITY_ACTIONS/SUBSYSTEM_ACTIONS) - "
+                            "skipping auto-escalation for this event: %s"
+                            % str(ex)
                         )
-                    ):
-                        _sev = parsed.get("severity", "medium")
-                        _subs = parsed.get("subsystems") or []
-                        _auto_cmds = []
-                        _sev_actions = _askrun_cfg.get("SEVERITY_ACTIONS", {})
-                        _auto_cmds += list(_sev_actions.get(_sev, []))
-                        _sub_actions = _askrun_cfg.get("SUBSYSTEM_ACTIONS", {})
-                        for _sub in _subs:
-                            _sub_cmds = _sub_actions.get(_sub, [])
-                            if _sub_cmds:
-                                _auto_cmds += _sub_cmds
-                                break
-                        _max_total = int(_askrun_cfg.get("MAX_AUTO_CMDS", 3))
-                        _existing = set(parsed.get("commands") or [])
-                        _remaining = max(0, _max_total - len(_existing))
-                        _new_cmds = [
-                            c for c in _auto_cmds if c not in _existing
-                        ][:_remaining]
-                        _validated = [
-                            c
-                            for c in _new_cmds
-                            if TaskAnalyzer._validateLLMCommand(
-                                c, allowRun, extraAllow
-                            )
-                        ]
-                        if _validated:
-                            SysMgr.printInfo(
-                                "[LLM] auto-escalate (%s): %s"
-                                % (_sev, _validated)
-                            )
-                            parsed.setdefault("commands", [])
-                            for _vc in reversed(_validated):
-                                parsed["commands"].insert(0, _vc)
                     if parsed and isinstance(parsed.get("commands"), list):
                         for c in parsed["commands"][:_maxCmd]:
                             if not isinstance(c, str):
@@ -247919,8 +248342,18 @@ function isAutoNamedPlot(name) {{
                                                 _ocmdRaw.upper()
                                                 + c[len(_ocmdRaw) :]
                                             )
+                                            # include the triggering event
+                                            # name (not just a bare "LLM"
+                                            # literal) so a #SAVE-family
+                                            # follow-up command's report
+                                            # filename stays distinguishable
+                                            # from another, unrelated
+                                            # event's concurrent LLM-
+                                            # triggered follow-up #
                                             inst.handleEventCmd(
-                                                _dispatchCmd, "LLM", False
+                                                _dispatchCmd,
+                                                "LLM:%s" % event,
+                                                False,
                                             )
                                         executedCmds.append(c)
                                     except SystemExit:
@@ -248043,12 +248476,18 @@ function isAutoNamedPlot(name) {{
                 )
             finally:
                 SysMgr.llmEventPending.pop(event, None)
+                LLMMgr._releaseLLMConcurrencySlot()
 
         t = _threading.Thread(target=_worker, name="llm-%s" % event)
         t.daemon = True
         t.start()
         # track thread so callers can join before process exit, same as
-        # BpfMgr._triggerBpfAI's llmAiThreads bookkeeping
+        # BpfMgr._triggerBpfAI's llmAiThreads bookkeeping; prune already-
+        # finished threads first so this list doesn't grow unbounded over
+        # a long-running session with frequent triggers #
+        SysMgr.llmAiThreads = [
+            _lt for _lt in SysMgr.llmAiThreads if _lt.is_alive()
+        ]
         SysMgr.llmAiThreads.append(t)
         SysMgr.addExitFunc(BpfMgr._waitBpfAI, [30], redundant=False)
 
@@ -248117,6 +248556,33 @@ function isAutoNamedPlot(name) {{
             sys.exit(0)
         except:
             return [long(pid)]
+
+    @staticmethod
+    def _findOtherEventGovValue(source, fieldName, key):
+        """If another still-active event's govState already recorded an
+        original value for this field/key (e.g. a pid/tid's true
+        pre-modification sched/nice/ionice/oom_score_adj), return it.
+
+        Two different events can independently converge on the SAME
+        target (e.g. one runaway process ranking #1 by both CPU and
+        memory - a typical single-root-cause incident) and both apply
+        AUTOSCHED/AUTONICE/AUTOIONICE/AUTOOMADJ to it. Without this,
+        whichever event acts SECOND would live-sample the value the
+        FIRST event already changed it to and record that as "the
+        original" - so if the first event's AUTORESTORE runs before the
+        second event's, the second event's later AUTORESTORE would
+        overwrite the true original with that stale intermediate value,
+        leaving the process permanently pinned at the wrong setting.
+        Always preferring whichever event recorded the value FIRST makes
+        repeated restores converge on the true original regardless of
+        which order they happen to run in."""
+        for ename, gs in SysMgr.govStateMap.items():
+            if ename == source:
+                continue
+            val = gs.get(fieldName, {})
+            if key in val:
+                return val[key]
+        return None
 
     def handleEventCmd(self, cmd, source, user, fork=True):
         # strip a redundant CMD_ prefix once, here, so every ocmd-matching
@@ -248559,6 +249025,26 @@ function isAutoNamedPlot(name) {{
 
             # reload threshold config #
             SysMgr.applyThreshold()
+
+            # RELOAD never touches govStateMap, so a governor action
+            # (AUTOSIGNAL/AUTOSCHED/AUTONICE/AUTOIONICE/AUTOOMADJ) still
+            # active WITHOUT restoreOnClear (the opt-in auto-cleanup)
+            # keeps its only real recovery path being a human-issued
+            # AUTORESTORE - if the rule that created it was just removed/
+            # renamed by this very RELOAD, the operator loses the one
+            # config trace that would remind them a process is still
+            # frozen/throttled. Only warn here, never auto-restore: a
+            # rule that survived the reload unchanged is still validly
+            # governing its target, and blindly restoring would be a
+            # regression #
+            for _ename, _gstate in SysMgr.govStateMap.items():
+                if _gstate.get("restoreOnClear") != "true":
+                    SysMgr.printWarn(
+                        "governor state for '%s' is still active after "
+                        "RELOAD (no restoreOnClear) - if its rule no "
+                        "longer exists in the new config, issue "
+                        "'AUTORESTORE:%s' manually" % (_ename, _ename)
+                    )
         # PAUSE #
         elif ocmd in ("PAUSE", "SLEEP"):
             if ocmd == "PAUSE":
@@ -248836,8 +249322,9 @@ function isAutoNamedPlot(name) {{
             opts["triggerTimeinfo"] = UtilMgr.getTime(
                 "UTCTIME" in SysMgr.environList
             )
-            SysMgr.nrReport += 1
-            opts["triggerReportNum"] = SysMgr.nrReport
+            with SysMgr._nrReportLock:
+                SysMgr.nrReport += 1
+                opts["triggerReportNum"] = SysMgr.nrReport
 
             # launch async LLM request (non-blocking) #
             TaskAnalyzer._runLLMAskThread(ocmd, prompt, opts, source, {})
@@ -249015,8 +249502,9 @@ function isAutoNamedPlot(name) {{
             # timestamp family instead of each claiming its own #
             _triggerUptime = SysMgr.getUptime(conv=True)
             _triggerTimeinfo = UtilMgr.getTime("UTCTIME" in SysMgr.environList)
-            SysMgr.nrReport += 1
-            _triggerReportNum = SysMgr.nrReport
+            with SysMgr._nrReportLock:
+                SysMgr.nrReport += 1
+                _triggerReportNum = SysMgr.nrReport
             for _prov in providers:
                 _opts = dict(_baseOpts)
                 _opts["provider"] = _prov
@@ -249062,7 +249550,14 @@ function isAutoNamedPlot(name) {{
                             try:
                                 ret = SysMgr.getPriority(tid)
                                 if ret and tid not in scheds:
-                                    scheds[tid] = ret
+                                    _orig = (
+                                        TaskAnalyzer._findOtherEventGovValue(
+                                            source, "scheds", tid
+                                        )
+                                    )
+                                    scheds[tid] = (
+                                        _orig if _orig is not None else ret
+                                    )
                                 SysMgr.setPriority(tid, schedPolicy, schedPri)
                             except SystemExit:
                                 sys.exit(0)
@@ -249129,7 +249624,12 @@ function isAutoNamedPlot(name) {{
                     try:
                         origIo = SysMgr.getIoPriority(pid=long(tpid), who=1)
                         if origIo and tpid not in ionices:
-                            ionices[tpid] = origIo
+                            _orig = TaskAnalyzer._findOtherEventGovValue(
+                                source, "ionices", tpid
+                            )
+                            ionices[tpid] = (
+                                _orig if _orig is not None else origIo
+                            )
                         SysMgr.setIoPriority(
                             pid=long(tpid),
                             ioclass=ioniceClassIdx,
@@ -249184,7 +249684,12 @@ function isAutoNamedPlot(name) {{
                         with open(adjPath, "r") as f:
                             origScore = long(f.read().strip())
                         if tpid not in oomadjs:
-                            oomadjs[tpid] = origScore
+                            _orig = TaskAnalyzer._findOtherEventGovValue(
+                                source, "oomadjs", tpid
+                            )
+                            oomadjs[tpid] = (
+                                _orig if _orig is not None else origScore
+                            )
                         with open(adjPath, "w") as f:
                             f.write(str(oomScore))
                         SysMgr.printInfo(
@@ -249292,9 +249797,11 @@ function isAutoNamedPlot(name) {{
                     tcomm = proc.get("comm", "")
                     # store process-level nice for AUTOLIMITCPU target reuse #
                     if tpid not in nices:
-                        nices[tpid] = os.getpriority(
-                            os.PRIO_PROCESS, long(tpid)
+                        _liveNice = os.getpriority(os.PRIO_PROCESS, long(tpid))
+                        _orig = TaskAnalyzer._findOtherEventGovValue(
+                            source, "nices", tpid
                         )
+                        nices[tpid] = _orig if _orig is not None else _liveNice
                     # track primary target for AUTOLIMITCPU #
                     if first:
                         govState["targetPid"] = tpid
@@ -249308,7 +249815,12 @@ function isAutoNamedPlot(name) {{
                             newNice = curNice + delta
                             # preserve original nice per TID (first application only) #
                             if tid not in tid_nices:
-                                tid_nices[tid] = curNice
+                                _orig = TaskAnalyzer._findOtherEventGovValue(
+                                    source, "tid_nices", tid
+                                )
+                                tid_nices[tid] = (
+                                    _orig if _orig is not None else curNice
+                                )
                             os.setpriority(os.PRIO_PROCESS, tid, newNice)
                         except SystemExit:
                             sys.exit(0)
@@ -249488,9 +250000,26 @@ function isAutoNamedPlot(name) {{
                     except:
                         pass
 
-                # send SIGCONT to processes frozen by AUTOSIGNAL:SIGSTOP #
+                # send SIGCONT to processes frozen by AUTOSIGNAL:SIGSTOP -
+                # but not if another still-active event independently
+                # froze the SAME pid too (e.g. a CPU event and a MEM
+                # event both converging on one runaway process's
+                # top-ranked pid, a typical single-root-cause incident
+                # pattern) - this event's condition clearing shouldn't
+                # silently undo a freeze another still-active event still
+                # wants in effect #
                 frozen = govState.get("frozen", set())
                 for tpid in frozen:
+                    if any(
+                        _ename != source and tpid in _gs.get("frozen", set())
+                        for _ename, _gs in SysMgr.govStateMap.items()
+                    ):
+                        SysMgr.printInfo(
+                            "AUTORESTORE: skipped SIGCONT for %s - still "
+                            "frozen by another active event %s"
+                            % (tpid, ctxstr)
+                        )
+                        continue
                     try:
                         os.kill(long(tpid), signal.SIGCONT)
                         tcomm = SysMgr.getComm(long(tpid), default=str(tpid))
@@ -249857,7 +250386,8 @@ function isAutoNamedPlot(name) {{
             return -1
 
         # increase report number #
-        SysMgr.nrReport += 1
+        with SysMgr._nrReportLock:
+            SysMgr.nrReport += 1
 
         def _handleDump(event):
             try:
@@ -250349,6 +250879,32 @@ function isAutoNamedPlot(name) {{
                     )
             except:
                 pass
+
+        # periodically prune long-idle entries from the per-event LLM
+        # rate-limit/failure-streak bookkeeping - placed before the
+        # active-event early-return below for the same reason as the
+        # AIPERIODIC block above: this must keep running even on ticks
+        # with no currently-active event. Task-scoped threshold rules
+        # embed a live pid in their event name, so a repeatedly-
+        # restarting/crash-looping target mints a brand-new, permanent
+        # dict key on every restart - nothing else ever removes these.
+        # A 1-hour TTL is comfortably longer than any realistic
+        # LLMRATELIMIT window (default 60s), so pruning can never affect
+        # an active rate-limit decision #
+        try:
+            _pruneNow = time.time()
+            if _pruneNow - SysMgr.llmEventPruneTs >= 3600:
+                SysMgr.llmEventPruneTs = _pruneNow
+                _staleCutoff = _pruneNow - 3600
+                for _ek in [
+                    k
+                    for k, v in SysMgr.llmEventRateTs.items()
+                    if v < _staleCutoff
+                ]:
+                    SysMgr.llmEventRateTs.pop(_ek, None)
+                    SysMgr.llmEventFailStreak.pop(_ek, None)
+        except:
+            pass
 
         if not SysMgr.thrEvtList and not self.reportData["event"]:
             return
