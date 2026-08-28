@@ -28,7 +28,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from guider_adapter import get_adapter
+from guider_adapter import get_adapter, validate_path_coverage
 from guider_catalog import (
     CATALOG,
     BLOCKED_COMMANDS,
@@ -74,6 +74,11 @@ for _issue in validate_catalog():
 
 # Validate openapi/function_definitions_openai.json against CATALOG at startup
 for _issue in validate_openai_function_defs():
+    logger.warning("catalog: %s", _issue)
+
+# Warn about CATALOG commands whose main_arg looks path-shaped but isn't
+# covered by any main_arg/target_pid validation set in guider_adapter.py
+for _issue in validate_path_coverage():
     logger.warning("catalog: %s", _issue)
 
 # Pre-built frozensets of allowed commands per tool (avoid repeated O(n) scans).
