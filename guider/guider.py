@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260828"
+__revision__ = "260831"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29646,6 +29646,16 @@ class LogMgr(object):
 
         LogMgr.traceStat = {"cnt": 0}
 
+        # enforce -R's repeat count: unlike updateTimer()'s unconditional
+        # re-arm, this handler previously never checked it, so tptop kept
+        # summarizing forever regardless of -R (mirrors onAndAlarm's
+        # equivalent check for the analogous logand alarm handler) #
+        SysMgr.progressCnt += 1
+        if 0 < SysMgr.repeatCnt <= SysMgr.progressCnt:
+            SysMgr.printWarn("terminated by timer\n", True)
+            os.kill(SysMgr.pid, signal.SIGINT)
+            return
+
         SysMgr.updateTimer()
 
     @staticmethod
@@ -38675,7 +38685,24 @@ class AndroidMgr(object):
         checked = False
         skipNoVal = "SKIPNOVAL" in SysMgr.environList
         noInit = "NOINIT" in SysMgr.environList
+
+        # -R sets a total-time limit, but this poll loop otherwise only
+        # ever exits on a property value match, so watchprop ran forever
+        # regardless of -R. use repeatInterval (not intervalEnable) here:
+        # for a bare "-R N" with -i also given, parseRuntimeOption() sets
+        # repeatCnt=1 and leaves intervalEnable at -i's value while
+        # stashing the user's actual -R duration in repeatInterval, so
+        # intervalEnable*repeatCnt would silently collapse to just -i's
+        # interval instead of the requested total runtime #
+        deadline = None
+        if SysMgr.getOption("R"):
+            deadline = time.time() + (SysMgr.repeatInterval * SysMgr.repeatCnt)
+
         while 1:
+            if deadline and time.time() > deadline:
+                SysMgr.printWarn("terminated by timer\n", True)
+                return
+
             time.sleep(0.1)
 
             pi = findfuncp(prop)
@@ -38734,6 +38761,10 @@ class AndroidMgr(object):
 
         # wait for change #
         while 1:
+            if deadline and time.time() > deadline:
+                SysMgr.printWarn("terminated by timer\n", True)
+                return
+
             time.sleep(0.1)
 
             serial = serialfuncp(pi)
@@ -41651,6 +41682,51 @@ class AndroidMgr(object):
 
         taskEventList = []
 
+        def _waitPidDeadline(pid, deadline, cmd):
+            # bound waitpid() on a specific child so a hung logd (or any
+            # other stuck log-collecting task) cannot make bugrep/bugrec
+            # hang forever; give up at the deadline and keep whatever
+            # partial data was already collected instead of blocking #
+            if not pid or pid < 0:
+                return
+
+            if deadline is None:
+                try:
+                    os.waitpid(pid, 0)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+                return
+
+            while 1:
+                try:
+                    waited, _ = os.waitpid(pid, os.WNOHANG)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return
+
+                if waited == pid:
+                    return
+
+                if time.time() >= deadline:
+                    _printWarn(
+                        "'%s' exceeded log wait timeout, "
+                        "continuing with partial data" % cmd,
+                        True,
+                    )
+                    try:
+                        os.kill(pid, signal.SIGINT)
+                        os.waitpid(pid, 0)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+                    return
+
+                time.sleep(0.2)
+
         def _startProcMon(pid, cmd):
             try:
 
@@ -41795,6 +41871,19 @@ class AndroidMgr(object):
         else:
             AndroidMgr.applySettingVars(default=False)
 
+        # cap how long bugrep/bugrec will wait for logd to produce log
+        # data; a hung logd used to make both commands wait forever here.
+        # opt-in only (no default) because a legitimate content filter
+        # (e.g. -q BUF:<buf> inherited into the log-collecting child via
+        # MERGEENVLIST) can just as easily produce a long, healthy silence
+        # that looks identical to a hung logd from this wait loop's view #
+        logWaitTimeout = UtilMgr.getEnvironNum(
+            "LOGWAITTIMEOUT", False, None, False, isInt=True
+        )
+        logWaitDeadline = (
+            time.time() + logWaitTimeout if logWaitTimeout else None
+        )
+
         if "NOLOG" in SysMgr.environList:
             logPath = None
         else:
@@ -41825,10 +41914,14 @@ class AndroidMgr(object):
                 ["printand", "-qRAWFILE:" + logPath + addOpt],
                 pipe=False,
                 stderr=True,
-                wait=dump,
+                wait=False,
                 setComm=True,
             )
-            if not dump:
+            if dump:
+                # this used to be wait=True, blocking forever on
+                # os.waitpid() if logd hung; bound it instead #
+                _waitPidDeadline(ret, logWaitDeadline, "log collecting")
+            else:
                 _startProcMon(ret, "log collecting")
 
         if "NOPERFMON" in SysMgr.environList:
@@ -41985,6 +42078,13 @@ class AndroidMgr(object):
 
         while 1:
             if not logPath or UtilMgr.getFileSize(logPath, False):
+                break
+            if logWaitDeadline and time.time() >= logWaitDeadline:
+                _printWarn(
+                    "log collecting exceeded timeout(%ss), "
+                    "continuing without log data" % logWaitTimeout,
+                    True,
+                )
                 break
             try:
                 time.sleep(0.1)
@@ -49320,6 +49420,10 @@ class SysMgr(object):
     pciList = []
     limitDirList = {}
     limitDirCntList = {}
+    # target paths (from LIMITDIR/LIMITDIRCNT's optional ":RECURSE" suffix)
+    # that should be managed recursively even when the global -q
+    # RECURSEDIR flag is off #
+    recurseDirSet = set()
     keepRepDirFileList = {}
     fixedTaskList = []
     overlayfsCache = {}
@@ -50881,7 +50985,7 @@ Commands:
         return resInfo, maxSymLen
 
     @staticmethod
-    def removeDirs(dlist, verb=True):
+    def removeDirs(dlist, verb=True, killOpenFds=False):
         if not isinstance(dlist, list):
             dlist = [dlist]
 
@@ -50891,6 +50995,17 @@ Commands:
 
         for d in dlist:
             try:
+                if killOpenFds:
+                    orphans = SysMgr.getPidsWithOpenPath(d)
+                    if orphans:
+                        SysMgr.printWarn(
+                            "killing orphan tasks %s still holding fds "
+                            "under '%s'" % (orphans, d)
+                        )
+                        SysMgr.sendSignalProcs(
+                            signal.SIGKILL, orphans, verb=False
+                        )
+
                 shutil.rmtree(d, ignore_errors=True)
                 if verb:
                     SysMgr.printInfo("removed '%s'" % d)
@@ -54878,6 +54993,45 @@ Commands:
                 sys.exit(0)
             except:
                 continue
+
+        return result
+
+    @staticmethod
+    def getPidsWithOpenPath(path):
+        # fallback safety net for removeDirs(): descendant-tree tracking
+        # (killChildren/getDescendantList) walks a single /proc snapshot,
+        # so it can lose a process whose parent already died and got
+        # reparented to init before/while the snapshot was taken. Catch
+        # any such leftover by fd ownership instead of process-tree
+        # ancestry.
+        #
+        # only match pids already reparented to init (PPid == 1): this is
+        # a system-wide fd scan, not limited to our own descendants, so
+        # without this check a caller like doBugRecord()'s -q FIXOUTFILE
+        # path (where outPath collapses to a shared, pre-existing user
+        # directory instead of a fresh unique one) could match and kill a
+        # completely unrelated process that legitimately still has a
+        # normal parent and simply happens to have a file open under the
+        # same shared directory tree #
+        result = []
+        try:
+            path = os.path.realpath(path)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        for pid in SysMgr.getPidList():
+            if not pid.isdigit():
+                continue
+
+            if SysMgr.getPpid(pid) != "1":
+                continue
+
+            for fd, target in SysMgr.getFdPathList(pid):
+                if target.startswith(path):
+                    result.append(pid)
+                    break
 
         return result
 
@@ -62693,7 +62847,13 @@ Usage:
           [limit]    LIMITCPU:<pct>[@<name>] | LIMITCPUSET:<cores>[@<name>]
                      LIMITMEM:<size>[@<name>] | LIMITMEMSOFT:<size>[@<name>]
                      LIMITREAD:<size>[@<name>] | LIMITWRITE:<size>[@<name>]
-                     LIMITDIR:<path>:<size> | LIMITDIRCNT:<path>:<n>
+                     LIMITDIR:<path>:<size>[:RECURSE]
+                     LIMITDIRCNT:<path>:<n>[:RECURSE]
+                     RECURSEDIR (global: manage every LIMITDIR/LIMITDIRCNT/
+                       LIMITREPDIR target's whole subtree recursively
+                       instead of just its own files; a per-target
+                       ":RECURSE" suffix opts in just that one target,
+                       so different targets in the same run can differ)
           [event]    DLTEVENT:<file>|<type>|<pat>
                      KERNELEVENT[:<file>]|<type>|<pat> | ANDROIDEVENT[:<file>]|<type>|<pat>
                      SYSLOGEVENT[:<file>]|<type>|<pat> | TRACEEVENT[:<file>]|<type>|<pat>
@@ -63519,6 +63679,12 @@ Examples:
 
     - {3:1} {2:1} and report the results to guider.out after freeing up space in the target directories {4:1}
         # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G
+
+    - {3:1} {2:1} and free up space including subdirectories, not just the target directory itself {4:1}
+        # {0:1} {1:1} -o . -q LIMITDIR:/home:1G, RECURSEDIR
+
+    - {3:1} {2:1} where only /home is managed recursively and . stays limited to its own files {4:1}
+        # {0:1} {1:1} -o . -q LIMITDIR:./:100M, LIMITDIR:/home:1G:RECURSE
 
     - {3:1} {2:1} and report the results to guider.out after applying the maximum file count limit in the target directories {4:1}
         # {0:1} {1:1} -o . -q LIMITDIRCNT:./:100, LIMITDIRCNT:/home:2000
@@ -71548,6 +71714,11 @@ Examples:
     - {2:1} without specific features
         # {0:1} {1:1} -q NOLOG, NOVIDEO, NOPIC, NOPERFMON, NOINCPERFREP, NOSETTINGLIST
         # {0:1} {1:1} -q NOOPENFILE, NOERR, NOPROP, NOSCR, NOPKGINFO, NOPKGLIST
+
+    - {2:1} with a log collection timeout in case logd hangs (disabled
+      unless set, since a content filter like BUF can legitimately
+      produce a long silence that looks the same as a hung logd)
+        # {0:1} {1:1} -q LOGWAITTIMEOUT:60
 
     - {2:1} after modifying oom_score
         # {0:1} {1:1} -q OOMADJ:-1000
@@ -81026,11 +81197,20 @@ Key Value List:
                             % (cliProc, cmd)
                         )
 
+                        # kill tracked descendants BEFORE removing the
+                        # output dir (previously done in the opposite
+                        # order, unlinking the dir while children were
+                        # still writing to it); killOpenFds catches any
+                        # orphan left behind by a parent that was already
+                        # reparented to init before this snapshot #
+                        SysMgr.killChildren(descendants=True, wait=True)
+
                         if mainCmd in ("bugrec", "bugrep"):
                             if os.path.isdir(SysMgr.outPath):
-                                SysMgr.removeDirs(SysMgr.outPath)
+                                SysMgr.removeDirs(
+                                    SysMgr.outPath, killOpenFds=True
+                                )
 
-                        SysMgr.killChildren(descendants=True, wait=True)
                         os.kill(os.getpid(), signal.SIGKILL)
 
                         return
@@ -83116,6 +83296,61 @@ Key Value List:
             return None
 
     @staticmethod
+    def getDirEntries(targetDir, recurse=False):
+        """Return [(fpath, fname, size, mtime), ...] for regular files under
+        targetDir, for the free*()/LIMIT* family below.
+
+        Flat (default): targetDir's own files only, sorted by filename -
+        matches guider's own zero-padded/timestamped report naming, so
+        "oldest first" falls out of a plain name sort.
+
+        Recursive (RECURSEDIR): walks the whole subtree and sorts by real
+        mtime instead, since arbitrary nested files have no naming
+        convention to rely on. os.walk() doesn't follow symlinked
+        directories, so this can't loop on a symlink cycle.
+        """
+        entries = []
+
+        if not recurse:
+            try:
+                names = sorted(
+                    filter(
+                        lambda x: os.path.isfile(os.path.join(targetDir, x)),
+                        os.listdir(targetDir),
+                    )
+                )
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return entries
+
+            for fname in names:
+                fpath = os.path.join(targetDir, fname)
+                entries.append(
+                    (fpath, fname, UtilMgr.getFileSize(fpath, False), 0)
+                )
+            return entries
+
+        try:
+            for root, _dirs, files in os.walk(targetDir):
+                for fname in files:
+                    fpath = os.path.join(root, fname)
+                    try:
+                        st = os.stat(fpath)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        continue
+                    entries.append((fpath, fname, st.st_size, st.st_mtime))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return entries
+
+        entries.sort(key=lambda e: e[3])
+        return entries
+
+    @staticmethod
     def freeReportDir():
         if not SysMgr.limitRepDirSize or not SysMgr.outPath:
             return 0
@@ -83145,7 +83380,24 @@ Key Value List:
                     continue
                 SysMgr.removeDirs(d, False)
 
-        curSize = SysMgr.getDirSize(targetDir)
+        # RECURSEDIR opts into managing the whole subtree (size accounting
+        # AND deletion both recurse) instead of just targetDir's own files -
+        # off by default since outPath can be a shared/parent directory
+        # (e.g. "-o /data") where unrelated nested content would otherwise
+        # push curSize over the limit forever, deleting every one of this
+        # function's own past reports without ever actually freeing enough
+        # space #
+        recurse = "RECURSEDIR" in SysMgr.environList
+        entries = SysMgr.getDirEntries(targetDir, recurse)
+
+        # count only files this function can actually remove (report-named
+        # files, or every file when REMOVENOREP is set) toward the size
+        # limit #
+        curSize = sum(
+            size
+            for _fpath, fname, size, _mtime in entries
+            if removeOthers or re.match(SysMgr.reportFormat, fname)
+        )
         if not curSize:
             return 0
 
@@ -83162,27 +83414,18 @@ Key Value List:
             SysMgr.printErr("failed to get free-up size of target dir", True)
             return 0
 
-        flist = sorted(
-            filter(
-                lambda x: os.path.isfile(os.path.join(targetDir, x)),
-                os.listdir(targetDir),
-            )
-        )
-
         removeRepList = {}
         keepRepList = SysMgr.keepRepDirFileList
         for f in keepRepList:
-            for fname in flist:
+            for _fpath, fname, _size, _mtime in entries:
                 if UtilMgr.isValidStr(fname, [f]):
                     removeRepList[f] = removeRepList.get(f, 0) + 1
             removeRepList[f] = removeRepList.get(f, 0) - keepRepList[f]
 
-        for fname in flist:
+        for fpath, fname, size, _mtime in entries:
             m = re.match(SysMgr.reportFormat, fname)
             if not m and not removeOthers:
                 continue
-
-            fpath = os.path.join(targetDir, fname)
 
             keepFile = False
             for f in list(removeRepList):
@@ -83192,8 +83435,6 @@ Key Value List:
                         keepFile = True
             if keepFile:
                 continue
-
-            size = UtilMgr.getFileSize(fpath, False)
 
             msg = "'%s' [%s] to free up space of the report directory" % (
                 fpath,
@@ -83218,8 +83459,7 @@ Key Value List:
                 break
 
         if rmSize:
-            curSize = SysMgr.getDirSize(targetDir)
-
+            # curSize is already tracked precisely through the loop above #
             SysMgr.printInfo(
                 (
                     "removed files with a total size of [%s] "
@@ -83240,15 +83480,18 @@ Key Value List:
         if not isinstance(candidate, list):
             candidate = [candidate]
 
+        # RECURSEDIR makes both the file-count budget and the eviction set
+        # cover the whole subtree instead of just targetDir's own files -
+        # off by default, matching freeReportDir()/freeDirs(). A target can
+        # also opt in individually via LIMITDIRCNT:<path>:<n>:RECURSE
+        # (SysMgr.recurseDirSet), so two targets in the same run can differ #
+        globalRecurse = "RECURSEDIR" in SysMgr.environList
+
         for targetDir, limitCnt in SysMgr.limitDirCntList.items():
+            recurse = globalRecurse or targetDir in SysMgr.recurseDirSet
             try:
-                flist = sorted(
-                    filter(
-                        lambda x: os.path.isfile(os.path.join(targetDir, x)),
-                        os.listdir(targetDir),
-                    )
-                )
-                if not flist:
+                entries = SysMgr.getDirEntries(targetDir, recurse)
+                if not entries:
                     continue
             except SystemExit:
                 sys.exit(0)
@@ -83262,13 +83505,21 @@ Key Value List:
 
             nrCandNew = 0
             for cand in candidate:
+                # SysMgr.outPath (cleanupDirs()'s caller) can still be None
+                # here - e.g. no "-o" given yet - and os.path.isdir(None)
+                # raises TypeError, which used to abort this whole function
+                # (and everything cleanupDirs() calls after it) with a
+                # misleading "failed to get lock to free files" warning,
+                # silently skipping LIMITDIRCNT enforcement entirely #
+                if not cand:
+                    continue
                 if not os.path.isdir(cand):
                     cand = os.path.dirname(cand)
                 if cand in SysMgr.limitDirCntList:
                     nrCandNew += 1
 
             try:
-                diff = limitCnt - len(flist) - nrCandNew
+                diff = limitCnt - len(entries) - nrCandNew
                 if diff >= 0:
                     continue
             except SystemExit:
@@ -83279,17 +83530,15 @@ Key Value List:
                 )
                 continue
 
-            curSize = SysMgr.getDirSize(targetDir)
+            # for the log message only - eviction below is decided by file
+            # count, not by curSize #
+            curSize = sum(size for _fpath, _fname, size, _mtime in entries)
 
-            flist = flist[: abs(diff)]
+            entries = entries[: abs(diff)]
 
             rmCnt = 0
 
-            for fname in flist:
-                fpath = os.path.join(targetDir, fname)
-
-                size = UtilMgr.getFileSize(fpath, False)
-
+            for fpath, _fname, size, _mtime in entries:
                 msg = "'%s' [%s] to keep the file count (%s) for '%s'" % (
                     fpath,
                     convSize(size),
@@ -83328,8 +83577,30 @@ Key Value List:
     def freeDirs():
         convSize = UtilMgr.convSize2Unit
 
+        # RECURSEDIR opts into managing the whole subtree (size accounting
+        # AND deletion both recurse) instead of just targetDir's own files -
+        # off by default, since subdirectories are otherwise never touched
+        # by the deletion loop below, so counting their size would make
+        # this think it's over quota forever because of content it can
+        # never free, and it would keep deleting unrelated top-level files
+        # for no benefit (same class of bug as freeReportDir()). A target
+        # can also opt in individually via LIMITDIR:<path>:<size>:RECURSE
+        # (SysMgr.recurseDirSet), so two targets in the same run can differ #
+        globalRecurse = "RECURSEDIR" in SysMgr.environList
+
         for targetDir, limitSize in SysMgr.limitDirList.items():
-            curSize = SysMgr.getDirSize(targetDir)
+            recurse = globalRecurse or targetDir in SysMgr.recurseDirSet
+            try:
+                entries = SysMgr.getDirEntries(targetDir, recurse)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(
+                    "failed to check size of '%s'" % targetDir, True, True
+                )
+                continue
+
+            curSize = sum(size for _fpath, _fname, size, _mtime in entries)
             if not curSize:
                 continue
 
@@ -83348,18 +83619,7 @@ Key Value List:
                 )
                 continue
 
-            flist = sorted(
-                filter(
-                    lambda x: os.path.isfile(os.path.join(targetDir, x)),
-                    os.listdir(targetDir),
-                )
-            )
-
-            for fname in flist:
-                fpath = os.path.join(targetDir, fname)
-
-                size = UtilMgr.getFileSize(fpath, False)
-
+            for fpath, _fname, size, _mtime in entries:
                 msg = "'%s' [%s] to free up space for a directory '%s'" % (
                     fpath,
                     convSize(size),
@@ -83384,8 +83644,7 @@ Key Value List:
                     break
 
             if rmSize:
-                curSize = SysMgr.getDirSize(targetDir)
-
+                # curSize is already tracked precisely through the loop above #
                 SysMgr.printInfo(
                     (
                         "removed files in a directory with a total size of [%s] "
@@ -87278,6 +87537,22 @@ Key Value List:
             ("KEEPREPDIRFILECNT", SysMgr.keepRepDirFileList, long),
         ):
             for dirInfo in SysMgr.environList.get(env, []):
+                # optional per-target ":RECURSE" suffix - only meaningful
+                # for LIMITDIR/LIMITDIRCNT (each keyed by a real directory
+                # path); KEEPREPDIRFILECNT's "path" is actually a filename
+                # match pattern for freeReportDir(), not a directory, so
+                # it never takes this suffix. Stripped from a copy of the
+                # original (case-preserved) string before the unchanged
+                # path/num split below, so input without the suffix parses
+                # byte-for-byte as before #
+                recurseTarget = False
+                if env in (
+                    "LIMITDIR",
+                    "LIMITDIRCNT",
+                ) and dirInfo.upper().endswith(":RECURSE"):
+                    dirInfo = dirInfo[: -len(":RECURSE")]
+                    recurseTarget = True
+
                 try:
                     path, num = UtilMgr.cleanItem(
                         dirInfo.split(":", 1), union=False
@@ -87305,6 +87580,9 @@ Key Value List:
                     sys.exit(-1)
 
                 dlist[path] = num
+
+                if recurseTarget:
+                    SysMgr.recurseDirSet.add(path)
 
                 if isinstance(num, long):
                     numstr = UtilMgr.convNum(num)
@@ -89137,7 +89415,11 @@ Key Value List:
 
         elif SysMgr.checkMode("andcmd"):
             AndroidMgr.checkAndCmd()
-            AndroidMgr.doPerfetto(False)
+            # GETPKGLISTINFO needs an actual perfetto trace (it reads the
+            # packages_list data source), unlike the other andcmd quick
+            # options which are handled without perfetto below the
+            # heapProf=False early-return in doPerfetto() #
+            AndroidMgr.doPerfetto("GETPKGLISTINFO" in SysMgr.environList)
 
         elif SysMgr.checkMode("getprop"):
             AndroidMgr.doHandleProp()
@@ -98544,6 +98826,28 @@ Key Value List:
         else:
             SysMgr.setDefaultSignal()
 
+        # -R sets a total-time limit, but the event loop below blocks
+        # indefinitely inside notifier() with no other time check, so an
+        # explicit alarm is needed here to actually enforce it (the
+        # top-mode alarm handler below enforces it separately via
+        # progressCnt/repeatCnt since it fires once per interval tick).
+        # use repeatInterval (not intervalEnable) here: for a bare "-R N"
+        # with -i also given, parseRuntimeOption() sets repeatCnt=1 and
+        # leaves intervalEnable at -i's value while stashing the user's
+        # actual -R duration in repeatInterval, so intervalEnable*repeatCnt
+        # would silently collapse to just -i's interval instead of the
+        # requested total runtime #
+        if not top and SysMgr.getOption("R"):
+
+            def _watchAlarmHandler(signum, frame):
+                SysMgr.printWarn("terminated by timer\n", True)
+                sys.exit(0)
+
+            watchTimeout = long(SysMgr.repeatInterval * SysMgr.repeatCnt)
+            if 0 < watchTimeout < SysMgr.maxSize:
+                SysMgr.setSignal(signal.SIGALRM, _watchAlarmHandler)
+                signal.alarm(watchTimeout)
+
         def _printSummary(fileSummary={}, procSummary={}, final=False):
             isTopMode = SysMgr.isTopMode()
             convNum = UtilMgr.convNum
@@ -98879,6 +99183,15 @@ Key Value List:
 
             def _alarmHandler(signum, frame):
                 _printSummary(SysMgr.fileWatchList, SysMgr.procWatchList)
+
+                # -R sets a repeat count, but this handler previously
+                # re-armed unconditionally regardless of it, so fetop
+                # ran forever even with -R set #
+                SysMgr.progressCnt += 1
+                if 0 < SysMgr.repeatCnt <= SysMgr.progressCnt:
+                    SysMgr.printWarn("terminated by timer\n", True)
+                    sys.exit(0)
+
                 signal.alarm(SysMgr.intervalEnable)
 
             SysMgr.setSignal(signal.SIGALRM, _alarmHandler)
@@ -123046,6 +123359,13 @@ class BpfMgr(object):
     @staticmethod
     def _emitFlameSVG(flame_data, title, suffix):
         _tcp_dir = getattr(BpfMgr, "_tcp_drawdir", None)
+        if _tcp_dir and not os.path.isdir(_tcp_dir):
+            # _tcp_drawdir is the TCP-relay client's requested output dir
+            # (origOutPath or "/data/local/tmp", stashed at connection
+            # accept time); create it here instead of silently discarding
+            # it below and falling back to CWD, matching the mkdirs-then-
+            # use convention used elsewhere for outPath (see line ~41654) #
+            SysMgr.mkdirs(_tcp_dir)
         _out_dir = _tcp_dir if _tcp_dir and os.path.isdir(_tcp_dir) else None
         _svg = Debugger.drawFlameSample(
             flame_data, title, suffix, outDir=_out_dir
@@ -152117,6 +152437,12 @@ class BpfMgr(object):
                     )
                 )
 
+            # -R sets a repeat count, but this loop otherwise only ever
+            # exits via BLF-replay exhaustion or an external signal, so
+            # live-socket mode ran forever regardless of -R #
+            checkRepeat = bool(SysMgr.getOption("R"))
+            iterCnt = 0
+
             while True:
                 t_start = time.monotonic()
                 t_end = t_start + interval
@@ -152491,6 +152817,11 @@ class BpfMgr(object):
 
                 # BLF replay: stop after all frames processed
                 if blf_input and blf_frame_idx >= len(blf_frames):
+                    break
+
+                iterCnt += 1
+                if checkRepeat and SysMgr.repeatCnt <= iterCnt:
+                    SysMgr.printWarn("terminated by timer\n", True)
                     break
 
         except KeyboardInterrupt:
@@ -176235,7 +176566,11 @@ typedef struct {
                     if offset in addrDict:
                         continue
                     addrList.append(
-                        [self.pmap[mfile]["vstart"] + offset, symbol, mfile]
+                        [
+                            self.pmap[mfile]["vstart"] + offset,
+                            symbol,
+                            mfile,
+                        ]
                     )
                 else:
                     if offset in addrDict:
@@ -179297,8 +179632,9 @@ class MemoryFile(object):
             return data
 
     def read(self, size=0, upscale=True):
-        # update size #
-        if not size:
+        # update size: 0 or negative means "read all remaining",
+        # matching the built-in file object's read() convention #
+        if not size or size < 0:
             size = self.size - self.pos
 
         des = self.pos + size
@@ -179343,27 +179679,10 @@ class MemoryFile(object):
         return self
 
     def __next__(self):
+        if self.pos >= self.size - 1:
+            raise StopIteration
+
         return self.readline()
-
-        # dead code: unreachable (old implementation, kept for reference) #
-        while 1:
-            if self.pos == len(self.mem) - 1:
-                raise StopIteration
-
-            data = UtilMgr.safeDecode(self.mem[self.pos :])
-
-            pos = data.find("\n")
-
-            if pos == 0:
-                self.pos += 1
-                return ""
-
-            if pos < 0:
-                self.pos = len(self.mem) - 1
-                return data
-
-            self.pos += pos
-            return data[self.pos : self.pos + pos]
 
     def next(self):
         return self.__next__()

@@ -96,8 +96,8 @@ The MCP server process is completely transparent — you never interact with it 
 | `bpfTrace` | eBPF kernel/user tracing | bpfstacktop, bpfsyscalltop, bpfbinderlat |
 | `ftraceProfile` | ftrace/perf profiling | trtop, btop, ktop, funcrec |
 | `networkTrace` | TCP/packet tracing | bpftcpretrans, bpftcplife, bpfdroptop |
-| `androidPerf` | Android Perfetto/Binder/ATrace | perfetto, bdtop, bpfbinderlat, logand |
-| `memoryAnalyze` | Memory leak/dup detection | checkdup, leaktop, oomtop, vtop |
+| `androidPerf` | Android Perfetto/Binder/ATrace | perfetto, bdtop, logand, hprof |
+| `memoryAnalyze` | Memory leak/dup detection | checkdup, leaktop, leaktrace, mtrace |
 | `visualize` | Flame graphs, charts, histograms | drawflame, drawcpu, drawscatter |
 | `logAnalyze` | Log streaming/analysis | logkmsg, logdlt, logjrl, convlog |
 | `runCommand` | Generic whitelisted runner | any non-blocked command |
