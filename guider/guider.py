@@ -8189,6 +8189,43 @@ class UtilMgr(object):
         return ret
 
     @staticmethod
+    def scandirCompat(path):
+        """
+        os.scandir() replacement that works back to Python 3.0.
+        Returns objects exposing the same subset of the DirEntry API this
+        codebase actually uses: .name, .path, .is_symlink(),
+        .is_dir(follow_symlinks=), .inode(), .stat(follow_symlinks=).
+        Uses the real os.scandir() when available (3.5+) for its
+        syscall-avoidance benefit; only falls back to manual
+        os.listdir()+os.stat() on pre-3.5 runtimes.
+        """
+        if hasattr(os, "scandir"):
+            return os.scandir(path)
+
+        class _Entry(object):
+            def __init__(self, name, fpath):
+                self.name = name
+                self.path = fpath
+
+            def is_symlink(self):
+                return os.path.islink(self.path)
+
+            def is_dir(self, follow_symlinks=True):
+                if follow_symlinks:
+                    return os.path.isdir(self.path)
+                return not self.is_symlink() and os.path.isdir(self.path)
+
+            def inode(self):
+                return os.lstat(self.path).st_ino
+
+            def stat(self, follow_symlinks=True):
+                if follow_symlinks:
+                    return os.stat(self.path)
+                return os.lstat(self.path)
+
+        return [_Entry(n, os.path.join(path, n)) for n in os.listdir(path)]
+
+    @staticmethod
     def getInodes(
         path,
         inodeFilter=None,
@@ -8222,7 +8259,7 @@ class UtilMgr(object):
             UtilMgr.printProgress()
 
             try:
-                entries = list(os.scandir(dirpath))
+                entries = list(UtilMgr.scandirCompat(dirpath))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -8952,7 +8989,7 @@ class UtilMgr(object):
             """
 
             if "**" in value:
-                if sys.version_info >= (3, 11):
+                if sys.version_info >= (3, 13):
                     res = glob.glob(value, recursive=True, include_hidden=True)
                 elif sys.version_info >= (3, 5):
                     res = glob.glob(value, recursive=True)
@@ -11360,7 +11397,7 @@ function reset_help() {
                 if task_match:
                     task_name = task_match.group(1).strip()
                     pid = task_match.group(2)
-                    task_key = f"{task_name}({pid})"
+                    task_key = "{0}({1})".format(task_name, pid)
                     tasks[task_key]["count"] += 1
                     if tasks[task_key]["color"] is None:
                         tasks[task_key]["color"] = color
@@ -28035,7 +28072,7 @@ class LogMgr(object):
         Tracks max_ns per chain and jank_cnt (>16ms) per leaf.
         """
         ns = int(diff * 1e9)
-        _JANK_NS = 16_000_000  # 16ms = one frame at 60fps
+        _JANK_NS = 16000000  # 16ms = one frame at 60fps
 
         # Choose grouping ID
         group_id = (
@@ -48609,7 +48646,10 @@ class RetraceMgr(object):
         r8MappingMetaRe = re.compile(
             r'^\s*#\s*\{.*"id"\s*:\s*"com\.android\.tools\.r8\.mapping"'
         )
-        fieldRe = re.compile(r"^\s*([^\s]+)\s+([^\s]+)\s*->\s*([^\s]+)\s*$")
+        # field name group excludes "(" so method signatures (which always
+        # contain a parameter list, even if empty) never get misclassified
+        # as fields and swallowed before methodRe gets a chance to match #
+        fieldRe = re.compile(r"^\s*([^\s]+)\s+([^\s(]+)\s*->\s*([^\s]+)\s*$")
         methodRe = re.compile(
             r"^\s*(\d+):(\d+):(.+?)(?::(\d+)(?::(\d+))?)?\s*->\s*([^\s]+)\s*$"
         )
@@ -48930,8 +48970,8 @@ class RetraceMgr(object):
             else obfLineNumber
         )
 
-        replacement = (
-            f"[{targetClass}.{targetMethod}({targetFile}:{targetLine})]"
+        replacement = "[{0}.{1}({2}:{3})]".format(
+            targetClass, targetMethod, targetFile, targetLine
         )
         return line[:spanStart] + replacement + line[spanEnd:]
 
@@ -48969,12 +49009,14 @@ class RetraceMgr(object):
                     fileInfoIfNoMap
                     if fileInfoIfNoMap
                     else (
-                        f"Unknown Source:{obfLineNumber}"
+                        "Unknown Source:{0}".format(obfLineNumber)
                         if obfLineNumber is not None
                         else "Unknown Source"
                     )
                 )
-                replacement = f"{origClass}.{methodName}({tail})"
+                replacement = "{0}.{1}({2})".format(
+                    origClass, methodName, tail
+                )
                 return line[:spanStart] + replacement + line[spanEnd:]
             return line
 
@@ -48988,8 +49030,8 @@ class RetraceMgr(object):
             else obfLineNumber
         )
 
-        replacement = (
-            f"{targetClass}.{targetMethod}({targetFile}:{targetLine})"
+        replacement = "{0}.{1}({2}:{3})".format(
+            targetClass, targetMethod, targetFile, targetLine
         )
         return line[:spanStart] + replacement + line[spanEnd:]
 
@@ -86411,7 +86453,8 @@ Key Value List:
         out = sys.__stderr__ if SysMgr.jsonEnable else sys.stdout
         if suffix:
             try:
-                print(log, file=out, flush=True)
+                print(log, file=out)
+                out.flush()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -86441,7 +86484,8 @@ Key Value List:
             SysMgr.stdlog.write(log)
 
         out = sys.__stderr__ if SysMgr.jsonEnable else sys.stdout
-        print(log, file=out, flush=True)
+        print(log, file=out)
+        out.flush()
 
     @staticmethod
     def printLine(line):
@@ -101098,9 +101142,8 @@ Key Value List:
                     elif os.path.isdir(path):
                         total = blockSize
                         try:
-                            with os.scandir(path) as it:
-                                for entry in it:
-                                    total += _getRealSize(entry.path)
+                            for entry in UtilMgr.scandirCompat(path):
+                                total += _getRealSize(entry.path)
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -118802,7 +118845,6 @@ class FuncPerfMgr(object):
         Returns the path string or None if not found/working.
         """
         subprocess = SysMgr.getPkg("subprocess")
-        shutil = SysMgr.getPkg("shutil")
         glob = SysMgr.getPkg("glob")
 
         kver = os.uname().release if hasattr(os, "uname") else ""
@@ -118818,9 +118860,9 @@ class FuncPerfMgr(object):
                 candidates.append(d)
 
         # PATH-based perf (may be a wrapper script that fails)
-        path_perf = shutil.which("perf")
+        path_perf = UtilMgr.which("perf")
         if path_perf:
-            candidates.append(path_perf)
+            candidates.append(path_perf[0])
 
         for perf in candidates:
             if not os.path.isfile(perf) or not os.access(perf, os.X_OK):
@@ -136740,7 +136782,7 @@ class BpfMgr(object):
                 _flame_data = BpfMgr._buildFlameFromSummary(
                     summary_call,
                     summary_bt,
-                    lambda n: max(1, n["ns"] // 1_000_000),
+                    lambda n: max(1, n["ns"] // 1000000),
                 )
                 BpfMgr._emitFlameSVG(
                     _flame_data, "bpfreclaimtop (ms blocked)", ".bpfreclaimtop"
@@ -137300,7 +137342,7 @@ class BpfMgr(object):
                 _flame_data = BpfMgr._buildFlameFromSummary(
                     summary_call,
                     summary_bt,
-                    lambda n: max(1, n["ns"] // 1_000_000),
+                    lambda n: max(1, n["ns"] // 1000000),
                 )
                 BpfMgr._emitFlameSVG(
                     _flame_data, "bpflocktop (ms blocked)", ".bpflocktop"
@@ -138057,7 +138099,7 @@ class BpfMgr(object):
                 _flame_data = BpfMgr._buildFlameFromSummary(
                     summary_call,
                     summary_bt,
-                    lambda n: max(1, n["ns"] // 1_000_000),
+                    lambda n: max(1, n["ns"] // 1000000),
                 )
                 BpfMgr._emitFlameSVG(
                     _flame_data, "bpfbinderlat (ms blocked)", ".bpfbinderlat"
@@ -142287,11 +142329,11 @@ class BpfMgr(object):
     @staticmethod
     def _fmtNs(ns):
         """Format nanoseconds into human-readable string."""
-        if ns >= 1_000_000_000:
+        if ns >= 1000000000:
             return "%.2fs" % (ns / 1e9)
-        elif ns >= 1_000_000:
+        elif ns >= 1000000:
             return "%.2fms" % (ns / 1e6)
-        elif ns >= 1_000:
+        elif ns >= 1000:
             return "%.2fus" % (ns / 1e3)
         else:
             return "%dns" % ns
@@ -142308,11 +142350,11 @@ class BpfMgr(object):
             if s.endswith("ns"):
                 return int(s[:-2])
             elif s.endswith("us"):
-                return int(float(s[:-2]) * 1_000)
+                return int(float(s[:-2]) * 1000)
             elif s.endswith("ms"):
-                return int(float(s[:-2]) * 1_000_000)
+                return int(float(s[:-2]) * 1000000)
             elif s.endswith("s"):
-                return int(float(s[:-1]) * 1_000_000_000)
+                return int(float(s[:-1]) * 1000000000)
         except (ValueError, IndexError):
             pass
         return 0
@@ -144077,7 +144119,7 @@ class BpfMgr(object):
                 _flame_data = BpfMgr._buildFlameFromSummary(
                     summary_call,
                     summary_bt,
-                    lambda n: max(1, n["ns"] // 1_000_000),
+                    lambda n: max(1, n["ns"] // 1000000),
                 )
                 BpfMgr._emitFlameSVG(
                     _flame_data, "bpfwaittop (ms blocked)", ".bpfwaittop"
@@ -144377,7 +144419,7 @@ class BpfMgr(object):
                 _flame_data = BpfMgr._buildFlameFromSummary(
                     summary_call,
                     summary_bt,
-                    lambda n: max(1, n["ns"] // 1_000_000),
+                    lambda n: max(1, n["ns"] // 1000000),
                 )
                 BpfMgr._emitFlameSVG(
                     _flame_data, "bpfblktop (ms blocked)", ".bpfblktop"
@@ -145946,7 +145988,7 @@ class BpfMgr(object):
                         if name_filter in p.get("name", "").lower()
                     ]
 
-                interval_ns = _actual * 1_000_000_000
+                interval_ns = _actual * 1000000000
                 rows = []
                 total_run_s = 0.0
 
@@ -150229,7 +150271,7 @@ class BpfMgr(object):
                     chain += " <- " + " <- ".join(frames)
                 if comm_label:
                     chain += " <- " + comm_label
-                elapsed_ms = max(1, g["total_ns"] // 1_000_000)
+                elapsed_ms = max(1, g["total_ns"] // 1000000)
                 drawflame_data[chain] = (
                     drawflame_data.get(chain, 0) + elapsed_ms
                 )
@@ -150725,7 +150767,7 @@ class BpfMgr(object):
                     # Standard mode: syscall name as leaf, elapsed ms as weight
                     _fd = {
                         SysMgr.getSyscallName(nr): max(
-                            1, s["total_ns"] // 1_000_000
+                            1, s["total_ns"] // 1000000
                         )
                         for nr, s in cumulative.items()
                         if s.get("count", 0) > 0
@@ -151970,7 +152012,8 @@ class BpfMgr(object):
                             if compress == ZLIB_METHOD
                             else raw_comp
                         )
-                        yield from _iter_objs(inner)
+                        for _o in _iter_objs(inner):
+                            yield _o
                     except Exception:
                         SysMgr.printErr(
                             "BLF: zlib decompress failed at offset %d" % p
@@ -152006,7 +152049,8 @@ class BpfMgr(object):
                     hdr_sz = 144
                 fp.seek(hdr_sz)
                 raw = fp.read()
-            yield from _iter_objs(raw)
+            for _o in _iter_objs(raw):
+                yield _o
         except Exception:
             SysMgr.printErr("Failed to read BLF: %s" % path, reason=True)
 
@@ -152104,10 +152148,8 @@ class BpfMgr(object):
 
     # ── CAN shared helpers (cantop / cansnoop) ──────────────────────────────
 
-    _CAN_KNOWN_IDS = {
-        0x7DF: "OBD-QUERY",
-        **{0x7E0 + i: "ECU-%d" % (i + 1) for i in range(8)},
-    }
+    _CAN_KNOWN_IDS = {0x7DF: "OBD-QUERY"}
+    _CAN_KNOWN_IDS.update({0x7E0 + i: "ECU-%d" % (i + 1) for i in range(8)})
 
     _CAN_CANOPEN_FUNC = {
         0: "NMT",
@@ -153305,6 +153347,7 @@ class BpfMgr(object):
                                 )
                             else:
                                 name = _lookup_pid_name(pid)
+                            _mfk = _get_mem_info_kb()
                             return {
                                 "uid": uid,
                                 "pid": pid,
@@ -153318,7 +153361,7 @@ class BpfMgr(object):
                                 "rss": rss_bytes,
                                 "cache": cache_bytes,
                                 "swap": swap,
-                                "mem_free_kb": (_mfk := _get_mem_info_kb())[0],
+                                "mem_free_kb": _mfk[0],
                                 "mem_cached_kb": _mfk[1],
                                 "mem_avail_kb": _mfk[2],
                                 "timestamp": _time.time(),
@@ -153349,6 +153392,7 @@ class BpfMgr(object):
                         )
                     else:
                         pgfault = pgmajflt = rss = cache = swap = 0
+                    _mfk2 = _get_mem_info_kb()
                     return {
                         "uid": uid,
                         "pid": 0,
@@ -153360,7 +153404,7 @@ class BpfMgr(object):
                         "rss": rss,
                         "cache": cache,
                         "swap": swap,
-                        "mem_free_kb": (_mfk2 := _get_mem_info_kb())[0],
+                        "mem_free_kb": _mfk2[0],
                         "mem_cached_kb": _mfk2[1],
                         "mem_avail_kb": _mfk2[2],
                         "timestamp": _time.time(),
@@ -155529,17 +155573,26 @@ class BpfMgr(object):
                         SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
                     SysMgr.addPrint(twoLine + "\n")
                 else:
-                    _jevts = [
-                        {
+                    _jevts = []
+                    for (
+                        tgid,
+                        comm,
+                        outstanding,
+                        total_bytes,
+                        cnt,
+                        _stk,
+                        _type,
+                    ) in entries:
+                        _evt = {
                             "pid": tgid,
                             "comm": comm,
                             "outstandingBytes": outstanding,
                             "totalBytes": total_bytes,
                             "allocCount": cnt,
-                            **({"type": _type} if add_mmap else {}),
                         }
-                        for tgid, comm, outstanding, total_bytes, cnt, _stk, _type in entries
-                    ]
+                        if add_mmap:
+                            _evt["type"] = _type
+                        _jevts.append(_evt)
                     SysMgr.printPipe(
                         UtilMgr.convDict2Str(
                             {"time": SysMgr.uptime, "heapAllocs": _jevts},
@@ -155978,20 +156031,20 @@ class BpfMgr(object):
                             _elap_eq_ns,
                         ):
                             continue
-                        _jevts.append(
-                            {
-                                "pid": tgid,
-                                "comm": comm,
-                                "rdBytes": rd_bytes,
-                                "wrBytes": wr_bytes,
-                                "rdCount": rd_cnt,
-                                "wrCount": wr_cnt,
-                                "rdNs": rd_ns,
-                                "wrNs": wr_ns,
-                                **({"fd": fd} if _show_fd else {}),
-                                "filename": _get_path(tgid, fd),
-                            }
-                        )
+                        _evt = {
+                            "pid": tgid,
+                            "comm": comm,
+                            "rdBytes": rd_bytes,
+                            "wrBytes": wr_bytes,
+                            "rdCount": rd_cnt,
+                            "wrCount": wr_cnt,
+                            "rdNs": rd_ns,
+                            "wrNs": wr_ns,
+                        }
+                        if _show_fd:
+                            _evt["fd"] = fd
+                        _evt["filename"] = _get_path(tgid, fd)
+                        _jevts.append(_evt)
                     SysMgr.printPipe(
                         UtilMgr.convDict2Str(
                             {"time": SysMgr.uptime, "ioStats": _jevts},
@@ -185242,10 +185295,7 @@ class ElfAnalyzer(object):
         """
         # try rustfilt subprocess (cached availability) #
         if not hasattr(ElfAnalyzer, "_rustfiltAvail"):
-            shutil = SysMgr.getPkg("shutil", False)
-            ElfAnalyzer._rustfiltAvail = (
-                shutil.which("rustfilt") is not None if shutil else False
-            )
+            ElfAnalyzer._rustfiltAvail = UtilMgr.which("rustfilt") is not None
 
         if ElfAnalyzer._rustfiltAvail:
             try:
@@ -185253,14 +185303,21 @@ class ElfAnalyzer(object):
                 if not subprocess:
                     ElfAnalyzer._rustfiltAvail = False
                 else:
-                    result = subprocess.run(
+                    proc = subprocess.Popen(
                         ["rustfilt", symbol],
-                        capture_output=True,
-                        text=True,
-                        timeout=2,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
                     )
-                    if result.returncode == 0:
-                        return result.stdout.strip()
+                    try:
+                        stdout, _ = proc.communicate(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.communicate()
+                        raise
+                    if proc.returncode == 0:
+                        if isinstance(stdout, bytes):
+                            stdout = stdout.decode("utf-8", errors="replace")
+                        return stdout.strip()
             except Exception:
                 ElfAnalyzer._rustfiltAvail = False
 
@@ -242943,7 +243000,7 @@ function isAutoNamedPlot(name) {{
                                 if top_task is None:
                                     top_task = (proc_cc.get(tgid, "?"), tgid)
                             if total_cnt > 0:
-                                avg_ms = (total_ns // total_cnt) // 1_000_000
+                                avg_ms = (total_ns // total_cnt) // 1000000
                                 task_str = (
                                     "%s(%d)" % top_task if top_task else "?"
                                 )
@@ -243200,7 +243257,7 @@ function isAutoNamedPlot(name) {{
                                 if top_task is None:
                                     top_task = (proc_cc.get(tgid, "?"), tgid)
                             if "avg" in comval and total_cnt > 0:
-                                avg_ms = (total_ns // total_cnt) // 1_000_000
+                                avg_ms = (total_ns // total_cnt) // 1000000
                                 task_str = (
                                     "%s(%d)" % top_task if top_task else "?"
                                 )
