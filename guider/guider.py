@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260831"
+__revision__ = "260905"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27096,6 +27096,24 @@ class FileAnalyzer(object):
 
         _pssChecker = UtilMgr.getSizeFilterFunc("PSSFILTER")
 
+        def _passesFilters(val):
+            memSize = val["pageCnt"] * pageSize
+            try:
+                pss = long(memSize / len(val["pids"]))
+            except:
+                pss = 0
+            if not _pssChecker(pss):
+                return False
+            if not _resChecker(memSize):
+                return False
+            if not val["isRep"]:
+                return False
+            return True
+
+        nrFileCount = sum(
+            1 for val in self.fileData.values() if _passesFilters(val)
+        )
+
         SysMgr.printPipe(
             (
                 "[%s] [File: %s] [RAM: %s] [Reclaim: %s/%s] [Uptime: %s]"
@@ -27103,7 +27121,7 @@ class FileAnalyzer(object):
             )
             % (
                 "File Usage Info",
-                UtilMgr.convNum(len(self.fileData)),
+                UtilMgr.convNum(nrFileCount),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
                 convert(self.pgRclmFg * 4 << 10),
@@ -27144,51 +27162,44 @@ class FileAnalyzer(object):
             else:
                 per = 0
 
+            if not _passesFilters(val):
+                continue
+
             try:
                 pss = long(memSize / len(val["pids"]))
-                if not _pssChecker(pss):
-                    continue
-                elif pss > 0:
+                if pss > 0:
                     pss = convColor(convert(pss), "GREEN", 7)
             except:
                 pss = 0
-                if not _pssChecker(pss):
-                    continue
-
-            if not _resChecker(memSize):
-                continue
 
             if memSize > 0:
                 memSize = convColor(convert(memSize), "YELLOW", 7)
 
-            if not val["isRep"]:
-                continue
+            if val["nrMap"] - 1 > 0:
+                cntStr = " [Map: %s]" % convNum(val["nrMap"] - 1)
             else:
-                if val["nrMap"] - 1 > 0:
-                    cntStr = " [Map: %s]" % convNum(val["nrMap"] - 1)
-                else:
-                    cntStr = ""
+                cntStr = ""
 
-                if val["nrOpen"] > 0:
-                    cntStr += " [Open: %s]" % convNum(val["nrOpen"])
-                else:
-                    cntStr += ""
+            if val["nrOpen"] > 0:
+                cntStr += " [Open: %s]" % convNum(val["nrOpen"])
+            else:
+                cntStr += ""
 
-                SysMgr.printPipe(
-                    (
-                        "{0:>7} |{1:>7} |{2:>4} |{3:>7} | {4:1} "
-                        "[Proc: {5:1}] [Link: {6:1}]{7:1}"
-                    ).format(
-                        memSize,
-                        convert(fileSize),
-                        per,
-                        pss,
-                        fileName,
-                        len(val["pids"]),
-                        convNum(val["hardLink"]),
-                        cntStr,
-                    )
+            SysMgr.printPipe(
+                (
+                    "{0:>7} |{1:>7} |{2:>4} |{3:>7} | {4:1} "
+                    "[Proc: {5:1}] [Link: {6:1}]{7:1}"
+                ).format(
+                    memSize,
+                    convert(fileSize),
+                    per,
+                    pss,
+                    fileName,
+                    len(val["pids"]),
+                    convNum(val["hardLink"]),
+                    cntStr,
                 )
+            )
 
             pidInfo = ""
             lineLength = SysMgr.lineLength
@@ -28688,79 +28699,7 @@ class LogMgr(object):
 
         SysMgr.waitUserInput(wait=0.000001, msg="DEFAULT")
 
-        totalCnt = float(sum([v["count"] for v in LogMgr.atraceStat.values()]))
-        jsonItem = jsonSubItem = {}
-        jsonStat = {
-            "time": SysMgr.uptime,
-            "timeDiff": SysMgr.uptimeDiff,
-            "nrSamples": totalCnt,
-            "sysCpu": sysCpuStr,
-            "sysMem": sysMemStr,
-            "monitor": procInfo,
-            "monitorCpu": mcpuStr,
-            "monitorMem": rssStr,
-            "stats": {},
-        }
-
-        _printer(
-            (
-                "[%s] [Time: %7.3f] [Interval: %.1f] [NrCall: %s] "
-                "[NrTask: %s] %s\n"
-            )
-            % (
-                "ATRACE Info",
-                SysMgr.uptime,
-                SysMgr.uptimeDiff,
-                convNum(totalCnt),
-                convNum(len(LogMgr.atraceStat)),
-                sysStatStr,
-            ),
-            force=force,
-        )
-
-        _printer(
-            (
-                "{8:1}\n{0:>32} | {1:>6}({2:>3}) | {3:>7} "
-                "{4:>7} {5:>7} {6:>7} | {7:<1}\n{8:1}\n"
-            ).format(
-                "PROCESS" if SysMgr.processEnable else "THREAD",
-                "CALL",
-                "%",
-                "TOTAL",
-                "MIN",
-                "MAX",
-                "AVG",
-                "Point",
-                twoLine,
-            ),
-            newline=2,
-            force=force,
-        )
-
         taskFilter = SysMgr.environList.get("TASKFILTER", [])
-        try:
-            if "COMMLEN" not in SysMgr.environList:
-                raise SyntaxWarning()
-            commLen = max(UtilMgr.getEnvironNum("COMMLEN"), 32)
-        except SyntaxWarning:
-            commLen = 32
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("failed to get comm length", True)
-            sys.exit(-1)
-
-        sortVal = SysMgr.environList.get("SORT", ["USAGE"])[0].upper()
-        if sortVal == "TOTAL":
-            sortRes = "usage"
-        elif sortVal == "MAX":
-            sortRes = "max"
-        elif sortVal == "MIN":
-            sortRes = "min"
-        elif sortVal == "AVG":
-            sortRes = "avg"
-        else:
-            sortRes = "count"
 
         # merge per-thread stats into per-process stats #
         mergeTask = "MERGETASK" in SysMgr.environList
@@ -28796,6 +28735,109 @@ class LogMgr(object):
                     _addStats(procPointStat[point], stats)
 
             LogMgr.atraceStat = procStat
+
+        def _resolveComm(tid, values):
+            if mergeTask:
+                return "TOTAL"
+            elif SysMgr.cmdlineEnable:
+                return SysMgr.getCmdline(
+                    tid, cache=True, save=True, default="?"
+                )
+            elif SysMgr.processEnable:
+                pid = values.get("pid")
+                pid = tid if pid.startswith(("<.", "-")) else pid
+                return SysMgr.getComm(pid)
+            else:
+                comm = values.get("comm")
+                if comm.startswith(("<.", "-")):
+                    comm = SysMgr.getComm(tid, default="?")
+                return comm
+
+        # apply -q TASKFILTER once here so the header/JSON totals below
+        # stay consistent with the per-task table, instead of reporting
+        # against every task while the table only shows the filtered
+        # subset #
+        if taskFilter:
+            reportStat = {
+                tid: values
+                for tid, values in LogMgr.atraceStat.items()
+                if UtilMgr.isValidStr(_resolveComm(tid, values), taskFilter)
+            }
+        else:
+            reportStat = LogMgr.atraceStat
+
+        totalCnt = float(sum([v["count"] for v in reportStat.values()]))
+        jsonItem = jsonSubItem = {}
+        jsonStat = {
+            "time": SysMgr.uptime,
+            "timeDiff": SysMgr.uptimeDiff,
+            "nrSamples": totalCnt,
+            "sysCpu": sysCpuStr,
+            "sysMem": sysMemStr,
+            "monitor": procInfo,
+            "monitorCpu": mcpuStr,
+            "monitorMem": rssStr,
+            "stats": {},
+        }
+
+        _printer(
+            (
+                "[%s] [Time: %7.3f] [Interval: %.1f] [NrCall: %s] "
+                "[NrTask: %s] %s\n"
+            )
+            % (
+                "ATRACE Info",
+                SysMgr.uptime,
+                SysMgr.uptimeDiff,
+                convNum(totalCnt),
+                convNum(len(reportStat)),
+                sysStatStr,
+            ),
+            force=force,
+        )
+
+        _printer(
+            (
+                "{8:1}\n{0:>32} | {1:>6}({2:>3}) | {3:>7} "
+                "{4:>7} {5:>7} {6:>7} | {7:<1}\n{8:1}\n"
+            ).format(
+                "PROCESS" if SysMgr.processEnable else "THREAD",
+                "CALL",
+                "%",
+                "TOTAL",
+                "MIN",
+                "MAX",
+                "AVG",
+                "Point",
+                twoLine,
+            ),
+            newline=2,
+            force=force,
+        )
+
+        try:
+            if "COMMLEN" not in SysMgr.environList:
+                raise SyntaxWarning()
+            commLen = max(UtilMgr.getEnvironNum("COMMLEN"), 32)
+        except SyntaxWarning:
+            commLen = 32
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("failed to get comm length", True)
+            sys.exit(-1)
+
+        sortVal = SysMgr.environList.get("SORT", ["USAGE"])[0].upper()
+        if sortVal == "TOTAL":
+            sortRes = "usage"
+        elif sortVal == "MAX":
+            sortRes = "max"
+        elif sortVal == "MIN":
+            sortRes = "min"
+        elif sortVal == "AVG":
+            sortRes = "avg"
+        else:
+            sortRes = "count"
 
         # get "value must be >= threshold" (BT) stat filters #
         hasBtCond = SysMgr.hasEnvironVar(
@@ -28879,7 +28921,7 @@ class LogMgr(object):
 
         logCnt = 0
         for tid, values in sorted(
-            LogMgr.atraceStat.items() if totalCnt else {},
+            reportStat.items() if totalCnt else {},
             key=lambda x: (
                 x[1]["usage"] / float(x[1]["count"])
                 if sortRes == "avg" and x[1].get("count")
@@ -28894,23 +28936,7 @@ class LogMgr(object):
             if not callCnt:
                 continue
 
-            if mergeTask:
-                comm = "TOTAL"
-            elif SysMgr.cmdlineEnable:
-                comm = SysMgr.getCmdline(
-                    tid, cache=True, save=True, default="?"
-                )
-            elif SysMgr.processEnable:
-                pid = values.get("pid")
-                pid = tid if pid.startswith(("<.", "-")) else pid
-                comm = SysMgr.getComm(pid)
-            else:
-                comm = values.get("comm")
-                if comm.startswith(("<.", "-")):
-                    comm = SysMgr.getComm(tid, default="?")
-
-            if taskFilter and not UtilMgr.isValidStr(comm, taskFilter):
-                continue
+            comm = _resolveComm(tid, values)
 
             origTaskInfo = taskInfo = "%s(%s)" % (comm, tid)
             callPer = long((callCnt / float(totalCnt)) * 100)
@@ -29196,6 +29222,19 @@ class LogMgr(object):
             else:
                 return fstr
 
+        def _getBinderTaskComm(tid, values):
+            if SysMgr.cmdlineEnable:
+                return SysMgr.getCmdline(tid, default="?")
+            elif SysMgr.processEnable:
+                pid = values.get("pid")
+                pid = tid if pid.startswith("-") else pid
+                return SysMgr.getComm(pid)
+            else:
+                comm = values.get("comm")
+                if comm.startswith(("<.", "-")):
+                    comm = SysMgr.getComm(tid, default="?")
+                return comm
+
         procInfo, mcpuStr, rssStr, sysCpuStr, sysMemStr, sysStatStr = (
             SysMgr.getStatVars(LogMgr.traceObj)
         )
@@ -29206,7 +29245,20 @@ class LogMgr(object):
 
         SysMgr.waitUserInput(wait=0.000001, msg="DEFAULT")
 
-        totalCnt = float(sum([v["count"] for v in LogMgr.binderStat.values()]))
+        taskFilter = SysMgr.environList.get("TASKFILTER", [])
+        totalCnt = float(
+            sum(
+                v["count"]
+                for tid, v in LogMgr.binderStat.items()
+                if v.get("count")
+                and (
+                    not taskFilter
+                    or UtilMgr.isValidStr(
+                        _getBinderTaskComm(tid, v), taskFilter
+                    )
+                )
+            )
+        )
         cliBasis = "SERVER" not in SysMgr.environList
         taskType = "PROCESS" if SysMgr.processEnable else "THREAD"
         opposite = "server" if cliBasis else "cli"
@@ -29258,7 +29310,6 @@ class LogMgr(object):
             force=force,
         )
 
-        taskFilter = SysMgr.environList.get("TASKFILTER", [])
         oppositeFilter = SysMgr.environList.get("OPPOSITEFILTER", [])
         try:
             if "COMMLEN" in SysMgr.environList:
@@ -29300,16 +29351,7 @@ class LogMgr(object):
             if not callCnt:
                 continue
 
-            if SysMgr.cmdlineEnable:
-                comm = SysMgr.getCmdline(tid, default="?")
-            elif SysMgr.processEnable:
-                pid = values.get("pid")
-                pid = tid if pid.startswith("-") else pid
-                comm = SysMgr.getComm(pid)
-            else:
-                comm = values.get("comm")
-                if comm.startswith(("<.", "-")):
-                    comm = SysMgr.getComm(tid, default="?")
+            comm = _getBinderTaskComm(tid, values)
 
             if taskFilter and not UtilMgr.isValidStr(comm, taskFilter):
                 continue
@@ -29560,13 +29602,76 @@ class LogMgr(object):
 
         sysStatStr = SysMgr.getStatVars(LogMgr.traceObj)[-1]
 
+        taskFilter = SysMgr.environList.get("TASKFILTER", [])
+
+        def _resolveTraceComm(task, items):
+            if SysMgr.cmdlineEnable:
+                return SysMgr.getCmdline(
+                    task, cache=True, save=True, default="?"
+                )
+            comm = items["comm"]
+            if comm.startswith("<"):
+                if task == "0":
+                    return "swapper"
+                return SysMgr.getComm(task, default="?")
+            return comm
+
+        def _filterTraceTasks(tasks):
+            if not taskFilter:
+                return tasks
+
+            newTasks = {}
+            cnt = 0
+            total = 0.0
+            minVal = None
+            maxVal = None
+            for task, items in tasks.items():
+                if not task.isdigit():
+                    continue
+
+                comm = _resolveTraceComm(task, items)
+                if task not in taskFilter and not UtilMgr.isValidStr(
+                    comm, taskFilter
+                ):
+                    continue
+
+                newTasks[task] = items
+                cnt += items.get("cnt", 0)
+                total += items.get("total", 0)
+                tmin = items.get("min")
+                tmax = items.get("max")
+                if tmin is not None:
+                    minVal = tmin if minVal is None else min(minVal, tmin)
+                if tmax is not None:
+                    maxVal = tmax if maxVal is None else max(maxVal, tmax)
+
+            newTasks["cnt"] = cnt
+            newTasks["total"] = total
+            newTasks["min"] = minVal if minVal is not None else 0
+            newTasks["max"] = maxVal if maxVal is not None else 0
+            return newTasks
+
+        if taskFilter:
+            reportStat = {}
+            for event, tasks in LogMgr.traceStat.items():
+                if event == "cnt":
+                    continue
+                filtered = _filterTraceTasks(tasks)
+                if filtered.get("cnt", 0) > 0:
+                    reportStat[event] = filtered
+            reportStat["cnt"] = sum(
+                v.get("cnt", 0) for v in reportStat.values()
+            )
+        else:
+            reportStat = LogMgr.traceStat
+
         SysMgr.addPrint(
             "[%s] [Time: %7.3f] [Interval: %.1f] [NrEvent: %s] %s\n"
             % (
                 "Trace Info",
                 SysMgr.uptime,
                 SysMgr.uptimeDiff,
-                convNum(LogMgr.traceStat.get("cnt", 0)),
+                convNum(reportStat.get("cnt", 0)),
                 sysStatStr,
             ),
             force=force,
@@ -29580,8 +29685,6 @@ class LogMgr(object):
             newline=2,
             force=force,
         )
-
-        taskFilter = SysMgr.environList.get("TASKFILTER", [])
 
         def _getStats(statList, totalCnt, indent=True):
             statStr = ""
@@ -29602,9 +29705,9 @@ class LogMgr(object):
             return statStr
 
         logCnt = 0
-        totalCnt = float(LogMgr.traceStat.get("cnt", 0))
+        totalCnt = float(reportStat.get("cnt", 0))
         for event, tasks in sorted(
-            LogMgr.traceStat.items(),
+            reportStat.items(),
             key=lambda x: x[1].get("cnt", 0) if x[0] != "cnt" else 0,
             reverse=True,
         ):
@@ -29646,23 +29749,7 @@ class LogMgr(object):
                     quitLoop = True
                     break
 
-                if SysMgr.cmdlineEnable:
-                    comm = SysMgr.getCmdline(
-                        task, cache=True, save=True, default="?"
-                    )
-                else:
-                    comm = items["comm"]
-                    if comm.startswith("<"):
-                        if task == "0":
-                            comm = "swapper"
-                        else:
-                            comm = SysMgr.getComm(task, default="?")
-
-                if taskFilter:
-                    if task not in taskFilter and not UtilMgr.isValidStr(
-                        comm, taskFilter
-                    ):
-                        continue
+                comm = _resolveTraceComm(task, items)
 
                 taskInfo = "%s(%s)" % (comm, task)
                 taskCnt = items["cnt"]
@@ -30583,6 +30670,20 @@ class LogMgr(object):
                     ):
                         continue
 
+                pcomm = " "
+                if not noComm and pid != "0":
+                    if useCmdline:
+                        pcomm = SysMgr.getCmdline(pid, cache=True, default=" ")
+                    else:
+                        pcomm = SysMgr.getComm(
+                            pid, cache=True, save=True, default=" "
+                        )
+
+                if commFilter and not UtilMgr.isValidStr(pcomm, commFilter):
+                    continue
+                elif commExFilter and UtilMgr.isValidStr(pcomm, commExFilter):
+                    continue
+
                 if isMonotonic:
                     ltime = items[0]
                 else:
@@ -30601,20 +30702,6 @@ class LogMgr(object):
                     else:
                         endDateTime = cur
                     SysMgr.uptimeDiff = endDateTime - startDateTime
-
-                pcomm = " "
-                if not noComm and pid != "0":
-                    if useCmdline:
-                        pcomm = SysMgr.getCmdline(pid, cache=True, default=" ")
-                    else:
-                        pcomm = SysMgr.getComm(
-                            pid, cache=True, save=True, default=" "
-                        )
-
-                if commFilter and not UtilMgr.isValidStr(pcomm, commFilter):
-                    continue
-                elif commExFilter and UtilMgr.isValidStr(pcomm, commExFilter):
-                    continue
 
                 proc = "{0:>{commlen}}({1:>{pidlen}})".format(
                     pcomm, pid, commlen=commlen, pidlen=pidlen
@@ -32060,6 +32147,99 @@ class LLMMgr(object):
             self.usage = usage
             self.rawResponse = rawResponse
             self.cacheStats = cacheStats  # Cache statistics (if available)
+
+    # (model_substring, prompt_$/1K_tokens, completion_$/1K_tokens); first
+    # substring match wins, "default" is the final fallback. Override via
+    # guider.conf [llm].ASKRUN.PRICING_OVERRIDE without touching this code #
+    _TOKEN_PRICING = {
+        "claude": [
+            ("claude-3-5-haiku", 0.0008, 0.004),
+            ("claude-3-haiku", 0.00025, 0.00125),
+            ("claude-3-5-sonnet", 0.003, 0.015),
+            ("claude-3-7-sonnet", 0.003, 0.015),
+            ("sonnet", 0.003, 0.015),
+            ("claude-3-opus", 0.015, 0.075),
+            ("opus", 0.015, 0.075),
+            ("default", 0.003, 0.015),
+        ],
+        "openai": [
+            ("gpt-4o-mini", 0.00015, 0.0006),
+            ("gpt-4o", 0.0025, 0.01),
+            ("gpt-4-turbo", 0.01, 0.03),
+            ("gpt-3.5", 0.0005, 0.0015),
+            ("default", 0.0025, 0.01),
+        ],
+        "gemini": [
+            ("gemini-1.5-flash", 0.000075, 0.0003),
+            ("gemini-1.5-pro", 0.00125, 0.005),
+            ("default", 0.00125, 0.005),
+        ],
+        "default": [("default", 0.003, 0.015)],
+    }
+
+    @staticmethod
+    def _estimateCostUsd(provider, model, usage):
+        """Estimate USD cost of one LLM call from token usage.
+
+        Returns 0.0 on any missing/malformed input instead of raising,
+        since some providers omit usage or return partial fields #
+        """
+
+        try:
+            if not usage:
+                return 0.0
+
+            promptTokens = usage.get("prompt_tokens") or 0
+            completionTokens = usage.get("completion_tokens") or 0
+            if not promptTokens and not completionTokens:
+                return 0.0
+
+            providerKey = (provider or "default").lower()
+            if providerKey.startswith("custom-"):
+                providerKey = providerKey[len("custom-") :]
+            table = LLMMgr._TOKEN_PRICING.get(
+                providerKey, LLMMgr._TOKEN_PRICING["default"]
+            )
+
+            # guider.conf [llm].ASKRUN.PRICING_OVERRIDE lets an operator
+            # update rates without a code change; entries are tried before
+            # the built-in table so they take priority on substring match #
+            try:
+                overrideCfg = (
+                    LLMMgr._askrunConfig.get("PRICING_OVERRIDE") or {}
+                    if LLMMgr._askrunConfig
+                    else {}
+                )
+                if overrideCfg and providerKey in overrideCfg:
+                    table = [
+                        (str(e[0]), float(e[1]), float(e[2]))
+                        for e in overrideCfg[providerKey]
+                    ] + table
+            except (TypeError, ValueError, IndexError, KeyError):
+                pass
+
+            modelKey = (model or "").lower()
+            promptRate = completionRate = None
+            for substr, pRate, cRate in table:
+                if substr == "default":
+                    continue
+                if substr in modelKey:
+                    promptRate, completionRate = pRate, cRate
+                    break
+            if promptRate is None:
+                for substr, pRate, cRate in table:
+                    if substr == "default":
+                        promptRate, completionRate = pRate, cRate
+                        break
+
+            if promptRate is None:
+                return 0.0
+
+            return (promptTokens / 1000.0 * promptRate) + (
+                completionTokens / 1000.0 * completionRate
+            )
+        except (TypeError, ValueError, AttributeError):
+            return 0.0
 
     class BaseLLM(object):
         """Base class for LLM APIs"""
@@ -38570,6 +38750,17 @@ class LLMMgr(object):
             opts["apiKey"] = _envVal("LLMCUSTOM_API_KEY")
         if "LLMCUSTOM_BASE_URL" in envList and "baseUrl" not in opts:
             opts["baseUrl"] = _envVal("LLMCUSTOM_BASE_URL")
+        if "LLMBUDGET" in envList and "budgetCapUsd" not in opts:
+            try:
+                opts["budgetCapUsd"] = float(_envVal("LLMBUDGET"))
+            except:
+                pass
+        for _minConfKey in ("LLMMINCONF", "MINCONF"):
+            if _minConfKey in envList and "minConfidence" not in opts:
+                try:
+                    opts["minConfidence"] = float(_envVal(_minConfKey))
+                except:
+                    pass
         return opts
 
 
@@ -41465,6 +41656,8 @@ class AndroidMgr(object):
             os.putenv("LOGO", "0")
             envOpts = ",".join(envOptList)
 
+            gOpt = SysMgr.getOption("g")
+
             workload = UtilMgr.splitListBySize(inputLogList, nrCore)
 
             if SysMgr.outPath:
@@ -41491,6 +41684,8 @@ class AndroidMgr(object):
                     "-o",
                     outFile,
                 ]
+                if gOpt:
+                    exeList += ["-g", gOpt]
                 procList.append(subprocess.Popen(exeList))
 
             for pobj in procList:
@@ -42508,6 +42703,12 @@ class AndroidMgr(object):
                 target,
             )
 
+            onlyEnable = "ONLYENABLE" in SysMgr.environList
+            if onlyEnable:
+                pkgList = {
+                    k: v for k, v in pkgList.items() if v.get("enable") == "1"
+                }
+
             if SysMgr.jsonEnable:
                 statusDict["pkgList"] = pkgList
                 if not keepRun:
@@ -42518,8 +42719,6 @@ class AndroidMgr(object):
                     sys.exit(0)
 
             ctrue = UtilMgr.convColor("true", "GREEN")
-
-            onlyEnable = "ONLYENABLE" in SysMgr.environList
 
             def _getVal(vn, vv):
                 if vv == "1":
@@ -42554,9 +42753,6 @@ class AndroidMgr(object):
                 sys.exit(0)
 
             for k, v in newPkgList:
-                if onlyEnable and v.get("enable") != "1":
-                    continue
-
                 SysMgr.printPipe(
                     "%s: %s"
                     % (
@@ -49496,6 +49692,11 @@ class SysMgr(object):
     eventCommandList = {}
     llmEventPending = {}
     llmEventRateTs = {}
+    llmCumulativeCostUsd = 0.0  # cumulative estimated USD cost across
+    # ASKAI/ASKRUN calls from both TaskAnalyzer._runLLMAskThread and
+    # BpfMgr._triggerBpfAI - guarded by _llmCostLock since both call sites
+    # run on separate daemon threads #
+    _llmCostLock = __import__("threading").Lock()
     llmConcurrencySem = None  # lazily-created global cap on concurrent
     # in-flight LLM worker threads across ALL events combined (per-event
     # rate-limiting alone can't stop many DIFFERENT threshold rules from
@@ -56311,6 +56512,24 @@ Commands:
             )
             return False
 
+        # NOTE: use an escape-PRESERVING comma split here, not
+        # UtilMgr.splitString() -- splitString() un-escapes "\," -> ","
+        # (so a caller can consume the clean value), but this code only
+        # wants to DROP the CONTINUOUS item and re-embed the surviving
+        # items verbatim into the relaunched child's own raw "-q" argv
+        # token, which the child will splitString() again on its own
+        # (e.g. via SysMgr.parseEnvironVars()). Rejoining
+        # already-unescaped items with a plain "," would leave a bare
+        # comma where the user wrote "\," (e.g.
+        # "-q PROCCOMMFILTER:foo\,bar,CONTINUOUS:30"), and the child's
+        # second splitString() pass would then wrongly split that one
+        # PROCCOMMFILTER value into two items -- truncating it to
+        # "foo" and spilling "bar" out as a bogus top-level -q flag,
+        # same corruption class documented at the WATCHLOGCMD site
+        # above (search "DOUBLE escape") #
+        def _splitKeepEscape(s):
+            return [p.strip() for p in re.split(r"(?<!\\),", s)]
+
         childOpts = []
         origTokens = SysMgr.origArgs[2:]
         idx = 0
@@ -56319,7 +56538,7 @@ Commands:
             if tok == "-q" and idx + 1 < len(origTokens):
                 items = [
                     it
-                    for it in UtilMgr.splitString(origTokens[idx + 1])
+                    for it in _splitKeepEscape(origTokens[idx + 1])
                     if it.split(":", 1)[0].upper() != "CONTINUOUS"
                 ]
                 if items:
@@ -56329,7 +56548,7 @@ Commands:
             elif tok.startswith("-q") and len(tok) > 2:
                 items = [
                     it
-                    for it in UtilMgr.splitString(tok[2:])
+                    for it in _splitKeepEscape(tok[2:])
                     if it.split(":", 1)[0].upper() != "CONTINUOUS"
                 ]
                 if items:
@@ -56359,6 +56578,17 @@ Commands:
         for i, t in enumerate(childOpts):
             if t == "-o" and i + 1 < len(childOpts):
                 outOpt = childOpts[i + 1]
+                break
+            # combined form, e.g. "-oFILE" (same convention as "-q"/"-R"
+            # above, and used elsewhere in this file for internal command
+            # construction, e.g. "-o" + outPath) -- without this, a
+            # combined-form -o survives untouched into childCmd (so the
+            # relaunched child writes output correctly) but this
+            # rotation bookkeeping would never find it, silently falling
+            # back to the wrong (non-existent) default target every
+            # window #
+            elif t.startswith("-o") and len(t) > 2:
+                outOpt = t[2:]
                 break
 
         SysMgr.printInfo(
@@ -62886,6 +63116,7 @@ Usage:
                      LLMPROVIDER:<NAME> | LLMMODEL:<NAME> | LLMRATELIMIT:<SEC>
                      LLMMAXCMD:<n> | LLMCTXDEPTH:<n>
                      LLMAUDITLOG:<path> | LLMALLOWCMD:<cmds>
+                     LLMBUDGET:<usd> | LLMMINCONF:<0.0-1.0> (alias: MINCONF)
           [limit]    LIMITCPU:<pct>[@<name>] | LIMITCPUSET:<cores>[@<name>]
                      LIMITMEM:<size>[@<name>] | LIMITMEMSOFT:<size>[@<name>]
                      LIMITREAD:<size>[@<name>] | LIMITWRITE:<size>[@<name>]
@@ -63119,7 +63350,9 @@ Troubleshooting:
     -q  AIPERIODIC:<SEC>        trigger periodic AI trend summary every N seconds
     -q  LLMRATELIMIT:<SEC>      minimum seconds between AI calls (default: 60)
     -q  LLMPROVIDER:<NAME>      LLM provider: custom-claude / claude / openai / gemini
-    -q  LLMMODEL:<NAME>         model name override (e.g. claude-sonnet-5)"""
+    -q  LLMMODEL:<NAME>         model name override (e.g. claude-sonnet-5)
+    -q  LLMBUDGET:<USD>         stop AI calls once cumulative estimated cost
+                                reaches this cap (shared across ASKAI/ASKRUN)"""
                 # shared common -i/-R/-H options block (interval 3s, repeat, depth 127) #
                 _bpf_iRH = """\
     -i  <SEC>                   set interval in seconds (default: 3)
@@ -69096,7 +69329,22 @@ Notes:
       cannot be combined with ARGnSTR/ARGnFDPATH's :<pattern> to filter on the converted
       string — use that option's own :<pattern>/!<pattern> instead (e.g. ARG1FDPATH:!*ptmx*
       instead of ARG1NE:*ptmx*, which silently warns and drops the filter since VAL isn't numeric)
+    - ARGn/ARGnGT/ARGnLT/ARGnNE compare against the raw UNSIGNED argument value, so a negative
+      VAL (e.g. ARG3:-2) never matches and now warns; use the unsigned form instead (VAL &
+      0xFFFFFFFF for a 32-bit int argument, e.g. ARG3:4294967294 or ARG3:0xfffffffe to match
+      setpriority's prio=-2) -- see ARGnFMT:SDEC below to display the signed value for reference
     - Multiple ARG filters are ANDed together
+    - ARGnFMT:HEX|DEC|BIN|SDEC controls how the raw value of argument n is displayed in TEXT
+      mode (e.g. -q ARG1FMT:DEC, -q ARG3FMT:BIN); default HEX matches the previous unconditional
+      "0x%x" output. DEC/BIN show the unsigned raw bits of the full 64-bit captured value
+      (same philosophy as HEX) -- for a 32-bit signed int argument (fd/prio/signal/errno/flags)
+      whose raw register happens to be zero-extended rather than sign-extended, a negative
+      value like setpriority's prio=-2 will show as DEC:4294967294/BIN:0b11111111111111111111111111111110
+      instead of -2; use SDEC to reinterpret the low 32 bits as signed int32 and get -2 back
+      (only use SDEC when you know the argument actually is a 32-bit int -- applying it to a
+      genuine large 64-bit value will misinterpret it). Applies to bpfsnoop/bpfsyscallsnoop
+      only; unaffected: JSON output (always raw int for bpfsnoop, "0x.." string for
+      bpfsyscallsnoop), RET, and bpftop's ARGnHIST (bucket index, not the raw value)
     - SHOWRET: exit events show ELAPSED (seconds) and RET (hex); ELAPFILTER/RETFILTER suppress
       entry events when active; "=" operator for exact match
       with -H, stack IDs are captured at entry and forwarded to exit events, so backtraces
@@ -69144,8 +69392,11 @@ Examples:
     - Snoop vfs_write calls for a specific process with process name
         # {0:1} {1:1} vfs_write -g myapp -R 10 -q ADDPROCCOMM
 
-    - Snoop tcp_sendmsg where ARG2 (size) > 4096
-        # {0:1} {1:1} tcp_sendmsg -q ARG2GT:4096 -R 15
+    - Snoop tcp_sendmsg where ARG3 (size) > 4096
+        # {0:1} {1:1} tcp_sendmsg -q ARG3GT:4096 -R 15
+
+    - Snoop tcp_sendmsg and show ARG3 (size) as decimal instead of hex
+        # {0:1} {1:1} tcp_sendmsg -q ARG3FMT:DEC -R 15
 
     - Snoop do_sys_openat2 where ARG1 == 0xffffff9c (AT_FDCWD)
         # {0:1} {1:1} do_sys_openat2 -q ARG1:0xffffff9c -R 10
@@ -70922,6 +71173,9 @@ Options:
     -q  ARGnLT:<VAL>            show only events where syscall ARGn <  VAL
     -q  ARGnNE:<VAL>            show only events where syscall ARGn != VAL
                                 (VAL supports hex: 0x1234 or decimal; filters ANDed together)
+    -q  ARGnFMT:<FMT>           display syscall ARGn as HEX(default)/DEC/BIN/SDEC in ARGS
+                                (n=1..6; SDEC reinterprets the low 32 bits as signed int32,
+                                for args like setpriority's prio that are negative 32-bit ints)
     -q  UPTIME                  show uptime (seconds since boot) instead of HH:MM:SS
     -q  EXEC                    shortcut: filter execve/execveat/exit_group syscalls only;
                                 adds PARENTCOMM(PPID) inline in ARGS; exit_group shows "code=N" in ARGS
@@ -71031,6 +71285,11 @@ Examples:
 
     - Combine SIGNAME with process filter to catch SIGKILL senders
         # {0:1} {1:1} -q SIGNAME -t kill -R 60
+
+    - Show setpriority's prio (ARG3) as a proper signed value instead of
+      a huge unsigned number (raw ARG3 for a negative prio like -2 is
+      captured as the zero-extended 32-bit pattern 4294967294, not -2)
+        # {0:1} {1:1} -t setpriority -q ARG3FMT:SDEC -R 30
                         """.format(
                         cmd, mode
                     )
@@ -77518,7 +77777,8 @@ Commands:
                                                value auto-names inside it; any other value
                                                is used as the literal file path
                         Global -q options: LLMRATELIMIT, LLMDRYRUN, LLMMAXCMD,
-                          LLMCTXDEPTH, LLMAUDITLOG, LLMALLOWCMD
+                          LLMCTXDEPTH, LLMAUDITLOG, LLMALLOWCMD, LLMBUDGET,
+                          LLMMINCONF (alias: MINCONF, ASKRUN only)
                         """.format(
                         cmd, mode
                     )
@@ -96489,14 +96749,23 @@ Key Value List:
             title = "Vmalloc Info"
             uptime = ""
 
-        totalSize = sum([x["size"] for x in instance.vmallocData.values()])
+        if target:
+            vmallocData = {
+                name: items
+                for name, items in instance.vmallocData.items()
+                if UtilMgr.isValidStr(name, target, inc=True)
+            }
+        else:
+            vmallocData = instance.vmallocData
+
+        totalSize = sum([x["size"] for x in vmallocData.values()])
 
         SysMgr.addPrint(
             "[%s] %s[NrItems: %s] [Total: %s] \n%s\n"
             % (
                 title,
                 uptime,
-                UtilMgr.convNum(len(instance.vmallocData)),
+                UtilMgr.convNum(len(vmallocData)),
                 UtilMgr.convSize2Unit(totalSize),
                 twoLine,
             ),
@@ -96509,13 +96778,10 @@ Key Value List:
         try:
             nrCnt = 0
             for name, items in sorted(
-                instance.vmallocData.items(),
+                vmallocData.items(),
                 key=lambda x: x[1]["size"],
                 reverse=True,
             ):
-                if target and not UtilMgr.isValidStr(name, target, inc=True):
-                    continue
-
                 SysMgr.addPrint(
                     "{0:>7} {1:>1}\n".format(
                         UtilMgr.convSize2Unit(items["size"]), name
@@ -96580,14 +96846,23 @@ Key Value List:
             title = "Slab Info"
             uptime = ""
 
-        totalSize = sum([x["totsize"] for x in instance.slabData.values()])
+        if target:
+            slabData = {
+                name: items
+                for name, items in instance.slabData.items()
+                if UtilMgr.isValidStr(name, target, inc=True)
+            }
+        else:
+            slabData = instance.slabData
+
+        totalSize = sum([x["totsize"] for x in slabData.values()])
 
         SysMgr.addPrint(
             "[%s] %s[NrItems: %s] [Total: %s]\n%s\n"
             % (
                 title,
                 uptime,
-                UtilMgr.convNum(len(instance.slabData)),
+                UtilMgr.convNum(len(slabData)),
                 UtilMgr.convSize2Unit(totalSize),
                 twoLine,
             ),
@@ -96611,13 +96886,10 @@ Key Value List:
         try:
             nrCnt = 0
             for name, items in sorted(
-                instance.slabData.items(),
+                slabData.items(),
                 key=lambda x: x[1][sortval],
                 reverse=True,
             ):
-                if target and not UtilMgr.isValidStr(name, target, inc=True):
-                    continue
-
                 total = items["total"]
                 active = items["active"]
                 if total > 0:
@@ -97723,6 +97995,34 @@ Key Value List:
                 and PageAnalyzer.isExmapped(entry)
             )
 
+        def _rollbackDupMerge(mergeTable, dupMems, pid, perProcInfo):
+            # PERBT/PERLT/DUPBT/DUPLT decide whether a chunk qualifies only
+            # after its frames have already been folded into the global
+            # mergeTable (duplicate % is unknowable beforehand). When a
+            # chunk fails that threshold, undo its contribution here so the
+            # excluded chunk doesn't skew the final [Dup Info] summary and
+            # DupPages table, mirroring how CHUNKBT/CHUNKLT exclude chunks
+            # before they ever touch mergeTable.
+            for frame, cnt in dupMems.items():
+                if perProcInfo:
+                    entry = mergeTable.get(frame)
+                    if not entry:
+                        continue
+                    entry[0] -= cnt
+                    pidCnt = entry[1].get(pid, 0) - cnt
+                    if pidCnt <= 0:
+                        entry[1].pop(pid, None)
+                    else:
+                        entry[1][pid] = pidCnt
+                    if entry[0] <= 0:
+                        mergeTable.pop(frame, None)
+                else:
+                    newCnt = mergeTable.get(frame, 0) - cnt
+                    if newCnt <= 0:
+                        mergeTable.pop(frame, None)
+                    else:
+                        mergeTable[frame] = newCnt
+
         flist = []
         fileTarget = "FILETARGET" in SysMgr.environList
 
@@ -98534,14 +98834,13 @@ Key Value List:
                 nrDupPer = (
                     long(nrDupCnt / float(nrChunks) * 100) if nrChunks else 0
                 )
-                if condPerBig and nrDupPer < condPerBig:
-                    continue
-                elif condPerLess and nrDupPer > condPerLess:
-                    continue
-
-                if condDupBig and nrDupTotal < condDupBig:
-                    continue
-                elif condDupLess and nrDupTotal > condDupLess:
+                if (
+                    (condPerBig and nrDupPer < condPerBig)
+                    or (condPerLess and nrDupPer > condPerLess)
+                    or (condDupBig and nrDupTotal < condDupBig)
+                    or (condDupLess and nrDupTotal > condDupLess)
+                ):
+                    _rollbackDupMerge(mergeTable, dupMems, pid, perProcInfo)
                     continue
 
                 if printDupStat and nrDupTotal:
@@ -99681,7 +99980,11 @@ Key Value List:
                     continue
 
         def _printStats():
-            nrCore = SysMgr.getNrCore()
+            nrCore = (
+                len(SysMgr.customCmd)
+                if SysMgr.customCmd
+                else SysMgr.getNrCore()
+            )
             maxTime = nrCore * 1000000 * SysMgr.uptimeDiff
 
             try:
@@ -123212,6 +123515,94 @@ class BpfMgr(object):
             return bool(value) and UtilMgr.isValidStr(value, pos)
         return True
 
+    _ARG_FMT_FUNCS = {
+        "HEX": lambda v: "0x%x" % v,
+        "DEC": lambda v: "%d" % v,
+        "BIN": lambda v: "0b%s" % format(v, "b"),
+        # SDEC: reinterpret the low 32 bits as signed int32. Most syscall/
+        # kernel-function int arguments (fd, prio, signal, error code,
+        # flags) are 32-bit, and the raw captured u64 register commonly
+        # zero-extends rather than sign-extends a negative int (an x86-64
+        # calling-convention quirk: a 32-bit mov into e.g. edx zeroes the
+        # upper 32 bits of rdx) -- so plain DEC of the full 64-bit value
+        # shows e.g. 4294967294 instead of the intended -2. DEC is left
+        # as unsigned raw-bits decimal (same philosophy as HEX/BIN); SDEC
+        # is opt-in for args the caller knows are a 32-bit signed int #
+        "SDEC": lambda v: "%d"
+        % ((((v & 0xFFFFFFFF) + 0x80000000) & 0xFFFFFFFF) - 0x80000000),
+    }
+
+    @staticmethod
+    def _resolveArgFmts(count):
+        # ARGnFMT:HEX|DEC|BIN|SDEC - per-arg text-mode display format shared
+        # by bpfsnoop/bpfsyscallsnoop. Default HEX preserves the previous
+        # hardcoded "0x%x" behavior exactly. Resolved once at command setup
+        # time (not per-event) so the hot loop only pays for a list index
+        # plus one function call #
+        _fmts = [BpfMgr._ARG_FMT_FUNCS["HEX"]] * count
+        for _i in range(1, count + 1):
+            _v = SysMgr.environList.get("ARG%dFMT" % _i)
+            if _v:
+                if len(_v) > 1:
+                    SysMgr.printWarn(
+                        "ARG%dFMT: %d values given (%s); only the first "
+                        "('%s') is used -- this is a single-choice option, "
+                        "not a repeatable filter/pattern"
+                        % (_i, len(_v), ", ".join(_v), _v[0]),
+                        True,
+                    )
+                _fn = BpfMgr._ARG_FMT_FUNCS.get(str(_v[0]).upper())
+                if _fn:
+                    _fmts[_i - 1] = _fn
+                else:
+                    SysMgr.printWarn(
+                        "ARG%dFMT: unsupported value '%s'; use HEX/DEC/BIN/SDEC"
+                        % (_i, _v[0]),
+                        True,
+                    )
+        return _fmts
+
+    @staticmethod
+    def _getArgFilterVal(key, ctx):
+        # shared by doBpfsnoopCmd/doBpfsyscallsnoopCmd's ARGn/ARGnGT/ARGnLT/
+        # ARGnNE numeric filter parsing -- previously duplicated separately
+        # in each command with inconsistent warning behavior (bpfsnoop
+        # warned on a non-numeric value, bpfsyscallsnoop silently dropped
+        # it). Also warns on a NEGATIVE value: filters compare against the
+        # raw argument value, which is always read as an UNSIGNED 64-bit
+        # register (see BpfMgr.genSnoopProg/genSyscallsnoopEntryProg) --
+        # for a 32-bit int argument (fd/prio/signal/errno/flags) that
+        # register is commonly zero-extended rather than sign-extended
+        # (see _ARG_FMT_FUNCS["SDEC"]'s docstring), so e.g. "-q ARG3:-2"
+        # intended to match setpriority's prio=-2 will never match; the
+        # caller needs the unsigned form instead (e.g. ARG3:4294967294 or
+        # ARG3:0xfffffffe) #
+        if key not in SysMgr.environList:
+            return None
+        _raw = SysMgr.environList[key][0]
+        try:
+            _val = int(_raw, 0)
+        except (ValueError, TypeError):
+            SysMgr.printWarn(
+                "%s: -q %s only supports numeric values; for string/"
+                "wildcard matching use ARGnSTR/ARGnFDNO/ARGnFDPATH's "
+                ":<pattern> (prefix ! to negate)" % (ctx, key),
+                True,
+            )
+            return None
+        if _val < 0:
+            SysMgr.printWarn(
+                "%s: -q %s:%d is negative and will never match, since "
+                "the raw argument value is always read as UNSIGNED; for "
+                "a 32-bit int argument this is commonly zero-extended "
+                "rather than sign-extended, so use the unsigned form "
+                "instead (%d & 0xFFFFFFFF = 0x%x) -- see -q ARGnFMT:SDEC "
+                "to display the signed value for comparison"
+                % (ctx, key, _val, _val, _val & 0xFFFFFFFF),
+                True,
+            )
+        return _val
+
     @staticmethod
     def _initDbgObj():
         """Initialize Debugger object for CPU usage tracking; returns None on failure."""
@@ -123266,6 +123657,14 @@ class BpfMgr(object):
             return
         if SysMgr.llmEventPending.get(event):
             return
+        # budget circuit breaker - _triggerBpfAI keeps no audit log, so a
+        # plain warning is enough on block (see TaskAnalyzer._runLLMAskThread
+        # for the audit-logging variant of this same shared gate) #
+        if TaskAnalyzer._checkLlmBudgetGate(opts):
+            SysMgr.printWarn(
+                "[AI/%s] budget cap exceeded, skipping" % cmd_name
+            )
+            return
         SysMgr.llmEventPending[event] = True
         SysMgr.llmEventRateTs[event] = now
 
@@ -123294,6 +123693,12 @@ class BpfMgr(object):
                 )
                 llm = LLMMgr.getLLM(provider, **llm_kwargs)
                 resp = llm.chat(full_prompt)
+                TaskAnalyzer._recordLlmCost(
+                    provider,
+                    resp.model if resp else None,
+                    resp.usage if resp else None,
+                    opts,
+                )
                 # streaming mode already writes response text straight to
                 # stdout inside llm.chat(); skip the content print below.
                 if resp and resp.content and not LLMMgr._isStreamEnabled():
@@ -125785,7 +126190,18 @@ class BpfMgr(object):
                            val=u64(total_ns)+u64(cnt)=16B
 
         Logic (single program handles both sides):
-          1. prev side: if prev_state != 0 (blocked), record entry timestamp + kstack_id
+          1. prev side: if prev_state indicates a genuine voluntary block
+             (nonzero, and NOT the 0x100 TASK_REPORT_MAX involuntary-
+             preemption marker the sched_switch tracepoint's own
+             TP_fast_assign sets when a task is merely preempted while
+             still runnable), record entry timestamp + kstack_id. Without
+             excluding 0x100, every preemption would be counted as
+             "blocked" time indistinguishable from real lock/I/O/sleep
+             blocking, contradicting this command's documented semantics
+             (see doBpfwaittopCmd's TotalBlocked/AvgBlocked columns and
+             help text). Same tracepoint quirk as genRunqlatSwitchProg's
+             prev_state handling (confirmed via live-device inspection of
+             /sys/kernel/tracing/events/sched/sched_switch/format).
           2. next side: if ts_map[next_pid] exists, compute delta, update offcpu_map
         """
         bi = BpfMgr.buildInsn
@@ -125915,12 +126331,18 @@ class BpfMgr(object):
             + insns[(next_skip_pos + 1) * 8 :]
         )
 
-        # ---- PREV side: record sleep entry if prev_state != 0 ----
+        # ---- PREV side: record sleep entry if prev_state indicates a
+        # genuine voluntary block ----
         # prev_pid at ctx+24, prev_state at ctx+32 (s64)
         insns += bi(BPF_LDX_MEM_DW, R7, R6, 32, 0)  # R7 = prev_state (s64)
-        # if prev_state == 0 (TASK_RUNNING, preempted, not sleeping) → exit #
+        # if prev_state == 0 (TASK_RUNNING, not sleeping) → exit #
         prev_exit_pos = len(insns) // 8
         insns += bi(0x15, R7, 0, 0, 0)  # JEQ 0 → EXIT (patch later)
+        # if prev_state & 0x100 (TASK_REPORT_MAX involuntary-preemption
+        # marker; task never actually blocked, remains runnable) → exit #
+        insns += bi(0x57, R7, 0, 0, 0x100)  # R7 &= 0x100
+        prev_preempt_exit_pos = len(insns) // 8
+        insns += bi(0x55, R7, 0, 0, 0)  # JNE 0 → EXIT (patch later)
 
         insns += bi(BPF_LDX_MEM_W, R7, R6, 24, 0)  # R7 = prev_pid
         insns += bi(BPF_STX_MEM_W, R10, R7, -8, 0)  # *(fp-8) = prev_pid (key)
@@ -125974,6 +126396,13 @@ class BpfMgr(object):
             insns[: prev_exit_pos * 8]
             + bi(0x15, R7, 0, jmp_off4, 0)
             + insns[(prev_exit_pos + 1) * 8 :]
+        )
+        # Patch prev_preempt_exit to EXIT #
+        jmp_off5 = exit_pos - (prev_preempt_exit_pos + 1)
+        insns = (
+            insns[: prev_preempt_exit_pos * 8]
+            + bi(0x55, R7, 0, jmp_off5, 0)
+            + insns[(prev_preempt_exit_pos + 1) * 8 :]
         )
         return insns
 
@@ -126363,6 +126792,18 @@ class BpfMgr(object):
         ts_map: HASH key=u32(pid), val=u64(ktime)
 
         If tid_flt_fd >= 0, skip tasks not in the TID allowlist map.
+
+        AMDAHL's core-bound-pressure counter is intentionally NOT
+        instrumented here anymore. It used to increment nr_run_map on
+        wakeup and decrement it on sched_switch block, but that
+        wakeup/block gauge is fundamentally unreliable: a task can
+        wake on one CPU and later migrate before it finally blocks, so
+        the increment and decrement can land on different per-cpu
+        slots (drift), and CPU-bound tasks that never sleep again
+        (e.g. busy loops) are invisible to it entirely (undercount).
+        See genRunqlatSwitchProg for the replacement signal, which
+        only needs the switch-side tracepoint (always runs on the
+        correct CPU, no migration ambiguity).
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
@@ -126396,19 +126837,21 @@ class BpfMgr(object):
         insns += bi(0x07, R3, 0, 0, -16)  # R3 = fp-16 (val)
         insns += bi(0xB7, R4, 0, 0, 0)
         insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
         insns += bi(0xB7, R0, 0, 0, 0)
         insns += bi(0x95, 0, 0, 0, 0)
         return insns
 
     @staticmethod
     def genRunqlatSwitchProg(
-        ts_map_fd, hist_map_fd, tid_flt_fd=-1, perpid_fd=-1
+        ts_map_fd, hist_map_fd, tid_flt_fd=-1, perpid_fd=-1, nr_run_fd=-1
     ):
         """
         Tracepoint sched/sched_switch: compute runqueue latency for next_pid,
         update global log2 histogram.
 
         sched_switch context (after 8B common header):
+          +32: s64 prev_state
           +56: s32 next_pid
         ts_map:   HASH key=u32(pid), val=u64(wakeup_ktime)
         hist_map: ARRAY key=u32(log2_bucket), val=u64(count)  — 64 buckets
@@ -126416,18 +126859,117 @@ class BpfMgr(object):
         If tid_flt_fd >= 0, skip tasks not in the TID allowlist map.
         If perpid_fd >= 0: also update per-tid HASH (key=u32 next_pid,
           val=16B {u64 total_ns, u64 count}).
+        If nr_run_fd >= 0: nr_run_map[this_cpu] is a 16B monotonic pair
+          {u64 total_switch_count, u64 preempt_count}, both never
+          decremented. total_switch_count += 1 on every sched_switch
+          on this CPU; preempt_count += 1 only when
+          (prev_state & 0x100) != 0. This 0x100 bit is TASK_REPORT_MAX,
+          the sched_switch tracepoint's own preemption marker: the
+          kernel's TP_fast_assign for this tracepoint computes prev_state
+          as TASK_REPORT_MAX whenever the switch was an involuntary
+          preemption (the outgoing task never actually blocked, another
+          runnable task just needed this CPU), and as the task's real
+          sleep-state bits (TASK_INTERRUPTIBLE=1, TASK_UNINTERRUPTIBLE=2,
+          etc — never 0x100) otherwise. Round-4 (this round) discovered
+          via live-device inspection of
+          /sys/kernel/tracing/events/sched/sched_switch/format that an
+          earlier "prev_state == 0" check (intended to mean "still
+          TASK_RUNNING", raw task->state's numeric value) does NOT match
+          this tracepoint's actual computed field — a real sched_switch's
+          prev_state is always either a nonzero sleep-state or the
+          0x100 preemption marker, so "== 0" was true on effectively zero
+          events, permanently pinning preempt_count at 0 regardless of
+          load (device-verified: idle and 12-way CPU-bound stress both
+          produced core_bound=0% identically). A still-earlier round
+          (round 3) had instead used a bare "preempt_count > 0" per-tick
+          threshold, which saturated at core_bound=100% even at genuine
+          idle on a real system with hundreds of background tasks across
+          a few CPUs (at least one involuntary preemption reliably
+          happens every second even though most switches that second are
+          still voluntary blocks). Tracking total_switch_count alongside
+          preempt_count lets the caller classify by RATIO
+          (preempt_count / total_switch_count) instead of a bare nonzero
+          check: CPU-bound/spinning tasks never block voluntarily, so
+          under real oversubscription nearly every switch away from them
+          is a preemption (ratio near 1), while an idle system's switches
+          are overwhelmingly voluntary sleeps (ratio near 0) even though
+          the occasional preemption still occurs. See _classifyRunqTick.
+          Unlike a wakeup-incremented/switch-decremented occupancy gauge
+          this needs no wakeup-side bookkeeping at all: sched_switch
+          always executes on the CPU actually experiencing the
+          contention, so there is no waker-vs-target or migration-vs-
+          block key mismatch, and CPU-bound tasks that never sleep again
+          are exactly the tasks this counts (each preemption of a
+          never-sleeping task still fires a sched_switch). Same
+          prev_state field location as genOffcpuProg's PREV-side block
+          (ctx+32) — but genOffcpuProg's own "!= 0 means it actually
+          blocked" interpretation of that field has the identical
+          TASK_REPORT_MAX blind spot described above and has NOT been
+          re-verified against the tracepoint's real encoding as part of
+          this AMDAHL-scoped round; that is a separate, not-yet-audited
+          function outside this round's scope.
+          This block runs BEFORE the tid_flt_fd allowlist check below,
+          and deliberately so: AMDAHL answers "is the system core-bound
+          right now", a system-wide contention signal used as context
+          for interpreting one tracked task's runqueue latency, not a
+          per-task metric — so it must count switch/preemption events
+          for every task on the box even when tid_flt_fd/-g narrows
+          which task's own latency samples go into hist_map/perpid_fd.
         Stack: fp-8=u32 next_pid/bucket, fp-12=u32 next_pid saved (perpid),
                fp-16=u64 delta saved (perpid), fp-32=insert total_ns,
-               fp-24=insert count.
+               fp-24=insert count, fp-40=u32 cpu_id key (nr_run).
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
         R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
         FID = ConfigMgr.BPF_FUNC_ID
         BPF_LDX_MEM_W = 0x61
+        BPF_LDX_MEM_DW = 0x79
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        if nr_run_fd >= 0:
+            insns += bi(BPF_LDX_MEM_DW, R7, R6, 32, 0)  # R7 = prev_state
+            insns += bi(0x85, 0, 0, 0, FID["get_smp_processor_id"])
+            insns += bi(0x63, R10, R0, -40, 0)  # *(u32*)(fp-40) = cpu_id
+            insns += LM(R1, nr_run_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -40)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            nr_run_null_pos = len(insns) // 8
+            insns += bi(0x15, R0, 0, 0, 0)  # JEQ NULL → skip block (patch)
+            insns += bi(0xBF, R8, R0, 0, 0)  # R8 = {total_sw, preempt} ptr
+
+            # total_switch_count (offset 0) += 1, unconditionally #
+            insns += bi(BPF_LDX_MEM_DW, R9, R8, 0, 0)
+            insns += bi(0x07, R9, 0, 0, 1)
+            insns += bi(0x7B, R8, R9, 0, 0)
+
+            # preempt_count (offset 8) += 1, only if the sched_switch
+            # tracepoint's preemption marker bit (0x100, TASK_REPORT_MAX)
+            # is set in prev_state — see this function's docstring #
+            insns += bi(0x57, R7, 0, 0, 0x100)  # R7 &= 0x100
+            nr_run_skip_pos = len(insns) // 8
+            insns += bi(0x15, R7, 0, 0, 0)  # JEQ 0 → skip incr (patch)
+            insns += bi(BPF_LDX_MEM_DW, R9, R8, 8, 0)
+            insns += bi(0x07, R9, 0, 0, 1)
+            insns += bi(0x7B, R8, R9, 8, 0)
+            nr_run_after_pos = len(insns) // 8
+
+            jmp_off = nr_run_after_pos - (nr_run_skip_pos + 1)
+            insns = (
+                insns[: nr_run_skip_pos * 8]
+                + bi(0x15, R7, 0, jmp_off, 0)
+                + insns[(nr_run_skip_pos + 1) * 8 :]
+            )
+            jmp_off = nr_run_after_pos - (nr_run_null_pos + 1)
+            insns = (
+                insns[: nr_run_null_pos * 8]
+                + bi(0x15, R0, 0, jmp_off, 0)
+                + insns[(nr_run_null_pos + 1) * 8 :]
+            )
+
         insns += bi(BPF_LDX_MEM_W, R7, R6, 56, 0)  # R7 = next_pid
         insns += bi(0x63, R10, R7, -8, 0)  # *(u32*)(fp-8) = next_pid
         if perpid_fd >= 0:
@@ -126603,25 +127145,208 @@ class BpfMgr(object):
         )
         return insns
 
+    # AMDAHL classification tuning (see _classifyRunqTick) — a tick is
+    # flagged core_bound when its preempt/switch ratio clears this fixed,
+    # empirically-anchored floor. Dimensionless (a ratio, not a raw
+    # count), so it stays valid across different -i interval settings.
+    _AMDAHL_RATIO_THRESHOLD = 0.035
+
     @staticmethod
-    def genPidTsEntryProg(ts_map_fd, kstack_map_fd, ustack_map_fd=-1):
+    def _classifyRunqTick(preempt_delta_tick, switch_delta_tick):
+        """Classify one AMDAHL tick as core_bound/other from the tick's
+        RATIO of involuntary preemption-while-runnable events to total
+        sched_switch events, both deltas over the same tick.
+
+        Pure function (no side effects) — this is a coarse tick-level
+        approximation (sampled once per interval, not per-event), so
+        callers should treat the split as a rough diagnostic hint rather
+        than an exact measurement.
+
+        Round-3 design (a bare "any preemption this tick" threshold) was
+        live-device-verified (round 4) to saturate at core_bound=100% even
+        at genuine idle: a real system with hundreds of background tasks
+        across a handful of CPUs reliably produces at least one
+        involuntary preemption every second even though the overwhelming
+        majority of that second's switches were still voluntary blocks
+        (sleep/wait/futex), so idle and real contention were
+        indistinguishable.
+
+        Round-4/5 design (normalize by total switches, flag >50% ratio)
+        fixed the saturation but was live-device-verified (round 5, after
+        an independent bit-encoding bug in the preempt counter itself was
+        also found and fixed) to never fire on a real automotive head
+        unit: ~600 background tasks generate 6000-12000 sched_switches
+        per tick system-wide even under synthetic 12-way CPU-bound
+        stress, diluting the preemption ratio to single-digit percent
+        (observed: idle ~1.5%, stress ~6.4%) — nowhere near a 50% bar.
+
+        Round-6 design tried comparing each tick against an EWMA baseline
+        of the SAME run's own preceding ticks, hoping to avoid hardcoding
+        a global percentage. Live-device-verified (round 6) to be
+        structurally incapable of the job: since the baseline is seeded
+        from and continually re-blended with the current run's own
+        ratio, a run that is uniformly stressed for its entire duration
+        (or uniformly idle for its entire duration) converges the
+        baseline to match — the design can only flag a transient spike
+        against a quieter EARLIER portion of the same run, and is blind
+        to "this whole run looks contended" vs. "this whole run looks
+        idle", which is exactly the idle-vs-stress comparison this
+        feature exists to make. No choice of multiplier/floor/alpha
+        fixes this; it's inherent to same-run self-relative baselining
+        with no external reference point.
+
+        This design instead uses a fixed threshold again, but anchored to
+        two independent live-device measurement rounds (5 and 6) on the
+        same real automotive head unit, which agreed closely: idle ratio
+        clusters ~1.1%-2.5%, 12-way-CPU-bound-stress ratio clusters
+        ~4.7%-10%, a consistent ~4x separation. _AMDAHL_RATIO_THRESHOLD
+        (3.5%) sits with margin above the idle cluster's observed max and
+        below the stress cluster's observed min. Known limitation
+        (documented, not fixed): this floor is calibrated to this
+        hardware class's background-chatter volume (hundreds of
+        background services), not universal — a system with a
+        drastically different idle switch-mix may need retuning; per
+        this feature's scope this remains a rough diagnostic hint, not an
+        exact or fully portable measurement.
+        """
+        if switch_delta_tick <= 0:
+            return "other"
+        ratio = preempt_delta_tick / switch_delta_tick
+        if ratio > BpfMgr._AMDAHL_RATIO_THRESHOLD:
+            return "core_bound"
+        return "other"
+
+    @staticmethod
+    def _selectAmdahlPid(filterGroup, pidFilterEnv=None):
+        """Pick the single target pid for AMDAHL's cgroup throttle
+        cross-check (BpfMgr._getCgroupThrottleCount).
+
+        Prefers a plain numeric -g entry, skipping "^"-prefixed ones -
+        those name a process to EXCLUDE (see SysMgr.checkFilter()), not
+        the process being watched, so picking one as the target would
+        cross-check the wrong cgroup entirely. Falls back to the first
+        PIDFILTER entry (PIDFILTER has no negation convention). Returns
+        None if neither source has a plain pid.
+        """
+        for fg in filterGroup or []:
+            if fg.startswith("^"):
+                continue
+            if fg.isdigit():
+                return fg
+        if pidFilterEnv:
+            for fgs in str(pidFilterEnv).split(","):
+                fgs = fgs.strip()
+                if fgs.isdigit():
+                    return fgs
+        return None
+
+    @staticmethod
+    def _getCgroupThrottleCount(pid):
+        """Best-effort cumulative cpu.stat nr_throttled for pid's cgroup.
+
+        Reads /proc/<pid>/cgroup directly and resolves cpu.stat via
+        SysMgr.getCgroupPath() rather than TaskAnalyzer.getCgroupUsage(),
+        which needs a heavyweight continuous-monitoring instance
+        (saveCgroupStat()) to populate its cgroupData and is keyed by
+        group name, not pid — not a fit for this one-shot per-tick
+        cross-check. nr_throttled is parsed by field name so both cgroup
+        v1's 3-line format and v2's 6-line format (usage fields first,
+        throttle fields appended after) are handled the same way.
+        Returns None if unavailable (missing file, no cpu controller,
+        permission, etc.) — caller treats None as "skip this tick".
+        """
+        try:
+            cgBuf = SysMgr.readFile("/proc/%s/cgroup" % pid, verb=False)
+            if not cgBuf:
+                return None
+
+            cgroupPath = SysMgr.sysInstance.getCgroupPath()
+            if not cgroupPath:
+                return None
+
+            dirmap = {}
+            for mnt, opts in cgroupPath.items():
+                for sub in opts.split(",")[1:]:
+                    dirmap[sub] = mnt
+
+            statPath = None
+            for line in cgBuf.splitlines():
+                clist = line.split(":")
+                if len(clist) != 3:
+                    continue
+                hid, subsys, relpath = clist
+
+                if hid == "0" and not subsys:
+                    # cgroup v2: unified hierarchy #
+                    for mnt, opts in cgroupPath.items():
+                        if opts.startswith("cgroup2"):
+                            statPath = mnt + relpath + "/cpu.stat"
+                            break
+                else:
+                    # cgroup v1: match a cpu/cpuacct subsystem entry #
+                    for sub in subsys.split(","):
+                        if sub in ("cpu", "cpuacct") and sub in dirmap:
+                            statPath = dirmap[sub] + relpath + "/cpu.stat"
+                            break
+                if statPath:
+                    break
+
+            if not statPath:
+                return None
+
+            statBuf = SysMgr.readFile(statPath, verb=False)
+            if not statBuf:
+                return None
+
+            for line in statBuf.splitlines():
+                parts = line.split()
+                if len(parts) == 2 and parts[0] == "nr_throttled":
+                    return long(parts[1])
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        return None
+
+    @staticmethod
+    def genPidTsEntryProg(
+        ts_map_fd, kstack_map_fd, ustack_map_fd=-1, uaddr_arg_off=-1
+    ):
         """
         Generic BPF entry program: record pid_tgid + ktime + stack in ts_map.
-        Used by bpfreclaimtop (tracepoint) and bpflocktop (kprobe).
+        Used by bpfreclaimtop (tracepoint), bpflocktop (kprobe), and
+        bpfbinderlat (kprobe).
 
         ts_map: HASH key=u64(pid_tgid), val=16B [u64 ktime][u32 kstack_id][u32 ustack_id]
         Stack layout: fp-8=key(u64), fp-32=val(16B), fp-16=tmp kstack_id save (USE_USTACK)
+
+        If uaddr_arg_off >= 0 (bpflocktop -q ADDLOCKADDR), ts_map's value is
+        instead 24B: [u64 ktime][u32 kstack_id][u32 ustack_id][u64 uaddr],
+        where uaddr is read from ctx+uaddr_arg_off (a kprobe pt_regs offset,
+        e.g. futex_wait()'s arg0) right after R6=ctx and stashed at fp-24
+        before any helper call can clobber it. The disabled path
+        (uaddr_arg_off < 0, the default) emits byte-identical instructions
+        to before this parameter existed, so doBpfreclaimtopCmd and
+        doBpfbinderlatCmd - including the latter's byte-slice splice off
+        this function's first instruction - are unaffected.
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
         R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
         FID = ConfigMgr.BPF_FUNC_ID
+        BPF_LDX_MEM_DW = 0x79
         BPF_STX_MEM_DW = 0x7B
         BPF_STX_MEM_W = 0x63
         USE_USTACK = ustack_map_fd >= 0
+        USE_UADDR = uaddr_arg_off >= 0
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        if USE_UADDR:
+            insns += bi(BPF_LDX_MEM_DW, R0, R6, uaddr_arg_off, 0)  # R0 = uaddr
+            insns += bi(BPF_STX_MEM_DW, R10, R0, -24, 0)  # stash @ fp-24
 
         # get_current_pid_tgid → R9 (before stack helpers to keep R9 safe) #
         insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
@@ -126651,22 +127376,34 @@ class BpfMgr(object):
         # ts_map key at fp-8: u64 pid_tgid #
         insns += bi(BPF_STX_MEM_DW, R10, R9, -8, 0)
 
-        # ts_map val at fp-32 (16B): [u64 ktime][u32 kstack_id][u32 ustack_id] #
-        insns += bi(BPF_STX_MEM_DW, R10, R8, -32, 0)  # ktime
-        insns += bi(BPF_STX_MEM_W, R10, R7, -24, 0)  # kstack_id
-        if USE_USTACK:
-            insns += bi(
-                BPF_STX_MEM_W, R10, R1, -20, 0
-            )  # ustack_id (R1 safe: no helpers since)
+        if USE_UADDR:
+            # ts_map val at fp-40 (24B): [u64 ktime][u32 kstack_id][u32 ustack_id][u64 uaddr] #
+            # (uaddr already stashed @ fp-24, which is this layout's final uaddr slot)
+            insns += bi(BPF_STX_MEM_DW, R10, R8, -40, 0)  # ktime
+            insns += bi(BPF_STX_MEM_W, R10, R7, -32, 0)  # kstack_id
+            if USE_USTACK:
+                insns += bi(BPF_STX_MEM_W, R10, R1, -28, 0)  # ustack_id
+            else:
+                insns += bi(0x62, R10, 0, -28, 0)  # ustack_id = 0
+            val_off = -40
         else:
-            insns += bi(0x62, R10, 0, -20, 0)  # ustack_id = 0
+            # ts_map val at fp-32 (16B): [u64 ktime][u32 kstack_id][u32 ustack_id] #
+            insns += bi(BPF_STX_MEM_DW, R10, R8, -32, 0)  # ktime
+            insns += bi(BPF_STX_MEM_W, R10, R7, -24, 0)  # kstack_id
+            if USE_USTACK:
+                insns += bi(
+                    BPF_STX_MEM_W, R10, R1, -20, 0
+                )  # ustack_id (R1 safe: no helpers since)
+            else:
+                insns += bi(0x62, R10, 0, -20, 0)  # ustack_id = 0
+            val_off = -32
 
-        # map_update_elem(ts_map, fp-8, fp-32, BPF_ANY=0) #
+        # map_update_elem(ts_map, fp-8, fp-{val_off}, BPF_ANY=0) #
         insns += LM(R1, ts_map_fd)
         insns += bi(0xBF, R2, R10, 0, 0)
         insns += bi(0x07, R2, 0, 0, -8)
         insns += bi(0xBF, R3, R10, 0, 0)
-        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0x07, R3, 0, 0, val_off)
         insns += bi(0xB7, R4, 0, 0, 0)
         insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
         insns += bi(0xB7, R0, 0, 0, 0)
@@ -126674,21 +127411,38 @@ class BpfMgr(object):
         return insns
 
     @staticmethod
-    def genPidTsExitProg(ts_map_fd, agg_map_fd):
+    def genPidTsExitProg(ts_map_fd, agg_map_fd, carry_extra=False):
         """
         Generic BPF exit program: compute delta from ts_map[pid_tgid], update agg_map.
-        Used by bpfreclaimtop (tracepoint) and bpflocktop (kretprobe).
+        Used by bpfreclaimtop (tracepoint), bpflocktop (kretprobe), and
+        bpfbinderlat.
 
         ts_map:  HASH key=u64(pid_tgid), val=16B [u64 ktime][u32 kstack_id][u32 ustack_id]
         agg_map: HASH key=16B [u64 pid_tgid][u32 kstack_id][u32 ustack_id],
                       val=16B [u64 total_ns][u64 cnt]
 
-        Stack layout:
+        If carry_extra=True (paired with genPidTsEntryProg's uaddr_arg_off,
+        bpflocktop -q ADDLOCKADDR), ts_map's value is instead 24B (uaddr
+        appended at +16) and agg_map's key is instead 24B (uaddr appended
+        at +16); agg_map's value stays 16B either way, at a distinct stack
+        offset from the disabled path's so the two never collide. The
+        disabled path (carry_extra=False, the default) emits byte-identical
+        instructions to before this parameter existed.
+
+        Stack layout (carry_extra=False):
           fp-8:  key (u64 pid_tgid)
           fp-16: kstack_id save (u32)
           fp-12: ustack_id save (u32)
           fp-32: agg_map key (16B): [u64 pid_tgid][u32 kstack_id][u32 ustack_id]
           fp-48: agg_map val (16B): [u64 total_ns][u64 cnt]
+
+        Stack layout (carry_extra=True):
+          fp-8:  key (u64 pid_tgid)
+          fp-16: kstack_id save (u32)
+          fp-12: ustack_id save (u32)
+          fp-24: uaddr save (u64)
+          fp-56: agg_map key (24B): [u64 pid_tgid][u32 kstack_id][u32 ustack_id][u64 uaddr]
+          fp-72: agg_map val (16B): [u64 total_ns][u64 cnt]
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
@@ -126698,6 +127452,9 @@ class BpfMgr(object):
         BPF_LDX_MEM_W = 0x61
         BPF_STX_MEM_DW = 0x7B
         BPF_STX_MEM_W = 0x63
+
+        agg_key_off = -56 if carry_extra else -32
+        agg_val_off = -72 if carry_extra else -48
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
@@ -126724,14 +127481,20 @@ class BpfMgr(object):
         )  # R9 = entry_ktime (save; R6-R9 survive helpers)
         insns += bi(BPF_LDX_MEM_W, R1, R8, 8, 0)  # R1 = kstack_id
         insns += bi(BPF_LDX_MEM_W, R2, R8, 12, 0)  # R2 = ustack_id
+        if carry_extra:
+            insns += bi(BPF_LDX_MEM_DW, R3, R8, 16, 0)  # R3 = uaddr
 
-        # save kstack_id + ustack_id to stack before map_delete_elem clobbers R0-R5 #
+        # save kstack_id + ustack_id (+ uaddr) to stack before map_delete_elem clobbers R0-R5 #
         insns += bi(
             BPF_STX_MEM_W, R10, R1, -16, 0
         )  # *(u32*)(fp-16) = kstack_id
         insns += bi(
             BPF_STX_MEM_W, R10, R2, -12, 0
         )  # *(u32*)(fp-12) = ustack_id
+        if carry_extra:
+            insns += bi(
+                BPF_STX_MEM_DW, R10, R3, -24, 0
+            )  # *(u64*)(fp-24) = uaddr
 
         # map_delete_elem(ts_map, fp-8) #
         insns += LM(R1, ts_map_fd)
@@ -126744,22 +127507,26 @@ class BpfMgr(object):
         insns += bi(0x1F, R0, R9, 0, 0)  # R0 = now - entry_ktime
         insns += bi(0xBF, R9, R0, 0, 0)  # R9 = delta
 
-        # reload kstack_id + ustack_id #
+        # reload kstack_id + ustack_id (+ uaddr) #
         insns += bi(BPF_LDX_MEM_W, R1, R10, -16, 0)  # R1 = kstack_id
         insns += bi(BPF_LDX_MEM_W, R2, R10, -12, 0)  # R2 = ustack_id
+        if carry_extra:
+            insns += bi(BPF_LDX_MEM_DW, R3, R10, -24, 0)  # R3 = uaddr
 
-        # agg_map key at fp-32 (16B): [u64 pid_tgid][u32 kstack_id][u32 ustack_id] #
+        # agg_map key at fp-{agg_key_off}: [u64 pid_tgid][u32 kstack_id][u32 ustack_id](+[u64 uaddr]) #
         insns += bi(
             BPF_LDX_MEM_DW, R7, R10, -8, 0
         )  # R7 = pid_tgid (from key slot)
-        insns += bi(BPF_STX_MEM_DW, R10, R7, -32, 0)
-        insns += bi(BPF_STX_MEM_W, R10, R1, -24, 0)
-        insns += bi(BPF_STX_MEM_W, R10, R2, -20, 0)
+        insns += bi(BPF_STX_MEM_DW, R10, R7, agg_key_off, 0)
+        insns += bi(BPF_STX_MEM_W, R10, R1, agg_key_off + 8, 0)
+        insns += bi(BPF_STX_MEM_W, R10, R2, agg_key_off + 12, 0)
+        if carry_extra:
+            insns += bi(BPF_STX_MEM_DW, R10, R3, agg_key_off + 16, 0)
 
-        # lookup agg_map[fp-32] #
+        # lookup agg_map[fp-{agg_key_off}] #
         insns += LM(R1, agg_map_fd)
         insns += bi(0xBF, R2, R10, 0, 0)
-        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x07, R2, 0, 0, agg_key_off)
         insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
         insns += bi(0xBF, R7, R0, 0, 0)  # R7 = agg_val or NULL
 
@@ -126785,14 +127552,14 @@ class BpfMgr(object):
             + bi(0x15, R7, 0, jmp_off, 0)
             + insns[(ins_null_pos + 1) * 8 :]
         )
-        # agg_map val at fp-48 (16B): [u64 total_ns=delta][u64 cnt=1] #
-        insns += bi(BPF_STX_MEM_DW, R10, R9, -48, 0)
-        insns += bi(0x7A, R10, 0, -40, 1)
+        # agg_map val at fp-{agg_val_off} (16B): [u64 total_ns=delta][u64 cnt=1] #
+        insns += bi(BPF_STX_MEM_DW, R10, R9, agg_val_off, 0)
+        insns += bi(0x7A, R10, 0, agg_val_off + 8, 1)
         insns += LM(R1, agg_map_fd)
         insns += bi(0xBF, R2, R10, 0, 0)
-        insns += bi(0x07, R2, 0, 0, -32)
+        insns += bi(0x07, R2, 0, 0, agg_key_off)
         insns += bi(0xBF, R3, R10, 0, 0)
-        insns += bi(0x07, R3, 0, 0, -48)
+        insns += bi(0x07, R3, 0, 0, agg_val_off)
         insns += bi(0xB7, R4, 0, 0, 0)
         insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
 
@@ -132899,11 +133666,15 @@ class BpfMgr(object):
                         pid_stacks = {}
                         # valid_pid_tgids: full 64-bit pid_tgid values that
                         # were active this interval (positive delta in cur_raw)
-                        # prevents stale entries from dead/reused PIDs leaking in
+                        # AND whose TID passed the -g/PROCCOMMFILTER checks
+                        # used to build `counts` above -- prevents stale
+                        # entries from dead/reused PIDs, and filtered-out
+                        # processes, from leaking into stack_summary/DRAWFLAME
                         valid_pid_tgids = {
                             pt
                             for pt, cur in cur_raw.items()
                             if cur - prev_raw.get(pt, 0) > 0
+                            and (int(pt) & 0xFFFFFFFF) in counts
                         }
                         # Phase 1: snapshot stk_cnt_map with NO I/O (BPF syscalls only)
                         # so that resolveKernelStack (reads /proc/kallsyms via vfs_read)
@@ -133510,9 +134281,6 @@ class BpfMgr(object):
                                 BpfMgr.mapUpdate(
                                     hist_map_fd, key, struct.pack("<Q", 0)
                                 )
-                    if hist and total_cnt > 0:
-                        for b, c in hist.items():
-                            total_hists[fn][b] = total_hists[fn].get(b, 0) + c
                     _loop_hists[fn] = (hist, total_cnt)
                     _total_events += total_cnt
                 # Phase 2: print stats header then histograms
@@ -133521,6 +134289,14 @@ class BpfMgr(object):
                     if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
+
+                # Fold this tick's histograms into the cross-tick Summary
+                # only for ticks that pass the SAMPCOND gate -- a suppressed
+                # tick must not contribute to the exit-time Summary either #
+                for fn, (hist, total_cnt) in _loop_hists.items():
+                    if hist and total_cnt > 0:
+                        for b, c in hist.items():
+                            total_hists[fn][b] = total_hists[fn].get(b, 0) + c
 
                 if SysMgr.jsonEnable:
                     _jfuncs = {}
@@ -134664,20 +135440,6 @@ class BpfMgr(object):
             # Formats: ARGn:VAL (==), ARGnGT:VAL (>), ARGnLT:VAL (<), ARGnNE:VAL (!=)
             # Values support hex (0x...) and decimal.
             # environList is a dict: key → [value_str, ...]
-            def _get_env_val(key):
-                if key not in SysMgr.environList:
-                    return None
-                try:
-                    return int(SysMgr.environList[key][0], 0)
-                except (ValueError, TypeError):
-                    SysMgr.printWarn(
-                        "bpfsnoop: -q %s only supports numeric values; "
-                        "for string/wildcard matching use ARGnSTR/ARGnFDNO/"
-                        "ARGnFDPATH's :<pattern> (prefix ! to negate)" % key,
-                        True,
-                    )
-                    return None
-
             arg_filters = []  # [(arg_idx 0-based, op_str, value), ...]
             for _i in range(1, 6):
                 for _sfx, _op in [
@@ -134687,9 +135449,12 @@ class BpfMgr(object):
                     ("NE", "ne"),
                 ]:
                     _key = "ARG%d%s" % (_i, _sfx)
-                    _val = _get_env_val(_key)
+                    _val = BpfMgr._getArgFilterVal(_key, "bpfsnoop")
                     if _val is not None:
                         arg_filters.append((_i - 1, _op, _val))
+
+            # ARGnFMT:HEX|DEC|BIN|SDEC - per-arg text-mode display format #
+            arg_fmts = BpfMgr._resolveArgFmts(5)
 
             # Cache entry event args for SHOWRET+ELAPFILTER/RETFILTER:
             # When entry events are suppressed by a filter, cache their
@@ -135348,8 +136113,14 @@ class BpfMgr(object):
                                                     & 0xFFFFFFFFFFFFFFFF
                                                 )
                                                 _line.append("%16s" % _ret_s)
-                                        # ARGS: collect → "/" join → trim trailing 0x0 #
+                                        # ARGS: collect → "/" join → trim trailing zero-valued args.
+                                        # _arg_zero_flags tracks, per position, whether the
+                                        # displayed part is a raw-zero numeric value (as opposed to
+                                        # a string/fd-path/"-" placeholder) -- trimming must key off
+                                        # this instead of the rendered string, since ARGnFMT can
+                                        # make a zero value render as "0" or "0b0" instead of "0x0" #
                                         _arg_parts = []
+                                        _arg_zero_flags = []
                                         for _ai, _av in enumerate(args):
                                             if _is_exit:
                                                 if (
@@ -135365,39 +136136,62 @@ class BpfMgr(object):
                                                             ]
                                                         )
                                                     )
+                                                    _arg_zero_flags.append(
+                                                        False
+                                                    )
                                                 elif (
                                                     _exit_cached_args
                                                     is not None
                                                 ):
                                                     _arg_parts.append(
-                                                        "0x%x"
-                                                        % _exit_cached_args[
-                                                            _ai
-                                                        ]
+                                                        arg_fmts[_ai](
+                                                            _exit_cached_args[
+                                                                _ai
+                                                            ]
+                                                        )
+                                                    )
+                                                    _arg_zero_flags.append(
+                                                        _exit_cached_args[_ai]
+                                                        == 0
                                                     )
                                                 else:
                                                     _arg_parts.append("-")
+                                                    _arg_zero_flags.append(
+                                                        False
+                                                    )
                                             elif arg_strs[_ai] is not None:
                                                 _arg_parts.append(
                                                     repr(arg_strs[_ai])
                                                 )
+                                                _arg_zero_flags.append(False)
                                             elif fdno_arg_mask & (1 << _ai):
                                                 _fp = _fdno_paths.get(_ai)
                                                 if _fp is not None:
                                                     _arg_parts.append(
                                                         repr(_fp)
                                                     )
+                                                    _arg_zero_flags.append(
+                                                        False
+                                                    )
                                                 else:
                                                     _arg_parts.append(
-                                                        "0x%x" % _av
+                                                        arg_fmts[_ai](_av)
+                                                    )
+                                                    _arg_zero_flags.append(
+                                                        _av == 0
                                                     )
                                             else:
-                                                _arg_parts.append("0x%x" % _av)
+                                                _arg_parts.append(
+                                                    arg_fmts[_ai](_av)
+                                                )
+                                                _arg_zero_flags.append(
+                                                    _av == 0
+                                                )
                                         while (
-                                            _arg_parts
-                                            and _arg_parts[-1] == "0x0"
+                                            _arg_parts and _arg_zero_flags[-1]
                                         ):
                                             _arg_parts.pop()
+                                            _arg_zero_flags.pop()
                                         _line.append(
                                             ", ".join(_arg_parts)
                                             if _arg_parts
@@ -135806,6 +136600,23 @@ class BpfMgr(object):
                     if total_cnt > 0:
                         irq_hists[irq] = (hist, total_cnt)
 
+                # apply CONDCNTBT/CONDCNTLT/-g filters once, before any
+                # consumer (Summary accumulator, JSON, ASKAI, text display)
+                # sees irq_hists, so none of them can bypass the others #
+                if irq_hists:
+                    _filtered_irq_hists = {}
+                    for irq, (hist, total_cnt) in irq_hists.items():
+                        if condCntBt != -1 and total_cnt < condCntBt:
+                            continue
+                        if condCntLt != -1 and total_cnt > condCntLt:
+                            continue
+                        if SysMgr.filterGroup and not UtilMgr.isValidStr(
+                            "%d %s" % (irq, irq_names.get(irq, ""))
+                        ):
+                            continue
+                        _filtered_irq_hists[irq] = (hist, total_cnt)
+                    irq_hists = _filtered_irq_hists
+
                 # accumulate totals across intervals #
                 for irq, (hist, _) in irq_hists.items():
                     acc = total_irq_hists.setdefault(irq, {})
@@ -135860,15 +136671,7 @@ class BpfMgr(object):
                         # Stop adding output once the terminal is full #
                         if SysMgr.terminalOver:
                             break
-                        if condCntBt != -1 and total_cnt < condCntBt:
-                            continue
-                        if condCntLt != -1 and total_cnt > condCntLt:
-                            continue
                         irq_label = irq_names.get(irq, "")
-                        if SysMgr.filterGroup and not UtilMgr.isValidStr(
-                            "%d %s" % (irq, irq_label)
-                        ):
-                            continue
                         # Pre-check: printHist uses multi-line strings so
                         # bufferRows undercounts. Estimate actual display rows:
                         # title(2) + colhdr(2) + N_buckets + footer(7) = N+11
@@ -136011,6 +136814,19 @@ class BpfMgr(object):
             cpu_sw_fd = -1
             cpu_sw_prev = {}  # {cpu_id: cumulative_count}
 
+            # AMDAHL: tick-based nr_runnable approximation + cgroup
+            # throttle cross-check option #
+            show_amdahl = "AMDAHL" in SysMgr.environList
+            nr_run_fd = -1
+            nr_run_prev = (
+                {}
+            )  # {cpu_id: (cumulative_total_switch, cumulative_preempt)}
+            core_bound_ns = 0
+            other_ns = 0
+            raw_ns_total = 0
+            _amdahl_pid = None
+            _prev_throttled = None
+
             # resolve TIDFILTER / PIDFILTER / -g into a unified TID allowlist #
             tid_flt_fd = BpfMgr._initRqFilters()
 
@@ -136051,10 +136867,37 @@ class BpfMgr(object):
                 if cpu_sw_fd < 0:
                     show_load = False
 
+            # nr_run_map: ARRAY key=u32(cpu_id), val=16B{u64 total_switch,
+            # u64 preempt} — same 256-entry cardinality as cpu_sw_map, and
+            # likewise a pair of monotonic per-cpu counters (read via delta
+            # against nr_run_prev), not a gauge: total_switch counts every
+            # sched_switch on that cpu, preempt counts only the subset
+            # where the outgoing task was preempted while still runnable
+            # (direct run-queue contention signal). Classified by RATIO
+            # against a fixed, empirically-anchored low threshold — see
+            # _classifyRunqTick's docstring for why a bare nonzero check,
+            # a fixed 50% ratio bar, and a same-run adaptive baseline all
+            # failed live-device verification before this #
+            if show_amdahl:
+                nr_run_fd = BpfMgr.createMap(
+                    ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 16, 256, "nr_run"
+                )
+                if nr_run_fd < 0:
+                    show_amdahl = False
+
             wakeup_insns = BpfMgr.genRunqlatWakeupProg(ts_map_fd, tid_flt_fd)
             switch_insns = BpfMgr.genRunqlatSwitchProg(
-                ts_map_fd, hist_map_fd, tid_flt_fd
+                ts_map_fd, hist_map_fd, tid_flt_fd, nr_run_fd=nr_run_fd
             )
+
+            if show_amdahl:
+                _amdahl_pid = BpfMgr._selectAmdahlPid(
+                    SysMgr.filterGroup, SysMgr.environList.get("PIDFILTER")
+                )
+                if _amdahl_pid is not None:
+                    _prev_throttled = BpfMgr._getCgroupThrottleCount(
+                        _amdahl_pid
+                    )
 
             wakeup_fd = BpfMgr.loadProg(
                 BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
@@ -136161,6 +137004,32 @@ class BpfMgr(object):
                 }
                 _prev_hist = dict(hist)
 
+                # AMDAHL bookkeeping: nr_run_map's per-cpu {total_switch,
+                # preempt} counters must be read and folded into
+                # nr_run_prev every tick regardless of SAMPCOND, exactly
+                # like _prev_hist above - otherwise the next *included*
+                # tick's delta would be computed against a stale baseline
+                # spanning skipped ticks too #
+                _preempt_delta_tick = 0
+                _switch_delta_tick = 0
+                if show_amdahl and nr_run_fd >= 0:
+                    for _cpu_id in BpfMgr._getOnlineCpus():
+                        _rk = struct.pack("<I", _cpu_id)
+                        _rv = BpfMgr.mapLookup(nr_run_fd, _rk, 16)
+                        if _rv:
+                            _total_cc, _preempt_cc = struct.unpack("<QQ", _rv)
+                            _prev_total_cc, _prev_preempt_cc = nr_run_prev.get(
+                                _cpu_id, (0, 0)
+                            )
+                            _switch_delta_tick += _total_cc - _prev_total_cc
+                            _preempt_delta_tick += (
+                                _preempt_cc - _prev_preempt_cc
+                            )
+                            nr_run_prev[_cpu_id] = (
+                                _total_cc,
+                                _preempt_cc,
+                            )
+
                 # conditional sampling: skip display/accumulation on
                 # suppressed ticks (the snapshot above is still updated
                 # every iteration regardless) #
@@ -136173,6 +137042,58 @@ class BpfMgr(object):
                         if BpfMgr._checkLoopExit(total_time, elapsed):
                             break
                         continue
+
+                # AMDAHL: classify this tick's newly-completed runqueue
+                # latency as core_bound/other by comparing the
+                # preempt/switch ratio against a fixed, empirically-
+                # anchored low threshold (see _classifyRunqTick's
+                # docstring for why a bare nonzero check, a fixed 50%
+                # ratio bar, and a same-run adaptive baseline all failed
+                # live-device verification before this), and cross-check
+                # against cgroup CPU bandwidth throttling for the
+                # filtered pid (if any). Gated by the same SAMPCOND check
+                # above as total_hist's own accumulation just below, so a
+                # suppressed tick contributes to neither #
+                if show_amdahl and nr_run_fd >= 0:
+                    _tick_ns = sum(
+                        _cnt * (1 << _bucket)
+                        for _bucket, _cnt in display_hist.items()
+                    )
+                    raw_ns_total += _tick_ns
+                    if (
+                        BpfMgr._classifyRunqTick(
+                            _preempt_delta_tick, _switch_delta_tick
+                        )
+                        == "core_bound"
+                    ):
+                        core_bound_ns += _tick_ns
+                    else:
+                        other_ns += _tick_ns
+
+                    if _amdahl_pid is not None:
+                        _throttled = BpfMgr._getCgroupThrottleCount(
+                            _amdahl_pid
+                        )
+                        if (
+                            _throttled is not None
+                            and _prev_throttled is not None
+                            and _throttled > _prev_throttled
+                            and raw_ns_total > 0
+                            and other_ns > raw_ns_total * 0.1
+                        ):
+                            SysMgr.addPrint(
+                                "\n[Hint] runqueue latency looks "
+                                "throttle-related: other_ns=%s (%.1f%% of "
+                                "raw) and cgroup nr_throttled increased by "
+                                "%d this interval\n"
+                                % (
+                                    UtilMgr.convNum(other_ns),
+                                    other_ns / raw_ns_total * 100.0,
+                                    _throttled - _prev_throttled,
+                                )
+                            )
+                        if _throttled is not None:
+                            _prev_throttled = _throttled
 
                 # accumulate for summary #
                 for b, c in display_hist.items():
@@ -136198,20 +137119,20 @@ class BpfMgr(object):
                         if display_hist
                         else 0
                     )
+                    _jdict = {
+                        "time": SysMgr.uptime,
+                        "timeDiff": SysMgr.uptimeDiff,
+                        "histogram": {
+                            str(b): int(c) for b, c in display_hist.items()
+                        },
+                        "count": _jtot,
+                        "sum": _jsum,
+                    }
+                    if show_amdahl:
+                        _jdict["coreBoundNs"] = core_bound_ns
+                        _jdict["otherNs"] = other_ns
                     SysMgr.printPipe(
-                        UtilMgr.convDict2Str(
-                            {
-                                "time": SysMgr.uptime,
-                                "timeDiff": SysMgr.uptimeDiff,
-                                "histogram": {
-                                    str(b): int(c)
-                                    for b, c in display_hist.items()
-                                },
-                                "count": _jtot,
-                                "sum": _jsum,
-                            },
-                            gpretty=True,
-                        ),
+                        UtilMgr.convDict2Str(_jdict, gpretty=True),
                         flush=True,
                     )
                 else:
@@ -136282,6 +137203,23 @@ class BpfMgr(object):
                                 ):
                                     break
                             SysMgr.addPrint(_sl_one + "\n")
+
+                # AMDAHL: periodic core-bound/other classification recap,
+                # mirroring the finally-block's one-time summary line so
+                # text-mode users get feedback every tick instead of only
+                # at exit #
+                if show_amdahl and raw_ns_total > 0 and not SysMgr.jsonEnable:
+                    SysMgr.addPrint(
+                        "\n[AMDAHL] core_bound=%s(%.1f%%) other=%s(%.1f%%) "
+                        "raw_total=%sns\n"
+                        % (
+                            UtilMgr.convNum(core_bound_ns),
+                            core_bound_ns * 100.0 / raw_ns_total,
+                            UtilMgr.convNum(other_ns),
+                            other_ns * 100.0 / raw_ns_total,
+                            UtilMgr.convNum(raw_ns_total),
+                        )
+                    )
 
                 # ASKAI / AIPERIODIC trigger #
                 if (_ask_active or _ai_periodic_sec > 0) and display_hist:
@@ -136549,6 +137487,18 @@ class BpfMgr(object):
                 )
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
+            if show_amdahl and raw_ns_total > 0 and not SysMgr.jsonEnable:
+                SysMgr.printPipe(
+                    "\n[AMDAHL] core_bound=%s(%.1f%%) other=%s(%.1f%%) "
+                    "raw_total=%sns\n"
+                    % (
+                        UtilMgr.convNum(core_bound_ns),
+                        core_bound_ns * 100.0 / raw_ns_total,
+                        UtilMgr.convNum(other_ns),
+                        other_ns * 100.0 / raw_ns_total,
+                        UtilMgr.convNum(raw_ns_total),
+                    )
+                )
             BpfMgr._waitBpfAI(timeout=30)
             BpfMgr.detachAll()
 
@@ -136794,6 +137744,17 @@ class BpfMgr(object):
         """Workqueue function latency analysis via workqueue_execute_start/end tracepoints.
         Enhanced: Min/Max latency, Queue wait time, Worker thread info, ELAPFILTER.
         """
+        # cross-tick summary accumulator: the wq_agg map is drained every
+        # interval (see mapDelete below), so without a persistent dict here
+        # the -o Summary would silently lose every earlier tick's data,
+        # unlike sibling doExectopCmd's _summary_stack / doBpfreclaimtopCmd's
+        # summary_call which accumulate the same already-filtered rows across
+        # the whole run.
+        summary_wq = {}
+        has_queue = False
+        _need_summary = (
+            SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList
+        )
         try:
             BpfMgr.checkAvailable()
 
@@ -136980,6 +137941,46 @@ class BpfMgr(object):
 
                 rows.sort(reverse=True)
 
+                if _need_summary:
+                    for _row in rows:
+                        (
+                            _s_total_ns,
+                            _s_count,
+                            _s_avg_ns,
+                            _s_min_ns,
+                            _s_max_ns,
+                            _s_total_queue_ns,
+                            _s_queue_count,
+                            _s_worker_tid,
+                            _s_worker_comm,
+                            _s_sym,
+                        ) = _row
+                        _e = summary_wq.setdefault(
+                            _s_sym,
+                            {
+                                "total_ns": 0,
+                                "count": 0,
+                                "min_ns": None,
+                                "max_ns": 0,
+                                "total_queue_ns": 0,
+                                "queue_count": 0,
+                                "worker_tid": _s_worker_tid,
+                                "worker_comm": _s_worker_comm,
+                            },
+                        )
+                        _e["total_ns"] += _s_total_ns
+                        _e["count"] += _s_count
+                        _e["min_ns"] = (
+                            _s_min_ns
+                            if _e["min_ns"] is None
+                            else min(_e["min_ns"], _s_min_ns)
+                        )
+                        _e["max_ns"] = max(_e["max_ns"], _s_max_ns)
+                        _e["total_queue_ns"] += _s_total_queue_ns
+                        _e["queue_count"] += _s_queue_count
+                        _e["worker_tid"] = _s_worker_tid
+                        _e["worker_comm"] = _s_worker_comm
+
                 if has_queue:
                     hdr = "[bpfwqtop] %s [Unit: Sec] %s\n%s\n" % (
                         BpfMgr._bpfTopHdrTime(interval),
@@ -137116,7 +138117,97 @@ class BpfMgr(object):
         except:
             SysMgr.printErr("bpfwqtop failed", reason=True)
         finally:
-            if SysMgr.outPath and "NOSUMMARY" not in SysMgr.environList:
+            if _need_summary:
+                if summary_wq:
+                    _conv = UtilMgr.convNum
+                    _twoLine = "=" * SysMgr.lineLength
+                    _oneLine = "-" * SysMgr.lineLength
+                    _srows = sorted(
+                        summary_wq.items(), key=lambda x: -x[1]["total_ns"]
+                    )
+                    _shdr = "[Top bpfwqtop Summary]\n%s\n" % _twoLine
+                    if has_queue:
+                        _scol = (
+                            "  %-42s %8s %14s %14s %14s %14s %14s %24s\n%s\n"
+                            % (
+                                "WorkFunction",
+                                "NrExec",
+                                "TotalTime",
+                                "AvgTime",
+                                "MinTime",
+                                "MaxTime",
+                                "QueueWait",
+                                "Worker(TID)",
+                                _oneLine,
+                            )
+                        )
+                    else:
+                        _scol = (
+                            "  %-42s %8s %14s %14s %14s %14s %24s\n%s\n"
+                            % (
+                                "WorkFunction",
+                                "NrExec",
+                                "TotalTime",
+                                "AvgTime",
+                                "MinTime",
+                                "MaxTime",
+                                "Worker(TID)",
+                                _oneLine,
+                            )
+                        )
+                    SysMgr.addPrint(
+                        _shdr + _scol,
+                        _shdr.count("\n") + _scol.count("\n"),
+                    )
+                    for _sym, _e in _srows:
+                        _avg_ns = (
+                            _e["total_ns"] // _e["count"] if _e["count"] else 0
+                        )
+                        _worker_s = "%s(%d)" % (
+                            (_e["worker_comm"] or "")[:16],
+                            _e["worker_tid"],
+                        )
+                        if has_queue:
+                            _avg_queue = (
+                                "%.6f"
+                                % (
+                                    _e["total_queue_ns"]
+                                    / _e["queue_count"]
+                                    / 1e9
+                                )
+                                if _e["queue_count"] > 0
+                                else "-"
+                            )
+                            _line = (
+                                "  %-42s %8s %14s %14s %14s %14s %14s %24s\n"
+                                % (
+                                    _sym[:42],
+                                    _conv(_e["count"]),
+                                    "%.6f" % (_e["total_ns"] / 1e9),
+                                    "%.6f" % (_avg_ns / 1e9),
+                                    "%.6f" % ((_e["min_ns"] or 0) / 1e9),
+                                    "%.6f" % (_e["max_ns"] / 1e9),
+                                    _avg_queue,
+                                    _worker_s[:24],
+                                )
+                            )
+                        else:
+                            _line = (
+                                "  %-42s %8s %14s %14s %14s %14s %24s\n"
+                                % (
+                                    _sym[:42],
+                                    _conv(_e["count"]),
+                                    "%.6f" % (_e["total_ns"] / 1e9),
+                                    "%.6f" % (_avg_ns / 1e9),
+                                    "%.6f" % ((_e["min_ns"] or 0) / 1e9),
+                                    "%.6f" % (_e["max_ns"] / 1e9),
+                                    _worker_s[:24],
+                                )
+                            )
+                        SysMgr.addPrint(_line, 1)
+                    SysMgr.addPrint(_twoLine + "\n", 1)
+                    SysMgr.doPrint(pager=False)
+                    SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
             BpfMgr.detachAll()
@@ -137126,6 +138217,7 @@ class BpfMgr(object):
         """Futex/lock contention latency per kernel stack using futex_wait kprobe"""
         summary_call = {}
         summary_bt = {}
+        summary_lock = {}
         elapsed = 0
         drawflame = False
         try:
@@ -137136,6 +138228,7 @@ class BpfMgr(object):
                 )
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
+            show_uaddr = "ADDLOCKADDR" in SysMgr.environList
             drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
                 max(int(SysMgr.depthLevel or 0), 1)
@@ -137144,13 +138237,25 @@ class BpfMgr(object):
             )
 
             # ts_map:   HASH key=u64(pid_tgid), val=16B [u64 ktime][u32 kstack_id][u32 ustack_id] #
+            # (24B when show_uaddr: val gains a trailing u64 uaddr - see #
+            # genPidTsEntryProg's uaddr_arg_off) #
             ts_map_fd = BpfMgr.createMap(
-                ConfigMgr.BPF_MAP_HASH_IDX, 8, 16, 65536, "lk_ts"
+                ConfigMgr.BPF_MAP_HASH_IDX,
+                8,
+                24 if show_uaddr else 16,
+                65536,
+                "lk_ts",
             )
             # lock_map: HASH key=16B [u64 pid_tgid][u32 kstack_id][u32 ustack_id] #
             #           val=16B [u64 total_ns][u64 cnt] #
+            # (24B key when show_uaddr: key gains a trailing u64 uaddr - see #
+            # genPidTsExitProg's carry_extra) #
             lock_map_fd = BpfMgr.createMap(
-                ConfigMgr.BPF_MAP_HASH_IDX, 16, 16, 65536, "lk_agg"
+                ConfigMgr.BPF_MAP_HASH_IDX,
+                24 if show_uaddr else 16,
+                16,
+                65536,
+                "lk_agg",
             )
             kstack_map_fd = BpfMgr.createStackTraceMap(name="lk_k")
             ustack_map_fd = -1
@@ -137162,9 +138267,16 @@ class BpfMgr(object):
                 sys.exit(-1)
 
             entry_insns = BpfMgr.genPidTsEntryProg(
-                ts_map_fd, kstack_map_fd, ustack_map_fd
+                ts_map_fd,
+                kstack_map_fd,
+                ustack_map_fd,
+                uaddr_arg_off=(
+                    BpfMgr._getFutexArgOffset() if show_uaddr else -1
+                ),
             )
-            exit_insns = BpfMgr.genPidTsExitProg(ts_map_fd, lock_map_fd)
+            exit_insns = BpfMgr.genPidTsExitProg(
+                ts_map_fd, lock_map_fd, carry_extra=show_uaddr
+            )
 
             entry_fd = BpfMgr.loadProg(
                 BpfMgr.BPF_PROG_TYPE_KPROBE,
@@ -137197,6 +138309,7 @@ class BpfMgr(object):
 
             prev_ns = {}
             prev_cnt = {}
+            prev_lk = {}
             sid_cache = {}
             usid_cache = {}
             pid_ext, ksid_ext, usid_ext, tgid_ext = BpfMgr._pidTgidExtractors()
@@ -137229,35 +138342,44 @@ class BpfMgr(object):
                 else:
                     _cond_met = True
 
-                ct, bt, total_ns, total_ev = BpfMgr._aggregateLatencySamples(
-                    kstack_map_fd,
-                    ustack_map_fd,
-                    lock_map_fd,
-                    prev_ns,
-                    prev_cnt,
-                    sid_cache,
-                    usid_cache,
-                    max_depth,
-                    pid_ext,
-                    ksid_ext,
-                    usid_ext,
-                    skip_leaf_fn=_futex_skip,
-                    comm_mode=BpfMgr._getCommMode(),
-                )
+                if show_uaddr:
+                    lockTable, total_ns, total_ev = (
+                        BpfMgr._aggregateLockAddrSamples(lock_map_fd, prev_lk)
+                    )
+                else:
+                    ct, bt, total_ns, total_ev = (
+                        BpfMgr._aggregateLatencySamples(
+                            kstack_map_fd,
+                            ustack_map_fd,
+                            lock_map_fd,
+                            prev_ns,
+                            prev_cnt,
+                            sid_cache,
+                            usid_cache,
+                            max_depth,
+                            pid_ext,
+                            ksid_ext,
+                            usid_ext,
+                            skip_leaf_fn=_futex_skip,
+                            comm_mode=BpfMgr._getCommMode(),
+                        )
+                    )
 
-                if elap_min_ns or elap_max_ns:
-                    _fct = {}
-                    for _lf, _v in ct.items():
-                        _avg = _v["ns"] // _v["io_cnt"] if _v["io_cnt"] else 0
-                        if not UtilMgr.checkElapFilter(
-                            _avg, elap_min_ns, elap_max_ns, elap_eq_ns
-                        ):
-                            continue
-                        _fct[_lf] = _v
-                    ct = _fct
-                    bt = {k: v for k, v in bt.items() if k in ct}
-                    total_ns = sum(v["ns"] for v in ct.values())
-                    total_ev = sum(v["io_cnt"] for v in ct.values())
+                    if elap_min_ns or elap_max_ns:
+                        _fct = {}
+                        for _lf, _v in ct.items():
+                            _avg = (
+                                _v["ns"] // _v["io_cnt"] if _v["io_cnt"] else 0
+                            )
+                            if not UtilMgr.checkElapFilter(
+                                _avg, elap_min_ns, elap_max_ns, elap_eq_ns
+                            ):
+                                continue
+                            _fct[_lf] = _v
+                        ct = _fct
+                        bt = {k: v for k, v in bt.items() if k in ct}
+                        total_ns = sum(v["ns"] for v in ct.values())
+                        total_ev = sum(v["io_cnt"] for v in ct.values())
 
                 if not _cond_met:
                     BpfMgr._flushBuf()
@@ -137265,46 +138387,98 @@ class BpfMgr(object):
                         break
                     continue
 
-                if SysMgr.jsonEnable:
-                    _jstacks = []
-                    for _leaf, _info in sorted(
-                        ct.items(), key=lambda x: -x[1]["ns"]
-                    ):
-                        _frames = _leaf.split(" <- ")
-                        _jstacks.append(
-                            {
-                                "ns": int(_info["ns"]),
-                                "count": int(_info["io_cnt"]),
-                                "frames": _frames,
-                            }
+                if show_uaddr:
+                    if SysMgr.jsonEnable:
+                        _jlocks = []
+                        for _uaddr, _info in sorted(
+                            lockTable.items(), key=lambda x: -x[1]["ns"]
+                        ):
+                            _jlocks.append(
+                                {
+                                    "uaddr": "0x%x" % _uaddr,
+                                    "ns": int(_info["ns"]),
+                                    "count": int(_info["cnt"]),
+                                    "topComm": _info.get("top_comm", ""),
+                                    "topPid": _info.get("top_pid", 0),
+                                }
+                            )
+                        SysMgr.printPipe(
+                            UtilMgr.convDict2Str(
+                                {
+                                    "time": SysMgr.uptime,
+                                    "timeDiff": SysMgr.uptimeDiff,
+                                    "locks": _jlocks,
+                                },
+                                gpretty=True,
+                            )
                         )
-                    SysMgr.printPipe(
-                        UtilMgr.convDict2Str(
-                            {
-                                "time": SysMgr.uptime,
-                                "timeDiff": SysMgr.uptimeDiff,
-                                "stacks": _jstacks,
-                            },
-                            gpretty=True,
+                    else:
+                        BpfMgr._printLockAddrTop(
+                            "bpflocktop",
+                            lockTable,
+                            total_ns,
+                            total_ev,
+                            _actual,
                         )
-                    )
-                else:
-                    BpfMgr._printLatencyTop(
-                        "bpflocktop",
-                        ct,
-                        bt,
-                        total_ns,
-                        total_ev,
-                        _actual,
-                        extra_hdr=" %s" % _sysStatStr,
-                        nr_label="NrWait",
-                        total_label="TotalWait",
-                        avg_label="AvgWait",
-                    )
 
-                BpfMgr._accumulateLatencySummary(
-                    summary_call, summary_bt, ct, bt
-                )
+                    for _uaddr, _info in lockTable.items():
+                        _sentry = summary_lock.setdefault(
+                            _uaddr,
+                            {
+                                "ns": 0,
+                                "cnt": 0,
+                                "top_pid": _info.get("top_pid", 0),
+                                "top_ns": 0,
+                                "top_comm": _info.get("top_comm", ""),
+                            },
+                        )
+                        _sentry["ns"] += _info["ns"]
+                        _sentry["cnt"] += _info["cnt"]
+                        if _info.get("top_ns", 0) > _sentry["top_ns"]:
+                            _sentry["top_ns"] = _info["top_ns"]
+                            _sentry["top_pid"] = _info.get("top_pid", 0)
+                            _sentry["top_comm"] = _info.get("top_comm", "")
+                else:
+                    if SysMgr.jsonEnable:
+                        _jstacks = []
+                        for _leaf, _info in sorted(
+                            ct.items(), key=lambda x: -x[1]["ns"]
+                        ):
+                            _frames = _leaf.split(" <- ")
+                            _jstacks.append(
+                                {
+                                    "ns": int(_info["ns"]),
+                                    "count": int(_info["io_cnt"]),
+                                    "frames": _frames,
+                                }
+                            )
+                        SysMgr.printPipe(
+                            UtilMgr.convDict2Str(
+                                {
+                                    "time": SysMgr.uptime,
+                                    "timeDiff": SysMgr.uptimeDiff,
+                                    "stacks": _jstacks,
+                                },
+                                gpretty=True,
+                            )
+                        )
+                    else:
+                        BpfMgr._printLatencyTop(
+                            "bpflocktop",
+                            ct,
+                            bt,
+                            total_ns,
+                            total_ev,
+                            _actual,
+                            extra_hdr=" %s" % _sysStatStr,
+                            nr_label="NrWait",
+                            total_label="TotalWait",
+                            avg_label="AvgWait",
+                        )
+
+                    BpfMgr._accumulateLatencySummary(
+                        summary_call, summary_bt, ct, bt
+                    )
 
                 BpfMgr._flushBuf()
                 if BpfMgr._checkLoopExit(total_time, elapsed):
@@ -137319,21 +138493,34 @@ class BpfMgr(object):
             if (
                 SysMgr.outPath
                 and "NOSUMMARY" not in SysMgr.environList
-                and summary_call
+                and (summary_call or summary_lock)
             ):
-                total_ns_s = sum(v["ns"] for v in summary_call.values())
-                total_ev_s = sum(v["io_cnt"] for v in summary_call.values())
-                BpfMgr._printLatencyTop(
-                    "Top bpflocktop Summary",
-                    summary_call,
-                    summary_bt,
-                    total_ns_s,
-                    total_ev_s,
-                    elapsed,
-                    nr_label="NrWait",
-                    total_label="TotalWait",
-                    avg_label="AvgWait",
-                )
+                if summary_lock:
+                    total_ns_ls = sum(v["ns"] for v in summary_lock.values())
+                    total_cnt_ls = sum(v["cnt"] for v in summary_lock.values())
+                    BpfMgr._printLockAddrTop(
+                        "Top bpflocktop Summary (Uaddr)",
+                        summary_lock,
+                        total_ns_ls,
+                        total_cnt_ls,
+                        elapsed,
+                    )
+                if summary_call:
+                    total_ns_s = sum(v["ns"] for v in summary_call.values())
+                    total_ev_s = sum(
+                        v["io_cnt"] for v in summary_call.values()
+                    )
+                    BpfMgr._printLatencyTop(
+                        "Top bpflocktop Summary",
+                        summary_call,
+                        summary_bt,
+                        total_ns_s,
+                        total_ev_s,
+                        elapsed,
+                        nr_label="NrWait",
+                        total_label="TotalWait",
+                        avg_label="AvgWait",
+                    )
                 SysMgr.doPrint(pager=False)
                 SysMgr.clearPrint()
                 SysMgr.printProcBuffer()
@@ -137363,6 +138550,10 @@ class BpfMgr(object):
         _t0 = 0.0
         try:
             BpfMgr.checkAvailable()
+            if "PROCCOMMFILTER" in SysMgr.environList:
+                BpfMgr._checkProcCommPattern(
+                    SysMgr.environList["PROCCOMMFILTER"][0]
+                )
 
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
             drawflame = "DRAWFLAME" in SysMgr.environList
@@ -137441,16 +138632,39 @@ class BpfMgr(object):
             oneLine = "-" * SysMgr.lineLength
             maxlen = SysMgr.lineLength
             comm_mode = BpfMgr._getCommMode()
+            # -g <PID|COMM> and PROCCOMMFILTER are Python-level, process-scoped
+            # filters (see _bpf_g_opt help text: "filter by process name or
+            # PID"); ml_alloc's val already carries the allocating task's
+            # pid_tgid, so filtering here mirrors the same pattern every
+            # sibling bpf*top command uses (e.g. _aggregateLatencySamples) #
+            _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
 
             def _print_alloc_top(
                 label, interval_s, printOut=True
             ):  # pylint: disable=function-redefined
                 # First pass: group by (kstack_id, ustack_id, pid_tgid) #
                 raw_groups = {}
+                _filt_comm_cache = {}
                 for _k, v in BpfMgr.iterMap(ml_alloc_fd, 8, 24):
                     size, kstack_id, ustack_id, pid_tgid = struct.unpack_from(
                         "<QiiQ", v, 0
                     )
+                    if SysMgr.filterGroup or _proccomm_pats:
+                        _tgid = (pid_tgid >> 32) & 0xFFFFFFFF
+                        _comm = _filt_comm_cache.get(_tgid)
+                        if _comm is None:
+                            _comm = SysMgr.getComm(_tgid, default="")
+                            _filt_comm_cache[_tgid] = _comm
+                        if (
+                            SysMgr.filterGroup
+                            and not UtilMgr.isValidStr(str(_tgid))
+                            and not UtilMgr.isValidStr(_comm)
+                        ):
+                            continue
+                        if _proccomm_pats and not BpfMgr._patOk(
+                            _comm, _proccomm_pats
+                        ):
+                            continue
                     key = (kstack_id, ustack_id, pid_tgid)
                     e = raw_groups.setdefault(key, {"bytes": 0, "count": 0})
                     e["bytes"] += size
@@ -138181,6 +139395,21 @@ class BpfMgr(object):
             return {"tr": 16, "reply": 24}
         else:  # x86_64 default
             return {"tr": 96, "reply": 88}
+
+    @staticmethod
+    def _getFutexArgOffset():
+        """Return the pt_regs byte offset of futex_wait()'s arg0 (uaddr).
+
+        futex_wait(u32 __user *uaddr, ...) - arg0.
+        ARM64 pt_regs: x0@0. RISC-V pt_regs: a0@80. x86_64 pt_regs: rdi@112.
+        """
+        arch = SysMgr.getArch()
+        if arch == "aarch64":
+            return 0
+        elif arch == "riscv64":
+            return 80
+        else:  # x86_64 default (rdi)
+            return 112
 
     @staticmethod
     def genBinderIfaceKprobeProg(iface_tmp_map_fd, arg_offsets):
@@ -141820,8 +143049,59 @@ class BpfMgr(object):
             elapsed = 0
 
             _dbgObj = BpfMgr._initDbgObj()
-            _max_threads_cache = {}  # {pid: int} cached once per process
-            _name_cache = {}  # {pid: str} cached once per process
+            # Per-pid comm name / max-thread-limit lookups are relatively
+            # expensive (comm: cmdline/comm file reads; max_limit: binder
+            # proc state file parse) and are re-resolved at most once per
+            # TTL rather than every tick. TTL-cached (not cached forever)
+            # because this command can run for a long -R duration that
+            # spans PID reuse -- an unbounded cache would keep showing
+            # (and, for comm, PROCCOMMFILTER-gating by) a dead process's
+            # stale identity forever for whichever new process the kernel
+            # later recycles that PID to. Mirrors doBpfsnoopCmd's
+            # _get_proc_comm / doBpftcplifeCmd's _get_proc_comm TTL
+            # pattern (2s TTL, swept every 30s, evicted after 60s idle) #
+            _max_threads_cache = {}  # {pid: (last_ts, int)}
+            _name_cache = {}  # {pid: (last_ts, str)}
+            _PIDCACHE_TTL_S = 2.0
+            _PIDCACHE_SWEEP_INTERVAL = 30.0
+            _PIDCACHE_MAX_IDLE = 60.0
+            _pidcache_last_sweep_ts = [0.0]
+
+            def _sweep_pid_caches():
+                # Uses time.time() throughout to match the wall-clock
+                # timestamps stored by _get_name()/_get_max_threads() below
+                # (the loop's own _now/_actual come from time.monotonic()
+                # via _advanceLoopClock, a different clock base) #
+                _now_ts = time.time()
+                if (
+                    _now_ts - _pidcache_last_sweep_ts[0]
+                    <= _PIDCACHE_SWEEP_INTERVAL
+                ):
+                    return
+                _pidcache_last_sweep_ts[0] = _now_ts
+                for _c in (_name_cache, _max_threads_cache):
+                    for _k in list(_c):
+                        if _now_ts - _c[_k][0] > _PIDCACHE_MAX_IDLE:
+                            _c.pop(_k, None)
+
+            def _get_name(pid):
+                _now_ts = time.time()
+                _cached = _name_cache.get(pid)
+                if _cached and _now_ts - _cached[0] < _PIDCACHE_TTL_S:
+                    return _cached[1]
+                _name = BpfMgr._readProcName(pid, _use_comm)
+                _name_cache[pid] = (_now_ts, _name)
+                return _name
+
+            def _get_max_threads(pid):
+                _now_ts = time.time()
+                _cached = _max_threads_cache.get(pid)
+                if _cached and _now_ts - _cached[0] < _PIDCACHE_TTL_S:
+                    return _cached[1]
+                _limit = BpfMgr._getBinderMaxThreads(pid)
+                _max_threads_cache[pid] = (_now_ts, _limit)
+                return _limit
+
             prev_async_total = (
                 {}
             )  # {pid: u64} cumulative async_total last interval
@@ -141954,11 +143234,10 @@ class BpfMgr(object):
 
                 # Merge: all pids seen in either map #
                 all_pids = set(pool_entries) | set(caller_entries)
+                _sweep_pid_caches()
                 rows = []
                 for pid in all_pids:
-                    if pid not in _name_cache:
-                        _name_cache[pid] = BpfMgr._readProcName(pid, _use_comm)
-                    comm = _name_cache[pid]
+                    comm = _get_name(pid)
                     if _proccomm_pats and not BpfMgr._patOk(
                         comm, _proccomm_pats
                     ):
@@ -141990,11 +143269,7 @@ class BpfMgr(object):
                     async_tx_d = max(async_tx_cum - prev_atx, 0)
                     prev_async_tx[pid] = async_tx_cum
 
-                    if pid not in _max_threads_cache:
-                        _max_threads_cache[pid] = BpfMgr._getBinderMaxThreads(
-                            pid
-                        )
-                    max_limit = _max_threads_cache[pid]
+                    max_limit = _get_max_threads(pid)
 
                     limit_str = str(max_limit) if max_limit >= 0 else "?"
                     if max_limit > 0:
@@ -142447,7 +143722,9 @@ class BpfMgr(object):
             thread_comm = _thread_comm_cache[tid]
 
             if SysMgr.filterGroup:
-                if not UtilMgr.isValidStr("%d %s" % (tgid, proc_comm)):
+                if not UtilMgr.isValidStr(
+                    str(tgid)
+                ) and not UtilMgr.isValidStr(proc_comm):
                     continue
 
             if _proccomm_pats:
@@ -142575,8 +143852,8 @@ class BpfMgr(object):
             if SysMgr.filterGroup:
                 tgid = (struct.unpack_from("<Q", k, 0)[0] >> 32) & 0xFFFFFFFF
                 if not UtilMgr.isValidStr(
-                    "%d %s" % (tgid, comm_cache.get(pid, ""))
-                ):
+                    str(tgid)
+                ) and not UtilMgr.isValidStr(comm_cache.get(pid, "")):
                     continue
 
             # filter by PROCCOMMFILTER (match process comm against pattern) #
@@ -142653,6 +143930,168 @@ class BpfMgr(object):
                 btTable[leaf][bt_str]["io_cnt"] += d_cnt
 
         return callTable, btTable, total_ns, total_io
+
+    @staticmethod
+    def _aggregateLockAddrSamples(lock_map_fd, prev_lk):
+        """Aggregate a 24B-keyed lock_map (bpflocktop -q ADDLOCKADDR):
+        key=[u64 pid_tgid][u32 kstack_id][u32 ustack_id][u64 uaddr],
+        val=16B [u64 total_ns][u64 cnt] -- into lockTable keyed by uaddr.
+
+        Kept separate from _aggregateLatencySamples() because that function
+        hardcodes BpfMgr.iterMap(blk_map_fd, 16, 16) for a 16-byte key, which
+        is structurally incompatible with this 24-byte uaddr-carrying key.
+
+        lockTable[uaddr] = {"ns": int, "cnt": int, "top_pid": int,
+                             "top_ns": int, "top_comm": str}
+        Returns (lockTable, total_ns, total_cnt).
+        """
+        lockTable = {}
+        total_ns = 0
+        total_cnt = 0
+        comm_cache = {}
+        # supports "!"-prefixed negation via the shared BpfMgr._patOk(),
+        # same as _aggregateLatencySamples() -- this path used to skip
+        # PROCCOMMFILTER entirely even though doBpflocktopCmd() validates
+        # the pattern up front via _checkProcCommPattern() (comm-length
+        # warning only, not an actual filter), so
+        # "-q ADDLOCKADDR,PROCCOMMFILTER:name" silently traced every
+        # process instead of just the matching one #
+        _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
+        _tgid_comm_cache = {}
+        snapshot = list(BpfMgr.iterMap(lock_map_fd, 24, 16))
+        for k, v in snapshot:
+            cur_ns = struct.unpack_from("<Q", v, 0)[0]
+            cur_cnt = struct.unpack_from("<Q", v, 8)[0]
+            prev = prev_lk.get(k, (0, 0))
+            d_ns = cur_ns - prev[0]
+            d_cnt = cur_cnt - prev[1]
+            if d_ns <= 0 or d_cnt <= 0:
+                continue
+            prev_lk[k] = (cur_ns, cur_cnt)
+
+            uaddr = struct.unpack_from("<Q", k, 16)[0]
+            pid_tgid = struct.unpack_from("<Q", k, 0)[0]
+            pid = pid_tgid & 0xFFFFFFFF
+            tgid = (pid_tgid >> 32) & 0xFFFFFFFF
+
+            # filter by -g <pid|comm>: numeric matches the owning process
+            # (TGID), comm string matches the sampling THREAD's own comm -
+            # consistent with the non-ADDLOCKADDR path's -g semantics in
+            # _aggregateLatencySamples() (pid_extractor() -> TID, per
+            # BpfMgr._pidTgidExtractors()'s docstring on why a tgid
+            # fallback would let a multi-threaded target's worker threads
+            # leak through a negated filter) #
+            if SysMgr.filterGroup:
+                if pid not in comm_cache:
+                    comm_cache[pid] = SysMgr.getComm(pid, default="")
+                if not UtilMgr.isValidStr(
+                    str(tgid)
+                ) and not UtilMgr.isValidStr(comm_cache[pid]):
+                    continue
+
+            # filter by PROCCOMMFILTER (match process comm against pattern),
+            # same semantics as _aggregateLatencySamples() #
+            if _proccomm_pats:
+                _tproc = _tgid_comm_cache.get(tgid)
+                if _tproc is None:
+                    _tproc = SysMgr.getComm(tgid, default="")
+                    _tgid_comm_cache[tgid] = _tproc
+                if not BpfMgr._patOk(_tproc, _proccomm_pats):
+                    continue
+
+            entry = lockTable.setdefault(
+                uaddr,
+                {
+                    "ns": 0,
+                    "cnt": 0,
+                    "top_pid": pid,
+                    "top_ns": 0,
+                    "top_comm": "",
+                },
+            )
+            entry["ns"] += d_ns
+            entry["cnt"] += d_cnt
+            if d_ns > entry["top_ns"]:
+                entry["top_ns"] = d_ns
+                entry["top_pid"] = pid
+                if pid not in comm_cache:
+                    comm_cache[pid] = SysMgr.getComm(pid, default="")
+                entry["top_comm"] = comm_cache[pid]
+
+            total_ns += d_ns
+            total_cnt += d_cnt
+
+        return lockTable, total_ns, total_cnt
+
+    @staticmethod
+    def _printLockAddrTop(cmd_name, lockTable, total_ns, total_cnt, interval):
+        """Print futex lock-address contention top (bpflocktop -q ADDLOCKADDR)."""
+        conv = UtilMgr.convNum
+        fmt = BpfMgr._fmtNs
+        twoLine = "=" * SysMgr.lineLength
+        oneLine = "-" * SysMgr.lineLength
+
+        avg_ns = total_ns // total_cnt if total_cnt else 0
+        hdr = (
+            "[%s] (interval: %.3f) (NrWait: %s) (TotalWait: %s) (AvgWait: %s)\n%s\n"
+            % (
+                cmd_name,
+                interval,
+                conv(total_cnt),
+                fmt(total_ns),
+                fmt(avg_ns),
+                twoLine,
+            )
+        )
+        if not SysMgr.addPrint(hdr, hdr.count("\n")):
+            return
+        if not lockTable:
+            SysMgr.addPrint("%s\n%s\n" % (UtilMgr.NONE_STR, twoLine), 2)
+            return
+        col_hdr = "{0:<9}| {1}\n{2}\n".format(
+            "Usage  ",
+            "Uaddr(hex) <NrWait, TotalWait, AvgWait, TopComm(TID)>",
+            oneLine,
+        )
+        if not SysMgr.addPrint(col_hdr, col_hdr.count("\n")):
+            return
+
+        def _pctColor(pct):
+            pstr = "{0:>7.1f}".format(pct)
+            if pct >= 50.0:
+                return UtilMgr.convColor(pstr, "RED")
+            elif pct >= 20.0:
+                return UtilMgr.convColor(pstr, "YELLOW")
+            else:
+                return pstr
+
+        for uaddr, info in sorted(
+            lockTable.items(), key=lambda x: -x[1]["ns"]
+        ):
+            ns = info["ns"]
+            cnt = info["cnt"]
+            pct = 100.0 * ns / total_ns if total_ns else 0
+            avg = ns // cnt if cnt else 0
+            top_pid = info.get("top_pid", 0)
+            top_comm = info.get("top_comm", "")
+            comm_str = (
+                "%s(%d)" % (top_comm, top_pid)
+                if top_comm
+                else "(%d)" % top_pid
+            )
+            row = (
+                "{0}% | 0x{1:x} <NrWait: {2}, TotalWait: {3}, "
+                "AvgWait: {4}, TopComm: {5}>\n"
+            ).format(
+                _pctColor(pct),
+                uaddr,
+                UtilMgr.convColor(conv(cnt), "GREEN"),
+                UtilMgr.convColor(fmt(ns), "YELLOW"),
+                UtilMgr.convColor(fmt(avg), "YELLOW"),
+                comm_str,
+            )
+            if not SysMgr.addPrint(row, row.count("\n")):
+                break
 
     @staticmethod
     def _printLatencyByProcTop(
@@ -144470,7 +145909,10 @@ class BpfMgr(object):
             fname_bytes = func_name.encode() + b"\x00"
             pos = type_start
             type_id = 0
-            while pos + 8 <= type_start + type_len:
+            # struct btf_type is 12 bytes: name_off(4) + info(4) +
+            # size/type union(4) -- the union member is unused here but
+            # must still be skipped, or every type after the first desyncs #
+            while pos + 12 <= type_start + type_len:
                 name_off, info = struct.unpack_from("<II", data, pos)
                 kind = (info >> 24) & 0x1F
                 vlen = info & 0xFFFF
@@ -144483,7 +145925,7 @@ class BpfMgr(object):
                     if n_end >= n_start:
                         if data[n_start : n_end + 1] == fname_bytes:
                             return type_id
-                pos += 8 + extra
+                pos += 12 + extra
         except Exception:
             pass
         return -1
@@ -145147,10 +146589,6 @@ class BpfMgr(object):
                         if "dirty" in _stk_data
                         else _read_arr(_IDX_DIRTY)
                     )
-                    total_counts[0] += hits
-                    total_counts[1] += misses
-                    total_counts[2] += dirty
-
                     total_events = hits + misses
                     hit_ratio = (
                         100.0 * hits / total_events
@@ -145168,6 +146606,9 @@ class BpfMgr(object):
                     )
 
                     if _cond_met:
+                        total_counts[0] += hits
+                        total_counts[1] += misses
+                        total_counts[2] += dirty
                         if SysMgr.jsonEnable:
                             SysMgr.printPipe(
                                 UtilMgr.convDict2Str(
@@ -145237,9 +146678,6 @@ class BpfMgr(object):
                     hits = _read_arr(_IDX_HIT)
                     misses = _read_arr(_IDX_MISS)
                     dirty = _read_arr(_IDX_DIRTY)
-                    total_counts[0] += hits
-                    total_counts[1] += misses
-                    total_counts[2] += dirty
                     total_events = hits + misses
                     hit_ratio = (
                         100.0 * hits / total_events
@@ -145248,6 +146686,9 @@ class BpfMgr(object):
                     )
 
                     if _cond_met:
+                        total_counts[0] += hits
+                        total_counts[1] += misses
+                        total_counts[2] += dirty
                         if SysMgr.jsonEnable:
                             SysMgr.printPipe(
                                 UtilMgr.convDict2Str(
@@ -145454,13 +146895,36 @@ class BpfMgr(object):
                     (n >> 24) & 0xFF,
                 )
 
-            # Process comm cache: tgid → proc_comm string #
-            _proc_comm_cache = {}
+            # Process comm cache: tgid → (last_ts, proc_comm string).
+            # TTL-cached (2s), matching the established PROCCOMMFILTER
+            # pattern used elsewhere (see doBpfsnoopCmd's _get_proc_comm):
+            # a process's own name essentially never changes, but this
+            # command streams events for the whole -R duration, which can
+            # span PID reuse (a short-lived process exits and the kernel
+            # recycles its tgid for an unrelated process). An unbounded
+            # cache would keep resolving/filtering every later event for
+            # the reused tgid against the OLD process's name forever --
+            # both misattributing the displayed pcomm and, when
+            # PROCCOMMFILTER is active, silently admitting/excluding the
+            # wrong process. commCache=False keeps this independent of
+            # SysMgr.getComm()'s own separately-invalidated global cache #
+            _proc_comm_cache = {}  # {tgid: (last_ts, name)}
+            _PROCCOMM_TTL_S = 2.0
+            _proccomm_last_sweep_ts = [0.0]
 
             def _get_proc_comm(tgid):
-                if tgid not in _proc_comm_cache:
-                    _proc_comm_cache[tgid] = SysMgr.getComm(tgid, default="")
-                return _proc_comm_cache[tgid]
+                _now = time.time()
+                _cached = _proc_comm_cache.get(tgid)
+                if _cached and _now - _cached[0] < _PROCCOMM_TTL_S:
+                    return _cached[1]
+                if _now - _proccomm_last_sweep_ts[0] > 30.0:
+                    _proccomm_last_sweep_ts[0] = _now
+                    for _k in list(_proc_comm_cache):
+                        if _now - _proc_comm_cache[_k][0] > 60.0:
+                            _proc_comm_cache.pop(_k, None)
+                _name = SysMgr.getComm(tgid, commCache=False, default="") or ""
+                _proc_comm_cache[tgid] = (_now, _name)
+                return _name
 
             _twoLine = "=" * SysMgr.lineLength
             # Header: TIME | TYPE | LADDR:LPORT | RADDR:RPORT | PROC[PID]/THREAD[TID] #
@@ -147410,14 +148874,24 @@ class BpfMgr(object):
 
             PERF_RECORD_SAMPLE = 9
 
-            # -g only selects the attach-time target above; there is no
-            # post-event comm filter yet, so PROCCOMMFILTER (with "!"
-            # negation via the shared BpfMgr._patOk()) is the first one.
-            # Matches the target PROCESS's own comm (like every other
-            # PROCCOMMFILTER site), not the raw payload 'comm' (thread-level,
-            # bpf_get_current_comm() at hit time) -- a worker thread of a
-            # multi-threaded target would otherwise leak through a negated
-            # filter, same bug already fixed for bpfsyscallsnoop/bpflsmopen #
+            # -g selects the attach-time target above, but a single watch
+            # target can still fan out to MULTIPLE real pids: file:symbol
+            # form attaches separately to every process that maps the file
+            # (BpfMgr._parseWatchInputs ignores target_pid there), and
+            # kernel-VA mode attaches system-wide (pid=-1, one fd per CPU).
+            # In both cases events from processes other than the -g target
+            # would otherwise reach the live stream and _summary_stack
+            # accumulator unfiltered -- re-check -g here post-event via the
+            # shared BpfMgr._matchesFilter() helper, same AND-ed convention
+            # as BpfMgr._aggregateStackSamples() (bpfwatchtop's sibling
+            # aggregator, which already applies this check) -- PROCCOMMFILTER
+            # (with "!" negation via the shared BpfMgr._patOk()) is the
+            # second, independent check. Matches the target PROCESS's own
+            # comm (like every other PROCCOMMFILTER site), not the raw
+            # payload 'comm' (thread-level, bpf_get_current_comm() at hit
+            # time) -- a worker thread of a multi-threaded target would
+            # otherwise leak through a negated filter, same bug already
+            # fixed for bpfsyscallsnoop/bpflsmopen #
             _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
             _proc_comm_cache = {}
 
@@ -147449,6 +148923,10 @@ class BpfMgr(object):
                         comm = comm_raw.split(b"\x00")[0].decode(
                             "utf-8", errors="replace"
                         )
+                        if SysMgr.filterGroup and not BpfMgr._matchesFilter(
+                            pid, tgid, comm
+                        ):
+                            continue
                         if _proccomm_pats:
                             if tgid not in _proc_comm_cache:
                                 _proc_comm_cache[tgid] = SysMgr.getComm(
@@ -148969,9 +150447,6 @@ class BpfMgr(object):
                                 hist_map_fd, key, struct.pack("<Q", 0)
                             )
 
-                for b, c in hist.items():
-                    total_hist[b] = total_hist.get(b, 0) + c
-
                 # Read proc_map: comm → (count, total_ns, max_ns)
                 proc_rows = []
                 if proc_map_fd >= 0:
@@ -148994,6 +150469,12 @@ class BpfMgr(object):
                     if BpfMgr._checkLoopExit(total_time, elapsed):
                         break
                     continue
+
+                # Fold into the cross-tick Summary only for ticks that pass
+                # the SAMPCOND gate -- a suppressed tick must not
+                # contribute to the exit-time Summary either #
+                for b, c in hist.items():
+                    total_hist[b] = total_hist.get(b, 0) + c
 
                 if SysMgr.jsonEnable:
                     _jtot = int(sum(hist.values())) if hist else 0
@@ -150500,6 +151981,18 @@ class BpfMgr(object):
                     # -g/_matchesFilter above uses) #
                     _tf_proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
                     _tf_proc_comm_cache = {}
+                    # same filter set the standard/stacked sinks apply to this
+                    # same agg_map: -t/-T syscall selection, ELAPFILTER (avg
+                    # elapsed of this (tid,nr) entry), ERRONLY/ONLYOK (by
+                    # err_count) -- TOPFILE previously only replicated
+                    # _matchesFilter/PROCCOMMFILTER and silently ignored the
+                    # rest, so e.g. "-t open -q TOPFILE" still counted
+                    # read/write activity the main sink would have excluded #
+                    _tf_elap_min_ns, _tf_elap_max_ns, _tf_elap_eq_ns = (
+                        UtilMgr.parseElapFilter()
+                    )
+                    _tf_erronly = "ERRONLY" in SysMgr.environList
+                    _tf_onlyok = "ONLYOK" in SysMgr.environList
                     # Collect per-tgid read/write/open counts from agg_map #
                     _tf_procs = {}  # {tgid: {comm, read, write, open, lat_ns}}
                     _READ_NAMES = (
@@ -150526,10 +152019,33 @@ class BpfMgr(object):
                     for _kb, _vb in BpfMgr.iterMap(agg_map_fd, agg_key_sz, 80):
                         try:
                             _nr = struct.unpack_from("<I", _kb, 0)[0]
+                            # -t / -T (syscallList / syscallExceptList) #
+                            if (
+                                SysMgr.syscallList
+                                and _nr not in SysMgr.syscallList
+                            ):
+                                continue
+                            if (
+                                SysMgr.syscallExceptList
+                                and _nr in SysMgr.syscallExceptList
+                            ):
+                                continue
                             _cnt = struct.unpack_from("<Q", _vb, 0)[0]
                             if not _cnt:
                                 continue
                             _tot_ns = struct.unpack_from("<Q", _vb, 8)[0]
+                            _tf_err_cnt = struct.unpack_from("<Q", _vb, 32)[0]
+                            if _tf_erronly and _tf_err_cnt == 0:
+                                continue
+                            if _tf_onlyok and _tf_err_cnt > 0:
+                                continue
+                            if not UtilMgr.checkElapFilter(
+                                _tot_ns // _cnt,
+                                _tf_elap_min_ns,
+                                _tf_elap_max_ns,
+                                _tf_elap_eq_ns,
+                            ):
+                                continue
                             _tid = struct.unpack_from("<I", _kb, _tid_key_off)[
                                 0
                             ]
@@ -151346,14 +152862,6 @@ class BpfMgr(object):
             _getCmdline = SysMgr.getCmdline  # pre-bind for minimal overhead
 
             # Parse ARGn value filters (Python-only, args already in payload)
-            def _get_env_val(key):
-                if key not in SysMgr.environList:
-                    return None
-                try:
-                    return int(SysMgr.environList[key][0], 0)
-                except (ValueError, TypeError):
-                    return None
-
             arg_filters = []  # [(arg_idx 0-based, op_str, value), ...]
             for _i in range(1, 7):
                 for _sfx, _op in [
@@ -151363,9 +152871,12 @@ class BpfMgr(object):
                     ("NE", "ne"),
                 ]:
                     _key = "ARG%d%s" % (_i, _sfx)
-                    _val = _get_env_val(_key)
+                    _val = BpfMgr._getArgFilterVal(_key, "bpfsyscallsnoop")
                     if _val is not None:
                         arg_filters.append((_i - 1, _op, _val))
+
+            # ARGnFMT:HEX|DEC|BIN|SDEC - per-arg text-mode display format #
+            arg_fmts = BpfMgr._resolveArgFmts(6)
 
             twoLine = "=" * SysMgr.lineLength
             if not mute_events:
@@ -151529,7 +153040,10 @@ class BpfMgr(object):
                         while _arg_list and _arg_list[-1] == 0:
                             _arg_list.pop()
                         args_str = (
-                            ", ".join("0x%x" % a for a in _arg_list)
+                            ", ".join(
+                                arg_fmts[_i](a)
+                                for _i, a in enumerate(_arg_list)
+                            )
                             if _arg_list
                             else "-"
                         )
@@ -151674,8 +153188,27 @@ class BpfMgr(object):
                             else comm
                         )
 
+                        # RATE should count every event that PASSES the
+                        # erronly/onlyok content filters, independent of
+                        # whether it's actually printed (MUTE) or which
+                        # output format is used (json vs text) -- computed
+                        # once here and reused by both branches below so
+                        # "-q MUTE,RATE" (previously always 0 evt/s, since
+                        # the increment used to live only inside the
+                        # non-json "not mute_events" branch) and JSON mode
+                        # (previously never counted at all) both work. Also
+                        # gates the Call Stack Summary below so ERRONLY/
+                        # ONLYOK-excluded events can't leak into it #
+                        _passes_snoop_filters = (
+                            not erronly or (not is_entry and ret_val < 0)
+                        ) and (not onlyok or (not is_entry and ret_val >= 0))
+
                         # Call Stack Summary accumulation (independent of json/text output mode)
-                        if _need_summary and not is_entry:
+                        if (
+                            _need_summary
+                            and not is_entry
+                            and _passes_snoop_filters
+                        ):
                             _sum_frames = []
                             if (
                                 show_ustack
@@ -151710,18 +153243,6 @@ class BpfMgr(object):
                                 _summary_stack.get(_sum_chain, 0) + 1
                             )
 
-                        # RATE should count every event that PASSES the
-                        # erronly/onlyok content filters, independent of
-                        # whether it's actually printed (MUTE) or which
-                        # output format is used (json vs text) -- computed
-                        # once here and reused by both branches below so
-                        # "-q MUTE,RATE" (previously always 0 evt/s, since
-                        # the increment used to live only inside the
-                        # non-json "not mute_events" branch) and JSON mode
-                        # (previously never counted at all) both work #
-                        _passes_snoop_filters = (
-                            not erronly or (not is_entry and ret_val < 0)
-                        ) and (not onlyok or (not is_entry and ret_val >= 0))
                         if SysMgr.jsonEnable:
                             if not _passes_snoop_filters:
                                 continue
@@ -152532,7 +154053,10 @@ class BpfMgr(object):
                         st["ts_buf"].append(ts)
                         st["dlc"] = dlc
                         st["last_data"] = data
-                        if blf_state:
+                        if blf_state and (
+                            not name_flt
+                            or name_flt.lower() in (st["name"] or "-").lower()
+                        ):
                             BpfMgr._canBlfWriteFrame(
                                 blf_state, ts_ns, ch, can_id_raw, dlc, data
                             )
@@ -152600,7 +154124,11 @@ class BpfMgr(object):
                             st["ts_buf"].append(ts)
                             st["dlc"] = dlc
                             st["last_data"] = data
-                            if blf_state:
+                            if blf_state and (
+                                not name_flt
+                                or name_flt.lower()
+                                in (st["name"] or "-").lower()
+                            ):
                                 BpfMgr._canBlfWriteFrame(
                                     blf_state,
                                     int(ts * 1e9),
@@ -152625,7 +154153,6 @@ class BpfMgr(object):
                     if delta == 0:
                         continue
                     rate = delta / _actual
-                    total_rate += rate
                     cycle_ms = 1000.0 * _actual / delta
                     ts_list = list(st["ts_buf"])
                     jitter_ms = 0.0
@@ -152651,6 +154178,7 @@ class BpfMgr(object):
                     name = st["name"] or "-"
                     if name_flt and name_flt.lower() not in name.lower():
                         continue
+                    total_rate += rate
                     rows.append(
                         {
                             "key": key,
@@ -153006,14 +154534,14 @@ class BpfMgr(object):
                 is_eff = bool(can_id_raw & 0x80000000)
                 can_id = can_id_raw & 0x1FFFFFFF
                 if eff_only and not is_eff:
-                    return
+                    return False
                 if id_filter is not None and can_id != id_filter:
-                    return
+                    return False
                 dlc = min(dlc_raw, 64 if use_canfd else 8)
                 data = data[:dlc]
                 name = BpfMgr._canGetName(can_id, is_eff, dbc_msgs)
                 if name_flt and name_flt.lower() not in name.lower():
-                    return
+                    return False
                 id_str = ("0x%08X" if is_eff else "0x%03X") % can_id
                 hex_str = " ".join("%02X" % b for b in data)
                 if SysMgr.jsonEnable:
@@ -153039,7 +154567,7 @@ class BpfMgr(object):
                         if _jsigs:
                             _jent["signals"] = _jsigs
                     SysMgr.printPipe(UtilMgr.convDict2Str(_jent, pretty=False))
-                    return
+                    return True
                 ts_str = _fmt_ts(ts_wall)
                 line = "  %-15s" % ts_str
                 if multi_iface:
@@ -153070,8 +154598,9 @@ class BpfMgr(object):
                             % (" " * 15, "  |  ".join(sig_parts)),
                             flush=True,
                         )
-                        return
+                        return True
                 SysMgr.printPipe(line, flush=True)
+                return True
 
             if blf_input:
                 SysMgr.printInfo("BLF replay: %s" % blf_input)
@@ -153111,10 +154640,10 @@ class BpfMgr(object):
                         continue
                     ts_wall = t_wall_base + (ts_ns - blf_t0_ns) / 1e9
                     iface_name = "CAN%d" % ch
-                    _emit_frame(
+                    _passed = _emit_frame(
                         can_id_raw, dlc_raw, frame_data, iface_name, ts_wall
                     )
-                    if blf_state:
+                    if blf_state and _passed:
                         BpfMgr._canBlfWriteFrame(
                             blf_state,
                             ts_ns,
@@ -153196,25 +154725,19 @@ class BpfMgr(object):
 
                         ts = time.time()
                         iface_name = sock_map.get(ready_sock, "")
-                        _emit_frame(
+                        _passed = _emit_frame(
                             can_id_raw, dlc_raw, raw[8:], iface_name, ts
                         )
-                        if blf_state:
-                            is_eff_w = bool(can_id_raw & 0x80000000)
-                            can_id_w = can_id_raw & 0x1FFFFFFF
-                            if not (eff_only and not is_eff_w):
-                                if id_filter is None or can_id_w == id_filter:
-                                    dlc_w = min(
-                                        dlc_raw, 64 if use_canfd else 8
-                                    )
-                                    BpfMgr._canBlfWriteFrame(
-                                        blf_state,
-                                        int(ts * 1e9),
-                                        sock_chan_map.get(ready_sock, 1),
-                                        can_id_raw,
-                                        dlc_w,
-                                        raw[8 : 8 + dlc_w],
-                                    )
+                        if blf_state and _passed:
+                            dlc_w = min(dlc_raw, 64 if use_canfd else 8)
+                            BpfMgr._canBlfWriteFrame(
+                                blf_state,
+                                int(ts * 1e9),
+                                sock_chan_map.get(ready_sock, 1),
+                                can_id_raw,
+                                dlc_w,
+                                raw[8 : 8 + dlc_w],
+                            )
 
         except KeyboardInterrupt:
             pass
@@ -154092,6 +155615,16 @@ class BpfMgr(object):
                     pass
             _ignore_self = "IGNORESELF" in SysMgr.environList
 
+            # -g / PROCCOMMFILTER: match by sender comm (mirrors
+            # doBpfbindersnoopCmd's from_proc convention for two-actor
+            # events: filter anchors on the process that INITIATED the
+            # event, not the one it happened to)
+            if "PROCCOMMFILTER" in SysMgr.environList:
+                BpfMgr._checkProcCommPattern(
+                    SysMgr.environList["PROCCOMMFILTER"][0]
+                )
+            _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
+
             # agg_map: HASH key=20B [sig(4)+sender_tgid(4)+target_pid(4)+si_code(4)+pad(4)]
             #               val=8B  [count(8)]  (target_comm via /proc/pid/comm)
             agg_map_fd = BpfMgr.createMap(
@@ -154151,10 +155684,17 @@ class BpfMgr(object):
                     )
                     count = struct.unpack_from("<Q", _vb, 0)[0]
                     tcomm = _get_comm(target)
+                    scomm = _get_comm(sender)
                     # Apply filters
                     if _sig_filter is not None and sig != _sig_filter:
                         continue
                     if _ignore_self and sender == target:
+                        continue
+                    if not BpfMgr._matchesFilter(sender, sender, scomm):
+                        continue
+                    if _proccomm_pats and not BpfMgr._patOk(
+                        scomm, _proccomm_pats
+                    ):
                         continue
                     entries.append(
                         (sig, sender, target, si_code, count, tcomm)
@@ -156100,16 +157640,28 @@ class BpfMgr(object):
                                 )
                             )
                             SysMgr.addPrint(oneLine + "\n")
+                            _shown_cnt = 0
                             for (
                                 tgid,
                                 comm,
                                 cnt,
                                 total_ns,
                                 max_ns,
-                            ) in iou_entries[:20]:
+                            ) in iou_entries:
+                                if _shown_cnt >= 20:
+                                    break
                                 avg_elap_s = (
                                     total_ns / 1e9 / cnt if cnt else 0.0
                                 )
+                                avg_elap_ns = total_ns // cnt if cnt else 0
+                                if not UtilMgr.checkElapFilter(
+                                    avg_elap_ns,
+                                    _elap_min_ns,
+                                    _elap_max_ns,
+                                    _elap_eq_ns,
+                                ):
+                                    continue
+                                _shown_cnt += 1
                                 proc_str = ("%s(%d)" % (comm[:16], tgid))[:26]
                                 SysMgr.addPrint(
                                     "%26s  %10s  %12.6f  %12.6f  %13.6f\n"
@@ -156121,20 +157673,37 @@ class BpfMgr(object):
                                         total_ns / 1e9,
                                     )
                                 )
+                            if _shown_cnt == 0:
+                                SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
                         else:
                             SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
                         SysMgr.addPrint(twoLine + "\n")
                     else:
-                        _iou_jevts = [
-                            {
-                                "pid": tgid,
-                                "comm": comm,
-                                "count": cnt,
-                                "totalNs": total_ns,
-                                "maxNs": max_ns,
-                            }
-                            for tgid, comm, cnt, total_ns, max_ns in iou_entries
-                        ]
+                        _iou_jevts = []
+                        for (
+                            tgid,
+                            comm,
+                            cnt,
+                            total_ns,
+                            max_ns,
+                        ) in iou_entries:
+                            avg_elap_ns = total_ns // cnt if cnt else 0
+                            if not UtilMgr.checkElapFilter(
+                                avg_elap_ns,
+                                _elap_min_ns,
+                                _elap_max_ns,
+                                _elap_eq_ns,
+                            ):
+                                continue
+                            _iou_jevts.append(
+                                {
+                                    "pid": tgid,
+                                    "comm": comm,
+                                    "count": cnt,
+                                    "totalNs": total_ns,
+                                    "maxNs": max_ns,
+                                }
+                            )
                         SysMgr.printPipe(
                             UtilMgr.convDict2Str(
                                 {
@@ -156361,34 +157930,44 @@ class BpfMgr(object):
                 ]
                 entries.sort(key=lambda x: -(x[2] + x[3]))
 
+                # single shared filter, used by BOTH the text and JSON output
+                # paths below, so filterGroup / DNS-only / NODNS semantics
+                # cannot diverge between them (see e[0]=tgid, e[1]=comm,
+                # e[8]=dport in the `entries` tuple built above)
+                _flt = SysMgr.filterGroup
+
+                def _filterUdptopEntries(_ents):
+                    _filtered = [
+                        e
+                        for e in _ents
+                        if (
+                            not _flt
+                            or UtilMgr.isValidStr(e[1], _flt)
+                            or UtilMgr.isValidStr(str(e[0]), _flt)
+                        )
+                    ]
+                    # DNS / NODNS filter: use dport captured in-kernel at
+                    # sendto() entry (see genUdpSendEntryProg) — /proc/net/udp's
+                    # rem_address is only populated for connect()'d sockets, so
+                    # it cannot be used here for plain sendto()-only sockets
+                    # (e.g. DNS queries)
+                    if _dns_only or _no_dns:
+                        _dns_filtered = []
+                        for _e in _filtered:
+                            _is_dns = _e[8] == 53
+                            if _dns_only and not _is_dns:
+                                continue
+                            if _no_dns and _is_dns:
+                                continue
+                            _dns_filtered.append(_e)
+                        _filtered = _dns_filtered
+                    return _filtered
+
                 if not SysMgr.jsonEnable:
                     SysMgr.addPrint("[bpfudptop] %s\n" % _sysStatStr)
                     SysMgr.addPrint(twoLine + "\n")
                     if entries:
-                        _flt = SysMgr.filterGroup
-                        _shown = [
-                            e
-                            for e in entries
-                            if (
-                                not _flt
-                                or UtilMgr.isValidStr(e[1], _flt)
-                                or UtilMgr.isValidStr(str(e[0]), _flt)
-                            )
-                        ]
-                        # DNS / NODNS filter: use dport captured in-kernel at sendto()
-                        # entry (see genUdpSendEntryProg) — /proc/net/udp's rem_address
-                        # is only populated for connect()'d sockets, so it cannot be
-                        # used here for plain sendto()-only sockets (e.g. DNS queries)
-                        if _dns_only or _no_dns:
-                            _dns_shown = []
-                            for _e in _shown:
-                                _is_dns = _e[8] == 53
-                                if _dns_only and not _is_dns:
-                                    continue
-                                if _no_dns and _is_dns:
-                                    continue
-                                _dns_shown.append(_e)
-                            _shown = _dns_shown
+                        _shown = _filterUdptopEntries(entries)
                         if _show_port:
                             SysMgr.addPrint(
                                 "%26s  %8s  %10s  %10s  %8s  %8s\n"
@@ -156460,26 +158039,7 @@ class BpfMgr(object):
                         SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
                     SysMgr.addPrint(twoLine + "\n")
                 else:
-                    _flt = SysMgr.filterGroup
-                    _shown_j = [
-                        e
-                        for e in entries
-                        if (
-                            not _flt
-                            or UtilMgr.isValidStr(e[1], _flt)
-                            or UtilMgr.isValidStr(str(e[0]), _flt)
-                        )
-                    ]
-                    if _dns_only or _no_dns:
-                        _dns_shown_j = []
-                        for _e in _shown_j:
-                            _is_dns = _e[8] == 53
-                            if _dns_only and not _is_dns:
-                                continue
-                            if _no_dns and _is_dns:
-                                continue
-                            _dns_shown_j.append(_e)
-                        _shown_j = _dns_shown_j
+                    _shown_j = _filterUdptopEntries(entries)
                     _jevts = [
                         {
                             "pid": tgid,
@@ -158241,6 +159801,33 @@ class DbusMgr(object):
             )
 
     @staticmethod
+    def _matchUnitFilter(stats, incCond, exCond):
+        skip = False
+        for f, v in incCond.items():
+            if f.startswith("+"):
+                andCond = True
+                f = UtilMgr.lstrip(f, "+")
+            else:
+                andCond = False
+
+            if f not in stats or not UtilMgr.isValidStr(str(stats[f]), v):
+                skip = True
+                if andCond:
+                    break
+            else:
+                skip = False
+                if not andCond:
+                    break
+        if skip:
+            return True
+
+        for f, v in exCond.items():
+            if f in stats and UtilMgr.isValidStr(str(stats[f]), v):
+                return True
+
+        return False
+
+    @staticmethod
     def printSdInfo(bus, procStr=None, retList=False):
         ret = DbusMgr.getUnitList(bus)
         if not ret:
@@ -158304,18 +159891,6 @@ class DbusMgr(object):
 
         UtilMgr.deleteProgress()
 
-        if retList and not onlyBoot:
-            resList.update(unitStats)
-            return resList
-
-        if onlyBoot:
-            if retList:
-                resList = {"systemd": resList["systemd"]}
-            else:
-                SysMgr.printPipe(
-                    "\n[Systemd Boot Info] (Bus: %s) \n%s" % (bus, twoLine)
-                )
-
         incCond = {}
         exCond = {}
         for cond, condDict in (("SDFILTER", incCond), ("SDEXFILTER", exCond)):
@@ -158328,6 +159903,24 @@ class DbusMgr(object):
                     condDict[items[0]] = None
                 else:
                     condDict[items[0]] = items[1].split(",")
+
+        if retList and not onlyBoot:
+            resList.update(
+                {
+                    unit: stats
+                    for unit, stats in unitStats.items()
+                    if not DbusMgr._matchUnitFilter(stats, incCond, exCond)
+                }
+            )
+            return resList
+
+        if onlyBoot:
+            if retList:
+                resList = {"systemd": resList["systemd"]}
+            else:
+                SysMgr.printPipe(
+                    "\n[Systemd Boot Info] (Bus: %s) \n%s" % (bus, twoLine)
+                )
 
         cnt = 0
         sortByStart = "SORTBYSTART" in SysMgr.environList
@@ -158368,33 +159961,7 @@ class DbusMgr(object):
                     )
                 )
             else:
-                skip = False
-                for f, v in incCond.items():
-                    if f.startswith("+"):
-                        andCond = True
-                        f = UtilMgr.lstrip(f, "+")
-                    else:
-                        andCond = False
-
-                    if f not in stats or not UtilMgr.isValidStr(
-                        str(stats[f]), v
-                    ):
-                        skip = True
-                        if andCond:
-                            break
-                    else:
-                        skip = False
-                        if not andCond:
-                            break
-                if skip:
-                    continue
-
-                skip = False
-                for f, v in exCond.items():
-                    if f in stats and UtilMgr.isValidStr(str(stats[f]), v):
-                        skip = True
-                        break
-                if skip:
+                if DbusMgr._matchUnitFilter(stats, incCond, exCond):
                     continue
 
                 if "MainPID" in stats:
@@ -159345,11 +160912,16 @@ class DbusMgr(object):
                         data = DbusMgr.sentData
                         msgTable = DbusMgr.msgSentTable
                         replyTable = DbusMgr.msgRecvTable
+                        # the call this RETURN answers was recorded (and
+                        # its mname was built) on the opposite side of
+                        # 'data', mirroring replyTable's pairing #
+                        replyData = DbusMgr.recvData
                     else:
                         direction = "IN"
                         data = DbusMgr.recvData
                         msgTable = DbusMgr.msgRecvTable
                         replyTable = DbusMgr.msgSentTable
+                        replyData = DbusMgr.sentData
 
                     if isLast:
                         if DbusMgr.prevData[tid][ctype]:
@@ -159560,22 +161132,22 @@ class DbusMgr(object):
                         else:
                             targetIf = prevTime = None
 
-                        if targetIf in data[tid] and prevTime:
-                            lastData = data[tid][targetIf]
+                        if targetIf in replyData[tid] and prevTime:
+                            lastData = replyData[tid][targetIf]
                             elapsed = jsonData["time"] - prevTime
 
                             if (
                                 lastData["min"] == 0
                                 or elapsed < lastData["min"]
                             ):
-                                data[tid][targetIf]["min"] = elapsed
+                                replyData[tid][targetIf]["min"] = elapsed
 
                             if elapsed > lastData["max"]:
-                                data[tid][targetIf]["max"] = elapsed
+                                replyData[tid][targetIf]["max"] = elapsed
 
-                            data[tid][targetIf]["total"] += elapsed
-                            data[tid][targetIf]["cnt"] += 1
-                            data[tid][targetIf]["time"] = 0
+                            replyData[tid][targetIf]["total"] += elapsed
+                            replyData[tid][targetIf]["cnt"] += 1
+                            replyData[tid][targetIf]["time"] = 0
 
                         continue
 
@@ -160191,6 +161763,11 @@ class DltAnalyzer(object):
     version = None
     totalTime = 0
     configData = {}
+    # min/max timestamp of messages actually counted into dltData, tracked
+    # from inside handleMessage so the PRINTSUMMARY file-mode interval
+    # matches the same level/since/until/filterGroup gates as NrMsg below it #
+    summaryStart = None
+    summaryEnd = None
 
     @staticmethod
     def printSummary():
@@ -160518,6 +162095,22 @@ class DltAnalyzer(object):
                         break
                 if skipFlag:
                     return
+
+            # track the time span of only the messages actually counted
+            # below, so a PRINTSUMMARY [Interval: ...] header built from
+            # this span (see runDltReceiver) matches the same
+            # level/since/until/filterGroup gates as the NrMsg count next
+            # to it, instead of spanning every raw message in the file #
+            if (
+                DltAnalyzer.summaryStart is None
+                or timestamp < DltAnalyzer.summaryStart
+            ):
+                DltAnalyzer.summaryStart = timestamp
+            if (
+                DltAnalyzer.summaryEnd is None
+                or timestamp > DltAnalyzer.summaryEnd
+            ):
+                DltAnalyzer.summaryEnd = timestamp
 
             DltAnalyzer.dltData["cnt"] += 1
 
@@ -161488,8 +163081,9 @@ class DltAnalyzer(object):
             fileCnt = 0
             startTimeList = {}
             removeList = []
-            start = SysMgr.maxSize
-            end = 0
+            if printSummary:
+                DltAnalyzer.summaryStart = None
+                DltAnalyzer.summaryEnd = None
 
             for fidx, path in enumerate(flist):
                 skipFile = False
@@ -161557,11 +163151,6 @@ class DltAnalyzer(object):
                             continue
                     else:
                         msgCnt += 1
-
-                    if printSummary:
-                        cur = _getTime(dltFile)
-                        start = min(start, cur)
-                        end = max(end, cur)
 
                     if findMode:
                         if msgCnt == 1:
@@ -161745,8 +163334,10 @@ class DltAnalyzer(object):
             if printMode == "top":
                 SysMgr.printPipe()
                 DltAnalyzer.dbgObj = None
-                if end:
-                    SysMgr.uptimeDiff = end - start
+                if DltAnalyzer.summaryEnd:
+                    SysMgr.uptimeDiff = (
+                        DltAnalyzer.summaryEnd - DltAnalyzer.summaryStart
+                    )
                 DltAnalyzer.printIntervalSummary(force=True)
 
             if buffered:
@@ -169151,6 +170742,23 @@ typedef struct {
                 )
                 continue
 
+        exceptWait = "EXCEPTWAIT" in SysMgr.environList
+        onlyWait = "ONLYWAIT" in SysMgr.environList
+        if exceptWait and onlyWait:
+            SysMgr.printErr(
+                "both EXCEPTWAIT and ONLYWAIT can't be used togather"
+            )
+            sys.exit(0)
+        elif exceptWait or onlyWait:
+            newList = {}
+            for item in callList:
+                if exceptWait and item.startswith("WAIT{"):
+                    continue
+                elif onlyWait and not item.startswith("WAIT{"):
+                    continue
+                newList[item] = callList[item]
+            callList = newList
+
         if not profinfo:
             prevName = "?"
             sysinfo = SysMgr.sysinfoBuffer.split("\n")
@@ -169198,6 +170806,15 @@ typedef struct {
         if not inputList:
             nrSamples = sum(callList.values())
 
+        # NrSample/NrStack/MaxDepth below describe what's actually drawn,
+        # so they must reflect callList AFTER EXCEPTWAIT/ONLYWAIT filtering,
+        # while nrSamples itself stays the raw loaded total (still used
+        # as the percentage denominator for the PROC/THREAD/TASK/FILE
+        # breakdown further down, which is intentionally unfiltered).
+        callSampleCnt = (
+            sum(callList.values()) if (exceptWait or onlyWait) else nrSamples
+        )
+
         maxDepth = (
             max([x.count(" <- ") for x in callList]) + 1 if callList else 0
         )
@@ -169209,7 +170826,7 @@ typedef struct {
             "(NrProc: %s) (NrThread: %s) (MaxDepth: %s)"
         ) % (
             convNum(nrFiles),
-            convNum(nrSamples),
+            convNum(callSampleCnt),
             convNum(len(callList)),
             convNum(len(procList)),
             convNum(len(threadList)),
@@ -169256,23 +170873,6 @@ typedef struct {
         if titleLines:
             title = _addTitle(title, titleLines)
 
-        exceptWait = "EXCEPTWAIT" in SysMgr.environList
-        onlyWait = "ONLYWAIT" in SysMgr.environList
-        if exceptWait and onlyWait:
-            SysMgr.printErr(
-                "both EXCEPTWAIT and ONLYWAIT can't be used togather"
-            )
-            sys.exit(0)
-        elif exceptWait or onlyWait:
-            newList = {}
-            for item in callList:
-                if exceptWait and item.startswith("WAIT{"):
-                    continue
-                elif onlyWait and not item.startswith("WAIT{"):
-                    continue
-                newList[item] = callList[item]
-            callList = newList
-
         if not callList and not "NOMERGE" in SysMgr.environList:
             SysMgr.printErr("no call sample to draw flame graph")
             sys.exit(-1)
@@ -169292,7 +170892,7 @@ typedef struct {
 
             metaData = {
                 "nrFiles": nrFiles,
-                "nrSamples": nrSamples,
+                "nrSamples": callSampleCnt,
                 "titleLines": titleLines,
                 "procList": procList,
                 "threadList": threadList,
@@ -171323,7 +172923,7 @@ typedef struct {
             else:
                 return
 
-    def popSample(self, sym):
+    def popSample(self, sym, btStr=None):
         if self.callList:
             self.callList.pop(-1)
 
@@ -171331,6 +172931,10 @@ typedef struct {
             self.callTable[sym]["cnt"] -= 1
             if self.callTable[sym]["cnt"] == 0:
                 self.callTable.pop(sym, None)
+            elif btStr and btStr in self.callTable[sym]["backtrace"]:
+                self.callTable[sym]["backtrace"][btStr] -= 1
+                if self.callTable[sym]["backtrace"][btStr] <= 0:
+                    self.callTable[sym]["backtrace"].pop(btStr, None)
 
         if self.totalCall > 0:
             self.totalCall -= 1
@@ -172852,6 +174456,15 @@ typedef struct {
             filterRes = False
 
         if self.isRealtime:
+            # filterRes is only False here when checkFilterCond() failed but
+            # COMPLETECALL kept processing going (for entry/exit pairing in
+            # the non-realtime print path below); the top-mode aggregation
+            # path has no such pairing need, so a failed filter must still
+            # exclude the call from callTable stats, matching the sibling
+            # non-realtime path's "if not filterRes: return" gate #
+            if not filterRes:
+                return isRetBp
+
             if SysMgr.depthLevel:
                 backtrace = self.getBacktrace()
             else:
@@ -176156,7 +177769,7 @@ typedef struct {
 
                 if Debugger.envFlags["ONLYOK"]:
                     self.clearArgs()
-                    self.popSample(name)
+                    self.popSample(name, self.prevBtStr)
                     return
                 elif Debugger.envFlags["ONLYFAIL"]:
                     callString = "\n%s " % self.bufferedStr
@@ -176202,7 +177815,7 @@ typedef struct {
 
                 if Debugger.envFlags["ONLYFAIL"]:
                     self.clearArgs()
-                    self.popSample(name)
+                    self.popSample(name, self.prevBtStr)
                     return
                 elif Debugger.envFlags["ONLYOK"]:
                     callString = "\n%s " % self.bufferedStr
@@ -181652,7 +183265,7 @@ class DexAnalyzer(object):
                 if "SHOWMAP" in SysMgr.environList:
                     self._print_map(map_list)
                 if self.showSummary:
-                    self._print_summary(classes)
+                    self._print_summary(classes, protos)
                 elif self.showAidl:
                     self._print_aidl(classes)
                 else:
@@ -182319,23 +183932,30 @@ class DexAnalyzer(object):
             self.printer("  #%05d  %s" % (idx, s))
         self.printer(sep)
 
-    def _print_summary(self, classes):
+    def _print_summary(self, classes, protos):
         sep = self._sep()
         depth = self.summaryDepth
         pkg_classes = {}
         pkg_methods = {}
+        total = 0
         for cls in classes:
+            if self.pubOnly and not (cls["flags"] & 0x5):
+                continue
+            ok_m, dm_res, vm_res = self._check_class_methods(cls, protos)
+            if not ok_m:
+                continue
+            ok_f, sf_show, inf_show = self._check_class_fields(cls)
+            if not ok_f:
+                continue
+            total += 1
             name = cls["name"]
             parts = name.split(".")
             key = ".".join(parts[:depth]) if len(parts) > depth else name
             pkg_classes[key] = pkg_classes.get(key, 0) + 1
             pkg_methods[key] = (
-                pkg_methods.get(key, 0)
-                + len(cls["direct_methods"])
-                + len(cls["virtual_methods"])
+                pkg_methods.get(key, 0) + len(dm_res) + len(vm_res)
             )
         sorted_pkgs = sorted(pkg_classes, key=lambda k: -pkg_classes[k])
-        total = len(classes)
         self.printer(
             "\n[Package Summary] (depth=%d, %d classes total)" % (depth, total)
         )
@@ -182685,8 +184305,8 @@ class ElfAnalyzer(object):
         32: "PREINIT_ARRAY",
         33: "PREINIT_ARRAYSZ",
         34: "NUM",
-        0x23: "RELR",
-        0x24: "RELRSZ",
+        0x23: "RELRSZ",
+        0x24: "RELR",
         0x25: "RELRENT",
         0x36: "PROCNUM",
         0x60000000: "OLD_LOOS",
@@ -186368,6 +187988,87 @@ class ElfAnalyzer(object):
 
         return cfi
 
+    @staticmethod
+    def decodeAndroidPackedRelocs(data, hasAddend):
+        """
+        Decode Android's packed-relocation format (SHT_ANDROID_REL/RELA,
+        signature "APS2"/"APU2") into a flat list of
+        (r_offset, r_info, r_addend) tuples.
+
+        The stream is a sequence of SLEB128 values forming groups; r_offset/
+        r_info/r_addend are running accumulators that either advance once
+        per group (when the group's flag bit says every entry shares the
+        same delta/value) or once per individual relocation.
+        ref> bionic/linker/linker_reloc_iterators.h (for_all_packed_relocs)
+        """
+        GROUPED_BY_INFO = 1
+        GROUPED_BY_OFFSET_DELTA = 2
+        GROUPED_BY_ADDEND = 4
+        GROUP_HAS_ADDEND = 8
+
+        if (
+            len(data) < 4
+            or data[0:2] != b"AP"
+            or data[2:3] not in (b"S", b"U")
+            or data[3:4] != b"2"
+        ):
+            return []
+
+        decSLEB = UtilMgr.decodeSLEB128
+        # mutable box instead of a closure var, so this stays valid under
+        # Python 2 too (no 'nonlocal') #
+        cursor = [4]
+
+        def pop():
+            val, nsize = decSLEB(data, cursor[0])
+            cursor[0] += nsize
+            return val
+
+        relocs = []
+        try:
+            numRelocs = pop()
+            offset = pop()
+            info = 0
+            addend = 0
+            while len(relocs) < numRelocs:
+                groupSize = pop()
+                groupFlags = pop()
+
+                groupOffsetDelta = 0
+                if groupFlags & GROUPED_BY_OFFSET_DELTA:
+                    groupOffsetDelta = pop()
+                if groupFlags & GROUPED_BY_INFO:
+                    info = pop()
+
+                if not hasAddend:
+                    addend = 0
+                    addendFlags = 0
+                else:
+                    addendFlags = groupFlags & (
+                        GROUP_HAS_ADDEND | GROUPED_BY_ADDEND
+                    )
+                    if addendFlags == (GROUP_HAS_ADDEND | GROUPED_BY_ADDEND):
+                        addend += pop()
+                    elif addendFlags != GROUP_HAS_ADDEND:
+                        addend = 0
+
+                for _ in xrange(groupSize):
+                    if groupFlags & GROUPED_BY_OFFSET_DELTA:
+                        offset += groupOffsetDelta
+                    else:
+                        offset += pop()
+                    if not (groupFlags & GROUPED_BY_INFO):
+                        info = pop()
+                    if hasAddend and addendFlags == GROUP_HAS_ADDEND:
+                        addend += pop()
+                    relocs.append((offset, info, addend if hasAddend else 0))
+        except SystemExit:
+            sys.exit(0)
+        except Exception:
+            pass
+
+        return relocs
+
     def parseSFrame(self, fd, sh_offset_idx, debug=False, printer=None):
         """
         Parse the .sframe section and populate dwarf CFAIndex/CFATable.
@@ -188332,8 +190033,9 @@ Section header string table index: %d
                         vn_next,
                     ) = struct.unpack("HHIII", target)
 
-                    # get verneed strings #
-                    soffset = offset + entsize
+                    # get verneed strings (vn_aux/vna_next are offsets,
+                    # not a fixed stride -- mirrors the Verdef walk above) #
+                    soffset = offset + vn_aux
                     for vidx in xrange(vn_cnt):
                         starget = verneed_section[soffset : soffset + entsize]
                         (
@@ -188348,7 +190050,7 @@ Section header string table index: %d
                             dynstr_section, vna_name
                         )
 
-                        soffset += entsize
+                        soffset += vna_next
 
                     offset += vn_next
 
@@ -188438,8 +190140,11 @@ Section header string table index: %d
 
                 # concatenate symbol with its required version #
                 try:
-                    symIdx = len(self.attr["dynsymList"])
-                    vsIdx = self.attr["versymList"][symIdx]
+                    # versymList is indexed 1:1 by the real dynsym index
+                    # 'i'; dynsymList is offset by +1 because of its own
+                    # STN_UNDEF placeholder, so len(dynsymList) is wrong
+                    # here and was pulling the NEXT symbol's version #
+                    vsIdx = self.attr["versymList"][i]
                     if symbol:
                         symbol = "%s@%s" % (
                             symbol,
@@ -188708,7 +190413,10 @@ Section header string table index: %d
                 )
 
         # parse REL table #
-        for rellist in (e_shrellist, e_shandrellist):
+        for rellist, isAndroidPacked in (
+            (e_shrellist, False),
+            (e_shandrellist, True),
+        ):
             for idx in rellist:
                 (
                     sh_name,
@@ -188728,7 +190436,17 @@ Section header string table index: %d
                 isTarget = _isValidSect(shname)
                 printable = debug and isTarget
 
-                nrItems = long(sh_size / sh_entsize) if isTarget else 0
+                # Android-packed sections (APS2/APU2) aren't a fixed-stride
+                # struct array -- decode the whole SLEB128 stream up front #
+                packedRelocs = None
+                if isAndroidPacked and isTarget:
+                    fd.seek(sh_offset)
+                    packedRelocs = ElfAnalyzer.decodeAndroidPackedRelocs(
+                        fd.read(sh_size), hasAddend=False
+                    )
+                    nrItems = len(packedRelocs)
+                else:
+                    nrItems = long(sh_size / sh_entsize) if isTarget else 0
 
                 if printable:
                     printer(
@@ -188749,8 +190467,6 @@ Section header string table index: %d
                         )
                     )
 
-                fd.seek(sh_offset)
-
                 # 32-bit #
                 if self.is32Bit:
                     signature = "II"
@@ -188760,12 +190476,18 @@ Section header string table index: %d
                     signature = "QQ"
                     rsize = 16
 
+                if not isAndroidPacked:
+                    fd.seek(sh_offset)
+
                 printCnt = 0
                 dynsymList = self.attr["dynsymTable"]
                 for i in xrange(nrItems):
-                    sh_offset, sh_info = struct.unpack(
-                        signature, fd.read(rsize)
-                    )
+                    if isAndroidPacked:
+                        sh_offset, sh_info, _ = packedRelocs[i]
+                    else:
+                        sh_offset, sh_info = struct.unpack(
+                            signature, fd.read(rsize)
+                        )
                     rsym = R_SYM(sh_info)
                     rtype = R_TYPE(sh_info)
 
@@ -188813,11 +190535,11 @@ Section header string table index: %d
 
         # parse RELA table #
         relaTable = {}
-        for relalist in (
-            e_shrelalist,
-            e_shandrelalist,
-            e_shrelrlist,
-            e_shandrelrlist,
+        for relalist, isAndroidPacked in (
+            (e_shrelalist, False),
+            (e_shandrelalist, True),
+            (e_shrelrlist, False),
+            (e_shandrelrlist, False),
         ):
             for idx in relalist:
                 (
@@ -188885,8 +190607,19 @@ Section header string table index: %d
                                 offset += word_size
                             base += (word_bits - 1) * word_size
 
+                # Android-packed RELA (APS2/APU2) isn't a fixed-stride
+                # struct array -- decode the whole SLEB128 stream up front #
+                packedRelocs = None
+                if isAndroidPacked and isTarget:
+                    fd.seek(sh_offset)
+                    packedRelocs = ElfAnalyzer.decodeAndroidPackedRelocs(
+                        fd.read(sh_size), hasAddend=True
+                    )
+
                 if isRelr:
                     nrItems = len(relr_addrs) if isTarget else 0
+                elif isAndroidPacked:
+                    nrItems = len(packedRelocs)
                 else:
                     nrItems = long(sh_size / sh_entsize) if isTarget else 0
 
@@ -188941,6 +190674,10 @@ Section header string table index: %d
                             sh_offset = struct.unpack(rsig, fd.read(rrsize))[0]
                             rsym = len(self.attr["dynsymList"])
                             rtype = -1
+                        elif isAndroidPacked:
+                            sh_offset, sh_info, sh_addend = packedRelocs[i]
+                            rsym = R_SYM(sh_info)
+                            rtype = R_TYPE(sh_info)
                         else:
                             sh_offset, sh_info, sh_addend = struct.unpack(
                                 sig, fd.read(rsize)
@@ -189848,12 +191585,14 @@ Section header string table index: %d
                         augstr = ""
                         pos = 1
 
-                    # ehdata #
+                    # ehdata (legacy pre-'z' GCC personality pointer,
+                    # lives inline in 'table' right after the augstr NUL,
+                    # not in a separate fd read -- fd is already past
+                    # the whole CIE at this point) #
                     if "eh" in augstr:
-                        if self.is32Bit:
-                            ehdata = fd.read(4)
-                        else:
-                            ehdata = fd.read(8)
+                        ehWord = 4 if self.is32Bit else 8
+                        ehdata = table[pos : pos + ehWord]
+                        pos += ehWord
 
                     # size for address and segment in DWARF v4 #
                     if ver >= 4:
@@ -190047,20 +191786,12 @@ Section header string table index: %d
                     else:
                         augsize = 0
 
-                    # Augmentation Data #
-                    if (
-                        augsize == 0
-                        and "personality" in augdict
-                        and "lsdaEncoding" in augdict
-                    ):
-                        encFormat = augdict["personality"]["format"]
-
-                        curPos = fd.tell()
-                        data = _decodeData(encFormat, fd)
-                        datasize = fd.tell() - curPos
-                        fd.seek(curPos)
-
-                        augdata = fd.read(datasize)
+                    # Augmentation Data (e.g. LSDA pointer) #
+                    # must be consumed here regardless of its meaning, or
+                    # these bytes leak into the CFI instruction stream below
+                    # and corrupt opcode decoding for every later byte #
+                    if augsize > 0:
+                        augdata = fd.read(augsize)
                         augdatastr = UtilMgr.convStr2Bytes(augdata)
 
                     remain = fd.tell() - startPos
@@ -190899,11 +192630,24 @@ Section header string table index: %d
                 sig = "I" if addrSize == 4 else "Q"
                 value = unpack(sig, table[pos : pos + addrSize])
                 pos += addrSize
-            # addrx/udata/ref_udata/indirect/loclistx/rnglistx #
-            # TODO: resolve indirect #
-            elif form in (0x1B, 0x0F, 0x15, 0x16, 0x22, 0x23):
+            # addrx/udata/ref_udata/loclistx/rnglistx #
+            elif form in (0x1B, 0x0F, 0x15, 0x22, 0x23):
                 value, nsize = decULEB(table, pos)
                 pos += nsize
+            # indirect: real form is encoded inline as a ULEB128,
+            # followed by the value in that form #
+            elif form == 0x16:
+                realForm, nsize = decULEB(table, pos)
+                pos += nsize
+                value, pos, addStr, opcode, opval = _decodeForm(
+                    table,
+                    pos,
+                    realForm,
+                    addrSize,
+                    dwarfFormat,
+                    addStr,
+                    refTable,
+                )
             # addrx1/data1/strx1/flag/ref1 #
             elif form in (0x29, 0x0B, 0x25, 0x0C, 0x11):
                 value = unpack("B", table[pos : pos + 1])
@@ -190914,7 +192658,7 @@ Section header string table index: %d
                 pos += 2
             # addrx3 #
             elif form == 0x2B:
-                value = unpack("3B", table[pos : pos + 3])
+                value = unpack("I", table[pos : pos + 3] + b"\x00")
                 pos += 3
             # addrx4/data4/strx4/ref/ref4 #
             elif form in (0x2C, 0x06, 0x28, 0x02, 0x13):
@@ -191002,7 +192746,7 @@ Section header string table index: %d
                         )
             # strx3 #
             elif form == 0x27:
-                value = unpack("3B", table[pos : pos + 3])
+                value = unpack("I", table[pos : pos + 3] + b"\x00")
                 pos += 3
             # ref_addr #
             elif form == 0x10:
@@ -191037,6 +192781,10 @@ Section header string table index: %d
                     value = attr[2]
                 else:
                     value = 0
+            # data16 (e.g. DWARF5 line-table MD5 checksums) #
+            elif form == 0x1E:
+                value = table[pos : pos + 16]
+                pos += 16
             else:
                 SysMgr.printErr(
                     "not implemented %s(0x%x) decoder"
@@ -192009,7 +193757,7 @@ Section header string table index: %d
                             lineState["discriminator"] = operand
                         else:
                             # unknown opcode, seek forward #
-                            pos -= instlen - 1
+                            pos += instlen - 1
                     # standard #
                     else:
                         if op == DW_LNS["DW_LNS_copy"]:
@@ -192059,9 +193807,13 @@ Section header string table index: %d
                             lineState["isa"] = operand
                             _addEntryOldState(op, [operand])
                         else:
-                            SysMgr.printErr(
-                                "failed to parse line program opcode '%s'" % op
-                            )
+                            # vendor/unknown standard opcode: per spec,
+                            # skip exactly the ULEB128 operand count the
+                            # header declared for it, or the stream
+                            # desyncs for every opcode after this one #
+                            for _ in xrange(stdopcode[op - 1]):
+                                _, nsize = decULEB(table, pos)
+                                pos += nsize
 
                 contents.append(
                     {
@@ -193244,7 +194996,18 @@ class TaskAnalyzer(object):
 
             classIncFilter = SysMgr.environList.get("CLASSINCFILTER", [])
             classExcFilter = SysMgr.environList.get("CLASSEXCFILTER", [])
-            procTotal = sum(v["count"] for v in taskGroup.values())
+
+            # apply -q CLASSINCFILTER/CLASSEXCFILTER once here so the
+            # "NrProc" header count stays consistent with the table and
+            # JSON output printed below, instead of reporting against
+            # every task while both only show the filtered subset #
+            if classIncFilter or classExcFilter:
+                for n in list(taskGroup):
+                    if classIncFilter and not isValidStr(n, classIncFilter):
+                        taskGroup.pop(n, None)
+                    elif classExcFilter and isValidStr(n, classExcFilter):
+                        taskGroup.pop(n, None)
+
             _printer(
                 (
                     "\n[Class Task Info] (Target: %s) (NrTotal: %s) "
@@ -193274,13 +195037,6 @@ class TaskAnalyzer(object):
             )
             for n in sorted(taskGroup):
                 v = taskGroup[n]
-
-                if classIncFilter and not isValidStr(n, classIncFilter):
-                    taskGroup.pop(n, None)
-                    continue
-                if classExcFilter and isValidStr(n, classExcFilter):
-                    taskGroup.pop(n, None)
-                    continue
 
                 if not v["usage"] or not v["sysTotal"]:
                     continue
@@ -195853,7 +197609,10 @@ class TaskAnalyzer(object):
                     else:
                         commBuf = readFile("%s/comm" % pdir, verb=False)
                         comm = commBuf.strip() if commBuf else pid
-                    if SysMgr.filterGroup and not UtilMgr.isValidStr(comm):
+                    if SysMgr.filterGroup and not (
+                        UtilMgr.isValidStr(comm)
+                        or UtilMgr.isValidStr(str(pid))
+                    ):
                         continue
                     rssMb = 0
                     statusBuf = readFile("%s/status" % pdir, verb=False)
@@ -196143,7 +197902,10 @@ class TaskAnalyzer(object):
                         except:
                             pass
                     commName = SysMgr.getComm(pid) or str(pid)
-                    if SysMgr.filterGroup and not UtilMgr.isValidStr(commName):
+                    if SysMgr.filterGroup and not (
+                        UtilMgr.isValidStr(commName)
+                        or UtilMgr.isValidStr(str(pid))
+                    ):
                         continue
                     cmdline = SysMgr.getCmdline(pid) or ""
                     if cmdlineLen > 0 and cmdline:
@@ -196418,7 +198180,10 @@ class TaskAnalyzer(object):
                     else:
                         commBuf = readFile("%s/comm" % pdir, verb=False)
                         comm = commBuf.strip() if commBuf else pid
-                    if SysMgr.filterGroup and not UtilMgr.isValidStr(comm):
+                    if SysMgr.filterGroup and not (
+                        UtilMgr.isValidStr(comm)
+                        or UtilMgr.isValidStr(str(pid))
+                    ):
                         continue
                     if pid not in leakHistory:
                         leakHistory[pid] = deque(maxlen=window)
@@ -221522,14 +223287,42 @@ function isAutoNamedPlot(name) {{
 
                     _setInfo(pid, o, oobj[pid])
 
+            def _filterProcTree(obj, enable):
+                filtered = {}
+                for pid, children in obj.items():
+                    curEnable = enable
+                    if not curEnable:
+                        try:
+                            comm = instance[pid]["comm"]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            comm = "?"
+                        if str(pid) in targets or UtilMgr.isValidStr(
+                            comm, targets
+                        ):
+                            curEnable = True
+                    subChildren = (
+                        _filterProcTree(children, curEnable)
+                        if children
+                        else {}
+                    )
+                    if curEnable or subChildren:
+                        filtered[pid] = subChildren
+                return filtered
+
+            jsonTree = (
+                _filterProcTree(procTree, False) if targets else procTree
+            )
+
             try:
-                _setInfo(0, UtilMgr.deepcopy(procTree), procTree)
+                _setInfo(0, UtilMgr.deepcopy(jsonTree), jsonTree)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr("failed to get task info", True)
 
-            SysMgr.printPipe(UtilMgr.convDict2Str(procTree, gpretty=True))
+            SysMgr.printPipe(UtilMgr.convDict2Str(jsonTree, gpretty=True))
 
             return
 
@@ -226491,6 +228284,18 @@ function isAutoNamedPlot(name) {{
         isValidStr = UtilMgr.isValidStr
         dropFileCache = SysMgr.environList.get("DROPFILECACHE")
 
+        procFilter, fileFilter = filters
+        if fileFilter:
+            nrFile = len(
+                [
+                    fname
+                    for fname in self.fileData
+                    if isValidStr(fname, fileFilter)
+                ]
+            )
+        else:
+            nrFile = len(self.fileData)
+
         # get size filter #
         try:
             condBig = convUnit(SysMgr.environList.get("BT", [0])[0])
@@ -226545,7 +228350,7 @@ function isAutoNamedPlot(name) {{
                 "nrTCPRxQ": SysMgr.nrTCPRxQ,
                 "nrTCPConn": SysMgr.nrTCPConn,
                 "nrUDSSock": SysMgr.nrUDSSock,
-                "nrFile": len(self.fileData),
+                "nrFile": nrFile,
                 "comm": SysMgr.comm,
                 "pid": SysMgr.pid,
                 "procs": {},
@@ -226571,7 +228376,7 @@ function isAutoNamedPlot(name) {{
                     " " * 16,
                     sysFdStr,
                     convNum(self.nrFd),
-                    convNum(len(self.fileData)),
+                    convNum(nrFile),
                     convNum(SysMgr.nrUDPSock),
                     convNum(SysMgr.nrTCPSock),
                     convNum(SysMgr.nrTCPConn),
@@ -226605,8 +228410,6 @@ function isAutoNamedPlot(name) {{
                 key=lambda e: len(e[1]["fdList"]),
                 reverse=True,
             )
-
-        procFilter, fileFilter = filters
 
         # print process info #
         procCnt = 0
@@ -234025,6 +235828,18 @@ function isAutoNamedPlot(name) {{
                 return True
             return oname in dirmap and dirmap[oname] in system
 
+        # find a field by name rather than by line position, since #
+        # cgroup v2's cpu.stat appends throttle fields (nr_periods, #
+        # nr_throttled, throttled_usec) after the always-present usage #
+        # fields only when a quota is configured via cpu.max, unlike #
+        # v1's fixed 3-line layout #
+        def _getStatField(text, field):
+            for line in text.split("\n"):
+                parts = line.split()
+                if len(parts) == 2 and parts[0] == field:
+                    return long(parts[1])
+            return None
+
         cgFilter = SysMgr.environList.get("CGFILTER", [])
 
         incPressure = "NOPRESSURE" not in SysMgr.environList
@@ -234065,9 +235880,15 @@ function isAutoNamedPlot(name) {{
                                     raise Exception("no usage")
                             # cpu usage (v2) #
                             else:
+                                v1Cpuacct = self.cgroupData.get(
+                                    "cpuacct", {}
+                                ).get(group, {})
+                                v1CpuCpuacct = self.cgroupData.get(
+                                    "cpu,cpuacct", {}
+                                ).get(group, {})
                                 if (
-                                    "cpuacct" in self.cgroupData
-                                    or "cpu,cpuacct" in self.cgroupData
+                                    "cpuacct.usage" in v1Cpuacct
+                                    or "cpuacct.usage" in v1CpuCpuacct
                                 ):
                                     isValid = False
                                     raise Exception("redundant cpu usage")
@@ -234080,6 +235901,42 @@ function isAutoNamedPlot(name) {{
 
                                 if value.startswith(cpuStat2Str):
                                     raise Exception("no usage")
+
+                                # throttled_usec (v2, only present when #
+                                # a quota is set) -- stored under the #
+                                # original "cpu.stat" key (converted to #
+                                # a nanosecond-equivalent rate to match #
+                                # v1's throttled_time units) since "name" #
+                                # is about to be renamed to track usage #
+                                # instead #
+                                try:
+                                    curThrottle = _getStatField(
+                                        value, "throttled_usec"
+                                    )
+                                    if curThrottle is not None:
+                                        if SysMgr.totalEnable:
+                                            prevThrottle = 0
+                                        else:
+                                            pvalue = prevData[system][group][
+                                                name
+                                            ]
+                                            prevThrottle = (
+                                                _getStatField(
+                                                    pvalue,
+                                                    "throttled_usec",
+                                                )
+                                                or 0
+                                            )
+
+                                        stats[group]["cpu.stat"] = (
+                                            (curThrottle - prevThrottle)
+                                            / interval
+                                            * 1000
+                                        )
+                                except SystemExit:
+                                    sys.exit(0)
+                                except:
+                                    pass
 
                             stat = getter(value)
                             if SysMgr.totalEnable:
@@ -234848,7 +236705,10 @@ function isAutoNamedPlot(name) {{
 
             # check break condition #
             if SysMgr.filterGroup:
-                if not UtilMgr.isValidStr(value["comm"]):
+                if not (
+                    UtilMgr.isValidStr(value["comm"])
+                    or UtilMgr.isValidStr(str(pid))
+                ):
                     continue
             elif not SysMgr.showAll and (
                 (sortVal == "ttimeDiff" and ttime == 0) or value[sortVal] == 0
@@ -237913,6 +239773,192 @@ function isAutoNamedPlot(name) {{
             SysMgr.printErr("failed to save LLM report: %s" % str(ex), True)
 
     @staticmethod
+    def _checkLlmBudgetGate(opts):
+        """Return True if the cumulative LLM cost has hit the configured cap.
+
+        Shared by both LLM entry points (TaskAnalyzer._runLLMAskThread and
+        BpfMgr._triggerBpfAI) so a single budget cap covers all ASKAI/ASKRUN
+        spend regardless of which path triggered the call #
+        """
+
+        cap = opts.get("budgetCapUsd") if opts else None
+        if cap is None:
+            cap = LLMMgr._getEnvironValue("LLMBUDGET")
+        if cap is None:
+            cap = (
+                LLMMgr._askrunConfig.get("BUDGET_CAP_USD")
+                if LLMMgr._askrunConfig
+                else None
+            )
+        if cap is None:
+            return False
+
+        try:
+            cap = float(cap)
+        except (TypeError, ValueError):
+            return False
+        if cap <= 0:
+            return False
+
+        return SysMgr.llmCumulativeCostUsd >= cap
+
+    @staticmethod
+    def _recordLlmCost(provider, model, usage, opts):
+        """Estimate this call's cost and add it to the cumulative counter.
+
+        Returns (thisCallCostUsd, cumulativeCostUsd). Guarded by
+        SysMgr._llmCostLock since _runLLMAskThread and _triggerBpfAI each
+        run their own daemon thread and both update the same counter #
+        """
+
+        cost = LLMMgr._estimateCostUsd(provider, model, usage)
+        with SysMgr._llmCostLock:
+            SysMgr.llmCumulativeCostUsd += cost
+            cumulative = SysMgr.llmCumulativeCostUsd
+        return cost, cumulative
+
+    # metric keywords other than "cpu" that a %-claim can belong to -
+    # used to avoid cross-attributing a GPU/disk/IO/... number to CPU
+    # just because the word "cpu" also appears somewhere nearby #
+    _CPU_OTHER_METRIC_KEYWORDS = (
+        "gpu",
+        "disk",
+        "memory",
+        "mem",
+        "io",
+        "network",
+        "net",
+    )
+
+    # phrasing that scopes a CPU% claim to a single core/thread/process
+    # rather than the system-wide aggregate ctx["system"]["cpu_pct"] -
+    # e.g. "one process is pegging 97% of a single core" is not a
+    # contradiction of a 12% system-wide average across many cores #
+    _CPU_PERCORE_SCOPE_RE = re.compile(
+        r"\b(?:per[-\s]?core|per[-\s]?thread|per[-\s]?process|"
+        r"(?:a|one|single|each)\s+(?:cpu\s+)?(?:core|thread|process)|"
+        r"a\s+single\s+(?:cpu\s+)?(?:core|thread|process)|"
+        r"core\s*#?\d+|cpu\s*#?\d+|thread\s*#?\d+)\b"
+    )
+
+    @staticmethod
+    def _validateAskRunResponse(parsed, ctx, opts):
+        """Conservative pre-execution hallucination gate for ASKRUN.
+
+        Only two checks: a confidence threshold and a CPU% self-
+        contradiction check against the observed system state. Never a
+        hard block - callers downgrade to dry-run when reasons are
+        returned #
+        """
+
+        reasons = []
+
+        try:
+            minConfidence = opts.get("minConfidence") if opts else None
+            if minConfidence is None:
+                minConfidence = (
+                    LLMMgr._askrunConfig.get("MIN_CONFIDENCE")
+                    if LLMMgr._askrunConfig
+                    else None
+                )
+            minConfidence = (
+                0.5 if minConfidence is None else float(minConfidence)
+            )
+            confidence = parsed.get("confidence")
+            if confidence is not None and float(confidence) < minConfidence:
+                reasons.append(
+                    "low confidence (%.2f < %.2f)"
+                    % (float(confidence), minConfidence)
+                )
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            tolerance = float(opts.get("cpuContradictionTolerancePct", 25.0))
+            actualCpuPct = (ctx or {}).get("system", {}).get("cpu_pct")
+            analysis = parsed.get("analysis") or ""
+            if actualCpuPct is not None and analysis:
+                lowered = analysis.lower()
+
+                # split into rough clauses so a number that belongs to one
+                # metric (io/disk/gpu/...) isn't cross-attributed to a
+                # "cpu" mention that's actually in a neighboring clause,
+                # e.g. "IO wait can spike to 30% when CPU is busy" #
+                clauseBounds = [0]
+                for sep in re.finditer(
+                    r"[,;.!?]|\b(?:and|but|when|while|whereas|although|"
+                    r"however|though)\b",
+                    lowered,
+                ):
+                    clauseBounds.append(sep.start())
+                    clauseBounds.append(sep.end())
+                clauseBounds.append(len(lowered))
+                clauseBounds = sorted(set(clauseBounds))
+
+                def _clauseAt(pos):
+                    for i in range(len(clauseBounds) - 1):
+                        if clauseBounds[i] <= pos < clauseBounds[i + 1]:
+                            return lowered[
+                                clauseBounds[i] : clauseBounds[i + 1]
+                            ]
+                    return lowered
+
+                for m in re.finditer(r"(\d{1,3}(?:\.\d+)?)\s*%", analysis):
+                    pct = float(m.group(1))
+                    if pct > 100:
+                        continue
+
+                    # frequency units ("2400MHz") aren't utilization %s #
+                    before = lowered[max(0, m.start() - 6) : m.start()]
+                    if re.search(r"(mhz|ghz|khz|hz)\s*$", before):
+                        continue
+
+                    window = lowered[
+                        max(0, m.start() - 40) : min(
+                            len(lowered), m.end() + 40
+                        )
+                    ]
+                    # a range/trend description ("from 10% to 90%")
+                    # describes change over time, not a single current-
+                    # state claim - too ambiguous for this conservative
+                    # check to validate #
+                    if re.search(r"\bfrom\b.{0,20}\bto\b", window):
+                        continue
+
+                    clause = _clauseAt(m.start())
+                    if not re.search(r"\bcpu\b", clause):
+                        continue
+                    # "cpu.some"/"cpu.full" are PSI pressure-stall
+                    # percentages, a different metric than CPU
+                    # utilization - not comparable #
+                    if (
+                        re.search(r"cpu\s*\.\s*(some|full)", clause)
+                        or "psi" in clause
+                    ):
+                        continue
+                    if any(
+                        re.search(r"\b" + kw + r"\b", clause)
+                        for kw in TaskAnalyzer._CPU_OTHER_METRIC_KEYWORDS
+                    ):
+                        continue
+                    # a %-figure scoped to a single core/thread/process
+                    # (e.g. "97% of a single core") isn't comparable to
+                    # the system-wide aggregate cpu_pct #
+                    if TaskAnalyzer._CPU_PERCORE_SCOPE_RE.search(clause):
+                        continue
+
+                    if abs(pct - float(actualCpuPct)) >= tolerance:
+                        reasons.append(
+                            "CPU%% claim (%.1f%%) contradicts observed %.1f%%"
+                            % (pct, float(actualCpuPct))
+                        )
+                        break
+        except (TypeError, ValueError, AttributeError):
+            pass
+
+        return {"force_dryrun": bool(reasons), "reasons": reasons}
+
+    @staticmethod
     def _runLLMAskThread(askType, prompt, opts, event, eventData):
         """Launch a daemon thread to query LLM without blocking the monitor loop.
 
@@ -237958,6 +240004,25 @@ function isAutoNamedPlot(name) {{
             SysMgr.printWarn(
                 "[LLM] already pending for event '%s', skipping" % event
             )
+            return
+
+        # budget circuit breaker - checked before dispatch so a blocked
+        # call doesn't consume the rate-limit/pending slot #
+        if TaskAnalyzer._checkLlmBudgetGate(opts):
+            SysMgr.printWarn(
+                "[LLM] budget cap exceeded, skipping event '%s'" % event
+            )
+            if auditLog:
+                TaskAnalyzer._llmAuditLog(
+                    auditLog,
+                    {
+                        "ts": SysMgr.dateTime,
+                        "event": event,
+                        "askType": askType,
+                        "blocked_reason": "budget_cap_exceeded",
+                        "cumulative_cost_usd": SysMgr.llmCumulativeCostUsd,
+                    },
+                )
             return
 
         SysMgr.llmEventPending[event] = True
@@ -238022,6 +240087,9 @@ function isAutoNamedPlot(name) {{
                     if sysPrompt:
                         llm.setCacheSystemPrompt(sysPrompt)
                     response = llm.chat(fullPrompt)
+                    _callCost, _cumulativeCost = TaskAnalyzer._recordLlmCost(
+                        resolvedProvider, response.model, response.usage, opts
+                    )
                 except SystemExit:
                     sys.exit(0)
                 except Exception as ex:
@@ -238069,6 +240137,7 @@ function isAutoNamedPlot(name) {{
                 # ASKRUN: parse JSON and execute allowed commands
                 executedCmds = []
                 blockedCmds = []
+                _gate = {"force_dryrun": False, "reasons": []}
                 if askType == "ASKRUN":
                     parsed = TaskAnalyzer._parseLLMResponse(responseText)
                     # severity router: adjust maxCmd and dryRun based on severity
@@ -238109,6 +240178,20 @@ function isAutoNamedPlot(name) {{
                         ):
                             opts["dryRun"] = True
                             _dryRun = True
+                        # pre-execution hallucination gate: a dry-run
+                        # downgrade (not a hard block), same philosophy as
+                        # the severity router above #
+                        _gate = TaskAnalyzer._validateAskRunResponse(
+                            parsed, ctx, opts
+                        )
+                        if _gate["reasons"]:
+                            SysMgr.printWarn(
+                                "[LLM] validation gate flagged event '%s': %s"
+                                % (event, ", ".join(_gate["reasons"]))
+                            )
+                            if "dryRun" not in opts:
+                                opts["dryRun"] = True
+                                _dryRun = True
                     # auto-escalation based on guider.conf ASKRUN config -
                     # isolated in its own try/except so a malformed config
                     # shape (e.g. ASKRUN/SEVERITY_ACTIONS/SUBSYSTEM_ACTIONS
@@ -238309,6 +240392,8 @@ function isAutoNamedPlot(name) {{
                         "response": responseText,
                         "cmds_executed": executedCmds,
                         "cmds_blocked": blockedCmds,
+                        "cost_usd": _callCost,
+                        "cumulative_cost_usd": _cumulativeCost,
                     }
                     if askType == "ASKRUN" and parsed:
                         _auditEntry["severity"] = parsed.get(
@@ -238321,6 +240406,7 @@ function isAutoNamedPlot(name) {{
                             "confidence", None
                         )
                         _auditEntry["analysis"] = parsed.get("analysis", "")
+                    _auditEntry["gate_reasons"] = _gate.get("reasons", [])
                     if fbResponseText:
                         _auditEntry["feedback"] = fbResponseText
                     TaskAnalyzer._llmAuditLog(auditLog, _auditEntry)

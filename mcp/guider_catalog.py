@@ -2788,6 +2788,15 @@ BLOCKED_OPTS: set = {
     # and this key name contains none of FILE/PATH/DIR so it also bypasses
     # _filter_opts()'s separate path-traversal check for other path options
     "LLMAUDITLOG",
+    # NOTE: LLMBUDGET (the ASKAI/ASKRUN cost-cap circuit breaker) is
+    # intentionally NOT listed here. TaskAnalyzer._checkLlmBudgetGate()
+    # only ever coerces it through float() to compare against a running
+    # cost counter - same "numeric-only, not an injection vector" precedent
+    # as TCPDUMPFILESIZEMB/TCPDUMPFILECNT below - and it's restrictive-only
+    # (can only make a call refuse to dispatch, never widen what an already-
+    # allowed command can do), so blocking it would only remove a safety
+    # control without closing any vector
+
     # Command execution
     "EXITCMD", "PRINTCMD",
     # File manipulation
