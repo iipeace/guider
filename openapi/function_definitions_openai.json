@@ -49,7 +49,7 @@
           "command": {
             "type": "string",
             "description": "guider BPF sub-command",
-            "enum": ["bpfsigtop","bpftop","bpfsnoop","bpfstacktop","bpfwaittop","bpfexectop","bpfexecsnoop","bpfmmaptop","bpfheaptop","bpfiotop","bpfblktop","bpfrunqtop","bpfreclaimtop","bpflocktop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","bpfsyscalltop","bpfsyscallsnoop","bpfwatch","bpfwatchtop","bpfwqtop","bpfcachetop","bpfkleaktop","bpflsmopen","bpfprogtop","irqlattop"]
+            "enum": ["bpfsigtop","bpftop","bpfsnoop","bpfstacktop","bpfwaittop","bpfexectop","bpfexecsnoop","bpfmmaptop","bpfheaptop","bpfiotop","bpfblktop","bpfrunqtop","bpfrestop","bpfreclaimtop","bpflocktop","bpfbinderlat","bpfbindersnoop","bpfbinderpool","bpfsyscalltop","bpfsyscallsnoop","bpfwatch","bpfwatchtop","bpfwqtop","bpfcachetop","bpfkleaktop","bpflsmopen","bpfprogtop","irqlattop"]
           },
           "duration": {
             "type": "integer",

@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260905"
+__revision__ = "260910"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16014,6 +16014,7 @@ class Timeline(object):
                     SysMgr.printWarn(
                         "failed to convert '%s' to number" % group, True
                     )
+                    continue
 
                 if group_num not in SysMgr.perCoreDrawList:
                     continue
@@ -16581,7 +16582,6 @@ class Ext4Analyzer(object):
                 """
                 Sorts and stiches together a list of MappingEntry instances
                 """
-                entries = list(entries)
                 entries.sort(key=lambda entry: entry.fileBlkIdx)
 
                 idx = 0
@@ -23701,7 +23701,7 @@ class FunctionAnalyzer(object):
 
                     if subStack:
                         for sym in subStack:
-                            self.userSymData[sym]["totalTickCnt"] += 1
+                            self.userSymData[sym]["totalTickCnt"] += cpuCnt
 
                         cpuPer = (cpuCnt / float(value["tickCnt"])) * 100
                         ilen = len("\t" * 16)
@@ -25746,7 +25746,7 @@ class LeakAnalyzer(object):
 
                 # get end address for a chunk #
                 sizeAligned = long((size + addrDiff + pageSize - 1) / pageSize)
-                addrEnd = addrStart + sizeAligned
+                addrEnd = addrStart + sizeAligned * pageSize
 
                 # ignore active part for a chunk #
                 try:
@@ -28093,8 +28093,9 @@ class LogMgr(object):
         )
         proc_label = "%s(%s)" % (comm, group_id)
 
-        # B/E nesting chain (inner→outer order after pop)
-        ancestors = [s[1] for s in reversed(stack)] if stack else []
+        # B/E nesting chain (inner→outer order after pop); skip sentinel
+        # entries left by LOGFILTER-dropped 'B' events #
+        ancestors = [s[1] for s in reversed(stack) if s[1]] if stack else []
 
         pertask = "PERTASKSTACK" in SysMgr.environList
         if pertask:
@@ -28222,7 +28223,8 @@ class LogMgr(object):
                 SysMgr.printWarn("failed to update atrace stat", True, True)
 
         def _addStack(pid, stack, point, diff):
-            symStack = " <- ".join([s[1] for s in stack])
+            # skip sentinel entries for LOGFILTER-dropped 'B' events #
+            symStack = " <- ".join([s[1] for s in stack if s[1]])
             if point:
                 if symStack:
                     symStack = point + " <- " + symStack
@@ -28252,6 +28254,12 @@ class LogMgr(object):
         logFilter = SysMgr.environList.get("LOGFILTER")
         if logFilter and event not in ("E",):
             if not UtilMgr.isValidStr(etc[2], logFilter):
+                if event == "B":
+                    # Still push a sentinel (name=None) so the stack depth
+                    # stays correct; otherwise the matching 'E' below would
+                    # unconditionally pop an unrelated, unfiltered span and
+                    # desync the per-thread stack from that point on.
+                    taskInfo["stack"].append([tm, None])
                 return
 
         # Begin Trace #
@@ -28261,6 +28269,10 @@ class LogMgr(object):
         elif event == "E":
             try:
                 btime, name = taskInfo["stack"].pop()
+                if name is None:
+                    # matching 'B' was dropped by LOGFILTER; consume the
+                    # sentinel without recording stats for it #
+                    return
                 diff = tm - btime
 
                 if "DRAWFLAME" in SysMgr.environList:
@@ -29102,7 +29114,7 @@ class LogMgr(object):
 
             for pid, pdata in pendingSync:
                 comm = LogMgr.atraceStat.get(pid, {}).get("comm", "?")
-                calls = " <- ".join([s[1] for s in pdata["stack"]])
+                calls = " <- ".join([s[1] for s in pdata["stack"] if s[1]])
                 _printer(
                     "  [SYNC ] %s(%s): %s\n" % (comm, pid, calls), force=True
                 )
@@ -31531,10 +31543,9 @@ class LogMgr(object):
                     if SysMgr.jsonEnable:
                         pass
                     elif field == b"_COMM":
-                        if SysMgr.outPath:
-                            val = val.decode("latin-1").rstrip("\x01")
-                            table.setdefault(val, 0)
-                            table[val] += 1
+                        val = val.decode("latin-1").rstrip("\x01")
+                        table.setdefault(val, 0)
+                        table[val] += 1
                     elif field == b"_PID":
                         val = b"[%s]: " % val
                     elif field == b"_TRANSPORT" and val == b"kernel":
@@ -39862,7 +39873,11 @@ class AndroidMgr(object):
                     meminfostr = meminfo[0]
 
             if out:
-                if SysMgr.outPath:
+                # NOTE: for the jsonEnable case, itemList[m] is only set
+                # after skip_proc is known below, so that a process hidden
+                # from the live view by THRESHOLD/DIFF is also excluded
+                # from memDumpIntData / the periodic MemDump summary.
+                if SysMgr.outPath and not SysMgr.jsonEnable:
                     itemList[m] = meminfostr
 
                 if SysMgr.jsonEnable:
@@ -39979,6 +39994,9 @@ class AndroidMgr(object):
 
                     if skip_proc:
                         continue
+
+                    if SysMgr.outPath:
+                        itemList[m] = meminfostr
 
                     if prev_json and (doDiff or onlyDiff):
                         meminfoJson = AndroidMgr._applyJsonDiff(
@@ -46690,11 +46708,26 @@ trigger_config {
                 ("%+s" % convSize(ds)) if ds else "0",
             )
 
+        def _proc_str(pid):
+            if not pid:
+                return ""
+            try:
+                _cmd = SysMgr.getCmdline(pid, retList=True)[0]
+            except:
+                _cmd = ""
+            return "%s(%d)" % (_cmd, pid) if _cmd else str(pid)
+
         lines = []
         lines.append(sep)
         lines.append("  %s" % label)
         lines.append("  BEFORE  : %s" % before_label)
+        _before_proc = _proc_str(before_pid)
+        if _before_proc:
+            lines.append("  PROCESS : %s" % _before_proc)
         lines.append("  AFTER   : %s" % after_label)
+        _after_proc = _proc_str(after_pid)
+        if _after_proc:
+            lines.append("  PROCESS : %s" % _after_proc)
         d_obj_sign = "+" if d_obj >= 0 else ""
         d_sz_sign = "+" if d_sz >= 0 else ""
         lines.append(
@@ -47433,8 +47466,18 @@ trigger_config {
             if stk:
                 enter_name, enter_ts = stk.pop()
                 dur_ns = ts - enter_ts if ts > enter_ts else 0
+                # key by (pid, method) so identically-named methods from
+                # different processes in a multi-process trace (multiple
+                # -g targets or system-wide ART tracing) are not silently
+                # summed together under one global method total #
+                pid = (
+                    profile_data.get("track_descs", {})
+                    .get(track_uuid, {})
+                    .get("pid", 0)
+                )
                 r = art_methods.setdefault(
-                    enter_name, {"count": 0, "total_ns": 0, "max_ns": 0}
+                    (pid, enter_name),
+                    {"count": 0, "total_ns": 0, "max_ns": 0},
                 )
                 r["count"] += 1
                 r["total_ns"] += dur_ns
@@ -47585,8 +47628,8 @@ trigger_config {
         SysMgr.printPipe("[ART Method Trace Summary]")
         SysMgr.printPipe(oneLine)
         SysMgr.printPipe(
-            "  %-60s  %8s  %10s  %10s  %10s"
-            % ("METHOD", "COUNT", "TOTAL_ms", "AVG_ms", "MAX_ms")
+            "  %-8s  %-60s  %8s  %10s  %10s  %10s"
+            % ("PID", "METHOD", "COUNT", "TOTAL_ms", "AVG_ms", "MAX_ms")
         )
         SysMgr.printPipe(oneLine)
         topN = int(SysMgr.environList.get("TOPN", ["50"])[0])
@@ -47595,17 +47638,28 @@ trigger_config {
         )
         if statusDict is not None:
             statusDict["artMethods"] = []
-        for name, r in sorted_methods[:topN]:
+        for key, r in sorted_methods[:topN]:
+            # key is (pid, name) so per-process totals in a multi-process
+            # trace stay separate instead of merging into one method row #
+            pid, name = key
             total_ms = r["total_ns"] / 1e6
             avg_ms = total_ms / r["count"] if r["count"] else 0.0
             max_ms = r["max_ns"] / 1e6
             SysMgr.printPipe(
-                "  %-60s  %8s  %10.3f  %10.3f  %10.3f"
-                % (name[:60], convNum(r["count"]), total_ms, avg_ms, max_ms)
+                "  %-8s  %-60s  %8s  %10.3f  %10.3f  %10.3f"
+                % (
+                    pid or "?",
+                    name[:60],
+                    convNum(r["count"]),
+                    total_ms,
+                    avg_ms,
+                    max_ms,
+                )
             )
             if statusDict is not None:
                 statusDict["artMethods"].append(
                     {
+                        "pid": pid,
                         "name": name,
                         "count": r["count"],
                         "totalMs": total_ms,
@@ -49166,8 +49220,9 @@ class RetraceMgr(object):
             else obfLineNumber
         )
 
-        replacement = "[{0}.{1}({2}:{3})]".format(
-            targetClass, targetMethod, targetFile, targetLine
+        synth = " [synthesized]" if entry.get("synthesized") else ""
+        replacement = "[{0}.{1}({2}:{3}){4}]".format(
+            targetClass, targetMethod, targetFile, targetLine, synth
         )
         return line[:spanStart] + replacement + line[spanEnd:]
 
@@ -50036,6 +50091,7 @@ class SysMgr(object):
     logEnable = True
     loggingEnable = False
     loggingOpsEnable = False
+    loggingOpsInProgress = False
     logoEnable = True
     memEnable = False
     moduleEnable = False
@@ -55312,7 +55368,7 @@ Commands:
                 fd.seek(offset, 0)
 
             if write:
-                val = fd.write(struct.pack("Q", 2**bit - 1))
+                val = fd.write(struct.pack("Q", 1 << (pfn % bit)))
                 if flush:
                     fd.flush()
                 return val
@@ -56469,6 +56525,7 @@ Commands:
         "bpfwaittop",
         "bpflocktop",
         "bpfrunqtop",
+        "bpfrestop",
         "bpfiotop",
         "bpfsyscalltop",
         "bpftcpretrans",
@@ -61651,7 +61708,7 @@ Commands:
         for cond in list(SysMgr.filterGroup):
             try:
                 if comm:
-                    cmd += """%scomm == "*%s*" || """ % (cmd, cond)
+                    cmd += """comm == "*%s*" || """ % cond
 
                 if cond.isdigit():
                     cmd += "%s == %s || " % (name, long(cond))
@@ -62747,6 +62804,7 @@ Commands:
                 "bpfstacktop": ("Kernel", "Linux/Android"),
                 "bpfblktop": ("Kernel", "Linux/Android"),
                 "bpfrunqtop": ("Kernel", "Linux/Android"),
+                "bpfrestop": ("Kernel", "Linux/Android"),
                 "bpfreclaimtop": ("Kernel", "Linux/Android"),
                 "bpfwqtop": ("Kernel", "Linux/Android"),
                 "bpflocktop": ("Kernel", "Linux/Android"),
@@ -69887,6 +69945,86 @@ Examples:
 
     - Runqueue latency + per-core migration bar chart for 60 seconds
         # {0:1} {1:1} -q MIGRATIONCORE -i 3 -R 60
+                        """.format(
+                        cmd, mode
+                    )
+
+                elif SysMgr.checkMode("bpfrestop"):
+                    helpStr = _getDesc(
+                        "Unified per-process/thread CPU/scheduling/IO/block-IO "
+                        "resource top using eBPF",
+                        t=1,
+                    )
+                    helpStr += (
+                        """
+Options:
+    -i  <SEC>                   set interval in seconds (default: 1)
+    -R  <SEC>                   set repeat duration in seconds
+    -a                          show all rows, including idle (0.0% CPU)
+                                (default: rows with 0.0% CPU are hidden)
+    -Q                          print all rows in a stream (no ---more--- paging)
+    -e  <CHARACTER>              enable options
+          [ t:thread ]           show one row per thread (TID) instead of
+                                  per process (TGID); PROCCOMMFILTER/-g still
+                                  match at the process level either way
+          [ L:cmdline ]          show PCOMM as the process's cmdline
+                                  (argv[0] basename) instead of its comm;
+                                  same meaning as top's own -e L, falls
+                                  back to comm when cmdline is unavailable
+"""
+                        + _bpf_g_opt
+                        + """
+    -q  TIDFILTER:<TID>         kernel-side: accept only the specified TID
+    -q  PIDFILTER:<PID>         kernel-side: accept only the specified TGID/PID
+    -q  PROCCOMMFILTER:<COMM>   kernel-side (CPU/RQ/BLK) + Python-side (IO):
+                                expanded to TID allowlist at startup via /proc scan
+                                (negatable: prefix a pattern with "!" to exclude)
+"""
+                        + _bpf_jo_opts
+                        + """
+Notes:
+    - CPU%: on-CPU time via sched_switch (own attach, independent of bpfwaittop)
+    - RQ_AVG/RQ_TOTAL: scheduling latency via sched_wakeup + sched_switch
+                       (own attach, independent of bpfrunqtop). Covers BOTH
+                       the wakeup-to-running handoff delay for a task that
+                       was genuinely asleep AND pure preemption/contention
+                       for a CPU-bound task that never sleeps at all -- it
+                       is "how long this task waited to get a CPU," not
+                       "how long it was asleep" (see SLEEP_MS for that)
+    - RD_KB/WR_KB: VFS read/write bytes via sys_enter/exit_read/write
+                   (same tracking as bpfiotop)
+    - IOWAIT_AVG/TOTAL/CNT: block I/O wait via block_rq_issue/complete
+                            (own attach, independent of bpfblktop)
+    - SLEEP_MS: total time genuinely blocked (voluntary sleep, lock/I/O/
+                event wait, etc) this interval -- the mirror-image
+                complement of RQ_TOTAL's preemption/wakeup-handoff-only
+                latency; does NOT include RQ_TOTAL's own delay
+    - OTHER_WAIT: (interval - CPU) - RQ_TOTAL - IOWAIT_TOTAL - SLEEP_MS
+                  residual; large values suggest lock/network waits not
+                  covered by the other columns -- see bpflocktop/bpftcplat
+    - Title line reuses top's own system summary (Time/Date/PSI/IRQ/Mem/Swap)
+    - Requires root privilege and kernel BPF support (Linux 5.8+)
+                    """
+                    )
+                    helpStr += r"""
+Examples:
+    - Show per-process CPU/scheduling/IO/block-IO resource usage
+        # {0:1} {1:1}
+
+    - Show per-thread breakdown instead of per-process
+        # {0:1} {1:1} -e t
+
+    - Show PCOMM as cmdline instead of comm
+        # {0:1} {1:1} -e L
+
+    - Track resource usage for a specific process
+        # {0:1} {1:1} -g myapp -R 30
+
+    - Track with 5-second intervals for 60 seconds
+        # {0:1} {1:1} -i 5 -R 60
+
+    - Output in JSON format
+        # {0:1} {1:1} -J -R 30
                         """.format(
                         cmd, mode
                     )
@@ -86545,16 +86683,26 @@ Key Value List:
 
     @staticmethod
     def printLog(log, level="INFO"):
-        if SysMgr.dltEnable:
-            DltAnalyzer.doLogDlt(msg=log, level=level)
-        if SysMgr.kmsgEnable:
-            LogMgr.doLogKmsg(msg=log)
-        if SysMgr.syslogEnable:
-            LogMgr.doLogSyslog(msg=log)
-        if SysMgr.journalEnable:
-            LogMgr.doLogJournal(msg=log)
-        if SysMgr.andlogEnable:
-            LogMgr.doLogAndroid(msg=log)
+        # reentrant call (a log sink failed and reported the failure via
+        # printErr/printWarn, which dispatches back here) -> fail closed
+        # instead of recursing into the same sinks again #
+        if SysMgr.loggingOpsInProgress:
+            return
+
+        SysMgr.loggingOpsInProgress = True
+        try:
+            if SysMgr.dltEnable:
+                DltAnalyzer.doLogDlt(msg=log, level=level)
+            if SysMgr.kmsgEnable:
+                LogMgr.doLogKmsg(msg=log)
+            if SysMgr.syslogEnable:
+                LogMgr.doLogSyslog(msg=log)
+            if SysMgr.journalEnable:
+                LogMgr.doLogJournal(msg=log)
+            if SysMgr.andlogEnable:
+                LogMgr.doLogAndroid(msg=log)
+        finally:
+            SysMgr.loggingOpsInProgress = False
 
     @staticmethod
     def printWarn(line, always=False, reason=False, newline=True, code=False):
@@ -89342,6 +89490,7 @@ Key Value List:
             "bgtop",
             "bpfmarktop",
             "btop",
+            "cantop",
             "cgtop",
             "contop",
             "ctop",
@@ -89769,6 +89918,9 @@ Key Value List:
 
         elif SysMgr.checkMode("bpfrunqtop"):
             BpfMgr.doBpfrunqtopCmd()
+
+        elif SysMgr.checkMode("bpfrestop"):
+            BpfMgr.doBpfrestopCmd()
 
         elif SysMgr.checkMode("bpfreclaimtop"):
             BpfMgr.doBpfreclaimtopCmd()
@@ -99968,7 +100120,13 @@ Key Value List:
                     curStat = curCoreStat[node][name]
 
                     if curStat["hit"] == prevStat["hit"]:
-                        totalStat.pop(tname, None)
+                        # this core made no new progress on 'name' this
+                        # tick. Only drop the placeholder entry if no
+                        # other core has already added real hits into
+                        # the shared aggregate this tick; never wipe out
+                        # another core's contribution.
+                        if totalStat[tname]["hit"] == 0:
+                            totalStat.pop(tname, None)
                         continue
 
                     totalStat[tname]["hit"] += hit - prevStat["hit"]
@@ -123515,6 +123673,55 @@ class BpfMgr(object):
             return bool(value) and UtilMgr.isValidStr(value, pos)
         return True
 
+    @staticmethod
+    def _collectTidPidFilterTgids():
+        """Build the set of tgids implied by TIDFILTER/PIDFILTER, for
+        bpfrestop's row-level gating in _aggregateResourceTick.
+
+        TIDFILTER/PIDFILTER already narrow CPU/RQ/BLK at the BPF level via
+        _initRqFilters()'s own tid_flt_fd map (built independently, not
+        touched by this function). But IO/VFS rows have no kernel-side
+        filter at all (documented limitation, matches bpfiotop), and
+        _aggregateResourceTick's own row-level _tgid_passes() check
+        previously only understood -g/PROCCOMMFILTER -- so a
+        TIDFILTER/PIDFILTER-only bpfrestop run still showed a
+        full-system row list (0 CPU/RQ but real IO bytes/OTHER_WAIT)
+        for every unrelated process that happened to do any I/O that
+        tick (found via user report while systematically verifying
+        every documented bpfrestop option on a real device).
+
+        Deliberately a standalone helper, NOT a change to
+        _initRqFilters() itself (which bpfrunqtop and other commands
+        also call) -- this only ever reads SysMgr.environList and
+        returns a plain set, so it cannot affect any existing caller.
+
+        Returns a set of tgids, or None if neither TIDFILTER nor
+        PIDFILTER is active (caller should treat None as "no
+        additional restriction from this filter").
+        """
+        if not (
+            SysMgr.environList.get("TIDFILTER")
+            or SysMgr.environList.get("PIDFILTER")
+        ):
+            return None
+
+        tgids = set()
+        for v in SysMgr.environList.get("TIDFILTER", []):
+            try:
+                tid = int(v)
+            except (ValueError, TypeError):
+                continue
+            tg = BpfMgr._readTgidOfTid(tid)
+            tgids.add(tg if tg else tid)
+
+        for v in SysMgr.environList.get("PIDFILTER", []):
+            try:
+                tgids.add(int(v))
+            except (ValueError, TypeError):
+                continue
+
+        return tgids
+
     _ARG_FMT_FUNCS = {
         "HEX": lambda v: "0x%x" % v,
         "DEC": lambda v: "%d" % v,
@@ -126407,6 +126614,198 @@ class BpfMgr(object):
         return insns
 
     @staticmethod
+    def genOnCpuSwitchProg(
+        ts_map_fd, oncpu_map_fd, tid_flt_fd=-1, comm_map_fd=-1
+    ):
+        """
+        Tracepoint sched/sched_switch: accumulate on-CPU time per tid, for
+        bpfrestop's CPU% column. Same dual-side sched_switch handling as
+        genOffcpuProg, but inverted: this counts time a task ACTUALLY spent
+        running (from being scheduled in to being switched away), instead of
+        time spent blocked between switch-away and the next wakeup.
+
+        ts_map:    HASH key=u32(tid), val=u64(ktime) -- on-CPU start time
+        oncpu_map: HASH key=u32(tid), val=16B{u64 total_ns, u64 cnt}
+
+        Unlike genOffcpuProg's PREV-side block, no prev_state/0x100
+        (TASK_REPORT_MAX) masking is needed here: CPU% wants "time actually
+        spent on a CPU", so every switch-away -- voluntary yield or
+        involuntary preemption alike -- genuinely ends the on-CPU quantum
+        that started at the matching switch-in. off-CPU semantics need to
+        tell "really blocked" from "merely preempted while runnable" apart;
+        on-CPU accounting does not care why the task left the CPU.
+
+        If tid_flt_fd >= 0, the NEXT-side ts_map write is skipped for tids
+        not in the allowlist (same early-exit-on-miss idea as
+        genRunqlatSwitchProg's next_pid filter) -- the PREV-side block still
+        runs unconditionally afterward (it may be a different, allowed tid
+        going off-CPU), it just finds no ts_map entry for a filtered-out tid
+        and naturally contributes nothing.
+
+        If comm_map_fd >= 0 (optional, default off -- existing callers with
+        no 4th arg are byte-for-byte unaffected): on the NEXT side, also
+        copies next_comm (already sitting in this tracepoint's own ctx at
+        +40, 16 bytes -- see genOffcpuProg's own ctx-layout doc above,
+        which documents the identical field for this same tracepoint) into
+        comm_map[next_pid], with NO bpf_get_current_comm() helper call
+        needed since the scheduler already handed us the about-to-run
+        task's comm for free in the tracepoint args. This lets bpfrestop
+        resolve short-lived threads' names from a live BPF-side cache
+        instead of relying solely on a /proc/<tid>/comm read at
+        aggregation time, which reliably misses threads that have already
+        exited by then (found via user-reported "?" comm churn on a busy
+        local machine). Gated by the same tid_flt_fd allowlist check as
+        the ts_map write (comm capture for a filtered-out tid would just
+        grow the map for a thread bpfrestop never displays anyway).
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        BPF_LDX_MEM_DW = 0x79
+        BPF_LDX_MEM_W = 0x61
+        BPF_STX_MEM_DW = 0x7B
+        BPF_STX_MEM_W = 0x63
+
+        # Stack: fp-8=u32 tid (key, reused for next_pid then prev_pid),
+        # fp-16=u64 ts value (NEXT-side insert), fp-32..-17=16B oncpu_map
+        # insert value {total_ns, cnt} #
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # ---- NEXT side: ts_map[next_pid] = now ----
+        insns += bi(BPF_LDX_MEM_W, R7, R6, 56, 0)  # R7 = next_pid
+        insns += bi(BPF_STX_MEM_W, R10, R7, -8, 0)  # *(fp-8) = next_pid
+
+        skip_next_pos = None
+        if tid_flt_fd >= 0:
+            insns += LM(R1, tid_flt_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            skip_next_pos = len(insns) // 8
+            insns += bi(0x15, R0, 0, 0, 0)  # JEQ NULL -> skip write (patch)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0xBF, R8, R0, 0, 0)  # R8 = now
+        insns += bi(BPF_STX_MEM_DW, R10, R8, -16, 0)  # *(fp-16) = now
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -16)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        if comm_map_fd >= 0:
+            # next_comm sits at ctx+40, 16 bytes -- copy via two 8-byte
+            # loads/stores (fp-48/-40 scratch, unused by any other part of
+            # this function) into comm_map[next_pid] (key still at fp-8) #
+            insns += bi(BPF_LDX_MEM_DW, R8, R6, 40, 0)
+            insns += bi(BPF_STX_MEM_DW, R10, R8, -48, 0)
+            insns += bi(BPF_LDX_MEM_DW, R8, R6, 48, 0)
+            insns += bi(BPF_STX_MEM_DW, R10, R8, -40, 0)
+            insns += LM(R1, comm_map_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0xBF, R3, R10, 0, 0)
+            insns += bi(0x07, R3, 0, 0, -48)
+            insns += bi(0xB7, R4, 0, 0, 0)
+            insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        if skip_next_pos is not None:
+            after_next_pos = len(insns) // 8
+            jmp_off = after_next_pos - (skip_next_pos + 1)
+            insns = (
+                insns[: skip_next_pos * 8]
+                + bi(0x15, R0, 0, jmp_off, 0)
+                + insns[(skip_next_pos + 1) * 8 :]
+            )
+
+        # ---- PREV side: if ts_map[prev_pid] exists, accumulate delta ----
+        insns += bi(BPF_LDX_MEM_W, R7, R6, 24, 0)  # R7 = prev_pid
+        insns += bi(BPF_STX_MEM_W, R10, R7, -8, 0)  # *(fp-8) = prev_pid
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        insns += bi(0xBF, R8, R0, 0, 0)  # R8 = ts_entry ptr or NULL
+
+        null_pos = len(insns) // 8
+        insns += bi(0x15, R8, 0, 0, 0)  # JEQ NULL -> EXIT (patch later)
+
+        insns += bi(BPF_LDX_MEM_DW, R9, R8, 0, 0)  # R9 = entry_ts
+
+        # map_delete_elem(ts_map, fp-8) #
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID.get("map_delete_elem", 3))
+
+        # delta = now - entry_ts #
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x1F, R0, R9, 0, 0)  # R0 -= entry_ts
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = delta
+
+        # lookup oncpu_map[prev_pid] (key still at fp-8) #
+        insns += LM(R1, oncpu_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+        insns += bi(0xBF, R7, R0, 0, 0)  # R7 = oncpu_val ptr or NULL
+
+        ins_null_pos = len(insns) // 8
+        insns += bi(0x15, R7, 0, 0, 0)  # JEQ NULL -> INSERT (patch later)
+
+        # UPDATE: total_ns += delta; cnt += 1 #
+        insns += bi(BPF_LDX_MEM_DW, R1, R7, 0, 0)
+        insns += bi(0x0F, R1, R9, 0, 0)
+        insns += bi(BPF_STX_MEM_DW, R7, R1, 0, 0)
+        insns += bi(BPF_LDX_MEM_DW, R1, R7, 8, 0)
+        insns += bi(0x07, R1, 0, 0, 1)
+        insns += bi(BPF_STX_MEM_DW, R7, R1, 8, 0)
+        skip_ins_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # JMP over INSERT (patch later)
+
+        # INSERT: val at fp-32 (16B): [u64 total_ns=delta][u64 cnt=1] #
+        ins_start = len(insns) // 8
+        jmp_off = ins_start - (ins_null_pos + 1)
+        insns = (
+            insns[: ins_null_pos * 8]
+            + bi(0x15, R7, 0, jmp_off, 0)
+            + insns[(ins_null_pos + 1) * 8 :]
+        )
+        insns += bi(BPF_STX_MEM_DW, R10, R9, -32, 0)  # total_ns = delta
+        insns += bi(0x7A, R10, 0, -24, 1)  # cnt = 1
+        insns += LM(R1, oncpu_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -32)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        # EXIT #
+        exit_pos = len(insns) // 8
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+
+        jmp_off = exit_pos - (skip_ins_pos + 1)
+        insns = (
+            insns[: skip_ins_pos * 8]
+            + bi(0x05, 0, 0, jmp_off, 0)
+            + insns[(skip_ins_pos + 1) * 8 :]
+        )
+        jmp_off = exit_pos - (null_pos + 1)
+        insns = (
+            insns[: null_pos * 8]
+            + bi(0x15, R8, 0, jmp_off, 0)
+            + insns[(null_pos + 1) * 8 :]
+        )
+        return insns
+
+    @staticmethod
     def genBlockIssueProg(
         ts_map_fd, kstack_map_fd, ustack_map_fd=-1, dev_filter_fd=-1
     ):
@@ -126648,6 +127047,97 @@ class BpfMgr(object):
         return insns
 
     @staticmethod
+    def genBlockIssueSimpleProg(ts_map_fd, tid_flt_fd=-1, dev_filter_fd=-1):
+        """
+        Tracepoint block/block_rq_issue: trimmed-down issue-side tracer for
+        bpfrestop's IOWAIT columns. Same dev/sector key + pid_tgid capture
+        as genBlockIssueProg, but never calls get_stackid -- kstack_id and
+        ustack_id are hardcoded to 0 in the ts_map value instead. This lets
+        the completion side reuse genBlockCompleteProg completely unmodified
+        (it only ever copies those two fields through from ts_map, it never
+        interprets them), while skipping stack-map creation and the
+        get_stackid helper call entirely, since bpfrestop only needs a
+        per-tid IOWAIT_AVG/TOTAL/CNT, not a per-stack breakdown.
+
+        ts_map: HASH key=u64(dev<<32|sector_low32), val=24B:
+            [u64 ktime][u64 pid_tgid][u32 kstack_id=0][u32 ustack_id=0]
+        dev_filter_fd: same optional per-device ARRAY filter as
+            genBlockIssueProg (key=u32 idx=0, val=u32 dev_t).
+        tid_flt_fd: optional TID allowlist HASH (key=u32 tid, val=u64 1);
+            unlike genBlockIssueProg (which has no such param at all -- it
+            is not touched by this addition), this early-exits for tids not
+            in the allowlist, for filter parity with bpfrestop's other three
+            metrics (CPU/RQ/IO all support the same TID allowlist).
+        """
+        bi = BpfMgr.buildInsn
+        LM = BpfMgr.buildLoadMapFd
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
+        FID = ConfigMgr.BPF_FUNC_ID
+        BPF_LDX_MEM_DW = 0x79
+        BPF_LDX_MEM_W = 0x61
+        BPF_STX_MEM_DW = 0x7B
+
+        insns = b""
+        insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        insns += bi(BPF_LDX_MEM_W, R7, R6, 8, 0)  # R7 = dev
+
+        if dev_filter_fd >= 0:
+            # Same DEVFILTER shape as genBlockIssueProg #
+            insns += bi(0xB7, R1, 0, 0, 0)
+            insns += bi(0x63, R10, R1, -48, 0)  # *(fp-48) = 0
+            insns += LM(R1, dev_filter_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -48)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            insns += bi(0x15, R0, 0, 3, 0)  # NULL -> +3 (no match, ret 0)
+            insns += bi(BPF_LDX_MEM_W, R1, R0, 0, 0)  # R1 = filter_dev
+            insns += bi(0x1D, R1, R7, 2, 0)  # match -> +2 (continue)
+            insns += bi(0xB7, R0, 0, 0, 0)  # no match: R0 = 0
+            insns += bi(0x95, 0, 0, 0, 0)  # return
+
+        insns += bi(BPF_LDX_MEM_DW, R8, R6, 16, 0)  # R8 = sector
+        insns += bi(0xBC, R9, R8, 0, 0)  # R9 = (u32)sector
+        insns += bi(0x67, R7, 0, 0, 32)  # R7 = dev << 32
+        insns += bi(0x4F, R7, R9, 0, 0)  # R7 |= sector_low32
+        insns += bi(BPF_STX_MEM_DW, R10, R7, -8, 0)  # *(fp-8) = key
+
+        # get_current_pid_tgid -> R9 #
+        insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+        insns += bi(0xBF, R9, R0, 0, 0)  # R9 = pid_tgid
+
+        if tid_flt_fd >= 0:
+            insns += bi(0xBC, R1, R9, 0, 0)  # R1 = (u32)pid_tgid = tid
+            insns += bi(0x63, R10, R1, -56, 0)  # *(fp-56) = tid (filt key)
+            insns += LM(R1, tid_flt_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -56)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            insns += bi(0x55, R0, 0, 2, 0)  # JNE: found -> skip exit
+            insns += bi(0xB7, R0, 0, 0, 0)
+            insns += bi(0x95, 0, 0, 0, 0)  # exit (filtered out)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0xBF, R8, R0, 0, 0)  # R8 = ktime
+
+        # ts_map val at fp-40 (24B): [ktime(8)][pid_tgid(8)][kstack=0(4)][ustack=0(4)] #
+        insns += bi(BPF_STX_MEM_DW, R10, R8, -40, 0)  # ktime
+        insns += bi(BPF_STX_MEM_DW, R10, R9, -32, 0)  # pid_tgid
+        insns += bi(0x7A, R10, 0, -24, 0)  # kstack_id=0, ustack_id=0 (8B)
+
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -8)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -40)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        insns += bi(0xB7, R0, 0, 0, 0)
+        insns += bi(0x95, 0, 0, 0, 0)
+        return insns
+
+    @staticmethod
     def genIrqEntryProg(ts_map_fd):
         """
         Tracepoint irq/irq_handler_entry: store timestamp in ts_map[irq_num].
@@ -126782,7 +127272,9 @@ class BpfMgr(object):
         return insns
 
     @staticmethod
-    def genRunqlatWakeupProg(ts_map_fd, tid_flt_fd=-1):
+    def genRunqlatWakeupProg(
+        ts_map_fd, tid_flt_fd=-1, sleep_ts_fd=-1, sleep_perpid_fd=-1
+    ):
         """
         Tracepoint sched/sched_wakeup: record timestamp in ts_map[pid].
 
@@ -126804,12 +127296,35 @@ class BpfMgr(object):
         See genRunqlatSwitchProg for the replacement signal, which
         only needs the switch-side tracepoint (always runs on the
         correct CPU, no migration ambiguity).
+
+        If sleep_ts_fd >= 0 and sleep_perpid_fd >= 0 (bpfrestop's
+        SLEEP_MS column, both optional/default off -- existing 2-arg
+        callers are byte-for-byte unaffected): this same wakeup event
+        also closes out a genuine block/sleep span, complementing
+        genRunqlatSwitchProg's PREV-side write to sleep_ts_fd[pid] made
+        when that pid last went off-CPU for a real (non-preemption)
+        reason. If sleep_ts_fd[pid] has an entry, this task's "sleep"
+        just ended right now -- compute delta = now - sleep_start,
+        accumulate into sleep_perpid_fd[pid] as {u64 total_ns, u64
+        cnt}, and delete the sleep_ts_fd entry. This exists to answer
+        a user question raised once RQ_TOTAL started correctly
+        counting preemption-driven runqueue waits (see
+        genRunqlatSwitchProg): does RQ_TOTAL also fold in time spent in
+        a genuine voluntary sleep (time.sleep(), waiting on a lock,
+        I/O, etc)? No -- RQ_TOTAL only ever measures the wakeup-to-
+        running handoff delay, never the sleep's own duration, and
+        that duration is exactly what this pair of writes measures
+        instead, as its own separate, explicitly-labeled quantity
+        rather than silently folding into bpfrestop's OTHER_WAIT
+        residual.
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
-        R0, R1, R2, R3, R4, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 10
+        R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
         FID = ConfigMgr.BPF_FUNC_ID
         BPF_LDX_MEM_W = 0x61
+        BPF_LDX_MEM_DW = 0x79
+        BPF_STX_MEM_DW = 0x7B
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
@@ -126838,13 +127353,93 @@ class BpfMgr(object):
         insns += bi(0xB7, R4, 0, 0, 0)
         insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
 
+        if sleep_ts_fd >= 0 and sleep_perpid_fd >= 0:
+            # look up sleep_ts_fd[pid] (key still at fp-8) #
+            insns += LM(R1, sleep_ts_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            insns += bi(0xBF, R9, R0, 0, 0)  # R9 = sleep_start ptr or NULL
+            sleep_null_pos = len(insns) // 8
+            insns += bi(0x15, R9, 0, 0, 0)  # JEQ NULL -> no sleep span (patch)
+
+            insns += bi(BPF_LDX_MEM_DW, R7, R9, 0, 0)  # R7 = sleep_start_ts
+            # map_delete_elem(sleep_ts_fd, &pid) #
+            insns += LM(R1, sleep_ts_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0x85, 0, 0, 0, FID.get("map_delete_elem", 3))
+
+            # delta = now - sleep_start_ts (fresh ktime_get_ns() call --
+            # simpler than trusting R8's "now" from above to survive
+            # two intervening helper calls, and the extra handful of ns
+            # is irrelevant at millisecond display resolution) #
+            insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+            insns += bi(0x1F, R0, R7, 0, 0)  # R0 -= sleep_start_ts
+            insns += bi(BPF_STX_MEM_DW, R10, R0, -24, 0)  # fp-24 = delta
+
+            # UPDATE-or-INSERT sleep_perpid_fd[pid] += {delta, 1} #
+            insns += LM(R1, sleep_perpid_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            sleep_pp_null_pos = len(insns) // 8
+            insns += bi(0x15, R0, 0, 0, 0)  # NULL -> INSERT (patch)
+            # UPDATE #
+            insns += bi(BPF_LDX_MEM_DW, R7, R10, -24, 0)  # R7 = delta
+            insns += bi(BPF_LDX_MEM_DW, R8, R0, 0, 0)  # R8 = existing total_ns
+            insns += bi(0x0F, R8, R7, 0, 0)  # R8 += delta
+            insns += bi(BPF_STX_MEM_DW, R0, R8, 0, 0)
+            insns += bi(BPF_LDX_MEM_DW, R8, R0, 8, 0)  # R8 = existing cnt
+            insns += bi(0x07, R8, 0, 0, 1)
+            insns += bi(BPF_STX_MEM_DW, R0, R8, 8, 0)
+            sleep_pp_jmp_exit_pos = len(insns) // 8
+            insns += bi(0x05, 0, 0, 0, 0)  # JMP -> after (patch)
+            # INSERT: 16B value {total_ns=delta, cnt=1} at fp-40..fp-25 #
+            sleep_pp_insert_pos = len(insns) // 8
+            insns += bi(BPF_LDX_MEM_DW, R7, R10, -24, 0)  # R7 = delta
+            insns += bi(BPF_STX_MEM_DW, R10, R7, -40, 0)  # fp-40 = total_ns
+            insns += bi(0x7A, R10, 0, -32, 1)  # fp-32 = cnt = 1
+            insns += LM(R1, sleep_perpid_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0xBF, R3, R10, 0, 0)
+            insns += bi(0x07, R3, 0, 0, -40)
+            insns += bi(0xB7, R4, 0, 0, 0)
+            insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+            sleep_after_pos = len(insns) // 8
+            jmp_off = sleep_after_pos - (sleep_pp_jmp_exit_pos + 1)
+            insns = (
+                insns[: sleep_pp_jmp_exit_pos * 8]
+                + bi(0x05, 0, 0, jmp_off, 0)
+                + insns[(sleep_pp_jmp_exit_pos + 1) * 8 :]
+            )
+            jmp_off = sleep_pp_insert_pos - (sleep_pp_null_pos + 1)
+            insns = (
+                insns[: sleep_pp_null_pos * 8]
+                + bi(0x15, R0, 0, jmp_off, 0)
+                + insns[(sleep_pp_null_pos + 1) * 8 :]
+            )
+            jmp_off = sleep_after_pos - (sleep_null_pos + 1)
+            insns = (
+                insns[: sleep_null_pos * 8]
+                + bi(0x15, R9, 0, jmp_off, 0)
+                + insns[(sleep_null_pos + 1) * 8 :]
+            )
+
         insns += bi(0xB7, R0, 0, 0, 0)
         insns += bi(0x95, 0, 0, 0, 0)
         return insns
 
     @staticmethod
     def genRunqlatSwitchProg(
-        ts_map_fd, hist_map_fd, tid_flt_fd=-1, perpid_fd=-1, nr_run_fd=-1
+        ts_map_fd,
+        hist_map_fd,
+        tid_flt_fd=-1,
+        perpid_fd=-1,
+        nr_run_fd=-1,
+        sleep_ts_fd=-1,
     ):
         """
         Tracepoint sched/sched_switch: compute runqueue latency for next_pid,
@@ -126859,29 +127454,73 @@ class BpfMgr(object):
         If tid_flt_fd >= 0, skip tasks not in the TID allowlist map.
         If perpid_fd >= 0: also update per-tid HASH (key=u32 next_pid,
           val=16B {u64 total_ns, u64 count}).
+
+        PREV-side preemption re-arm (new): a CPU-bound task that never
+        blocks (a busy loop) never triggers sched_wakeup at all --
+        sched_wakeup only fires on a SLEEPING -> RUNNABLE transition,
+        and a task that only ever gets preempted while runnable was
+        never asleep. Without this, RQ_AVG/RQ_TOTAL were entirely blind
+        to real scheduler contention for such tasks: 10 spinning
+        processes pinned across 8 cores each land under 90% CPU purely
+        from fighting over runqueue slots, yet ts_map[pid] was only
+        ever armed by genRunqlatWakeupProg's sched_wakeup hook, so a
+        task that's always runnable simply never got a timestamp set
+        for it (found via user report; matches the classic runqlat
+        limitation of tracking sched_wakeup->sched_switch only). Fix:
+        whenever the OUTGOING task (prev_pid) was merely preempted
+        (prev_state & 0xFF == 0 -- see the nr_run_fd section below for
+        the device-verified derivation of this mask) rather than
+        genuinely blocked, re-arm ts_map[prev_pid] = now right here.
+        The existing NEXT-side logic below doesn't need to know or
+        care whether a real sched_wakeup or this preemption re-arm
+        produced the timestamp it eventually consumes -- either way
+        the delta is "how long this task waited to get back on a CPU,"
+        exactly what RQ_AVG/RQ_TOTAL are documented to show. Gated by
+        the same tid_flt_fd allowlist as the wakeup side, for the same
+        reason: an unfiltered run would otherwise re-arm ts_map for
+        every runnable task on the box, not just the ones being
+        tracked.
+
+        PREV-side sleep-start write (new, sleep_ts_fd, optional -- 5-arg
+        callers unaffected): the mirror-image ELSE branch of the
+        preemption re-arm above -- when prev_state & 0xFF != 0 (a real
+        sleep-state bit is set, i.e. genuinely blocked, not merely
+        preempted), write sleep_ts_fd[prev_pid] = now instead. This
+        answers a user question raised once RQ_TOTAL started correctly
+        counting preemption waits: RQ_TOTAL only ever measures the
+        wakeup-to-running handoff delay, never a voluntary sleep's own
+        duration -- that duration needed its own, separately-labeled
+        measurement rather than being invisible or silently folded
+        into bpfrestop's OTHER_WAIT residual. genRunqlatWakeupProg's
+        sched_wakeup hook closes out the matching span (delta = wakeup
+        time - this timestamp) into sleep_perpid_fd, bpfrestop's
+        SLEEP_MS column. Reuses the exact same fp-44/fp-56 scratch
+        slots as the preemption branch above (not new stack space) --
+        the two branches are mutually exclusive for a given switch-out
+        (a task is either merely preempted or genuinely blocked, never
+        both), so there is no risk of one clobbering the other's
+        in-flight write.
         If nr_run_fd >= 0: nr_run_map[this_cpu] is a 16B monotonic pair
           {u64 total_switch_count, u64 preempt_count}, both never
           decremented. total_switch_count += 1 on every sched_switch
           on this CPU; preempt_count += 1 only when
-          (prev_state & 0x100) != 0. This 0x100 bit is TASK_REPORT_MAX,
-          the sched_switch tracepoint's own preemption marker: the
-          kernel's TP_fast_assign for this tracepoint computes prev_state
-          as TASK_REPORT_MAX whenever the switch was an involuntary
-          preemption (the outgoing task never actually blocked, another
-          runnable task just needed this CPU), and as the task's real
-          sleep-state bits (TASK_INTERRUPTIBLE=1, TASK_UNINTERRUPTIBLE=2,
-          etc — never 0x100) otherwise. Round-4 (this round) discovered
-          via live-device inspection of
-          /sys/kernel/tracing/events/sched/sched_switch/format that an
-          earlier "prev_state == 0" check (intended to mean "still
-          TASK_RUNNING", raw task->state's numeric value) does NOT match
-          this tracepoint's actual computed field — a real sched_switch's
-          prev_state is always either a nonzero sleep-state or the
-          0x100 preemption marker, so "== 0" was true on effectively zero
-          events, permanently pinning preempt_count at 0 regardless of
-          load (device-verified: idle and 12-way CPU-bound stress both
-          produced core_bound=0% identically). A still-earlier round
-          (round 3) had instead used a bare "preempt_count > 0" per-tick
+          (prev_state & 0xFF) == 0. This matches the sched_switch
+          tracepoint's own print fmt, which masks off the low byte
+          (the known sleep-state bits -- TASK_INTERRUPTIBLE=1,
+          TASK_UNINTERRUPTIBLE=2, __TASK_STOPPED=4, etc, all within the
+          low byte) and prints the literal letter "R" (still Running,
+          i.e. merely preempted, never actually blocked) whenever none
+          of them are set. An earlier round had instead checked
+          "prev_state & 0x100" (TASK_REPORT_MAX), reasoning that the
+          kernel marks involuntary preemption with that sentinel bit --
+          but a later live test with 6 genuine CPU-bound busy-loop
+          processes oversubscribing 4 cores found "& 0x100" matching 0
+          of 806 real preemption switch-outs for a tracked pid, while
+          "& 0xFF == 0" matched all 806 (the raw prev_state value
+          observed was plain 0, not 0x100) -- so the 0x100 check had
+          been permanently pinning preempt_count (and this whole AMDAHL
+          contention signal) at 0 regardless of load, on this device.
+          A still-earlier round had instead used a bare "preempt_count > 0" per-tick
           threshold, which saturated at core_bound=100% even at genuine
           idle on a real system with hundreds of background tasks across
           a few CPUs (at least one involuntary preemption reliably
@@ -126915,9 +127554,30 @@ class BpfMgr(object):
           per-task metric — so it must count switch/preemption events
           for every task on the box even when tid_flt_fd/-g narrows
           which task's own latency samples go into hist_map/perpid_fd.
-        Stack: fp-8=u32 next_pid/bucket, fp-12=u32 next_pid saved (perpid),
+        Stack: fp-8=u32 next_pid/bucket, fp-36=u32 next_pid saved (perpid),
                fp-16=u64 delta saved (perpid), fp-32=insert total_ns,
-               fp-24=insert count, fp-40=u32 cpu_id key (nr_run).
+               fp-24=insert count, fp-40=u32 cpu_id key (nr_run),
+               fp-44=u32 prev_pid key (preempt re-arm),
+               fp-56=u64 now (preempt re-arm).
+
+        fp-36 (not fp-12): fp-16's 8-byte QWORD delta store spans bytes
+        fp-16..fp-9 inclusive, so a 4-byte slot at fp-12 (bytes
+        fp-12..fp-9) sits entirely inside that range and gets
+        clobbered by the delta write -- with the delta value's upper
+        32 bits (bytes fp-12..fp-9 of the little-endian QWORD), which
+        are 0 for every realistic runqueue latency under ~4.29s. This
+        silently zeroed the saved next_pid on every single sample,
+        so perpid_fd accumulated 100% of all latency under key 0
+        instead of the real per-tid keys (found via user report that
+        RQ_AVG/RQ_TOTAL never showed anything but 0 in bpfrestop,
+        device-verified by isolating this function with real BPF
+        attach and dumping perpid_fd's raw contents). The insert
+        branch's own 8-byte count write at fp-24 (bytes fp-24..fp-17)
+        rules out fp-20 too, and fp-32/fp-40 are both already spoken
+        for -- fp-36 (bytes fp-36..fp-33) is the one 4-byte gap left
+        between fp-32's range (fp-32..fp-25) and fp-40's range
+        (fp-40..fp-37) that this function's stack layout doesn't
+        already use for something else.
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
@@ -126928,6 +127588,111 @@ class BpfMgr(object):
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # ---- PREV side: re-arm ts_map[prev_pid] on pure preemption ----
+        # prev_state & 0xFF == 0 means "still runnable" (the sched_switch
+        # tracepoint's own print fmt prints exactly this as "R" -- see
+        # this function's docstring for the full mask derivation). This
+        # is NOT the same test as the nr_run_fd/AMDAHL block below (which
+        # checks prev_state & 0x100, TASK_REPORT_MAX): device-verified
+        # against 6 real CPU-bound busy-loop processes oversubscribing 4
+        # cores that "& 0x100" is 0 on every single one of their genuine
+        # preemption switch-outs, while "& 0xFF == 0" matches 100% of
+        # them (806/806 in a live 3s sample) -- so 0x100 alone would
+        # leave this exact re-arm permanently dead for pure CPU-bound
+        # contention, the precise case it exists to catch #
+        insns += bi(BPF_LDX_MEM_DW, R7, R6, 32, 0)  # R7 = prev_state
+        insns += bi(0x57, R7, 0, 0, 0xFF)  # R7 &= 0xFF
+        preempt_skip_pos = len(insns) // 8
+        insns += bi(0x55, R7, 0, 0, 0)  # JNE 0 -> was blocked, skip (patch)
+
+        insns += bi(BPF_LDX_MEM_W, R9, R6, 24, 0)  # R9 = prev_pid
+        insns += bi(0x63, R10, R9, -44, 0)  # *(u32*)(fp-44) = prev_pid
+
+        preempt_flt_skip_pos = None
+        if tid_flt_fd >= 0:
+            insns += LM(R1, tid_flt_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -44)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            preempt_flt_skip_pos = len(insns) // 8
+            insns += bi(
+                0x15, R0, 0, 0, 0
+            )  # JEQ NULL -> not allowlisted (patch)
+
+        insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+        insns += bi(0x7B, R10, R0, -56, 0)  # *(u64*)(fp-56) = now
+        insns += LM(R1, ts_map_fd)
+        insns += bi(0xBF, R2, R10, 0, 0)
+        insns += bi(0x07, R2, 0, 0, -44)
+        insns += bi(0xBF, R3, R10, 0, 0)
+        insns += bi(0x07, R3, 0, 0, -56)
+        insns += bi(0xB7, R4, 0, 0, 0)
+        insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+        preempt_after_pos = len(insns) // 8
+        if preempt_flt_skip_pos is not None:
+            jmp_off = preempt_after_pos - (preempt_flt_skip_pos + 1)
+            insns = (
+                insns[: preempt_flt_skip_pos * 8]
+                + bi(0x15, R0, 0, jmp_off, 0)
+                + insns[(preempt_flt_skip_pos + 1) * 8 :]
+            )
+
+        # end of the preemption branch: jump past the sleep branch too
+        # (patch later, once sleep_after_pos is known) #
+        preempt_done_jmp_pos = len(insns) // 8
+        insns += bi(0x05, 0, 0, 0, 0)  # JMP (patch)
+
+        # ---- PREV side (else branch): genuinely blocked -> sleep_ts_fd ----
+        sleep_branch_pos = len(insns) // 8
+        if sleep_ts_fd >= 0:
+            insns += bi(BPF_LDX_MEM_W, R9, R6, 24, 0)  # R9 = prev_pid
+            insns += bi(0x63, R10, R9, -44, 0)  # *(u32*)(fp-44) = prev_pid
+
+            sleep_flt_skip_pos = None
+            if tid_flt_fd >= 0:
+                insns += LM(R1, tid_flt_fd)
+                insns += bi(0xBF, R2, R10, 0, 0)
+                insns += bi(0x07, R2, 0, 0, -44)
+                insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+                sleep_flt_skip_pos = len(insns) // 8
+                insns += bi(
+                    0x15, R0, 0, 0, 0
+                )  # NULL -> not allowlisted (patch)
+
+            insns += bi(0x85, 0, 0, 0, FID["ktime_get_ns"])
+            insns += bi(0x7B, R10, R0, -56, 0)  # *(u64*)(fp-56) = now
+            insns += LM(R1, sleep_ts_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -44)
+            insns += bi(0xBF, R3, R10, 0, 0)
+            insns += bi(0x07, R3, 0, 0, -56)
+            insns += bi(0xB7, R4, 0, 0, 0)
+            insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
+
+            if sleep_flt_skip_pos is not None:
+                _after = len(insns) // 8
+                jmp_off = _after - (sleep_flt_skip_pos + 1)
+                insns = (
+                    insns[: sleep_flt_skip_pos * 8]
+                    + bi(0x15, R0, 0, jmp_off, 0)
+                    + insns[(sleep_flt_skip_pos + 1) * 8 :]
+                )
+
+        sleep_after_pos = len(insns) // 8
+        jmp_off = sleep_after_pos - (preempt_done_jmp_pos + 1)
+        insns = (
+            insns[: preempt_done_jmp_pos * 8]
+            + bi(0x05, 0, 0, jmp_off, 0)
+            + insns[(preempt_done_jmp_pos + 1) * 8 :]
+        )
+        jmp_off = sleep_branch_pos - (preempt_skip_pos + 1)
+        insns = (
+            insns[: preempt_skip_pos * 8]
+            + bi(0x55, R7, 0, jmp_off, 0)
+            + insns[(preempt_skip_pos + 1) * 8 :]
+        )
 
         if nr_run_fd >= 0:
             insns += bi(BPF_LDX_MEM_DW, R7, R6, 32, 0)  # R7 = prev_state
@@ -126946,12 +127711,18 @@ class BpfMgr(object):
             insns += bi(0x07, R9, 0, 0, 1)
             insns += bi(0x7B, R8, R9, 0, 0)
 
-            # preempt_count (offset 8) += 1, only if the sched_switch
-            # tracepoint's preemption marker bit (0x100, TASK_REPORT_MAX)
-            # is set in prev_state — see this function's docstring #
-            insns += bi(0x57, R7, 0, 0, 0x100)  # R7 &= 0x100
+            # preempt_count (offset 8) += 1, only if prev_state & 0xFF == 0
+            # (the sched_switch tracepoint's own "still runnable" / "R"
+            # encoding -- see the PREV-side preemption re-arm block above
+            # for the device-verified derivation of this mask; a prior
+            # version of this check used "prev_state & 0x100" instead,
+            # which measured 0 on every real preemption during a live
+            # 6-busy-loop/4-core contention test, permanently pinning
+            # preempt_count -- and this whole AMDAHL contention signal --
+            # at 0 regardless of load) #
+            insns += bi(0x57, R7, 0, 0, 0xFF)  # R7 &= 0xFF
             nr_run_skip_pos = len(insns) // 8
-            insns += bi(0x15, R7, 0, 0, 0)  # JEQ 0 → skip incr (patch)
+            insns += bi(0x55, R7, 0, 0, 0)  # JNE 0 → was blocked, skip (patch)
             insns += bi(BPF_LDX_MEM_DW, R9, R8, 8, 0)
             insns += bi(0x07, R9, 0, 0, 1)
             insns += bi(0x7B, R8, R9, 8, 0)
@@ -126960,7 +127731,7 @@ class BpfMgr(object):
             jmp_off = nr_run_after_pos - (nr_run_skip_pos + 1)
             insns = (
                 insns[: nr_run_skip_pos * 8]
-                + bi(0x15, R7, 0, jmp_off, 0)
+                + bi(0x55, R7, 0, jmp_off, 0)
                 + insns[(nr_run_skip_pos + 1) * 8 :]
             )
             jmp_off = nr_run_after_pos - (nr_run_null_pos + 1)
@@ -126974,8 +127745,8 @@ class BpfMgr(object):
         insns += bi(0x63, R10, R7, -8, 0)  # *(u32*)(fp-8) = next_pid
         if perpid_fd >= 0:
             insns += bi(
-                0x63, R10, R7, -12, 0
-            )  # *(u32*)(fp-12) = next_pid (saved)
+                0x63, R10, R7, -36, 0
+            )  # *(u32*)(fp-36) = next_pid (saved)
 
         # TID filter: exit early if next_pid not in allowlist #
         if tid_flt_fd >= 0:
@@ -127038,10 +127809,10 @@ class BpfMgr(object):
         insns += bi(0x7B, R0, R7, 0, 0)  # *(u64*)(R0+0) = R7
 
         if perpid_fd >= 0:
-            # per-tid block: key=u32(next_pid) at fp-12, delta at fp-16
+            # per-tid block: key=u32(next_pid) at fp-36, delta at fp-16
             insns += LM(R1, perpid_fd)
             insns += bi(0xBF, R2, R10, 0, 0)
-            insns += bi(0x07, R2, 0, 0, -12)  # key = fp-12 (u32 next_pid)
+            insns += bi(0x07, R2, 0, 0, -36)  # key = fp-36 (u32 next_pid)
             insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
             # if NULL → INSERT (patch later)
             null_pid_pos = len(insns) // 8
@@ -127064,7 +127835,7 @@ class BpfMgr(object):
             insns += bi(0x7A, R10, 0, -24, 1)  # *(fp-24) = count = 1
             insns += LM(R1, perpid_fd)
             insns += bi(0xBF, R2, R10, 0, 0)
-            insns += bi(0x07, R2, 0, 0, -12)  # key = fp-12
+            insns += bi(0x07, R2, 0, 0, -36)  # key = fp-36
             insns += bi(0xBF, R3, R10, 0, 0)
             insns += bi(0x07, R3, 0, 0, -32)  # val = fp-32 (16B)
             insns += bi(0xB7, R4, 0, 0, 0)  # flags = BPF_ANY
@@ -128093,13 +128864,14 @@ class BpfMgr(object):
         return insns
 
     @staticmethod
-    def genArrayIncrProg(map_fd, idx):
+    def genArrayIncrProg(map_fd, idx, tid_flt_fd=-1):
         """
         Generic kprobe program: increment ARRAY map[idx] by 1.
         Used for page cache event counting (bpfcachetop).
 
         Stack layout:
-          fp-8: key (u32=idx, 4B)
+          fp-8:  key (u32=idx, 4B)
+          fp-16: tid filter key (u32) [4B, only when tid_flt_fd >= 0]
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
@@ -128107,6 +128879,18 @@ class BpfMgr(object):
         FID = ConfigMgr.BPF_FUNC_ID
 
         insns = b""
+
+        # TID filter if active #
+        if tid_flt_fd >= 0:
+            insns += bi(0x85, 0, 0, 0, FID["get_current_pid_tgid"])
+            insns += bi(0x63, R10, R0, -16, 0)  # store low32 (tid) at fp-16
+            insns += LM(R1, tid_flt_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -16)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            flt_null_pos = len(insns) // 8
+            insns += bi(0x15, R0, 0, 0, 0)  # if NULL → exit (patch later)
+
         # *(u32*)(fp-8) = idx  (key)
         insns += bi(0x62, R10, 0, -8, idx)
         # R1 = map_fd
@@ -128136,6 +128920,13 @@ class BpfMgr(object):
             + bi(0x15, R0, 0, jmp_off, 0)
             + insns[(null_pos + 1) * 8 :]
         )
+        if tid_flt_fd >= 0:
+            jmp_flt = exit_pos - (flt_null_pos + 1)
+            insns = (
+                insns[: flt_null_pos * 8]
+                + bi(0x15, R0, 0, jmp_flt, 0)
+                + insns[(flt_null_pos + 1) * 8 :]
+            )
         return insns
 
     @staticmethod
@@ -128922,7 +129713,9 @@ class BpfMgr(object):
         return insns
 
     @staticmethod
-    def genMigrateCountProg(mig_map_fd, max_cpu=64, mig_comm_map_fd=-1):
+    def genMigrateCountProg(
+        mig_map_fd, max_cpu=64, mig_comm_map_fd=-1, tid_flt_fd=-1
+    ):
         """
         Tracepoint sched/sched_migrate_task: count migrations per CPU pair.
 
@@ -128936,6 +129729,14 @@ class BpfMgr(object):
         mig_map: ARRAY key=u32(orig*max_cpu+dest), val=u64(count)
         mig_comm_map (optional): HASH key=24B [orig(4)+dest(4)+comm(16)], val=u64(count)
         Stack: fp-8 = key (u32); fp-48..fp-17 = comm key (24B); fp-48 = val=1
+
+        If tid_flt_fd >= 0, skip migration events for the migrated pid
+        (ctx+24) not present in the TID allowlist map -- same pattern
+        and same allowlist (BpfMgr._initRqFilters()) as
+        genRunqlatWakeupProg/genRunqlatSwitchProg use for this command's
+        main runqueue-latency histogram, so `-g`/PROCCOMMFILTER applies
+        uniformly to every sub-feature of bpfrunqtop instead of only the
+        latency table.
         """
         bi = BpfMgr.buildInsn
         LM = BpfMgr.buildLoadMapFd
@@ -128946,6 +129747,19 @@ class BpfMgr(object):
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
+
+        # TID filter: exit early if migrated pid not in allowlist #
+        if tid_flt_fd >= 0:
+            insns += bi(BPF_LDX_MEM_W, R7, R6, 24, 0)  # R7 = migrated pid
+            insns += bi(0x63, R10, R7, -8, 0)  # *(u32*)(fp-8) = pid (key)
+            insns += LM(R1, tid_flt_fd)
+            insns += bi(0xBF, R2, R10, 0, 0)
+            insns += bi(0x07, R2, 0, 0, -8)
+            insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
+            insns += bi(0x55, R0, 0, 2, 0)  # JNE: found → skip exit
+            insns += bi(0xB7, R0, 0, 0, 0)
+            insns += bi(0x95, 0, 0, 0, 0)  # exit (filtered out)
+
         insns += bi(BPF_LDX_MEM_W, R7, R6, 32, 0)  # R7 = orig_cpu
         insns += bi(BPF_LDX_MEM_W, R8, R6, 36, 0)  # R8 = dest_cpu
 
@@ -132779,6 +133593,672 @@ class BpfMgr(object):
             if not SysMgr.addPrint("%s\n" % oneLine):
                 break
 
+    @staticmethod
+    def _aggregateResourceTick(
+        oncpu_fd,
+        rq_perpid_fd,
+        io_agg_fd,
+        blk_agg_fd,
+        interval_ns,
+        per_thread=False,
+        tgid_resolver=None,
+        comm_resolver=None,
+        comm_map_fd=-1,
+        use_cmdline=False,
+        sleep_perpid_fd=-1,
+    ):
+        """Drain bpfrestop's self-resetting result maps for one tick and
+        build display rows, one per tgid (default) or per tid (-e t).
+
+        sleep_perpid_fd (optional): fd of the re_sleep_perpid HASH
+        (key=u32 tid, val=16B{total_ns, cnt}), fed by
+        genRunqlatSwitchProg's PREV-side sleep-start write +
+        genRunqlatWakeupProg's matching wakeup-side close-out. Drained
+        the same self-resetting way as oncpu_fd/rq_perpid_fd into each
+        row's sleep_ns/sleep_cnt, bpfrestop's SLEEP_MS column -- kept
+        as its own quantity rather than folded into OTHER_WAIT, since
+        it answers a genuinely different question than RQ_TOTAL ("how
+        long was this task actually asleep" vs "how long did it wait
+        after becoming runnable"). OTHER_WAIT's own formula subtracts
+        sleep_ns too, so a tick's off-CPU time is now split three ways
+        (RQ wait, IOWAIT, SLEEP) with OTHER_WAIT as the true leftover
+        residual, rather than SLEEP time silently inflating it.
+
+        Factored out of doBpfrestopCmd()'s loop body so it is independently
+        unit-testable: tests monkeypatch BpfMgr.iterMap to inject synthetic
+        (key, val) pairs per map fd and call this directly, with no BPF/root
+        access needed. tgid_resolver(tid)/comm_resolver(pid) default to the
+        real /proc-backed helpers but accept injected lookups for tests.
+
+        use_cmdline (-e L, only applies when comm_resolver is not injected):
+        resolve PCOMM/TCOMM via BpfMgr._readProcName's cmdline-basename
+        lookup instead of raw comm, matching top's own "-e L / L:cmdline"
+        legend exactly. Falls back to comm internally on any cmdline read
+        failure (_readProcName's own behavior), so this never trades a
+        working name for "?".
+
+        comm_map_fd (optional): fd of the re_comm HASH (key=u32 tid,
+        val=16B comm, captured in-kernel by genOnCpuSwitchProg straight
+        from sched_switch's own next_comm ctx field). When given, drained
+        the same self-resetting way as the other maps and used as a
+        FALLBACK -- only consulted when comm_resolver(pid) itself returns
+        "?" -- for exactly the class of thread that most needs it: one
+        that was scheduled (hence captured here) at some point during this
+        tick, but has already exited by the time this function reads
+        /proc for display (found via user report of frequent "?" comms on
+        a busy local machine; a same-tick BPF capture is the only
+        source that can still know its name once /proc/<tid>/comm is
+        gone). /proc's own comm remains authoritative when it succeeds --
+        this fallback exists purely to fill the gap /proc structurally
+        cannot cover, not to replace it.
+
+        Returns a list of row dicts sorted by CPU% descending. Each row has:
+          tgid, pcomm, cpu_ns, cpu_pct, rq_ns, rq_cnt, rq_avg, rd_bytes,
+          wr_bytes, iowait_ns, iowait_cnt, iowait_avg, other_wait
+        and, when per_thread is True, additionally: tid, tcomm.
+        """
+        _tgid_resolver = tgid_resolver or BpfMgr._readTgidOfTid
+        if comm_resolver:
+            _real_comm_resolver = comm_resolver
+        elif use_cmdline:
+            _real_comm_resolver = lambda pid: BpfMgr._readProcName(
+                pid, use_comm=False
+            )
+        else:
+            _real_comm_resolver = lambda pid: SysMgr.getComm(pid, default="?")
+
+        _bpf_comm = {}
+        if comm_map_fd >= 0:
+            _seen_comm = []
+            for k, v in BpfMgr.iterMap(comm_map_fd, 4, 16):
+                _seen_comm.append(k)
+                _t = struct.unpack_from("<I", k, 0)[0]
+                if _t == 0:
+                    continue
+                _c = v.split(b"\x00")[0].decode("utf-8", errors="replace")
+                if _c:
+                    _bpf_comm[_t] = _c
+            for k in _seen_comm:
+                BpfMgr.mapDelete(comm_map_fd, k)
+
+        def _comm_resolver(pid):
+            _c = _real_comm_resolver(pid)
+            if _c and _c != "?":
+                return _c
+            return _bpf_comm.get(pid, "?")
+
+        per_tid = {}
+
+        def _row(tid):
+            return per_tid.setdefault(
+                tid,
+                {
+                    "cpu_ns": 0,
+                    "cpu_cnt": 0,
+                    "rq_ns": 0,
+                    "rq_cnt": 0,
+                    "rd_bytes": 0,
+                    "wr_bytes": 0,
+                    "iowait_ns": 0,
+                    "iowait_cnt": 0,
+                    "sleep_ns": 0,
+                    "sleep_cnt": 0,
+                },
+            )
+
+        # re_oncpu / re_rq_perpid / re_sleep_perpid: key=u32(tid),
+        # val=16B{total_ns, cnt} #
+        for _fd, _field_ns, _field_cnt in (
+            (oncpu_fd, "cpu_ns", "cpu_cnt"),
+            (rq_perpid_fd, "rq_ns", "rq_cnt"),
+            (sleep_perpid_fd, "sleep_ns", "sleep_cnt"),
+        ):
+            if _fd < 0:
+                continue
+            _seen = []
+            for k, v in BpfMgr.iterMap(_fd, 4, 16):
+                tid = struct.unpack_from("<I", k, 0)[0]
+                _seen.append(k)
+                # every per-CPU idle task ("swapper/N") reports tid=0, so
+                # this one slot aggregates N concurrent, unrelated
+                # timelines and its delta math is meaningless (can go
+                # negative) -- exclude it, same as this codebase already
+                # special-cases swapper by core elsewhere #
+                if tid == 0:
+                    continue
+                total_ns, cnt = struct.unpack_from("<QQ", v, 0)
+                r = _row(tid)
+                r[_field_ns] += total_ns
+                r[_field_cnt] += cnt
+            for k in _seen:
+                BpfMgr.mapDelete(_fd, k)
+
+        # re_io_agg: key=16B{pid_tgid(8), fd(4), pad(4)}, val=48B #
+        if io_agg_fd >= 0:
+            _seen = []
+            for k, v in BpfMgr.iterMap(io_agg_fd, 16, 48):
+                pid_tgid = struct.unpack_from("<Q", k, 0)[0]
+                tid = pid_tgid & 0xFFFFFFFF
+                _seen.append(k)
+                if tid == 0:
+                    continue
+                rd_bytes, wr_bytes = struct.unpack_from("<QQ", v, 0)
+                r = _row(tid)
+                r["rd_bytes"] += rd_bytes
+                r["wr_bytes"] += wr_bytes
+            for k in _seen:
+                BpfMgr.mapDelete(io_agg_fd, k)
+
+        # re_blk_agg: key=16B{pid_tgid(8), kstack_id=0(4), ustack_id=0(4)},
+        # val=16B{total_ns, cnt} #
+        if blk_agg_fd >= 0:
+            _seen = []
+            for k, v in BpfMgr.iterMap(blk_agg_fd, 16, 16):
+                pid_tgid = struct.unpack_from("<Q", k, 0)[0]
+                tid = pid_tgid & 0xFFFFFFFF
+                _seen.append(k)
+                if tid == 0:
+                    continue
+                total_ns, cnt = struct.unpack_from("<QQ", v, 0)
+                r = _row(tid)
+                r["iowait_ns"] += total_ns
+                r["iowait_cnt"] += cnt
+            for k in _seen:
+                BpfMgr.mapDelete(blk_agg_fd, k)
+
+        # resolve tgid + derived per-tid arithmetic before any rollup, so
+        # OTHER_WAIT is always computed against one tid's own single-core
+        # on/off-CPU timeline (a tgid-level sum can have cpu_ns > interval_ns
+        # from parallel threads, which would make the residual meaningless) #
+        tid_tgid = {}
+        for tid, r in per_tid.items():
+            tg = _tgid_resolver(tid)
+            tid_tgid[tid] = tg if tg else tid
+            r["cpu_pct"] = (
+                (r["cpu_ns"] / float(interval_ns) * 100.0)
+                if interval_ns > 0
+                else 0.0
+            )
+            r["rq_avg"] = (r["rq_ns"] // r["rq_cnt"]) if r["rq_cnt"] else 0
+            r["iowait_avg"] = (
+                (r["iowait_ns"] // r["iowait_cnt"]) if r["iowait_cnt"] else 0
+            )
+            # floor at 0: a tick boundary can straddle one in-flight
+            # ts_map entry (armed just before this tick started by the
+            # preemption re-arm or a wakeup, consumed just after this
+            # tick began) whose FULL delta -- including the slice that
+            # actually belongs to the previous tick -- lands entirely in
+            # rq_ns here, occasionally over-attributing this tick by up
+            # to about one sample's worth (observed on a real device:
+            # ~150ms overshoot in a 1s tick under heavy contention,
+            # self-corrects on every subsequent tick). A negative
+            # residual only ever means measurement/attribution noise,
+            # never a real negative wait, so it's clamped rather than
+            # displayed as-is #
+            r["other_wait"] = max(
+                0,
+                (interval_ns - r["cpu_ns"])
+                - r["rq_ns"]
+                - r["iowait_ns"]
+                - r["sleep_ns"],
+            )
+
+        # PROCCOMMFILTER/-g, matched at tgid granularity even in per-thread
+        # view (a filter on the process name should keep/drop ALL of that
+        # process's threads together, not just the one whose own thread
+        # name happens to match). TIDFILTER/PIDFILTER get the same tgid-
+        # granularity row gate here -- they already narrow CPU/RQ/BLK at
+        # the BPF level via _initRqFilters()'s own tid_flt_fd map, but
+        # IO/VFS rows have no kernel-side filter at all, so without this
+        # check a TIDFILTER/PIDFILTER-only run still showed a full-system
+        # row list (0 CPU/RQ but real IO bytes/OTHER_WAIT) for every
+        # unrelated process that did any I/O that tick #
+        _pats = BpfMgr._collectPats("PROCCOMMFILTER")
+        _tidpid_tgids = BpfMgr._collectTidPidFilterTgids()
+        _has_filter = (
+            bool(SysMgr.filterGroup)
+            or bool(_pats)
+            or _tidpid_tgids is not None
+        )
+        _tgid_pass_cache = {}
+
+        def _tgid_passes(tgid):
+            if not _has_filter:
+                return True
+            if tgid not in _tgid_pass_cache:
+                ok = _tidpid_tgids is None or tgid in _tidpid_tgids
+                if ok:
+                    pcomm = _comm_resolver(tgid)
+                    if SysMgr.filterGroup and not BpfMgr._matchesFilter(
+                        tgid, tgid, pcomm
+                    ):
+                        ok = False
+                    if ok and _pats and not BpfMgr._patOk(pcomm, _pats):
+                        ok = False
+                _tgid_pass_cache[tgid] = ok
+            return _tgid_pass_cache[tgid]
+
+        rows = []
+        if per_thread:
+            for tid, r in per_tid.items():
+                tgid = tid_tgid[tid]
+                if not _tgid_passes(tgid):
+                    continue
+                rows.append(
+                    {
+                        "tid": tid,
+                        "tgid": tgid,
+                        "tcomm": _comm_resolver(tid),
+                        "pcomm": _comm_resolver(tgid),
+                        "cpu_ns": r["cpu_ns"],
+                        "cpu_pct": r["cpu_pct"],
+                        "rq_ns": r["rq_ns"],
+                        "rq_cnt": r["rq_cnt"],
+                        "rq_avg": r["rq_avg"],
+                        "rd_bytes": r["rd_bytes"],
+                        "wr_bytes": r["wr_bytes"],
+                        "iowait_ns": r["iowait_ns"],
+                        "iowait_cnt": r["iowait_cnt"],
+                        "iowait_avg": r["iowait_avg"],
+                        "sleep_ns": r["sleep_ns"],
+                        "other_wait": r["other_wait"],
+                    }
+                )
+        else:
+            agg = {}
+            for tid, r in per_tid.items():
+                tgid = tid_tgid[tid]
+                if not _tgid_passes(tgid):
+                    continue
+                a = agg.setdefault(
+                    tgid,
+                    {
+                        "cpu_ns": 0,
+                        "cpu_pct": 0.0,
+                        "rq_ns": 0,
+                        "rq_cnt": 0,
+                        "rd_bytes": 0,
+                        "wr_bytes": 0,
+                        "iowait_ns": 0,
+                        "iowait_cnt": 0,
+                        "sleep_ns": 0,
+                        "other_wait": 0,
+                    },
+                )
+                a["cpu_ns"] += r["cpu_ns"]
+                a["cpu_pct"] += r["cpu_pct"]
+                a["rq_ns"] += r["rq_ns"]
+                a["rq_cnt"] += r["rq_cnt"]
+                a["rd_bytes"] += r["rd_bytes"]
+                a["wr_bytes"] += r["wr_bytes"]
+                a["iowait_ns"] += r["iowait_ns"]
+                a["iowait_cnt"] += r["iowait_cnt"]
+                a["sleep_ns"] += r["sleep_ns"]
+                a["other_wait"] += r["other_wait"]
+            for tgid, a in agg.items():
+                rows.append(
+                    {
+                        "tgid": tgid,
+                        "pcomm": _comm_resolver(tgid),
+                        "cpu_ns": a["cpu_ns"],
+                        "cpu_pct": a["cpu_pct"],
+                        "rq_ns": a["rq_ns"],
+                        "rq_cnt": a["rq_cnt"],
+                        "rq_avg": (
+                            (a["rq_ns"] // a["rq_cnt"]) if a["rq_cnt"] else 0
+                        ),
+                        "rd_bytes": a["rd_bytes"],
+                        "wr_bytes": a["wr_bytes"],
+                        "iowait_ns": a["iowait_ns"],
+                        "iowait_cnt": a["iowait_cnt"],
+                        "iowait_avg": (
+                            (a["iowait_ns"] // a["iowait_cnt"])
+                            if a["iowait_cnt"]
+                            else 0
+                        ),
+                        "sleep_ns": a["sleep_ns"],
+                        "other_wait": a["other_wait"],
+                    }
+                )
+
+        # hide idle rows (CPU% that would display as "0.0%") by default --
+        # matches the one-decimal rounding _printResourceTop itself uses,
+        # so a row hidden here is exactly one that would otherwise show
+        # up as a meaningless "0.0%" line. -a (SysMgr.showAll) overrides #
+        if not SysMgr.showAll:
+            rows = [r for r in rows if round(r["cpu_pct"], 1) != 0.0]
+
+        rows.sort(key=lambda x: -x["cpu_pct"])
+        return rows
+
+    @staticmethod
+    def _printSchedulingSummary(
+        rows, preempt_pct, switches, runnable, blocked, cores
+    ):
+        """Print bpfrestop's one-line system-wide scheduling summary:
+        Preempt% (system-wide involuntary-preemption ratio this tick,
+        from the same nr_run_map delta bpfrunqtop's AMDAHL feature
+        uses), Switches (raw context-switch count this tick, giving
+        Preempt% a denominator instead of a bare ratio -- "35% of 40"
+        and "35% of 4,000" read very differently), Runnable/Blocked
+        (/proc/stat's procs_running/procs_blocked, already parsed by
+        printSystemUsage() into obj.cpuData but never previously shown
+        in bpfrestop's own plain-text display), Cores (online CPU
+        count, context for judging whether Runnable indicates real
+        oversubscription), Total RQ(ms)/Total SLEEP(ms)/Total
+        IOWAIT(ms)/Total OTHER(ms) (this tick's RQ_TOTAL/SLEEP_MS/
+        IOWAIT_TOTAL_MS/OTHER_WAIT_MS values already computed for the
+        resource table below, summed across every currently-displayed
+        task -- together these four cover every off-CPU bucket the
+        table tracks), and Total IO(KB) (RD_KB+WR_KB summed the same
+        way -- a throughput number distinct from IOWAIT's time-spent-
+        waiting number, since a tick can move a lot of data with
+        little wait, or wait a long time while moving almost nothing)
+        -- replaces the old binary "[Hint] scheduling latency looks
+        contention-bound this interval" message (fixed 3.5% threshold,
+        calibrated on one real device, found via user report to fire
+        even under light load elsewhere) with the raw numbers instead,
+        left for the user to judge. An earlier version of this section
+        also showed a "Worst RQ (Proc)" column (the single task with
+        the highest RQ_TOTAL this tick); dropped per user feedback as
+        unnecessary once the table right below already shows every
+        task's own RQ_TOTAL directly. `rows` is the SAME list
+        _printResourceTop goes on to print (already showAll-filtered),
+        so "Tracked" always matches what the user sees in the table
+        immediately below. Skipped entirely in JSON mode -- this is a
+        plain-text-only rendering; JSON output already carries
+        rqTotalNs/sleepNs/iowaitTotalNs/otherWaitNs/rdBytes/wrBytes
+        per row.
+        """
+        if SysMgr.jsonEnable:
+            return
+
+        conv = UtilMgr.convNum
+
+        total_rq_ms = conv(round(sum(r["rq_ns"] for r in rows) / 1e6))
+        total_sleep_ms = conv(round(sum(r["sleep_ns"] for r in rows) / 1e6))
+        total_iowait_ms = conv(round(sum(r["iowait_ns"] for r in rows) / 1e6))
+        total_other_ms = conv(round(sum(r["other_wait"] for r in rows) / 1e6))
+        total_io_kb = conv(
+            round(sum(r["rd_bytes"] + r["wr_bytes"] for r in rows) / 1024.0)
+        )
+
+        twoLine = "=" * SysMgr.lineLength
+        oneLine = "-" * SysMgr.lineLength
+
+        # Stretch the field widths so the row's own trailing "|" lands on
+        # the same column as oneLine/twoLine's right edge, instead of
+        # stopping ~5 chars short of it (found via user report) --
+        # SysMgr.lineLength varies with terminal width, so the widths
+        # are computed here rather than hardcoded: start from each
+        # field's minimum width (just long enough for its own label),
+        # then distribute whatever width is left over evenly across all
+        # fields (remainder going to the first few) so growth is spread
+        # out instead of dumped into a single column #
+        _labels = (
+            "Preempt",
+            "Switches",
+            "Runnable",
+            "Blocked",
+            "Cores",
+            "Total RQ(ms)",
+            "Total SLEEP(ms)",
+            "Total IOWAIT(ms)",
+            "Total OTHER(ms)",
+            "Total IO(KB)",
+            "Tracked",
+        )
+        _n = len(_labels)
+        _widths = [len(_lb) for _lb in _labels]
+        _frame = 2 + (_n - 1) * 3 + 2  # leading "  " + " | " + trailing " |"
+        _extra = SysMgr.lineLength - _frame - sum(_widths)
+        if _extra > 0:
+            _share, _rem = divmod(_extra, _n)
+            _widths = [
+                w + _share + (1 if i < _rem else 0)
+                for i, w in enumerate(_widths)
+            ]
+        _fmt = "  " + " | ".join("%%%ds" % w for w in _widths) + " |\n"
+
+        hdr = _fmt % _labels
+        row = _fmt % (
+            "%.1f%%" % preempt_pct,
+            conv(switches),
+            runnable,
+            blocked,
+            cores,
+            total_rq_ms,
+            total_sleep_ms,
+            total_iowait_ms,
+            total_other_ms,
+            total_io_kb,
+            len(rows),
+        )
+
+        SysMgr.addPrint(oneLine + "\n")
+        SysMgr.addPrint(hdr)
+        SysMgr.addPrint(twoLine + "\n")
+        SysMgr.addPrint(row)
+
+    @staticmethod
+    def _printResourceTop(rows, interval_ns, per_thread=False):
+        """Print bpfrestop's per-process(default)/per-thread(-e t) resource
+        table, column order: CPU% (on-CPU BPF), RQ_AVG/RQ_TOTAL
+        (runqueue/preemption wait), SLEEP_MS (genuine voluntary/
+        involuntary block duration, separate from RQ_TOTAL's wakeup-
+        handoff-only delay -- placed right after RQ_TOTAL per user
+        request, since both answer "how long was this task not
+        running" from the two different reasons a task goes off-CPU),
+        RD_KB/WR_KB (VFS read/write bytes), IOWAIT_AVG/TOTAL/CNT (block
+        I/O wait), OTHER_WAIT (residual: off-CPU time not accounted
+        for by any of the above -- lock/network/etc). Called after the
+        system-wide header from TaskAnalyzer.printSystemStat -- see
+        doBpfrestopCmd; this function only ever draws its own table.
+        """
+        conv = UtilMgr.convNum
+
+        def _ms(ns):
+            return conv(round(ns / 1e6))
+
+        def _ms_avg(ns):
+            # RQ_AVG/IOWAIT_AVG are naturally sub-few-ms even under real
+            # contention (many short waits averaged together), unlike
+            # RQ_TOTAL/IOWAIT_TOTAL/OTHER_WAIT's tens-to-hundreds-of-ms
+            # scale -- rounding an average that small to a whole ms
+            # collapses genuinely different per-process values down to
+            # the same "1ms"/"2ms" display (found via user review of
+            # real contention-test output), so these two columns alone
+            # keep 2-decimal precision while every other column here
+            # stays integer. Formatted by hand (not UtilMgr.convNum's
+            # isFloat=True path) because that path collapses 0 to the
+            # bare string "0" and drops trailing zeros for anything else
+            # (1.0ms prints as "1.0", 1.5ms as "1.5") -- fine for most
+            # of this codebase's other float displays, but this column
+            # needs a genuinely fixed 2-decimal width every time (found
+            # via user report) #
+            val = ns / 1e6
+            whole, frac = ("%.2f" % val).split(".")
+            neg = whole.startswith("-")
+            if neg:
+                whole = whole[1:]
+            return ("-" if neg else "") + format(int(whole), ",") + "." + frac
+
+        def _kb(nbytes):
+            return conv(round(nbytes / 1024.0))
+
+        if SysMgr.jsonEnable:
+            _jrows = []
+            for r in rows:
+                _jr = {
+                    "tgid": r["tgid"],
+                    "pcomm": r["pcomm"],
+                    "cpuPct": round(r["cpu_pct"], 2),
+                    "rqAvgNs": r["rq_avg"],
+                    "rqTotalNs": r["rq_ns"],
+                    "rdBytes": r["rd_bytes"],
+                    "wrBytes": r["wr_bytes"],
+                    "iowaitAvgNs": r["iowait_avg"],
+                    "iowaitTotalNs": r["iowait_ns"],
+                    "iowaitCnt": r["iowait_cnt"],
+                    "sleepNs": r["sleep_ns"],
+                    "otherWaitNs": r["other_wait"],
+                }
+                if per_thread:
+                    _jr["tid"] = r["tid"]
+                    _jr["tcomm"] = r["tcomm"]
+                _jrows.append(_jr)
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(
+                    {
+                        "time": SysMgr.uptime,
+                        "intervalNs": interval_ns,
+                        "resourceTop": _jrows,
+                    },
+                    gpretty=True,
+                ),
+                flush=True,
+            )
+            return
+
+        twoLine = "=" * SysMgr.lineLength
+        oneLine = "-" * SysMgr.lineLength
+
+        # Column order: SLEEP_MS moved right after RQ_TOTAL_MS (was
+        # between IOWAIT_CNT and OTHER_WAIT_MS) per user request, so the
+        # two "how long did this task wait to run" numbers (RQ_AVG/
+        # RQ_TOTAL) sit next to the "how long was it genuinely asleep"
+        # number before the unrelated I/O columns start. Widths are
+        # computed here (not hardcoded) so the LAST column's own
+        # trailing edge lands on the same column as oneLine/twoLine's
+        # right edge, instead of stopping short of it (found via user
+        # report, same technique as _printSchedulingSummary above):
+        # every numeric column keeps its current width as a minimum,
+        # then whatever room is left over under SysMgr.lineLength is
+        # spread evenly across them (remainder to the first few). Name
+        # column(s) and the CPU% slot are left at their existing fixed
+        # widths -- CPU%'s value is pre-padded+colored by
+        # convCpuColor(size=7) below, so its width must stay in sync
+        # with that call, not stretch independently. In a narrow
+        # terminal (SysMgr.lineLength smaller than the minimum layout
+        # needs -- e.g. per_thread's two name columns alone already
+        # exceed some widths) the widths simply stay at their minimums
+        # rather than shrinking, same graceful-degradation behavior as
+        # the scheduling summary section #
+        _numeric_labels = (
+            "RQ_AVG_MS",
+            "RQ_TOTAL_MS",
+            "SLEEP_MS",
+            "RD_KB",
+            "WR_KB",
+            "IOWAIT_AVG_MS",
+            "IOWAIT_TOTAL_MS",
+            "IOWAIT_CNT",
+            "OTHER_WAIT_MS",
+        )
+        _numeric_min_widths = [9, 11, 8, 8, 8, 13, 15, 10, 13]
+        _cpu_width = 7
+        if per_thread:
+            _name_widths = (20, 20)
+            _name_labels = ("TCOMM(TID)", "PCOMM(PID)")
+        else:
+            _name_widths = (26,)
+            _name_labels = ("PCOMM(PID)",)
+
+        _n_fields = len(_name_widths) + 1 + len(_numeric_labels)
+        _fixed = sum(_name_widths) + _cpu_width + (_n_fields - 1) * 2
+        _extra = SysMgr.lineLength - _fixed - sum(_numeric_min_widths)
+        _nw = list(_numeric_min_widths)
+        if _extra > 0:
+            _share, _rem = divmod(_extra, len(_nw))
+            _nw = [
+                w + _share + (1 if i < _rem else 0) for i, w in enumerate(_nw)
+            ]
+        (
+            _rq_avg_w,
+            _rq_total_w,
+            _sleep_w,
+            _rd_w,
+            _wr_w,
+            _iowait_avg_w,
+            _iowait_total_w,
+            _iowait_cnt_w,
+            _other_w,
+        ) = _nw
+
+        _hdr_specs = [
+            ("-%d" % w, lbl) for w, lbl in zip(_name_widths, _name_labels)
+        ]
+        _hdr_specs.append(("%d" % _cpu_width, "CPU%"))
+        _hdr_specs += [("%d" % w, lbl) for w, lbl in zip(_nw, _numeric_labels)]
+        _hdr_fmt = "  ".join("%%%ss" % spec for spec, _ in _hdr_specs) + "\n"
+        hdr = _hdr_fmt % tuple(lbl for _, lbl in _hdr_specs)
+
+        # row format mirrors _hdr_fmt exactly except the CPU% slot,
+        # which stays a bare "%s" -- cpu_str is convCpuColor's output
+        # (already padded to _cpu_width and wrapped in ANSI color
+        # codes), so sizing it again here would count the invisible
+        # color-code bytes as visible width and misalign the columns #
+        _row_specs = [("-%d" % w, None) for w in _name_widths]
+        _row_specs.append(("", None))
+        _row_specs += [("%d" % w, None) for w in _nw]
+        _row_fmt = "  ".join("%%%ss" % spec for spec, _ in _row_specs) + "\n"
+
+        SysMgr.addPrint(oneLine + "\n")
+        SysMgr.addPrint(hdr)
+        SysMgr.addPrint(twoLine + "\n")
+
+        if not rows:
+            SysMgr.addPrint(UtilMgr.NONE_STR + "\n")
+            SysMgr.addPrint(twoLine + "\n")
+            return
+
+        for r in rows:
+            # convCpuColor pre-pads to `size` internally, then wraps with
+            # ANSI color codes -- inserting it via a bare %s (see
+            # _row_fmt's own comment above) keeps column alignment
+            # correct when color is enabled #
+            cpu_str = UtilMgr.convCpuColor(
+                r["cpu_pct"],
+                "%s%%" % conv(r["cpu_pct"], isFloat=True, floatDigit=1),
+                size=_cpu_width,
+            )
+            if per_thread:
+                tcomm_str = ("%s(%d)" % (r["tcomm"][:16], r["tid"]))[:20]
+                pcomm_str = ("%s(%d)" % (r["pcomm"][:16], r["tgid"]))[:20]
+                row = _row_fmt % (
+                    tcomm_str,
+                    pcomm_str,
+                    cpu_str,
+                    _ms_avg(r["rq_avg"]),
+                    _ms(r["rq_ns"]),
+                    _ms(r["sleep_ns"]),
+                    _kb(r["rd_bytes"]),
+                    _kb(r["wr_bytes"]),
+                    _ms_avg(r["iowait_avg"]),
+                    _ms(r["iowait_ns"]),
+                    conv(r["iowait_cnt"]),
+                    _ms(r["other_wait"]),
+                )
+            else:
+                pcomm_str = ("%s(%d)" % (r["pcomm"][:20], r["tgid"]))[:26]
+                row = _row_fmt % (
+                    pcomm_str,
+                    cpu_str,
+                    _ms_avg(r["rq_avg"]),
+                    _ms(r["rq_ns"]),
+                    _ms(r["sleep_ns"]),
+                    _kb(r["rd_bytes"]),
+                    _kb(r["wr_bytes"]),
+                    _ms_avg(r["iowait_avg"]),
+                    _ms(r["iowait_ns"]),
+                    conv(r["iowait_cnt"]),
+                    _ms(r["other_wait"]),
+                )
+            if not SysMgr.addPrint(row):
+                break
+
+        SysMgr.addPrint(twoLine + "\n")
+
     # -----------------------------------------------------------------------
     # Command entry points
     # -----------------------------------------------------------------------
@@ -133632,6 +135112,12 @@ class BpfMgr(object):
                             if not BpfMgr._patOk(_tproc, _proccomm_pats):
                                 continue
                         counts[pid] = counts.get(pid, 0) + delta
+                    # snapshot this tick's filtered counts for the ASKAI
+                    # aggregator below -- entry[2] is about to be overwritten
+                    # with cur_raw, so re-deriving deltas from raw maps there
+                    # would diff cur_raw against itself (always ~0) and skip
+                    # the -g/PROCCOMMFILTER checks applied to `counts` above #
+                    _bpf_ai_counts[fn] = counts
                     entry[2] = cur_raw  # update prev_raw for next round
                     if not _cond_met:
                         continue
@@ -133939,29 +135425,23 @@ class BpfMgr(object):
                     else:
                         SysMgr.printPipe(_json_str)
 
-                # ASKAI / AIPERIODIC trigger — aggregate all functions #
+                # ASKAI / AIPERIODIC trigger — aggregate all functions.
+                # Uses _bpf_ai_counts (this tick's already -g/PROCCOMMFILTER-
+                # filtered per-function counts, snapshotted above) instead of
+                # re-reading the raw BPF maps: entry[2] has already been
+                # overwritten with cur_raw by this point, so recomputing a
+                # delta against it here would diff cur_raw against itself
+                # (always ~0) and would also bypass the filters #
                 if _ask_active or _ai_periodic_sec > 0:
                     _top_callers = []
-                    for _entry in entries:
-                        _fn = _entry[0]
-                        _fn_counts = {}
-                        for _pk, _cv in BpfMgr.iterMap(_entry[1], 8, 24):
-                            _ptg = struct.unpack("<Q", _pk)[0]
-                            _cnt = struct.unpack_from("<Q", _cv, 0)[0]
-                            _pid = int(_ptg) & 0xFFFFFFFF
-                            _prev = _entry[2].get(_ptg, 0)
-                            _d = _cnt - _prev
+                    for _fn, _fn_counts in _bpf_ai_counts.items():
+                        for _pid, _d in _fn_counts.items():
                             if _d > 0:
-                                _comm = (
-                                    _cv[8:24]
-                                    .split(b"\x00")[0]
-                                    .decode("utf-8", errors="replace")
-                                )
                                 _top_callers.append(
                                     {
                                         "func": _fn,
                                         "pid": int(_pid),
-                                        "comm": _comm,
+                                        "comm": comms.get(_pid, "?"),
                                         "delta": int(_d),
                                     }
                                 )
@@ -135869,6 +137349,68 @@ class BpfMgr(object):
                                     == _target_lib
                                 ):
                                     show = False
+                            # ARGnFDPATH/ARGnSTR/ARGnUSTR/ARGnDATAFILTER/FDCNTFILTER:
+                            # evaluated here (before the show gate) so Summary/RATE/flame
+                            # accumulation reflect ALL configured filters, not just the
+                            # events a MUTE'd run still prints -- same "count regardless
+                            # of MUTE" invariant PROCCOMMFILTER/ARGn/SYSCALLFILTER already
+                            # follow above. _fdno_paths/_fdcount are resolved once here
+                            # and reused by the print path below (see "already evaluated
+                            # above" comment there) to avoid a duplicate os.readlink()/
+                            # fd-count lookup per event. #
+                            _is_exit = show_entry and not is_entry
+                            _fdno_paths = {}
+                            if show and not _is_exit:
+                                for _ai, _av in enumerate(args):
+                                    if fdno_arg_mask & (1 << _ai):
+                                        try:
+                                            _fp = os.readlink(
+                                                "/proc/%d/fd/%d" % (tgid, _av)
+                                            )
+                                        except OSError:
+                                            _fp = None
+                                        _fdno_paths[_ai] = _fp
+                                        if (
+                                            _ai in fdno_filters
+                                            and not BpfMgr._patOk(
+                                                _fp, fdno_filters[_ai]
+                                            )
+                                        ):
+                                            show = False
+                                            break
+                                    elif arg_strs[
+                                        _ai
+                                    ] is not None and not BpfMgr._patOk(
+                                        arg_strs[_ai],
+                                        str_filters.get(_ai),
+                                    ):
+                                        show = False
+                                        break
+                            if show and data_filters:
+                                for _dai, _dbs in _data_dumps:
+                                    _dpat = data_filters.get(_dai - 1)
+                                    if _dpat and not BpfMgr._patOk(
+                                        _dbs.decode(
+                                            "utf-8",
+                                            errors="replace",
+                                        ),
+                                        _dpat,
+                                    ):
+                                        show = False
+                                        break
+                            # FDCOUNT/FDCNTFILTER: live open-fd count of tgid,
+                            # TTL-cached (see setup) -- independent of fdno_arg_mask #
+                            _fdcount = None
+                            if show and _need_fdcount:
+                                _sweep_fdcount_cache()
+                                _fdcount = _get_fd_count(tgid)
+                                if not UtilMgr.checkRetFilter(
+                                    _fdcount,
+                                    _fdcnt_gt,
+                                    _fdcnt_lt,
+                                    _fdcnt_eq,
+                                ):
+                                    show = False
                             if show:
                                 # count regardless of MUTE -- RATE should
                                 # reflect events that passed all filters,
@@ -135967,64 +137509,14 @@ class BpfMgr(object):
                                             else "?"
                                         )
                                         _line.append("%-20s" % _dso_disp)
-                                    # Resolve fdno paths and apply filters #
-                                    # Exit events carry ret_val in args[0..4], not original args;
-                                    # skip fdno/str/path resolution for exit events entirely.
-                                    _is_exit = show_entry and not is_entry
-                                    _fdno_paths = {}
+                                    # ARGnFDPATH/ARGnSTR/ARGnUSTR/ARGnDATAFILTER/FDCNTFILTER
+                                    # were already evaluated (and folded into `show`) before
+                                    # the accumulation block above, so an event only reaches
+                                    # here once it has passed them; _fdno_paths/_fdcount
+                                    # computed there are reused as-is below instead of
+                                    # re-resolving (avoids a duplicate os.readlink()/
+                                    # fd-count lookup per event). #
                                     _skip_event = False
-                                    if not _is_exit:
-                                        for _ai, _av in enumerate(args):
-                                            if fdno_arg_mask & (1 << _ai):
-                                                try:
-                                                    _fp = os.readlink(
-                                                        "/proc/%d/fd/%d"
-                                                        % (tgid, _av)
-                                                    )
-                                                except OSError:
-                                                    _fp = None
-                                                _fdno_paths[_ai] = _fp
-                                                if (
-                                                    _ai in fdno_filters
-                                                    and not BpfMgr._patOk(
-                                                        _fp, fdno_filters[_ai]
-                                                    )
-                                                ):
-                                                    _skip_event = True
-                                                    break
-                                            elif arg_strs[
-                                                _ai
-                                            ] is not None and not BpfMgr._patOk(
-                                                arg_strs[_ai],
-                                                str_filters.get(_ai),
-                                            ):
-                                                _skip_event = True
-                                                break
-                                    if not _skip_event and data_filters:
-                                        for _dai, _dbs in _data_dumps:
-                                            _dpat = data_filters.get(_dai - 1)
-                                            if _dpat and not BpfMgr._patOk(
-                                                _dbs.decode(
-                                                    "utf-8",
-                                                    errors="replace",
-                                                ),
-                                                _dpat,
-                                            ):
-                                                _skip_event = True
-                                                break
-                                    # FDCOUNT/FDCNTFILTER: live open-fd count of tgid,
-                                    # TTL-cached (see setup) — independent of fdno_arg_mask #
-                                    _fdcount = None
-                                    if not _skip_event and _need_fdcount:
-                                        _sweep_fdcount_cache()
-                                        _fdcount = _get_fd_count(tgid)
-                                        if not UtilMgr.checkRetFilter(
-                                            _fdcount,
-                                            _fdcnt_gt,
-                                            _fdcnt_lt,
-                                            _fdcnt_eq,
-                                        ):
-                                            _skip_event = True
                                     if not _skip_event:
                                         # WATCHLOGCMD/WATCHLOGEXIT: relay a matching event to a
                                         # watcher (e.g. the parent guider process via "GUIDER
@@ -136921,7 +138413,10 @@ class BpfMgr(object):
             # Migration tracepoint program #
             if (show_migration or show_migration_core) and mig_map_fd >= 0:
                 mig_insns = BpfMgr.genMigrateCountProg(
-                    mig_map_fd, _MIG_MAX_CPU, mig_comm_map_fd
+                    mig_map_fd,
+                    _MIG_MAX_CPU,
+                    mig_comm_map_fd,
+                    tid_flt_fd=tid_flt_fd,
                 )
                 mig_fd = BpfMgr.loadProg(
                     BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
@@ -137095,10 +138590,6 @@ class BpfMgr(object):
                         if _throttled is not None:
                             _prev_throttled = _throttled
 
-                # accumulate for summary #
-                for b, c in display_hist.items():
-                    total_hist[b] = total_hist.get(b, 0) + c
-
                 # ELAPFILTER: keep only buckets whose representative ns is in range #
                 # bucket b represents latencies in [2^b, 2^(b+1)) ns
                 if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
@@ -137109,6 +138600,12 @@ class BpfMgr(object):
                             1 << b, elap_min_ns, elap_max_ns, elap_eq_ns
                         )
                     }
+
+                # accumulate for summary (post-ELAPFILTER, so the final
+                # "Runqueue Latency Summary" only ever contains buckets
+                # that were actually shown this run) #
+                for b, c in display_hist.items():
+                    total_hist[b] = total_hist.get(b, 0) + c
 
                 if SysMgr.jsonEnable:
                     _jtot = (
@@ -137503,6 +139000,454 @@ class BpfMgr(object):
             BpfMgr.detachAll()
 
     @staticmethod
+    def doBpfrestopCmd():
+        """Unified per-process(default)/per-thread(-e t) resource+latency
+        top: CPU% (on-CPU BPF accumulation), scheduling/runqueue latency,
+        VFS read/write bytes, block I/O wait latency, genuine sleep/block
+        duration, and a derived OTHER_WAIT residual column. Title line
+        reuses TaskAnalyzer's own saveSystemStat/printSystemStat
+        (Time/Date/PSI/IRQ/Mem/Swap), same as top's own main loop -- see
+        _printResourceTop for the table."""
+        try:
+            BpfMgr.checkAvailable()
+
+            # -Q: print all rows in a stream, no ---more--- paging (same
+            # flag/meaning top itself documents). Left at its False
+            # default otherwise, matching top's own convention: as long
+            # as streamEnable stays False, SysMgr.checkCutCond() (invoked
+            # by every SysMgr.addPrint() call, including _printResourceTop's
+            # per-row prints below) automatically emits "---more---" and
+            # stops once the terminal's row budget is filled #
+            SysMgr.streamEnable = SysMgr.findOption("Q")
+
+            # match top's own -a gating for per-core CPU stats exactly:
+            # top's parseAnalOption() only runs this "-a off by default"
+            # check inside its own "if SysMgr.isTopMode():" branch, which
+            # bpfrestop never enters (it's not in SysMgr.isTopMode()'s
+            # command list -- adding it there breaks dispatch entirely,
+            # see doBpfrestopCmd's own -Q comment/history). cpuEnable
+            # defaults to True class-wide, so without this, bpfrestop's
+            # reused TaskAnalyzer.printSystemStat() header always showed
+            # every Core/N line even without -a (found via user report).
+            # top's own else-branch only clears cpuEnable, not gpuEnable
+            # (gpuEnable keeps its True default either way) -- mirrored
+            # here exactly, not "cleaned up" into disabling both #
+            if not SysMgr.showAll:
+                SysMgr.cpuEnable = False
+
+            per_thread = "t" in (SysMgr.getOption("e") or "")
+            use_cmdline = "L" in (SysMgr.getOption("e") or "")
+
+            # unified TID allowlist from TIDFILTER/PIDFILTER/PROCCOMMFILTER/
+            # -g, shared by the CPU/RQ/BLK programs below (same helper
+            # bpfrunqtop uses). VFS read/write have no tid_flt_fd param
+            # (same limitation as bpfiotop itself); those rows still get
+            # PROCCOMMFILTER/-g applied in Python by
+            # _aggregateResourceTick's tgid-level check #
+            tid_flt_fd = BpfMgr._initRqFilters()
+
+            # CPU%: on-CPU accumulation via sched_switch #
+            oncpu_ts_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 8, 65536, "re_oncpu_ts"
+            )
+            oncpu_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 16, 65536, "re_oncpu"
+            )
+
+            # per-tid comm cache, captured in-kernel straight from
+            # sched_switch's own next_comm ctx field (no extra helper call
+            # needed) -- lets short-lived threads that have already exited
+            # by the time _aggregateResourceTick() runs still resolve a
+            # real name instead of "?" (found via user report on a busy
+            # local machine where many threads live shorter than one
+            # bpfrestop tick) #
+            comm_map_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 16, 65536, "re_comm"
+            )
+
+            # RQ: runqueue latency via sched_wakeup + sched_switch -- own
+            # ts_map/hist_map/perpid_fd/nr_run_fd, independent of
+            # bpfrunqtop's own maps (a second, separate attach) #
+            rq_ts_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 8, 65536, "re_rq_ts"
+            )
+            rq_hist_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 8, 64, "re_rq_hist"
+            )
+            rq_perpid_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 16, 65536, "re_rq_perpid"
+            )
+            nr_run_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_ARRAY_IDX, 4, 16, 256, "re_rq_nrrun"
+            )
+
+            # SLEEP: genuine voluntary/involuntary block duration, kept
+            # entirely separate from RQ_TOTAL's wakeup-to-running handoff
+            # delay (see genRunqlatWakeupProg/genRunqlatSwitchProg's own
+            # docstrings for why these need to be two different numbers) #
+            sleep_ts_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 8, 65536, "re_sleep_ts"
+            )
+            sleep_perpid_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 4, 16, 65536, "re_sleep_perpid"
+            )
+
+            # IO: VFS read/write bytes -- same map shapes as bpfiotop #
+            io_ts_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 16, 65536, "re_io_ts"
+            )
+            io_agg_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 16, 48, 8192, "re_io_agg"
+            )
+
+            # BLK: block I/O wait latency #
+            blk_ts_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 8, 24, 65536, "re_blk_ts"
+            )
+            blk_agg_fd = BpfMgr.createMap(
+                ConfigMgr.BPF_MAP_HASH_IDX, 16, 16, 65536, "re_blk_agg"
+            )
+
+            if (
+                oncpu_ts_fd < 0
+                or oncpu_fd < 0
+                or comm_map_fd < 0
+                or rq_ts_fd < 0
+                or rq_hist_fd < 0
+                or rq_perpid_fd < 0
+                or nr_run_fd < 0
+                or sleep_ts_fd < 0
+                or sleep_perpid_fd < 0
+                or io_ts_fd < 0
+                or io_agg_fd < 0
+                or blk_ts_fd < 0
+                or blk_agg_fd < 0
+            ):
+                sys.exit(-1)
+
+            oncpu_insns = BpfMgr.genOnCpuSwitchProg(
+                oncpu_ts_fd, oncpu_fd, tid_flt_fd, comm_map_fd
+            )
+            oncpu_prog_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                oncpu_insns,
+                b"GPL",
+                "re_oncpu",
+            )
+            if oncpu_prog_fd < 0:
+                sys.exit(-1)
+            BpfMgr.attachTracepoint(oncpu_prog_fd, "sched", "sched_switch")
+
+            rq_wakeup_insns = BpfMgr.genRunqlatWakeupProg(
+                rq_ts_fd,
+                tid_flt_fd,
+                sleep_ts_fd=sleep_ts_fd,
+                sleep_perpid_fd=sleep_perpid_fd,
+            )
+            rq_switch_insns = BpfMgr.genRunqlatSwitchProg(
+                rq_ts_fd,
+                rq_hist_fd,
+                tid_flt_fd,
+                perpid_fd=rq_perpid_fd,
+                nr_run_fd=nr_run_fd,
+                sleep_ts_fd=sleep_ts_fd,
+            )
+            rq_wakeup_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                rq_wakeup_insns,
+                b"GPL",
+                "re_rq_wake",
+            )
+            rq_switch_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                rq_switch_insns,
+                b"GPL",
+                "re_rq_sw",
+            )
+            if rq_wakeup_fd < 0 or rq_switch_fd < 0:
+                sys.exit(-1)
+            BpfMgr.attachTracepoint(rq_wakeup_fd, "sched", "sched_wakeup")
+            BpfMgr.attachTracepoint(rq_wakeup_fd, "sched", "sched_wakeup_new")
+            BpfMgr.attachTracepoint(rq_switch_fd, "sched", "sched_switch")
+
+            tp_base = SysMgr.getTraceEventPath()
+            if not tp_base:
+                SysMgr.printErr("bpfrestop: tracepoints not available")
+                sys.exit(-1)
+            _use_raw = not os.path.isdir("%s/syscalls" % tp_base)
+            _nr_read = SysMgr.getNrSyscall("read") if _use_raw else -1
+            _nr_write = SysMgr.getNrSyscall("write") if _use_raw else -1
+
+            io_re_insns = BpfMgr.genVfsReadEntryProg(io_ts_fd, _nr_read)
+            io_rx_insns = BpfMgr.genVfsReadExitProg(
+                io_ts_fd, io_agg_fd, _nr_read
+            )
+            io_we_insns = BpfMgr.genVfsWriteEntryProg(io_ts_fd, _nr_write)
+            io_wx_insns = BpfMgr.genVfsWriteExitProg(
+                io_ts_fd, io_agg_fd, _nr_write
+            )
+            io_re_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, io_re_insns, b"GPL", "re_rde"
+            )
+            io_rx_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, io_rx_insns, b"GPL", "re_rdx"
+            )
+            io_we_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, io_we_insns, b"GPL", "re_wre"
+            )
+            io_wx_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT, io_wx_insns, b"GPL", "re_wrx"
+            )
+            if _use_raw:
+                _io_tp_cat, _io_enter, _io_exit = (
+                    "raw_syscalls",
+                    "sys_enter",
+                    "sys_exit",
+                )
+            else:
+                _io_tp_cat, _io_enter, _io_exit = (
+                    "syscalls",
+                    "sys_enter_read",
+                    "sys_exit_read",
+                )
+            if io_re_fd >= 0:
+                BpfMgr.attachTracepoint(io_re_fd, _io_tp_cat, _io_enter)
+            if io_rx_fd >= 0:
+                BpfMgr.attachTracepoint(io_rx_fd, _io_tp_cat, _io_exit)
+            if _use_raw:
+                _io_we_enter, _io_wx_exit = "sys_enter", "sys_exit"
+            else:
+                _io_we_enter, _io_wx_exit = (
+                    "sys_enter_write",
+                    "sys_exit_write",
+                )
+            if io_we_fd >= 0:
+                BpfMgr.attachTracepoint(io_we_fd, _io_tp_cat, _io_we_enter)
+            if io_wx_fd >= 0:
+                BpfMgr.attachTracepoint(io_wx_fd, _io_tp_cat, _io_wx_exit)
+
+            blk_issue_insns = BpfMgr.genBlockIssueSimpleProg(
+                blk_ts_fd, tid_flt_fd
+            )
+            blk_compl_insns = BpfMgr.genBlockCompleteProg(
+                blk_ts_fd, blk_agg_fd
+            )
+            blk_issue_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                blk_issue_insns,
+                b"GPL",
+                "re_blkis",
+            )
+            blk_compl_fd = BpfMgr.loadProg(
+                BpfMgr.BPF_PROG_TYPE_TRACEPOINT,
+                blk_compl_insns,
+                b"GPL",
+                "re_blkco",
+            )
+            if blk_issue_fd < 0 or blk_compl_fd < 0:
+                sys.exit(-1)
+            BpfMgr.attachTracepoint(blk_issue_fd, "block", "block_rq_issue")
+            BpfMgr.attachTracepoint(blk_compl_fd, "block", "block_rq_complete")
+
+            interval, total_time = BpfMgr._computeIntervalParams(
+                default_interval=1
+            )
+            elapsed = 0.0
+
+            SysMgr.printInfo(
+                "bpfrestop: measuring per-%s CPU/scheduling/IO resource "
+                "usage (interval=%ds)"
+                % ("thread" if per_thread else "process", interval)
+            )
+
+            # doPs()'s own instantiation order precedent (guider.py:108726-
+            # 108735): SysMgr(onlyInstance=True) sets SysMgr.sysInstance,
+            # which printSystemUsage()'s -J/report-mode branch dereferences
+            # directly (SysMgr.sysInstance.uname) -- without this call it
+            # stays at the class-level None default and bpfrestop -J
+            # crashes with "'NoneType' object has no attribute 'uname'"
+            # the first time printSystemStat() reaches that branch (found
+            # via user-directed full-option device verification) #
+            SysMgr(onlyInstance=True)
+            obj = TaskAnalyzer(onlyInstance=True)
+            nr_run_prev = {}
+
+            # prime cpuData/prevCpuData once before the loop starts, so
+            # the very first real tick already has a valid baseline to
+            # diff against -- top's own main loop instead skips printing
+            # the header entirely on tick 1 (its "if self.prevCpuData:"
+            # guard), but that would desync bpfrestop's header from its
+            # resource table (the table has no such gap-tick concept and
+            # would print every tick regardless), producing a visibly
+            # inconsistent first tick: rows with no header above them.
+            # Priming here keeps header+table appearing together on
+            # every tick including the first one (found via real-device
+            # inspection after the "skip tick 1's header" fix above left
+            # tick 1 looking broken in a different way) #
+            obj.saveSystemStat(saveProc=False)
+            obj.reinitStats()
+
+            _t_last = time.monotonic()
+            while True:
+                time.sleep(interval)
+                _now, _actual, _t_last = BpfMgr._advanceLoopClock(_t_last)
+                elapsed += _actual
+                interval_ns = long(_actual * 1e9)
+
+                # system-wide header only (Time/Date/PSI/IRQ/Mem/Swap) --
+                # targetList=[] skips top's own task/cgroup table, since
+                # bpfrestop draws its own via _printResourceTop below.
+                # saveSystemStat() itself calls SysMgr.updateUptime() --
+                # don't call it again just before this, or uptimeDiff (the
+                # displayed [Inter: ...] field) gets computed against the
+                # near-zero gap between the two calls instead of the real
+                # tick interval, making every tick's header show a bogus
+                # "[Inter: 0.0]" even though the actual tick cadence (the
+                # BPF-side interval_ns used for CPU%/etc, and [Time: ...]'s
+                # own delta) is correct (found via real-device inspection) #
+                obj.saveSystemStat(saveProc=False)
+
+                # merge header+table into a single flush, matching top's
+                # own convention (one buffered flush per tick, header and
+                # task table together) -- printSystemStat() always ends
+                # by flushing via SysMgr.printTopStats() itself, and this
+                # codebase's printPipe() always appends one extra "\n"
+                # after the already-newline-terminated buffered content
+                # on every flush (invisible in a real terminal behind
+                # top's own clearScreen(), but a visible blank line in
+                # piped/log output -- top itself has the exact same
+                # trailing blank, just at the very end of its one flush
+                # rather than in the middle of one, since it never prints
+                # anything else afterward). Flushing our own hint+table
+                # in a SEPARATE call right after would double this into
+                # two visible blank lines per tick instead of top's one
+                # invisible one, so temporarily no-op printTopStats while
+                # printSystemStat() runs -- its content stays buffered --
+                # then add our own content below and flush the combined
+                # buffer exactly once via the real printTopStats(),
+                # restored immediately after (found via real-device
+                # inspection) #
+                _real_printTopStats = SysMgr.printTopStats
+                SysMgr.printTopStats = staticmethod(lambda: None)
+                try:
+                    obj.printSystemStat(targetList=[])
+                finally:
+                    SysMgr.printTopStats = _real_printTopStats
+
+                # system-wide scheduling summary: same nr_run_map delta
+                # bpfrunqtop's AMDAHL feature uses, but shown as the raw
+                # ratio (and paired with procs_running/procs_blocked and
+                # a same-tick RQ summary from the rows below) instead of
+                # a binary "[Hint] ..." message gated by a fixed 3.5%
+                # threshold -- that threshold was calibrated on one real
+                # device's background-chatter volume and fired even
+                # under light load elsewhere (found via user report), so
+                # the raw numbers are shown instead and left for the
+                # user to judge, matching this tick's own task rows just
+                # below it. Computed and printed BEFORE the resource
+                # table (not after): the table can run to 100+ rows on a
+                # real device, tripping SysMgr.addPrint's terminal-row-
+                # cut guard (checkCutCond) in plain-text mode -- once
+                # that guard trips, every later addPrint call that tick
+                # is silently dropped, so this summary must be emitted
+                # while the tick's print budget is still fresh (found
+                # via real-device verification) #
+                _preempt_delta_tick = 0
+                _switch_delta_tick = 0
+                for _cpu_id in BpfMgr._getOnlineCpus():
+                    _rk = struct.pack("<I", _cpu_id)
+                    _rv = BpfMgr.mapLookup(nr_run_fd, _rk, 16)
+                    if _rv:
+                        _total_cc, _preempt_cc = struct.unpack("<QQ", _rv)
+                        _prev_total_cc, _prev_preempt_cc = nr_run_prev.get(
+                            _cpu_id, (0, 0)
+                        )
+                        _switch_delta_tick += _total_cc - _prev_total_cc
+                        _preempt_delta_tick += _preempt_cc - _prev_preempt_cc
+                        nr_run_prev[_cpu_id] = (_total_cc, _preempt_cc)
+                _preempt_pct = (
+                    (_preempt_delta_tick / float(_switch_delta_tick) * 100.0)
+                    if _switch_delta_tick > 0
+                    else 0.0
+                )
+
+                rows = BpfMgr._aggregateResourceTick(
+                    oncpu_fd,
+                    rq_perpid_fd,
+                    io_agg_fd,
+                    blk_agg_fd,
+                    interval_ns,
+                    per_thread=per_thread,
+                    comm_map_fd=comm_map_fd,
+                    use_cmdline=use_cmdline,
+                    sleep_perpid_fd=sleep_perpid_fd,
+                )
+
+                # procs_running/procs_blocked: already parsed from
+                # /proc/stat by printSystemUsage() (called above via
+                # printSystemStat) into obj.cpuData -- previously only
+                # ever reached SysMgr.reportData for -J/report mode,
+                # never bpfrestop's own plain-text display, even though
+                # "how many tasks want a CPU right now" is a standard,
+                # zero-extra-cost Linux contention signal (found while
+                # researching this section's design) #
+                try:
+                    _runnable = obj.cpuData["procs_running"]["procs_running"]
+                except Exception:
+                    _runnable = 0
+                try:
+                    _blocked = obj.cpuData["procs_blocked"]["procs_blocked"]
+                except Exception:
+                    _blocked = 0
+
+                BpfMgr._printSchedulingSummary(
+                    rows,
+                    _preempt_pct,
+                    _switch_delta_tick,
+                    _runnable,
+                    _blocked,
+                    len(BpfMgr._getOnlineCpus()),
+                )
+
+                BpfMgr._printResourceTop(rows, interval_ns, per_thread)
+
+                BpfMgr._flushBuf()
+
+                # rotate cpuData -> prevCpuData (top's own main loop does
+                # this every tick too, see checkTopMode's reinitStats()
+                # call) -- without it, self.cpuData["all"] only gets
+                # populated once (saveSystemStat never overwrites an
+                # already-set entry) and prevCpuData stays permanently
+                # empty, so every later tick's printSystemUsage() hits its
+                # "failed to get system CPU stat" fallback (found via
+                # real-device verification) #
+                obj.reinitStats()
+
+                if BpfMgr._checkLoopExit(total_time, elapsed):
+                    break
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("bpfrestop failed", reason=True)
+        finally:
+            # -o support: every tick's output only ever accumulated into
+            # SysMgr.procBuffer (see _flushBuf's SysMgr.outPath branch,
+            # which calls addProcBuffer() instead of doPrint()) -- nothing
+            # actually reaches the output file until SysMgr.printProcBuffer()
+            # runs. Every other doXxxCmd() in this file calls it here, in
+            # its own finally block, for exactly this reason; bpfrestop had
+            # been missing it, so "-o <file>" silently produced an empty/
+            # nonexistent file while the run itself looked completely
+            # normal on stdout (found via user-directed full-option device
+            # verification) #
+            if SysMgr.outPath:
+                SysMgr.printProcBuffer()
+                SysMgr.clearProcBuffer()
+            BpfMgr.detachAll()
+
+    @staticmethod
     def doBpfreclaimtopCmd():
         """Memory direct reclaim latency per kernel stack using mm_vmscan tracepoints"""
         summary_call = {}
@@ -137641,7 +139586,7 @@ class BpfMgr(object):
                     comm_mode=BpfMgr._getCommMode(),
                 )
 
-                if elap_min_ns or elap_max_ns:
+                if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
                     _fct = {}
                     for _lf, _v in ct.items():
                         _avg = _v["ns"] // _v["io_cnt"] if _v["io_cnt"] else 0
@@ -138346,6 +140291,23 @@ class BpfMgr(object):
                     lockTable, total_ns, total_ev = (
                         BpfMgr._aggregateLockAddrSamples(lock_map_fd, prev_lk)
                     )
+
+                    if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
+                        _flk = {}
+                        for _uaddr, _info in lockTable.items():
+                            _avg = (
+                                _info["ns"] // _info["cnt"]
+                                if _info["cnt"]
+                                else 0
+                            )
+                            if not UtilMgr.checkElapFilter(
+                                _avg, elap_min_ns, elap_max_ns, elap_eq_ns
+                            ):
+                                continue
+                            _flk[_uaddr] = _info
+                        lockTable = _flk
+                        total_ns = sum(v["ns"] for v in lockTable.values())
+                        total_ev = sum(v["cnt"] for v in lockTable.values())
                 else:
                     ct, bt, total_ns, total_ev = (
                         BpfMgr._aggregateLatencySamples(
@@ -138365,7 +140327,7 @@ class BpfMgr(object):
                         )
                     )
 
-                    if elap_min_ns or elap_max_ns:
+                    if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
                         _fct = {}
                         for _lf, _v in ct.items():
                             _avg = (
@@ -139117,7 +141079,7 @@ class BpfMgr(object):
                     )
                 )
 
-                if elap_min_ns or elap_max_ns:
+                if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
                     _fct = {}
                     for _lf, _v in ct.items():
                         _avg = _v["ns"] // _v["io_cnt"] if _v["io_cnt"] else 0
@@ -141212,6 +143174,35 @@ class BpfMgr(object):
                 _time_time = time.time
                 _get_ts = BpfMgr.makeGetTs()
 
+                # PROCCOMMFILTER pattern for Python-level filtering; supports
+                # "!"-prefixed negation via the shared BpfMgr._patOk(), same
+                # convention as doBpftcplifeCmd's drain_tl over the same
+                # sock/inet_sock_set_state tracepoint #
+                _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
+
+                # Process comm cache: tgid → (last_ts, proc_comm string).
+                # TTL-cached (2s) to survive PID reuse across a long -R
+                # duration, mirroring doBpftcplifeCmd's _get_proc_comm #
+                _proc_comm_cache = {}  # {tgid: (last_ts, name)}
+                _PROCCOMM_TTL_S = 2.0
+                _proccomm_last_sweep_ts = [0.0]
+
+                def _get_proc_comm(tgid):
+                    _now = time.time()
+                    _cached = _proc_comm_cache.get(tgid)
+                    if _cached and _now - _cached[0] < _PROCCOMM_TTL_S:
+                        return _cached[1]
+                    if _now - _proccomm_last_sweep_ts[0] > 30.0:
+                        _proccomm_last_sweep_ts[0] = _now
+                        for _k in list(_proc_comm_cache):
+                            if _now - _proc_comm_cache[_k][0] > 60.0:
+                                _proc_comm_cache.pop(_k, None)
+                    _name = (
+                        SysMgr.getComm(tgid, commCache=False, default="") or ""
+                    )
+                    _proc_comm_cache[tgid] = (_now, _name)
+                    return _name
+
                 def _fmt_ipv4_ss(n):
                     return "%d.%d.%d.%d" % (
                         n & 0xFF,
@@ -141251,6 +143242,13 @@ class BpfMgr(object):
                                 .split(b"\x00")[0]
                                 .decode("utf-8", errors="replace")
                             )
+
+                            # Apply PROCCOMMFILTER (match against process comm) #
+                            if _proccomm_pats and not BpfMgr._patOk(
+                                _get_proc_comm(tgid) or comm_b, _proccomm_pats
+                            ):
+                                continue
+
                             old_name = TCP_STATES.get(oldst, str(oldst))
                             new_name = TCP_STATES.get(newst, str(newst))
                             src = "%s:%d" % (
@@ -144392,6 +146390,7 @@ class BpfMgr(object):
         # handling is needed the way doBpfsnoopCmd's per-event cache does) #
         _proccomm_pats = BpfMgr._collectPats("PROCCOMMFILTER")
         _proc_comm_cache = {}
+        _pid_comm_cache = {}
         callTable = {}
         btTable = {}
         total = 0
@@ -144440,16 +146439,28 @@ class BpfMgr(object):
                 _stk_tgid = (
                     tgid_extractor(k) if tgid_extractor is not None else pid
                 )
-                _stk_comm = (
-                    v[8:24]
-                    .split(b"\x00", 1)[0]
-                    .decode("utf-8", errors="replace")
-                    .strip()
-                )
-                if SysMgr.filterGroup and not BpfMgr._matchesFilter(
-                    pid, _stk_tgid, _stk_comm
-                ):
-                    continue
+                if SysMgr.filterGroup:
+                    # -g matches the sampled pid's OWN comm (thread-level,
+                    # same convention as everywhere else -g is used -- see
+                    # the PROCCOMMFILTER comment above). Resolve it via a
+                    # live /proc/<pid>/comm lookup instead of trusting the
+                    # map value's captured comm[16]: for most bpf* stack
+                    # samplers the BPF prog calls bpf_get_current_comm() in
+                    # the very same invocation that resolves pid_tgid, so
+                    # the two already agree, but some producers resolve
+                    # pid_tgid to a *different* task than whatever context
+                    # is actually executing at the capture site -- e.g.
+                    # bpfdroptop's kfree_skb tracepoint attributes drops to
+                    # the socket owner via sock_pid_map, while
+                    # bpf_get_current_comm() there captures the *freeing*
+                    # context (often "ksoftirqd/N"), which silently broke
+                    # "-g <owner_comm>" matching against the wrong comm #
+                    if pid not in _pid_comm_cache:
+                        _pid_comm_cache[pid] = SysMgr.getComm(pid, default="")
+                    if not BpfMgr._matchesFilter(
+                        pid, _stk_tgid, _pid_comm_cache[pid]
+                    ):
+                        continue
                 if _proccomm_pats and _stk_tgid not in _proc_comm_cache:
                     _proc_comm_cache[_stk_tgid] = SysMgr.getComm(
                         _stk_tgid, default=""
@@ -145431,7 +147442,7 @@ class BpfMgr(object):
                     comm_mode=BpfMgr._getCommMode(),
                 )
 
-                if elap_min_ns or elap_max_ns:
+                if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
                     _fct = {}
                     for _lf, _v in ct.items():
                         _avg = _v["ns"] // _v["io_cnt"] if _v["io_cnt"] else 0
@@ -145715,7 +147726,7 @@ class BpfMgr(object):
                     )
                 )
 
-                if elap_min_ns or elap_max_ns:
+                if elap_min_ns or elap_max_ns or elap_eq_ns is not None:
                     _fct = {}
                     for _lf, _v in ct.items():
                         _avg = _v["ns"] // _v["io_cnt"] if _v["io_cnt"] else 0
@@ -146319,7 +148330,9 @@ class BpfMgr(object):
                 )
 
             def _arr_prog(idx):
-                return BpfMgr.genArrayIncrProg(cnt_arr_fd, idx)
+                return BpfMgr.genArrayIncrProg(
+                    cnt_arr_fd, idx, tid_flt_fd=tid_flt_fd
+                )
 
             hit_insns = _stk_prog("hit") if _en_hit else _arr_prog(_IDX_HIT)
             miss_insns = (
@@ -148280,7 +150293,11 @@ class BpfMgr(object):
             # -H controls kernel stack display; ADDUSERSTACK controls user stack.
             # Without -H, kernel stacks for user-VA breakpoints are the kernel
             # exception handler path (not meaningful) — skip them.
-            show_kstack = SysMgr.depthLevel is not None
+            # NOTE: SysMgr.depthLevel defaults to 0 (an int, never None -- see
+            # its class-attribute declaration), so a bare "is not None" check
+            # is always True regardless of whether -H was ever given. Match
+            # the sibling doBpfwatchCmd's bool(SysMgr.depthLevel) convention.
+            show_kstack = bool(SysMgr.depthLevel)
             show_ustack = "ADDUSERSTACK" in SysMgr.environList
             drawflame = "DRAWFLAME" in SysMgr.environList
             max_depth = (
@@ -150456,7 +152473,13 @@ class BpfMgr(object):
                             comm = kb.split(b"\x00")[0].decode(
                                 "utf-8", errors="replace"
                             )
-                            proc_rows.append((comm, count, total_ns, max_ns))
+                            # -g filter #
+                            if not SysMgr.filterGroup or UtilMgr.isValidStr(
+                                comm, SysMgr.filterGroup
+                            ):
+                                proc_rows.append(
+                                    (comm, count, total_ns, max_ns)
+                                )
                             BpfMgr.mapUpdate(
                                 proc_map_fd, kb, struct.pack("<QQQ", 0, 0, 0)
                             )
@@ -153514,11 +155537,17 @@ class BpfMgr(object):
                     off = p + 4
                     continue
                 ts_ns = 0
-                if hdr_sz >= 24:
+                if hdr_sz == 24:
+                    # guider's own compact writer (_canBlfWriteFrame): base
+                    # (16B) is immediately followed by an 8B timestamp with
+                    # no objectFlags/clientIndex/objectVersion fields, so
+                    # objectTimeStamp sits right after the base header.
+                    ts_ns = struct.unpack_from("<Q", buf, p + 16)[0]
+                elif hdr_sz >= 32:
                     # objectTimeStamp always sits at base(16B)+8B = offset 24,
                     # for both ObjectHeader (V1, 32B total) and ObjectHeader2
                     # (V2, 40B total, followed by a separate originalTimeStamp
-                    # field at offset 32) #
+                    # field at offset 32)
                     ts_ns = struct.unpack_from("<Q", buf, p + 24)[0]
                 pay = p + hdr_sz
                 if obj_type == TYPE_CTR:
@@ -156231,6 +158260,11 @@ class BpfMgr(object):
                         comm = comm_raw[: _cn if _cn >= 0 else 16].decode(
                             "utf-8", errors="replace"
                         )
+                        # -g filter #
+                        if SysMgr.filterGroup and not UtilMgr.isValidStr(
+                            comm, SysMgr.filterGroup
+                        ):
+                            continue
                         _fn = fname_raw.find(b"\x00")
                         fname = fname_raw[: _fn if _fn >= 0 else 40].decode(
                             "utf-8", errors="replace"
@@ -158199,6 +160233,14 @@ class BpfMgr(object):
                         comm = comm_raw.rstrip(b"\x00").decode(
                             "utf-8", errors="replace"
                         )
+                        # -g filter #
+                        if SysMgr.filterGroup and not (
+                            UtilMgr.isValidStr(comm, SysMgr.filterGroup)
+                            or UtilMgr.isValidStr(
+                                str(tgid), SysMgr.filterGroup
+                            )
+                        ):
+                            continue
                         # dest_port: big-endian u16 at offset 40
                         dest_port = 0
                         if raw_size >= 42:
@@ -170319,249 +172361,6 @@ typedef struct {
         else:
             getter = Debugger.getCallStatsFile
 
-        if diff:
-            SysMgr.addEnvironVar("LOADSAMPLE", inputList)
-
-        sampleFileList = SysMgr.environList.get("LOADSAMPLE", [])
-        for sf in sampleFileList:
-            # check file type (.out or .sample) #
-            if sf.endswith(".sample"):
-                # Load existing .sample file (original behavior)
-                if verb:
-                    SysMgr.printStat(
-                        "start loading the sample file '%s'%s..."
-                        % (sf, getFileSize(sf))
-                    )
-                sample = SysMgr.readFile(sf, byte=True)
-                if not sample:
-                    continue
-
-                if "NOCOMPSAMPLE" in SysMgr.environList:
-                    sampleDict = UtilMgr.convStr2Dict(sample, verb=True)
-                else:
-                    sampleDict = UtilMgr.decompObj(sample)
-
-                if not sampleDict:
-                    continue
-                elif not isinstance(sampleDict, dict):
-                    SysMgr.printErr("failed to recognize '%s'" % sf)
-                    continue
-
-                metaData = (
-                    sampleDict.pop("metaData")
-                    if "metaData" in sampleDict
-                    else {}
-                )
-                titleLines += metaData.get("titleLines", [])
-                profinfo += metaData.get("profinfo", "")
-
-                if diff:
-                    sampleSetList.append(sampleDict)
-                    continue
-
-                for n, v in sampleDict.items():
-                    callList.setdefault(n, 0)
-                    callList[n] += v
-                if maxSamples and len(callList) > maxSamples:
-                    SysMgr.printWarn(
-                        "sample count exceeded MAXSAMPLES=%d, truncating"
-                        % maxSamples
-                    )
-                    topItems = sorted(
-                        callList.items(), key=lambda x: x[1], reverse=True
-                    )[:maxSamples]
-                    callList = dict(topItems)
-            else:
-                if verb:
-                    SysMgr.printStat(
-                        "start loading the out file '%s'%s..."
-                        % (sf, getFileSize(sf))
-                    )
-
-                try:
-                    samples, metas = getter(sf, verb=verb)
-
-                    if isinstance(samples, dict):
-                        samples = [samples]
-
-                    if not samples or not samples[0]:
-                        SysMgr.printErr("no call sample for '%s'" % sf)
-                        continue
-
-                    sampleDict = {}
-                    for sampleList in samples:
-                        for stack, cnt in sampleList.items():
-                            sampleDict.setdefault(stack, 0)
-                            sampleDict[stack] += cnt
-
-                    if diff:
-                        sampleSetList.append(sampleDict)
-                        continue
-
-                    for n, v in sampleDict.items():
-                        callList.setdefault(n, 0)
-                        callList[n] += v
-                    if maxSamples and len(callList) > maxSamples:
-                        SysMgr.printWarn(
-                            "sample count exceeded MAXSAMPLES=%d, truncating"
-                            % maxSamples
-                        )
-                        topItems = sorted(
-                            callList.items(), key=lambda x: x[1], reverse=True
-                        )[:maxSamples]
-                        callList = dict(topItems)
-
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr("failed to parse out file '%s'" % sf, True)
-                    continue
-
-        if not diff and sampleFileList and not callList:
-            SysMgr.printErr("no valid sample file")
-            sys.exit(0)
-
-        # make diff list #
-        if diff:
-            nrFiles = len(sampleSetList)
-            if nrFiles != 2:
-                SysMgr.printErr(
-                    "the number of valid sample files is %s, it must be 2"
-                    % convNum(nrFiles)
-                )
-                sys.exit(0)
-
-            if "REVERSEFILE" in SysMgr.environList:
-                sampleSetList.reverse()
-
-            orig, new = sampleSetList
-
-            # get scaling value #
-            if "SCALESAMPLE" in SysMgr.environList:
-                origTotal = sum(list(orig.values()))
-                newTotal = sum(list(new.values()))
-                scaleVal = newTotal / float(origTotal)
-            else:
-                scaleVal = 1
-
-            totalDiffCnt = 0
-
-            # Process orig stacks
-            for stack, cnt in orig.items():
-                cnt = long(cnt * scaleVal)
-
-                commonCnt = min(cnt, new.get(stack, 0))
-                if commonCnt:
-                    callList[stack + " <- *** COMMON ***"] = commonCnt
-
-                # add diff part (decrease: orig > new) #
-                diffCnt = cnt - new.get(stack, 0)
-                if diffCnt > 0:
-                    totalDiffCnt += diffCnt
-                    callList[stack + " <- *** DIFF_DEC ***"] = diffCnt
-
-            # Process new stacks for increases
-            for stack, cnt in new.items():
-                origCnt = long(orig.get(stack, 0) * scaleVal)
-
-                # add diff part (increase: new > orig) #
-                diffCnt = cnt - origCnt
-                if diffCnt > 0:
-                    totalDiffCnt += diffCnt
-                    callList[stack + " <- *** DIFF_INC ***"] = diffCnt
-
-            if not callList or totalDiffCnt == 0:
-                SysMgr.printErr("no difference between files")
-                sys.exit(0)
-
-            totalCommonCnt = 0
-            totalIncCnt = 0
-            totalDecCnt = 0
-            incStacks = []
-            decStacks = []
-
-            for stack, cnt in callList.items():
-                if "*** DIFF_INC ***" in stack:
-                    totalIncCnt += cnt
-                    incStacks.append(
-                        (stack.replace(" <- *** DIFF_INC ***", ""), cnt)
-                    )
-                elif "*** DIFF_DEC ***" in stack:
-                    totalDecCnt += cnt
-                    decStacks.append(
-                        (stack.replace(" <- *** DIFF_DEC ***", ""), cnt)
-                    )
-                elif "*** COMMON ***" in stack:
-                    totalCommonCnt += cnt
-
-            incStacks.sort(key=lambda x: x[1], reverse=True)
-            decStacks.sort(key=lambda x: x[1], reverse=True)
-
-            totalSamples = totalCommonCnt + totalIncCnt + totalDecCnt
-            diffStatsInfo = "\n[Differential Flame Graph Statistics]\n"
-            diffStatsInfo += "=" * 60 + "\n"
-            diffStatsInfo += "Total Samples: %s (100.0%%)\n" % convNum(
-                totalSamples
-            )
-            diffStatsInfo += "  Common:   %s (%.1f%%) - Unchanged\n" % (
-                convNum(totalCommonCnt),
-                (
-                    totalCommonCnt / float(totalSamples) * 100
-                    if totalSamples > 0
-                    else 0
-                ),
-            )
-            diffStatsInfo += "  Increase: %s (%.1f%%) - RED\n" % (
-                convNum(totalIncCnt),
-                (
-                    totalIncCnt / float(totalSamples) * 100
-                    if totalSamples > 0
-                    else 0
-                ),
-            )
-            diffStatsInfo += "  Decrease: %s (%.1f%%) - BLUE\n" % (
-                convNum(totalDecCnt),
-                (
-                    totalDecCnt / float(totalSamples) * 100
-                    if totalSamples > 0
-                    else 0
-                ),
-            )
-
-            diffStatsInfo += "\nTop 5 Increased Stacks:\n"
-            diffStatsInfo += "-" * 60 + "\n"
-            for i, (stack, cnt) in enumerate(incStacks[:5]):
-                per = (
-                    cnt / float(totalSamples) * 100 if totalSamples > 0 else 0
-                )
-                stackName = stack if len(stack) <= 80 else stack[:77] + "..."
-                diffStatsInfo += "%d. %s: %s (%.1f%%)\n" % (
-                    i + 1,
-                    stackName,
-                    convNum(cnt),
-                    per,
-                )
-
-            diffStatsInfo += "\nTop 5 Decreased Stacks:\n"
-            diffStatsInfo += "-" * 60 + "\n"
-            for i, (stack, cnt) in enumerate(decStacks[:5]):
-                per = (
-                    cnt / float(totalSamples) * 100 if totalSamples > 0 else 0
-                )
-                stackName = stack if len(stack) <= 80 else stack[:77] + "..."
-                diffStatsInfo += "%d. %s: %s (%.1f%%)\n" % (
-                    i + 1,
-                    stackName,
-                    convNum(cnt),
-                    per,
-                )
-
-            profinfo = diffStatsInfo + "\n" + profinfo
-
-        # remove input file list if call samples exist #
-        if callList:
-            inputList = []
-
         def _addTitleItem(new, titleLines):
             titleLines.append(new)
 
@@ -170730,6 +172529,256 @@ typedef struct {
                         titleList[ts] = pathInfo
 
             return nrSamples, nrFiles
+
+        if diff:
+            SysMgr.addEnvironVar("LOADSAMPLE", inputList)
+
+        sampleFileList = SysMgr.environList.get("LOADSAMPLE", [])
+        for sf in sampleFileList:
+            # check file type (.out or .sample) #
+            if sf.endswith(".sample"):
+                # Load existing .sample file (original behavior)
+                if verb:
+                    SysMgr.printStat(
+                        "start loading the sample file '%s'%s..."
+                        % (sf, getFileSize(sf))
+                    )
+                sample = SysMgr.readFile(sf, byte=True)
+                if not sample:
+                    continue
+
+                if "NOCOMPSAMPLE" in SysMgr.environList:
+                    sampleDict = UtilMgr.convStr2Dict(sample, verb=True)
+                else:
+                    sampleDict = UtilMgr.decompObj(sample)
+
+                if not sampleDict:
+                    continue
+                elif not isinstance(sampleDict, dict):
+                    SysMgr.printErr("failed to recognize '%s'" % sf)
+                    continue
+
+                metaData = (
+                    sampleDict.pop("metaData")
+                    if "metaData" in sampleDict
+                    else {}
+                )
+                titleLines += metaData.get("titleLines", [])
+                profinfo += metaData.get("profinfo", "")
+
+                if diff:
+                    sampleSetList.append(sampleDict)
+                    continue
+
+                for n, v in sampleDict.items():
+                    if includeList and not isValidStr(n, includeList):
+                        continue
+                    elif excludeList and isValidStr(n, excludeList):
+                        continue
+                    callList.setdefault(n, 0)
+                    callList[n] += v
+                if maxSamples and len(callList) > maxSamples:
+                    SysMgr.printWarn(
+                        "sample count exceeded MAXSAMPLES=%d, truncating"
+                        % maxSamples
+                    )
+                    topItems = sorted(
+                        callList.items(), key=lambda x: x[1], reverse=True
+                    )[:maxSamples]
+                    callList = dict(topItems)
+            else:
+                if verb:
+                    SysMgr.printStat(
+                        "start loading the out file '%s'%s..."
+                        % (sf, getFileSize(sf))
+                    )
+
+                try:
+                    if diff:
+                        samples, metas = getter(sf, verb=verb)
+
+                        if isinstance(samples, dict):
+                            samples = [samples]
+
+                        if not samples or not samples[0]:
+                            SysMgr.printErr("no call sample for '%s'" % sf)
+                            continue
+
+                        sampleDict = {}
+                        for sampleList in samples:
+                            for stack, cnt in sampleList.items():
+                                sampleDict.setdefault(stack, 0)
+                                sampleDict[stack] += cnt
+
+                        sampleSetList.append(sampleDict)
+                        continue
+
+                    # reuse the same filtered loader used for positional
+                    # input files so that LOADSAMPLE'd .out files respect
+                    # -g/PROCCOMMFILTER, include/exclude symbol filters, and
+                    # sample count/percentage thresholds instead of merging
+                    # every sample in unfiltered #
+                    nrSamples, nrFiles = _loadSamples(sf, nrSamples, nrFiles)
+                    if maxSamples and len(callList) > maxSamples:
+                        SysMgr.printWarn(
+                            "sample count exceeded MAXSAMPLES=%d, truncating"
+                            % maxSamples
+                        )
+                        topItems = sorted(
+                            callList.items(), key=lambda x: x[1], reverse=True
+                        )[:maxSamples]
+                        callList = dict(topItems)
+
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("failed to parse out file '%s'" % sf, True)
+                    continue
+
+        if not diff and sampleFileList and not callList:
+            SysMgr.printErr("no valid sample file")
+            sys.exit(0)
+
+        # make diff list #
+        if diff:
+            nrFiles = len(sampleSetList)
+            if nrFiles != 2:
+                SysMgr.printErr(
+                    "the number of valid sample files is %s, it must be 2"
+                    % convNum(nrFiles)
+                )
+                sys.exit(0)
+
+            if "REVERSEFILE" in SysMgr.environList:
+                sampleSetList.reverse()
+
+            orig, new = sampleSetList
+
+            # get scaling value #
+            if "SCALESAMPLE" in SysMgr.environList:
+                origTotal = sum(list(orig.values()))
+                newTotal = sum(list(new.values()))
+                scaleVal = newTotal / float(origTotal)
+            else:
+                scaleVal = 1
+
+            totalDiffCnt = 0
+
+            # Process orig stacks
+            for stack, cnt in orig.items():
+                cnt = long(cnt * scaleVal)
+
+                commonCnt = min(cnt, new.get(stack, 0))
+                if commonCnt:
+                    callList[stack + " <- *** COMMON ***"] = commonCnt
+
+                # add diff part (decrease: orig > new) #
+                diffCnt = cnt - new.get(stack, 0)
+                if diffCnt > 0:
+                    totalDiffCnt += diffCnt
+                    callList[stack + " <- *** DIFF_DEC ***"] = diffCnt
+
+            # Process new stacks for increases
+            for stack, cnt in new.items():
+                origCnt = long(orig.get(stack, 0) * scaleVal)
+
+                # add diff part (increase: new > orig) #
+                diffCnt = cnt - origCnt
+                if diffCnt > 0:
+                    totalDiffCnt += diffCnt
+                    callList[stack + " <- *** DIFF_INC ***"] = diffCnt
+
+            if not callList or totalDiffCnt == 0:
+                SysMgr.printErr("no difference between files")
+                sys.exit(0)
+
+            totalCommonCnt = 0
+            totalIncCnt = 0
+            totalDecCnt = 0
+            incStacks = []
+            decStacks = []
+
+            for stack, cnt in callList.items():
+                if "*** DIFF_INC ***" in stack:
+                    totalIncCnt += cnt
+                    incStacks.append(
+                        (stack.replace(" <- *** DIFF_INC ***", ""), cnt)
+                    )
+                elif "*** DIFF_DEC ***" in stack:
+                    totalDecCnt += cnt
+                    decStacks.append(
+                        (stack.replace(" <- *** DIFF_DEC ***", ""), cnt)
+                    )
+                elif "*** COMMON ***" in stack:
+                    totalCommonCnt += cnt
+
+            incStacks.sort(key=lambda x: x[1], reverse=True)
+            decStacks.sort(key=lambda x: x[1], reverse=True)
+
+            totalSamples = totalCommonCnt + totalIncCnt + totalDecCnt
+            diffStatsInfo = "\n[Differential Flame Graph Statistics]\n"
+            diffStatsInfo += "=" * 60 + "\n"
+            diffStatsInfo += "Total Samples: %s (100.0%%)\n" % convNum(
+                totalSamples
+            )
+            diffStatsInfo += "  Common:   %s (%.1f%%) - Unchanged\n" % (
+                convNum(totalCommonCnt),
+                (
+                    totalCommonCnt / float(totalSamples) * 100
+                    if totalSamples > 0
+                    else 0
+                ),
+            )
+            diffStatsInfo += "  Increase: %s (%.1f%%) - RED\n" % (
+                convNum(totalIncCnt),
+                (
+                    totalIncCnt / float(totalSamples) * 100
+                    if totalSamples > 0
+                    else 0
+                ),
+            )
+            diffStatsInfo += "  Decrease: %s (%.1f%%) - BLUE\n" % (
+                convNum(totalDecCnt),
+                (
+                    totalDecCnt / float(totalSamples) * 100
+                    if totalSamples > 0
+                    else 0
+                ),
+            )
+
+            diffStatsInfo += "\nTop 5 Increased Stacks:\n"
+            diffStatsInfo += "-" * 60 + "\n"
+            for i, (stack, cnt) in enumerate(incStacks[:5]):
+                per = (
+                    cnt / float(totalSamples) * 100 if totalSamples > 0 else 0
+                )
+                stackName = stack if len(stack) <= 80 else stack[:77] + "..."
+                diffStatsInfo += "%d. %s: %s (%.1f%%)\n" % (
+                    i + 1,
+                    stackName,
+                    convNum(cnt),
+                    per,
+                )
+
+            diffStatsInfo += "\nTop 5 Decreased Stacks:\n"
+            diffStatsInfo += "-" * 60 + "\n"
+            for i, (stack, cnt) in enumerate(decStacks[:5]):
+                per = (
+                    cnt / float(totalSamples) * 100 if totalSamples > 0 else 0
+                )
+                stackName = stack if len(stack) <= 80 else stack[:77] + "..."
+                diffStatsInfo += "%d. %s: %s (%.1f%%)\n" % (
+                    i + 1,
+                    stackName,
+                    convNum(cnt),
+                    per,
+                )
+
+            profinfo = diffStatsInfo + "\n" + profinfo
+
+        # remove input file list if call samples exist #
+        if callList:
+            inputList = []
 
         for fname in inputList:
             try:
@@ -181138,7 +183187,17 @@ class EventAnalyzer(object):
             else:
                 for n in eventData[name]["summary"]:
                     if n[0] == ID:
+                        interval = float(time) - float(n[6])
                         n[1] += 1
+                        if n[3] < 0 or interval < n[3]:
+                            n[3] = interval
+                        if n[4] < 0 or interval > n[4]:
+                            n[4] = interval
+                        nrIntervals = n[1] - 1
+                        if n[2] < 0:
+                            n[2] = interval
+                        else:
+                            n[2] += (interval - n[2]) / nrIntervals
                         n[6] = time
                         break
         except:
@@ -181209,7 +183268,7 @@ class EventAnalyzer(object):
 class MemoryFile(object):
     """File object for memory region"""
 
-    def __init__(self, addr=0, size=4096, name=None, data=None):
+    def __init__(self, addr=0, size=0, name=None, data=None):
         self.pos = 0
         self.addr = addr
         self.size = size
@@ -182569,6 +184628,42 @@ class ApkAnalyzer(object):
             return "%.1f KB" % (n / 1024)
         return "%d B" % n
 
+    def _compute_security(self):
+        """Shared by _print_all (text) and _collect_json (JSON) so both
+        output modes report the same [Security] findings."""
+
+        mf = self._manifest
+        net_parts = []
+        if mf.get("cleartextTraffic"):
+            net_parts.append("cleartext traffic allowed")
+        if mf.get("hasNetworkSecurityConfig"):
+            net_parts.append("network security config present")
+        storage_parts = []
+        if mf.get("legacyExternalStorage"):
+            storage_parts.append("legacy external storage")
+
+        _sec_label = {
+            "activities": "Activity",
+            "services": "Service",
+            "receivers": "Receiver",
+        }
+        exposed = []
+        for section in ("activities", "services", "receivers"):
+            for comp in mf.get(section, []):
+                if comp.get("exported") and not comp.get("permission"):
+                    exposed.append(
+                        {
+                            "type": _sec_label[section],
+                            "name": comp.get("name", ""),
+                        }
+                    )
+
+        return {
+            "networkNotes": net_parts,
+            "storageNotes": storage_parts,
+            "exposedComponents": exposed,
+        }
+
     def _print_all(self):
         pr = self.printer
         inv = self._inventory
@@ -182878,34 +184973,20 @@ class ApkAnalyzer(object):
 
         # -- Security --------------------------------------------------
         if show("SECURITY"):
+            _sec = self._compute_security()
+            net_parts = _sec["networkNotes"]
+            storage_parts = _sec["storageNotes"]
             sec_lines = []
-            net_parts = []
-            if mf.get("cleartextTraffic"):
-                net_parts.append("cleartext traffic allowed")
-            if mf.get("hasNetworkSecurityConfig"):
-                net_parts.append("network security config present")
             if net_parts:
                 sec_lines.append(("Network:", net_parts[0]))
                 for part in net_parts[1:]:
                     sec_lines.append(("", part))
-            storage_parts = []
-            if mf.get("legacyExternalStorage"):
-                storage_parts.append("legacy external storage")
             if storage_parts:
                 sec_lines.append(("Storage:", storage_parts[0]))
 
-            _sec_label = {
-                "activities": "Activity",
-                "services": "Service",
-                "receivers": "Receiver",
-            }
-            exposed = []
-            for section in ("activities", "services", "receivers"):
-                for comp in mf.get(section, []):
-                    if comp.get("exported") and not comp.get("permission"):
-                        exposed.append(
-                            (_sec_label[section], comp.get("name", ""))
-                        )
+            exposed = [
+                (c["type"], c["name"]) for c in _sec["exposedComponents"]
+            ]
 
             if sec_lines or exposed:
                 pr("\n[Security]")
@@ -182974,6 +185055,8 @@ class ApkAnalyzer(object):
             attr["resources"] = self._resources
         if show("BUILD"):
             attr["buildInfo"] = self._build_info
+        if show("SECURITY"):
+            attr["security"] = self._compute_security()
 
         self.attr = attr
 
@@ -186288,7 +188371,7 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def ELF_ST_INFO(b, t):
-        return (b) << 4 + ((t) & 0x0F)
+        return ((b) << 4) + ((t) & 0x0F)
 
     @staticmethod
     def ELF_ST_VISIBILITY(i):
@@ -186316,7 +188399,7 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def ELF64_R_INFO(s, type):
-        return ((s) << 32) + ((s) & 0xFFFFFFFF)
+        return ((s) << 32) + ((type) & 0xFFFFFFFF)
 
     @staticmethod
     def DT_VERSIONTAGIDX(tag):
@@ -188178,6 +190261,14 @@ class ElfAnalyzer(object):
         cfaTable = self.attr["dwarf"]["CFATable"]
         nrFDE = 0
 
+        # FDE record size: V2/V3 added func_rep_size(1B)+padding(2B) after
+        # func_info, growing the record from 17 to 20 bytes. Only bytes
+        # 0-16 (up to and including func_info) are ever read below, so a
+        # V1 object just needs the narrower stride to stay in sync -- with
+        # the old hardcoded 20, every V1 FDE read 3 bytes into the next
+        # record and every subsequent seek desynced further. #
+        fde_stride = 17 if version == ElfAnalyzer.SFRAME_VERSION_1 else 20
+
         if printable:
             maxLen = min(
                 SysMgr.lineLength,
@@ -188218,9 +190309,9 @@ class ElfAnalyzer(object):
             # FDE record (binutils SFrame ABI): i32 func_start + u32 func_size +
             # u32 func_start_fre_off + u32 func_num_fres + u8 func_info +
             # u8 func_rep_size + u16 padding = 20 bytes total #
-            fd.seek(fde_base + i * 20)
-            raw = fd.read(20)
-            if len(raw) < 20:
+            fd.seek(fde_base + i * fde_stride)
+            raw = fd.read(fde_stride)
+            if len(raw) < fde_stride:
                 break
             func_start_raw = struct.unpack("<i", raw[0:4])[0]
             func_size = struct.unpack("<I", raw[4:8])[0]
@@ -188230,7 +190321,7 @@ class ElfAnalyzer(object):
 
             # resolve function start VA #
             if pcrel:
-                field_va = sh_addr + (fde_base + i * 20 - sh_offset)
+                field_va = sh_addr + (fde_base + i * fde_stride - sh_offset)
                 func_start = field_va + func_start_raw
             else:
                 func_start = sh_addr + func_start_raw
@@ -189908,7 +191999,10 @@ Section header string table index: %d
             for i in xrange(long(sh_size / sh_entsize)):
                 target = versym_section[i * sh_entsize : (i + 1) * sh_entsize]
                 symidx = struct.unpack("H", target)[0]
-                self.attr["versymList"].append(symidx)
+                # mask off VERSYM_HIDDEN(0x8000): a symbol with a
+                # non-default version sets this bit, which must not be
+                # part of the version-index lookup below #
+                self.attr["versymList"].append(symidx & 0x7FFF)
 
         self.attr.setdefault("dynsymTable", {})
         self.attr.setdefault("dynsymList", [""])  # STN_UNDEF == 0
@@ -189967,7 +192061,6 @@ Section header string table index: %d
                 verdef_section = fd.read(sh_size)
 
                 # get verdef values #
-                vdidx = 1
                 offset = 0
                 entsize = 20
                 sentsize = 8
@@ -189990,11 +192083,14 @@ Section header string table index: %d
                         vda_name, vda_next = struct.unpack("II", starget)
 
                         if vidx == 0:
-                            self.attr["versionTable"][vdidx] = self.getString(
+                            # key by the record's own vd_ndx (matches the
+                            # versym index this feeds -- mirrors how the
+                            # verneed walk below keys by vna_other), not a
+                            # synthetic sequential counter: vd_ndx values
+                            # aren't guaranteed contiguous/in-order #
+                            self.attr["versionTable"][vd_ndx] = self.getString(
                                 dynstr_section, vda_name
                             )
-
-                            vdidx += 1
 
                         soffset += vda_next
 
@@ -192337,26 +194433,34 @@ Section header string table index: %d
 
                 # get description #
                 if descsz > 0:
+                    origDescsz = descsz
+
                     # 4-byte alignment #
                     descszRemain = descsz % 4
                     if descszRemain > 0:
                         descsz = descsz + 4 - descszRemain
 
-                    desc = fd.read(descsz)
+                    # read the full aligned size to keep the file position
+                    # in sync, but drop the alignment-padding bytes from
+                    # the value itself -- unlike name's NUL-rstrip above,
+                    # slice by the original size since desc is arbitrary
+                    # binary data that may legitimately end in zero bytes #
+                    desc = fd.read(descsz)[:origDescsz]
 
                     descstr = UtilMgr.convStr2Bytes(desc)
                 else:
+                    origDescsz = descsz
                     descstr = "N/A"
 
                 if debug:
                     printer(
                         "%20s %16s [type:%x] %s"
-                        % (name, hex(descsz), ntype, descstr)
+                        % (name, hex(origDescsz), ntype, descstr)
                     )
 
                 self.attr[shname.lstrip(".")] = {
                     "name": name,
-                    "size": descsz,
+                    "size": origDescsz,
                     "type": ntype,
                     "desc": descstr,
                 }
@@ -192630,8 +194734,8 @@ Section header string table index: %d
                 sig = "I" if addrSize == 4 else "Q"
                 value = unpack(sig, table[pos : pos + addrSize])
                 pos += addrSize
-            # addrx/udata/ref_udata/loclistx/rnglistx #
-            elif form in (0x1B, 0x0F, 0x15, 0x22, 0x23):
+            # strx/addrx/udata/ref_udata/loclistx/rnglistx #
+            elif form in (0x1A, 0x1B, 0x0F, 0x15, 0x22, 0x23):
                 value, nsize = decULEB(table, pos)
                 pos += nsize
             # indirect: real form is encoded inline as a ULEB128,
@@ -193104,6 +195208,11 @@ Section header string table index: %d
                         pos += 4
                     else:
                         dao = unpack("Q", table[pos : pos + 8])
+                        pos += 8
+
+                    # dwo_id: skeleton(4)/split_compile(5) unit headers
+                    # carry an extra 8-byte DWO id after debug_abbrev_offset #
+                    if unitType in (4, 5):
                         pos += 8
                 else:
                     # unit type #
@@ -193883,7 +195992,7 @@ Section header string table index: %d
                         maxop = (
                             " "
                             if (ver < 4 or maxOpPerInstr == 1)
-                            else state["opIndex"]
+                            else state["opindex"]
                         )
                         isstmt = (
                             "x"
@@ -194184,7 +196293,7 @@ class EvtCorrelatorMgr(object):
         dynEntry = SysMgr.thrEvtCorrWindow.get(group_name)
         if dynEntry:
             dynTs, dynWin = dynEntry
-            if SysMgr.uptime - dynTs < dynWin + window:
+            if SysMgr.uptime - dynTs < dynWin:
                 window = dynWin
         now = SysMgr.uptime
         matched = 0
@@ -199596,8 +201705,15 @@ class TaskAnalyzer(object):
                     d = m.groupdict()
                     pid = d["pid"]
                     comm = d["comm"].strip()[:commLen]
-                    pname = "%s(%s)" % (comm, pid)
-                    chartStats[pname] = {}
+
+                    if not TaskAnalyzer.checkFilter(comm, pid):
+                        pname = None
+                    else:
+                        pname = "%s(%s)" % (comm, pid)
+                        chartStats[pname] = {}
+
+                if not pname:
+                    continue
 
                 try:
                     chartStats[pname][sline[1].strip()] = list(

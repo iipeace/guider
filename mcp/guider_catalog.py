@@ -452,6 +452,21 @@ CATALOG: dict = {
         "description": "Runqueue latency histogram via sched_wakeup+sched_switch",
         "examples": ["guider bpfrunqtop"],
     },
+    "bpfrestop": {
+        "requires_root": True,
+        "output_type": "json",
+        "streaming": True,
+        "default_duration": "10s",
+        "min_kernel": "5.8",
+        "mcp_tool": "bpfTrace",
+        "semaphore": False,
+        "android_only": False,
+        "description": (
+            "Unified per-process/thread top: on-CPU%, runqueue latency, VFS read/write bytes, "
+            "block I/O wait latency, and a derived OTHER_WAIT residual, via eBPF"
+        ),
+        "examples": ["guider bpfrestop", "guider bpfrestop -e t -R 30"],
+    },
     "bpfreclaimtop": {
         "requires_root": True,
         "output_type": "json",
