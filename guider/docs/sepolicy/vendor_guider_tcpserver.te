@@ -1,0 +1,81 @@
+# vendor_guider_tcpserver.te — DRAFT, must be merged into the device vendor sepolicy tree
+#
+# This repository does not contain the actual device vendor sepolicy source.
+# This file is a rule draft based on:
+#   - guider.py syscall/file-path analysis
+#   - AVC denials collected from device 5af877f6 (Section E)
+#   - Static sesearch analysis of /vendor/etc/selinux/precompiled_sepolicy (Section F)
+#
+# See ../selinux_tcpserver_rules.md for the full analysis.
+#
+# DOMAIN NOTE (verified 2026-09-11):
+#   boot.json:  u:r:vendor_guider:s0  (stale — vendor_guider not defined in current policy)
+#   Live device (pid 8906): u:r:guider:s0
+#   vendor_guider is not a valid type in the compiled policy on device 5af877f6.
+#   All rules below use "guider". Replace with the correct type name for other devices.
+#
+# NEVERALLOW STATUS (sesearch on device 5af877f6):
+#   No neverallow rules covering capability2:bpf, can_socket, perf_event,
+#   debugfs_tracing, or fs_bpf for the guider domain. All rules in this file
+#   are class (a) — addable on this device. Other devices may differ; always
+#   run sesearch --neverallow on the target compiled policy first.
+
+# ============================================================
+# CONFIRMED — live AVC denials, permissive=0 (Section E, 2026-09-11)
+# Cross-checked against static policy in Section F.
+# ============================================================
+
+# TCPSERVER nc connection (GuiderTCPReceiv thread writes to fwmarkd socket)
+# Many similar domains (platform_app, system_app, hal_wifi_default, ...) already allowed.
+allow guider fwmarkd_socket:sock_file { write };
+
+# ctop continuous /proc/<pid> scan — processes owned by other vendor domains.
+# Static policy has "file read" for these types but no "dir" permissions.
+# More vendor domain entries expected during long-running operation.
+allow guider vendor_hal_keymint_qti:dir { search getattr };
+allow guider tee:dir { search getattr };
+allow guider vendor_agmservice_qti:dir { search getattr };
+
+# dump/sysdump command — filesystem metadata reads
+# bt_firmware_file is separate from firmware_file (which is already allowed).
+allow guider bt_firmware_file:filesystem { getattr };
+allow guider mnt_product_file:dir { search };
+# mnt_vendor_file dir { getattr search } is already allowed; filesystem getattr is not.
+allow guider mnt_vendor_file:filesystem { getattr };
+allow guider dropbox_data_file:dir { getattr };
+allow guider anr_data_file:dir { getattr };
+
+# ============================================================
+# CLASS (a) — addable; static policy confirms no neverallow
+# Live denial not yet collected; run Section D step 6 to verify.
+# ============================================================
+
+# BPF commands (bpfstacktop, bpfrunqtop, etc.)
+# No neverallow found on this device. On stock AOSP or other devices these
+# may be neverallow-protected — check sesearch before applying.
+allow guider self:capability2 { bpf perfmon };
+allow guider fs_bpf:dir { read search write add_name };
+allow guider fs_bpf:file { read write open getattr map };
+
+# ftrace / tracefs (bpfstacktop kprobe registration, etc.)
+# atrace, shell, and profcollectd are already allowed. No neverallow.
+# Prerequisite: kernel CONFIG_DEBUG_FS and tracefs mounted (Section C #2).
+allow guider debugfs_tracing:dir { read open search };
+allow guider debugfs_tracing:file { read open write };
+
+# CAN bus (cantop / cansnoop)
+# No neverallow. Prerequisite: SocketCAN interface (can0, etc.) present and up.
+allow guider self:can_socket { create bind read write setopt getopt };
+
+# perf_event_open (memprof->hprof, cpuprof->sperf)
+# No neverallow. Note: traced_perf_socket write + traced_perf connectto are
+# already allowed — the perfetto-based perf path may be usable without this rule.
+# New-style sepolicy with perf_event object class:
+allow guider self:perf_event { open cpu kernel };
+# Older policy without perf_event class — substitute with:
+# allow guider self:capability { sys_admin };
+
+# Block device stats (bdmon / bdtop)
+# proc_diskstats is already allowed. sysfs_block needs a separate rule.
+allow guider sysfs_block:dir { read search };
+allow guider sysfs_block:file { read open getattr };

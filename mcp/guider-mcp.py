@@ -19,7 +19,7 @@ import json
 import os
 import sys
 import logging
-from typing import Any
+from typing import Any, TypedDict
 
 # ---------------------------------------------------------------------------
 # Ensure catalog/adapter are importable from the same directory
@@ -39,24 +39,34 @@ from guider_catalog import (
     validate_openai_function_defs,
 )
 
+# Support both mcp SDK v1.x (FastMCP) and v2.x (MCPServer). The subset of the
+# API guider-mcp.py exercises — constructor(name, instructions=), .tool(name,
+# title, description, annotations, meta, structured_output), TypedDict-return
+# -> outputSchema derivation, registering an already-defined+docstring-patched
+# function via a plain mcp.tool(...)(fn) call, and run(transport="stdio") —
+# was verified identical between 1.28.1 and 2.2.0; see mcp/MCP_V2_MIGRATION.md.
+# Prefer v2 (speaks the newer 2026-07-28 protocol) when installed, else v1.
 try:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 except ImportError:
-    print(
-        "ERROR: 'mcp' package not found.\n"
-        "Install with:  pip install fastmcp\n"
-        "or:            pip install mcp",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    try:
+        from mcp.server.fastmcp import FastMCP as MCPServer
+    except ImportError:
+        print(
+            "ERROR: 'mcp' package not found.\n"
+            "Install with:  pip install 'mcp>=1.28.0,<3.0.0'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("guider-mcp")
 
 # ---------------------------------------------------------------------------
-# FastMCP server
+# MCPServer (mcp SDK v1.x FastMCP or v2.x MCPServer — see import shim above
+# and mcp/MCP_V2_MIGRATION.md for the compatibility notes)
 # ---------------------------------------------------------------------------
-mcp = FastMCP(
+mcp = MCPServer(
     "guider",
     instructions=(
         "Guider Linux/Android performance analysis toolkit. "
@@ -96,21 +106,44 @@ _CMD_TO_TOOL: dict[str, str] = {cmd: meta["mcp_tool"] for cmd, meta in CATALOG.i
 
 
 # ---------------------------------------------------------------------------
+# Structured output (MCP 2025-06-18+ outputSchema/structuredContent) — the
+# adapter envelope always populates these 8 keys (see GuiderAdapter.run()),
+# so a TypedDict return annotation lets MCPServer derive a precise outputSchema
+# instead of the free-form object schema a bare `dict[str, Any]` would get.
+# ---------------------------------------------------------------------------
+class GuiderResult(TypedDict):
+    ok: bool
+    command: str
+    timestamp: float
+    duration_sec: float
+    data: Any
+    truncated: bool
+    warnings: list[str]
+    error: str | None
+
+
+# ---------------------------------------------------------------------------
 # Helper: build result summary for the LLM
 # ---------------------------------------------------------------------------
-def _wrap(result: dict[str, Any]) -> str:
-    """Serialise the adapter envelope to a compact string for the LLM."""
+def _wrap(result: dict[str, Any]) -> GuiderResult:
+    """Sanitise the adapter envelope into plain JSON-safe types.
+
+    Kept as a JSON round-trip (rather than returning `result` as-is) so any
+    non-JSON-native value (e.g. datetime) is coerced the same way the old
+    `json.dumps(..., default=str)` string form used to, now producing a dict
+    for MCP structured content instead of a serialised string.
+    """
     if result.get("truncated"):
         result.setdefault("warnings", []).insert(0, "output truncated to 500 KB")
-    return json.dumps(result, ensure_ascii=False, default=str)
+    return json.loads(json.dumps(result, ensure_ascii=False, default=str))
 
 
-def _err(msg: str) -> str:
-    """Serialise a simple {"ok": False, "error": msg} envelope."""
+def _err(msg: str) -> GuiderResult:
+    """Build a simple {"ok": False, "error": msg} envelope."""
     return _wrap({"ok": False, "error": msg})
 
 
-def _wrong_tool_error(command: str, tool_name: str) -> str:
+def _wrong_tool_error(command: str, tool_name: str) -> GuiderResult:
     """Return a structured error pointing to the correct MCP tool."""
     correct = _CMD_TO_TOOL.get(command)
     hint = (
@@ -124,7 +157,7 @@ def _wrong_tool_error(command: str, tool_name: str) -> str:
 # ---------------------------------------------------------------------------
 # 1. systemMonitor
 # ---------------------------------------------------------------------------
-# NOTE: no @mcp.tool() here — FastMCP's Tool.from_function() snapshots
+# NOTE: no @mcp.tool() here — MCPServer's Tool.from_function() snapshots
 # fn.__doc__ into an immutable Tool.description at decoration time, so
 # registering before the <<COMMANDS>> docstring patch below would freeze
 # the placeholder forever. Registration happens after patching, at the
@@ -135,7 +168,7 @@ def systemMonitor(
     interval: int = 1,
     target: str = "",
     extra_opts: list[str] | None = None,
-) -> str:
+) -> GuiderResult:
     """
     System-wide resource monitoring (CPU, memory, IO, threads, containers, etc.).
 
@@ -171,7 +204,7 @@ def bpfTrace(
     func_name: str = "",
     extra_opts: list[str] | None = None,
     device_id: str = "",
-) -> str:
+) -> GuiderResult:
     """
     eBPF-based kernel/user tracing (requires CAP_BPF or root, kernel ≥5.8).
 
@@ -211,7 +244,7 @@ def ftraceProfile(
     target: str = "",
     input_file: str = "",
     extra_opts: list[str] | None = None,
-) -> str:
+) -> GuiderResult:
     """
     ftrace / perf / ptrace-based function profiling and tracing.
     Genuine ftrace commands require root and kernel ≥4.4 and are serialized to
@@ -254,7 +287,7 @@ def networkTrace(
     interval: int = 1,
     target: str = "",
     extra_opts: list[str] | None = None,
-) -> str:
+) -> GuiderResult:
     """
     Network performance tracing (TCP retransmits, packet drops, latency, etc.).
 
@@ -291,7 +324,7 @@ def androidPerf(
     extra_opts: list[str] | None = None,
     sub_command: str = "",
     target: str = "",
-) -> str:
+) -> GuiderResult:
     """
     Android performance analysis (Perfetto, Binder, ATrace, logcat, CAN, etc.).
     Requires adb connection for most commands.
@@ -338,7 +371,7 @@ def memoryAnalyze(
     interval: int = 1,
     target: str = "",
     extra_opts: list[str] | None = None,
-) -> str:
+) -> GuiderResult:
     """
     Memory analysis: duplicate mapping detection, leak tracking, OOM monitoring.
 
@@ -379,7 +412,7 @@ def visualize(
     draw_layout: str = "",
     top_number: int = 0,
     output_dir: str = "",
-) -> str:
+) -> GuiderResult:
     """
     Generate performance graphs and visualizations from recorded data files.
 
@@ -450,7 +483,7 @@ def logAnalyze(
     input_file: str = "",
     extra_opts: list[str] | None = None,
     json_output: bool = False,
-) -> str:
+) -> GuiderResult:
     """
     Log streaming and analysis (kernel messages, DLT, journald, Android logcat, etc.).
 
@@ -487,7 +520,7 @@ def logAnalyze(
 # ---------------------------------------------------------------------------
 # 9. runCommand
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(title="Run Command")
 def runCommand(
     command: str,
     duration: int = 3,
@@ -498,7 +531,7 @@ def runCommand(
     extra_opts: list[str] | None = None,
     json_output: bool = True,
     main_arg: str = "",
-) -> str:
+) -> GuiderResult:
     """
     Generic guider command runner — for any whitelisted command not covered by
     the specialized tools above. Blocked commands (kill, exec, LLM-loop) are rejected.
@@ -537,11 +570,11 @@ def runCommand(
 # ---------------------------------------------------------------------------
 # 10. guiderHelp
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(title="Guider Help")
 def guiderHelp(
     query: str = "",
     tool_name: str = "",
-) -> str:
+) -> dict[str, Any]:
     """
     List available guider commands and their metadata. No subprocess is launched.
 
@@ -613,7 +646,7 @@ def guiderHelp(
 # ---------------------------------------------------------------------------
 # Patch tool docstrings with live command lists from the CATALOG (single
 # source of truth) instead of hand-maintained text, which has drifted before,
-# THEN register each function as an MCP tool. Order matters: FastMCP's
+# THEN register each function as an MCP tool. Order matters: MCPServer's
 # Tool.from_function() snapshots fn.__doc__ into an immutable Tool.description
 # at decoration time, so decorating before patching would freeze the
 # <<COMMANDS>> placeholder forever (confirmed live with the installed mcp
@@ -625,13 +658,23 @@ _DOCSTRING_PATCH_TOOLS = (
     systemMonitor, bpfTrace, ftraceProfile, networkTrace,
     androidPerf, memoryAnalyze, visualize, logAnalyze,
 )
+_TOOL_TITLES: dict[str, str] = {
+    "systemMonitor": "System Monitor",
+    "bpfTrace": "BPF Tracing",
+    "ftraceProfile": "Ftrace Profiling",
+    "networkTrace": "Network Tracing",
+    "androidPerf": "Android Performance",
+    "memoryAnalyze": "Memory Analysis",
+    "visualize": "Visualization",
+    "logAnalyze": "Log Analysis",
+}
 for _tool_func in _DOCSTRING_PATCH_TOOLS:
     _tool_name = _tool_func.__name__
     _commands_str = ", ".join(sorted(get_tool_commands(_tool_name)))
     _tool_func.__doc__ = _tool_func.__doc__.replace("<<COMMANDS>>", _commands_str)
-    globals()[_tool_name] = mcp.tool()(_tool_func)
+    globals()[_tool_name] = mcp.tool(title=_TOOL_TITLES[_tool_name])(_tool_func)
 
-# Defensive backstop: check what FastMCP actually registered, not just the
+# Defensive backstop: check what MCPServer actually registered, not just the
 # patched __doc__ — a __doc__-only check is structurally blind to the
 # decoration-order bug above (the __doc__ can look correct even when the
 # frozen Tool.description still has the placeholder). Safe to call

@@ -1,8 +1,12 @@
 # Guider MCP Server requirements
 # Install with: pip install -r requirements.txt
 
-# MCP framework (provides FastMCP and stdio transport)
-mcp>=1.0.0
+# MCP framework (provides FastMCP/MCPServer and stdio transport).
+# guider-mcp.py supports both the mcp 1.x line (class FastMCP, protocol up to
+# 2025-11-25) and the mcp 2.x line (class MCPServer, protocol up to
+# 2026-07-28) via a runtime import fallback; see mcp/MCP_V2_MIGRATION.md.
+# <3.0.0 guards against an unverified future major rename/break.
+mcp>=1.28.0,<3.0.0
 
 # Optional: FastMCP standalone package (alternative to mcp)
 # fastmcp>=2.0.0

@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260910"
+__revision__ = "260911"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20374,7 +20374,7 @@ class FunctionAnalyzer(object):
                                 allocCall = "%s <- %s [%s]" % (
                                     allocCall,
                                     usym,
-                                    self.userSymData[sym]["origBin"],
+                                    self.userSymData[usym]["origBin"],
                                 )
                         except:
                             if allocCall == "":
@@ -20389,7 +20389,7 @@ class FunctionAnalyzer(object):
                                 freeCall = "%s <- %s[%s]" % (
                                     freeCall,
                                     usym,
-                                    self.userSymData[sym]["origBin"],
+                                    self.userSymData[usym]["origBin"],
                                 )
                         except:
                             if freeCall == "":
@@ -21637,9 +21637,10 @@ class FunctionAnalyzer(object):
 
     def allocHeapSeg(self, tid, size):
         try:
+            oldSize = self.heapTable[tid + "-ready"]["size"]
+            self.threadData[tid]["heapSize"] -= oldSize
             self.heapTable[tid + "-ready"]["size"] = size
             self.heapTable[tid + "-ready"]["tid"] = tid
-            self.threadData[tid]["heapSize"] -= size
             SysMgr.printWarn(
                 "overwrite heap segment of %s(%s) at %s"
                 % (self.threadData[tid]["comm"], tid, SysMgr.dbgEventLine)
@@ -22229,11 +22230,12 @@ class FunctionAnalyzer(object):
                     try:
                         size = self.heapTable[addr]["size"]
 
-                        self.saveEventParam(
-                            "HEAP_EXPAND", size, [addr, time, core, tid]
-                        )
+                        if size > 0:
+                            self.saveEventParam(
+                                "HEAP_EXPAND", size, [addr, time, core, tid]
+                            )
 
-                        return False
+                            return False
                     except:
                         pass
 
@@ -22256,6 +22258,8 @@ class FunctionAnalyzer(object):
 
                         if addr > self.threadData[pid]["lastBrk"]:
                             size = addr - self.threadData[pid]["lastBrk"]
+
+                            self.threadData[pid]["lastBrk"] = addr
 
                             self.threadData[pid]["heapSize"] += size
 
@@ -22495,7 +22499,8 @@ class FunctionAnalyzer(object):
                 customCnt = self.getCustomEventValue(args, cond)
 
                 if customCnt > 0:
-                    self.threadData[tid]["customTotal"] += customCnt
+                    self.threadData[tid]["customTotal"] += 1
+                    self.threadData[tid]["customCnt"] += customCnt
 
                 self.saveEventParam(
                     "CUSTOM", customCnt, [func, [args, time, core, tid]]
@@ -22517,7 +22522,7 @@ class FunctionAnalyzer(object):
         for liter in tlist:
             m = SysMgr.getTraceItem(liter)
             if not m:
-                return threadData
+                continue
 
             d = m.groupdict()
 
@@ -22960,8 +22965,12 @@ class FunctionAnalyzer(object):
             else:
                 breakCond = long(cpuPer[: cpuPer.rfind(".")])
 
-            if breakCond < 1 and not SysMgr.showAll:
-                pass
+            if (
+                breakCond < 1
+                and not SysMgr.showAll
+                and SysMgr.filterGroup == []
+            ):
+                break
 
             if value["new"]:
                 life = "N"
@@ -24397,8 +24406,8 @@ class FunctionAnalyzer(object):
         drawflame = "DRAWFLAME" in SysMgr.environList
 
         SysMgr.clearPrint()
-        SysMgr.printPipe(
-            "[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (KERNEL)\n%s"
+        titleStr = (
+            "[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (KERNEL)"
             % (
                 title,
                 userSize,
@@ -24406,9 +24415,9 @@ class FunctionAnalyzer(object):
                 allocCnt,
                 freeSize,
                 freeCnt,
-                twoLine,
             )
         )
+        SysMgr.printPipe(titleStr + "\n%s" % twoLine)
 
         SysMgr.printPipe(
             "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}\n{6:1}".format(
@@ -24875,8 +24884,7 @@ class FunctionAnalyzer(object):
 
         title = "Function Unlock File Info"
         SysMgr.printPipe(
-            "[%s] [Cnt: %d] (USER)\n%s"
-            % (title, self.lockTryEventCnt, twoLine)
+            "[%s] [Cnt: %d] (USER)\n%s" % (title, self.unlockEventCnt, twoLine)
         )
 
         SysMgr.printPipe(
@@ -25121,7 +25129,7 @@ class FunctionAnalyzer(object):
 
                     SysMgr.printPipe(oneLine)
 
-                if self.blockWrUsageCnt == 0:
+                if blockUsageCnt == 0:
                     SysMgr.printPipe(UtilMgr.NONE_STR + "\n" + oneLine)
 
                 if drawflame and callList:
@@ -69980,6 +69988,13 @@ Options:
                                 expanded to TID allowlist at startup via /proc scan
                                 (negatable: prefix a pattern with "!" to exclude)
 """
+                        + _bpf_nosummary_opt
+                        + """
+    -q  JSONEACH                with -J -o: emit one JSON object per (tick, task)
+                                row per line (true JSONL), instead of the default
+                                one-combined-object-per-tick shape -- for feeding
+                                drawscatter directly
+"""
                         + _bpf_jo_opts
                         + """
 Notes:
@@ -69993,16 +70008,27 @@ Notes:
                        "how long it was asleep" (see SLEEP_MS for that)
     - RD_KB/WR_KB: VFS read/write bytes via sys_enter/exit_read/write
                    (same tracking as bpfiotop)
-    - IOWAIT_AVG/TOTAL/CNT: block I/O wait via block_rq_issue/complete
-                            (own attach, independent of bpfblktop)
+    - IOW_AVG/TOTAL/CNT: block I/O wait via block_rq_issue/complete (own
+                         attach, independent of bpfblktop) -- shortened
+                         from IOWAIT_* in the column header/Summary
+                         table title, same metric
     - SLEEP_MS: total time genuinely blocked (voluntary sleep, lock/I/O/
                 event wait, etc) this interval -- the mirror-image
                 complement of RQ_TOTAL's preemption/wakeup-handoff-only
                 latency; does NOT include RQ_TOTAL's own delay
-    - OTHER_WAIT: (interval - CPU) - RQ_TOTAL - IOWAIT_TOTAL - SLEEP_MS
+    - OTHER_WAIT: (interval - CPU) - RQ_TOTAL - IOW_TOTAL - SLEEP_MS
                   residual; large values suggest lock/network waits not
                   covered by the other columns -- see bpflocktop/bpftcplat
+    - NR_THR: process thread count (/proc/<pid>/status "Threads:"),
+              top's own "Nr" column equivalent (COMM (PID/PPID/Nr/Pri))
     - Title line reuses top's own system summary (Time/Date/PSI/IRQ/Mem/Swap)
+    - With -o: also enables the same disk/irq/mem/network/perf/block flags
+      top's own "atop" mode uses, so the saved per-tick header includes the
+      full Memory/VM/LMK/IRQ/PMU/Disk/Network picture (perf/block need root)
+    - With -o: automatically appends a [Top Summary Info] system overview
+      (genuine reuse of top's own summary, not a reimplementation) plus 9
+      per-task "task x interval" Summary tables (one per tracked metric,
+      Min/Avg/Max/Tot per row) -- suppress all of them with -q NOSUMMARY
     - Requires root privilege and kernel BPF support (Linux 5.8+)
                     """
                     )
@@ -70025,6 +70051,13 @@ Examples:
 
     - Output in JSON format
         # {0:1} {1:1} -J -R 30
+
+    - Save to a file with cumulative Summary tables (-q NOSUMMARY to suppress)
+        # {0:1} {1:1} -o /tmp/re.txt -R 30
+
+    - Save one JSON object per (tick, task) row, for drawscatter input
+        # {0:1} {1:1} -J -q JSONEACH -o /tmp/re.json -R 30
+        # guider drawscatter /tmp/re.json -q YFIELD:rqTotalNs,COLORBY:comm
                         """.format(
                         cmd, mode
                     )
@@ -118816,6 +118849,7 @@ class FuncPerfMgr(object):
     # perf_event record type constants
     PERF_RECORD_SAMPLE = 9
     PERF_RECORD_MMAP = 1
+    PERF_RECORD_MMAP2 = 10
     PERF_RECORD_COMM = 3
 
     # perf_event_mmap_page field offsets
@@ -120381,6 +120415,22 @@ class FuncPerfMgr(object):
                         FuncPerfMgr._comm_cache[s_tid] = comm
                 except Exception:
                     pass
+            elif rec_type in (
+                FuncPerfMgr.PERF_RECORD_MMAP,
+                FuncPerfMgr.PERF_RECORD_MMAP2,
+            ):
+                try:
+                    # struct: u32 pid, u32 tid, u64 addr, u64 len, u64 pgoff,
+                    # char filename[] (MMAP2 adds maj/min/ino/... before the
+                    # filename, but the leading pid/tid fields are identical)
+                    body = _rb_read(tail + 8, 4)
+                    (s_pid,) = struct.unpack_from("<I", body, 0)
+                    # a new executable mapping invalidates the cached
+                    # /proc/PID/maps snapshot so the next _loadMaps() call
+                    # picks up the newly mmap'd library
+                    FuncPerfMgr._maps_cache.pop(s_pid, None)
+                except Exception:
+                    pass
             tail += rec_size
 
         tail_ptr[0] = tail
@@ -120526,6 +120576,14 @@ class FuncPerfMgr(object):
                         else:
                             # merge: pick up methods JIT-compiled during recording
                             FuncPerfMgr._mergeJITSymbols(_p)
+                # the zygote's boot-classpath JIT cache (jit-zygote-cache) is
+                # shared by every app process; once _getJITMaster() has lazily
+                # loaded it, refresh it every batch just like a per-pid master
+                # above, or methods the zygote JIT-compiles afterward never
+                # get picked up for the rest of the session.
+                _zpid = FuncPerfMgr._getZygotePid()
+                if _zpid and _zpid > 0 and _zpid in FuncPerfMgr._jit_sym_elfs:
+                    FuncPerfMgr._mergeJITSymbols(_zpid)
 
             for s in samples:
                 pid = int(s.get("pid", "0"))
@@ -121380,6 +121438,13 @@ class FuncPerfMgr(object):
             FuncPerfMgr._loadJITSymbols(zpid)
             master = FuncPerfMgr._jit_sym_elfs.get(zpid)
         else:
+            # mirror the zygote branch above: lazily load this pid's own
+            # per-process JIT cache too. Without this, callers that never
+            # pre-populate _jit_sym_elfs[pid] themselves (e.g. resolveUserStack()
+            # in the BPF-command live-trace path) always see None here and can
+            # never resolve an app's own JIT-compiled methods -- only fperf's
+            # dedicated recording pipeline (_resolveRawSamples) pre-loads it.
+            FuncPerfMgr._loadJITSymbols(pid)
             master = FuncPerfMgr._jit_sym_elfs.get(pid)
         return master if master else None
 
@@ -133606,6 +133671,7 @@ class BpfMgr(object):
         comm_map_fd=-1,
         use_cmdline=False,
         sleep_perpid_fd=-1,
+        nrthread_resolver=None,
     ):
         """Drain bpfrestop's self-resetting result maps for one tick and
         build display rows, one per tgid (default) or per tid (-e t).
@@ -133652,9 +133718,17 @@ class BpfMgr(object):
         this fallback exists purely to fill the gap /proc structurally
         cannot cover, not to replace it.
 
+        nrthread_resolver (optional): tgid -> thread count, for tests.
+        Defaults to SysMgr.getTaskAttr(tgid, "Threads") (a single
+        /proc/<tgid>/status read, same lightweight-per-process-attribute
+        convention as _comm_resolver's SysMgr.getComm() default) --
+        NR_THR is a process-level (tgid) attribute, resolved and cached
+        once per tgid per tick regardless of per_thread mode, matching
+        top's own "Nr" column (COMM (PID/PPID/Nr/Pri)).
+
         Returns a list of row dicts sorted by CPU% descending. Each row has:
-          tgid, pcomm, cpu_ns, cpu_pct, rq_ns, rq_cnt, rq_avg, rd_bytes,
-          wr_bytes, iowait_ns, iowait_cnt, iowait_avg, other_wait
+          tgid, pcomm, nr_threads, cpu_ns, cpu_pct, rq_ns, rq_cnt, rq_avg,
+          rd_bytes, wr_bytes, iowait_ns, iowait_cnt, iowait_avg, other_wait
         and, when per_thread is True, additionally: tid, tcomm.
         """
         _tgid_resolver = tgid_resolver or BpfMgr._readTgidOfTid
@@ -133686,6 +133760,19 @@ class BpfMgr(object):
             if _c and _c != "?":
                 return _c
             return _bpf_comm.get(pid, "?")
+
+        _real_nrthread_resolver = nrthread_resolver or (
+            lambda tgid: SysMgr.getTaskAttr(tgid, "Threads")
+        )
+        _nrthread_cache = {}
+
+        def _nrthread_resolver_cached(tgid):
+            if tgid not in _nrthread_cache:
+                try:
+                    _nrthread_cache[tgid] = int(_real_nrthread_resolver(tgid))
+                except (TypeError, ValueError):
+                    _nrthread_cache[tgid] = 1
+            return _nrthread_cache[tgid]
 
         per_tid = {}
 
@@ -133850,6 +133937,7 @@ class BpfMgr(object):
                         "tgid": tgid,
                         "tcomm": _comm_resolver(tid),
                         "pcomm": _comm_resolver(tgid),
+                        "nr_threads": _nrthread_resolver_cached(tgid),
                         "cpu_ns": r["cpu_ns"],
                         "cpu_pct": r["cpu_pct"],
                         "rq_ns": r["rq_ns"],
@@ -133900,6 +133988,7 @@ class BpfMgr(object):
                     {
                         "tgid": tgid,
                         "pcomm": _comm_resolver(tgid),
+                        "nr_threads": _nrthread_resolver_cached(tgid),
                         "cpu_ns": a["cpu_ns"],
                         "cpu_pct": a["cpu_pct"],
                         "rq_ns": a["rq_ns"],
@@ -134043,17 +134132,20 @@ class BpfMgr(object):
     @staticmethod
     def _printResourceTop(rows, interval_ns, per_thread=False):
         """Print bpfrestop's per-process(default)/per-thread(-e t) resource
-        table, column order: CPU% (on-CPU BPF), RQ_AVG/RQ_TOTAL
+        table, column order: NR_THR (process thread count, top's own
+        "Nr" column equivalent), CPU% (on-CPU BPF), RQ_AVG/RQ_TOTAL
         (runqueue/preemption wait), SLEEP_MS (genuine voluntary/
         involuntary block duration, separate from RQ_TOTAL's wakeup-
         handoff-only delay -- placed right after RQ_TOTAL per user
         request, since both answer "how long was this task not
         running" from the two different reasons a task goes off-CPU),
-        RD_KB/WR_KB (VFS read/write bytes), IOWAIT_AVG/TOTAL/CNT (block
-        I/O wait), OTHER_WAIT (residual: off-CPU time not accounted
-        for by any of the above -- lock/network/etc). Called after the
-        system-wide header from TaskAnalyzer.printSystemStat -- see
-        doBpfrestopCmd; this function only ever draws its own table.
+        RD_KB/WR_KB (VFS read/write bytes), IOW_AVG/TOTAL/CNT (block
+        I/O wait, shortened from IOWAIT_* per user request so the label
+        stops dominating the width budget), OTHER_WAIT (residual: off-
+        CPU time not accounted for by any of the above -- lock/network/
+        etc). Called after the system-wide header from
+        TaskAnalyzer.printSystemStat -- see doBpfrestopCmd; this
+        function only ever draws its own table.
         """
         conv = UtilMgr.convNum
 
@@ -134092,6 +134184,7 @@ class BpfMgr(object):
                 _jr = {
                     "tgid": r["tgid"],
                     "pcomm": r["pcomm"],
+                    "nrThreads": r["nr_threads"],
                     "cpuPct": round(r["cpu_pct"], 2),
                     "rqAvgNs": r["rq_avg"],
                     "rqTotalNs": r["rq_ns"],
@@ -134107,6 +134200,32 @@ class BpfMgr(object):
                     _jr["tid"] = r["tid"]
                     _jr["tcomm"] = r["tcomm"]
                 _jrows.append(_jr)
+
+            # -q JSONEACH: opt-in one-JSON-object-per-row-per-line mode,
+            # for draw-family commands (drawscatter, and the new
+            # bpfrestop draw integration) that expect true JSONL --
+            # "one line = one event" -- rather than this function's
+            # default combined-envelope shape above (one line per tick,
+            # resourceTop rows nested inside). The default shape stays
+            # completely unchanged for any existing consumer (e.g. the
+            # MCP bpfTrace tool) that doesn't opt into JSONEACH. Uses
+            # json.dumps() directly (not UtilMgr.convDict2Str(), whose
+            # single-vs-multi-line output depends on SysMgr.encodeEnable
+            # even with pretty=False, found via real-device verification
+            # producing multi-line "JSONL" that broke the one-line-per-
+            # event contract) so every row is guaranteed exactly one
+            # line regardless of that setting #
+            if "JSONEACH" in SysMgr.environList:
+                _json_mod = SysMgr.getPkg("json")
+                for _jr in _jrows:
+                    _jr["time"] = SysMgr.uptime
+                    _jr["comm"] = _jr.get("tcomm") or _jr["pcomm"]
+                    SysMgr.printPipe(
+                        _json_mod.dumps(_jr, ensure_ascii=False),
+                        flush=True,
+                    )
+                return
+
             SysMgr.printPipe(
                 UtilMgr.convDict2Str(
                     {
@@ -134144,18 +134263,24 @@ class BpfMgr(object):
         # exceed some widths) the widths simply stay at their minimums
         # rather than shrinking, same graceful-degradation behavior as
         # the scheduling summary section #
+        # IOWAIT_* shortened to IOW_* (per user request) so their long
+        # labels stop dominating the width budget; NR_THR (per-process
+        # thread count, top's own "Nr" column equivalent -- COMM
+        # (PID/PPID/Nr/Pri)) added as a new fixed-width slot right after
+        # the name column(s), same treatment as CPU% below #
         _numeric_labels = (
             "RQ_AVG_MS",
             "RQ_TOTAL_MS",
             "SLEEP_MS",
             "RD_KB",
             "WR_KB",
-            "IOWAIT_AVG_MS",
-            "IOWAIT_TOTAL_MS",
-            "IOWAIT_CNT",
+            "IOW_AVG_MS",
+            "IOW_TOTAL_MS",
+            "IOW_CNT",
             "OTHER_WAIT_MS",
         )
-        _numeric_min_widths = [9, 11, 8, 8, 8, 13, 15, 10, 13]
+        _numeric_min_widths = [9, 11, 8, 8, 8, 10, 12, 7, 13]
+        _thread_width = 8
         _cpu_width = 7
         if per_thread:
             _name_widths = (20, 20)
@@ -134164,8 +134289,13 @@ class BpfMgr(object):
             _name_widths = (26,)
             _name_labels = ("PCOMM(PID)",)
 
-        _n_fields = len(_name_widths) + 1 + len(_numeric_labels)
-        _fixed = sum(_name_widths) + _cpu_width + (_n_fields - 1) * 2
+        _n_fields = len(_name_widths) + 2 + len(_numeric_labels)
+        _fixed = (
+            sum(_name_widths)
+            + _thread_width
+            + _cpu_width
+            + (_n_fields - 1) * 2
+        )
         _extra = SysMgr.lineLength - _fixed - sum(_numeric_min_widths)
         _nw = list(_numeric_min_widths)
         if _extra > 0:
@@ -134188,6 +134318,7 @@ class BpfMgr(object):
         _hdr_specs = [
             ("-%d" % w, lbl) for w, lbl in zip(_name_widths, _name_labels)
         ]
+        _hdr_specs.append(("%d" % _thread_width, "NR_THR"))
         _hdr_specs.append(("%d" % _cpu_width, "CPU%"))
         _hdr_specs += [("%d" % w, lbl) for w, lbl in zip(_nw, _numeric_labels)]
         _hdr_fmt = "  ".join("%%%ss" % spec for spec, _ in _hdr_specs) + "\n"
@@ -134199,6 +134330,7 @@ class BpfMgr(object):
         # codes), so sizing it again here would count the invisible
         # color-code bytes as visible width and misalign the columns #
         _row_specs = [("-%d" % w, None) for w in _name_widths]
+        _row_specs.append(("%d" % _thread_width, None))
         _row_specs.append(("", None))
         _row_specs += [("%d" % w, None) for w in _nw]
         _row_fmt = "  ".join("%%%ss" % spec for spec, _ in _row_specs) + "\n"
@@ -134228,6 +134360,7 @@ class BpfMgr(object):
                 row = _row_fmt % (
                     tcomm_str,
                     pcomm_str,
+                    conv(r["nr_threads"]),
                     cpu_str,
                     _ms_avg(r["rq_avg"]),
                     _ms(r["rq_ns"]),
@@ -134243,6 +134376,7 @@ class BpfMgr(object):
                 pcomm_str = ("%s(%d)" % (r["pcomm"][:20], r["tgid"]))[:26]
                 row = _row_fmt % (
                     pcomm_str,
+                    conv(r["nr_threads"]),
                     cpu_str,
                     _ms_avg(r["rq_avg"]),
                     _ms(r["rq_ns"]),
@@ -134258,6 +134392,217 @@ class BpfMgr(object):
                 break
 
         SysMgr.addPrint(twoLine + "\n")
+
+    @staticmethod
+    def _printResourceSummaryTable(
+        series,
+        tick_idx,
+        label,
+        unit,
+        series_key,
+        series_key2=None,
+        per_thread=False,
+    ):
+        """Print one bpfrestop cumulative Summary table for -o output --
+        called once per tracked metric (bpfrestop's own text-Summary
+        counterpart to top's [Top CPU Info]/[Top Block Info], but every
+        call shares this exact single layout: PCOMM(PID) | Min/Avg/Max/Tot
+        | <interval 1> <interval 2> ... <interval N>, one row per task,
+        so a later draw-side parser can treat every table identically
+        regardless of which metric it is (user requirement: "table당 1개의
+        stat만"). The one deliberate exception is RD_KB/WR_KB
+        (series_key2 set): its per-interval cells pack "rd/wr" the same
+        way top's own printBlkInterval packs "blkrd/blkwr", and its
+        summary cell is Sum(RD/WR) instead of Min/Avg/Max/Tot -- summing
+        byte counts is more natural than averaging them, and top itself
+        only shows Sum for Block Info too.
+
+        Layout mirrors TaskAnalyzer.printCpuInterval()/printTimelineInterval()
+        exactly (title, then twoLine, then header, then twoLine, then one
+        oneLine after EVERY data row, right-aligned name column, centered
+        summary cell, interval columns padded to the widest value +3) --
+        found via user report that the earlier ad hoc layout (oneLine
+        bracketing the title, left-justified cells, single trailing
+        twoLine) didn't match top's own convention.
+
+        `series` is doBpfrestopCmd's own local `_summary_series` dict
+        (pid -> per-metric value lists); this function and its caller
+        never touch TaskAnalyzer/procIntData/procTotData.
+        """
+        conv = UtilMgr.convNum
+
+        def _fmt(v):
+            return conv(round(v)) if isinstance(v, float) else conv(v)
+
+        twoLine = "=" * SysMgr.lineLength
+        oneLine = "-" * SysMgr.lineLength
+        maxLineLen = SysMgr.lineLength
+
+        SysMgr.printPipe(
+            "\n[bpfrestop %s Summary] (Unit: %s)\n%s\n"
+            % (label, unit, twoLine)
+        )
+
+        name_labels = (
+            ("TCOMM(TID)", "PCOMM(PID)") if per_thread else ("PCOMM(PID)",)
+        )
+        summary_label = "Sum(RD/WR)" if series_key2 else "Min/Avg/Max/Tot"
+        interval_labels = [str(i) for i in range(1, tick_idx + 1)]
+
+        # compute every row's cells BEFORE picking column widths, so each
+        # column (name/summary/every interval, the last sharing one
+        # uniform width like top's own printCpuInterval does) is sized to
+        # its actual longest value across the whole table -- found via
+        # user report that naive space-joining left columns ragged and
+        # misaligned with the header. No separate "has any data at all"
+        # pre-check: every row's own round(sort_key) == 0 filter below
+        # already empties rows_out for a genuinely all-zero series, so a
+        # second, looser truthiness check ahead of it was redundant #
+        rows_out = []
+        for pid, entry in series.items():
+            vals = entry.get(series_key, [0] * tick_idx)
+            if series_key2:
+                vals2 = entry.get(series_key2, [0] * tick_idx)
+                tot, tot2 = sum(vals), sum(vals2)
+                summary_cell = "%s/%s" % (_fmt(tot), _fmt(tot2))
+                sort_key = tot + tot2
+                cells = [
+                    "%s/%s" % (_fmt(v1), _fmt(v2))
+                    for v1, v2 in zip(vals, vals2)
+                ]
+            else:
+                vmin, vmax = (min(vals), max(vals)) if vals else (0, 0)
+                vavg = (sum(vals) / float(len(vals))) if vals else 0.0
+                vtot = sum(vals)
+                summary_cell = "%s/%s/%s/%s" % (
+                    _fmt(vmin),
+                    conv(round(vavg, 1), isFloat=True, floatDigit=1),
+                    _fmt(vmax),
+                    _fmt(vtot),
+                )
+                sort_key = vtot
+                cells = [_fmt(v) for v in vals]
+
+            # skip tasks whose DISPLAYED total (Tot, or Sum(RD)+
+            # Sum(WR) for the RD_KB/WR_KB table) is 0 across the
+            # whole run -- a task that never meaningfully touched
+            # this metric is just noise in a metric-specific table
+            # (per user request). Rounds sort_key the same way the
+            # summary cell itself is rounded (_fmt(vtot)/_fmt(tot))
+            # before comparing to 0 -- comparing the raw unrounded
+            # sum directly let rows with e.g. a 0.2ms total (every
+            # per-tick value individually rounds to "0" for display,
+            # but the true sum is a small nonzero fraction) slip
+            # through and still show as a misleading "0/0/0/0" row
+            # (found via real-device report) #
+            if round(sort_key) == 0:
+                continue
+
+            if per_thread:
+                name_cells = [
+                    "%s(%s)"
+                    % (
+                        str(entry.get("tcomm", "?"))[:16],
+                        entry.get("tid", pid),
+                    ),
+                    "%s(%s)"
+                    % (
+                        str(entry.get("pcomm", "?"))[:16],
+                        entry.get("tgid", "?"),
+                    ),
+                ]
+            else:
+                name_cells = [
+                    "%s(%s)"
+                    % (
+                        str(entry.get("pcomm", "?"))[:20],
+                        entry.get("tgid", pid),
+                    )
+                ]
+
+            rows_out.append((sort_key, name_cells, summary_cell, cells))
+
+        rows_out.sort(key=lambda x: -x[0])
+
+        # column widths: every column (each name column, the summary
+        # column, and one uniform width shared by all interval columns)
+        # is right-sized to the widest value it will ever hold -- header
+        # label included -- so every "|" and every interval number lines
+        # up vertically across every row, matching top's own fixed-width
+        # convention (e.g. printCpuInterval's per-interval columns) #
+        name_widths = [len(lbl) for lbl in name_labels]
+        for _sort, name_cells, _summary_cell, _cells in rows_out:
+            for i, nc in enumerate(name_cells):
+                name_widths[i] = max(name_widths[i], len(nc))
+
+        summary_width = len(summary_label)
+        for _sort, _name_cells, summary_cell, _cells in rows_out:
+            summary_width = max(summary_width, len(summary_cell))
+
+        # interval column width = widest value (header index or any data
+        # cell) + 3, guaranteeing at least a 3-space gap between columns
+        # regardless of content width (user requirement: "interval들도
+        # 최소 3칸 이상씩 (항목들의 최대 값 길이에 따라) align") #
+        interval_width = max([len(lbl) for lbl in interval_labels] or [1])
+        for _sort, _name_cells, _summary_cell, cells in rows_out:
+            for c in cells:
+                interval_width = max(interval_width, len(str(c)))
+        interval_width += 3
+
+        def _fmt_names(cells):
+            return " ".join(
+                "%*s" % (name_widths[i], nc) for i, nc in enumerate(cells)
+            )
+
+        def _center(s, w):
+            return ("{0:^%d}" % w).format(s)
+
+        def _build_prefix(name_cells, summary_cell):
+            return "%s| %s |" % (
+                _fmt_names(name_cells),
+                _center(summary_cell, summary_width),
+            )
+
+        # interval values are appended exactly like
+        # TaskAnalyzer.printTimelineInterval()/printCpuInterval(): fixed
+        # column width, wrapping to a new line (indented to keep the "|"
+        # aligned) once SysMgr.lineLength would otherwise be exceeded #
+        def _build_timeline(cells, prefix_len):
+            out = ""
+            lineLen = prefix_len
+            for c in cells:
+                if lineLen + interval_width > maxLineLen:
+                    out += "\n" + (" " * (prefix_len - 1)) + "| "
+                    lineLen = prefix_len
+                out += "%*s" % (interval_width, c)
+                lineLen += interval_width
+            return out
+
+        header_prefix = _build_prefix(list(name_labels), summary_label)
+        header_timeline = _build_timeline(interval_labels, len(header_prefix))
+        SysMgr.printPipe(
+            "%s %s\n%s\n" % (header_prefix, header_timeline, twoLine)
+        )
+
+        # top's own printBlkInterval/printStorageInterval convention: if
+        # not a single row has any nonzero data for this metric across
+        # the whole run, print UtilMgr.NONE_STR followed by oneLine
+        # instead of an all-zero grid (no separate trailing twoLine,
+        # matching printBlkInterval's itemCnt == 0 branch exactly).
+        # Checked against rows_out (not the earlier has_data flag)
+        # because the zero-total-task filter above can empty it out even
+        # when has_data was True (e.g. every "nonzero" value happened to
+        # cancel out to a total of exactly 0) #
+        if not rows_out:
+            SysMgr.printPipe("%s\n%s\n" % (UtilMgr.NONE_STR, oneLine))
+            return
+
+        for _sort, name_cells, summary_cell, cells in rows_out:
+            row_prefix = _build_prefix(name_cells, summary_cell)
+            row_timeline = _build_timeline(cells, len(row_prefix))
+            SysMgr.printPipe(
+                "%s %s\n%s\n" % (row_prefix, row_timeline, oneLine)
+            )
 
     # -----------------------------------------------------------------------
     # Command entry points
@@ -139005,10 +139350,50 @@ class BpfMgr(object):
         top: CPU% (on-CPU BPF accumulation), scheduling/runqueue latency,
         VFS read/write bytes, block I/O wait latency, genuine sleep/block
         duration, and a derived OTHER_WAIT residual column. Title line
-        reuses TaskAnalyzer's own saveSystemStat/printSystemStat
-        (Time/Date/PSI/IRQ/Mem/Swap), same as top's own main loop -- see
-        _printResourceTop for the table."""
+        reuses TaskAnalyzer's own saveSystemStat/printSystemStat, same as
+        top's own main loop -- see _printResourceTop for the table. With
+        -o, the same flags top's own "atop" mode sets (disk/irq/mem/
+        network/perf/block) are turned on first, so the saved header
+        includes the full Memory/VM/LMK/IRQ/PMU/Disk/Network picture,
+        not just the subset (Default/Slab/Buddy/KSM/Zone/Dmabuf/PSI/CPU)
+        that prints even at those flags' normal False default. With -o,
+        the finally block also reuses top's own SysMgr.printLogo()/
+        SysMgr.saveSysStats() the exact same way real top's own
+        SysMgr.stopHandler() does at end-of-run (same gate condition:
+        SysMgr.outPath and NOSUMMARY not set), so the saved file leads
+        with top's own ASCII banner + [System General Info]/[System OS
+        Info]/... launch dump, not just the [Top Summary Info]/per-task
+        Summary tables below."""
         try:
+            # -o cumulative Summary tables (bpftop-style: plain dict
+            # accumulated tick-by-tick, printed once in the finally block
+            # below) -- defined this early (before anything that could
+            # raise) so the finally block can always safely reference
+            # them, even on an early failure before the main loop starts.
+            # Single source of truth for both the per-tick accumulation
+            # loop and the 9 printed tables, so adding/renaming a
+            # tracked metric only ever needs one edit (found via review:
+            # keeping two hand-written parallel lists in sync was a real
+            # risk). (series_key, rows-dict key, display label or None,
+            # unit, paired series_key or None) -- RD_KB/WR_KB is the one
+            # exception that packs two series into a single table,
+            # mirroring printBlkInterval's "blkrd/blkwr" convention #
+            _METRICS = (
+                ("nr_threads", "nr_threads", "NR_THR", "count", None),
+                ("cpu", "cpu_pct", "CPU", "%", None),
+                ("rq_avg_ms", "rq_avg", "RQ_AVG_MS", "ms", None),
+                ("rq_total_ms", "rq_ns", "RQ_TOTAL_MS", "ms", None),
+                ("sleep_ms", "sleep_ns", "SLEEP_MS", "ms", None),
+                ("rd_kb", "rd_bytes", "RD_KB/WR_KB", "KB", "wr_kb"),
+                ("wr_kb", "wr_bytes", None, "KB", None),
+                ("iow_avg_ms", "iowait_avg", "IOW_AVG_MS", "ms", None),
+                ("iow_total_ms", "iowait_ns", "IOW_TOTAL_MS", "ms", None),
+                ("iow_cnt", "iowait_cnt", "IOW_CNT", "count", None),
+                ("other_ms", "other_wait", "OTHER_WAIT_MS", "ms", None),
+            )
+            _summary_series = {}
+            _tick_idx = 0
+
             BpfMgr.checkAvailable()
 
             # -Q: print all rows in a stream, no ---more--- paging (same
@@ -139034,6 +139419,28 @@ class BpfMgr(object):
             # here exactly, not "cleaned up" into disabling both #
             if not SysMgr.showAll:
                 SysMgr.cpuEnable = False
+
+            # -o: force on the same system-stat flags top's own "atop"
+            # mode does (guider.py's "elif SysMgr.checkMode('atop'):"
+            # branch -- diskEnable/irqEnable/memEnable/networkEnable,
+            # plus blockEnable/perfEnable when root), so the reused
+            # TaskAnalyzer.printSystemStat() header saved into the -o
+            # file includes Memory/VM/LMK/IRQ/Perf/Disk/Network too, not
+            # just the subset (Default/Slab/Buddy/KSM/Zone/Dmabuf/PSI/
+            # CPU) that prints even with these flags at their normal
+            # False default (per user request: "-o 적용 시 top -o output
+            # 상단처럼 system stat들을 모두 저장" -- reusing top's own
+            # atop flag combination exactly rather than inventing a new
+            # one). Scoped to -o only, matching that request, so plain
+            # interactive/live bpfrestop stays as lightweight as before #
+            if SysMgr.outPath:
+                SysMgr.diskEnable = True
+                SysMgr.irqEnable = True
+                SysMgr.memEnable = True
+                SysMgr.networkEnable = True
+                if SysMgr.isRoot():
+                    SysMgr.blockEnable = True
+                    SysMgr.perfEnable = True
 
             per_thread = "t" in (SysMgr.getOption("e") or "")
             use_cmdline = "L" in (SysMgr.getOption("e") or "")
@@ -139383,6 +139790,42 @@ class BpfMgr(object):
                     sleep_perpid_fd=sleep_perpid_fd,
                 )
 
+                # accumulate this tick's per-task values into the -o
+                # cumulative Summary tables (finally block below) --
+                # purely local dict/list bookkeeping, no TaskAnalyzer
+                # involvement. New tasks get their earlier ticks
+                # backfilled with 0 (top's own convention for a task
+                # that didn't exist yet); tasks absent this tick get 0
+                # appended below once every row has been visited, so
+                # every series stays exactly `_tick_idx` long and the
+                # Nth column always means the same tick in every table #
+                _tick_idx += 1
+                for _r in rows:
+                    _pid_key = _r["tid"] if per_thread else _r["tgid"]
+                    _entry = _summary_series.get(_pid_key)
+                    if _entry is None:
+                        _entry = {"pcomm": _r["pcomm"], "tgid": _r["tgid"]}
+                        if per_thread:
+                            _entry["tcomm"] = _r["tcomm"]
+                            _entry["tid"] = _r["tid"]
+                        for _key, _src, _lbl, _unit, _pair in _METRICS:
+                            _entry[_key] = [0] * (_tick_idx - 1)
+                        _summary_series[_pid_key] = _entry
+                    _entry["pcomm"] = _r["pcomm"]
+                    if per_thread:
+                        _entry["tcomm"] = _r["tcomm"]
+                    for _key, _src, _lbl, _unit, _pair in _METRICS:
+                        _val = _r[_src]
+                        if _unit == "ms":
+                            _val = _val / 1e6
+                        elif _unit == "KB":
+                            _val = _val / 1024.0
+                        _entry[_key].append(_val)
+                for _entry in _summary_series.values():
+                    for _key, _src, _lbl, _unit, _pair in _METRICS:
+                        while len(_entry[_key]) < _tick_idx:
+                            _entry[_key].append(0)
+
                 # procs_running/procs_blocked: already parsed from
                 # /proc/stat by printSystemUsage() (called above via
                 # printSystemStat) into obj.cpuData -- previously only
@@ -139442,6 +139885,81 @@ class BpfMgr(object):
             # nonexistent file while the run itself looked completely
             # normal on stdout (found via user-directed full-option device
             # verification) #
+            # jsonEnable excluded: these are plain-text tables and would
+            # corrupt a -J JSON/JSONEACH output file if appended to it
+            # (found via real-device verification: -J -q JSONEACH -o
+            # produced a JSONL file with these text tables tacked onto
+            # the end, breaking the one-JSON-object-per-line contract) #
+            if (
+                SysMgr.outPath
+                and not SysMgr.jsonEnable
+                and "NOSUMMARY" not in SysMgr.environList
+            ):
+                # top's own ASCII banner + one-time launch dump
+                # ([System General Info], [System OS Info], ... ~25
+                # sections), in that exact order -- genuine reuse of
+                # SysMgr.printLogo()/SysMgr.saveSysStats(), not a
+                # reimplementation. This is EXACTLY what real top's own
+                # SysMgr.stopHandler() does at end-of-run, under this
+                # exact same condition (guider.py's stopHandler, the
+                # "elif SysMgr.outPath and 'NOSUMMARY' not in
+                # SysMgr.environList:" branch: "SysMgr.printLogo(
+                # absolute=True, big=True)" then "SysMgr.saveSysStats(
+                # True)") -- NOT unconditional, and NOT called at the
+                # start of the run (an earlier version of this code did
+                # both of those wrong: calling it unconditionally
+                # double-printed the banner when -o wasn't set, since
+                # SysMgr.initEnvironment()'s own separate early flash
+                # already shows it live once; found via user report).
+                # bpfrestop has no equivalent shutdown hook of its own
+                # (its loop/cleanup never reaches stopHandler()), so
+                # this reuses the exact same two calls, in the exact
+                # same place in its own control flow (a finally: block
+                # gated on this exact condition) that stopHandler uses
+                # them in #
+                SysMgr.printLogo(absolute=True, big=True)
+                SysMgr.saveSysStats(True)
+
+                # Part A-0: system-wide [Top Summary Info] overview --
+                # genuine reuse of top's own, completely unmodified
+                # functions, not a reimplementation. bpfrestop already
+                # writes byte-identical system-header/Total lines to
+                # SysMgr.procBuffer every tick (via obj.printSystemStat()
+                # above, the exact function classic top calls for its
+                # own header), so summarizeInterval()'s text re-parsing
+                # picks them up correctly. ONLYTOTAL (an existing option,
+                # already used elsewhere for report-merge summaries) is
+                # set defensively so parseProcLine() never even attempts
+                # to match bpfrestop's own differently-shaped per-task/
+                # Scheduling-Summary lines against classic top's per-task
+                # regex -- today's exact column layout happens not to
+                # collide with any of parseProcLine's other branches, but
+                # this makes that non-collision a guarantee rather than a
+                # coincidence. Must run before SysMgr.clearProcBuffer()
+                # below wipes the buffer this reads #
+                SysMgr.environList["ONLYTOTAL"] = True
+                TaskAnalyzer.summarizeInterval()
+                TaskAnalyzer.printTimeline()
+
+                # Part A: bpfrestop's own per-task "task x interval"
+                # Summary tables, one per tracked metric -- completely
+                # independent of TaskAnalyzer/procIntData/procTotData,
+                # built from _summary_series (accumulated above, in the
+                # main loop) #
+                if _summary_series:
+                    for _key, _src, _lbl, _unit, _pair in _METRICS:
+                        if _lbl is None:
+                            continue
+                        BpfMgr._printResourceSummaryTable(
+                            _summary_series,
+                            _tick_idx,
+                            _lbl,
+                            _unit,
+                            _key,
+                            _pair,
+                            per_thread,
+                        )
+
             if SysMgr.outPath:
                 SysMgr.printProcBuffer()
                 SysMgr.clearProcBuffer()
@@ -203377,6 +203895,26 @@ class TaskAnalyzer(object):
 
         matplotlib.use("Agg")
 
+        # matplotlib >=3.10's FT2Image text-rendering internals warn on
+        # every float pixel coordinate passed to them (practically
+        # unavoidable -- almost any dpi/fontsize combination produces
+        # non-integer glyph positions during ordinary text/tick/legend
+        # rendering, not something this codebase's own savefig() calls
+        # control directly). Besides being pure noise on every render,
+        # that stderr write alone trips this codebase's "please report"
+        # first-stderr-write instrumentation (SysMgr's stderr tee in
+        # write(), guider.py:27958-27971), making a perfectly successful
+        # image render look like a crash (found via user report) #
+        try:
+            _warnings = SysMgr.getPkg("warnings")
+            _warnings.filterwarnings(
+                "ignore", category=matplotlib.MatplotlibDeprecationWarning
+            )
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
         SysMgr.importPkgItems("pylab")
 
         if not dpi and "DPI" in SysMgr.environList:
@@ -209458,6 +209996,169 @@ class TaskAnalyzer(object):
         return TaskAnalyzer.saveImage(fileName, "scatter")
 
     @staticmethod
+    def parseBpfRestopSeries(inputFile=[], fields=None):
+        """Parse bpfrestop's own output into {(comm, field): {"x": [...],
+        "y": [...]}} -- pure data extraction, no drawing. Originally the
+        front half of a `guider draw <file> -q BPFRESTOP` chart-drawing
+        function; the rendering half was removed (per user request, the
+        chart output quality wasn't usable) but this parsing logic was
+        kept standalone since another consumer may want the structured
+        data later without needing a chart at all.
+
+        Accepts either of bpfrestop's two own output shapes, auto-
+        detected from the first non-empty line: bpfrestop's JSONEACH
+        JSONL file (-q JSONEACH, one JSON object per (tick, task) row)
+        or its plain -o text Summary tables (Part A's "[bpfrestop <NAME>
+        Summary]" blocks, always present unless -q NOSUMMARY).
+
+        `fields` defaults to every field this function knows how to
+        extract (see _FIELD_TABLES below); pass an explicit list to
+        restrict extraction to just those fields.
+        """
+        import json as _json
+        import re as _re
+
+        _, _, inputList = UtilMgr.getInputNames(inputFile)
+        if not inputList:
+            return {}
+
+        # field -> (text-table label, unit) -- the same mapping Part A's
+        # doBpfrestopCmd/_printResourceSummaryTable and Part B's JSONEACH
+        # branch already use; kept here as its own copy since this
+        # function lives on the consumer side (external camelCase field
+        # names / table titles) while doBpfrestopCmd's _METRICS lives on
+        # the producer side (internal snake_case names) -- the same kind
+        # of producer/consumer naming split this codebase already has
+        # elsewhere (e.g. internal "rq_ns" vs JSON key "rqTotalNs") #
+        _FIELD_TABLES = {
+            "nrThreads": ("NR_THR", "count"),
+            "cpuPct": ("CPU", "%"),
+            "rqAvgNs": ("RQ_AVG_MS", "ms"),
+            "rqTotalNs": ("RQ_TOTAL_MS", "ms"),
+            "sleepNs": ("SLEEP_MS", "ms"),
+            "rdBytes": ("RD_KB/WR_KB", "KB"),
+            "wrBytes": ("RD_KB/WR_KB", "KB"),
+            "iowaitAvgNs": ("IOW_AVG_MS", "ms"),
+            "iowaitTotalNs": ("IOW_TOTAL_MS", "ms"),
+            "iowaitCnt": ("IOW_CNT", "count"),
+            "otherWaitNs": ("OTHER_WAIT_MS", "ms"),
+        }
+
+        if fields is None:
+            fields = list(_FIELD_TABLES)
+        else:
+            fields = [f for f in fields if f in _FIELD_TABLES]
+        if not fields:
+            return {}
+
+        # series[(comm, field)] = {"x": [...], "y": [...]} #
+        series = {}
+
+        _table_re = _re.compile(r"^\[bpfrestop (.+?) Summary\] \(Unit: .+?\)$")
+
+        for fpath in inputList:
+            try:
+                with open(fpath, "r") as _fd:
+                    _first = _fd.readline()
+                    _fd.seek(0)
+                    _is_json = _first.strip().startswith("{")
+
+                    if _is_json:
+                        for _line in _fd:
+                            _line = _line.strip()
+                            if not _line:
+                                continue
+                            try:
+                                _evt = _json.loads(_line)
+                            except Exception:
+                                continue
+                            _comm = (
+                                _evt.get("comm") or _evt.get("pcomm") or "?"
+                            )
+                            _t = _evt.get("time")
+                            if _t is None:
+                                continue
+                            for _f in fields:
+                                if _f not in _evt:
+                                    continue
+                                _s = series.setdefault(
+                                    (_comm, _f), {"x": [], "y": []}
+                                )
+                                _s["x"].append(_t)
+                                _s["y"].append(_evt[_f])
+                    else:
+                        _lines = _fd.readlines()
+                        _wanted_tables = {}
+                        for _f in fields:
+                            _tbl = _FIELD_TABLES[_f][0]
+                            _wanted_tables.setdefault(_tbl, []).append(_f)
+
+                        _idx = 0
+                        while _idx < len(_lines):
+                            _m = _table_re.match(_lines[_idx].strip())
+                            if not _m or _m.group(1) not in _wanted_tables:
+                                _idx += 1
+                                continue
+                            _tbl_name = _m.group(1)
+                            _tbl_fields = _wanted_tables[_tbl_name]
+                            # skip title, twoLine, header, twoLine -- matches
+                            # _printResourceSummaryTable's real top-convention
+                            # layout (title/twoLine/header/twoLine/rows, one
+                            # oneLine after EVERY row, no trailing twoLine) #
+                            _idx += 4
+                            while _idx < len(_lines):
+                                _row = _lines[_idx].rstrip("\n")
+                                if (
+                                    not _row.strip()
+                                    or _row.startswith("=")
+                                    or _row.startswith("[")
+                                ):
+                                    break
+                                _idx += 1
+                                if _row.startswith("-"):
+                                    continue
+                                if _row.strip() == UtilMgr.NONE_STR.strip():
+                                    continue
+                                _parts = _row.split("|")
+                                if len(_parts) != 3:
+                                    continue
+                                _names_part, _summary_part, _timeline_part = (
+                                    _parts
+                                )
+                                _name_tokens = _names_part.split()
+                                if not _name_tokens:
+                                    continue
+                                _nm = _re.match(r"(.+)\(", _name_tokens[-1])
+                                _comm = (
+                                    _nm.group(1).strip()
+                                    if _nm
+                                    else _name_tokens[-1]
+                                )
+                                _cells = _timeline_part.split()
+                                for _i, _cell in enumerate(_cells, start=1):
+                                    for _f in _tbl_fields:
+                                        if _tbl_name == "RD_KB/WR_KB":
+                                            _half = 0 if _f == "rdBytes" else 1
+                                            _raw = _cell.split("/")[_half]
+                                        else:
+                                            _raw = _cell
+                                        try:
+                                            _val = float(_raw.replace(",", ""))
+                                        except ValueError:
+                                            continue
+                                        _s = series.setdefault(
+                                            (_comm, _f), {"x": [], "y": []}
+                                        )
+                                        _s["x"].append(_i)
+                                        _s["y"].append(_val)
+            except SystemExit:
+                sys.exit(0)
+            except Exception:
+                continue
+
+        return series
+
+    @staticmethod
     def drawViolin(
         inputFile=[],
         statList=[],
@@ -210507,10 +211208,31 @@ class TaskAnalyzer(object):
             svg_w = float(vb.group(1))
             svg_h = float(vb.group(2))
 
-            # Collect figure-normalized positions of axes that have legends #
-            ax_positions = [
-                ax.get_position() for ax in fig.get_axes() if ax.get_legend()
-            ]
+            # Collect figure-normalized positions of axes that have
+            # legends -- one entry per Legend artist, not per axes.
+            # ax.get_legend() only ever returns the single "current"
+            # legend an axes was last given via ax.legend(); an axes
+            # with two legend artists (one kept alive via
+            # ax.add_artist() after a second ax.legend() call replaced
+            # it as "current") still only counts once here, so
+            # zip(legend_ids, ax_positions) below would silently drop
+            # the second legend's clip-path and desync every later
+            # axes' clip region if any (found via a caller that put two
+            # legends on one axes; even though that caller was later
+            # removed, this fix stays since it's a real gap in the
+            # shared utility's own assumptions). matplotlib.legend.Legend
+            # children are kept in the order they were added, matching
+            # SVG document order #
+            from matplotlib.legend import Legend
+
+            ax_positions = []
+            for ax in fig.get_axes():
+                pos = ax.get_position()
+                ax_positions += [
+                    pos
+                    for child in ax.get_children()
+                    if isinstance(child, Legend)
+                ]
             if not ax_positions:
                 return svg_str
 
