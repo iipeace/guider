@@ -134345,13 +134345,28 @@ class BpfMgr(object):
             return
 
         for r in rows:
-            # convCpuColor pre-pads to `size` internally, then wraps with
-            # ANSI color codes -- inserting it via a bare %s (see
-            # _row_fmt's own comment above) keeps column alignment
-            # correct when color is enabled #
+            # Pre-pad the plain (uncolored) text to _cpu_width BEFORE
+            # handing it to convCpuColor, instead of relying on
+            # convCpuColor's own `size=` padding: UtilMgr.convColor()
+            # skips its padding step entirely whenever SysMgr.outPath is
+            # set (guider.py's "elif SysMgr.outPath or (...): return
+            # str(string)" branch, which disables color for saved files
+            # but -- as a side effect -- returns the raw, un-padded
+            # string too), so with -o the CPU% cell came back 3+ chars
+            # short of _cpu_width and desynced every column after it
+            # from the header (found via real-device verification: the
+            # header/twoLine were exactly SysMgr.lineLength wide but
+            # every data row was 3 chars short). Pre-padding here makes
+            # the fix correct either way: when color IS applied (no -o),
+            # convColor's own re-pad to the same width is a no-op on an
+            # already-width-correct string, so the colored path is
+            # unaffected #
             cpu_str = UtilMgr.convCpuColor(
                 r["cpu_pct"],
-                "%s%%" % conv(r["cpu_pct"], isFloat=True, floatDigit=1),
+                "%*s" % (
+                    _cpu_width,
+                    "%s%%" % conv(r["cpu_pct"], isFloat=True, floatDigit=1),
+                ),
                 size=_cpu_width,
             )
             if per_thread:
@@ -210128,11 +210143,24 @@ class TaskAnalyzer(object):
                                 _name_tokens = _names_part.split()
                                 if not _name_tokens:
                                     continue
-                                _nm = _re.match(r"(.+)\(", _name_tokens[-1])
+                                # per_thread mode's row is "TCOMM(TID)
+                                # PCOMM(PID)" -- the FIRST token, not the
+                                # last, since the JSONEACH branch above
+                                # groups by "comm": evt.get("tcomm") or
+                                # evt.get("pcomm"), i.e. thread name takes
+                                # priority over process name. Using the
+                                # last token here would silently regroup
+                                # per-thread rows by process name instead,
+                                # desyncing this format from JSONEACH's
+                                # series identity for the same underlying
+                                # data. Non-per_thread rows only ever have
+                                # one token ("PCOMM(PID)"), so this is a
+                                # no-op there #
+                                _nm = _re.match(r"(.+)\(", _name_tokens[0])
                                 _comm = (
                                     _nm.group(1).strip()
                                     if _nm
-                                    else _name_tokens[-1]
+                                    else _name_tokens[0]
                                 )
                                 _cells = _timeline_part.split()
                                 for _i, _cell in enumerate(_cells, start=1):
