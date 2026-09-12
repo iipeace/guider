@@ -680,7 +680,7 @@ class ConfigMgr(object):
         0x00400000: "CLONE_DETACHED",  # DEPRECATED
         0x00800000: "CLONE_UNTRACED",
         0x01000000: "CLONE_CHILD_SETTID",
-        0x02000000: "CLONE_STOPPED",
+        # 0x02000000: "CLONE_STOPPED",  # DEPRECATED (reused for CLONE_NEWCGROUP)
         0x02000000: "CLONE_NEWCGROUP",
         0x04000000: "CLONE_NEWUTS",
         0x08000000: "CLONE_NEWIPC",
@@ -7378,8 +7378,13 @@ class UtilMgr(object):
     def isElfFile(path=None, fd=None):
         try:
             if path:
-                fd = open(path, "rb")
-            return struct.unpack("4B", fd.read(4)) == (
+                with open(path, "rb") as f:
+                    magic = f.read(4)
+            elif fd:
+                magic = fd.read(4)
+            else:
+                return False
+            return struct.unpack("4B", magic) == (
                 0x7F,
                 ord("E"),
                 ord("L"),
@@ -8569,11 +8574,12 @@ class UtilMgr(object):
     def convBin2Str(path, pos=False):
         try:
             if sys.version_info < (3, 0):
-                fd = open(path, "rb")
+                with open(path, "rb") as fd:
+                    content = fd.read()
             else:
-                fd = open(path, encoding="latin-1")
+                with open(path, encoding="latin-1") as fd:
+                    content = fd.read()
 
-            content = fd.read()
             strList = list(re.findall("[^\x00-\x1f\x7f-\xff]{4,}", content))
 
             if pos:
@@ -8950,7 +8956,7 @@ class UtilMgr(object):
         def _convType(retStr, res):
             if retStr:
                 if res:
-                    return sorted(separator.join(res))
+                    return separator.join(sorted(res))
                 else:
                     return ""
             else:
@@ -30087,6 +30093,12 @@ class LogMgr(object):
 
             SysMgr.checkLogCond(log, watchcond, refilter)
 
+        if traceFd:
+            try:
+                traceFd.close()
+            except:
+                pass
+
         # do a final flush of the summary handler #
         if cb:
             cb(0, 0)
@@ -39815,11 +39827,15 @@ class AndroidMgr(object):
 
         # apply TOPN: sort by total PSS and take top N (ALLMEMTOP only) #
         if isAll and topN is not None and memBuf:
-            _TOTAL_PSS_RE = re.compile(r"TOTAL\s+(\d+)", re.MULTILINE)
+            _TOTAL_PSS_RE = re.compile(r"TOTAL\s+(\d+)")
 
             def _get_total_pss(buf_lines):
-                m = _TOTAL_PSS_RE.search("\n".join(buf_lines))
-                return int(m.group(1)) if m else 0
+                for l in buf_lines:
+                    if "TOTAL" in l:
+                        m = _TOTAL_PSS_RE.search(l)
+                        if m:
+                            return int(m.group(1))
+                return 0
 
             paired = sorted(
                 zip(memTarget, memBuf),
@@ -39829,6 +39845,68 @@ class AndroidMgr(object):
             paired = paired[:topN]
             memTarget = [p[0] for p in paired]
             memBuf = [p[1] for p in paired]
+
+        _TOTAL_RE = re.compile(r"^\s*TOTAL\b")
+        _MEMINFO_PID_RE = re.compile(r"MEMINFO in pid\s+(\d+)")
+        _DIGITS_RE = re.compile(r"\d+")
+
+        onlyDiff = "ONLYDIFF" in SysMgr.environList
+        diffOnly = "DIFFONLY" in SysMgr.environList
+        doDiff = "DIFF" in SysMgr.environList or diffOnly
+        showOnlyChanged = onlyDiff or diffOnly
+        thresholdRaw = SysMgr.environList.get("THRESHOLD")
+        try:
+            threshold = (
+                int(thresholdRaw[0]) if thresholdRaw else None
+            )
+        except (ValueError, TypeError):
+            SysMgr.printErr("invalid THRESHOLD value")
+            threshold = None
+
+        if watchCat:
+            _CAT_KEYWORDS = {
+                "Java": ["Dalvik"],
+                "Native": ["Native Heap"],
+                "Code": [
+                    ".so mmap",
+                    ".jar mmap",
+                    ".dex mmap",
+                    ".oat mmap",
+                    ".art mmap",
+                ],
+                "Stack": ["Stack"],
+                "Graphics": ["EGL mtrack", "GL mtrack", "Graphics"],
+                "Unknown": ["Unknown"],
+            }
+            _JSON_MEM_KW = {
+                "Java": ["Dalvik"],
+                "Native": ["Native Heap"],
+                "Code": [
+                    ".so mmap",
+                    ".jar mmap",
+                    ".dex mmap",
+                    ".oat mmap",
+                    ".art mmap",
+                ],
+                "Stack": ["Stack"],
+                "Graphics": [
+                    "EGL mtrack",
+                    "GL mtrack",
+                    "Graphics",
+                ],
+                "Unknown": ["Unknown"],
+            }
+            _JSON_SUM_KW = {
+                "Java": ["Java Heap"],
+                "Native": ["Native Heap"],
+                "Code": ["Code"],
+                "Stack": ["Stack"],
+                "Graphics": ["Graphics"],
+                "Unknown": ["Unknown"],
+            }
+            cat_keywords = _CAT_KEYWORDS.get(watchCat, [watchCat])
+            mem_kw = _JSON_MEM_KW.get(watchCat, [watchCat])
+            sum_kw = _JSON_SUM_KW.get(watchCat, [watchCat])
 
         for idx, m in enumerate(memTarget if memTarget else []):
             if not isAll and not m:
@@ -39850,28 +39928,13 @@ class AndroidMgr(object):
             meminfostr = "\n".join(meminfo)
             if not SysMgr.showAll:
                 meminfostr = meminfostr.split("App Summary", 1)[0].rstrip()
-            meminfo = meminfostr.split("\n")
+                meminfo = meminfostr.split("\n")
 
             origMeminfostr = meminfostr
 
             if watchCat:
-                _CAT_KEYWORDS = {
-                    "Java": ["Dalvik"],
-                    "Native": ["Native Heap"],
-                    "Code": [
-                        ".so mmap",
-                        ".jar mmap",
-                        ".dex mmap",
-                        ".oat mmap",
-                        ".art mmap",
-                    ],
-                    "Stack": ["Stack"],
-                    "Graphics": ["EGL mtrack", "GL mtrack", "Graphics"],
-                    "Unknown": ["Unknown"],
-                }
-                keywords = _CAT_KEYWORDS.get(watchCat, [watchCat])
                 filtered = [
-                    l for l in meminfo if any(kw in l for kw in keywords)
+                    l for l in meminfo if any(kw in l for kw in cat_keywords)
                 ]
                 if filtered:
                     meminfo = filtered
@@ -39893,47 +39956,7 @@ class AndroidMgr(object):
                     if not meminfoJson:
                         continue
 
-                    onlyDiff = "ONLYDIFF" in SysMgr.environList
-                    diffOnly = "DIFFONLY" in SysMgr.environList
-                    doDiff = "DIFF" in SysMgr.environList or diffOnly
-                    thresholdRaw = SysMgr.environList.get("THRESHOLD")
-                    try:
-                        threshold = (
-                            int(thresholdRaw[0]) if thresholdRaw else None
-                        )
-                    except (ValueError, TypeError):
-                        SysMgr.printErr("invalid THRESHOLD value")
-                        threshold = None
-
                     if watchCat:
-                        _JSON_MEM_KW = {
-                            "Java": ["Dalvik"],
-                            "Native": ["Native Heap"],
-                            "Code": [
-                                ".so mmap",
-                                ".jar mmap",
-                                ".dex mmap",
-                                ".oat mmap",
-                                ".art mmap",
-                            ],
-                            "Stack": ["Stack"],
-                            "Graphics": [
-                                "EGL mtrack",
-                                "GL mtrack",
-                                "Graphics",
-                            ],
-                            "Unknown": ["Unknown"],
-                        }
-                        _JSON_SUM_KW = {
-                            "Java": ["Java Heap"],
-                            "Native": ["Native Heap"],
-                            "Code": ["Code"],
-                            "Stack": ["Stack"],
-                            "Graphics": ["Graphics"],
-                            "Unknown": ["Unknown"],
-                        }
-                        mem_kw = _JSON_MEM_KW.get(watchCat, [watchCat])
-                        sum_kw = _JSON_SUM_KW.get(watchCat, [watchCat])
                         mi = meminfoJson.get("appMemoryUsage", {}).get(
                             "memoryInfo", {}
                         )
@@ -40014,7 +40037,7 @@ class AndroidMgr(object):
                     jsonDict = {m: meminfoJson}
                     meminfostr = UtilMgr.convDict2Str(jsonDict, gpretty=True)
                 elif not SysMgr.outPath:
-                    pidinfo = re.compile(r"MEMINFO in pid\s+(\d+)").search(
+                    pidinfo = _MEMINFO_PID_RE.search(
                         meminfostr
                     )
                     if not pidinfo:
@@ -40032,24 +40055,6 @@ class AndroidMgr(object):
 
                     skip_proc = False
                     if pid:
-                        # ONLYDIFF: only changed lines, YELLOW highlight (no delta math)
-                        # DIFF:     all lines, numbers replaced with deltas (+N/-N/0)
-                        # DIFFONLY: like DIFF but skip lines where all deltas are zero
-                        # Uptime line is always shown as-is regardless of mode
-                        onlyDiff = "ONLYDIFF" in SysMgr.environList
-                        diffOnly = "DIFFONLY" in SysMgr.environList
-                        doDiff = "DIFF" in SysMgr.environList or diffOnly
-                        showOnlyChanged = onlyDiff or diffOnly
-
-                        thresholdRaw = SysMgr.environList.get("THRESHOLD")
-                        try:
-                            threshold = (
-                                int(thresholdRaw[0]) if thresholdRaw else None
-                            )
-                        except (ValueError, TypeError):
-                            SysMgr.printErr("invalid THRESHOLD value")
-                            threshold = None
-
                         piddata = SysMgr.memDumpData.get(pid, [])
 
                         if piddata:
@@ -40063,7 +40068,7 @@ class AndroidMgr(object):
                                 +delta -> RED, -delta -> YELLOW, 0 -> uncolored.
                                 Each delta is right-justified to the original number's width.
                                 """
-                                old_nums = re.findall(r"\d+", old_line)
+                                old_nums = _DIGITS_RE.findall(old_line)
                                 idx = [0]
                                 nonzero = [False]
 
@@ -40088,7 +40093,7 @@ class AndroidMgr(object):
                                         return padded
                                     return orig
 
-                                result = re.sub(r"\d+", _repl, new_line)
+                                result = _DIGITS_RE.sub(_repl, new_line)
                                 return result, nonzero[0]
 
                             for i in range(max(prev_len, curr_len)):
@@ -40150,13 +40155,12 @@ class AndroidMgr(object):
                         SysMgr.memDumpData[pid] = meminfo
 
                         if threshold is not None:
-                            _TOTAL_RE = re.compile(r"^\s*TOTAL\b")
                             total_cur = next(
                                 (l for l in meminfo if _TOTAL_RE.match(l)),
                                 None,
                             )
                             if total_cur:
-                                cur_nums = re.findall(r"\d+", total_cur)
+                                cur_nums = _DIGITS_RE.findall(total_cur)
                                 if cur_nums:
                                     if doDiff and piddata:
                                         total_prev = next(
@@ -40168,7 +40172,7 @@ class AndroidMgr(object):
                                             None,
                                         )
                                         prev_nums = (
-                                            re.findall(r"\d+", total_prev)
+                                            _DIGITS_RE.findall(total_prev)
                                             if total_prev
                                             else []
                                         )
@@ -40184,18 +40188,17 @@ class AndroidMgr(object):
                                         )
 
                         if not skip_proc and (doDiff or onlyDiff) and piddata:
-                            _TOTAL_RE_D = re.compile(r"^\s*TOTAL\b")
                             t_cur = next(
-                                (l for l in meminfo if _TOTAL_RE_D.match(l)),
+                                (l for l in meminfo if _TOTAL_RE.match(l)),
                                 None,
                             )
                             t_prev = next(
-                                (l for l in piddata if _TOTAL_RE_D.match(l)),
+                                (l for l in piddata if _TOTAL_RE.match(l)),
                                 None,
                             )
                             if t_cur and t_prev:
-                                cn = re.findall(r"\d+", t_cur)
-                                pn = re.findall(r"\d+", t_prev)
+                                cn = _DIGITS_RE.findall(t_cur)
+                                pn = _DIGITS_RE.findall(t_prev)
                                 if cn and pn and int(cn[0]) == int(pn[0]):
                                     skip_proc = True
 
@@ -45349,7 +45352,9 @@ trigger_config {
             SysMgr.printWarn("failed to convert data", True, True)
 
     @staticmethod
-    def getScripts(path, scripts=[], retfd=False):
+    def getScripts(path, scripts=None, retfd=False):
+        if scripts is None:
+            scripts = []
         try:
             realpath = os.path.realpath(path) if path else "INPUT"
             compressed = False
@@ -186867,7 +186872,7 @@ class ElfAnalyzer(object):
         0x6FFF4C01: "LLVM_LINKER_OPTIONS",
         0x6FFF4C02: "LLVM_CALL_GRAPH_PROFILE",
         0x6FFF4CFF: "GNU_SFRAME",
-        0x6FFFFFFF: "HIOS",
+        # 0x6FFFFFFF: "HIOS",  # Same value as GNU_versym (end of OS-specific range)
         0x70000000: "LOPROC",
         0x7FFFFFFF: "HIPROC",
         0x80000000: "LOUSER",
@@ -186876,7 +186881,7 @@ class ElfAnalyzer(object):
         0x6FFFFFF6: "GNU_HASH",
         0x6FFFFFF7: "GNU_LIBLIST",
         0x6FFFFFF8: "CHECKSUM",
-        0x6FFFFFFA: "LOSUNW",
+        # 0x6FFFFFFA: "LOSUNW",  # Same value as SUNW_move (start of Sun-specific range)
         0x6FFFFFFA: "SUNW_move",
         0x6FFFFFFB: "SUNW_COMDAT",
         0x6FFFFFFC: "SUNW_syminfo",
@@ -186887,8 +186892,8 @@ class ElfAnalyzer(object):
 
     SHN_TYPE = {
         0: "SHN_UNDEF",  # Undefined section #
-        0xFF00: "SHN_LORESERVE",  # Start of reserved indices #
-        0xFF00: "SHN_LOPROC",  # Start of processor-specific #
+        # 0xFF00: "SHN_LORESERVE",  # Start of reserved indices #
+        # 0xFF00: "SHN_LOPROC",  # Start of processor-specific #
         0xFF00: "SHN_BEFORE",  # Order section before all others #
         0xFF01: "SHN_AFTER",  # Order section after all others #
         0xFF1F: "SHN_HIPROC",  # End of processor-specific #
@@ -186896,7 +186901,7 @@ class ElfAnalyzer(object):
         0xFF3F: "SHN_HIOS",  # End of OS-specific #
         0xFFF1: "SHN_ABS",  # Associated symbol is absolute #
         0xFFF2: "SHN_COMMON",  # Associated symbol is common #
-        0xFFFF: "SHN_XINDEX",  # Index is in extra table. #
+        # 0xFFFF: "SHN_XINDEX",  # Index is in extra table. #
         0xFFFF: "SHN_HIRESERVE",  # End of reserved indices #
     }
 
@@ -186944,7 +186949,7 @@ class ElfAnalyzer(object):
         0x6000000D: "LOOS",
         0x6FFFF000: "HIOS",
         0x70000000: "LOPROC",
-        0x7FFFFFFF: "HIPROC",
+        # 0x7FFFFFFF: "HIPROC",  # Same value as FILTER (end of processor-specific range)
         0x6FFFFD00: "VALRNGLO",
         0x6FFFFDF5: "GNU_PRELINKED",
         0x6FFFFDF6: "GNU_CONFLICTSZ",
@@ -187575,8 +187580,6 @@ class ElfAnalyzer(object):
         142: "The Texas Instruments TMS320C55x DSP family",
         143: "Texas Instruments Application Specific RISC Processor, 32bit fetch",
         144: "Texas Instruments Programmable Realtime Unit",
-        145 - 159: "Reserved for future use",
-        160: "",
         145 - 159: "Reserved for future use",
         160: "STMicroelectronics 64bit VLIW Data Signal Processor",
         161: "Cypress M8C microprocessor",
@@ -188247,7 +188250,6 @@ class ElfAnalyzer(object):
         "DW_CFA_val_offset": 0x14,
         "DW_CFA_val_offset_sf": 0x15,
         "DW_CFA_val_expression": 0x16,
-        "DW_CFA_GNU_args_size": 0x2E,
         "DW_CFA_low_user": 0x1C,
         "DW_CFA_MIPS_advance_loc8": 0x1D,
         "DW_CFA_GNU_window_save": 0x2D,
@@ -199308,7 +199310,6 @@ class TaskAnalyzer(object):
                 "lastLockWait": 0.0,
                 "reqWrBlock": 0,
                 "writeQueueCnt": 0,
-                "writeBlockCnt": 0,
                 "writeStart": 0.0,
                 "ioWrWait": 0.0,
                 "awriteBlock": 0,
@@ -202914,7 +202915,7 @@ class TaskAnalyzer(object):
         statList=[],
         nameList=[],
         outFile=None,
-        posInfo=[],
+        posInfo=None,
         subNameList=[],
         gname=None,
         yper=True,
@@ -202995,8 +202996,7 @@ class TaskAnalyzer(object):
             SysMgr.printErr("no input for histogram")
             sys.exit(-1)
 
-        if not posInfo:
-            posInfo = []
+        posInfo = list(posInfo) if posInfo else []
         if not nameList:
             nameList = []
         if not subNameList:
