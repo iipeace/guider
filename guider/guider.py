@@ -122236,7 +122236,12 @@ class BpfMgr(object):
 
     @staticmethod
     def loadProg(
-        prog_type, insns_bytes, license=b"GPL", name="", expected_attach_type=0
+        prog_type,
+        insns_bytes,
+        license=b"GPL",
+        name="",
+        expected_attach_type=0,
+        attach_btf_id=0,
     ):
         """Load a BPF program, return fd or -1 on error"""
         try:
@@ -122265,9 +122270,12 @@ class BpfMgr(object):
             ).encode()
             for idx, b in enumerate(nm):
                 buf[48 + idx] = b if isinstance(b, int) else ord(b)
-            # expected_attach_type at offset 96 (for LSM and other attach-type programs) #
+            # expected_attach_type at offset 68 (for LSM, cgroup, and other attach-type programs) #
             if expected_attach_type:
-                struct.pack_into("<I", buf, 96, expected_attach_type)
+                struct.pack_into("<I", buf, 68, expected_attach_type)
+            # attach_btf_id at offset 108 (for LSM and Tracing programs) #
+            if attach_btf_id:
+                struct.pack_into("<I", buf, 108, attach_btf_id)
 
             fd = BpfMgr.bpfSyscall(5, buf)  # BPF_PROG_LOAD = 5
             if fd < 0:
@@ -124743,13 +124751,19 @@ class BpfMgr(object):
                 u_init_insns += bi(0x85, 0, 0, 0, FID["map_update_elem"])
                 u_init_n = len(u_init_insns) // 8  # 9 (LM=2)
 
-                # ustack block: header(5)+jslt(1)+fixed_after_jslt(9)+incr(3)+jmp(1)+init(9) = 28
-                u_block_n = 5 + 1 + 9 + u_incr_n + 1 + u_init_n  # = 28
-                # U_jslt/U_jmp: must skip past hist_insns to reach EXIT.
-                # hist_n is known because hist_insns is pre-built above.
-                U_jslt = 9 + u_incr_n + 1 + u_init_n + hist_n
-                U_jeq = u_incr_n + 1  # skip incr+JMP to reach u_init
-                U_jmp = u_init_n + hist_n  # skip u_init+hist to reach EXIT
+                # ustack block: header(5)+jslt(1)+fixed_after_jslt(9)+incr(3)+extra(1/0)+jmp(1)+init(9)
+                if USE_HIST:
+                    u_incr_extra = bi(0xB7, R0, 0, 0, 0)  # R0 = 0 (scalar)
+                    u_incr_extra_n = 1
+                else:
+                    u_incr_extra = b""
+                    u_incr_extra_n = 0
+
+                u_block_n = 5 + 1 + 9 + u_incr_n + u_incr_extra_n + 1 + u_init_n
+                # U_jslt: when ustack fails (R0 < 0), jump over ustack ops to hist_insns (or EXIT)
+                U_jslt = 9 + u_incr_n + u_incr_extra_n + 1 + u_init_n
+                U_jeq = u_incr_n + u_incr_extra_n + 1  # skip incr+extra+JMP to reach u_init
+                U_jmp = u_init_n  # skip u_init only; land on hist_insns (or EXIT)
             else:
                 u_block_n = 0
 
@@ -124767,7 +124781,7 @@ class BpfMgr(object):
             # N_jslt: when kstack fails (R0 < 0):
             #   - USE_USTACK=True: jump to USTACK block (skip kstack ops, keep ustack)
             #     so user stacks are still captured even when kernel stack is unavailable (e.g., uprobe)
-            #   - USE_USTACK=False: jump to EXIT (past hist)
+            #   - USE_USTACK=False: jump to hist_insns (or EXIT if no hist)
             if USE_USTACK:
                 N_jslt = 11 + k_incr_extra_n + k_incr_n + k_init_n
             else:
@@ -124777,7 +124791,6 @@ class BpfMgr(object):
                     + k_incr_n
                     + k_init_n
                     + u_block_n
-                    + hist_n
                 )
             N_jeq = (
                 k_incr_n + k_incr_extra_n + 1
@@ -124823,7 +124836,7 @@ class BpfMgr(object):
                     0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK
                 )  # R3 = 0x100
                 insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
-                insns += bi(0xC5, R0, 0, U_jslt, 0)  # if R0 < 0: jump to EXIT
+                insns += bi(0xC5, R0, 0, U_jslt, 0)  # if R0 < 0: jump to hist_insns (or EXIT)
                 insns += bi(0xBF, R9, R0, 0, 0)  # R9 = ustack_id
                 insns += bi(
                     BPF_STX_MEM_DW, R10, R6, -88, 0
@@ -124837,7 +124850,8 @@ class BpfMgr(object):
                 insns += bi(0x85, 0, 0, 0, FID["map_lookup_elem"])
                 insns += bi(0x15, R0, 0, U_jeq, 0)  # if NULL: jump to INIT
                 insns += u_incr_insns
-                insns += bi(0x05, 0, 0, U_jmp, 0)  # JMP to EXIT (over u_init)
+                insns += u_incr_extra  # R0=0 (scalar) when USE_HIST
+                insns += bi(0x05, 0, 0, U_jmp, 0)  # JMP to hist_insns (over u_init)
                 insns += u_init_insns
         else:
             if USE_HIST:
@@ -150446,6 +150460,7 @@ class BpfMgr(object):
                 b"GPL",
                 "lsmopen",
                 expected_attach_type=BpfMgr.BPF_LSM_MAC,
+                attach_btf_id=btf_id,
             )
             if prog_fd < 0:
                 sys.exit(-1)
