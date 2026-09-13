@@ -16135,10 +16135,8 @@ class Ext4Analyzer(object):
                 """
                 try:
                     # Combining *_lo and *_hi fields
-                    lo_field = lo_field = (
-                        LittleEndianStructure.__getattribute__(
-                            type(self), name + "_lo"
-                        )
+                    lo_field = LittleEndianStructure.__getattribute__(
+                        type(self), name + "_lo"
                     )
                     size = lo_field.size
 
@@ -22988,8 +22986,6 @@ class FunctionAnalyzer(object):
             if self.cpuEnabled:
                 if float(value["cpuTick"]) == 0:
                     cpuPer = "-"
-                else:
-                    cpuPer = cpuPer
             else:
                 cpuPer = "-"
 
@@ -31567,7 +31563,7 @@ class LogMgr(object):
                         table.setdefault(val, 0)
                         table[val] += 1
                     elif field == b"_PID":
-                        val = b"[%s]: " % val
+                        val = b"[" + val + b"]: "
                     elif field == b"_TRANSPORT" and val == b"kernel":
                         val += b": "
                     else:
@@ -60773,7 +60769,7 @@ Commands:
         if netBuf:
             return netBuf[2:]
         else:
-            netBuf
+            return netBuf
 
     @staticmethod
     def getConfigItem(name, data=None, itype="dict"):
@@ -104983,8 +104979,6 @@ Key Value List:
 
                 if enc:
                     data = UtilMgr.encodeBase64(data)
-                else:
-                    data = data
 
                 data = (
                     path[:start].encode()
@@ -206208,14 +206202,17 @@ class TaskAnalyzer(object):
                         else evtlimit_raw
                     )
                     if n_limit > 0:
-                        from collections import Counter as _Counter
-
-                        top_cats = {
-                            c
-                            for c, _ in _Counter(
-                                (e["name"], e["type"]) for e in evts
-                            ).most_common(n_limit)
-                        }
+                        _counts = {}
+                        for e in evts:
+                            _k = (e["name"], e["type"])
+                            _counts[_k] = _counts.get(_k, 0) + 1
+                        top_cats = set(
+                            sorted(
+                                _counts.keys(),
+                                key=lambda k: _counts[k],
+                                reverse=True,
+                            )[:n_limit]
+                        )
                         evts = [
                             e
                             for e in evts
@@ -227995,7 +227992,7 @@ function isAutoNamedPlot(name) {{
         try:
             if tgid == "0" or tgid.startswith("-"):
                 raise Exception("no tgid")
-            tgid = threadData["tgid"] = tgid
+            threadData["tgid"] = tgid
         except:
             try:
                 tgid = threadData["tgid"] = SysMgr.savedProcTree[thread]
@@ -234260,7 +234257,7 @@ function isAutoNamedPlot(name) {{
             anonMemDiff = pgAnon - prevVmData["nr_anon_pages"]
             if kbunit:
                 totalAnonMem = pgAnon << 2
-                anonMemDiff << 2
+                anonMemDiff = anonMemDiff << 2
             else:
                 totalAnonMem = pgAnon >> 8
                 anonMemDiff = anonMemDiff >> 8
