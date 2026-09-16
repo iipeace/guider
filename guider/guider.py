@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260911"
+__revision__ = "260916"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42,6 +42,11 @@ try:
     xrange  # pylint: disable=used-before-assignment
 except:
     xrange = range
+
+# python 3.0-3.2 compatibility: time.monotonic was added in Python 3.3
+if not hasattr(time, "monotonic"):
+    time.monotonic = getattr(time, "perf_counter", time.time)
+
 
 # enable JIT compiler #
 try:
@@ -6832,6 +6837,23 @@ class UtilMgr(object):
         return (" ".join(parts) + " ") if parts else ""
 
     @staticmethod
+    def intFromBytes(b, byteorder="big", signed=False):
+        if hasattr(int, "from_bytes"):
+            return int.from_bytes(b, byteorder, signed=signed)
+        if not b:
+            return 0
+        if byteorder == "little":
+            b = b[::-1]
+        val = 0
+        for x in b:
+            val = (val << 8) | (x if isinstance(x, int) else ord(x))
+        if signed and b:
+            first_byte = b[0] if isinstance(b[0], int) else ord(b[0])
+            if first_byte & 0x80:
+                val -= 1 << (len(b) * 8)
+        return val
+
+    @staticmethod
     def saveTime():
         UtilMgr.printTime(update=True, verb=False)
 
@@ -6963,7 +6985,7 @@ class UtilMgr(object):
                 rawfd.seek(-4, 2)
                 size = rawfd.read(4)
                 rawfd.seek(origPos)
-                total = long.from_bytes(size, "little")
+                total = struct.unpack("<I", size)[0]
             else:
                 total = UtilMgr.getFileSize(fd.name, False)
         except SystemExit:
@@ -32590,7 +32612,7 @@ class LLMMgr(object):
             self,
             data,
             prompt="Analyze the following performance data and provide key insights:",
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze JSON data with LLM
@@ -32849,7 +32871,7 @@ class LLMMgr(object):
             data,
             prompt="Analyze the following performance data and provide key insights:",
             temperature=None,
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze data using Google Gemini API with optional system instruction caching
@@ -33235,7 +33257,7 @@ class LLMMgr(object):
             prompt="Analyze the following performance data and provide key insights:",
             maxTokens=4096,
             temperature=None,
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze data using Anthropic Claude API with optional prompt caching
@@ -33637,7 +33659,7 @@ class LLMMgr(object):
             data,
             prompt="Analyze the following performance data and provide key insights:",
             temperature=None,
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze data using OpenAI API with automatic implicit caching
@@ -34140,7 +34162,7 @@ class LLMMgr(object):
             prompt="Analyze the following performance data and provide key insights:",
             maxTokens=4096,
             temperature=None,
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze data with optional prompt caching support
@@ -34608,7 +34630,7 @@ class LLMMgr(object):
             data,
             prompt="Analyze the following performance data and provide key insights:",
             temperature=None,
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze data with optional system instruction caching
@@ -35081,7 +35103,7 @@ class LLMMgr(object):
             prompt="Analyze the following performance data and provide key insights:",
             maxTokens=4096,
             temperature=None,
-            **kwargs,
+            **kwargs
         ):
             """
             Analyze data with optional prompt caching support
@@ -46343,7 +46365,7 @@ trigger_config {
         n = len(data)
 
         def _read_id(pos):
-            return int.from_bytes(data[pos : pos + id_size], "big")
+            return UtilMgr.intFromBytes(data[pos : pos + id_size], "big")
 
         def _type_sz(ty):
             return id_size if ty == 2 else _PRIM_SZ.get(ty, id_size)
@@ -49462,7 +49484,7 @@ class RetraceMgr(object):
             return
         except:
             SysMgr.printErr("failed to translate log", True)
-            return None
+            return
 
 
 class SysMgr(object):
@@ -86895,7 +86917,7 @@ Key Value List:
         out = sys.__stderr__ if SysMgr.jsonEnable else sys.stdout
         if suffix:
             try:
-                print(log, file=out)
+                out.write(log + "\n")
                 out.flush()
             except SystemExit:
                 sys.exit(0)
@@ -86926,7 +86948,7 @@ Key Value List:
             SysMgr.stdlog.write(log)
 
         out = sys.__stderr__ if SysMgr.jsonEnable else sys.stdout
-        print(log, file=out)
+        out.write(log + "\n")
         out.flush()
 
     @staticmethod
@@ -119624,31 +119646,37 @@ class FuncPerfMgr(object):
         f is an open text-mode file to write guider.perf.dat format output.
         Returns the number of samples parsed.
         """
-        n_samples = 0
+        n_samples = [0]
         line_cnt = 0
-        cur_comm = cur_pid = cur_tid = cur_time = cur_event = cur_count = None
+        cur_sample = {
+            "comm": None,
+            "pid": None,
+            "tid": None,
+            "time": None,
+            "event": None,
+            "count": None,
+        }
         chain = []  # list of (sym, dso) tuples
 
         def _flush():
-            nonlocal n_samples, cur_comm, chain
-            if cur_comm is None or not chain:
-                cur_comm = None
-                chain = []
+            if cur_sample["comm"] is None or not chain:
+                cur_sample["comm"] = None
+                del chain[:]
                 return
-            n_samples += 1
+            n_samples[0] += 1
             f.write("sample:\n")
-            f.write("  pid: %s\n" % cur_pid)
-            f.write("  tid: %s\n" % cur_tid)
-            f.write("  comm: %s\n" % cur_comm)
-            f.write("  time: %s\n" % cur_time)
-            f.write("  event: %s\n" % cur_event)
-            f.write("  count: %s\n" % cur_count)
+            f.write("  pid: %s\n" % cur_sample["pid"])
+            f.write("  tid: %s\n" % cur_sample["tid"])
+            f.write("  comm: %s\n" % cur_sample["comm"])
+            f.write("  time: %s\n" % cur_sample["time"])
+            f.write("  event: %s\n" % cur_sample["event"])
+            f.write("  count: %s\n" % cur_sample["count"])
             f.write("  callchain:\n")
             for sym, dso in chain:
                 f.write("    %s [%s]\n" % (sym, dso))
             f.write("\n")
-            cur_comm = None
-            chain = []
+            cur_sample["comm"] = None
+            del chain[:]
 
         for raw in line_iter:
             line_cnt += 1
@@ -119688,30 +119716,30 @@ class FuncPerfMgr(object):
                     parts = raw.decode("utf-8", "replace").split()
                     if len(parts) < 4:
                         continue
-                    cur_comm = parts[0]
+                    cur_sample["comm"] = parts[0]
                     pid_str = parts[1]
                     slash = pid_str.find("/")
                     if slash >= 0:
-                        cur_pid = pid_str[:slash]
-                        cur_tid = pid_str[slash + 1 :]
+                        cur_sample["pid"] = pid_str[:slash]
+                        cur_sample["tid"] = pid_str[slash + 1 :]
                     else:
-                        cur_pid = cur_tid = pid_str
-                    cur_time = cur_count = "0"
-                    cur_event = "cycles"
+                        cur_sample["pid"] = cur_sample["tid"] = pid_str
+                    cur_sample["time"] = cur_sample["count"] = "0"
+                    cur_sample["event"] = "cycles"
                     for i in range(2, len(parts)):
                         p = parts[i]
                         if p[-1:] == ":" and "." in p:
-                            cur_time = p[:-1]
+                            cur_sample["time"] = p[:-1]
                             if i + 1 < len(parts):
-                                cur_count = parts[i + 1]
+                                cur_sample["count"] = parts[i + 1]
                             if i + 2 < len(parts):
-                                cur_event = parts[i + 2].rstrip(":")
+                                cur_sample["event"] = parts[i + 2].rstrip(":")
                             break
                 except Exception:
-                    cur_comm = None
+                    cur_sample["comm"] = None
 
         _flush()
-        return n_samples
+        return n_samples[0]
 
     @staticmethod
     def _convertFromSample(samplePath, datFile):
@@ -121886,13 +121914,15 @@ class FuncPerfMgr(object):
                    or [None, None] if no time: fields were present.
         """
         callList = {}
-        n_samples = 0
         meta = {}
-        in_sample = False
-        in_chain = False
+        cur = {
+            "in_sample": False,
+            "in_chain": False,
+            "cur_comm": None,
+            "cur_time": None,
+            "n_samples": 0,
+        }
         chain = []  # list of (sym, dso), chain[0] = innermost
-        cur_comm = None
-        cur_time = None
 
         # read -q options
         taskFilter = SysMgr.environList.get("TASKFILTER", [])
@@ -121912,13 +121942,12 @@ class FuncPerfMgr(object):
         timeRange = [None, None]
 
         def _flush():
-            nonlocal in_sample, in_chain, chain, cur_comm, n_samples, cur_time
             skip = False
-            if in_sample and chain:
+            if cur["in_sample"] and chain:
                 # track full raw time range regardless of TRIM
-                if cur_time is not None:
+                if cur["cur_time"] is not None:
                     try:
-                        t = float(cur_time)
+                        t = float(cur["cur_time"])
                         if timeRange[0] is None:
                             timeRange[0] = t
                         if timeRange[1] is None or t > timeRange[1]:
@@ -121928,11 +121957,11 @@ class FuncPerfMgr(object):
                 # apply TRIM time filter (elapsed from first sample)
                 if (
                     (startCond or endCond)
-                    and cur_time is not None
+                    and cur["cur_time"] is not None
                     and timeRange[0] is not None
                 ):
                     try:
-                        elapsed = float(cur_time) - timeRange[0]
+                        elapsed = float(cur["cur_time"]) - timeRange[0]
                         if (startCond and elapsed < startCond) or (
                             endCond and elapsed > endCond
                         ):
@@ -121941,22 +121970,22 @@ class FuncPerfMgr(object):
                         pass
                 if not skip and (
                     not taskFilter
-                    or UtilMgr.isValidStr(cur_comm or "", taskFilter)
+                    or UtilMgr.isValidStr(cur["cur_comm"] or "", taskFilter)
                 ):
                     _chain = chain
-                    if addCommStack and cur_comm:
-                        _chain = chain + [(cur_comm, "COMM")]
+                    if addCommStack and cur["cur_comm"]:
+                        _chain = chain + [(cur["cur_comm"], "COMM")]
                     key = FuncPerfMgr._buildCallKey(
                         _chain, exceptPath, onlyUser, onlyKernel
                     )
                     if key:
                         callList[key] = callList.get(key, 0) + 1
-                        n_samples += 1
-            in_sample = False
-            in_chain = False
-            chain = []
-            cur_comm = None
-            cur_time = None
+                        cur["n_samples"] += 1
+            cur["in_sample"] = False
+            cur["in_chain"] = False
+            del chain[:]
+            cur["cur_comm"] = None
+            cur["cur_time"] = None
 
         try:
             with open(datFile, "r") as f:
@@ -121978,17 +122007,17 @@ class FuncPerfMgr(object):
 
                     if s == "sample:":
                         _flush()
-                        in_sample = True
+                        cur["in_sample"] = True
                         continue
 
-                    if not in_sample:
+                    if not cur["in_sample"]:
                         continue
 
                     if s == "callchain:":
-                        in_chain = True
+                        cur["in_chain"] = True
                         continue
 
-                    if in_chain:
+                    if cur["in_chain"]:
                         # parse frame: "sym [dso]" with optional leading spaces
                         if "[" in s and s.endswith("]"):
                             br = s.rfind("[")
@@ -122000,9 +122029,9 @@ class FuncPerfMgr(object):
                         if sym:
                             chain.append((sym, dso))
                     elif s.startswith("comm:"):
-                        cur_comm = s[5:].strip()
+                        cur["cur_comm"] = s[5:].strip()
                     elif s.startswith("time:"):
-                        cur_time = s[5:].strip()
+                        cur["cur_time"] = s[5:].strip()
 
             # flush last sample
             _flush()
@@ -122010,7 +122039,7 @@ class FuncPerfMgr(object):
         except Exception:
             SysMgr.printErr("failed to parse '%s'" % datFile, reason=True)
 
-        return callList, n_samples, meta, timeRange
+        return callList, cur["n_samples"], meta, timeRange
 
     @staticmethod
     def _buildCallKey(
@@ -136372,7 +136401,7 @@ class BpfMgr(object):
                 except (ValueError, TypeError):
                     _fdcount_ttl_s = 0.2
         _fdcount_cache = {}  # {tgid: (last_ts, count)}
-        _fdcount_last_sweep_ts = 0.0
+        _fdcount_last_sweep_ts = [0.0]
         _FDCOUNT_SWEEP_INTERVAL = 30.0
         _FDCOUNT_MAX_IDLE = 60.0
         _FDCOUNT_MAX_ENTRIES = 20000
@@ -136387,14 +136416,13 @@ class BpfMgr(object):
             return _cnt
 
         def _sweep_fdcount_cache():
-            nonlocal _fdcount_last_sweep_ts
             _now = time.time()
             if (
-                _now - _fdcount_last_sweep_ts <= _FDCOUNT_SWEEP_INTERVAL
+                _now - _fdcount_last_sweep_ts[0] <= _FDCOUNT_SWEEP_INTERVAL
                 and len(_fdcount_cache) <= _FDCOUNT_MAX_ENTRIES
             ):
                 return
-            _fdcount_last_sweep_ts = _now
+            _fdcount_last_sweep_ts[0] = _now
             for _k in list(_fdcount_cache):
                 if _now - _fdcount_cache[_k][0] > _FDCOUNT_MAX_IDLE:
                     _fdcount_cache.pop(_k, None)
@@ -136422,7 +136450,7 @@ class BpfMgr(object):
         # than re-deriving it, with commCache=False so this stays independent of
         # that helper's own separate, differently-invalidated global cache #
         _proccomm_cache = {}  # {tgid: (last_ts, name)}
-        _proccomm_last_sweep_ts = 0.0
+        _proccomm_last_sweep_ts = [0.0]
         _PROCCOMM_TTL_S = 2.0
         _PROCCOMM_SWEEP_INTERVAL = 30.0
         _PROCCOMM_MAX_IDLE = 60.0
@@ -136438,14 +136466,13 @@ class BpfMgr(object):
             return _name
 
         def _sweep_proccomm_cache():
-            nonlocal _proccomm_last_sweep_ts
             _now = time.time()
             if (
-                _now - _proccomm_last_sweep_ts <= _PROCCOMM_SWEEP_INTERVAL
+                _now - _proccomm_last_sweep_ts[0] <= _PROCCOMM_SWEEP_INTERVAL
                 and len(_proccomm_cache) <= _PROCCOMM_MAX_ENTRIES
             ):
                 return
-            _proccomm_last_sweep_ts = _now
+            _proccomm_last_sweep_ts[0] = _now
             for _k in list(_proccomm_cache):
                 if _now - _proccomm_cache[_k][0] > _PROCCOMM_MAX_IDLE:
                     _proccomm_cache.pop(_k, None)
@@ -142187,7 +142214,7 @@ class BpfMgr(object):
                 vtype = vat & 0x1F
                 nbytes = (vat >> 5) + 1
                 if vtype == 0x04:  # VALUE_INT (DEX encoded_value type 0x04)
-                    ival = int.from_bytes(
+                    ival = UtilMgr.intFromBytes(
                         dex_bytes[pos : pos + nbytes], "little", signed=True
                     )
                     fname = get_str(
@@ -145994,8 +146021,8 @@ class BpfMgr(object):
                         hdr + col, hdr.count("\n") + col.count("\n")
                     )
 
-                    for _sk, row, *_ in sorted(rows, reverse=True):
-                        SysMgr.addPrint(row, 1)
+                    for _entry in sorted(rows, reverse=True):
+                        SysMgr.addPrint(_entry[1], 1)
 
                     SysMgr.addPrint(twoLine + "\n", 1)
 
@@ -151940,7 +151967,7 @@ class BpfMgr(object):
             def _fmt_ip(raw_u32):
                 import socket as _s
 
-                return _s.inet_ntoa(raw_u32.to_bytes(4, "little"))
+                return _s.inet_ntoa(struct.pack("<I", raw_u32))
 
             def _fmt_port(p):
                 import socket as _s
@@ -152399,8 +152426,8 @@ class BpfMgr(object):
                         dport = (ports >> 16) & 0xFFFF
                         sport_h = _socket.ntohs(sport)
                         dport_h = _socket.ntohs(dport)
-                        src_ip = _socket.inet_ntoa(saddr.to_bytes(4, "little"))
-                        dst_ip = _socket.inet_ntoa(daddr.to_bytes(4, "little"))
+                        src_ip = _socket.inet_ntoa(struct.pack("<I", saddr))
+                        dst_ip = _socket.inet_ntoa(struct.pack("<I", daddr))
 
                         # Apply filters
                         _skip_event = False
@@ -174162,9 +174189,8 @@ typedef struct {
 
         # continue target to prevent too long freezing #
         def _updateNeedStop():
-            nonlocal needStop
             if not self.traceStatus or not self.isAlive():
-                return
+                return False
 
             try:
                 sig = 0
@@ -174175,9 +174201,10 @@ typedef struct {
                     sig != signal.SIGSTOP
                     and self.cont(check=True, sig=sig) == 0
                 ):
-                    needStop = True
+                    return True
             except:
                 pass
+            return False
 
         if self.mode == "syscall":
             ctype = "Syscall"
@@ -174191,14 +174218,16 @@ typedef struct {
         elif self.mode == "pycall":
             ctype = "Pycall"
             addInfo = "[PATH] <Sample>"
-            _updateNeedStop()
+            if _updateNeedStop():
+                needStop = True
         elif self.mode == "kernel":
             ctype = "Kernelcall"
             addInfo = "<Sample>"
         else:
             ctype = "Usercall"
             addInfo = "[PATH] <Sample>"
-            _updateNeedStop()
+            if _updateNeedStop():
+                needStop = True
 
         sampleStr = ""
         if self.totalCall:
@@ -185034,7 +185063,7 @@ class ApkAnalyzer(object):
             n = lb & 0x7F
             if n == 0 or pos + n > len(buf):
                 return tag, b"", pos + n
-            length = int.from_bytes(buf[pos : pos + n], "big")
+            length = UtilMgr.intFromBytes(buf[pos : pos + n], "big")
             pos += n
         else:
             length = lb
@@ -186070,13 +186099,13 @@ class DexAnalyzer(object):
             vtype = vat & 0x1F
             nbytes = (vat >> 5) + 1
             if vtype in (0x00, 0x02, 0x04, 0x06):  # int-like
-                val = int.from_bytes(
+                val = UtilMgr.intFromBytes(
                     data[pos : pos + nbytes], "little", signed=True
                 )
                 pos += nbytes
                 return str(val), pos
             elif vtype == 0x17:  # VALUE_STRING
-                idx = int.from_bytes(data[pos : pos + nbytes], "little")
+                idx = UtilMgr.intFromBytes(data[pos : pos + nbytes], "little")
                 pos += nbytes
                 s = strings[idx][:48] if idx < len(strings) else "?"
                 return '"%s"' % s, pos
