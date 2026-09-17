@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260916"
+__revision__ = "260917"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9215,17 +9215,17 @@ class UtilMgr(object):
 
             upperUnit = unit.upper()
             if upperUnit == "K":
-                val = size / sizeKB * factor
+                val = size * factor / sizeKB
             elif upperUnit == "M":
-                val = size / sizeMB * factor
+                val = size * factor / sizeMB
             elif upperUnit == "G":
-                val = size / sizeGB * factor
+                val = size * factor / sizeGB
             elif upperUnit == "T":
-                val = size / sizeTB * factor
+                val = size * factor / sizeTB
             elif upperUnit == "P":
-                val = size / sizePB * factor
+                val = size * factor / sizePB
             elif upperUnit == "E":
-                val = size / sizeEB * factor
+                val = size * factor / sizeEB
             else:
                 SysMgr.printErr("no support size unit '%s'" % unit)
                 sys.exit(-1)
@@ -15305,7 +15305,9 @@ class Timeline(object):
 
             return config
 
-    def __init__(self, title, segments, time_unit, fontsize, config, tasks=[]):
+    def __init__(self, title, segments, time_unit, fontsize, config, tasks=None):
+        if tasks is None:
+            tasks = {}
         self.title = title
         self.segments = segments
         self.time_unit = time_unit
@@ -15947,12 +15949,15 @@ class Timeline(object):
         fileName=None,
         data=None,
         config=None,
-        tasks=[],
+        tasks=None,
         begin=0,
         end=0,
         duration=0,
         durationMin=0,
     ):
+        if tasks is None:
+            tasks = {}
+
         if fileName:
             with open(fileName) as json_file:
                 json = SysMgr.getPkg("json")
@@ -15968,8 +15973,10 @@ class Timeline(object):
 
         # get task names #
         if data.get("names"):
-            if tasks:
+            if isinstance(tasks, dict):
                 tasks.update(data["names"])
+            elif isinstance(tasks, list):
+                tasks.extend(data["names"] if isinstance(data["names"], list) else list(data["names"].values()))
             else:
                 tasks = data["names"]
 
@@ -60328,7 +60335,9 @@ Commands:
             SysMgr.printWarn("failed to write %s" % oomPath, reason=True)
 
     @staticmethod
-    def ping(url=[], timeout=None, count=None):
+    def ping(url=None, timeout=None, count=None):
+        if url is None:
+            url = []
         ICMP_ECHO_REQUEST = 8
 
         def _checksum(source):
@@ -60352,7 +60361,12 @@ Commands:
                 count = count + 2
 
             if countTo < len(source):
-                total += ord(source[len(source) - 1])
+                last_byte = source[len(source) - 1]
+                total += (
+                    last_byte
+                    if isinstance(last_byte, (int, long))
+                    else ord(last_byte)
+                )
                 total = total & 0xFFFFFFFF  # Necessary?
 
             total = (total >> 16) + (total & 0xFFFF)
@@ -60563,6 +60577,10 @@ Commands:
                     SysMgr.printErr(
                         "failed to send data to %s" % destAddr, reason=True
                     )
+                    try:
+                        sock.close()
+                    except:
+                        pass
                     continue
 
                 if destAddr == destIPAddr:
@@ -73412,11 +73430,6 @@ Examples:
 
                     helpStr += drawSubStr + drawExamStr
 
-                elif SysMgr.checkMode("drawdiff"):
-                    helpStr = _getDesc("Draw diff graphs", t=5)
-
-                    helpStr += drawSubStr + drawExamStr
-
                 elif SysMgr.checkMode("drawdelay"):
                     helpStr = _getDesc("Draw CPU delay graphs", t=5)
 
@@ -78588,10 +78601,10 @@ Key Value List:
     @staticmethod
     def fanotify(
         path,
-        flags=[],
-        oflags=[],
-        mark=[],
-        mask=[],
+        flags=None,
+        oflags=None,
+        mark=None,
+        mask=None,
         dirfd="AT_FDCWD",
         wait=False,
         retfd=False,
@@ -78604,9 +78617,26 @@ Key Value List:
         elif not isinstance(path, list):
             path = [path]
 
-        if not isinstance(flags, list) or not isinstance(oflags, list):
+        if flags is None:
+            flags = []
+        elif not isinstance(flags, list):
             SysMgr.printErr("failed to get flags as a list")
             return False
+        else:
+            flags = list(flags)
+
+        if oflags is None:
+            oflags = []
+        elif not isinstance(oflags, list):
+            SysMgr.printErr("failed to get flags as a list")
+            return False
+        else:
+            oflags = list(oflags)
+
+        if mark is None:
+            mark = []
+        if mask is None:
+            mask = []
 
         SysMgr.loadLibcObj(exit=True)
 
@@ -83970,10 +84000,12 @@ Key Value List:
         return rmSize
 
     @staticmethod
-    def freeDirsCnt(candidate=[]):
+    def freeDirsCnt(candidate=None):
         convSize = UtilMgr.convSize2Unit
 
-        if not isinstance(candidate, list):
+        if candidate is None:
+            candidate = []
+        elif not isinstance(candidate, list):
             candidate = [candidate]
 
         # RECURSEDIR makes both the file-count budget and the eviction set
@@ -87621,7 +87653,11 @@ Key Value List:
             sys.exit(-1)
 
     @staticmethod
-    def runTaskMonitor(pids=[], wait=True, block=False, addOpt=[]):
+    def runTaskMonitor(pids=None, wait=True, block=False, addOpt=None):
+        if pids is None:
+            pids = []
+        if addOpt is None:
+            addOpt = []
         if "TASKMON" not in SysMgr.environList:
             return
         elif not pids:
@@ -99399,7 +99435,12 @@ Key Value List:
                 SysMgr.setSignal(signal.SIGALRM, _watchAlarmHandler)
                 signal.alarm(watchTimeout)
 
-        def _printSummary(fileSummary={}, procSummary={}, final=False):
+        def _printSummary(fileSummary=None, procSummary=None, final=False):
+            if fileSummary is None:
+                fileSummary = {}
+            if procSummary is None:
+                procSummary = {}
+
             isTopMode = SysMgr.isTopMode()
             convNum = UtilMgr.convNum
             convColor = UtilMgr.convColor
@@ -99616,7 +99657,12 @@ Key Value List:
             SysMgr.printPipe("\n")
             SysMgr.doPrint(clear=True)
 
-        def _printLastSummary(fileSummary={}, procSummary={}):
+        def _printLastSummary(fileSummary=None, procSummary=None):
+            if fileSummary is None:
+                fileSummary = {}
+            if procSummary is None:
+                procSummary = {}
+
             _printSummary(fileSummary, procSummary, final=True)
             SysMgr.printProcBuffer()
             SysMgr.clearProcBuffer()
@@ -116900,12 +116946,15 @@ Key Value List:
             if uid2pkg:
                 SysMgr.sysInstance.saveUserInfo()
 
-        def _printDirTree(root, depth, totals={}, parent="", res=""):
+        def _printDirTree(root, depth, totals=None, parent="", res=""):
             if 0 < SysMgr.depthLevel <= depth:
                 return
 
             if not isinstance(root, dict):
                 return
+
+            if totals is None:
+                totals = {}
 
             if progress:
                 UtilMgr.printProgress()
@@ -176429,8 +176478,11 @@ typedef struct {
         return paramList
 
     def getRetAddr(
-        self, vaddr, argList=[], onlyArg=False, cur=False, dumpStack=False
+        self, vaddr, argList=None, onlyArg=False, cur=False, dumpStack=False
     ):
+        if argList is None:
+            argList = []
+
         fname = self.getFileFastFromMap(vaddr)
         if not fname:
             return None
@@ -205743,9 +205795,11 @@ class TaskAnalyzer(object):
         logFile,
         outFile=None,
         outFd=None,
-        logEvents=[],
+        logEvents=None,
         diffOpt=False,
     ):
+        if logEvents is None:
+            logEvents = []
         # pylint: disable=undefined-variable
 
         # ==================== DEFINE PART ====================#
