@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260917"
+__revision__ = "260918"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7068,16 +7068,25 @@ class UtilMgr(object):
             fullname = "%s_%s" % (path, fname)
             if fullname in SysMgr.externList:
                 func = SysMgr.externList[fullname]
-            elif sys.version_info < (3, 0, 0):
-                execfile(path)  # pylint: disable=undefined-variable
-                SysMgr.externList[fullname] = locals()[fname]
-                func = SysMgr.externList[fullname]
             else:
-                exec(open(path).read())
-                SysMgr.externList[fullname] = locals()[fname]
+                ns = {"__file__": path, "__name__": "__main__"}
+                with open(path, "r") as f:
+                    exec(compile(f.read(), path, "exec"), ns)
+                if fname not in ns:
+                    raise KeyError(
+                        "function '%s' not found in '%s'" % (fname, path)
+                    )
+                SysMgr.externList[fullname] = ns[fname]
                 func = SysMgr.externList[fullname]
 
-            return func(args)
+            if len(args) == 1 and isinstance(args[0], (list, tuple)):
+                call_args = args[0]
+            else:
+                call_args = args
+            try:
+                return func(*call_args)
+            except TypeError:
+                return func(call_args)
         except SystemExit:
             sys.exit(0)
         except:
@@ -8473,7 +8482,7 @@ class UtilMgr(object):
             SysMgr.printErr("failed to get clock %s time" % ctype, True)
             return -1
 
-        return t.tv_sec + t.tv_nsec / 1000000000
+        return t.tv_sec + t.tv_nsec / 1000000000.0
 
     @staticmethod
     def getTime(utc=False, timeformat="%Y-%m-%dT%H-%M-%SZ"):
@@ -8715,11 +8724,14 @@ class UtilMgr(object):
         data = None
         while 1:
             char = fd.read(1)
+            if not char:
+                break
             if not data:
                 data = char
             else:
                 data += char
-            if ord(char) & 0x80 == 0:
+            b = ord(char) if isinstance(char, str) else char[0]
+            if b & 0x80 == 0:
                 break
         return data
 
@@ -8861,15 +8873,7 @@ class UtilMgr(object):
 
     @staticmethod
     def isString(value):
-        if isinstance(value, str):
-            return True
-        elif sys.version_info >= (3, 0, 0):
-            if isinstance(value, bytes):
-                return True
-        # pylint: disable-next=undefined-variable
-        elif isinstance(value, unicode):
-            return True
-        return False
+        return isinstance(value, str)
 
     @staticmethod
     def isFloat(value):
@@ -14514,7 +14518,9 @@ class NetworkMgr(object):
                             time.sleep(0.1)
                             continue
                         else:
-                            raise Exception(err.args[0])
+                            raise Exception(
+                                err.args[0] if err.args else str(err)
+                            )
                 else:
                     raise OSError(
                         99,
@@ -21917,8 +21923,8 @@ class FunctionAnalyzer(object):
     def parseEventInfo(self, tid, func, args, time, core):
         # check core filter #
         if (
-            SysMgr.perCoreList
-            and long(core) not in SysMgr.perCoreList
+            SysMgr.perCoreSet
+            and long(core) not in SysMgr.perCoreSet
             and func[0] != "<"
         ):
             self.saveEventParam("IGNORE", 0, func)
@@ -22631,8 +22637,8 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[self.lastCore]
 
             if (
-                SysMgr.perCoreList
-                and long(core) not in SysMgr.perCoreList
+                SysMgr.perCoreSet
+                and long(core) not in SysMgr.perCoreSet
                 and not func.startswith("tracing_mark_write")
                 and func != "0"
             ):
@@ -27720,7 +27726,10 @@ class FileAnalyzer(object):
                 try:
                     if SysMgr.guiderObj:
                         val["fileMap"] = [
-                            ord(pagemap[i]) for i in xrange(tsize)
+                            pagemap[i]
+                            if isinstance(pagemap[i], int)
+                            else ord(pagemap[i])
+                            for i in xrange(tsize)
                         ]
                     else:
                         val["fileMap"] = [pagemap[i] for i in xrange(tsize)]
@@ -32560,7 +32569,7 @@ class LLMMgr(object):
             totalPrompt = totalPrompt or 0
             cacheHit = cacheRead > 0
             savingsPercent = (
-                (cacheRead / totalPrompt * discountRate)
+                (float(cacheRead) / totalPrompt * discountRate)
                 if (cacheHit and totalPrompt > 0)
                 else 0.0
             )
@@ -50206,6 +50215,7 @@ class SysMgr(object):
     syscallList = []
     syscallExceptList = []
     perCoreList = []
+    perCoreSet = set()
     perCoreDrawList = []
     childList = {}
     gpuMemGetters = None
@@ -50763,6 +50773,25 @@ Commands:
             sys.exit(0)
         except:
             return False
+
+    @staticmethod
+    def getLibcErrno():
+        if not SysMgr.libcObj:
+            return None
+        try:
+            import ctypes as _ct
+
+            func = getattr(SysMgr.libcObj, "__errno_location", None)
+            if not func:
+                func = getattr(SysMgr.libcObj, "__errno", None)
+            if func:
+                func.restype = _ct.POINTER(_ct.c_int)
+                return func().contents.value
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+        return None
 
     @staticmethod
     def getStatVars(obj, diff=0):
@@ -60342,7 +60371,7 @@ Commands:
 
         def _checksum(source):
             total = 0
-            countTo = (len(source) / 2) * 2
+            countTo = (len(source) // 2) * 2
             count = 0
             while count < countTo:
                 if isinstance(source[count + 1], (int, long)):
@@ -62815,20 +62844,30 @@ Commands:
         return set(cmdSet)
 
     @staticmethod
-    def getCmdString():
+    def getCmdString(filterStr=None, retCount=False):
         cmdList = SysMgr.getCmdList()
 
         cmdbuf = ""
+        matchedCount = 0
+        q = (filterStr or "").strip().lower()
+
         for ctype, tvalue in sorted(cmdList.items()):
             prefix = ctype
+            typebuf = ""
             for cmd, cvalue in sorted(tvalue.items()):
+                if q:
+                    target = "%s %s %s %s" % (ctype, cmd, cvalue[0], cvalue[1])
+                    if q not in target.lower():
+                        continue
+
+                matchedCount += 1
                 if prefix:
                     types = "[%s]" % prefix.upper()
                 else:
                     types = " "
 
-                cmdbuf = "%s%4s%-12s%4s%-15s%4s%-15s (%-s)\n" % (
-                    cmdbuf,
+                typebuf = "%s%4s%-12s%4s%-15s%4s%-15s (%-s)\n" % (
+                    typebuf,
                     " ",
                     types,
                     " ",
@@ -62838,9 +62877,17 @@ Commands:
                     cvalue[1],
                 )
                 prefix = ""
-            cmdbuf = "%s\n" % cmdbuf
+            if typebuf:
+                cmdbuf = "%s%s\n" % (cmdbuf, typebuf)
 
-        return cmdbuf[:-1]
+        res = (
+            cmdbuf[:-1]
+            if cmdbuf
+            else ("    No commands matching '%s'\n" % filterStr if q else "")
+        )
+        if retCount:
+            return res, matchedCount
+        return res
 
     @staticmethod
     def getCmdList():
@@ -63136,7 +63183,41 @@ Usage:
             )
 
             if force or (len(sys.argv) > 1 and SysMgr.isHelpMode()):
-                mode = sys.argv[1]
+                if (
+                    len(sys.argv) > 2
+                    and sys.argv[1] == "help"
+                    and not sys.argv[2].startswith("-")
+                ):
+                    subcmd = sys.argv[2]
+                    cmdSet = SysMgr.getCmdSet()
+                    for c in list(cmdSet):
+                        if "/" in c:
+                            cmdSet.update(c.split("/"))
+                    if subcmd in cmdSet:
+                        sys.argv[1] = subcmd
+                        sys.argv[2] = "--help"
+                        mode = subcmd
+                    else:
+                        import difflib
+
+                        matches = difflib.get_close_matches(
+                            subcmd, cmdSet, n=3, cutoff=0.6
+                        )
+                        if matches:
+                            hint = " (did you mean: %s?)" % ", ".join(
+                                "'%s'" % m for m in matches
+                            )
+                        else:
+                            hint = (
+                                ". Run 'guider.py --help' for a list of valid commands."
+                            )
+                        SysMgr.printErr(
+                            "'%s' command is not supported%s" % (subcmd, hint)
+                        )
+                        SysMgr.exitCode = 1
+                        sys.exit(-1)
+                else:
+                    mode = sys.argv[1]
 
                 topCommonStr = """
     -o  <DIR|FILE>              set output path
@@ -78291,25 +78372,60 @@ Examples:
                     )
 
                 elif mode.startswith("-") or mode == "help":
+                    searchQuery = None
+                    args = sys.argv[1:]
+                    for idx, arg in enumerate(args):
+                        if arg in ("-s", "--search"):
+                            if idx + 1 < len(args):
+                                searchQuery = args[idx + 1]
+                            else:
+                                SysMgr.printErr(
+                                    "option '%s' requires an argument" % arg
+                                )
+                                SysMgr.exitCode = 1
+                                sys.exit(-1)
+                            break
+                        elif arg.startswith("-s="):
+                            searchQuery = arg[3:]
+                            break
+                        elif arg.startswith("--search="):
+                            searchQuery = arg[9:]
+                            break
+
+                    totalCmds = len(SysMgr.getCmdSet())
+                    if searchQuery:
+                        cmdStr, matchCount = SysMgr.getCmdString(
+                            searchQuery, retCount=True
+                        )
+                        cmdHeader = "COMMAND(%s/%s matching '%s'):" % (
+                            matchCount,
+                            totalCmds,
+                            searchQuery,
+                        )
+                    else:
+                        cmdStr = SysMgr.getCmdString()
+                        cmdHeader = "COMMAND(%s):" % totalCmds
+
                     helpStr = (
                         defStr
                         + """
-COMMAND({2:1}):
 {0:1}
+{1:1}
 FILE:
     Profile file (e.g. guider.dat)
     Report  file (e.g. guider.out)
 
 Options:
-    Check COMMAND with --help (e.g. {1:1} top --help)
-    -C  <PATH>  set config file (guider.conf)
+    Check COMMAND with --help (e.g. {2:1} top --help)
+    -s, --search <QUERY>        search commands by name, category, or tag
+    -C  <PATH>                  set config file (guider.conf)
         threshold : alert rules for CPU/MEM/IO/NET/BPF with commands
         llm       : provider, model, apiKey, baseUrl for AI analysis
         context   : system prompt customization for LLM
                     """.format(
-                            SysMgr.getCmdString(),
+                            cmdHeader,
+                            cmdStr,
                             cmd,
-                            len(SysMgr.getCmdSet()),
                         )
                     )
 
@@ -79361,13 +79477,25 @@ Key Value List:
             if msg:
                 msg = " to %s" % msg
 
+            hint = ""
+            if "ebpf" in msg.lower():
+                hint = (
+                    " (try: 'sudo guider ...' or grant CAP_BPF / CAP_SYS_ADMIN)"
+                )
+
             # use warn (not err) when -f is about to force through, so STRICTEXIT doesn't flag the bypass as a failure #
             if willForce:
-                SysMgr.printWarn("failed to get root permission%s" % msg, True)
+                SysMgr.printWarn(
+                    "failed to get root permission%s%s" % (msg, hint), True
+                )
             elif attr == "error":
-                SysMgr.printErr("failed to get root permission%s" % msg)
+                SysMgr.printErr(
+                    "failed to get root permission%s%s" % (msg, hint)
+                )
             else:
-                SysMgr.printWarn("failed to get root permission%s" % msg)
+                SysMgr.printWarn(
+                    "failed to get root permission%s%s" % (msg, hint)
+                )
 
         if willForce:
             return True
@@ -88806,10 +88934,12 @@ Key Value List:
                 )
 
                 SysMgr.perCoreList = list(map(long, perCoreList))
+                SysMgr.perCoreSet = set(SysMgr.perCoreList)
 
                 if SysMgr.isDrawMode():
                     SysMgr.perCoreDrawList = SysMgr.perCoreList
                     SysMgr.perCoreList = []
+                    SysMgr.perCoreSet = set()
 
             # ignore below options for function mode #
             elif SysMgr.isFuncMode():
@@ -89524,6 +89654,11 @@ Key Value List:
             return True
         elif {"-help", "--help", "-h"} & set(sys.argv):
             return True
+        elif len(sys.argv) > 1 and (
+            sys.argv[1] in ("-s", "--search")
+            or sys.argv[1].startswith(("-s=", "--search="))
+        ):
+            return True
         else:
             return False
 
@@ -89653,13 +89788,36 @@ Key Value List:
         if SysMgr.isRecordMode():
             return
 
-        if (
-            False
-            and len(sys.argv) > 1
-            and sys.argv[1] not in SysMgr.getCmdSet()
-        ):
-            SysMgr.printErr("'%s' command is not supported" % sys.argv[1])
-            sys.exit(-1)
+        if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+            cmdSet = SysMgr.getCmdSet()
+            for c in list(cmdSet):
+                if "/" in c:
+                    cmdSet.update(c.split("/"))
+
+            arg = sys.argv[1]
+            if arg not in cmdSet and not os.path.exists(arg):
+                hasPathSep = ("/" in arg) or (os.sep in arg)
+                hasExt = ("." in os.path.basename(arg)) and not os.path.basename(
+                    arg
+                ).startswith(".")
+                if not hasPathSep and not hasExt:
+                    import difflib
+
+                    matches = difflib.get_close_matches(
+                        arg, cmdSet, n=3, cutoff=0.6
+                    )
+                    if matches:
+                        hint = " (did you mean: %s?)" % ", ".join(
+                            "'%s'" % m for m in matches
+                        )
+                    else:
+                        hint = (
+                            ". Run 'guider.py --help' for available commands."
+                        )
+                    SysMgr.printErr(
+                        "'%s' command is not supported%s" % (arg, hint)
+                    )
+                    sys.exit(-1)
 
         SysMgr.parseAnalOption()
 
@@ -91799,7 +91957,7 @@ Key Value List:
             return True
 
         waitTime = (
-            (UtilMgr.getEnvironNum("WAITTASK", False, 100, False) / 1000)
+            (UtilMgr.getEnvironNum("WAITTASK", False, 100, False) / 1000.0)
             if "WAITTASK" in SysMgr.environList
             else 0
         )
@@ -93687,7 +93845,10 @@ Key Value List:
         try:
             SysMgr.printInfo("redirect fd(%s) to '%s'" % (fileno, path))
             fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_APPEND)
-            os.dup2(fd, fileno)
+            try:
+                os.dup2(fd, fileno)
+            finally:
+                os.close(fd)
         except SystemExit:
             sys.exit(0)
         except:
@@ -120975,7 +121136,12 @@ class FuncPerfMgr(object):
                     if data and len(data) == 8:
                         return struct.unpack_from("<Q", data)[0]
                 except Exception:
-                    _mem_fd[0] = -1
+                    if _mem_fd[0] >= 0:
+                        try:
+                            os.close(_mem_fd[0])
+                        except Exception:
+                            pass
+                        _mem_fd[0] = -1
             return None
 
         regIdx = ElfAnalyzer.CFARule.REG
@@ -122261,6 +122427,29 @@ class BpfMgr(object):
                     os.close(ret)
                 except:
                     pass
+            else:
+                err = SysMgr.getLibcErrno()
+                import errno as _errno
+
+                if err in (_errno.EPERM, _errno.EACCES):
+                    SysMgr.printErr(
+                        "BPF syscall not permitted (try running with sudo or check 'sysctl kernel.unprivileged_bpf_disabled')"
+                    )
+                elif err == _errno.ENOSYS:
+                    SysMgr.printErr(
+                        "BPF syscall not implemented on this kernel (requires CONFIG_BPF_SYSCALL=y)"
+                    )
+                elif err == _errno.ENOMEM:
+                    SysMgr.printErr(
+                        "BPF syscall failed due to memory limit (try: 'ulimit -l unlimited')"
+                    )
+                elif err:
+                    SysMgr.printErr(
+                        "BPF syscall probe failed (errno %s)" % err
+                    )
+                else:
+                    SysMgr.printErr("BPF syscall not available on this system")
+                sys.exit(-1)
         except SystemExit:
             sys.exit(0)
         except:
@@ -122301,7 +122490,19 @@ class BpfMgr(object):
                 buf[24 + idx] = b if isinstance(b, int) else ord(b)
             fd = BpfMgr.bpfSyscall(0, buf)  # BPF_MAP_CREATE = 0
             if fd < 0:
-                SysMgr.printErr("failed to create BPF map '%s'" % name)
+                err = SysMgr.getLibcErrno()
+                import errno as _errno
+
+                hint = ""
+                if err in (_errno.EPERM, _errno.EACCES):
+                    hint = " (permission denied, try sudo or check CAP_BPF)"
+                elif err == _errno.ENOMEM:
+                    hint = " (out of memory, try 'ulimit -l unlimited')"
+                elif err == _errno.ENOSYS:
+                    hint = " (BPF syscall not implemented, requires CONFIG_BPF_SYSCALL=y)"
+                elif err:
+                    hint = " (errno %s)" % err
+                SysMgr.printErr("failed to create BPF map '%s'%s" % (name, hint))
                 return -1
             BpfMgr._openFds.append(fd)
             return fd
@@ -122374,7 +122575,19 @@ class BpfMgr(object):
                         "BPF verifier error:\n%s" % verifier_log[-4000:]
                     )
                 else:
-                    SysMgr.printErr("failed to load BPF program '%s'" % name)
+                    err = SysMgr.getLibcErrno()
+                    import errno as _errno
+
+                    hint = ""
+                    if err in (_errno.EPERM, _errno.EACCES):
+                        hint = " (permission denied, try sudo or check CAP_BPF)"
+                    elif err == _errno.ENOMEM:
+                        hint = " (out of memory, try 'ulimit -l unlimited')"
+                    elif err == _errno.ENOSYS:
+                        hint = " (BPF syscall not implemented, requires CONFIG_BPF_SYSCALL=y)"
+                    elif err:
+                        hint = " (errno %s)" % err
+                    SysMgr.printErr("failed to load BPF program '%s'%s" % (name, hint))
                 return -1
             BpfMgr._openFds.append(fd)
             return fd
@@ -123099,13 +123312,17 @@ class BpfMgr(object):
                 # Pre-delete any stale event with the same name (leftover from crash)
                 try:
                     del_fd = os.open(uprobe_events_path, os.O_WRONLY)
-                    os.write(del_fd, ("-:%s\n" % event_name).encode())
-                    os.close(del_fd)
+                    try:
+                        os.write(del_fd, ("-:%s\n" % event_name).encode())
+                    finally:
+                        os.close(del_fd)
                 except Exception:
                     pass
                 ue_fd = os.open(uprobe_events_path, os.O_WRONLY)
-                os.write(ue_fd, cmd.encode())
-                os.close(ue_fd)
+                try:
+                    os.write(ue_fd, cmd.encode())
+                finally:
+                    os.close(ue_fd)
             except Exception as e:
                 raise Exception(
                     "failed to write '%s' to uprobe_events: %s"
@@ -123692,8 +123909,10 @@ class BpfMgr(object):
                 _ue_fd = os.open(
                     _ue_path, os.O_RDWR | os.O_CREAT | os.O_APPEND
                 )
-                os.write(_ue_fd, ("-:%s\n" % _uname).encode())
-                os.close(_ue_fd)
+                try:
+                    os.write(_ue_fd, ("-:%s\n" % _uname).encode())
+                finally:
+                    os.close(_ue_fd)
             except:
                 pass
         BpfMgr._uprobeNames = []
@@ -218536,7 +218755,7 @@ function isAutoNamedPlot(name) {{
 
         for n in xrange(SysMgr.maxCore + 1):
             try:
-                if SysMgr.perCoreList and n not in SysMgr.perCoreList:
+                if SysMgr.perCoreSet and n not in SysMgr.perCoreSet:
                     continue
 
                 coreId = "0[%s]" % n
@@ -220347,18 +220566,11 @@ function isAutoNamedPlot(name) {{
             )
         )
 
-        for icount in xrange(len(self.syscallData)):
-            try:
-                self.threadData[self.syscallData[icount][2]]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                try:
-                    del self.syscallData[icount]
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    break
+        self.syscallData = [
+            d
+            for d in self.syscallData
+            if len(d) > 2 and d[2] in self.threadData
+        ]
 
         cnt = 0
         nrErr = 0
@@ -228017,8 +228229,8 @@ function isAutoNamedPlot(name) {{
 
         # check skip condition #
         if (
-            SysMgr.perCoreList
-            and long(core) not in SysMgr.perCoreList
+            SysMgr.perCoreSet
+            and long(core) not in SysMgr.perCoreSet
             and (func != "console" and func != "tracing_mark_write")
         ):
             return time
@@ -234839,7 +235051,7 @@ function isAutoNamedPlot(name) {{
                     coreStats[idx]["steal"] = 0
 
                 # check core filter #
-                if SysMgr.perCoreList and idx not in SysMgr.perCoreList:
+                if SysMgr.perCoreSet and idx not in SysMgr.perCoreSet:
                     coreStats.pop(idx, None)
             except SystemExit:
                 sys.exit(0)
