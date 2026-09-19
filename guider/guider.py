@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260918"
+__revision__ = "260919"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15371,9 +15371,11 @@ class Timeline(object):
             for task in tasks:
                 if task in Timeline.conv_table:
                     new = Timeline.conv_table[task]
-                    self.tasks[new] = tasks[task]
+                    self.tasks[new] = tasks[task] if isinstance(tasks, dict) else task
                 elif isinstance(tasks, dict):
                     self.tasks[task] = tasks[task]
+                else:
+                    self.tasks[task] = task
         except SystemExit:
             sys.exit(0)
         except:
@@ -15980,7 +15982,13 @@ class Timeline(object):
         # get task names #
         if data.get("names"):
             if isinstance(tasks, dict):
-                tasks.update(data["names"])
+                if isinstance(data["names"], dict):
+                    tasks.update(data["names"])
+                elif isinstance(data["names"], (list, tuple)):
+                    for item in data["names"]:
+                        tasks[item] = item
+                else:
+                    tasks = data["names"]
             elif isinstance(tasks, list):
                 tasks.extend(data["names"] if isinstance(data["names"], list) else list(data["names"].values()))
             else:
@@ -85496,13 +85504,16 @@ Key Value List:
         outputPath=None,
         configPath=None,
         configData=None,
-        taskList=[],
+        taskList=None,
         start=0,
         annotation=None,
         yval=None,
         begin=0,
         end=0,
     ):
+        if taskList is None:
+            taskList = {}
+
         def _addUserEvent(inputData):
             if not inputData or "EVENT" not in SysMgr.environList:
                 return
