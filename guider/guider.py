@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260919"
+__revision__ = "260920"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16843,7 +16843,7 @@ class Ext4Analyzer(object):
                         self.volume.uuid,
                     )
 
-            def _parse_xattrs(self, raw_data, offset, prefix_override={}):
+            def _parse_xattrs(self, raw_data, offset, prefix_override=None):
                 """
                 Generator: Parses raw_data (bytes) as ext4_xattr_entry
                 structures and their referenced xattr values and yields
@@ -16857,6 +16857,9 @@ class Ext4Analyzer(object):
                 the default prefixes. The default prefix dictionary is
                 updated with prefix_overrides.
                 """
+                if prefix_override is None:
+                    prefix_override = {}
+
                 prefixes = {
                     0: "",
                     1: "user.",
@@ -17224,7 +17227,7 @@ class Ext4Analyzer(object):
                 check_inline=True,
                 check_block=True,
                 force_inline=False,
-                prefix_override={},
+                prefix_override=None,
             ):
                 """
                 Generator: Yields the inode's extended attributes as tuples
@@ -30968,6 +30971,11 @@ class LogMgr(object):
                 logcatCmd += ["-T", tail]
 
             if "RAWFILE" in SysMgr.environList:
+                try:
+                    os.close(rd)
+                    os.close(wr)
+                except:
+                    pass
                 fname = SysMgr.environList["RAWFILE"][0]
 
                 # let logcat itself write to the file, vs an fd redirect #
@@ -30981,6 +30989,7 @@ class LogMgr(object):
                 wrPipe = os.fdopen(wr, "wb")
                 SysMgr.setPipeSize(wrPipe)
                 os.dup2(wr, 1)
+                os.close(wr)
 
             # detect parent death via SIGPIPE and exit cleanly #
             SysMgr.setPipeHandler()
@@ -31008,6 +31017,16 @@ class LogMgr(object):
                 SysMgr.executeProcess(cmd=logcatCmd, closeFd=False)
 
             sys.exit(0)
+
+        # fork failure #
+        else:
+            try:
+                os.close(rd)
+                os.close(wr)
+            except:
+                pass
+            SysMgr.printErr("failed to fork logcat process")
+            sys.exit(-1)
 
     @staticmethod
     def printAndLogBin(console=False):
@@ -31299,6 +31318,7 @@ class LogMgr(object):
             wrPipe = os.fdopen(wr, "wb")
             SysMgr.setPipeSize(wrPipe)
             os.dup2(wr, 1)
+            os.close(wr)
 
             # detect parent death via SIGPIPE and exit cleanly #
             SysMgr.setPipeHandler()
@@ -31308,6 +31328,16 @@ class LogMgr(object):
             )
 
             sys.exit(0)
+
+        # fork failure #
+        else:
+            try:
+                os.close(rd)
+                os.close(wr)
+            except:
+                pass
+            SysMgr.printErr("failed to fork logcat process")
+            sys.exit(-1)
 
     @staticmethod
     def printSyslog(console=False):
@@ -56912,9 +56942,12 @@ Commands:
             return False
 
     @staticmethod
-    def limitBlock(pids, attrs, devices=[]):
+    def limitBlock(pids, attrs, devices=None):
         if not pids:
             return
+
+        if devices is None:
+            devices = []
 
         SysMgr.checkRootPerm(msg="limit block usage using cgroup")
 
@@ -60587,6 +60620,11 @@ Commands:
                 except SystemExit:
                     sys.exit(0)
                 except:
+                    for s in sockList:
+                        try:
+                            s.close()
+                        except:
+                            pass
                     SysMgr.printErr("failed to ping", True)
                     return 0
 
@@ -83771,11 +83809,14 @@ Key Value List:
                 os.wait()
 
     @staticmethod
-    def runProfCmd(time, convList={}):
+    def runProfCmd(time, convList=None):
         if not SysMgr.isLinux:
             return
         elif not SysMgr.rcmdList:
             return
+
+        if convList is None:
+            convList = {}
 
         for cmd in SysMgr.rcmdList[time.upper()]:
             if len(cmd) == 1:
@@ -93532,6 +93573,12 @@ Key Value List:
 
         # error #
         else:
+            if pipe:
+                try:
+                    os.close(rd)
+                    os.close(wr)
+                except:
+                    pass
             SysMgr.printErr("failed to launch Guider because of fork fail")
             return -1
 
@@ -93545,9 +93592,12 @@ Key Value List:
         rederr=False,
         session=False,
     ):
-        rd, wr = os.pipe()
-
-        SysMgr.setPipeHandler()
+        isGuider = SysMgr.isGuiderCmd(cmd)
+        if not isGuider:
+            rd, wr = os.pipe()
+            SysMgr.setPipeHandler()
+        else:
+            rd = wr = None
 
         if cmd and "SHOWCMD" in SysMgr.environList:
             SysMgr.printWarn(
@@ -93561,7 +93611,7 @@ Key Value List:
 
         rdFd = None
         pid = SysMgr.createCmdProcess(
-            cmd if SysMgr.isGuiderCmd(cmd) else None, pipe=True, remote=remote
+            cmd if isGuider else None, pipe=True, remote=remote
         )
         if isinstance(pid, tuple):
             pid, rdFd = pid
@@ -93619,6 +93669,17 @@ Key Value List:
 
         # error #
         else:
+            if rdFd:
+                try:
+                    rdFd.close()
+                except:
+                    pass
+            if rd is not None:
+                try:
+                    os.close(rd)
+                    os.close(wr)
+                except:
+                    pass
             SysMgr.printErr(
                 "failed to execute %s because of fork failure" % cmd
             )
@@ -95592,6 +95653,7 @@ Key Value List:
                         if pid > 0:
                             os.close(rd)
                             os.dup2(wr, 1)
+                            os.close(wr)
 
                             try:
                                 pcmd = pipeCmds[0]
@@ -95606,19 +95668,34 @@ Key Value List:
                                     reason=True,
                                 )
                         # reader handling data #
-                        else:
+                        elif pid == 0:
                             os.close(wr)
                             os.dup2(rd, 0)
+                            os.close(rd)
 
                             pcmd = UtilMgr.parseCommand(pipeCmds[1])
                             SysMgr.executeProcess(cmd=pcmd, closeFd=False)
+                        else:
+                            try:
+                                os.close(rd)
+                                os.close(wr)
+                            except:
+                                pass
+                            SysMgr.printErr(
+                                "failed to execute command '%s' because of fork failure"
+                                % cmd
+                            )
                     else:
                         SysMgr.printErr(
                             "no support piped commands bigger than 2 for '%s'"
                             % cmd
                         )
 
-        def _handleConn(connObj, connMan, initCmds=[], eventHandlers={}):
+        def _handleConn(connObj, connMan, initCmds=None, eventHandlers=None):
+            if initCmds is None:
+                initCmds = []
+            if eventHandlers is None:
+                eventHandlers = {}
             req = connObj.recvfrom()
 
             if isinstance(req, tuple):
@@ -148876,10 +148953,12 @@ class BpfMgr(object):
 
                 SIOCGIFINDEX = 0x8933
                 _s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
-                ifreq = struct.pack("16si", name.encode()[:15], 0)
-                res = _fcntl.ioctl(_s, SIOCGIFINDEX, ifreq)
-                _s.close()
-                return struct.unpack("16si", res)[1]
+                try:
+                    ifreq = struct.pack("16si", name.encode()[:15], 0)
+                    res = _fcntl.ioctl(_s, SIOCGIFINDEX, ifreq)
+                    return struct.unpack("16si", res)[1]
+                finally:
+                    _s.close()
             except Exception:
                 return None
 
@@ -164362,8 +164441,6 @@ class DbusMgr(object):
         for tid in taskList:
             cont = True
 
-            rd, wr = os.pipe()
-
             try:
                 ppidIdx = SysMgr.topInstance.ppidIdx
                 ppid = taskManager.procData[tid]["stat"][ppidIdx]
@@ -164506,6 +164583,8 @@ class DbusMgr(object):
             if cont:
                 continue
 
+            rd, wr = os.pipe()
+
             pid = SysMgr.createProcess()
 
             if pid > 0:
@@ -164525,6 +164604,7 @@ class DbusMgr(object):
                 wrPipe = os.fdopen(wr, "w")
                 SysMgr.setPipeSize(wrPipe)
                 os.dup2(wr, 1)
+                os.close(wr)
 
                 SysMgr.setPipeHandler()
 
@@ -164549,6 +164629,11 @@ class DbusMgr(object):
                 sys.exit(0)
 
             else:
+                try:
+                    os.close(rd)
+                    os.close(wr)
+                except:
+                    pass
                 sys.exit(-1)
 
         if mode == "getpidlist":
@@ -173117,7 +173202,7 @@ typedef struct {
     @staticmethod
     def drawFlame(
         inputFile=None,
-        callList={},
+        callList=None,
         title="",
         suffix=False,
         outFile=None,
@@ -173125,7 +173210,7 @@ typedef struct {
         forceOutFile=False,
         profinfo="",
         diff=False,
-        inputData=[],
+        inputData=None,
         verb=True,
     ):
         if not inputFile and not callList:
@@ -173134,6 +173219,11 @@ typedef struct {
 
         if not callList:
             callList = {}
+        else:
+            callList = dict(callList)
+
+        if inputData is None:
+            inputData = []
 
         isValidStr = UtilMgr.isValidStr
         filterGroup = SysMgr.filterGroup
@@ -182050,24 +182140,37 @@ typedef struct {
         wait=None,
         multi=False,
         lock=None,
-        bpList={},
-        exceptBpList={},
-        targetBpList={},
-        targetBpFileList={},
-        exceptBpFileList={},
-        objectList={},
+        bpList=None,
+        exceptBpList=None,
+        targetBpList=None,
+        targetBpFileList=None,
+        exceptBpFileList=None,
+        objectList=None,
         initStatus=None,
     ):
         self.initValues()
 
+        if bpList is None:
+            bpList = {}
+        if exceptBpList is None:
+            exceptBpList = {}
+        if targetBpList is None:
+            targetBpList = {}
+        if targetBpFileList is None:
+            targetBpFileList = {}
+        if exceptBpFileList is None:
+            exceptBpFileList = {}
+        if objectList is None:
+            objectList = {}
+
         if not self.targetBpList:
-            self.targetBpList = targetBpList
+            self.targetBpList = dict(targetBpList)
         if not self.targetBpFileList:
-            self.targetBpFileList = targetBpFileList
+            self.targetBpFileList = dict(targetBpFileList)
         if not self.exceptBpFileList:
-            self.exceptBpFileList = exceptBpFileList
+            self.exceptBpFileList = dict(exceptBpFileList)
         if not self.objectList:
-            self.objectList = objectList
+            self.objectList = dict(objectList)
 
         self.cmd = None
         self.wait = wait
@@ -203216,18 +203319,18 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def drawHist(
-        inputFile=[],
-        statList=[],
-        nameList=[],
+        inputFile=None,
+        statList=None,
+        nameList=None,
         outFile=None,
         posInfo=None,
-        subNameList=[],
+        subNameList=None,
         gname=None,
         yper=True,
         msg=None,
         yunit="",
         inLabel=False,
-        xrangeList=[],
+        xrangeList=None,
         addLabel=False,
         cumulative=False,
         diff=False,
@@ -203302,12 +203405,10 @@ class TaskAnalyzer(object):
             sys.exit(-1)
 
         posInfo = list(posInfo) if posInfo else []
-        if not nameList:
-            nameList = []
-        if not subNameList:
-            subNameList = []
-        if not statList:
-            statList = []
+        nameList = list(nameList) if nameList else []
+        subNameList = list(subNameList) if subNameList else []
+        statList = list(statList) if statList else []
+        xrangeList = list(xrangeList) if xrangeList else []
 
         fileName, inputName, inputList = UtilMgr.getInputNames(inputFile)
 
@@ -210513,14 +210614,14 @@ class TaskAnalyzer(object):
 
     @staticmethod
     def drawViolin(
-        inputFile=[],
-        statList=[],
-        nameList=[],
-        xname=[],
-        yname=[],
+        inputFile=None,
+        statList=None,
+        nameList=None,
+        xname=None,
+        yname=None,
         outFile=None,
-        posInfo=[],
-        subNameList=[],
+        posInfo=None,
+        subNameList=None,
         gname=None,
         diff=False,
     ):
@@ -210565,16 +210666,12 @@ class TaskAnalyzer(object):
             SysMgr.printErr("no input for violin plot")
             sys.exit(-1)
 
-        if not posInfo:
-            posInfo = []
-        if not subNameList:
-            subNameList = []
-        if not yname:
-            yname = []
-        if not nameList:
-            nameList = []
-        if not statList:
-            statList = []
+        posInfo = list(posInfo) if posInfo else []
+        subNameList = list(subNameList) if subNameList else []
+        yname = list(yname) if yname else []
+        xname = list(xname) if xname else []
+        nameList = list(nameList) if nameList else []
+        statList = list(statList) if statList else []
 
         fileName, inputName, inputList = UtilMgr.getInputNames(inputFile)
 
@@ -234575,8 +234672,15 @@ function isAutoNamedPlot(name) {{
 
         # file memory #
         try:
-            pgFile = vmData["nr_file_pages"]
-            fileMemDiff = pgFile - prevVmData["nr_file_pages"]
+            pgFile = max(
+                0, vmData["nr_file_pages"] - vmData.get("nr_swapcached", 0)
+            )
+            prevPgFile = max(
+                0,
+                prevVmData.get("nr_file_pages", 0)
+                - prevVmData.get("nr_swapcached", 0),
+            )
+            fileMemDiff = pgFile - prevPgFile
             if kbunit:
                 totalFileMem = pgFile << 2
                 fileMemDiff = fileMemDiff << 2
@@ -234645,6 +234749,8 @@ function isAutoNamedPlot(name) {{
             totalKernelMem = totalMem - (
                 totalAnonMem + totalCacheMem + freeMem
             )
+            if totalKernelMem < 0:
+                totalKernelMem = 0
         except SystemExit:
             sys.exit(0)
         except:
