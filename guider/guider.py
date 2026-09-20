@@ -32189,6 +32189,19 @@ class LLMMgr(object):
         "haiku": "claude-haiku-4-5-20251001",
     }
 
+    # short aliases accepted via -q LLMMODEL:<alias> for the gemini/
+    # custom-gemini providers, resolved to concrete Gemini API model ids.
+    _GEMINI_MODEL_ALIASES = {
+        "flash": "gemini-2.5-flash",
+        "pro": "gemini-2.5-pro",
+        "flash-lite": "gemini-2.5-flash-lite",
+        "2.5-flash": "gemini-2.5-flash",
+        "2.5-pro": "gemini-2.5-pro",
+        "2.0-flash": "gemini-2.0-flash",
+        "1.5-flash": "gemini-1.5-flash",
+        "1.5-pro": "gemini-1.5-pro",
+    }
+
     @staticmethod
     def _resolveClaudeModel(model):
         """Resolve a short Claude model alias (opus/sonnet/haiku) to its
@@ -32196,6 +32209,14 @@ class LLMMgr(object):
         if not model:
             return model
         return LLMMgr._CLAUDE_MODEL_ALIASES.get(model.strip().lower(), model)
+
+    @staticmethod
+    def _resolveGeminiModel(model):
+        """Resolve a short Gemini model alias (flash/pro/etc) to its
+        concrete API model id; any other value is returned unchanged."""
+        if not model:
+            return model
+        return LLMMgr._GEMINI_MODEL_ALIASES.get(model.strip().lower(), model)
 
     @staticmethod
     def _initPeriodicAI():
@@ -32295,9 +32316,13 @@ class LLMMgr(object):
             ("default", 0.0025, 0.01),
         ],
         "gemini": [
+            ("gemini-2.5-pro", 0.00125, 0.01),
+            ("gemini-2.5-flash", 0.0003, 0.0025),
+            ("gemini-2.0-flash", 0.0001, 0.0004),
             ("gemini-1.5-flash", 0.000075, 0.0003),
             ("gemini-1.5-pro", 0.00125, 0.005),
-            ("default", 0.00125, 0.005),
+            ("gemini", 0.0003, 0.0025),
+            ("default", 0.0003, 0.0025),
         ],
         "default": [("default", 0.003, 0.015)],
     }
@@ -32875,7 +32900,7 @@ class LLMMgr(object):
             temperature=None,
             requestTimeout=None,
         ):
-            self.model = (
+            self.model = LLMMgr._resolveGeminiModel(
                 model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
             )
             self.baseUrl = baseUrl or os.getenv("GEMINI_BASE_URL")
