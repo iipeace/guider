@@ -15051,18 +15051,21 @@ class NetworkMgr(object):
         if not socket:
             return
 
-        from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+        from socket import socket, AF_INET, SOCK_STREAM
 
         ret = None
 
         try:
-            with socket(AF_INET, SOCK_STREAM) as s:
+            s = socket(AF_INET, SOCK_STREAM)
+            try:
                 s.settimeout(0.3)
 
                 # connect to google public IP #
                 s.connect(("8.8.8.8", 53))
 
                 ret = s.getsockname()[0]
+            finally:
+                s.close()
         except SystemExit:
             sys.exit(0)
         except:
@@ -50688,9 +50691,16 @@ Commands:
         """
         _sock = SysMgr.getPkg("socket")
         s = _sock.socket(_sock.AF_UNIX, _sock.SOCK_SEQPACKET)
-        s.settimeout(timeout)
-        s.connect("/dev/socket/lmkd")
-        return s
+        try:
+            s.settimeout(timeout)
+            s.connect("/dev/socket/lmkd")
+            return s
+        except Exception:
+            try:
+                s.close()
+            except Exception:
+                pass
+            raise
 
     @staticmethod
     def getLmkdKillCount(min_adj=0, max_adj=999):
@@ -50704,18 +50714,24 @@ Commands:
         _struct = SysMgr.getPkg("struct")
 
         def _query(fmt):
+            s = None
             try:
                 rfmt = ">Ii" if ">" in fmt else "<ii"
                 s = SysMgr._connectLmkdSocket(0.5)
                 s.send(_struct.pack(fmt, 4, min_adj, max_adj))
                 resp = s.recv(64)
-                s.close()
                 if len(resp) < 8:
                     return -1
                 cmd, cnt = _struct.unpack(rfmt, resp[:8])
                 return cnt if cmd == 4 else -1
             except Exception:
                 return -1
+            finally:
+                if s:
+                    try:
+                        s.close()
+                    except Exception:
+                        pass
 
         if SysMgr._lmkdFmt is None:
             for fmt in (">Iii", "<iii"):
@@ -60645,12 +60661,18 @@ Commands:
 
                 ICMP_ID = (os.getpid() + idx) & 0xFFFF
 
+                sock = None
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
                     sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
                 except SystemExit:
                     sys.exit(0)
                 except:
+                    if sock:
+                        try:
+                            sock.close()
+                        except:
+                            pass
                     for s in sockList:
                         try:
                             s.close()
@@ -60697,17 +60719,18 @@ Commands:
                 sockList.append(sock)
                 sockInfo[sock.fileno()] = [sock, addrInfo, ICMP_ID]
 
-            _receivePing(sockList, timeout, sockInfo)
-
-            for name, attr in sockInfo.items():
-                if len(attr) <= 3:
-                    sockInfo[name].append(timeout)
-                try:
-                    attr[0].close()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+            try:
+                _receivePing(sockList, timeout, sockInfo)
+            finally:
+                for name, attr in sockInfo.items():
+                    if len(attr) <= 3:
+                        sockInfo[name].append(timeout)
+                    try:
+                        attr[0].close()
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
             if not verb:
                 return
@@ -79348,6 +79371,10 @@ Key Value List:
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
         if length < 0:
             SysMgr.printWarn("failed to read inotify event", verb)
+            if not origFd:
+                for wd in list(wlist):
+                    SysMgr.libcObj.inotify_rm_watch(fd, wd)
+                SysMgr.libcObj.close(fd)
             return False
 
         if not retlist:
@@ -104153,76 +104180,84 @@ Key Value List:
 
             if tcp:
                 socketMod = SysMgr.getPkg("socket")
+                sock = None
                 try:
-                    sock = socketMod.socket(
-                        socketMod.AF_INET, socketMod.SOCK_STREAM
-                    )
-                    sock.settimeout(5)
-                    sock.connect((ip, port))
-                except:
-                    SysMgr.printErr(
-                        "failed to connect TCP to %s:%s" % (ip, port), True
-                    )
-                    sys.exit(-1)
-
-                for seq in xrange(repeat):
                     try:
-                        t0 = time.time()
-                        sock.sendall(payload)
-                        totalBytes += len(payload)
-                        rtt = time.time() - t0
-                        totalRtt += rtt
-
-                        if SysMgr.warnEnable:
-                            sys.stdout.write(
-                                "[%s] (%s) sent TCP %s bytes to %s:%s"
-                                " RTT=%.3fms\n"
-                                % (
-                                    SysMgr.getUptime(),
-                                    UtilMgr.convNum(seq),
-                                    len(payload),
-                                    ip,
-                                    port,
-                                    rtt * 1000,
-                                )
-                            )
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            "failed to send TCP packet", reason=True
+                        sock = socketMod.socket(
+                            socketMod.AF_INET, socketMod.SOCK_STREAM
                         )
-                    time.sleep(sleep)
+                        sock.settimeout(5)
+                        sock.connect((ip, port))
+                    except:
+                        SysMgr.printErr(
+                            "failed to connect TCP to %s:%s" % (ip, port), True
+                        )
+                        sys.exit(-1)
 
-                try:
-                    sock.close()
-                except:
-                    pass
+                    for seq in xrange(repeat):
+                        try:
+                            t0 = time.time()
+                            sock.sendall(payload)
+                            totalBytes += len(payload)
+                            rtt = time.time() - t0
+                            totalRtt += rtt
+
+                            if SysMgr.warnEnable:
+                                sys.stdout.write(
+                                    "[%s] (%s) sent TCP %s bytes to %s:%s"
+                                    " RTT=%.3fms\n"
+                                    % (
+                                        SysMgr.getUptime(),
+                                        UtilMgr.convNum(seq),
+                                        len(payload),
+                                        ip,
+                                        port,
+                                        rtt * 1000,
+                                    )
+                                )
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                "failed to send TCP packet", reason=True
+                            )
+                        time.sleep(sleep)
+                finally:
+                    if sock:
+                        try:
+                            sock.close()
+                        except:
+                            pass
             else:
                 gObj = SysMgr.localServObj
                 networkObject = NetworkMgr(
                     "client", gObj.ip, gObj.port, tcp=False
                 )
+                try:
+                    for seq in xrange(repeat):
+                        t0 = time.time()
+                        networkObject.sendto(payload, ip, port)
+                        rtt = time.time() - t0
+                        totalBytes += len(payload)
+                        totalRtt += rtt
 
-                for seq in xrange(repeat):
-                    t0 = time.time()
-                    networkObject.sendto(payload, ip, port)
-                    rtt = time.time() - t0
-                    totalBytes += len(payload)
-                    totalRtt += rtt
-
-                    if SysMgr.warnEnable:
-                        sys.stdout.write(
-                            "[%s] (%s) send a %s packet to %s:%s\n"
-                            % (
-                                SysMgr.getUptime(),
-                                UtilMgr.convNum(seq),
-                                prot,
-                                ip,
-                                port,
+                        if SysMgr.warnEnable:
+                            sys.stdout.write(
+                                "[%s] (%s) send a %s packet to %s:%s\n"
+                                % (
+                                    SysMgr.getUptime(),
+                                    UtilMgr.convNum(seq),
+                                    prot,
+                                    ip,
+                                    port,
+                                )
                             )
-                        )
-                    time.sleep(sleep)
+                        time.sleep(sleep)
+                finally:
+                    try:
+                        networkObject.close()
+                    except:
+                        pass
 
             elapsed = time.time() - start
             if elapsed > 0 and totalBytes > 0:
@@ -104766,20 +104801,22 @@ Key Value List:
 
                             done = 0
                             fd = os.open(path, flag)
-                            for piece in opFunc(fd, chunk, sync, printElapsed):
-                                if isinstance(piece, (int, long)):
-                                    done += piece
-                                else:
-                                    done += len(piece)
+                            try:
+                                for piece in opFunc(fd, chunk, sync, printElapsed):
+                                    if isinstance(piece, (int, long)):
+                                        done += piece
+                                    else:
+                                        done += len(piece)
 
-                                if printProgress:
-                                    UtilMgr.printProgress(done, size)
+                                    if printProgress:
+                                        UtilMgr.printProgress(done, size)
 
-                                if not piece:
-                                    break
-                                elif 0 < size <= done:
-                                    break
-                            os.close(fd)
+                                    if not piece:
+                                        break
+                                    elif 0 < size <= done:
+                                        break
+                            finally:
+                                os.close(fd)
 
                             time.sleep(sleep)
                         except SystemExit:
@@ -104821,12 +104858,14 @@ Key Value List:
                                     SysMgr.fadvise(fpath, advice=4)
 
                                 fd = os.open(fpath, flag)
-                                for piece in opFunc(
-                                    fd, chunk, sync, printElapsed
-                                ):
-                                    if not piece:
-                                        break
-                                os.close(fd)
+                                try:
+                                    for piece in opFunc(
+                                        fd, chunk, sync, printElapsed
+                                    ):
+                                        if not piece:
+                                            break
+                                finally:
+                                    os.close(fd)
 
                                 time.sleep(sleep)
                             except SystemExit:
@@ -164297,6 +164336,10 @@ class DbusMgr(object):
                                 sys.exit(0)
                             except:
                                 pass
+                            try:
+                                robj.close()
+                            except:
+                                pass
                         elif output and len(output) > 0:
                             _updateData((tid, output, bus, service))
 
@@ -181499,7 +181542,8 @@ typedef struct {
             try:
                 if Debugger.envFlags["SYNCTASK"]:
                     os.close(rd)
-                    os.fdopen(wr, "w").write("0")
+                    with os.fdopen(wr, "w") as fd:
+                        fd.write("0")
             except SystemExit:
                 sys.exit(0)
             except:
