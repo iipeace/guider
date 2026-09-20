@@ -13468,6 +13468,13 @@ class NetworkMgr(object):
             if not blocking:
                 self.socket.setblocking(0)
         except:
+            if self.socket:
+                try:
+                    self.socket.close()
+                except:
+                    pass
+                self.socket = None
+            self.fileno = -1
             err = SysMgr.getErrMsg()
             if (
                 not uds
@@ -13639,6 +13646,7 @@ class NetworkMgr(object):
             connMan.close()
             return
 
+        sock = None
         try:
             # send connection info #
             try:
@@ -13721,6 +13729,11 @@ class NetworkMgr(object):
 
             return buf
         finally:
+            if sock:
+                try:
+                    sock.close()
+                except:
+                    pass
             connMan.close()
 
     @staticmethod
@@ -14624,6 +14637,12 @@ class NetworkMgr(object):
                 % reqList[:-1]
             )
             sys.exit(-1)
+
+        if isinstance(SysMgr.remoteServObj, NetworkMgr):
+            try:
+                SysMgr.remoteServObj.close()
+            except:
+                pass
 
         networkObject = NetworkMgr("client", ip, port, tcp=tcp)
         if not networkObject.ip:
@@ -54438,6 +54457,12 @@ Commands:
         except SystemExit:
             sys.exit(0)
         except:
+            if fd is not None:
+                try:
+                    fd.close()
+                except:
+                    pass
+                setattr(obj, attr, None)
             try:
                 bufPath = "%s/%s" % (SysMgr.procPath, name)
                 fd = open(bufPath, "r")
@@ -54446,6 +54471,12 @@ Commands:
             except SystemExit:
                 sys.exit(0)
             except:
+                if fd is not None:
+                    try:
+                        fd.close()
+                    except:
+                        pass
+                    setattr(obj, attr, None)
                 if err:
                     SysMgr.printOpenErr(bufPath)
                 else:
@@ -61743,6 +61774,12 @@ Commands:
         except SystemExit:
             sys.exit(0)
         except:
+            if SysMgr.diskStatsFd is not None:
+                try:
+                    SysMgr.diskStatsFd.close()
+                except:
+                    pass
+                SysMgr.diskStatsFd = None
             try:
                 diskstatPath = "%s/diskstats" % SysMgr.procPath
                 SysMgr.diskStatsFd = open(diskstatPath, "r")
@@ -61750,6 +61787,12 @@ Commands:
             except SystemExit:
                 sys.exit(0)
             except:
+                if SysMgr.diskStatsFd is not None:
+                    try:
+                        SysMgr.diskStatsFd.close()
+                    except:
+                        pass
+                    SysMgr.diskStatsFd = None
                 SysMgr.printOpenWarn(diskstatPath)
 
     @staticmethod
@@ -83630,6 +83673,13 @@ Key Value List:
         if SysMgr.exitFlag or SysMgr.checkMode("report"):
             os._exit(0)
 
+        if signum == signal.SIGPIPE:
+            try:
+                sys.stdout.close()
+            except:
+                pass
+            os._exit(0)
+
         SysMgr.setIgnoreSignal()
         signal.alarm(0)
         SysMgr.condExit = True
@@ -86602,6 +86652,7 @@ Key Value List:
             or SysMgr.streamEnable
             or SysMgr.jsonEnable
             or SysMgr.checkMode("hserver")
+            or not sys.stdout.isatty()
         ):
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
@@ -181461,6 +181512,12 @@ typedef struct {
             signal.alarm(SysMgr.intervalEnable)
 
         else:
+            if Debugger.envFlags["SYNCTASK"]:
+                try:
+                    os.close(rd)
+                    os.close(wr)
+                except:
+                    pass
             return -1
 
         self.ptraceEvent(self.traceEventList)
@@ -184237,6 +184294,7 @@ class MemoryFile(object):
         self.fd = -1
         self.rd = -1
         self.wd = -1
+        self.wr = -1
         self.mem = bytearray(size)
 
         if addr:
@@ -184372,6 +184430,33 @@ class MemoryFile(object):
 
     def next(self):
         return self.__next__()
+
+    def close(self):
+        if getattr(self, "rd", -1) >= 0:
+            try:
+                os.close(self.rd)
+            except:
+                pass
+            self.rd = -1
+        if getattr(self, "wr", -1) >= 0:
+            try:
+                os.close(self.wr)
+            except:
+                pass
+            self.wr = -1
+        self.fd = -1
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except:
+            pass
 
 
 class ApkAnalyzer(object):
@@ -209715,10 +209800,12 @@ class TaskAnalyzer(object):
             "Date", SysMgr.dateTime
         )
         try:
-            dt = datetime.datetime.strptime(SysMgr.dateTime, "%Y%m%d-%H%M%S")
-            SysMgr.dateTime = datetime.datetime.fromtimestamp(
-                dt.timestamp()
-            ).strftime("%Y-%m-%d %H-%M-%S")
+            _datetime = SysMgr.getPkg("datetime", False)
+            if _datetime:
+                dt = _datetime.datetime.strptime(
+                    SysMgr.dateTime, "%Y%m%d-%H%M%S"
+                )
+                SysMgr.dateTime = dt.strftime("%Y-%m-%d %H-%M-%S")
         except SystemExit:
             sys.exit(0)
         except:
@@ -210176,8 +210263,9 @@ class TaskAnalyzer(object):
                 color="#cccccc",
                 fontsize=7,
             )
-            _cb.ax.yaxis.set_tick_params(color="#cccccc", labelsize=6)
-            plt.setp(plt.getp(_cb.ax.axes, "yticklabels"), color="#cccccc")
+            _cb.ax.yaxis.set_tick_params(
+                color="#cccccc", labelcolor="#cccccc", labelsize=6
+            )
         else:
             sorted_groups = sorted(
                 groups.keys(),
