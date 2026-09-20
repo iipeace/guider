@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260920"
+__revision__ = "260921"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8404,8 +8404,11 @@ class UtilMgr(object):
         incFile=True,
         incDir=False,
         recursive=True,
-        exceptList=[],
+        exceptList=None,
     ):
+        if exceptList is None:
+            exceptList = []
+
         flist = []
 
         for r, d, f in os.walk(path):
@@ -8500,8 +8503,11 @@ class UtilMgr(object):
 
     @staticmethod
     def getFileList(
-        flist, sort=False, exceptDir=False, exceptFile=[], verb=True
+        flist, sort=False, exceptDir=False, exceptFile=None, verb=True
     ):
+        if exceptFile is None:
+            exceptFile = []
+
         if not flist or not isinstance(flist, list):
             return []
 
@@ -17513,15 +17519,34 @@ class Ext4Analyzer(object):
 
         try:
             self.volume = Volume(self.fd)
-        except SystemExit:
-            sys.exit(0)
+        except (SystemExit, KeyboardInterrupt):
+            raise
         except:
+            self.close()
             SysMgr.printWarn(
                 "failed to init EXT4 object for %s'" % path, reason=True
             )
 
         if not self.volume:
+            self.close()
             raise Exception("volume failure")
+
+    def close(self):
+        if hasattr(self, "fd") and self.fd:
+            try:
+                self.fd.close()
+            except Exception:
+                pass
+            self.fd = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __del__(self):
+        self.close()
 
     def getInodeInfo(self, inode=None, path=None):
         if not inode and not path:
@@ -17541,7 +17566,10 @@ class Ext4Analyzer(object):
                 parent = parent.get_inode(item)
             return parent
 
-    def getInodeList(self, start=None, path=None, filters=[], verb=False):
+    def getInodeList(self, start=None, path=None, filters=None, verb=False):
+        if filters is None:
+            filters = []
+
         def _traverseItems(self, start, path, filters, verb):
             if start:
                 if isinstance(start, str):
@@ -28052,6 +28080,32 @@ class LogMgr(object):
     def flush(self):
         pass
 
+    def close(self):
+        if getattr(self, "errFd", None):
+            try:
+                self.errFd.close()
+            except Exception:
+                pass
+            self.errFd = None
+        terminal = getattr(self, "terminal", None)
+        if terminal and terminal not in (
+            sys.stderr,
+            sys.__stderr__,
+            sys.stdout,
+            sys.__stdout__,
+        ):
+            try:
+                terminal.close()
+            except Exception:
+                pass
+            self.terminal = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def __getattr__(self, attr):
         return getattr(self.terminal, attr)
 
@@ -28718,6 +28772,10 @@ class LogMgr(object):
             SysMgr.printWarn(
                 "bpfmarktop: ADDUSERSTACK setup failed (%s)" % e, True
             )
+            try:
+                BpfMgr.detachAll()
+            except Exception:
+                pass
             LogMgr.fmarkUstackFd = -1
             LogMgr.fmarkTidStkFd = -1
 
@@ -51304,7 +51362,34 @@ Commands:
 
     @staticmethod
     def removeFd(fname):
-        SysMgr.fdCache.pop(fname, None)
+        entry = SysMgr.fdCache.pop(fname, None)
+        if entry and isinstance(entry, dict) and "fd" in entry:
+            try:
+                entry["fd"].close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def closeFdCache():
+        if SysMgr.fdCache:
+            for item in list(SysMgr.fdCache.values()):
+                if isinstance(item, dict) and "fd" in item:
+                    try:
+                        item["fd"].close()
+                    except Exception:
+                        pass
+            SysMgr.fdCache = {}
+
+    @staticmethod
+    def closeRawFdCache():
+        if SysMgr.rawFdCache:
+            for fd in list(SysMgr.rawFdCache.values()):
+                try:
+                    if isinstance(fd, int) and not isinstance(fd, bool) and fd >= 0:
+                        os.close(fd)
+                except Exception:
+                    pass
+            SysMgr.rawFdCache = {}
 
     @staticmethod
     def getProcMaps(pid):
@@ -51577,11 +51662,19 @@ Commands:
 
     @staticmethod
     def getCachedFd(fname, perm="rb", verb=True):
-        if fname in SysMgr.fdCache and SysMgr.fdCache[fname]["perm"] == perm:
-            return SysMgr.fdCache[fname]["fd"]
+        if fname in SysMgr.fdCache:
+            if SysMgr.fdCache[fname]["perm"] == perm:
+                return SysMgr.fdCache[fname]["fd"]
+            try:
+                SysMgr.fdCache[fname]["fd"].close()
+            except Exception:
+                pass
 
         try:
-            SysMgr.fdCache[fname] = {"fd": open(fname, perm), "perm": perm}
+            fd = open(fname, perm)
+            if hasattr(fd, "fileno") and SysMgr.maxKeepFd < fd.fileno():
+                SysMgr.closeFdCache()
+            SysMgr.fdCache[fname] = {"fd": fd, "perm": perm}
             return SysMgr.fdCache[fname]["fd"]
         except SystemExit:
             sys.exit(0)
@@ -53539,7 +53632,10 @@ Commands:
             return None
 
     @staticmethod
-    def convertTaskIdInput(taskList=[]):
+    def convertTaskIdInput(taskList=None):
+        if taskList is None:
+            taskList = []
+
         ret = SysMgr.selectTaskId()
         if ret:
             newList = []
@@ -58775,7 +58871,140 @@ Commands:
                     SysMgr.addEventInfo(event, ret)
 
     @staticmethod
+    def closeFifoFds():
+        if SysMgr.fifoFdList:
+            for path, fd in list(SysMgr.fifoFdList.items()):
+                if isinstance(fd, int) and not isinstance(fd, bool) and fd >= 0:
+                    try:
+                        os.close(fd)
+                    except Exception:
+                        pass
+            SysMgr.fifoFdList = {}
+
+    @staticmethod
+    def closeBpfThrFds():
+        def _close_item(val):
+            if isinstance(val, int) and not isinstance(val, bool):
+                if val >= 0:
+                    try:
+                        os.close(val)
+                    except Exception:
+                        pass
+            elif isinstance(val, dict):
+                for v in list(val.values()):
+                    _close_item(v)
+            elif isinstance(val, (list, tuple, set)):
+                for v in list(val):
+                    _close_item(v)
+
+        if SysMgr.bpfThrFds:
+            for v in list(SysMgr.bpfThrFds.values()):
+                _close_item(v)
+            SysMgr.bpfThrFds = {}
+
+    @staticmethod
+    def closeProcFds():
+        procFdNames = [
+            "batteryFd",
+            "cmdFd",
+            "diskStatsFd",
+            "cgroupFd",
+            "eventLogFd",
+            "irqFd",
+            "kmsgFd",
+            "traceFd",
+            "lmkFd",
+            "loadavgFd",
+            "memFd",
+            "mountFd",
+            "msgqFd",
+            "netdevFd",
+            "netstatFd",
+            "nullFd",
+            "semFd",
+            "shmFd",
+            "slabFd",
+            "softirqFd",
+            "statFd",
+            "swapFd",
+            "syslogFd",
+            "uptimeFd",
+            "vmstatFd",
+            "vmallocFd",
+            "zoneFd",
+            "swappinessFd",
+            "vmpressureFd",
+            "overcommitFd",
+        ]
+        for name in procFdNames:
+            fd = getattr(SysMgr, name, None)
+            if fd:
+                try:
+                    if isinstance(fd, int) and not isinstance(fd, bool):
+                        os.close(fd)
+                    else:
+                        fd.close()
+                except Exception:
+                    pass
+                setattr(SysMgr, name, None)
+        SysMgr.closeCommFdCache()
+
+    @staticmethod
+    def closeReportObject():
+        if (
+            SysMgr.reportObject
+            and hasattr(SysMgr.reportObject, "close")
+            and SysMgr.reportObject is not sys.stdout
+            and SysMgr.reportObject is not sys.stderr
+        ):
+            try:
+                SysMgr.reportObject.flush()
+                SysMgr.reportObject.close()
+            except Exception:
+                pass
+        SysMgr.reportObject = None
+        SysMgr.reportEnable = False
+
+    @staticmethod
+    def closeSockets():
+        if SysMgr.localServObj and hasattr(SysMgr.localServObj, "close"):
+            try:
+                SysMgr.localServObj.close()
+            except Exception:
+                pass
+            SysMgr.localServObj = None
+        if SysMgr.remoteServObj and hasattr(SysMgr.remoteServObj, "close"):
+            try:
+                SysMgr.remoteServObj.close()
+            except Exception:
+                pass
+            SysMgr.remoteServObj = None
+
+    @staticmethod
+    def closeStdlog():
+        if SysMgr.stdlog and hasattr(SysMgr.stdlog, "close"):
+            try:
+                SysMgr.stdlog.close()
+            except Exception:
+                pass
+            SysMgr.stdlog = None
+
+    @staticmethod
+    def closePerfEvents():
+        if SysMgr.perfEventChannel:
+            for coreId, ch in list(SysMgr.perfEventChannel.items()):
+                if isinstance(ch, dict):
+                    for fd in list(ch.values()):
+                        if isinstance(fd, int) and not isinstance(fd, bool) and fd >= 0:
+                            try:
+                                os.close(fd)
+                            except Exception:
+                                pass
+            SysMgr.perfEventChannel = {}
+
+    @staticmethod
     def initFifoWatcher(data):
+        SysMgr.closeFifoFds()
         for name, value in data.items():
             if isinstance(value, list):
                 vlist = value
@@ -58823,7 +59052,7 @@ Commands:
         Creates BPF maps and loads/attaches programs for each active metric type.
         Stores resulting map fds in SysMgr.bpfThrFds for use by checkBpfThreshold().
         """
-        SysMgr.bpfThrFds = {}
+        SysMgr.closeBpfThrFds()
         SysMgr.bpfThrWarnedSet = set()
 
         # skip root check if no entry actually needs BPF programs loaded
@@ -61414,6 +61643,16 @@ Commands:
         SysMgr.commCache = {}
 
     @staticmethod
+    def closeCommFdCache():
+        if SysMgr.commFdCache:
+            for fd in list(SysMgr.commFdCache.values()):
+                try:
+                    fd.close()
+                except Exception:
+                    pass
+            SysMgr.commFdCache = {}
+
+    @staticmethod
     def getComm(pid, cache=False, save=False, commCache=True, default=None):
         if commCache:
             comm = SysMgr.commCache.get(pid)
@@ -61431,7 +61670,11 @@ Commands:
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            if pid in SysMgr.commFdCache:
+                try:
+                    SysMgr.commFdCache.pop(pid).close()
+                except Exception:
+                    pass
 
         if not SysMgr.isLinux:
             try:
@@ -61457,8 +61700,18 @@ Commands:
                 SysMgr.commCache[pid] = comm
 
             if SysMgr.maxKeepFd < fd.fileno():
-                SysMgr.commFdCache = {}
+                SysMgr.closeCommFdCache()
+                try:
+                    fd.close()
+                except Exception:
+                    pass
             elif cache:
+                oldFd = SysMgr.commFdCache.get(pid)
+                if oldFd and oldFd is not fd:
+                    try:
+                        oldFd.close()
+                    except Exception:
+                        pass
                 SysMgr.commFdCache[pid] = fd
             else:
                 fd.close()
@@ -90932,6 +91185,7 @@ Key Value List:
         if SysMgr.reportEnable:
             return True
 
+        SysMgr.closeReportObject()
         if SysMgr.streamEnable:
             SysMgr.reportObject = sys.stdout
             reportPath = SysMgr.nullPath
@@ -92339,6 +92593,8 @@ Key Value List:
         except:
             try:
                 fd = os.open(path, os.O_RDONLY)
+                if SysMgr.maxKeepFd < fd:
+                    SysMgr.closeRawFdCache()
                 SysMgr.rawFdCache[path] = fd
             except SystemExit:
                 sys.exit(0)
@@ -92617,6 +92873,8 @@ Key Value List:
 
         if "WAIT" in SysMgr.environList:
             SysMgr.waitEvent(False, True)
+
+        SysMgr.closeRawFdCache()
 
     @staticmethod
     def getTaskStats(pid, updateTime=True, verb=True):
@@ -94045,8 +94303,7 @@ Key Value List:
         SysMgr.eventCommandList = {}
 
         # reset report resource #
-        SysMgr.reportEnable = False
-        SysMgr.reportObject = None
+        SysMgr.closeReportObject()
 
         # reset lifecycle condition #
         SysMgr.startUptime = 0
@@ -112334,6 +112591,15 @@ Key Value List:
         SysMgr.killChildren(sig)
 
         SysMgr.closeAllForPrint()
+        SysMgr.closeSockets()
+        SysMgr.closeStdlog()
+        SysMgr.closePerfEvents()
+        SysMgr.closeProcFds()
+        SysMgr.closeFifoFds()
+        SysMgr.closeBpfThrFds()
+        SysMgr.closeFdCache()
+        SysMgr.closeRawFdCache()
+        SysMgr.closeReportObject()
 
     @staticmethod
     def flushAllForPrint():
