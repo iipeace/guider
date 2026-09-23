@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260921"
+__revision__ = "260923"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -123046,13 +123046,13 @@ class BpfMgr(object):
             struct.pack_into(
                 "<IIIII", buf, 0, map_type, key_sz, val_sz, max_entries, 0
             )
-            # map_name at offset 24 (16 chars); BPF only allows [a-zA-Z0-9_.] #
+            # map_name at offset 28 (16 chars); BPF only allows [a-zA-Z0-9_.] #
             _raw = name[:15] if name else "bpfmgr"
             nm = "".join(
                 c if c.isalnum() or c in "_." else "_" for c in _raw
             ).encode()
             for idx, b in enumerate(nm):
-                buf[24 + idx] = b if isinstance(b, int) else ord(b)
+                buf[28 + idx] = b if isinstance(b, int) else ord(b)
             fd = BpfMgr.bpfSyscall(0, buf)  # BPF_MAP_CREATE = 0
             if fd < 0:
                 err = SysMgr.getLibcErrno()
@@ -242349,7 +242349,7 @@ function isAutoNamedPlot(name) {{
             return pidlen
 
     def printSpecialTask(self, taskType, saveJsonStat):
-        if "NOABNORMALTASK" in SysMgr.environList:
+        if taskType == "abnormal" and "NOABNORMALTASK" in SysMgr.environList:
             return
 
         pd = self.getPidLen()
@@ -248136,8 +248136,13 @@ function isAutoNamedPlot(name) {{
             cond = target
 
         if comp:
-            threshold = UtilMgr.convUnit2Size(thresholdVal)
-            if (
+            try:
+                threshold = UtilMgr.convUnit2Size(thresholdVal)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                threshold = None
+            if threshold is not None and (
                 (comp == "big" and threshold <= cond)
                 or (comp == "less" and threshold >= cond)
                 or (comp == "eq" and threshold == cond)
