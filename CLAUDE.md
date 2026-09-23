@@ -81,7 +81,7 @@ visualize("drawflame", input_file="stacks.out")  # flame graph
 | `bpfTrace` | bpfstacktop/bpfsyscalltop/bpfbinderlat/bpfrunqtop | root/CAP_BPF, kernel≥5.8 |
 | `ftraceProfile` | trtop/btop/ktop/funcrec | root, kernel≥4.4, max 1 concurrent |
 | `networkTrace` | bpftcpretrans/bpftcplife/bpfdroptop/bpftcplat | root required |
-| `androidPerf` | perfetto/bdtop/bpfbinderlat/logand/cantop | adb required |
+| `androidPerf` | perfetto/bdtop/andtop/hprof/cantop | adb required |
 | `memoryAnalyze` | checkdup/leaktop/oomtop/vtop/dump | - |
 | `visualize` | drawflame/drawcpu/drawscatter/drawhist | -I file required |
 | `logAnalyze` | logkmsg/logdlt/logjrl/convlog | - |
@@ -90,9 +90,25 @@ visualize("drawflame", input_file="stacks.out")  # flame graph
 
 ## Blocked Commands
 
+Enforced in `mcp/guider_catalog.py`. Two separate sets — full lists there, this is a summary:
+
 ```
-kill, tkill, freeze, exec, swapout, sysrq        # system control
-ask, chat, embed, rag, askai, askrun, aiperiodic  # LLM loop prevention
+# BLOCKED_COMMANDS — guider.py top-level commands rejected outright
+kill, tkill, freeze, pause, hook, cgroup, swapout, limitcpu, limitcpuset,
+limitcpuw, limitmem, limitmemsoft, limitpid, limitread, limitwrite, setafnt,
+setcpu, setsched, setprop, sysrq, exec, rlimit, remote, ask, chat, embed, rag,
+cmdtest, server, cli, fserver, hserver, send, event, start, stop, mount, umount
+# (askai/askrun/aiperiodic are listed here too, but they're -q option keys,
+# not real guider.py commands — the actual gate for them is BLOCKED_OPTS below)
+
+# BLOCKED_OPTS — "-q KEY[:VALUE]" option keys stripped from otherwise-allowed
+# commands (enforced by guider_adapter.py's _filter_opts())
+ASKAI, ASKRUN, AIPERIODIC, LLMPROVIDER, LLMMODEL,   # LLM loop
+EXITCMD, PRINTCMD,                                   # command execution
+DUPOUTPATH, OUTFILEUSER, OUTFILEPERM,                # file manipulation
+RUNCMDLIST, EVENTCMD, GUIDERCMD, WATCHLOGCMD,        # arbitrary process/cmd exec
+REGSIGCMD                                            # signal-triggered event-cmd
+                                                      # (meta-gateway — see code comment)
 ```
 
 ## First-Time Setup

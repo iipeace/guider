@@ -54668,11 +54668,15 @@ Commands:
                     continue
 
                 if name == "name":
-                    thread, process = target.split(">>>")
-                    process = process.strip(" <")
-                    taskInfo["process"] = process
-                    thread = thread.strip()
-                    taskInfo["thread"] = thread
+                    parts = target.split(">>>", 1)
+                    if len(parts) == 2:
+                        thread, process = parts
+                        process = process.strip(" <")
+                        taskInfo["process"] = process
+                        thread = thread.strip()
+                        taskInfo["thread"] = thread
+                    else:
+                        taskInfo["process"] = target.strip(" <")
                 else:
                     taskInfo["process"] = target
                 break
@@ -95061,6 +95065,125 @@ Key Value List:
         ]
 
     @staticmethod
+    def authorizeTcpConn(connObj, connMan, cliProc):
+        def _checkProc(attr, pid):
+            if attr == "cmdline":
+                name = "AUTHCMDLINE"
+                func = SysMgr.getCmdline
+            elif attr == "comm":
+                name = "AUTHCOMM"
+                func = SysMgr.getComm
+            else:
+                return True
+
+            if name not in SysMgr.environList:
+                return True
+
+            cl = func(pid)
+            if not UtilMgr.isValidStr(cl, SysMgr.environList[name]):
+                raise Exception("wrong %s '%s'" % (attr, cl))
+
+            return True
+
+        if not SysMgr.hasEnvironVar(
+            [
+                "AUTHCOMM",
+                "AUTHCMDLINE",
+                "AUTHUSER",
+                "AUTHGROUP",
+                "AUTHGROUPS",
+            ]
+        ):
+            return True
+
+        try:
+            authIp, authPort = connObj.socket.getpeername()
+
+            addrs = SysMgr.getTcpList([], cache=False)
+            targetStr = "TCP>%s:%s->%s:%s/ESTABLISHED" % (
+                connMan.ip,
+                connMan.port,
+                authIp,
+                authPort,
+            )
+
+            cNode = None
+            for tNode, tConn in reversed(SysMgr.tcpListCache.items()):
+                if tConn.startswith(targetStr):
+                    cNode = tNode
+
+            pid = 0
+            pids = SysMgr.getPidList()
+            for p in pids:
+                if not p.isdigit():
+                    continue
+                if cNode in SysMgr.getProcSocketObjs(p):
+                    pid = p
+                    break
+
+            if pid == 0:
+                connObj.send(b"NOP")
+                raise Exception("no connected process")
+
+            SysMgr.printInfo(
+                "%s(%s) is trying to connect" % (SysMgr.getComm(pid), pid)
+            )
+
+            for n in ("comm", "cmdline"):
+                _checkProc(n, pid)
+
+            for u in ("AUTHUSER", "AUTHGROUP"):
+                authUser = SysMgr.environList.get(u)
+                if not authUser:
+                    continue
+
+                sysInstance = SysMgr.sysInstance
+                if not sysInstance.userData:
+                    sysInstance.saveUserInfo()
+
+                if u == "AUTHUSER":
+                    uid = SysMgr.getUid(pid)
+                else:
+                    uid = SysMgr.getUid(pid, group=True)
+
+                uname = SysMgr.sysInstance.getUserName(uid)
+                if uid not in authUser and not UtilMgr.isValidStr(
+                    uname, authUser
+                ):
+                    connObj.send(b"NOP")
+                    raise Exception("not allowed user")
+
+            authGroups = SysMgr.environList.get("AUTHGROUPS")
+            if authGroups:
+                verified = False
+
+                groupNameList = SysMgr.getGroupList(pid)
+                for group in groupNameList:
+                    gid, gname = group.rsplit("(", 1)
+                    gname = gname.rstrip(")")
+
+                    if gid in authGroups or UtilMgr.isValidStr(
+                        gname, authGroups
+                    ):
+                        verified = True
+                        break
+
+                if not verified:
+                    connObj.send(b"NOP")
+                    raise Exception("not allowed group")
+
+            SysMgr.printInfo("authorized the connection with %s" % cliProc)
+            return True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "failed to authorize the connection with %s" % cliProc,
+                True,
+            )
+            return False
+
+    @staticmethod
     def runServerTask(uds=None, tcp=None):
         if not uds and not tcp:
             return
@@ -95150,8 +95273,10 @@ Key Value List:
 
             SysMgr.printInfo("connected to %s" % cliProc)
 
-            try:
-
+            if uds:
+                # UDS peer PID is already known from getUdsIds() above, so
+                # reuse authorizeTcpConn's per-attribute checks directly
+                # instead of its (TCP-only) PID-resolution path #
                 def _checkProc(attr, pid):
                     if attr == "cmdline":
                         name = "AUTHCMDLINE"
@@ -95171,110 +95296,77 @@ Key Value List:
 
                     return True
 
-                # TODO: check verify key flag #
-                if "AUTHKEY" in SysMgr.environList:
-                    pass
-
-                if not SysMgr.hasEnvironVar(
-                    [
-                        "AUTHCOMM",
-                        "AUTHCMDLINE",
-                        "AUTHUSER",
-                        "AUTHGROUP",
-                        "AUTHGROUPS",
-                    ]
-                ):
-                    raise SyntaxWarning()
-
-                if uds:
-                    pass
-                else:
-                    authIp, authPort = connObj.socket.getpeername()
-
-                    addrs = SysMgr.getTcpList([], cache=False)
-                    targetStr = "TCP>%s:%s->%s:%s/ESTABLISHED" % (
-                        connMan.ip,
-                        connMan.port,
-                        authIp,
-                        authPort,
-                    )
-
-                    cNode = None
-                    for tNode, tConn in reversed(SysMgr.tcpListCache.items()):
-                        if tConn.startswith(targetStr):
-                            cNode = tNode
-
-                    pid = 0
-                    pids = SysMgr.getPidList()
-                    for p in pids:
-                        if not p.isdigit():
-                            continue
-                        if cNode in SysMgr.getProcSocketObjs(p):
-                            pid = p
-                            break
-
-                    if pid == 0:
-                        connObj.send(b"NOP")
-                        raise Exception("no connected process")
-
-                SysMgr.printInfo(
-                    "%s(%s) is trying to connect" % (SysMgr.getComm(pid), pid)
-                )
-
-                for n in ("comm", "cmdline"):
-                    _checkProc(n, pid)
-
-                for u in ("AUTHUSER", "AUTHGROUP"):
-                    authUser = SysMgr.environList.get(u)
-                    if not authUser:
-                        continue
-
-                    sysInstance = SysMgr.sysInstance
-                    if not sysInstance.userData:
-                        sysInstance.saveUserInfo()
-
-                    if u == "AUTHUSER":
-                        uid = SysMgr.getUid(pid)
-                    else:
-                        uid = SysMgr.getUid(pid, group=True)
-
-                    uname = SysMgr.sysInstance.getUserName(uid)
-                    if uid not in authUser and not UtilMgr.isValidStr(
-                        uname, authUser
+                try:
+                    if not SysMgr.hasEnvironVar(
+                        [
+                            "AUTHCOMM",
+                            "AUTHCMDLINE",
+                            "AUTHUSER",
+                            "AUTHGROUP",
+                            "AUTHGROUPS",
+                        ]
                     ):
-                        connObj.send(b"NOP")
-                        raise Exception("not allowed user")
+                        raise SyntaxWarning()
 
-                authGroups = SysMgr.environList.get("AUTHGROUPS")
-                if authGroups:
-                    verified = False
+                    for n in ("comm", "cmdline"):
+                        _checkProc(n, pid)
 
-                    groupNameList = SysMgr.getGroupList(pid)
-                    for group in groupNameList:
-                        gid, gname = group.rsplit("(", 1)
-                        gname = gname.rstrip(")")
+                    for u in ("AUTHUSER", "AUTHGROUP"):
+                        authUser = SysMgr.environList.get(u)
+                        if not authUser:
+                            continue
 
-                        if gid in authGroups or UtilMgr.isValidStr(
-                            gname, authGroups
+                        sysInstance = SysMgr.sysInstance
+                        if not sysInstance.userData:
+                            sysInstance.saveUserInfo()
+
+                        if u == "AUTHUSER":
+                            uid = SysMgr.getUid(pid)
+                        else:
+                            uid = SysMgr.getUid(pid, group=True)
+
+                        uname = SysMgr.sysInstance.getUserName(uid)
+                        if uid not in authUser and not UtilMgr.isValidStr(
+                            uname, authUser
                         ):
-                            verified = True
-                            break
+                            connObj.send(b"NOP")
+                            raise Exception("not allowed user")
 
-                    if not verified:
-                        connObj.send(b"NOP")
-                        raise Exception("not allowed group")
+                    authGroups = SysMgr.environList.get("AUTHGROUPS")
+                    if authGroups:
+                        verified = False
 
-                SysMgr.printInfo("authorized the connection with %s" % cliProc)
-                raise SyntaxWarning()
-            except SyntaxWarning:
-                pass
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "failed to authorize the connection with %s" % cliProc,
-                    True,
-                )
+                        groupNameList = SysMgr.getGroupList(pid)
+                        for group in groupNameList:
+                            gid, gname = group.rsplit("(", 1)
+                            gname = gname.rstrip(")")
+
+                            if gid in authGroups or UtilMgr.isValidStr(
+                                gname, authGroups
+                            ):
+                                verified = True
+                                break
+
+                        if not verified:
+                            connObj.send(b"NOP")
+                            raise Exception("not allowed group")
+
+                    SysMgr.printInfo(
+                        "authorized the connection with %s" % cliProc
+                    )
+                    raise SyntaxWarning()
+                except SyntaxWarning:
+                    pass
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "failed to authorize the connection with %s"
+                        % cliProc,
+                        True,
+                    )
+                    continue
+            elif not SysMgr.authorizeTcpConn(connObj, connMan, cliProc):
                 continue
 
             try:
@@ -96305,6 +96397,10 @@ Key Value List:
 
             connObj.socket = sock
             connObj.fileno = sock.fileno()
+
+            if not SysMgr.authorizeTcpConn(connObj, connMan, clistr):
+                connObj.close()
+                continue
 
             if _handleConn(connObj, connMan, initCmds, eventHandlers):
                 connObj.close()

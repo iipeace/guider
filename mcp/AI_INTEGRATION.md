@@ -73,6 +73,35 @@ The adapter runs guider via subprocess using standard flags:
 
 ---
 
+## MCP SDK Version Support (v1 and v2)
+
+`guider-mcp.py` auto-detects the installed `mcp` Python SDK version at import time and
+works unmodified on either line — no configuration needed, no action required when
+upgrading:
+
+```python
+try:
+    from mcp.server.mcpserver import MCPServer     # mcp SDK v2.x
+except ImportError:
+    from mcp.server.fastmcp import FastMCP as MCPServer   # mcp SDK v1.x
+```
+
+| | SDK v1.x (`FastMCP`) | SDK v2.x (`MCPServer`) |
+|---|---|---|
+| `pip install` range | `mcp>=1.28.0,<2.0.0` | `mcp>=2.0.0,<3.0.0` |
+| Negotiated protocol version | up to `2025-11-25` | up to `2026-07-28` |
+| Verified against | 1.28.1 | 2.2.0 |
+
+Both were confirmed end-to-end with a real MCP client (real stdio subprocess, real
+`initialize`/`tools/list`/`tools/call` — not just an in-process import test): all 10
+tools register with the same names/titles, `outputSchema`/`structuredContent` reach the
+client correctly on both, and `test_mcp.py`'s full suite passes identically under both.
+See `mcp/MCP_V2_MIGRATION.md` for the full verification record. `requirements.txt` pins
+`mcp>=1.28.0,<3.0.0` to accept either major version (the upper bound only guards against
+an unverified future v3).
+
+---
+
 ## MCP Server Lifecycle
 
 | Event | What Happens |
@@ -115,8 +144,9 @@ configures automatic connection.
 ```bash
 cd <GUIDER_ROOT>    # e.g. $HOME/guider
 
-# Install MCP SDK (one-time)
-pip install mcp
+# Install MCP SDK (one-time) — either major version works, see
+# "MCP SDK Version Support" above
+pip install "mcp>=1.28.0,<3.0.0"
 
 # Optional: verify the MCP server starts without error
 python3 mcp/guider-mcp.py
@@ -164,7 +194,7 @@ Claude will automatically choose the right tool and command for each prompt.
 | Problem | Fix |
 |---------|-----|
 | Tools not appearing in `/mcp` | Restart Claude Code; check `.mcp.json` is at project root |
-| `ModuleNotFoundError: mcp` | Run `pip install mcp` |
+| `ModuleNotFoundError: mcp` | Run `pip install "mcp>=1.28.0,<3.0.0"` (either v1 or v2 works) |
 | `guider.py not found` | Set `GUIDER_PATH` in `.mcp.json` env or run from the guider repo root |
 | `too many concurrent calls` | Wait for previous calls to finish (max 3 concurrent) |
 | `tracefs busy` | Another ftrace command is running; wait for it to finish |
