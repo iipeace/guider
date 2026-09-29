@@ -15339,7 +15339,9 @@ class Timeline(object):
 
             return config
 
-    def __init__(self, title, segments, time_unit, fontsize, config, tasks=None):
+    def __init__(
+        self, title, segments, time_unit, fontsize, config, tasks=None
+    ):
         if tasks is None:
             tasks = {}
         self.title = title
@@ -15399,7 +15401,9 @@ class Timeline(object):
             for task in tasks:
                 if task in Timeline.conv_table:
                     new = Timeline.conv_table[task]
-                    self.tasks[new] = tasks[task] if isinstance(tasks, dict) else task
+                    self.tasks[new] = (
+                        tasks[task] if isinstance(tasks, dict) else task
+                    )
                 elif isinstance(tasks, dict):
                     self.tasks[task] = tasks[task]
                 else:
@@ -16018,7 +16022,11 @@ class Timeline(object):
                 else:
                     tasks = data["names"]
             elif isinstance(tasks, list):
-                tasks.extend(data["names"] if isinstance(data["names"], list) else list(data["names"].values()))
+                tasks.extend(
+                    data["names"]
+                    if isinstance(data["names"], list)
+                    else list(data["names"].values())
+                )
             else:
                 tasks = data["names"]
 
@@ -27787,9 +27795,11 @@ class FileAnalyzer(object):
                 try:
                     if SysMgr.guiderObj:
                         val["fileMap"] = [
-                            pagemap[i]
-                            if isinstance(pagemap[i], int)
-                            else ord(pagemap[i])
+                            (
+                                pagemap[i]
+                                if isinstance(pagemap[i], int)
+                                else ord(pagemap[i])
+                            )
                             for i in xrange(tsize)
                         ]
                     else:
@@ -40033,9 +40043,7 @@ class AndroidMgr(object):
         showOnlyChanged = onlyDiff or diffOnly
         thresholdRaw = SysMgr.environList.get("THRESHOLD")
         try:
-            threshold = (
-                int(thresholdRaw[0]) if thresholdRaw else None
-            )
+            threshold = int(thresholdRaw[0]) if thresholdRaw else None
         except (ValueError, TypeError):
             SysMgr.printErr("invalid THRESHOLD value")
             threshold = None
@@ -40214,9 +40222,7 @@ class AndroidMgr(object):
                     jsonDict = {m: meminfoJson}
                     meminfostr = UtilMgr.convDict2Str(jsonDict, gpretty=True)
                 elif not SysMgr.outPath:
-                    pidinfo = _MEMINFO_PID_RE.search(
-                        meminfostr
-                    )
+                    pidinfo = _MEMINFO_PID_RE.search(meminfostr)
                     if not pidinfo:
                         if meminfostr and meminfostr.startswith(
                             "Applications"
@@ -43668,10 +43674,6 @@ data_sources {
   }
 }
 
-duration_ms: 0
-write_into_file: true
-flush_timeout_ms: 30000
-flush_period_ms: 604800000
 data_sources {
   config {
     name: "android.packages_list"
@@ -43776,11 +43778,6 @@ data_sources {
 buffers {
   size_kb: 102400
 }
-
-duration_ms: 0
-write_into_file: true
-flush_timeout_ms: 30000
-flush_period_ms: 604800000
 
             """
 
@@ -43914,11 +43911,6 @@ buffers {
   size_kb: 102400
 }
 
-duration_ms: 0
-write_into_file: true
-flush_timeout_ms: 30000
-flush_period_ms: 604800000
-
             """
 
             ftraceConfig += """
@@ -43971,8 +43963,6 @@ data_sources {
   }
 }
 
-data_source_stop_timeout_ms: 100000
-duration_ms: 1000
 data_sources {
   config {
     name: "android.packages_list"
@@ -43987,10 +43977,6 @@ buffers {
   size_kb: 63488
 }
 
-duration_ms: 100
-write_into_file: true
-flush_timeout_ms: 30000
-flush_period_ms: 604800000
 data_sources {
   config {
     name: "android.packages_list"
@@ -44027,10 +44013,16 @@ buffers {
       log_ids: LID_KERNEL
                 """
 
+            # target_buffer is a placeholder token, resolved (via .replace(),
+            # not %-formatting, since this string already went through %)
+            # once this fragment is actually appended to the combined config
+            # below -- its real index depends on how many other fragments'
+            # "buffers {}" blocks precede it there #
             logConfig += """
 data_sources {
   config {
     name: "android.log"
+    target_buffer: __LOG_TARGET_BUFFER__
     android_log_config {
       min_prio: %s
       %s
@@ -44044,6 +44036,30 @@ data_sources {
                 tags,
                 lids,
             )
+
+            # android.log only carries raw pid/tid numbers per event; without
+            # linux.process_stats' initial full-process scan the Perfetto UI
+            # has no ProcessTree/thread-name snapshot to resolve them against,
+            # so every process/thread shows up blank when ANDLOG is combined
+            # with nothing else (device-verified: 0 process_tree packets,
+            # every android_log event's pid/tid unresolved in the UI) #
+            if "NOPROCSTAT" not in SysMgr.environList:
+                logConfig += """
+data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: __LOG_TARGET_BUFFER__
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_thread_names: true
+      proc_stats_poll_ms: %s
+    }
+  }
+}
+
+            """ % (
+                    procStatPollMs,
+                )
 
             statConfig = """
 buffers {
@@ -44149,8 +44165,6 @@ data_sources {
   }
 }
 
-data_source_stop_timeout_ms: 100000
-
 trigger_config {
   trigger_mode: START_TRACING
   triggers {
@@ -44187,6 +44201,18 @@ trigger_config {
             if "FTRACE" in SysMgr.environList:
                 config += ftraceConfig
             if "ANDLOG" in SysMgr.environList:
+                # android.log's own dedicated buffer (declared at the top
+                # of logConfig) lands at whatever index follows every
+                # "buffers {}" block already appended by an earlier
+                # fragment (PERF/ATRACE/FTRACE/etc) -- without this, its
+                # target_buffer defaults to 0 and its events silently pile
+                # into buffer 0 (shared with linux.ftrace/perf) instead of
+                # the buffer meant for them, verified live: real device
+                # trace showed buffer 1 (android.log's own buffer) at 0
+                # bytes while buffer 0 absorbed everything #
+                logConfig = logConfig.replace(
+                    "__LOG_TARGET_BUFFER__", str(config.count("buffers {"))
+                )
                 config += logConfig
             for cf in SysMgr.environList.get("ADDCONFIG", []):
                 config += SysMgr.readFile(cf)
@@ -44206,6 +44232,90 @@ trigger_config {
                 config += netpktConfig
             if "OOMWATCH" in SysMgr.environList:
                 config += oomConfig
+
+            # duration_ms/write_into_file/flush_timeout_ms/flush_period_ms/
+            # data_source_stop_timeout_ms are singular TraceConfig-level
+            # fields (perfetto_config.proto), so they may appear at most
+            # ONCE in the whole text config -- they used to be baked into
+            # each of heapConfig/perfConfig/ftraceConfig/javaConfig/
+            # pkgConfig/oomConfig individually, so any 2+ of those
+            # combined (e.g. the documented "-q PERF, FTRACE:..." example,
+            # or PERF/FTRACE + HEAPPROF/JAVADUMP) made perfetto's own
+            # pbtxt parser hard-error ("Saw non-repeating field 'duration_ms'
+            # more than once") and the whole recording silently never
+            # started. Device-verified: this reproduced identically on the
+            # pre-existing (pre-session) code, so it predates this session's
+            # other fixes. GETPKGLISTINFO/JAVADUMP intentionally use a
+            # short one-shot duration_ms instead of the continuous (0,
+            # externally controlled by -R/SIGINT) value every other source
+            # wants; GETPKGLISTINFO's "config = pkgConfig" a few lines up
+            # already discards any earlier javaConfig contribution, so its
+            # short duration takes precedence over JAVADUMP's if both were
+            # somehow set #
+            if "GETPKGLISTINFO" in SysMgr.environList:
+                config += (
+                    "\nduration_ms: 100\nwrite_into_file: true\n"
+                    "flush_timeout_ms: 30000\nflush_period_ms: 604800000\n"
+                )
+            elif "JAVADUMP" in SysMgr.environList:
+                config += "\nduration_ms: 1000\n"
+            else:
+                config += (
+                    "\nduration_ms: 0\nwrite_into_file: true\n"
+                    "flush_timeout_ms: 30000\nflush_period_ms: 604800000\n"
+                )
+            if (
+                "JAVADUMP" in SysMgr.environList
+                or "OOMWATCH" in SysMgr.environList
+            ):
+                config += "data_source_stop_timeout_ms: 100000\n"
+
+            # android.heapprofd/android.java_hprof(.oom)/frametimeline/
+            # layers/vulkan.memory_tracker packets all carry a raw pid with
+            # no name -- Perfetto UI (and trace_processor) resolve those
+            # against ProcessTree snapshots. Those only appear if some
+            # linux.process_stats instance has scan_all_processes_on_start
+            # (an initial full dump) OR linux.ftrace is present to drive
+            # its on-demand OnPids() resolution as new pids show up (see
+            # perfetto's probes_producer.cc: ftrace metadata is the only
+            # thing that feeds OnPids()). PERF/ATRACE/FTRACE bring ftrace;
+            # HEAPPROF/JAVADUMP/JANK/VULKAN/OOMWATCH alone bring neither --
+            # and PERF+NOSCHEDSTAT drops ftrace but still adds a
+            # poll-only linux.process_stats (no scan_all_processes_on_start),
+            # so checking for *any* process_stats instance isn't enough;
+            # check for the actual full-scan flag instead. Device-verified
+            # for HEAPPROF: 0 process_tree packets, every process_dumps.pid
+            # left unresolved in the trace. NOPROCSTAT still opts out #
+            if (
+                "NOPROCSTAT" not in SysMgr.environList
+                and "scan_all_processes_on_start: true" not in config
+                and 'name: "linux.ftrace"' not in config
+                and any(
+                    n in config
+                    for n in (
+                        'name: "android.heapprofd"',
+                        'name: "android.java_hprof"',
+                        'name: "android.java_hprof.oom"',
+                        'name: "android.surfaceflinger.frametimeline"',
+                        'name: "android.surfaceflinger.layers"',
+                        'name: "vulkan.memory_tracker"',
+                    )
+                )
+            ):
+                config += """
+data_sources {
+  config {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_thread_names: true
+      proc_stats_poll_ms: %s
+    }
+  }
+}
+""" % (
+                    procStatPollMs,
+                )
 
             # prepend a default buffers block when optional-only data sources
             # were added (JANK, POWER, etc.) without any primary config that
@@ -51385,7 +51495,11 @@ Commands:
         if SysMgr.rawFdCache:
             for fd in list(SysMgr.rawFdCache.values()):
                 try:
-                    if isinstance(fd, int) and not isinstance(fd, bool) and fd >= 0:
+                    if (
+                        isinstance(fd, int)
+                        and not isinstance(fd, bool)
+                        and fd >= 0
+                    ):
                         os.close(fd)
                 except Exception:
                     pass
@@ -54158,8 +54272,18 @@ Commands:
         )
 
         AndroidMgr.setProp("debug.atrace.user_initiated", "1", True)
+        # restore to "" (not "0"): perfetto.rc only auto-restarts
+        # traced_probes on `property:persist.traced.enable=1 &&
+        # property:debug.atrace.user_initiated=""` -- leaving this "0"
+        # satisfies neither that trigger nor its own `=1` stop trigger,
+        # so traced_probes (and every android.log/linux.ftrace/
+        # linux.perf data source it hosts) stays permanently stopped
+        # after any -q ATRACE run until someone manually runs `start
+        # traced_probes`; device-verified (init.svc.traced_probes stayed
+        # "stopped" after this ran with "0", "start traced_probes"
+        # triggered instantly after setting this back to "") #
         SysMgr.addExitFunc(
-            AndroidMgr.setProp, ["debug.atrace.user_initiated", "0", True]
+            AndroidMgr.setProp, ["debug.atrace.user_initiated", "", True]
         )
 
         eventItems = []
@@ -54179,6 +54303,27 @@ Commands:
         AndroidMgr.runAtrace("--async_start -c " + " ".join(eventItems))
 
         SysMgr.addExitFunc(AndroidMgr.runAtrace, ["--async_stop"])
+
+    @staticmethod
+    def disableAtrace():
+        """Undo enableAtrace()'s property/async-trace changes immediately.
+
+        enableAtrace() only registers its cleanup via SysMgr.addExitFunc(),
+        which runs through atexit — so callers that terminate via os._exit()
+        (bypassing atexit on purpose, e.g. WATCHLOGEXIT's race-avoidance
+        path) need to call this directly first, or the atrace tags/props it
+        turned on would stay on forever after the process is gone #
+        """
+        if not SysMgr.environList.get("ATRACE", []):
+            return
+
+        AndroidMgr.setProp("debug.atrace.app_number", "0", True)
+        AndroidMgr.setProp("debug.atrace.tags.enableflags", "0", True)
+        # "" not "0" -- see the matching comment in enableAtrace() #
+        AndroidMgr.setProp("debug.atrace.user_initiated", "", True)
+
+        if SysMgr.environList.get("ATRACETAGBIN"):
+            AndroidMgr.runAtrace("--async_stop")
 
     @staticmethod
     def doLess(inputArg=None):
@@ -58878,7 +59023,11 @@ Commands:
     def closeFifoFds():
         if SysMgr.fifoFdList:
             for path, fd in list(SysMgr.fifoFdList.items()):
-                if isinstance(fd, int) and not isinstance(fd, bool) and fd >= 0:
+                if (
+                    isinstance(fd, int)
+                    and not isinstance(fd, bool)
+                    and fd >= 0
+                ):
                     try:
                         os.close(fd)
                     except Exception:
@@ -58999,7 +59148,11 @@ Commands:
             for coreId, ch in list(SysMgr.perfEventChannel.items()):
                 if isinstance(ch, dict):
                     for fd in list(ch.values()):
-                        if isinstance(fd, int) and not isinstance(fd, bool) and fd >= 0:
+                        if (
+                            isinstance(fd, int)
+                            and not isinstance(fd, bool)
+                            and fd >= 0
+                        ):
                             try:
                                 os.close(fd)
                             except Exception:
@@ -63602,9 +63755,7 @@ Usage:
                                 "'%s'" % m for m in matches
                             )
                         else:
-                            hint = (
-                                ". Run 'guider.py --help' for a list of valid commands."
-                            )
+                            hint = ". Run 'guider.py --help' for a list of valid commands."
                         SysMgr.printErr(
                             "'%s' command is not supported%s" % (subcmd, hint)
                         )
@@ -70014,6 +70165,8 @@ Examples:
         # {0:1} {1:1} binder/binder_transaction -q TRACEPOINT
 
     - Trace Android atrace marks (user-space string via ARG2USTR)
+        (atrace tags are auto-enabled/restored for this target; add
+        ATRACETAG:<TAGS> to narrow which categories actually emit marks)
         # {0:1} {1:1} tracing_mark_write -q ARG2USTR
 
     - Trace with user-space call stack
@@ -79877,9 +80030,7 @@ Key Value List:
 
             hint = ""
             if "ebpf" in msg.lower():
-                hint = (
-                    " (try: 'sudo guider ...' or grant CAP_BPF / CAP_SYS_ADMIN)"
-                )
+                hint = " (try: 'sudo guider ...' or grant CAP_BPF / CAP_SYS_ADMIN)"
 
             # use warn (not err) when -f is about to force through, so STRICTEXIT doesn't flag the bypass as a failure #
             if willForce:
@@ -87963,8 +88114,13 @@ Key Value List:
             # process never saw the event or ran the configured SAVE
             # command). The OS reclaims this process's fds (including any
             # BPF program/map/perf_event fds) on exit regardless of which
-            # exit path is used, so no extra cleanup is needed here #
+            # exit path is used, so no extra cleanup is needed for those --
+            # but os._exit() also skips atexit, so anything registered via
+            # SysMgr.addExitFunc() (e.g. enableAtrace()'s prop/async-trace
+            # restore, used by attop/bpfmarktop/bpfsnoop) needs an explicit
+            # call here or it leaks past this process's lifetime #
             if "WATCHLOGEXIT" in SysMgr.environList:
+                SysMgr.disableAtrace()
                 os._exit(0)
         except SystemExit:
             sys.exit(0)
@@ -90221,9 +90377,9 @@ Key Value List:
             arg = sys.argv[1]
             if arg not in cmdSet and not os.path.exists(arg):
                 hasPathSep = ("/" in arg) or (os.sep in arg)
-                hasExt = ("." in os.path.basename(arg)) and not os.path.basename(
-                    arg
-                ).startswith(".")
+                hasExt = (
+                    "." in os.path.basename(arg)
+                ) and not os.path.basename(arg).startswith(".")
                 if not hasPathSep and not hasExt:
                     import difflib
 
@@ -95373,8 +95529,7 @@ Key Value List:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(
-                        "failed to authorize the connection with %s"
-                        % cliProc,
+                        "failed to authorize the connection with %s" % cliProc,
                         True,
                     )
                     continue
@@ -105192,7 +105347,9 @@ Key Value List:
                             done = 0
                             fd = os.open(path, flag)
                             try:
-                                for piece in opFunc(fd, chunk, sync, printElapsed):
+                                for piece in opFunc(
+                                    fd, chunk, sync, printElapsed
+                                ):
                                     if isinstance(piece, (int, long)):
                                         done += piece
                                     else:
@@ -123079,7 +123236,9 @@ class BpfMgr(object):
                     hint = " (BPF syscall not implemented, requires CONFIG_BPF_SYSCALL=y)"
                 elif err:
                     hint = " (errno %s)" % err
-                SysMgr.printErr("failed to create BPF map '%s'%s" % (name, hint))
+                SysMgr.printErr(
+                    "failed to create BPF map '%s'%s" % (name, hint)
+                )
                 return -1
             BpfMgr._openFds.append(fd)
             return fd
@@ -123157,14 +123316,18 @@ class BpfMgr(object):
 
                     hint = ""
                     if err in (_errno.EPERM, _errno.EACCES):
-                        hint = " (permission denied, try sudo or check CAP_BPF)"
+                        hint = (
+                            " (permission denied, try sudo or check CAP_BPF)"
+                        )
                     elif err == _errno.ENOMEM:
                         hint = " (out of memory, try 'ulimit -l unlimited')"
                     elif err == _errno.ENOSYS:
                         hint = " (BPF syscall not implemented, requires CONFIG_BPF_SYSCALL=y)"
                     elif err:
                         hint = " (errno %s)" % err
-                    SysMgr.printErr("failed to load BPF program '%s'%s" % (name, hint))
+                    SysMgr.printErr(
+                        "failed to load BPF program '%s'%s" % (name, hint)
+                    )
                 return -1
             BpfMgr._openFds.append(fd)
             return fd
@@ -125632,11 +125795,17 @@ class BpfMgr(object):
                     u_incr_extra = b""
                     u_incr_extra_n = 0
 
-                u_block_n = 5 + 1 + 9 + u_incr_n + u_incr_extra_n + 1 + u_init_n
+                u_block_n = (
+                    5 + 1 + 9 + u_incr_n + u_incr_extra_n + 1 + u_init_n
+                )
                 # U_jslt: when ustack fails (R0 < 0), jump over ustack ops to hist_insns (or EXIT)
                 U_jslt = 9 + u_incr_n + u_incr_extra_n + 1 + u_init_n
-                U_jeq = u_incr_n + u_incr_extra_n + 1  # skip incr+extra+JMP to reach u_init
-                U_jmp = u_init_n  # skip u_init only; land on hist_insns (or EXIT)
+                U_jeq = (
+                    u_incr_n + u_incr_extra_n + 1
+                )  # skip incr+extra+JMP to reach u_init
+                U_jmp = (
+                    u_init_n  # skip u_init only; land on hist_insns (or EXIT)
+                )
             else:
                 u_block_n = 0
 
@@ -125658,13 +125827,7 @@ class BpfMgr(object):
             if USE_USTACK:
                 N_jslt = 11 + k_incr_extra_n + k_incr_n + k_init_n
             else:
-                N_jslt = (
-                    11
-                    + k_incr_extra_n
-                    + k_incr_n
-                    + k_init_n
-                    + u_block_n
-                )
+                N_jslt = 11 + k_incr_extra_n + k_incr_n + k_init_n + u_block_n
             N_jeq = (
                 k_incr_n + k_incr_extra_n + 1
             )  # skip incr+extra+jmp to reach k_init
@@ -125709,7 +125872,9 @@ class BpfMgr(object):
                     0xB7, R3, 0, 0, ConfigMgr.BPF_F_USER_STACK
                 )  # R3 = 0x100
                 insns += bi(0x85, 0, 0, 0, FID["get_stackid"])
-                insns += bi(0xC5, R0, 0, U_jslt, 0)  # if R0 < 0: jump to hist_insns (or EXIT)
+                insns += bi(
+                    0xC5, R0, 0, U_jslt, 0
+                )  # if R0 < 0: jump to hist_insns (or EXIT)
                 insns += bi(0xBF, R9, R0, 0, 0)  # R9 = ustack_id
                 insns += bi(
                     BPF_STX_MEM_DW, R10, R6, -88, 0
@@ -125724,7 +125889,9 @@ class BpfMgr(object):
                 insns += bi(0x15, R0, 0, U_jeq, 0)  # if NULL: jump to INIT
                 insns += u_incr_insns
                 insns += u_incr_extra  # R0=0 (scalar) when USE_HIST
-                insns += bi(0x05, 0, 0, U_jmp, 0)  # JMP to hist_insns (over u_init)
+                insns += bi(
+                    0x05, 0, 0, U_jmp, 0
+                )  # JMP to hist_insns (over u_init)
                 insns += u_init_insns
         else:
             if USE_HIST:
@@ -135250,7 +135417,8 @@ class BpfMgr(object):
             # unaffected #
             cpu_str = UtilMgr.convCpuColor(
                 r["cpu_pct"],
-                "%*s" % (
+                "%*s"
+                % (
                     _cpu_width,
                     "%s%%" % conv(r["cpu_pct"], isFloat=True, floatDigit=1),
                 ),
@@ -137712,6 +137880,25 @@ class BpfMgr(object):
                 SysMgr.printErr("bpfsnoop: no functions to trace")
                 sys.exit(-1)
 
+            # tracing_mark_write only fires when userspace atrace tags are
+            # enabled (debug.atrace.tags.enableflags); unlike attop/bpfmarktop
+            # (which go through SysMgr.enableEvents() -> enableAtrace()),
+            # bpfsnoop attaches kprobes directly and never enabled atrace
+            # itself, so tracing tracing_mark_write silently saw ~0 events
+            # unless something else (e.g. a separate attop) already had
+            # atrace turned on. Mirror attop/bpfmarktop here: auto-enable
+            # when the traced target is tracing_mark_write, or when the
+            # user explicitly asks via -q ATRACE. enableAtrace() itself
+            # no-ops unless "ATRACE" is in environList, and always restores
+            # the prior property values via SysMgr.addExitFunc() #
+            if any(
+                r[0] == "kernel" and r[1] == "tracing_mark_write"
+                for r in _resolved_args_snoop
+            ):
+                SysMgr.addEnvironVar("ATRACE")
+            if "ATRACE" in SysMgr.environList:
+                SysMgr.enableAtrace()
+
             # ISOPID: uprobe + single PIDFILTER → attach to specific pid
             _pf_list_sn = SysMgr.environList.get("PIDFILTER", [])
             _iso_pid_sn = int(_pf_list_sn[0]) if len(_pf_list_sn) == 1 else -1
@@ -138796,6 +138983,7 @@ class BpfMgr(object):
                                             # spawned above before it sends
                                             # its event, silently dropping
                                             # the notification #
+                                            SysMgr.disableAtrace()
                                             os._exit(0)
                                         # FDCOUNT column #
                                         if _show_fdcount:
