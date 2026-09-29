@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260923"
+__revision__ = "260929"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -82424,9 +82424,21 @@ Key Value List:
                     targetFile = "tmp"
 
                     SysMgr.printFd = MemoryFile(name="buf")
-                    TaskAnalyzer.printIntervalUsage(
-                        onlySummary=True, onlyTotal=(mainCmd == "sysdump")
-                    )
+                    # printIntervalUsage() no-ops under jsonEnable (its
+                    # JSON-mode output is handled elsewhere), but jsonEnable
+                    # is a daemon-lifetime flag that a prior resmon/getpkglist
+                    # command on this same connection loop may have left set
+                    # to True -- save/restore around this call so dump's own
+                    # in-memory summary always gets populated regardless of
+                    # what ran before it on this daemon #
+                    origJsonEnable = SysMgr.jsonEnable
+                    SysMgr.jsonEnable = False
+                    try:
+                        TaskAnalyzer.printIntervalUsage(
+                            onlySummary=True, onlyTotal=(mainCmd == "sysdump")
+                        )
+                    finally:
+                        SysMgr.jsonEnable = origJsonEnable
 
                 if not (
                     SysMgr.rssEnable or SysMgr.pssEnable or SysMgr.ussEnable
@@ -142693,29 +142705,40 @@ class BpfMgr(object):
         """Parse binder_transaction tracepoint format file for field offsets.
 
         Returns dict of field_name → byte offset in tracepoint context.
-        Defaults match common Android/Linux kernel binder_transaction layout.
+        Defaults match the real AOSP common-kernel binder_transaction layout
+        (verified live against /sys/kernel/tracing/events/binder/
+        binder_transaction/format on a real device):
+          common header(8) + debug_id(8) + target_node(12) + to_proc(16) +
+          to_thread(20) + reply(24) + code(28) + flags(32)
+        These defaults are only ever used as a fallback when the format-file
+        parse below fails entirely (e.g. tracefs/debugfs unavailable) — on a
+        normal device the regex loop overwrites every key it finds with the
+        real offset, so a correct fallback here only matters for that
+        degraded path.
 
         Field name aliases handled:
-          - 'reply'      → 'call_type'  (some kernels use 'reply' instead)
-          - 'common_pid' → 'from_proc'  (caller TID used as from identifier)
+          - 'reply' → 'call_type'  (some kernels use 'reply' instead)
+
+        Note: from_proc/from_thread are NOT ctx-offset fields — the caller
+        (TGID/TID) is obtained via bpf_get_current_pid_tgid() in the BPF
+        program itself, never read from the tracepoint context. They were
+        previously listed here as fake ctx offsets but never consumed as
+        such by any caller; removed to avoid confusion.
         """
         defaults = {
             "debug_id": 8,
-            "call_type": 12,
-            "from_proc": 16,
-            "from_thread": 20,
-            "to_proc": 24,
-            "to_thread": 28,
+            "call_type": 24,
+            "to_proc": 16,
+            "to_thread": 20,
             # "data_size" intentionally NOT in defaults — only added when found in
             # the format file. Reading beyond the tracepoint context bounds causes
             # PERF_EVENT_IOC_SET_BPF to fail on kernels with strict BPF checking.
-            "flags": 44,
-            "code": 48,
+            "flags": 32,
+            "code": 28,
         }
         # Aliases: format-file field name → our key name
         _aliases = {
             "reply": "call_type",
-            "common_pid": "from_proc",
         }
         # Optional fields: added to defaults only when found in the format file
         _optional = {"data_size"}
@@ -144985,11 +145008,11 @@ class BpfMgr(object):
         R0, R1, R2, R3, R4, R5, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 5, 6, 7, 8, 10
         FID = ConfigMgr.BPF_FUNC_ID
 
-        to_proc_off = offsets.get("to_proc", 24)
-        to_thread_off = offsets.get("to_thread", 28)
-        code_off = offsets.get("code", 48)
-        flags_off = offsets.get("flags", 44)
-        call_type_off = offsets.get("call_type", 12)
+        to_proc_off = offsets.get("to_proc", 16)
+        to_thread_off = offsets.get("to_thread", 20)
+        code_off = offsets.get("code", 28)
+        flags_off = offsets.get("flags", 32)
+        call_type_off = offsets.get("call_type", 24)
         # data_size is optional — only present when the format file has this field.
         # Do NOT fall back to a hardcoded offset; it may be out-of-bounds for this kernel.
         data_size_off = offsets.get("data_size")  # None if unavailable
@@ -145110,8 +145133,8 @@ class BpfMgr(object):
         R0, R1, R2, R3, R4, R6, R7, R8, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 10
         FID = ConfigMgr.BPF_FUNC_ID
 
-        call_type_off = offsets.get("call_type", 12)
-        to_proc_off = offsets.get("to_proc", 24)
+        call_type_off = offsets.get("call_type", 24)
+        to_proc_off = offsets.get("to_proc", 16)
 
         insns = b""
         insns += bi(0xBF, R6, R1, 0, 0)  # R6 = ctx
@@ -145178,7 +145201,7 @@ class BpfMgr(object):
         R0, R1, R2, R3, R4, R6, R7, R8, R9, R10 = 0, 1, 2, 3, 4, 6, 7, 8, 9, 10
         FID = ConfigMgr.BPF_FUNC_ID
 
-        call_type_off = offsets.get("call_type", 12)
+        call_type_off = offsets.get("call_type", 24)
         code_off = offsets.get("code", 28)
 
         insns = b""
