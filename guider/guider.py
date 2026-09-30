@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260929"
+__revision__ = "260930"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -43485,11 +43485,24 @@ class AndroidMgr(object):
             if "RESETTRACING" in SysMgr.environList:
                 SysMgr.writeTraceCmd("../tracing_on", "0")
 
+            # targetstr always uses the process_cmdline/pid field names
+            # (HeapprofdConfig/JavaHprofConfig scope) for heapConfig/
+            # javaConfig/oomConfig; perfTargetstr always uses the
+            # target_cmdline/target_pid field names (PerfEventConfig.
+            # Scope) for perfConfig -- these two must never share one
+            # variable keyed off "PERF" in SysMgr.environList, since that
+            # breaks whichever consumer didn't "win" the naming when
+            # both HEAPPROF and PERF (or JAVADUMP/OOMWATCH and PERF) are
+            # combined: e.g. -q HEAPPROF,PERF used to put target_pid
+            # into heapprofd_config, which perfetto's pbtxt parser
+            # rejects with "No field named target_pid in proto
+            # HeapprofdConfig", failing the whole recording #
             apps = None
             if exe and "MEMTOP" not in SysMgr.environList:
                 exe = " ".join(exe)
                 cmdstr = " command: [%s]" % exe
                 targetstr = 'process_cmdline: "%s"' % exe
+                perfTargetstr = 'target_cmdline: "%s"' % exe
                 target = exe
                 memTarget = [None]
             elif "APP" in SysMgr.environList:
@@ -43517,13 +43530,11 @@ class AndroidMgr(object):
                 else:
                     cmdstr = " app: [%s]" % apps
 
-                if "PERF" in SysMgr.environList:
-                    cmdlinestr = "target_cmdline"
-                else:
-                    cmdlinestr = "process_cmdline"
-
                 targetstr = "\n".join(
-                    ['%s: "%s"' % (cmdlinestr, a) for a in SysMgr.filterGroup]
+                    ['process_cmdline: "%s"' % a for a in SysMgr.filterGroup]
+                )
+                perfTargetstr = "\n".join(
+                    ['target_cmdline: "%s"' % a for a in SysMgr.filterGroup]
                 )
                 memTarget = target = SysMgr.filterGroup
             elif SysMgr.filterGroup:
@@ -43546,25 +43557,19 @@ class AndroidMgr(object):
                 if len(pids) > 1:
                     _printWarn("multiple tasks found [%s]" % commList, True)
 
-                if "PERF" in SysMgr.environList:
-                    pidstr = "target_pid"
-                else:
-                    pidstr = "pid"
-
                 cmdstr = " %s: [%s]" % (
                     "process" if SysMgr.processEnable else "thread",
                     commList,
                 )
-                targetstr = "\n".join(
-                    ["%s: %s" % (pidstr, pid) for pid in pids]
+                targetstr = "\n".join(["pid: %s" % pid for pid in pids])
+                perfTargetstr = "\n".join(
+                    ["target_pid: %s" % pid for pid in pids]
                 )
                 memTarget = target = pids
             else:
                 cmdstr = ": [SYSTEM]"
-                if "PERF" in SysMgr.environList:
-                    targetstr = ""
-                else:
-                    targetstr = "all_heaps: true"
+                targetstr = "all_heaps: true"
+                perfTargetstr = ""
                 memTarget = target = [None]
 
             _printInfo("set target" + cmdstr)
@@ -43711,6 +43716,12 @@ buffers {
 data_sources {
   config {
     name: "linux.ftrace"
+    # target_buffer is a placeholder token, resolved (via .replace(),
+    # see the ATRACE combination site) to this fragment's own buffer
+    # index -- otherwise it silently defaults to 0 and, when combined
+    # with another fragment that also owns buffer 0 (e.g. PERF), ftrace
+    # events pile into that other buffer instead of this one's #
+    target_buffer: __ATRACE_TARGET_BUFFER__
     ftrace_config {
       # Enables specific system events tags.
       %s
@@ -43718,16 +43729,6 @@ data_sources {
       # Enables events for a specific app.
       %s
       compact_sched { enabled: true }
-    }
-  }
-}
-
-data_sources {
-  config {
-    name: "linux.process_stats"
-    target_buffer: 0
-    process_stats_config {
-      proc_stats_poll_ms: %s
     }
   }
 }
@@ -43746,13 +43747,39 @@ data_sources {
                         ]
                     )
                 ),
-                procStatPollMs,
+            )
+
+            atraceConfig += (
+                """
+data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: __ATRACE_TARGET_BUFFER__
+    process_stats_config {
+      proc_stats_poll_ms: %s
+    }
+  }
+}
+            """
+                % (procStatPollMs,)
+                if "NOPROCSTAT" not in SysMgr.environList
+                else ""
             )
 
             # refer to https://android.googlesource.com/platform/external/perfetto/+/HEAD/protos/perfetto/config/perfetto_config.proto #
             sampleRate = 1000
             swClock = "SW_CPU_CLOCK"
             incKernel = False
+            # PERFTIMEBASE switches linux.perf's timebase from a periodic
+            # counter (SW_CPU_CLOCK/SW_TASK_CLOCK) to a kernel ftrace
+            # tracepoint, so stacks are sampled only when that tracepoint
+            # fires -- e.g. PERFTIMEBASE:"raw_syscalls/sys_enter" with
+            # PERFTPFILTER:"id == 64" samples only on the write syscall.
+            # device-verified (66aed018): 27 samples in 5s, libc.so:write
+            # frame present in every callstack #
+            perfTracepoint = None
+            perfTracepointFilter = None
+            perfTracepointPeriod = 1
             if "PERF" in SysMgr.environList:
                 sampleRateStr = SysMgr.getOption("T")
                 if sampleRateStr:
@@ -43774,6 +43801,52 @@ data_sources {
                 if "INCKERNEL" in SysMgr.environList:
                     incKernel = True
 
+                if "PERFTIMEBASE" in SysMgr.environList:
+                    perfTracepoint = SysMgr.environList["PERFTIMEBASE"][
+                        0
+                    ].strip()
+                    if not perfTracepoint:
+                        _printErr(
+                            "PERFTIMEBASE requires a tracepoint name, "
+                            'e.g. PERFTIMEBASE:"raw_syscalls/sys_enter"'
+                        )
+                        return -1
+
+                    if "TASKCLOCK" in SysMgr.environList:
+                        _printWarn(
+                            "TASKCLOCK is ignored because PERFTIMEBASE"
+                            " switches linux.perf timebase from a counter"
+                            " to a tracepoint event",
+                            True,
+                        )
+
+                    if "PERFTPFILTER" in SysMgr.environList:
+                        perfTracepointFilter = SysMgr.environList[
+                            "PERFTPFILTER"
+                        ][0]
+
+                    periodStr = SysMgr.environList.get("PERFTPPERIOD", ["1"])[
+                        0
+                    ]
+                    try:
+                        perfTracepointPeriod = long(periodStr)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        _printErr(
+                            "failed to parse PERFTPPERIOD value '%s'"
+                            % periodStr,
+                            True,
+                        )
+                        return -1
+                elif "PERFTPFILTER" in SysMgr.environList:
+                    _printErr(
+                        "PERFTPFILTER requires PERFTIMEBASE to be set "
+                        '(e.g. PERFTIMEBASE:"raw_syscalls/sys_enter", '
+                        'PERFTPFILTER:"id == 64")'
+                    )
+                    return -1
+
             perfConfig = """
 buffers {
   size_kb: 102400
@@ -43785,8 +43858,13 @@ buffers {
                 """
 data_sources {
   config {
+    # target_buffer is a placeholder token, resolved (via .replace(),
+    # see the PERF combination site) to this fragment's own buffer
+    # index -- otherwise it silently defaults to 0 and, when combined
+    # with another fragment that also owns buffer 0 (e.g. GETPROCLIST's
+    # statConfig), ftrace events pile into that other buffer instead #
     name: "linux.ftrace"
-    target_buffer: 0
+    target_buffer: __PERF_TARGET_BUFFER__
     ftrace_config {
       ftrace_events: "sched/sched_switch"
       ftrace_events: "sched/sched_waking"
@@ -43806,7 +43884,7 @@ data_sources {
 data_sources {
   config {
     name: "linux.process_stats"
-    target_buffer: 0
+    target_buffer: __PERF_TARGET_BUFFER__
     process_stats_config {
       proc_stats_poll_ms: %s
     }
@@ -43873,6 +43951,33 @@ data_sources {
                 else ""
             )
 
+            if perfTracepoint:
+                _tp_filter_line = (
+                    '          filter: "%s"\n' % perfTracepointFilter
+                    if perfTracepointFilter
+                    else ""
+                )
+                _timebaseBlock = """      timebase {
+        tracepoint {
+          name: "%s"
+%s        }
+        period: %s
+        timestamp_clock: PERF_CLOCK_MONOTONIC
+      }""" % (
+                    perfTracepoint,
+                    _tp_filter_line,
+                    perfTracepointPeriod,
+                )
+            else:
+                _timebaseBlock = """      timebase {
+        counter: %s
+        frequency: %s
+        timestamp_clock: PERF_CLOCK_MONOTONIC
+      }""" % (
+                    swClock,
+                    sampleRate,
+                )
+
             perfConfig += (
                 (
                     """
@@ -43880,11 +43985,7 @@ data_sources {
   config {
     name: "linux.perf"
     perf_event_config {
-      timebase {
-        counter: %s
-        frequency: %s
-        timestamp_clock: PERF_CLOCK_MONOTONIC
-      }
+%s
       callstack_sampling {
         scope {
           %s
@@ -43896,9 +43997,8 @@ data_sources {
 }
             """
                     % (
-                        swClock,
-                        sampleRate,
-                        targetstr,
+                        _timebaseBlock,
+                        perfTargetstr,
                         "true" if incKernel else "false",
                     )
                 )
@@ -43913,19 +44013,27 @@ buffers {
 
             """
 
-            ftraceConfig += """
+            ftraceConfig += (
+                """
 data_sources {
   config {
     name: "linux.process_stats"
-    target_buffer: 0
+    # target_buffer is a placeholder token, resolved (via .replace(),
+    # see the FTRACE combination site) to this fragment's own buffer
+    # index -- otherwise it silently defaults to 0 and, when combined
+    # with another fragment that also owns buffer 0 (e.g. PERF), these
+    # events pile into that other buffer instead of this one's #
+    target_buffer: __FTRACE_TARGET_BUFFER__
     process_stats_config {
       proc_stats_poll_ms: %s
     }
   }
 }
 
-            """ % (
-                procStatPollMs,
+            """
+                % (procStatPollMs,)
+                if "NOPROCSTAT" not in SysMgr.environList
+                else ""
             )
             if "FTRACE" in SysMgr.environList:
                 events = ""
@@ -43936,7 +44044,7 @@ data_sources {
 data_sources {
   config {
     name: "linux.ftrace"
-    target_buffer: 0
+    target_buffer: __FTRACE_TARGET_BUFFER__
     ftrace_config {
       %s
       compact_sched { enabled: true }
@@ -43946,6 +44054,18 @@ data_sources {
                 """
                     % events
                 )
+
+            # JavaHprofConfig (unlike HeapprofdConfig) has no all_heaps
+            # field -- targetstr defaults to "all_heaps: true" when no
+            # -g/APP target is given, and perfetto's pbtxt parser rejects
+            # that with "No field named 'all_heaps' in proto
+            # JavaHprofConfig", so plain -q JAVADUMP (no target) always
+            # failed to start. Mirror the same substitution oomConfig
+            # already does for the same field below #
+            if targetstr and "all_heaps" not in targetstr:
+                javaTargetstr = targetstr
+            else:
+                javaTargetstr = 'process_cmdline: "*"'
 
             javaConfig = """
 buffers {
@@ -43969,7 +44089,7 @@ data_sources {
   }
 }
             """ % (
-                targetstr,
+                javaTargetstr,
             )
 
             pkgConfig = """
@@ -44069,7 +44189,12 @@ buffers {
 data_sources {
   config {
     name: "linux.process_stats"
-    target_buffer: 0
+    # target_buffer is a placeholder token, resolved (via .replace(),
+    # see the GETPROCLIST combination site) to this fragment's own
+    # buffer index -- otherwise it silently defaults to 0 and, when
+    # combined with another fragment that also owns buffer 0 (e.g.
+    # JAVADUMP), these events pile into that other buffer instead #
+    target_buffer: __STAT_TARGET_BUFFER__
     process_stats_config {
       scan_all_processes_on_start: true
       record_thread_names: true
@@ -44137,6 +44262,22 @@ data_sources {
 
             # OOM watch config (Android 14+) #
             if "OOMWATCH" in SysMgr.environList:
+                # OOMWATCH already emits its own singular trigger_config
+                # (below) to auto-start on ART OOM; TRIGGER emits another
+                # one for its own trigger list. TraceConfig.trigger_config
+                # is optional/singular (perfetto_config.proto), so having
+                # both makes perfetto reject the whole config with "Saw
+                # non-repeating field 'trigger_config' more than once" --
+                # same class as the duration_ms dedup fix a few lines
+                # below, just for a field these two options collide on #
+                if "TRIGGER" in SysMgr.environList:
+                    _printErr(
+                        "OOMWATCH and TRIGGER cannot be used together "
+                        "because both set TraceConfig.trigger_config, "
+                        "which perfetto rejects if set twice"
+                    )
+                    return -1
+
                 if targetstr and "all_heaps" not in targetstr:
                     oomTargetstr = targetstr
                 else:
@@ -44187,11 +44328,33 @@ trigger_config {
                 config = pkgConfig
                 term = True
             if "GETPROCLIST" in SysMgr.environList:
+                # statConfig's own dedicated buffer lands at whatever
+                # index follows every "buffers {}" block already
+                # appended by an earlier fragment (e.g. JAVADUMP) --
+                # without this, its target_buffer defaults to 0 and its
+                # events silently pile into a buffer meant for another
+                # fragment, same class of bug as android.log below #
+                statConfig = statConfig.replace(
+                    "__STAT_TARGET_BUFFER__", str(config.count("buffers {"))
+                )
                 config += statConfig
                 term = True
             if "PERF" in SysMgr.environList:
+                # same target_buffer placeholder pattern as statConfig
+                # above -- verified live: GETPROCLIST+PERF combined
+                # sent linux.ftrace/linux.process_stats events into
+                # statConfig's buffer 0 instead of perfConfig's own #
+                perfConfig = perfConfig.replace(
+                    "__PERF_TARGET_BUFFER__", str(config.count("buffers {"))
+                )
                 config += perfConfig
             if "ATRACE" in SysMgr.environList:
+                # same target_buffer placeholder pattern as above --
+                # verified live: PERF+ATRACE combined left atrace's own
+                # buffer at 0 bytes while its events piled into perf's #
+                atraceConfig = atraceConfig.replace(
+                    "__ATRACE_TARGET_BUFFER__", str(config.count("buffers {"))
+                )
                 config += atraceConfig
             if (
                 "HEAPPROF" in SysMgr.environList
@@ -44199,6 +44362,10 @@ trigger_config {
             ):
                 config += heapConfig
             if "FTRACE" in SysMgr.environList:
+                # same target_buffer placeholder pattern as above #
+                ftraceConfig = ftraceConfig.replace(
+                    "__FTRACE_TARGET_BUFFER__", str(config.count("buffers {"))
+                )
                 config += ftraceConfig
             if "ANDLOG" in SysMgr.environList:
                 # android.log's own dedicated buffer (declared at the top
@@ -73316,6 +73483,15 @@ Options:
     Miscellaneous:
     -q  INCKERNEL               include kernel frames in CPU profiling
     -q  TASKCLOCK               use PERF_COUNT_SW_TASK_CLOCK (per-task) instead of CPU clock
+    -q  PERFTIMEBASE:<TP>       switch linux.perf timebase from counter+frequency (default) to a
+                                ftrace tracepoint event, so stacks are sampled only when it fires
+                                (e.g. PERFTIMEBASE:"raw_syscalls/sys_enter"); mutually exclusive
+                                with TASKCLOCK (ignored with a warning if both are set)
+    -q  PERFTPFILTER:<EXPR>     kernel ftrace filter expression restricting which occurrences of
+                                the PERFTIMEBASE tracepoint trigger a sample (e.g. "id == 64" for
+                                write on aarch64); requires PERFTIMEBASE, errors out otherwise
+    -q  PERFTPPERIOD:<N>        sample every N occurrences of the PERFTIMEBASE tracepoint
+                                (default: 1 = every occurrence); ignored without PERFTIMEBASE
     -q  NOGUARDRAILS            disable Perfetto recording guardrails (high-frequency tracing)
     -q  COMPRESS                compress output with ZSTD
     -q  WAITREADY               wait for all data sources to start before detaching
@@ -73411,6 +73587,11 @@ Examples:
     - {2:1} with system call tracing
         # {0:1} {1:1} -q PERF, SYSCALL
         # {0:1} {1:1} -q FTRACE:"sched/sched_switch", SYSCALL
+
+    - {2:1} with stack sampling gated on a specific syscall (perf tracepoint timebase)
+        # {0:1} {1:1} -g com.android.car -q PERF, PERFTIMEBASE:"raw_syscalls/sys_enter", PERFTPFILTER:"id == 64"
+        # {0:1} {1:1} -g com.android.car -q PERF, PERFTIMEBASE:"raw_syscalls/sys_enter", PERFTPFILTER:"id == 64", PERFTPPERIOD:1
+        # note: 64 is the write syscall number on aarch64
 
     - {2:1} with flight-recorder mode (capture trace only when trigger fires)
         # {0:1} {1:1} -q PERF, TRIGGER:my.app.crash
