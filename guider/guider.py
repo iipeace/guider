@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "260930"
+__revision__ = "261001"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -43334,7 +43334,53 @@ class AndroidMgr(object):
             _printErr("failed to use output path '%s'" % outPath)
             return -1
 
-        javaTarget = "JAVADUMP" in SysMgr.environList
+        # javaTarget marks the plain JAVADUMP one-shot session, which
+        # perfetto exits on its own after duration_ms (so the wait/
+        # cleanup paths below skip sending SIGINT and just wait for
+        # natural exit). JAVADUMPINTERVAL switches JAVADUMP to a
+        # continuous (duration_ms: 0) session instead -- treating it as
+        # javaTarget here would hang forever waiting for a perfetto
+        # process that never exits on its own and never gets SIGINT'd #
+        javaTarget = (
+            "JAVADUMP" in SysMgr.environList
+            and "JAVADUMPINTERVAL" not in SysMgr.environList
+        )
+
+        # HEAPPROF and JAVADUMP combined used to silently drop heapConfig
+        # (the config-assembly site further down only appends it when
+        # JAVADUMP is NOT set, to avoid a duration_ms/trigger_config-style
+        # TraceConfig field clash between the two) -- the user got a
+        # JAVADUMP-only recording with no indication HEAPPROF was ignored.
+        # Same pattern as the OOMWATCH+TRIGGER mutual exclusion below #
+        if (
+            "HEAPPROF" in SysMgr.environList
+            and "JAVADUMP" in SysMgr.environList
+        ):
+            _printErr(
+                "HEAPPROF and JAVADUMP cannot be used together in a single "
+                "recording; run them separately"
+            )
+            return -1
+
+        # JAVADUMPINTERVAL/HEAPDUMPINTERVAL only take effect inside
+        # javaConfig/heapConfig, which the config-assembly site further
+        # down only appends when JAVADUMP/HEAPPROF is actually set --
+        # without this check, setting the interval alone silently did
+        # nothing (no error, no periodic dump), same class of gap as
+        # SYSCALLFILTER requiring SYSCALL below #
+        if (
+            "JAVADUMPINTERVAL" in SysMgr.environList
+            and "JAVADUMP" not in SysMgr.environList
+        ):
+            _printErr("JAVADUMPINTERVAL requires JAVADUMP to be set")
+            return -1
+
+        if (
+            "HEAPDUMPINTERVAL" in SysMgr.environList
+            and "HEAPPROF" not in SysMgr.environList
+        ):
+            _printErr("HEAPDUMPINTERVAL requires HEAPPROF to be set")
+            return -1
 
         # early-exit: JAVADIFF — diff two existing .prof files #
         if "JAVADIFF" in SysMgr.environList:
@@ -43661,6 +43707,32 @@ class AndroidMgr(object):
                         "\n      block_client_timeout_us: %s" % blockTo
                     )
 
+            # HEAPDUMPINTERVAL adds a periodic dump every N ms on top of
+            # HEAPPROF's existing continuous sampling session, same
+            # purpose/shape as JAVADUMPINTERVAL above but for native
+            # heaps -- HEAPPROF alone only dumps once at session end #
+            _heapContinuousDump = ""
+            if "HEAPDUMPINTERVAL" in SysMgr.environList:
+                try:
+                    _heapDumpIntervalMs = long(
+                        SysMgr.environList["HEAPDUMPINTERVAL"][0]
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    _printErr(
+                        "failed to parse HEAPDUMPINTERVAL value '%s'"
+                        % SysMgr.environList["HEAPDUMPINTERVAL"][0],
+                        True,
+                    )
+                    return -1
+                _heapContinuousDump = (
+                    "      continuous_dump_config {\n"
+                    "        dump_phase_ms: 0\n"
+                    "        dump_interval_ms: %s\n"
+                    "      }\n" % _heapDumpIntervalMs
+                )
+
             heapConfig = """
 buffers {
   size_kb: 63488
@@ -43674,6 +43746,7 @@ data_sources {
       sampling_interval_bytes: %s
       block_client: %s%s
       %s
+%s
 
     }
   }
@@ -43690,11 +43763,35 @@ data_sources {
                 blockClient,
                 blockToStr,
                 targetstr,
+                _heapContinuousDump,
             )
 
             procStatPollMs = int(
                 SysMgr.environList.get("PROCSTATPOLL", ["100"])[0]
             )
+
+            # PROCFD/PROCSMAPS are shared across every linux.process_stats
+            # instance (atraceConfig/perfConfig/ftraceConfig/statConfig/
+            # logConfig all declare their own) via this common line, same
+            # pattern as procStatPollMs above. resolve_process_fds needs a
+            # raw_syscalls/sys_exit ftrace event to actually resolve FDs
+            # (perfetto docs) -- warn, don't block, since it's opt-in #
+            _procStatsExtraLines = ""
+            if "PROCFD" in SysMgr.environList:
+                _procStatsExtraLines += "      resolve_process_fds: true\n"
+                if (
+                    "PERF" not in SysMgr.environList
+                    and "FTRACE" not in SysMgr.environList
+                    and "SYSCALL" not in SysMgr.environList
+                ):
+                    _printWarn(
+                        "PROCFD works best with PERF/FTRACE/SYSCALL "
+                        "enabled (needs raw_syscalls/sys_exit to "
+                        "resolve FDs)",
+                        True,
+                    )
+            if "PROCSMAPS" in SysMgr.environList:
+                _procStatsExtraLines += "      scan_smaps_rollup: true\n"
 
             tagList = []
             if "ATRACE" in SysMgr.environList:
@@ -43757,11 +43854,12 @@ data_sources {
     target_buffer: __ATRACE_TARGET_BUFFER__
     process_stats_config {
       proc_stats_poll_ms: %s
+%s
     }
   }
 }
             """
-                % (procStatPollMs,)
+                % (procStatPollMs, _procStatsExtraLines)
                 if "NOPROCSTAT" not in SysMgr.environList
                 else ""
             )
@@ -43887,11 +43985,12 @@ data_sources {
     target_buffer: __PERF_TARGET_BUFFER__
     process_stats_config {
       proc_stats_poll_ms: %s
+%s
     }
   }
 }
             """
-                % (procStatPollMs,)
+                % (procStatPollMs, _procStatsExtraLines)
                 if "NOPROCSTAT" not in SysMgr.environList
                 else ""
             )
@@ -44026,12 +44125,13 @@ data_sources {
     target_buffer: __FTRACE_TARGET_BUFFER__
     process_stats_config {
       proc_stats_poll_ms: %s
+%s
     }
   }
 }
 
             """
-                % (procStatPollMs,)
+                % (procStatPollMs, _procStatsExtraLines)
                 if "NOPROCSTAT" not in SysMgr.environList
                 else ""
             )
@@ -44067,6 +44167,33 @@ data_sources {
             else:
                 javaTargetstr = 'process_cmdline: "*"'
 
+            # JAVADUMPINTERVAL switches JAVADUMP from a single one-shot
+            # dump (duration_ms: 1000, see the dedup site below) to a
+            # periodic dump every N ms via continuous_dump_config, so
+            # memory-leak trends can be observed across one recording
+            # instead of needing several separate one-shot runs #
+            _javaContinuousDump = ""
+            if "JAVADUMPINTERVAL" in SysMgr.environList:
+                try:
+                    _javaDumpIntervalMs = long(
+                        SysMgr.environList["JAVADUMPINTERVAL"][0]
+                    )
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    _printErr(
+                        "failed to parse JAVADUMPINTERVAL value '%s'"
+                        % SysMgr.environList["JAVADUMPINTERVAL"][0],
+                        True,
+                    )
+                    return -1
+                _javaContinuousDump = (
+                    "      continuous_dump_config {\n"
+                    "        dump_phase_ms: 0\n"
+                    "        dump_interval_ms: %s\n"
+                    "      }\n" % _javaDumpIntervalMs
+                )
+
             javaConfig = """
 buffers {
   size_kb: 100024
@@ -44078,7 +44205,7 @@ data_sources {
     name: "android.java_hprof"
     java_hprof_config {
       %s
-
+%s
     }
   }
 }
@@ -44090,6 +44217,7 @@ data_sources {
 }
             """ % (
                 javaTargetstr,
+                _javaContinuousDump,
             )
 
             pkgConfig = """
@@ -44173,12 +44301,14 @@ data_sources {
       scan_all_processes_on_start: true
       record_thread_names: true
       proc_stats_poll_ms: %s
+%s
     }
   }
 }
 
             """ % (
                     procStatPollMs,
+                    _procStatsExtraLines,
                 )
 
             statConfig = """
@@ -44198,10 +44328,13 @@ data_sources {
     process_stats_config {
       scan_all_processes_on_start: true
       record_thread_names: true
+%s
     }
   }
 }
-            """
+            """ % (
+                _procStatsExtraLines,
+            )
 
             powerConfig = """
 data_sources {
@@ -44424,7 +44557,10 @@ trigger_config {
                     "\nduration_ms: 100\nwrite_into_file: true\n"
                     "flush_timeout_ms: 30000\nflush_period_ms: 604800000\n"
                 )
-            elif "JAVADUMP" in SysMgr.environList:
+            elif (
+                "JAVADUMP" in SysMgr.environList
+                and "JAVADUMPINTERVAL" not in SysMgr.environList
+            ):
                 config += "\nduration_ms: 1000\n"
             else:
                 config += (
@@ -44436,6 +44572,53 @@ trigger_config {
                 or "OOMWATCH" in SysMgr.environList
             ):
                 config += "data_source_stop_timeout_ms: 100000\n"
+
+            # MAXFILESIZE/FILEWRITEPERIOD are also singular TraceConfig
+            # fields (max_file_size_bytes/file_write_period_ms), same
+            # dedup concern as duration_ms above -- only meaningful
+            # alongside write_into_file (long/continuous recordings
+            # that would otherwise grow the output file unbounded) #
+            if "write_into_file: true" in config:
+                if "MAXFILESIZE" in SysMgr.environList:
+                    try:
+                        maxFileSize = long(
+                            SysMgr.environList["MAXFILESIZE"][0]
+                        )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        _printErr(
+                            "failed to parse MAXFILESIZE value '%s'"
+                            % SysMgr.environList["MAXFILESIZE"][0],
+                            True,
+                        )
+                        return -1
+                    config += "max_file_size_bytes: %s\n" % maxFileSize
+
+                if "FILEWRITEPERIOD" in SysMgr.environList:
+                    try:
+                        fileWritePeriod = long(
+                            SysMgr.environList["FILEWRITEPERIOD"][0]
+                        )
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        _printErr(
+                            "failed to parse FILEWRITEPERIOD value '%s'"
+                            % SysMgr.environList["FILEWRITEPERIOD"][0],
+                            True,
+                        )
+                        return -1
+                    config += "file_write_period_ms: %s\n" % fileWritePeriod
+            elif (
+                "MAXFILESIZE" in SysMgr.environList
+                or "FILEWRITEPERIOD" in SysMgr.environList
+            ):
+                _printWarn(
+                    "MAXFILESIZE/FILEWRITEPERIOD have no effect without "
+                    "write_into_file (e.g. with plain JAVADUMP)",
+                    True,
+                )
 
             # android.heapprofd/android.java_hprof(.oom)/frametimeline/
             # layers/vulkan.memory_tracker packets all carry a raw pid with
@@ -44477,11 +44660,13 @@ data_sources {
       scan_all_processes_on_start: true
       record_thread_names: true
       proc_stats_poll_ms: %s
+%s
     }
   }
 }
 """ % (
                     procStatPollMs,
+                    _procStatsExtraLines,
                 )
 
             # prepend a default buffers block when optional-only data sources
@@ -44597,7 +44782,23 @@ data_sources {
                     % props
                 )
 
+            if "SYSCALLFILTER" in SysMgr.environList and (
+                "SYSCALL" not in SysMgr.environList
+            ):
+                _printErr("SYSCALLFILTER requires SYSCALL to be set")
+                return -1
+
             if "SYSCALL" in SysMgr.environList:
+                # syscall_events (empty = record all syscalls, the
+                # previous unconditional behavior) restricts sys_enter/
+                # sys_exit to only the named syscalls -- without it,
+                # a busy syscall like futex/read/write floods the
+                # buffer, drowning out whatever the user actually
+                # wanted to trace #
+                _syscallFilterLines = "\n".join(
+                    '      syscall_events: "%s"' % s
+                    for s in SysMgr.environList.get("SYSCALLFILTER", [])
+                )
                 config += """
 data_sources {
   config {
@@ -44605,10 +44806,13 @@ data_sources {
     ftrace_config {
       ftrace_events: "raw_syscalls/sys_enter"
       ftrace_events: "raw_syscalls/sys_exit"
+%s
     }
   }
 }
-                """
+                """ % (
+                    _syscallFilterLines,
+                )
 
             if "TRIGGER" in SysMgr.environList:
                 triggerMode = SysMgr.environList.get(
@@ -73440,6 +73644,8 @@ Options:
     -q  APP                     profile target app(s) specified with -g
     -q  ANDLOG                  capture Android logcat during recording
     -q  SYSCALL                 enable system call tracing (linux.ftrace syscalls)
+    -q  SYSCALLFILTER:<NAME>    restrict SYSCALL to specific syscalls only (e.g. SYSCALLFILTER:sys_write);
+                                  can be repeated; default (unset) records every syscall; requires SYSCALL
     -q  FTRACE:<EVENT>          add custom ftrace event (e.g. FTRACE:"sched/sched_switch")
     -q  POWER                   enable battery counter and power rail monitoring
     -q  CPUFREQ[:<POLL:ms>]     record CPU frequency changes via linux.sys_stats
@@ -73455,7 +73661,14 @@ Options:
                                   LEVEL: FULL or MINIMAL (default: FULL)
 
     Heap profiling:
-    -q  JAVADUMP                Java heap snapshot (native parser by default)
+    -q  JAVADUMP                Java heap snapshot (native parser by default); mutually exclusive
+                                  with HEAPPROF (run them in separate recordings)
+    -q  JAVADUMPINTERVAL:<ms>   take a periodic Java heap dump every <ms> instead of JAVADUMP's
+                                  single one-shot dump, to observe leak trends in one recording;
+                                  requires JAVADUMP, errors out otherwise
+    -q  HEAPDUMPINTERVAL:<ms>   take a periodic native heap dump every <ms> on top of HEAPPROF's
+                                  continuous sampling (HEAPPROF alone only dumps once at session end);
+                                  requires HEAPPROF, errors out otherwise
     -q  HEAPDUMP                Java heap dump via am dumpheap (.hprof format)
     -q  JAVADIFF:<A>:<B>        diff two .prof heap snapshots (leak analysis)
     -q  HEAPDIFF:<A>:<B>        diff two .hprof heap snapshots (leak analysis)
@@ -73501,6 +73714,14 @@ Options:
     -q  TRIGGERTIMEOUT:<ms>     trigger wait timeout in milliseconds
     -q  PERFETTO:<PATH>         path to perfetto binary on device
     -q  PROCSTATPOLL:<ms>       process stats poll interval in ms (default: 100)
+    -q  PROCFD                  resolve per-process open file descriptors in linux.process_stats
+                                  (works best combined with PERF/FTRACE/SYSCALL)
+    -q  PROCSMAPS               scan per-process /proc/pid/smaps_rollup in linux.process_stats
+                                  for detailed RSS/PSS breakdown
+    -q  MAXFILESIZE:<BYTES>     stop recording once the output file reaches BYTES (requires a
+                                  continuous/write_into_file session, e.g. default PERF/ATRACE/etc)
+    -q  FILEWRITEPERIOD:<ms>    how often buffered data is flushed to the output file (requires
+                                  a continuous/write_into_file session)
     -q  STARTRSS:<SIZE>         start profiling only when target RSS exceeds SIZE (e.g. 500M)
     -q  STOPRSS:<SIZE>          stop profiling when target RSS exceeds SIZE
     -q  ADDCONFIG:<FILE>        merge additional Perfetto config file
@@ -73587,6 +73808,17 @@ Examples:
     - {2:1} with system call tracing
         # {0:1} {1:1} -q PERF, SYSCALL
         # {0:1} {1:1} -q FTRACE:"sched/sched_switch", SYSCALL
+        # {0:1} {1:1} -q PERF, SYSCALL, SYSCALLFILTER:sys_write           (only sys_write, not every syscall)
+        # {0:1} {1:1} -q PERF, SYSCALL, SYSCALLFILTER:sys_read, SYSCALLFILTER:sys_write
+
+    - {2:1} with per-process FD and smaps_rollup detail in process_stats
+        # {0:1} {1:1} -q PERF, PROCFD
+        # {0:1} {1:1} -q PERF, PROCSMAPS
+        # {0:1} {1:1} -q PERF, PROCFD, PROCSMAPS
+
+    - {2:1} with an output file size/flush cap for long recordings
+        # {0:1} {1:1} -q PERF, MAXFILESIZE:104857600                     (stop once the file reaches 100MB)
+        # {0:1} {1:1} -q PERF, FILEWRITEPERIOD:5000                      (flush to disk every 5s)
 
     - {2:1} with stack sampling gated on a specific syscall (perf tracepoint timebase)
         # {0:1} {1:1} -g com.android.car -q PERF, PERFTIMEBASE:"raw_syscalls/sys_enter", PERFTPFILTER:"id == 64"
@@ -73627,6 +73859,13 @@ Examples:
         # {0:1} {1:1} -I output.prof -q JAVADUMP                                                  (report existing .prof directly)
         # {0:1} {1:1} -I output.prof -q JAVADUMP, TRACECONV:/data/local/tmp/traceconv
         Note: JAVADUMP automatically keeps the .prof file (KEEPRECFILE implied)
+
+    - Track an application's Java heap over time (periodic dump, leak trend analysis)
+        # {0:1} {1:1} -g com.android.phone -q JAVADUMP, APP, JAVADUMPINTERVAL:5000 -R 60
+        # {0:1} {1:1} -q JAVADUMP, JAVADUMPINTERVAL:5000 -R 60                              (whole system)
+
+    - Track native heap allocations over time (periodic dump on top of HEAPPROF)
+        # {0:1} {1:1} -g com.android.phone -q HEAPPROF, APP, HEAPDUMPINTERVAL:5000 -R 60
 
     - Diff two Perfetto .prof heap snapshots (memory leak analysis)
         # {0:1} {1:1} -q JAVADIFF:before.prof:after.prof, TRACECONV:/data/local/tmp/traceconv
