@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261001"
+__revision__ = "261002"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -43612,6 +43612,21 @@ class AndroidMgr(object):
                     ["target_pid: %s" % pid for pid in pids]
                 )
                 memTarget = target = pids
+
+                # atrace -a / FtraceConfig.atrace_apps matches against
+                # each process' own /proc/self/cmdline (its argv0, see
+                # atrace_is_cmdline_match() in system/core/libcutils/
+                # trace-dev.inc) -- not a package name, so getCmdline's
+                # argv0 (same as /proc/pid/cmdline) works for both apps
+                # and system services (e.g. "system_server"), unlike the
+                # APP branch above which only resolves installed package
+                # names via getPkgList() and drops non-package targets #
+                _appNames = set()
+                for pid in pids:
+                    _argv = SysMgr.getCmdline(pid, retList=True)
+                    if _argv and _argv[0]:
+                        _appNames.add(_argv[0])
+                apps = ",".join(sorted(_appNames))
             else:
                 cmdstr = ": [SYSTEM]"
                 targetstr = "all_heaps: true"
@@ -43770,6 +43785,27 @@ data_sources {
                 SysMgr.environList.get("PROCSTATPOLL", ["100"])[0]
             )
 
+            # NOMEMSTAT keeps linux.process_stats (so process/thread names
+            # still resolve in the UI, unlike NOPROCSTAT which drops the
+            # data source entirely) but switches it from a repeating
+            # /proc-wide mem_counters poll to a single scan_all_processes_
+            # on_start dump at trace start -- Perfetto's own poller has no
+            # per-process filtering (see process_stats_data_source.cc's
+            # "TODO: implement filtering of processes by names"), so this
+            # is the only way to get names without the repeated full-/proc
+            # memory scan. device-verified (66aed018): mem_counters 0,
+            # cmdline/threads still present via the one-shot dump #
+            _memStatOverride = ""
+            if "NOMEMSTAT" in SysMgr.environList:
+                procStatPollMs = 0
+                _memStatOverride = "      scan_all_processes_on_start: true\n"
+                if "PROCSTATPOLL" in SysMgr.environList:
+                    _printWarn(
+                        "PROCSTATPOLL has no effect with NOMEMSTAT "
+                        "(poll interval is forced to 0)",
+                        True,
+                    )
+
             # PROCFD/PROCSMAPS are shared across every linux.process_stats
             # instance (atraceConfig/perfConfig/ftraceConfig/statConfig/
             # logConfig all declare their own) via this common line, same
@@ -43855,11 +43891,12 @@ data_sources {
     process_stats_config {
       proc_stats_poll_ms: %s
 %s
+%s
     }
   }
 }
             """
-                % (procStatPollMs, _procStatsExtraLines)
+                % (procStatPollMs, _procStatsExtraLines, _memStatOverride)
                 if "NOPROCSTAT" not in SysMgr.environList
                 else ""
             )
@@ -43986,11 +44023,12 @@ data_sources {
     process_stats_config {
       proc_stats_poll_ms: %s
 %s
+%s
     }
   }
 }
             """
-                % (procStatPollMs, _procStatsExtraLines)
+                % (procStatPollMs, _procStatsExtraLines, _memStatOverride)
                 if "NOPROCSTAT" not in SysMgr.environList
                 else ""
             )
@@ -44126,12 +44164,13 @@ data_sources {
     process_stats_config {
       proc_stats_poll_ms: %s
 %s
+%s
     }
   }
 }
 
             """
-                % (procStatPollMs, _procStatsExtraLines)
+                % (procStatPollMs, _procStatsExtraLines, _memStatOverride)
                 if "NOPROCSTAT" not in SysMgr.environList
                 else ""
             )
@@ -73714,6 +73753,11 @@ Options:
     -q  TRIGGERTIMEOUT:<ms>     trigger wait timeout in milliseconds
     -q  PERFETTO:<PATH>         path to perfetto binary on device
     -q  PROCSTATPOLL:<ms>       process stats poll interval in ms (default: 100)
+    -q  NOMEMSTAT               keep process/thread names resolving in the UI (one-shot scan)
+                                  but disable the repeating /proc-wide mem_counters poll that
+                                  shows every process on the system; unlike NOPROCSTAT, which
+                                  drops names too. has no effect combined with NOPROCSTAT or
+                                  PROCSTATPOLL (both warn and are overridden)
     -q  PROCFD                  resolve per-process open file descriptors in linux.process_stats
                                   (works best combined with PERF/FTRACE/SYSCALL)
     -q  PROCSMAPS               scan per-process /proc/pid/smaps_rollup in linux.process_stats
@@ -73783,6 +73827,16 @@ Examples:
         # {0:1} {1:1} -g "*.phone" -q PERF, KEEPRECFILE, NOREP, ATRACE, APP, ATRACETAG:pm, ATRACETAG:am
         # {0:1} {1:1} -q PERF, KEEPRECFILE, NOREP, FTRACE:"raw_syscalls/sys_enter", FTRACE:"raw_syscalls/sys_exit"
         # {0:1} {1:1} -q PERF, KEEPRECFILE, NOREP, ANDLOG, ANDLOGTAG:"guider", ANDLOGID:LID_CRASH, RUNCMDLIST:"ls -lha", IGNORESIGNAL:"SIGRT*"
+
+    - {2:1} for specific processes without every other process' memory stats cluttering the trace
+        # {0:1} {1:1} -g system_server -q ATRACE, ATRACETAG:aidl, KEEPRECFILE, NOREP, NOMEMSTAT
+        # {0:1} {1:1} -g "*homescreen, system_server" -q ATRACE, ATRACETAG:"*", KEEPRECFILE, NOREP, NOMEMSTAT
+        #     NOMEMSTAT: process/thread names still resolve in the UI (one-shot scan at trace
+        #     start), but the repeating /proc-wide mem_counters poll -- which would otherwise
+        #     show every process on the system, not just the ones targeted with -g -- is
+        #     disabled. Compare with NOPROCSTAT below, which also drops the names:
+        # {0:1} {1:1} -g system_server -q ATRACE, ATRACETAG:aidl, KEEPRECFILE, NOREP, NOPROCSTAT
+        #     NOPROCSTAT: removes linux.process_stats entirely (no mem stats, no names either)
 
     - {2:1} with battery/power rail and wakelock tracking
         # {0:1} {1:1} -q PERF, POWER
