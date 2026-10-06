@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261002"
+__revision__ = "261006"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -206,6 +206,7 @@ class ConfigMgr(object):
         "GETSETTINGS",
         "GETUSERLIST",
         "GETWINDOWINFO",
+        "GETWINDOWSTAT",
         "GRANTPERM",
         "CARKEY",
         "INPUT",
@@ -40545,6 +40546,393 @@ class AndroidMgr(object):
         SysMgr.printPipe("\n".join(ret))
 
     @staticmethod
+    def parseWindowDump(lines, displayLines=None):
+        windowData = {}
+        curNum = None
+        curBlock = []
+        focusAddr = None
+        globalLines = []
+        inGlobal = False
+
+        headerPat = re.compile(
+            r"Window #(?P<num>\d+) Window\{(?P<addr>\S+) (?P<uid>\S+) (?P<act>.*)\}:"
+        )
+        # imeInputTarget is the only reliable "current input focus" marker
+        # in this dumpsys version (mCurrentFocus/mFocusedApp are absent,
+        # device-verified); its addr matches a window's own addr field,
+        # letting us flag the focused window #
+        focusPat = re.compile(r"imeInputTarget in display# \d+ Window\{(\S+) ")
+        # device-level "mRotation=N" (bare digit) only ever appears as its
+        # own trailing-section line; the ROTATION_0-style name embedded
+        # inside the mGlobalConfiguration={...} line never matches \d+, so
+        # the two never collide despite sharing the same field name #
+        globalPats = {
+            "topFocusedDisplayId": re.compile(r"\bmTopFocusedDisplayId=(\d+)"),
+            "systemBooted": re.compile(r"\bmSystemBooted=(true|false)"),
+            "displayEnabled": re.compile(r"\bmDisplayEnabled=(true|false)"),
+            "displayFrozen": re.compile(r"\bmDisplayFrozen=(true|false)"),
+            "deviceRotation": re.compile(r"\bmRotation=(\d+)\b"),
+            "globalRotationName": re.compile(
+                r"mGlobalConfiguration=.*?\bmRotation=(ROTATION_\d+)"
+            ),
+            "animWindowScale": re.compile(r"Animation settings:.*?\bwindow=([\d.]+)"),
+            "animTransitionScale": re.compile(
+                r"Animation settings:.*?\btransition=([\d.]+)"
+            ),
+            "animatorScale": re.compile(r"Animation settings:.*?\banimator=([\d.]+)"),
+        }
+        # dumpsys display's mOverrideDisplayInfo always reflects whatever
+        # resolution "wm size" last set (the dumpsys window AccessibilityController
+        # display-list this used to come from only appears when an a11y
+        # observer is registered -- device-verified absent on some runs
+        # even on the same device -- and never reflects "wm size" overrides,
+        # only the physical panel size) #
+        overrideDisplayInfoPat = re.compile(
+            r'mOverrideDisplayInfo=DisplayInfo\{"[^"]*", displayId (\d+),'
+            r".*?\breal (\d+) x (\d+)"
+        )
+        # each "  Display N:" block in dumpsys display pairs mDisplayId
+        # with its own mDisplayOffset=(x, y) -- the override region's
+        # position within the physical panel (e.g. a "wm size"-shrunk
+        # display can be offset instead of anchored at the panel's
+        # origin), which the WxH size alone doesn't convey. Matched
+        # per-block (split first) rather than with one DOTALL regex --
+        # a block missing mDisplayOffset would otherwise let a non-greedy
+        # "closest" match bleed into the FOLLOWING block's mDisplayId and
+        # misattribute its offset #
+        displayBlockSplitPat = re.compile(r"(?=\bDisplay \d+:)")
+        displayIdPat = re.compile(r"\bmDisplayId=(\d+)")
+        displayOffsetPat = re.compile(r"\bmDisplayOffset=\((-?\d+), (-?\d+)\)")
+        fieldPats = {
+            "displayId": re.compile(r"\bmDisplayId=(-?\d+)"),
+            "rootTaskId": re.compile(r"\brootTaskId=(-?\d+)"),
+            # mSession{addr PID:UID} carries the owning process PID -- not
+            # exposed anywhere else in the window block, and this is the
+            # join key for cross-referencing against guider's own
+            # top/ttop process view #
+            "pid": re.compile(r"\bmSession=Session\{\S+ (\d+):"),
+            # ty=INPUT_CONSUMER (usually paired with if=INPUT_FEATURE_SPY,
+            # e.g. GestureSpyView) is a touch-dispatch-only window with no
+            # drawable content -- isVisible=true there means "included in
+            # WM's visibility computation for input routing", not "has
+            # visible pixels on screen", so it needs to be distinguished
+            # from an actually-rendered window in the Vis column #
+            "winType": re.compile(r"\bty=(\S+)"),
+            "package": re.compile(r"\bpackage=(\S+)"),
+            "ownerUid": re.compile(r"\bmOwnerUid=(\d+)"),
+            "showForAllUsers": re.compile(r"\bshowForAllUsers=(true|false)"),
+            "appop": re.compile(r"\bappop=(\S+)"),
+            "requested": re.compile(r"\bRequested w=(\d+) h=(\d+)"),
+            "frame": re.compile(
+                r"\bFrames: parent=\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\] "
+                r"display=\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\] "
+                r"frame=\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"
+            ),
+            "visible": re.compile(r"\bisVisible=(true|false)"),
+            "viewVisibility": re.compile(r"\bmViewVisibility=(0x[0-9a-fA-F]+)"),
+            "hasSurface": re.compile(r"\bmHasSurface=(true|false)"),
+            "ready": re.compile(r"\bisReadyForDisplay\(\)=(true|false)"),
+            "obscured": re.compile(r"\bmObscured=(true|false)"),
+            # distinct signal from hasSurface/visible -- flags a window
+            # whose enter animation hasn't finished yet, independent of
+            # whether it already has a surface drawn #
+            "enterAnimPending": re.compile(r"\bmEnterAnimationPending=(true|false)"),
+            # fade in/out animations are commonly alpha-interpolated, so a
+            # window mid-animation can have isVisible=true while its
+            # Surface alpha is near 0 -- a different trap than the
+            # INPUT_CONSUMER one above, but the same shape: Vis alone
+            # doesn't guarantee actual on-screen opacity. Absent when no
+            # Surface has been allocated yet (hasSurface=false) #
+            "alpha": re.compile(r"\bSurface:.*?\balpha=([\d.]+)"),
+        }
+
+        def _flush():
+            if curNum is None:
+                return
+            text = "\n".join(curBlock)
+            info = windowData[curNum]
+            for key, pat in fieldPats.items():
+                m = pat.search(text)
+                if not m:
+                    continue
+                if key == "requested":
+                    info["requestedW"], info["requestedH"] = m.groups()
+                elif key == "frame":
+                    g = [int(x) for x in m.groups()]
+                    info["frame"] = {
+                        "parent": g[0:4],
+                        "display": g[4:8],
+                        "frame": g[8:12],
+                    }
+                elif key in (
+                    "visible",
+                    "hasSurface",
+                    "ready",
+                    "obscured",
+                    "showForAllUsers",
+                    "enterAnimPending",
+                ):
+                    info[key] = m.group(1) == "true"
+                elif key == "alpha":
+                    info[key] = float(m.group(1))
+                else:
+                    info[key] = m.group(1)
+
+        for raw in lines:
+            s = raw.lstrip()
+            m = headerPat.match(s)
+            if m:
+                _flush()
+                d = m.groupdict()
+                curNum = d.pop("num")
+                curBlock = []
+                windowData[curNum] = d
+                continue
+
+            # a "Window #" line that fails the full header regex (garbled
+            # output, unexpected format) must not silently fall through to
+            # curBlock.append() below -- that would corrupt the *previous*
+            # window's block with this header line's text instead of
+            # being treated as its own boundary #
+            if s.startswith("Window #"):
+                SysMgr.printWarn(
+                    "failed to parse window info from '%s'" % s.rstrip()
+                )
+                _flush()
+                curNum = None
+                curBlock = []
+                continue
+
+            # device-verified bug: without this, the LAST window's block
+            # never terminates (no "next Window #" line follows it) and
+            # silently absorbs the entire trailing global-summary section
+            # -- AccessibilityController's "WindowsForAccessibilityObserver{
+            # mDisplayId=N, ...}" lines carry the exact same field names as
+            # a real window, risking data corruption on the last entry.
+            # Rather than discard this trailing section, switch to
+            # collecting it as global/display info instead #
+            if raw.startswith("  mGlobalConfiguration") or raw.startswith(
+                "AccessibilityController"
+            ):
+                _flush()
+                curNum = None
+                curBlock = []
+                inGlobal = True
+
+            if inGlobal:
+                globalLines.append(raw)
+                fm = focusPat.search(raw)
+                if fm:
+                    focusAddr = fm.group(1)
+                continue
+
+            # imeInputTarget only ever appears in the trailing global
+            # section (handled above via the inGlobal branch), never
+            # inside a window block -- no need to search for it here #
+            if curNum is not None:
+                curBlock.append(raw)
+        _flush()
+
+        globalInfo = {}
+        globalText = "\n".join(globalLines)
+        for key, pat in globalPats.items():
+            m = pat.search(globalText)
+            if not m:
+                continue
+            if key in ("systemBooted", "displayEnabled", "displayFrozen"):
+                globalInfo[key] = m.group(1) == "true"
+            elif key in (
+                "animWindowScale",
+                "animTransitionScale",
+                "animatorScale",
+            ):
+                globalInfo[key] = float(m.group(1))
+            else:
+                globalInfo[key] = m.group(1)
+        # best-effort, omit key entirely if dumpsys display wasn't supplied
+        # or didn't match (e.g. unexpected format on some Android version) #
+        displays = {}
+        if displayLines:
+            displayText = "\n".join(displayLines)
+            for m in overrideDisplayInfoPat.finditer(displayText):
+                displays[m.group(1)] = {"w": int(m.group(2)), "h": int(m.group(3))}
+            for block in displayBlockSplitPat.split(displayText):
+                didm = displayIdPat.search(block)
+                offm = displayOffsetPat.search(block)
+                if didm and offm and didm.group(1) in displays:
+                    displays[didm.group(1)]["offX"] = int(offm.group(1))
+                    displays[didm.group(1)]["offY"] = int(offm.group(2))
+        if displays:
+            globalInfo["displays"] = displays
+
+        if not windowData:
+            SysMgr.printWarn("failed to parse any window from dumpsys output")
+            return windowData, globalInfo
+
+        if focusAddr:
+            for info in windowData.values():
+                info["focused"] = info.get("addr") == focusAddr
+
+        return windowData, globalInfo
+
+    @staticmethod
+    def getWindowStat(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "window", "windows"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get window info")
+            return
+
+        # dumpsys window windows's own display-list source is conditional
+        # (only present when an a11y observer is registered) and never
+        # reflects "wm size" overrides -- dumpsys display's
+        # mOverrideDisplayInfo is always present and does #
+        displayLines = SysMgr.executeCmdSync(["dumpsys", "display"])
+
+        windowData, globalInfo = AndroidMgr.parseWindowDump(lines, displayLines)
+        if not windowData:
+            return
+
+        if SysMgr.jsonEnable:
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str({"windows": windowData, "global": globalInfo})
+            )
+            return
+
+        # display/global summary -- shown once above the per-window table
+        # so analysis has physical screen size + rotation + current IME
+        # focus target without having to cross-reference raw dumpsys
+        # output #
+        if globalInfo.get("displays"):
+
+            def _fmtDisplay(dp, sz):
+                s = "DP%s=%dx%d" % (dp, sz["w"], sz["h"])
+                offX, offY = sz.get("offX"), sz.get("offY")
+                if offX or offY:
+                    s += "(offset %d,%d)" % (offX, offY)
+                return s
+
+            dispStr = ", ".join(
+                _fmtDisplay(dp, sz)
+                for dp, sz in sorted(
+                    globalInfo["displays"].items(), key=lambda x: int(x[0])
+                )
+            )
+            SysMgr.printPipe("Displays: %s" % dispStr)
+        SysMgr.printPipe(
+            "Rotation: %s, TopFocusedDisplay: %s, Booted: %s, "
+            "DisplayEnabled: %s, DisplayFrozen: %s"
+            % (
+                globalInfo.get("deviceRotation", "-"),
+                globalInfo.get("topFocusedDisplayId", "-"),
+                globalInfo.get("systemBooted", "-"),
+                globalInfo.get("displayEnabled", "-"),
+                globalInfo.get("displayFrozen", "-"),
+            )
+        )
+        if "animWindowScale" in globalInfo:
+            SysMgr.printPipe(
+                "AnimScale: window=%s, transition=%s, animator=%s"
+                % (
+                    globalInfo.get("animWindowScale", "-"),
+                    globalInfo.get("animTransitionScale", "-"),
+                    globalInfo.get("animatorScale", "-"),
+                )
+            )
+        onlyVis = "ONLYVISWIN" in SysMgr.environList
+        # Vis is pre-padded to a fixed width before colorizing below --
+        # UtilMgr.convColor() wraps it in ANSI escape codes, and applying
+        # a {width} spec to an already-escaped string here would count
+        # the invisible escape bytes toward the width, desyncing this and
+        # every column after it from the header row #
+        visWidth = 4
+        alphaWidth = 5
+        fmt = "{0:>3} {1:>2} {2:>6} {3:<28} {4:<30} {5:<22} {6} {7:^5} {8:^4} {9}"
+        header = fmt.format(
+            "No",
+            "DP",
+            "PID",
+            "Package",
+            "Activity",
+            "Size(WxH@X,Y)",
+            "{0:^{1}}".format("Vis", visWidth),
+            "Focus",
+            "Anim",
+            "{0:^{1}}".format("Alpha", alphaWidth),
+        )
+        SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        nrVis = 0
+        for num, info in sorted(windowData.items(), key=lambda x: int(x[0])):
+            visible = info.get("visible", False)
+            if visible:
+                nrVis += 1
+            if onlyVis and not visible:
+                continue
+
+            curPkg = info.get("package") or "-"
+            if pkg and pkg not in curPkg:
+                continue
+
+            act = info.get("act", "")
+            if "/" in act:
+                apkg, acls = act.split("/", 1)
+                if acls.startswith(apkg):
+                    acls = acls[len(apkg) :]
+                act = acls.lstrip(".") or apkg
+
+            frame = info.get("frame", {}).get("frame")
+            if frame:
+                l, t, r, b = frame
+                size = "%dx%d@(%d,%d)" % (r - l, b - t, l, t)
+            else:
+                size = "-"
+
+            isInputOnly = info.get("winType") == "INPUT_CONSUMER"
+            if isInputOnly:
+                vis = "I"
+            else:
+                vis = "O" if visible else ""
+                if visible and info.get("obscured"):
+                    vis += "*"
+            vis = "{0:^{1}}".format(vis, visWidth)
+            if isInputOnly:
+                vis = UtilMgr.convColor(vis, "YELLOW")
+            elif visible:
+                vis = UtilMgr.convColor(vis, "GREEN")
+            focus = "*" if info.get("focused") else ""
+            anim = "*" if info.get("enterAnimPending") else ""
+
+            alphaVal = info.get("alpha")
+            alpha = "%.2f" % alphaVal if alphaVal is not None else ""
+            alpha = "{0:^{1}}".format(alpha, alphaWidth)
+            if alphaVal is not None and alphaVal < 1.0:
+                alpha = UtilMgr.convColor(alpha, "YELLOW")
+
+            SysMgr.printPipe(
+                fmt.format(
+                    num,
+                    info.get("displayId", "-"),
+                    info.get("pid", "-"),
+                    curPkg[:28],
+                    act[:30],
+                    size,
+                    vis,
+                    focus,
+                    anim,
+                    alpha,
+                )
+            )
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe("Total: %d windows, %d visible" % (len(windowData), nrVis))
+
+    @staticmethod
     def getBatteryInfo():
         cmd = ["dumpsys", "battery"]
         ret = SysMgr.executeCmdSync(cmd)
@@ -43168,6 +43556,7 @@ class AndroidMgr(object):
             ("STOPSERVICE", "stopservice", AndroidMgr.stopService),
             ("GETGFXINFO", "gfxinfo", AndroidMgr.getGfxInfo),
             ("GETWINDOWINFO", "windowinfo", AndroidMgr.getWindowInfo),
+            ("GETWINDOWSTAT", "windowstat", AndroidMgr.getWindowStat),
             ("SETORIENTATION", "orientation", AndroidMgr.setOrientation),
             ("TOGGLEWIFI", "togglewifi", AndroidMgr.toggleWifi),
             ("TOGGLEBT", "togglebt", AndroidMgr.toggleBt),
@@ -50943,7 +51332,7 @@ Commands:
         - GETANRINFO/GETBATTERYINFO/GETCPUINFO
         - GETFEATURELIST/GETLIBRARYLIST/GETUSERLIST
         - GETCONF
-        - GETGFXINFO/GETWINDOWINFO|Option
+        - GETGFXINFO/GETWINDOWINFO/GETWINDOWSTAT|Option
         - GETPEAK
         - GETPKG/GETPKGINFO/GETPKGLIST/GETPKGLISTINFO{|Option}
         - GETPKGATTR/GETPERMLIST/GETACTLIST/GETAPPSTAT/GETDUMPLIST|Option
@@ -73546,6 +73935,44 @@ Examples:
     - Print window hierarchy
         # {0:1} {1:1} getwindowinfo
         # {0:1} {1:1} getwindowinfo:"com.example.app"
+
+    - Print window summary (package/activity/size/visible)
+        # {0:1} {1:1} getwindowstat
+        # {0:1} {1:1} getwindowstat:"com.example.app"
+        # {0:1} {1:1} getwindowstat -q ONLYVISWIN
+        # {0:1} {1:1} getwindowstat -J
+
+        Global stats printed above the per-window table:
+            Displays             current size (WxH) per display ID, from
+                                  "dumpsys display" (reflects "wm size"
+                                  overrides, not just the physical panel);
+                                  an "(offset X,Y)" suffix is shown when
+                                  the override region is shifted within
+                                  the physical panel instead of anchored
+                                  at its origin
+            Rotation              current device rotation (0/1/2/3 = 0/90/
+                                  180/270 degrees)
+            TopFocusedDisplay     display ID currently holding input focus
+            Booted                whether the system has finished booting
+            DisplayEnabled        whether the display is enabled for output
+            DisplayFrozen         whether display updates are frozen (e.g.
+                                  during a rotation or configuration change)
+            AnimScale             window/transition/animator animation
+                                  duration scale factors (1.0 = normal
+                                  speed, from Developer Options)
+
+        Per-window columns:
+            Vis                   O = visible with real content, I = an
+                                  input-only window with no drawable
+                                  content (e.g. a touch-spy overlay),
+                                  blank = not visible
+            Focus                 marks the window currently holding IME
+                                  input focus
+            Anim                  marks a window whose enter animation
+                                  hasn't finished yet
+            Alpha                 current Surface alpha (opacity); shown
+                                  only once a Surface has been allocated,
+                                  highlighted when below 1.0 (fading in/out)
 
     - Print battery info
         # {0:1} {1:1} getbatteryinfo
