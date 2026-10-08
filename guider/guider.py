@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.9"
-__revision__ = "261006"
+__revision__ = "261008"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -207,6 +207,7 @@ class ConfigMgr(object):
         "GETUSERLIST",
         "GETWINDOWINFO",
         "GETWINDOWSTAT",
+        "GETTASKSTAT",
         "GRANTPERM",
         "CARKEY",
         "INPUT",
@@ -40575,11 +40576,15 @@ class AndroidMgr(object):
             "globalRotationName": re.compile(
                 r"mGlobalConfiguration=.*?\bmRotation=(ROTATION_\d+)"
             ),
-            "animWindowScale": re.compile(r"Animation settings:.*?\bwindow=([\d.]+)"),
+            "animWindowScale": re.compile(
+                r"Animation settings:.*?\bwindow=([\d.]+)"
+            ),
             "animTransitionScale": re.compile(
                 r"Animation settings:.*?\btransition=([\d.]+)"
             ),
-            "animatorScale": re.compile(r"Animation settings:.*?\banimator=([\d.]+)"),
+            "animatorScale": re.compile(
+                r"Animation settings:.*?\banimator=([\d.]+)"
+            ),
         }
         # dumpsys display's mOverrideDisplayInfo always reflects whatever
         # resolution "wm size" last set (the dumpsys window AccessibilityController
@@ -40629,14 +40634,18 @@ class AndroidMgr(object):
                 r"frame=\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"
             ),
             "visible": re.compile(r"\bisVisible=(true|false)"),
-            "viewVisibility": re.compile(r"\bmViewVisibility=(0x[0-9a-fA-F]+)"),
+            "viewVisibility": re.compile(
+                r"\bmViewVisibility=(0x[0-9a-fA-F]+)"
+            ),
             "hasSurface": re.compile(r"\bmHasSurface=(true|false)"),
             "ready": re.compile(r"\bisReadyForDisplay\(\)=(true|false)"),
             "obscured": re.compile(r"\bmObscured=(true|false)"),
             # distinct signal from hasSurface/visible -- flags a window
             # whose enter animation hasn't finished yet, independent of
             # whether it already has a surface drawn #
-            "enterAnimPending": re.compile(r"\bmEnterAnimationPending=(true|false)"),
+            "enterAnimPending": re.compile(
+                r"\bmEnterAnimationPending=(true|false)"
+            ),
             # fade in/out animations are commonly alpha-interpolated, so a
             # window mid-animation can have isVisible=true while its
             # Surface alpha is near 0 -- a different trap than the
@@ -40644,6 +40653,14 @@ class AndroidMgr(object):
             # doesn't guarantee actual on-screen opacity. Absent when no
             # Surface has been allocated yet (hasSurface=false) #
             "alpha": re.compile(r"\bSurface:.*?\balpha=([\d.]+)"),
+            # rootTaskId above is the window's ROOT task; the window's
+            # immediate (possibly nested) task is the trailing "t<N>" on
+            # mActivityRecord -- device-verified these differ for windows
+            # whose task is nested under a different root (e.g. a home
+            # launcher activity's task nested under the home root task) #
+            "immediateTaskId": re.compile(
+                r"\bmActivityRecord=ActivityRecord\{\S+ \S+ \S+ t(\d+)\}"
+            ),
         }
 
         def _flush():
@@ -40755,7 +40772,10 @@ class AndroidMgr(object):
         if displayLines:
             displayText = "\n".join(displayLines)
             for m in overrideDisplayInfoPat.finditer(displayText):
-                displays[m.group(1)] = {"w": int(m.group(2)), "h": int(m.group(3))}
+                displays[m.group(1)] = {
+                    "w": int(m.group(2)),
+                    "h": int(m.group(3)),
+                }
             for block in displayBlockSplitPat.split(displayText):
                 didm = displayIdPat.search(block)
                 offm = displayOffsetPat.search(block)
@@ -40766,7 +40786,9 @@ class AndroidMgr(object):
             globalInfo["displays"] = displays
 
         if not windowData:
-            SysMgr.printWarn("failed to parse any window from dumpsys output")
+            SysMgr.printWarn(
+                "failed to parse any window from dumpsys output", always=True
+            )
             return windowData, globalInfo
 
         if focusAddr:
@@ -40785,6 +40807,22 @@ class AndroidMgr(object):
         if not lines:
             SysMgr.printErr("failed to get window info")
             return
+        # a permission-denied/missing-service dumpsys reply is a short,
+        # non-empty line (device-verified: "Can't find service: window"
+        # from an app context, exit code 0) that silently sails past the
+        # "if not lines" guard above and then fails every window header
+        # regex -- without this check, getwindowstat used to print
+        # nothing but the banner and exit, leaving no clue it wasn't a
+        # real empty-window-list case #
+        if len(lines) <= 2 and any(
+            "Permission Denial" in l or "Can't find service" in l
+            for l in lines
+        ):
+            SysMgr.printErr(
+                "dumpsys window windows was denied -- run as root or a "
+                "shell with android.permission.DUMP (%s)" % lines[0]
+            )
+            return
 
         # dumpsys window windows's own display-list source is conditional
         # (only present when an a11y observer is registered) and never
@@ -40792,15 +40830,48 @@ class AndroidMgr(object):
         # mOverrideDisplayInfo is always present and does #
         displayLines = SysMgr.executeCmdSync(["dumpsys", "display"])
 
-        windowData, globalInfo = AndroidMgr.parseWindowDump(lines, displayLines)
+        windowData, globalInfo = AndroidMgr.parseWindowDump(
+            lines, displayLines
+        )
         if not windowData:
             return
 
+        # join against gettaskstat's Task data for TaskMode/RootTask --
+        # a window's own rootTaskId says WHICH task it belongs to, but
+        # not whether that task is currently fullscreen or split-screen,
+        # which only "dumpsys activity activities" exposes #
+        actLines = SysMgr.executeCmdSync(["dumpsys", "activity", "activities"])
+        taskData = AndroidMgr.parseActivityDump(actLines)
+
         if SysMgr.jsonEnable:
+            # gettaskstat -J already includes its own join result
+            # (winCount/visWinCount) -- mirror that here so getwindowstat
+            # -J doesn't silently drop the only join field (taskMode)
+            # it computes, forcing JSON consumers to call gettaskstat
+            # separately just to learn fullscreen vs multi-window #
+            jsonWindows = {}
+            for num, info in windowData.items():
+                entry = dict(info)
+                rtid = info.get("rootTaskId")
+                entry["taskMode"] = (
+                    taskData.get(rtid, {}).get("mode") if rtid else None
+                )
+                jsonWindows[num] = entry
             SysMgr.printPipe(
-                UtilMgr.convDict2Str({"windows": windowData, "global": globalInfo})
+                UtilMgr.convDict2Str(
+                    {"windows": jsonWindows, "global": globalInfo}
+                )
             )
             return
+
+        # the table is wide enough (RootTask/AppOp pushed it past the
+        # 156-col default ttyCols) that printPipe()'s terminal-width trim
+        # can clip long rows (e.g. a long package name + "SYSTEM_ALERT_
+        # WINDOW" appop together) -- "-q NOCUT" opts into the full
+        # untrimmed width via the same SysMgr.setStream() helper other
+        # andcmd table printers use, default behavior (trimmed) unchanged #
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
 
         # display/global summary -- shown once above the per-window table
         # so analysis has physical screen size + rotation + current IME
@@ -40850,18 +40921,29 @@ class AndroidMgr(object):
         # every column after it from the header row #
         visWidth = 4
         alphaWidth = 5
-        fmt = "{0:>3} {1:>2} {2:>6} {3:<28} {4:<30} {5:<22} {6} {7:^5} {8:^4} {9}"
+        # RootTask's value length varies a lot (bare taskId like "1" vs
+        # "1000070" vs "1000066*"), so like Vis/Alpha it needs an
+        # explicit width -- otherwise AppOp (the column right after it)
+        # starts at a different x-offset on every row #
+        rootTaskWidth = 10
+        fmt = (
+            "{0:>3} {1:>2} {2:>6} {3:<28} {4:<30} {5:<13} {6:<22} "
+            "{7} {8:^5} {9:^4} {10} {11:<%d} {12}" % rootTaskWidth
+        )
         header = fmt.format(
             "No",
             "DP",
             "PID",
             "Package",
             "Activity",
+            "TaskMode",
             "Size(WxH@X,Y)",
             "{0:^{1}}".format("Vis", visWidth),
             "Focus",
             "Anim",
             "{0:^{1}}".format("Alpha", alphaWidth),
+            "RootTask",
+            "AppOp",
         )
         SysMgr.printPipe("=" * len(header))
         SysMgr.printPipe(header)
@@ -40914,6 +40996,38 @@ class AndroidMgr(object):
             if alphaVal is not None and alphaVal < 1.0:
                 alpha = UtilMgr.convColor(alpha, "YELLOW")
 
+            rootTaskId = info.get("rootTaskId")
+            taskMode = (
+                taskData.get(rootTaskId, {}).get("mode", "-")
+                if rootTaskId
+                else "-"
+            )
+            # unlike fullscreen/multi-window (the only values seen live),
+            # the mode= field is \S+ and Android does define other
+            # windowing modes (freeform, pinned, etc.) -- truncate like
+            # Package/Activity so an unusually long value can't push
+            # every column after it out of alignment #
+            taskMode = taskMode[:13]
+            immediateTaskId = info.get("immediateTaskId")
+            # only append the nested-task marker when there's an actual
+            # taskId to attach it to -- otherwise a window with no
+            # rootTaskId at all but some immediateTaskId would render as
+            # the confusing "-*" instead of staying a plain "-" #
+            if rootTaskId:
+                rootTask = rootTaskId
+                if immediateTaskId and immediateTaskId != rootTaskId:
+                    rootTask += "*"
+            else:
+                rootTask = "-"
+
+            # appop is parsed but was previously only visible in -J JSON
+            # output -- NONE is the overwhelming majority (device-
+            # verified), so only surface it when it's actually set (e.g.
+            # SYSTEM_ALERT_WINDOW, confirmed live on a real window) to
+            # avoid cluttering every other row with "NONE" #
+            appop = info.get("appop")
+            appopCol = appop if appop and appop != "NONE" else ""
+
             SysMgr.printPipe(
                 fmt.format(
                     num,
@@ -40921,16 +41035,476 @@ class AndroidMgr(object):
                     info.get("pid", "-"),
                     curPkg[:28],
                     act[:30],
+                    taskMode,
                     size,
                     vis,
                     focus,
                     anim,
                     alpha,
+                    rootTask,
+                    appopCol,
                 )
             )
 
         SysMgr.printPipe("-" * len(header))
-        SysMgr.printPipe("Total: %d windows, %d visible" % (len(windowData), nrVis))
+        SysMgr.printPipe(
+            "Total: %d windows, %d visible" % (len(windowData), nrVis)
+        )
+
+    @staticmethod
+    def parseActivityDump(lines):
+        taskData = {}
+        curTaskId = None
+        curBlock = []
+        curDepth = 0
+        curDisplayId = "0"
+        inTail = False
+        # (indent, taskId) stack to find each nested task's IMMEDIATE
+        # parent -- the header's own "rootTaskId=" field is NOT the
+        # immediate parent, it's the topmost ancestor (AOSP WindowState.
+        # java dumps getRootTaskId(), which walks the container chain to
+        # the top). For a 3-level nest A->B->C, both B's and C's headers
+        # carry rootTaskId=A, so using that field directly as
+        # parentTaskId would flatten C to be A's child instead of B's.
+        # Indentation depth is the only reliable immediate-parent signal
+        # in this dump format #
+        indentStack = []
+
+        displayPat = re.compile(r"^Display #(\d+) \(activities")
+        # top-level Task blocks start at exactly 2-space indent ("  * Task{");
+        # anything indented deeper is a nested child task, identified via
+        # its own header's "rootTaskId=" field (device-verified: only
+        # child task headers carry this field, top-level ones don't) #
+        taskHeaderPat = re.compile(
+            r"^(?P<indent>\s*)\* Task\{(?P<addr>\S+) #(?P<taskId>\d+) "
+            r"type=(?P<type>\S+)(?: A=(?P<uid>\d+):(?P<pkg>\S+))? "
+            r"U=(?P<user>\d+)(?: rootTaskId=\d+)? visible=(?P<visible>true|false) "
+            r"visibleRequested=\S+ mode=(?P<mode>\S+) translucent=\S+ "
+            r"sz=(?P<sz>\d+)\}"
+        )
+        rootTaskIdPat = re.compile(r"\brootTaskId=(\d+)")
+        # line-anchored so this only matches the Task's own standalone
+        # "    mBounds=Rect(...)" line, not the same substring nested
+        # inside "mGlobalConfig={...winConfig={ mBounds=Rect(...) ...}}"
+        # elsewhere in the block #
+        boundsPat = re.compile(
+            r"^\s*mBounds=Rect\((-?\d+), (-?\d+) - (-?\d+), (-?\d+)\)",
+            re.MULTILINE,
+        )
+        createdByOrgPat = re.compile(r"\bmCreatedByOrganizer=(true|false)")
+        histPat = re.compile(
+            r"\* Hist  #(\d+): ActivityRecord\{(\S+) \S+ (\S+) t\d+\}"
+        )
+        statePat = re.compile(r"\bstate=(\S+)")
+        finishingPat = re.compile(r"\bfinishing=(true|false)")
+        pidPat = re.compile(r"\bapp=ProcessRecord\{\S+ (\d+):")
+        orgTaskPat = re.compile(
+            r"\((fullscreen|multi-window)\) Task\{\S+ #(\d+)"
+        )
+
+        def _flush():
+            if curTaskId is None:
+                return
+            text = "\n".join(curBlock)
+            info = taskData[curTaskId]
+            bm = boundsPat.search(text)
+            if bm:
+                info["bounds"] = [int(x) for x in bm.groups()]
+            cbm = createdByOrgPat.search(text)
+            if cbm:
+                info["createdByOrganizer"] = cbm.group(1) == "true"
+
+            # a Task's back stack can hold any number of Hist entries;
+            # split on "* Hist #" boundaries so each entry's own
+            # state=/finishing=/PID don't leak across entries #
+            hist = []
+            histBlocks = re.split(r"(?=\* Hist  #\d+:)", text)
+            for hb in histBlocks:
+                hm = histPat.search(hb)
+                if not hm:
+                    continue
+                sm = statePat.search(hb)
+                fm = finishingPat.search(hb)
+                pm = pidPat.search(hb)
+                hist.append(
+                    {
+                        "addr": hm.group(2),
+                        "act": hm.group(3),
+                        "state": sm.group(1) if sm else None,
+                        "finishing": (fm.group(1) == "true") if fm else None,
+                        "pid": pm.group(1) if pm else None,
+                    }
+                )
+            info["hist"] = hist
+
+        for raw in lines:
+            dm = displayPat.match(raw)
+            if dm:
+                curDisplayId = dm.group(1)
+                continue
+
+            # ActivityTaskSupervisor state: marks the end of the
+            # per-display Task listing -- same "last block never
+            # terminates" trap as getwindowstat's mGlobalConfiguration
+            # marker, so flush and switch into tail-section handling #
+            if raw.startswith("ActivityTaskSupervisor state:"):
+                _flush()
+                curTaskId = None
+                curBlock = []
+                inTail = True
+                continue
+
+            if inTail:
+                om = orgTaskPat.search(raw)
+                if om:
+                    mode, taskId = om.groups()
+                    if taskId in taskData:
+                        taskData[taskId]["organizerMode"] = mode
+                continue
+
+            tm = taskHeaderPat.match(raw)
+            if tm:
+                indent = len(tm.group("indent"))
+                taskId = tm.group("taskId")
+                rtm = rootTaskIdPat.search(raw)
+                # top-level headers don't carry a "rootTaskId=" field of
+                # their own (device-verified) since they ARE the root --
+                # fall back to their own taskId so the key is never null
+                # for a task that genuinely has no parent #
+                rootTaskId = (
+                    rtm.group(1) if rtm else (taskId if indent <= 2 else None)
+                )
+
+                # pop any stack entries at the same or deeper indent --
+                # they're siblings or children of a block we've already
+                # left, not ancestors of this new task #
+                while indentStack and indentStack[-1][0] >= indent:
+                    indentStack.pop()
+                immediateParent = indentStack[-1][1] if indentStack else None
+                indentStack.append((indent, taskId))
+
+                if indent <= 2:
+                    _flush()
+                    curBlock = []
+                    curDepth = indent
+                    curTaskId = taskId
+                    taskData[taskId] = {
+                        "addr": tm.group("addr"),
+                        "type": tm.group("type"),
+                        "uid": tm.group("uid"),
+                        "package": tm.group("pkg"),
+                        "user": tm.group("user"),
+                        "visible": tm.group("visible") == "true",
+                        "mode": tm.group("mode"),
+                        "sz": int(tm.group("sz")),
+                        "displayId": curDisplayId,
+                        "parentTaskId": immediateParent,
+                        "rootTaskId": rootTaskId,
+                    }
+                else:
+                    # nested child task -- flush the current (parent)
+                    # block's accumulated text first so its Hist entries
+                    # aren't duplicated into the child's parsing pass,
+                    # then start a fresh block for the child while
+                    # keeping the parent's taskId as the reflush target
+                    # once the child itself is flushed #
+                    _flush()
+                    taskData[taskId] = {
+                        "addr": tm.group("addr"),
+                        "type": tm.group("type"),
+                        "uid": tm.group("uid"),
+                        "package": tm.group("pkg"),
+                        "user": tm.group("user"),
+                        "visible": tm.group("visible") == "true",
+                        "mode": tm.group("mode"),
+                        "sz": int(tm.group("sz")),
+                        "displayId": curDisplayId,
+                        # parentTaskId is the IMMEDIATE parent (from the
+                        # indent stack above), while rootTaskId is kept
+                        # separately as the topmost ancestor the header's
+                        # own field actually names -- device-verified
+                        # these differ once nesting goes 3+ levels deep #
+                        "parentTaskId": immediateParent,
+                        "rootTaskId": rootTaskId,
+                    }
+                    curTaskId = taskId
+                    curBlock = []
+                continue
+
+            if curTaskId is not None:
+                curBlock.append(raw)
+        _flush()
+
+        if not taskData:
+            SysMgr.printWarn(
+                "failed to parse any task from dumpsys output", always=True
+            )
+
+        return taskData
+
+    @staticmethod
+    def getTaskStat(pkg=""):
+        if pkg == "SET":
+            pkg = ""
+
+        cmd = ["dumpsys", "activity", "activities"]
+        lines = SysMgr.executeCmdSync(cmd)
+        if not lines:
+            SysMgr.printErr("failed to get activity info")
+            return
+        # same permission-denied/missing-service trap as getwindowstat --
+        # device-verified: "Permission Denial: can't dump ActivityManager
+        # ... due to missing android.permission.DUMP permission" is a
+        # non-empty line that would otherwise silently fail every Task
+        # header regex and exit with no explanation #
+        if len(lines) <= 2 and any(
+            "Permission Denial" in l or "Can't find service" in l
+            for l in lines
+        ):
+            SysMgr.printErr(
+                "dumpsys activity activities was denied -- run as root or "
+                "a shell with android.permission.DUMP (%s)" % lines[0]
+            )
+            return
+
+        taskData = AndroidMgr.parseActivityDump(lines)
+        if not taskData:
+            return
+
+        # join against dumpsys window windows for Win/VisWin -- a Task is
+        # NOT 1:1 with windows (a system UI root task commonly aggregates
+        # many windows, device-verified), so this must be an aggregate
+        # count rather than a window listing (getwindowstat already does
+        # the per-window listing; duplicating it here would be redundant) #
+        # note: this join is keyed by each task's OWN taskId (not by
+        # taskData[taskId]["rootTaskId"], which only exists so a nested
+        # child task can report which topmost ancestor it belongs to --
+        # that's unrelated to this count). A window's rootTaskId is
+        # always the topmost ancestor, so counting by taskId naturally
+        # attributes every window to whichever task IS that topmost
+        # ancestor, and correctly leaves nested child tasks at 0 since
+        # their own windows (if any) are attributed to the root instead #
+        winLines = SysMgr.executeCmdSync(["dumpsys", "window", "windows"])
+        windowData, _ = AndroidMgr.parseWindowDump(winLines)
+        winCounts = {}
+        for info in windowData.values():
+            rtid = info.get("rootTaskId")
+            if not rtid:
+                continue
+            c = winCounts.setdefault(rtid, {"win": 0, "vis": 0})
+            c["win"] += 1
+            if info.get("visible"):
+                c["vis"] += 1
+        for taskId, info in taskData.items():
+            c = winCounts.get(taskId, {"win": 0, "vis": 0})
+            info["winCount"] = c["win"]
+            info["visWinCount"] = c["vis"]
+
+        if SysMgr.jsonEnable:
+            organizer = {
+                tid: info["organizerMode"]
+                for tid, info in taskData.items()
+                if info.get("organizerMode")
+            }
+            SysMgr.printPipe(
+                UtilMgr.convDict2Str(
+                    {"tasks": taskData, "organizer": organizer}
+                )
+            )
+            return
+
+        # same terminal-width trim concern as getwindowstat's table (a
+        # long package name + Activity + state can push a row past the
+        # default 156-col ttyCols) -- "-q NOCUT" opts out via the same
+        # SysMgr.setStream() helper, default (trimmed) behavior unchanged #
+        if "NOCUT" in SysMgr.environList:
+            SysMgr.setStream()
+
+        showTree = "TREE" in SysMgr.environList
+        # taskData's own dict insertion order IS dumpsys's "top to
+        # bottom" listing order (device-verified via AOSP source: the
+        # dump walks the task history in reverse, so the most recently
+        # focused/foregrounded task is always listed first) -- the
+        # default numeric taskId sort below discards that signal
+        # entirely, so "-q DUMPORDER" opts into preserving it instead #
+        dumpOrder = "DUMPORDER" in SysMgr.environList
+        visWidth = 4
+        # TREE mode drops the Parent column entirely -- indentation
+        # already conveys the parent-child relationship, so keeping a
+        # numeric Parent column alongside it would show the same fact
+        # twice and add visual noise (user feedback) #
+        if showTree:
+            fmt = (
+                "{0:>7} {1:>2} {2:>6} {3:<13} {4:<28} {5:<30} "
+                "{6:<8} {7} {8:>5} {9:^3} {10:>3} {11:>6}"
+            )
+            header = fmt.format(
+                "TaskId",
+                "DP",
+                "PID",
+                "Mode",
+                "Package",
+                "Activity",
+                "State",
+                "{0:^{1}}".format("Vis", visWidth),
+                "Depth",
+                "Org",
+                "Win",
+                "VisWin",
+            )
+        else:
+            fmt = (
+                "{0:>7} {1:>6} {2:>2} {3:>6} {4:<13} {5:<28} {6:<30} "
+                "{7:<8} {8} {9:>5} {10:^3} {11:>3} {12:>6}"
+            )
+            header = fmt.format(
+                "TaskId",
+                "Parent",
+                "DP",
+                "PID",
+                "Mode",
+                "Package",
+                "Activity",
+                "State",
+                "{0:^{1}}".format("Vis", visWidth),
+                "Depth",
+                "Org",
+                "Win",
+                "VisWin",
+            )
+        SysMgr.printPipe("=" * len(header))
+        if showTree:
+            SysMgr.printPipe("Task Tree:")
+            SysMgr.printPipe("=" * len(header))
+        SysMgr.printPipe(header)
+        SysMgr.printPipe("-" * len(header))
+
+        def _buildRow(taskId, info, depth):
+            hist = info.get("hist") or []
+            top = hist[0] if hist else None
+            curPkg = info.get("package") or "-"
+
+            act = top["act"] if top else ""
+            if "/" in act:
+                apkg, acls = act.split("/", 1)
+                if acls.startswith(apkg):
+                    acls = acls[len(apkg) :]
+                act = acls.lstrip(".") or apkg
+            act = act or "-"
+
+            state = (top.get("state") if top else None) or "-"
+            pid = (top.get("pid") if top else None) or "-"
+
+            visible = info.get("visible", False)
+            vis = "O" if visible else ""
+            vis = "{0:^{1}}".format(vis, visWidth)
+            if visible:
+                vis = UtilMgr.convColor(vis, "GREEN")
+
+            org = "*" if info.get("organizerMode") else ""
+
+            pkgCol = curPkg[:28]
+            if showTree and depth > 0:
+                pkgCol = ("`- " + pkgCol)[:28]
+
+            # zero is the common case for Depth/Win/VisWin on placeholder
+            # or child tasks (no back stack entries, no windows of their
+            # own) -- showing it as a blank cell instead of a literal "0"
+            # keeps the table focused on the non-trivial values #
+            depthCol = info.get("sz") or ""
+            winCol = info.get("winCount") or ""
+            visWinCol = info.get("visWinCount") or ""
+
+            if showTree:
+                row = fmt.format(
+                    taskId,
+                    info.get("displayId", "-"),
+                    pid,
+                    info.get("mode", "-"),
+                    pkgCol,
+                    act[:30],
+                    state,
+                    vis,
+                    depthCol,
+                    org,
+                    winCol,
+                    visWinCol,
+                )
+            else:
+                row = fmt.format(
+                    taskId,
+                    info.get("parentTaskId") or "",
+                    info.get("displayId", "-"),
+                    pid,
+                    info.get("mode", "-"),
+                    pkgCol,
+                    act[:30],
+                    state,
+                    vis,
+                    depthCol,
+                    org,
+                    winCol,
+                    visWinCol,
+                )
+            return row, visible, curPkg
+
+        nrVis = 0
+        if showTree:
+            # depth-first: a child task is rendered immediately after
+            # its parent, with only the Package column marked -- every
+            # other column stays at the table's fixed column position
+            # regardless of nesting depth, unlike a free-form
+            # "key=value" dump where each field would start at a
+            # different x-offset per row (rejected design, less
+            # scannable) #
+            childrenOf = {}
+            for taskId, info in taskData.items():
+                childrenOf.setdefault(info.get("parentTaskId"), []).append(
+                    taskId
+                )
+
+            def _walk(taskId, depth):
+                nonlocal nrVis
+                info = taskData[taskId]
+                row, visible, curPkg = _buildRow(taskId, info, depth)
+                if visible:
+                    nrVis += 1
+                if not (pkg and pkg not in curPkg):
+                    SysMgr.printPipe(row)
+                # same DUMPORDER-vs-numeric choice as the root level below
+                # -- without this, "-q DUMPORDER,TREE" would preserve
+                # dumpsys order only for root tasks while silently
+                # reverting every child level back to numeric taskId
+                # order, contradicting the option's own description #
+                childIds = childrenOf.get(taskId, [])
+                if not dumpOrder:
+                    childIds = sorted(childIds, key=lambda x: int(x))
+                for childId in childIds:
+                    _walk(childId, depth + 1)
+
+            rootIds = childrenOf.get(None, [])
+            if not dumpOrder:
+                rootIds = sorted(rootIds, key=lambda x: int(x))
+            for taskId in rootIds:
+                _walk(taskId, 0)
+        else:
+            items = (
+                list(taskData.items())
+                if dumpOrder
+                else sorted(taskData.items(), key=lambda x: int(x[0]))
+            )
+            for taskId, info in items:
+                row, visible, curPkg = _buildRow(taskId, info, 0)
+                if visible:
+                    nrVis += 1
+                if pkg and pkg not in curPkg:
+                    continue
+                SysMgr.printPipe(row)
+
+        SysMgr.printPipe("-" * len(header))
+        SysMgr.printPipe(
+            "Total: %d tasks, %d visible" % (len(taskData), nrVis)
+        )
 
     @staticmethod
     def getBatteryInfo():
@@ -43557,6 +44131,7 @@ class AndroidMgr(object):
             ("GETGFXINFO", "gfxinfo", AndroidMgr.getGfxInfo),
             ("GETWINDOWINFO", "windowinfo", AndroidMgr.getWindowInfo),
             ("GETWINDOWSTAT", "windowstat", AndroidMgr.getWindowStat),
+            ("GETTASKSTAT", "taskstat", AndroidMgr.getTaskStat),
             ("SETORIENTATION", "orientation", AndroidMgr.setOrientation),
             ("TOGGLEWIFI", "togglewifi", AndroidMgr.toggleWifi),
             ("TOGGLEBT", "togglebt", AndroidMgr.toggleBt),
@@ -51332,7 +51907,7 @@ Commands:
         - GETANRINFO/GETBATTERYINFO/GETCPUINFO
         - GETFEATURELIST/GETLIBRARYLIST/GETUSERLIST
         - GETCONF
-        - GETGFXINFO/GETWINDOWINFO/GETWINDOWSTAT|Option
+        - GETGFXINFO/GETWINDOWINFO/GETWINDOWSTAT/GETTASKSTAT|Option
         - GETPEAK
         - GETPKG/GETPKGINFO/GETPKGLIST/GETPKGLISTINFO{|Option}
         - GETPKGATTR/GETPERMLIST/GETACTLIST/GETAPPSTAT/GETDUMPLIST|Option
@@ -73940,6 +74515,7 @@ Examples:
         # {0:1} {1:1} getwindowstat
         # {0:1} {1:1} getwindowstat:"com.example.app"
         # {0:1} {1:1} getwindowstat -q ONLYVISWIN
+        # {0:1} {1:1} getwindowstat -q NOCUT
         # {0:1} {1:1} getwindowstat -J
 
         Global stats printed above the per-window table:
@@ -73966,6 +74542,11 @@ Examples:
                                   input-only window with no drawable
                                   content (e.g. a touch-spy overlay),
                                   blank = not visible
+            TaskMode              this window's root task's Mode
+                                  (fullscreen/multi-window), joined from
+                                  "gettaskstat" -- lets you tell split-
+                                  screen windows apart without cross-
+                                  referencing the Size column
             Focus                 marks the window currently holding IME
                                   input focus
             Anim                  marks a window whose enter animation
@@ -73973,6 +74554,86 @@ Examples:
             Alpha                 current Surface alpha (opacity); shown
                                   only once a Surface has been allocated,
                                   highlighted when below 1.0 (fading in/out)
+            RootTask              the window's immediate task ID; an
+                                  appended "*" marks a window whose
+                                  immediate task is nested under a
+                                  different root task (child task case)
+            AppOp                 the AppOps mode this window is drawn
+                                  under; blank when NONE (the common
+                                  case), shown otherwise -- e.g.
+                                  SYSTEM_ALERT_WINDOW flags a window
+                                  drawn via the "draw over other apps"
+                                  permission
+
+        "-q NOCUT" disables the terminal-width trim on each row -- useful
+        when a long Package/Activity/AppOp combination would otherwise be
+        clipped at the default terminal width.
+
+    - Print task/activity-stack summary (taskId/mode/activity/state)
+        # {0:1} {1:1} gettaskstat
+        # {0:1} {1:1} gettaskstat:"com.example.app"
+        # {0:1} {1:1} gettaskstat -J
+        # {0:1} {1:1} gettaskstat -q TREE
+        # {0:1} {1:1} gettaskstat -q NOCUT
+        # {0:1} {1:1} gettaskstat -q DUMPORDER
+
+        Per-task columns:
+            TaskId                root or child task identifier (#N in
+                                  "dumpsys activity activities")
+            Parent                parent task's TaskId when this is a
+                                  nested child task, blank for top-level
+                                  tasks (e.g. a split-screen pane's
+                                  launcher child task under the home root).
+                                  Omitted entirely with "-q TREE" since
+                                  indentation already shows the relationship
+            DP                    display ID the task is shown on
+            PID                   topmost (Hist #0) activity's owning
+                                  process ID; "-" if the task has no
+                                  activity of its own (a TaskId is a back
+                                  stack, not a process -- a task CAN in
+                                  theory host activities running in
+                                  different processes via android:process,
+                                  so this is only the topmost one's PID)
+            Mode                  fullscreen or multi-window, from the
+                                  Task header itself
+            Package/Activity      topmost (Hist #0) activity's package
+                                  and class name, "-" if the task has no
+                                  activity yet (e.g. an organizer-created
+                                  placeholder task)
+            State                 topmost activity's lifecycle state
+                                  (RESUMED/PAUSED/STOPPED/...), "-" if none
+            Vis                   O = task is currently visible, blank =
+                                  not visible
+            Depth                 number of entries in the task's back
+                                  stack (Hist count)
+            Org                   marked with "*" when this task is
+                                  registered with a TaskOrganizer (System
+                                  UI/Shell split-screen or PiP management)
+            Win/VisWin            number of WindowManager windows (and
+                                  how many of those are visible) whose
+                                  rootTaskId points to this task -- a
+                                  system UI root task commonly aggregates
+                                  many windows here, while a plain
+                                  foreground app task usually has exactly
+                                  one
+
+        "-q TREE" prints the same columns (minus Parent) as a depth-first
+        tree instead of a flat list, with a "`- " prefix on the Package
+        column marking nested child tasks under their parent.
+
+        "-q NOCUT" disables the terminal-width trim on each row -- useful
+        when a long Package/Activity combination would otherwise be
+        clipped at the default terminal width.
+
+        "-q DUMPORDER" lists tasks in "dumpsys activity activities"'s own
+        "top to bottom" order instead of sorting by TaskId -- this order
+        reflects actual recency/focus (the most recently foregrounded
+        task is always listed first; AOSP walks the task history in
+        reverse to produce it), so the first row is the task currently
+        holding top focus on its display. The default TaskId sort
+        discards this signal entirely. Applies to both the flat table
+        (whole listing) and "-q TREE" (root-level ordering only --
+        children of a given parent still sort by TaskId).
 
     - Print battery info
         # {0:1} {1:1} getbatteryinfo
