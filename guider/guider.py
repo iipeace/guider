@@ -43566,6 +43566,19 @@ class AndroidMgr(object):
                 "NOSETTINGLIST" not in SysMgr.environList,
                 ["andcmd", "getsettings", "-o" + outPath + "settings.txt"],
             ),
+            # bugrec's termination (post-WAIT) and bugrep's one-shot run
+            # both funnel through this same COLLECT block, so adding
+            # these here covers both without any dump-flag branching;
+            # window/activity dumps were previously absent from every
+            # bugrec/bugrep report #
+            (
+                "NOWINSTAT" not in SysMgr.environList,
+                ["andcmd", "getwindowstat", "-o" + outPath + "windowstat.txt"],
+            ),
+            (
+                "NOTASKSTAT" not in SysMgr.environList,
+                ["andcmd", "gettaskstat", "-o" + outPath + "taskstat.txt"],
+            ),
         ):
             if not cond:
                 continue
@@ -74229,6 +74242,7 @@ Examples:
     - {2:1} without specific features
         # {0:1} {1:1} -q NOLOG, NOVIDEO, NOPIC, NOPERFMON, NOINCPERFREP, NOSETTINGLIST
         # {0:1} {1:1} -q NOOPENFILE, NOERR, NOPROP, NOSCR, NOPKGINFO, NOPKGLIST
+        # {0:1} {1:1} -q NOWINSTAT, NOTASKSTAT
 
     - {2:1} with a log collection timeout in case logd hangs (disabled
       unless set, since a content filter like BUF can legitimately
